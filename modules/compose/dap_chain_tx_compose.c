@@ -257,7 +257,7 @@ static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_ob
 
 static json_object* s_request_command_to_rpc(const char *request, const char * a_net_name, const char * a_url_str, uint16_t a_port) {
     json_object * l_response = NULL;
-    size_t l_response_size = 0; // Initialize to avoid potential undefined behavior
+    size_t l_response_size = 0;
     struct cmd_request* l_cmd_request = s_cmd_request_init();
 
     if (!l_cmd_request) {
@@ -3010,7 +3010,7 @@ int dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_c
 */
 
 
-int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
+int dap_compose_srv_stake_invalidate(int a_argc, char **a_argv)
 {
     const char *l_net_str = NULL,
                *l_wallet_str = NULL,
@@ -3076,36 +3076,129 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
             return -1;
         }
     }
+    json_object *l_json_obj_ret = json_object_new_object();
+    int ret = dap_cli_srv_stake_invalidate_compose(l_json_obj_ret, l_net_str, l_tx_hash_str, l_wallet_str, l_wallet_path, l_cert_str, l_fee, l_url_str, l_port);
+    switch (ret) {
+        case DAP_CLI_STAKE_INVALIDATE_CERT_NOT_FOUND:
+            printf("Error: Specified certificate not found\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_PRIVATE_KEY_MISSING:
+            printf("Error: It is not possible to invalidate a stake using a public key.\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_WRONG_CERT:
+            printf("Error: Specified certificate is wrong\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_LEDGER_ERROR:
+            printf("Error: Failed to retrieve coins from ledger\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_INVALID_TX_HASH:
+            printf("Error: Invalid transaction hash format\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_NOT_DELEGATED:
+            printf("Error: Specified address is not delegated nor this delegating is approved. Try to invalidate with tx hash instead\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_NO_DELEGATE_OUT:
+            printf("Error: Transaction does not have a delegate out\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_PREV_TX_NOT_FOUND:
+            printf("Error: Previous transaction is not found\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_TX_EXISTS:
+            printf("Error: Transaction already exists in the ledger\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_WALLET_NOT_FOUND:
+            printf("Error: Specified wallet not found\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_LEDGER_ERROR:
+            printf("Error: Failed to get response from remote node\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_ITEMS_NOT_FOUND:
+            printf("Error: ITEMS array not found in JSON response\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_OUTPUTS_SPENT:
+            printf("Error: All outputs are spent\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_HASH_NOT_FOUND:
+            printf("Error: Tx_prev_hash not found in ITEMS array\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_COND_TX_ERROR:
+            printf("Error: Request conditional transaction failed\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_COND_TX_NOT_FOUND:
+            printf("Error: Required conditional transaction structures not found\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_SIG_NOT_FOUND:
+            printf("Error: SIG item not found in ITEMS array\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_SIG_DECODE_ERROR:
+            printf("Error: Can't get base64-encoded sign from SIG item\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_WRONG_OWNER:
+            printf("Trying to invalidate delegating tx with not a owner wallet\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_TOKEN_NOT_FOUND:
+            printf("Error: Token ticker not found in response\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_OUTS_NOT_FOUND:
+            printf("Error: Failed to get transaction outputs\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_NOT_ENOUGH_FUNDS:
+            printf("Error: Not enough funds to pay fee\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_IN_ERROR:
+            printf("Error: Can't compose the transaction input\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_OUT_ERROR:
+            printf("Error:Cant add returning coins output\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_NET_FEE_ERROR:
+            printf("Error: Can't add network fee output\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_FEE_ERROR:
+            printf("Error: Can't add fee output\n");
+            break;
+        case DAP_STAKE_TX_INVALIDATE_COMPOSE_FEE_BACK_ERROR:
+            printf("Error: Can't add fee back output\n");
+            break;
+        case DAP_CLI_STAKE_INVALIDATE_OK:
+            printf("%s", json_object_to_json_string(l_json_obj_ret));
+            break;
+        default:
+            printf("Error: Unknown error code: %d\n", ret);
+    }
+    
+    json_object_put(l_json_obj_ret);
+    return ret;
+}
 
+int dap_cli_srv_stake_invalidate_compose(json_object *a_json_obj_ret, const char *a_net_str, const char *a_tx_hash_str, const char *a_wallet_str, 
+                        const char *a_wallet_path, const char *a_cert_str, uint256_t a_fee, const char *a_url_str, uint16_t a_port)
+{
     dap_hash_fast_t l_tx_hash = {};
-    if (l_tx_hash_str) {
-        dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash);
+    if (a_tx_hash_str) {
+        dap_chain_hash_fast_from_str(a_tx_hash_str, &l_tx_hash);
     } else {
         dap_chain_addr_t l_signing_addr;
-        if (l_cert_str) {
-            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
+        if (a_cert_str) {
+            dap_cert_t *l_cert = dap_cert_find_by_name(a_cert_str);
             if (!l_cert) {
-                printf("Specified certificate not found\n");
-                return -4;
+                return DAP_CLI_STAKE_INVALIDATE_CERT_NOT_FOUND;
             }
             if (!l_cert->enc_key->priv_key_data || l_cert->enc_key->priv_key_data_size == 0) {
-                printf("It is not possible to invalidate a stake using a public key.\n");
-                return -5;
+                return DAP_CLI_STAKE_INVALIDATE_PRIVATE_KEY_MISSING;
             }
-            if (dap_chain_addr_fill_from_key(&l_signing_addr, l_cert->enc_key, s_get_net_id(l_net_str))) {
-                printf("Specified certificate is wrong\n");
-                return -6;
+            if (dap_chain_addr_fill_from_key(&l_signing_addr, l_cert->enc_key, s_get_net_id(a_net_str))) {
+                return DAP_CLI_STAKE_INVALIDATE_WRONG_CERT;
             }
         }
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_signing_addr);
 
         char data[512];
         snprintf(data, sizeof(data), 
-                "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", l_net_str);
-        json_object *l_json_coins = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+                "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", a_net_str);
+        json_object *l_json_coins = dap_request_command_to_rpc(data, a_net_str, a_url_str, a_port);
         if (!l_json_coins) {
-            printf("Error: Failed to retrieve coins from ledger\n");
-            return -4;
+            return DAP_CLI_STAKE_INVALIDATE_LEDGER_ERROR;
         }
         
         int items_count = json_object_array_length(l_json_coins);
@@ -3116,9 +3209,8 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
             if (node_addr_str && !dap_strcmp(l_addr_str, node_addr_str)) {
                 const char *tx_hash_str = json_object_get_string(json_object_object_get(item, "tx_hash"));
                 if (dap_chain_hash_fast_from_str(tx_hash_str, &l_tx_hash)) {
-                    printf("Invalid transaction hash format\n");
                     json_object_put(l_json_coins);
-                    return -8;
+                    return DAP_CLI_STAKE_INVALIDATE_INVALID_TX_HASH;
                 }
                 found = true;
                 break;
@@ -3126,20 +3218,18 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
         }
         json_object_put(l_json_coins);
         if (!found) {
-            printf("Specified address is not delegated nor this delegating is approved. Try to invalidate with tx hash instead\n");
-            return -9;
+            return DAP_CLI_STAKE_INVALIDATE_NOT_DELEGATED;
         }
     }
 
-    const char *l_tx_hash_str_tmp = l_tx_hash_str ? l_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash);
+    const char *l_tx_hash_str_tmp = a_tx_hash_str ? a_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash);
 
     char data[512];
     snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_net_str);
-    json_object *l_json_response = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, a_net_str);
+        json_object *l_json_response = dap_request_command_to_rpc(data, a_net_str, a_url_str, a_port);
     if (!l_json_response) {
-        printf("Error: Failed to retrieve transaction info from ledger\n");
-        return -4;
+        return DAP_CLI_STAKE_INVALIDATE_LEDGER_ERROR;
     }
 
     json_object *l_json_items = json_object_array_get_idx(l_json_response, 0);
@@ -3161,9 +3251,8 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
     }
 
     if (!has_delegate_out) {
-        printf("Transaction %s does not have a delegate out\n", l_tx_hash_str_tmp);
         json_object_put(l_json_response);
-        return -11;
+        return DAP_CLI_STAKE_INVALIDATE_NO_DELEGATE_OUT;
     }
 
     json_object *l_json_spents = json_object_object_get(l_json_response, "Spent OUTs");
@@ -3174,18 +3263,16 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
             const char *spent_by_tx = json_object_get_string(json_object_object_get(spent_item, "is spent by tx"));
             if (spent_by_tx) {
                 if (dap_chain_hash_fast_from_str(spent_by_tx, &l_tx_hash)) {
-                    printf("Invalid transaction hash format in response\n");
                     json_object_put(l_json_response);
-                    return -8;
+                    return DAP_CLI_STAKE_INVALIDATE_INVALID_TX_HASH;
                 }
                 l_tx_hash_str_tmp = dap_hash_fast_to_str_static(&l_tx_hash);
                 snprintf(data, sizeof(data), 
-                        "{\"method\": \"ledger\",\"params\": [\"ledger;tx;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_net_str);
-                json_object *l_json_prev_tx = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+                        "{\"method\": \"ledger\",\"params\": [\"ledger;tx;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, a_net_str);
+                json_object *l_json_prev_tx = dap_request_command_to_rpc(data, a_net_str, a_url_str, a_port);
                 if (!l_json_prev_tx) {
-                    printf("Previous transaction %s is not found\n", l_tx_hash_str_tmp);
                     json_object_put(l_json_response);
-                    return -12;
+                    return DAP_CLI_STAKE_INVALIDATE_PREV_TX_NOT_FOUND;
                 }
                 json_object_put(l_json_prev_tx);
                 break; 
@@ -3193,15 +3280,14 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
         }
     }
 
-    if (l_tx_hash_str) {
+    if (a_tx_hash_str) {
         char data[512];
         snprintf(data, sizeof(data), 
-                "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;tx;-net;%s\"],\"id\": \"1\"}", l_net_str);
-        json_object *l_json_coins = dap_request_command_to_rpc(data, l_net_str, l_url_str, l_port);
+                "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;tx;-net;%s\"],\"id\": \"1\"}", a_net_str);
+        json_object *l_json_coins = dap_request_command_to_rpc(data, a_net_str, a_url_str, a_port);
         if (!l_json_coins) {
-            printf("Error: Failed to retrieve coins from ledger\n");
             json_object_put(l_json_response);
-            return -4;
+            return DAP_CLI_STAKE_INVALIDATE_LEDGER_ERROR;
         }
 
         bool tx_exists = false;
@@ -3210,36 +3296,36 @@ int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv)
             json_object *tx_item = json_object_array_get_idx(l_json_coins, i);
             const char *tx_hash = json_object_get_string(json_object_object_get(tx_item, "tx_hash"));
             if (tx_hash && strcmp(tx_hash, l_tx_hash_str_tmp) == 0) {
-                printf("Error: Transaction %s already exists in the ledger\n", l_tx_hash_str_tmp);
                 json_object_put(l_json_coins);
                 json_object_put(l_json_response);
-                return -13;
+                return DAP_CLI_STAKE_INVALIDATE_TX_EXISTS;
             }
         }
         json_object_put(l_json_coins);
     }
     dap_chain_datum_tx_t *l_tx = NULL;
 
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallet_path,NULL);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_str, a_wallet_path,NULL);
     if (!l_wallet) {
-        printf("Specified wallet not found\n");
         json_object_put(l_json_response);
-        return -14;
+        return DAP_CLI_STAKE_INVALIDATE_WALLET_NOT_FOUND;
     }
     dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-    l_tx = dap_stake_tx_invalidate_compose(l_net_str, &l_tx_hash, l_fee, l_enc_key, l_url_str, l_port);
-    json_object * l_json_obj_ret = json_object_new_object();
-    dap_chain_net_tx_to_json(l_tx, l_json_obj_ret);
-    printf("%s", json_object_to_json_string(l_json_obj_ret));
-    json_object_put(l_json_obj_ret);
+    int l_ret = 0;
+    l_tx = dap_stake_tx_invalidate_compose(a_net_str, &l_tx_hash, a_fee, l_enc_key, a_url_str, a_port, &l_ret);
+    if (!l_tx) {
+        json_object_put(l_json_response);
+        return l_ret;
+    }
+    dap_chain_net_tx_to_json(l_tx, a_json_obj_ret);
+
     dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_enc_key);
     json_object_put(l_json_response);
-    return 0;
+    return DAP_CLI_STAKE_INVALIDATE_OK;
 }
 
-
-dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, const char *l_url_str, uint16_t l_port)
+dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, const char *l_url_str, uint16_t l_port, int *l_ret)
 {
     if(!a_net_str || !*a_net_str || !a_tx_hash || !a_key || !l_url_str || !*l_url_str || l_port == 0)
         return NULL;
@@ -3250,14 +3336,14 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
     
     json_object *response = dap_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
     if (!response) {
-        printf("Error: Failed to get response from remote node\n"); 
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_LEDGER_ERROR;
         return NULL;
     }
     json_object *l_items_array = json_object_array_get_idx(response, 0);
     l_items_array = json_object_object_get(l_items_array, "ITEMS");
     if (!l_items_array) {
-        printf("Error: ITEMS array not found in JSON response\n");
         json_object_put(response);
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_ITEMS_NOT_FOUND;
         return NULL;
     }
 
@@ -3265,8 +3351,8 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
     if (l_unspent_outs) {
         const char *all_unspent = json_object_get_string(l_unspent_outs);
         if (all_unspent && strcmp(all_unspent, "yes") == 0) {
-            printf("Error: All outputs are spent\n");
             json_object_put(response);
+            if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_OUTPUTS_SPENT;
             return NULL;
         }
     }
@@ -3287,9 +3373,9 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
         } else if (item_type && strcmp(item_type, "IN COND") == 0) {
             l_tx_prev_hash = json_object_get_string(json_object_object_get(l_item, "Tx_prev_hash"));
             if (!l_tx_prev_hash) {
-                printf("Error: Tx_prev_hash not found in ITEMS array\n");
                 json_object_put(response);
                 DAP_DELETE(l_tx_out_cond);
+                if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_HASH_NOT_FOUND;
                 return NULL;
             }
             l_prev_cond_idx = json_object_get_int(json_object_object_get(l_item, "Tx_out_prev_idx"));
@@ -3299,9 +3385,9 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
             
             json_object *response_cond = dap_request_command_to_rpc(data, a_net_str, l_url_str, l_port);
             if (!response_cond) {
-                printf("Error: Request conditional transaction failed\n"); 
                 json_object_put(response);
                 DAP_DELETE(l_tx_out_cond);
+                if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_COND_TX_ERROR;
                 return NULL;
             }
             json_object_put(response_cond);
@@ -3309,9 +3395,9 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
     }
 
     if (!l_tx_out_cond || !l_tx_prev_hash) {
-        printf("Error: Required conditional transaction structures not found\n");
         json_object_put(response);
         DAP_DELETE(l_tx_out_cond);
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_COND_TX_NOT_FOUND;
         return NULL;
     }
 
@@ -3326,17 +3412,17 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
     }
 
     if (!l_sig_item) {
-        printf("Error: SIG item not found in ITEMS array\n");
         json_object_put(response);
         DAP_DELETE(l_tx_out_cond);
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_SIG_NOT_FOUND;
         return NULL;
     }
 
     const char *l_sign_b64_str = json_object_get_string(json_object_object_get(l_sig_item, "sig_b64"));
     if (!l_sign_b64_str) {
-        printf("Error: Can't get base64-encoded sign from SIG item\n");
         json_object_put(response);
         DAP_DELETE(l_tx_out_cond);
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_SIG_DECODE_ERROR;
         return NULL;
     }
 
@@ -3356,10 +3442,10 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
     dap_chain_addr_t l_wallet_addr;
     dap_chain_addr_fill_from_key(&l_wallet_addr, a_key, s_get_net_id(a_net_str));
     if (!dap_chain_addr_compare(&l_owner_addr, &l_wallet_addr)) {
-        printf("Trying to invalidate delegating tx with not a owner wallet\n");
         json_object_put(response);
         DAP_DELETE(l_tx_out_cond);
         DAP_DELETE(l_tx_sig);
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_WRONG_OWNER;
         return NULL;
     }
     
@@ -3370,10 +3456,10 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
     if (!token_ticker_obj) {
         token_ticker_obj = json_object_object_get(l_json_tiker, "token ticker");
         if (!token_ticker_obj) {
-            printf("Error: Token ticker not found in response\n");
             json_object_put(response);
             DAP_DELETE(l_tx_out_cond);
             DAP_DELETE(l_tx_sig);
+            if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_TOKEN_NOT_FOUND;
             return NULL;
         }
     }
@@ -3384,6 +3470,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
         json_object_put(response);
         DAP_DELETE(l_tx_out_cond);
         DAP_DELETE(l_tx_sig);
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_OUTS_NOT_FOUND;
         return NULL;
     }
 
@@ -3400,11 +3487,11 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
                                                                 l_fee_total, 
                                                                 &l_fee_transfer);
     if (!l_list_fee_out) {
-        printf("Not enough funds to pay fee");
         json_object_put(l_outs_native);
         json_object_put(response);
         DAP_DELETE(l_tx_out_cond);
         DAP_DELETE(l_tx_sig);
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_NOT_ENOUGH_FUNDS;
         return NULL;
     }
 
@@ -3418,23 +3505,23 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
     uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
     dap_list_free_full(l_list_fee_out, NULL);
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
-        printf("Can't compose the transaction input\n");
         dap_chain_datum_tx_delete(l_tx);
         json_object_put(l_outs_native);
         json_object_put(response);
         DAP_DELETE(l_tx_out_cond);
         DAP_DELETE(l_tx_sig);
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_IN_ERROR;
         return NULL;
     }
 
     // add 'out_ext' item
     if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_tx_out_cond->header.value, l_delegated_ticker) == -1) {
         dap_chain_datum_tx_delete(l_tx);
-        printf("Cant add returning coins output\n");
         json_object_put(l_outs_native);
         json_object_put(response);
         DAP_DELETE(l_tx_out_cond);
         DAP_DELETE(l_tx_sig);
+        if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_OUT_ERROR;
         return NULL;
     }
     // add fee items
@@ -3445,6 +3532,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
             json_object_put(response);
             DAP_DELETE(l_tx_out_cond);
             DAP_DELETE(l_tx_sig);
+            if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_NET_FEE_ERROR;
             return NULL;
         }
     }
@@ -3455,6 +3543,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
             json_object_put(response);
             DAP_DELETE(l_tx_out_cond);
             DAP_DELETE(l_tx_sig);
+            if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_FEE_ERROR;
             return NULL;
         }
     }
@@ -3468,6 +3557,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap
             json_object_put(response);
             DAP_DELETE(l_tx_out_cond);
             DAP_DELETE(l_tx_sig);
+            if (l_ret) *l_ret = DAP_STAKE_TX_INVALIDATE_COMPOSE_FEE_BACK_ERROR;
             return NULL;
         }
     }

@@ -62,10 +62,46 @@ int dap_tx_cond_create_compose(int argc, char ** argv);
 int dap_cli_hold_compose(int a_argc, char **a_argv);
 int dap_cli_take_compose(int a_argc, char **a_argv);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
-int dap_cli_srv_stake_invalidate_compose(int a_argc, char **a_argv);
+int dap_compose_srv_stake_invalidate(int a_argc, char **a_argv);
 int dap_cli_srv_stake_delegate_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv);
 int dap_cli_srv_stake_order_remove_compose(int a_argc, char **a_argv);
+
+
+typedef enum {
+    DAP_CLI_STAKE_INVALIDATE_OK = 0,
+    DAP_CLI_STAKE_INVALIDATE_CERT_NOT_FOUND = -1,
+    DAP_CLI_STAKE_INVALIDATE_PRIVATE_KEY_MISSING = -2,
+    DAP_CLI_STAKE_INVALIDATE_WRONG_CERT = -3,
+    DAP_CLI_STAKE_INVALIDATE_LEDGER_ERROR = -4,
+    DAP_CLI_STAKE_INVALIDATE_INVALID_TX_HASH = -5,
+    DAP_CLI_STAKE_INVALIDATE_NOT_DELEGATED = -6,
+    DAP_CLI_STAKE_INVALIDATE_NO_DELEGATE_OUT = -7,
+    DAP_CLI_STAKE_INVALIDATE_PREV_TX_NOT_FOUND = -8,
+    DAP_CLI_STAKE_INVALIDATE_TX_EXISTS = -9,
+    DAP_CLI_STAKE_INVALIDATE_WALLET_NOT_FOUND = -10,
+    DAP_CLI_STAKE_INVALIDATE_COMPOSE_ERROR = -11,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_LEDGER_ERROR = -12,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_ITEMS_NOT_FOUND = -13,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_OUTPUTS_SPENT = -14,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_HASH_NOT_FOUND = -15,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_COND_TX_ERROR = -16,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_COND_TX_NOT_FOUND = -17,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_SIG_NOT_FOUND = -18,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_SIG_DECODE_ERROR = -19,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_WRONG_OWNER = -20,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_TOKEN_NOT_FOUND = -21,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_OUTS_NOT_FOUND = -22,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_NOT_ENOUGH_FUNDS = -23,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_IN_ERROR = -24,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_OUT_ERROR = -25,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_NET_FEE_ERROR = -26,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_FEE_ERROR = -27,
+    DAP_STAKE_TX_INVALIDATE_COMPOSE_FEE_BACK_ERROR = -28
+} dap_cli_stake_invalidate_error_t;
+int dap_cli_srv_stake_invalidate_compose(json_object *a_json_obj_ret, const char *a_net_str, const char *a_tx_hash_str, const char *a_wallet_str, 
+                        const char *a_wallet_path, const char *a_cert_str, uint256_t a_fee, const char *a_url_str, uint16_t a_port);
+dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, const char *l_url_str, uint16_t l_port, int *l_ret);
 
 json_object* dap_request_command_to_rpc(const char *request, const char * a_net_name, const char * a_url_str, uint16_t a_port);
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
@@ -104,7 +140,6 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
                               uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                               bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                               const char *a_net_str, const char *a_token_ticker, const char *l_url_str, uint16_t l_port);
-dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, const char *l_url_str, uint16_t l_port);
 dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_enc_key_t *a_key,
                                                uint256_t a_value, uint256_t a_fee,
                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
