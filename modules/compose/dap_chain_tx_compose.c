@@ -41,9 +41,23 @@
 
 #include <json-c/json.h>
 
+const char* dap_compose_get_net_url(const char* name) {
+    for (int i = 0; i < NET_COUNT; i++) {
+        if (strcmp(netinfo[i].name, name) == 0) {
+            return netinfo[i].url;
+        }
+    }
+    return NULL;
+}
 
-
-const char *arg_wallets_path = NULL;
+uint16_t dap_compose_get_net_port(const char* name) {
+    for (int i = 0; i < NET_COUNT; i++) {
+        if (strcmp(netinfo[i].name, name) == 0) {
+            return netinfo[i].port;
+        }
+    }
+    return 0;
+}
 
 static const char* s_get_native_ticker(const char* name) {
     for (int i = 0; i < NET_COUNT; i++) {
@@ -62,24 +76,6 @@ static dap_chain_net_id_t s_get_net_id(const char* name) {
     }
     dap_chain_net_id_t empty_id = {.uint64 = 0};
     return empty_id;
-}
-
-static const char* s_get_net_url(const char* name) {
-    for (int i = 0; i < NET_COUNT; i++) {
-        if (strcmp(netinfo[i].name, name) == 0) {
-            return netinfo[i].url;
-        }
-    }
-    return NULL;
-}
-
-static uint16_t s_get_net_port(const char* name) {
-    for (int i = 0; i < NET_COUNT; i++) {
-        if (strcmp(netinfo[i].name, name) == 0) {
-            return netinfo[i].port;
-        }
-    }
-    return 0;
 }
 
 
@@ -266,8 +262,8 @@ static json_object* s_request_command_to_rpc(const char *request, const char * a
     }
 
     dap_client_http_request(dap_worker_get_auto(),
-                                a_url_str ? a_url_str : s_get_net_url(a_net_name),
-                                a_port ? a_port : s_get_net_port(a_net_name),
+                                a_url_str ? a_url_str : dap_compose_get_net_url(a_net_name),
+                                a_port ? a_port : dap_compose_get_net_port(a_net_name),
                                 "POST", "application/json",
                                 NULL, request, strlen(request), NULL,
                                 s_cmd_response_handler, s_cmd_error_handler,
@@ -442,7 +438,7 @@ int dap_tx_create_xchange_compose(int argc, char ** argv) {
     const char *l_wallet_path = NULL;
     dap_cli_server_cmd_find_option_val(argv, 1, argc, "-wallet_path", &l_wallet_path);
     if (!l_wallet_path) {
-        arg_wallets_path =
+        l_wallet_path =
         #ifdef DAP_OS_WINDOWS
                     dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
         #elif defined DAP_OS_MAC
@@ -450,8 +446,6 @@ int dap_tx_create_xchange_compose(int argc, char ** argv) {
         #elif defined DAP_OS_UNIX
                     dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
         #endif
-    } else {
-        arg_wallets_path = dap_strdup(l_wallet_path);
     }
 
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
@@ -470,11 +464,11 @@ int dap_tx_create_xchange_compose(int argc, char ** argv) {
     }
 
     if (!l_url_str) {
-        l_url_str = s_get_net_url(l_net_name);
+        l_url_str = dap_compose_get_net_url(l_net_name);
     }
 
     if (!l_port_str) {
-        l_port = s_get_net_port(l_net_name);
+        l_port = dap_compose_get_net_port(l_net_name);
     } else {
         l_port = atoi(l_port_str);
     }
@@ -509,7 +503,7 @@ int dap_tx_create_xchange_compose(int argc, char ** argv) {
         return -1;
     }
 
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, arg_wallets_path, NULL);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path, NULL);
     if(!l_wallet) {
         printf("wallet %s does not exist", l_wallet_name);
         return -1;
@@ -560,7 +554,7 @@ int dap_tx_create_compose(int argc, char ** argv) {
     const char *l_wallet_path = NULL;
     dap_cli_server_cmd_find_option_val(argv, 1, argc, "-wallet_path", &l_wallet_path);
     if (!l_wallet_path) {
-        arg_wallets_path =
+        l_wallet_path =
         #ifdef DAP_OS_WINDOWS
                     dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
         #elif defined DAP_OS_MAC
@@ -568,9 +562,7 @@ int dap_tx_create_compose(int argc, char ** argv) {
         #elif defined DAP_OS_UNIX
                     dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
         #endif
-    } else {
-        arg_wallets_path = dap_strdup(l_wallet_path);
-    }
+    }  
 
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
     if (!l_net_name) {
@@ -579,11 +571,11 @@ int dap_tx_create_compose(int argc, char ** argv) {
     }
 
     if (!dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-url", &l_url_str)) {
-        l_url_str = s_get_net_url(l_net_name);
+        l_url_str = dap_compose_get_net_url(l_net_name);
     }
     const char *l_port_str = NULL;
     if (!dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-port", &l_port_str)) {
-        l_port = s_get_net_port(l_net_name);
+        l_port = dap_compose_get_net_port(l_net_name);
     } else {
         l_port = atoi(l_port_str);
     }
@@ -688,7 +680,7 @@ int dap_tx_create_compose(int argc, char ** argv) {
         DAP_DELETE(l_addr_base58_to_array);
     }
     
-    dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_from_wallet_name, arg_wallets_path, NULL);
+    dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_from_wallet_name, l_wallet_path, NULL);
     if(!l_wallet) {
         printf("Can't open wallet %s", l_from_wallet_name);
         return -12;
@@ -1331,7 +1323,7 @@ int dap_tx_cond_create_compose(int argc, char ** argv)
     const char *l_wallet_path = NULL;
     dap_cli_server_cmd_find_option_val(argv, 1, argc, "-wallet_path", &l_wallet_path);
     if (!l_wallet_path) {
-        arg_wallets_path =
+        l_wallet_path =
         #ifdef DAP_OS_WINDOWS
                     dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
         #elif defined DAP_OS_MAC
@@ -1339,9 +1331,7 @@ int dap_tx_cond_create_compose(int argc, char ** argv)
         #elif defined DAP_OS_UNIX
                     dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
         #endif
-    } else {
-        arg_wallets_path = dap_strdup(l_wallet_path);
-    }
+    }  
 
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-token", &l_token_ticker);
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-w", &l_wallet_str);
@@ -1379,10 +1369,10 @@ int dap_tx_cond_create_compose(int argc, char ** argv)
         return -7;
     }
     if(!l_url_str) {
-        l_url_str = s_get_net_url(l_net_name);
+        l_url_str = dap_compose_get_net_url(l_net_name);
     }
     if(!l_port_str) {
-        l_port = s_get_net_port(l_net_name);
+        l_port = dap_compose_get_net_port(l_net_name);
     } else {
         l_port = atoi(l_port_str);
     }
@@ -1421,7 +1411,7 @@ int dap_tx_cond_create_compose(int argc, char ** argv)
         return -13;
     }
 
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, arg_wallets_path, NULL);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallet_path, NULL);
     if(!l_wallet) {
         printf("Can't open wallet '%s'\n", l_wallet_str);
         return -15;
@@ -1566,7 +1556,6 @@ int  dap_cli_hold_compose(int a_argc, char **a_argv)
             *l_wallet_str = NULL, *l_cert_str = NULL, *l_chain_id_str = NULL,
             *l_time_staking_str = NULL, *l_reinvest_percent_str = NULL, *l_value_fee_str = NULL;
 
-    const char *l_wallets_path								=	arg_wallets_path;
     char 	l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
     dap_time_t              			l_time_staking		=	0;
     uint256_t						    l_reinvest_percent	=	{};
@@ -1582,7 +1571,7 @@ int  dap_cli_hold_compose(int a_argc, char **a_argv)
     const char *l_wallet_path = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-wallet_path", &l_wallet_path);
     if (!l_wallet_path) {
-        arg_wallets_path =
+        l_wallet_path =
         #ifdef DAP_OS_WINDOWS
                     dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
         #elif defined DAP_OS_MAC
@@ -1590,9 +1579,7 @@ int  dap_cli_hold_compose(int a_argc, char **a_argv)
         #elif defined DAP_OS_UNIX
                     dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
         #endif
-    } else {
-        arg_wallets_path = dap_strdup(l_wallet_path);
-    }
+    }  
 
 
     const char *l_hash_out_type = NULL;
@@ -1615,12 +1602,12 @@ int  dap_cli_hold_compose(int a_argc, char **a_argv)
     }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-url", &l_url_str)) {
-        l_url_str = s_get_net_url(l_net_name);
+        l_url_str = dap_compose_get_net_url(l_net_name);
     }
 
     const char *l_port_str = NULL;
     if (!dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-port", &l_port_str)) {
-        l_port = s_get_net_port(l_net_name);
+        l_port = dap_compose_get_net_port(l_net_name);
     } else {
         l_port = atoi(l_port_str);
     }
@@ -1743,7 +1730,7 @@ int  dap_cli_hold_compose(int a_argc, char **a_argv)
         }
     }
 
-    if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path, NULL))) {
+    if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallet_path, NULL))) {
         printf("Error: Unable to open wallet '%s'\n", l_wallet_str);
         return -22;
     }
@@ -1971,7 +1958,7 @@ int dap_cli_take_compose(int a_argc, char **a_argv)
     const char *l_wallet_path = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-wallet_path", &l_wallet_path);
     if (!l_wallet_path) {
-        arg_wallets_path =
+        l_wallet_path =
         #ifdef DAP_OS_WINDOWS
                     dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
         #elif defined DAP_OS_MAC
@@ -1979,9 +1966,7 @@ int dap_cli_take_compose(int a_argc, char **a_argv)
         #elif defined DAP_OS_UNIX
                     dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
         #endif
-    } else {
-        arg_wallets_path = dap_strdup(l_wallet_path);
-    }
+    }  
 
 
     const char *l_hash_out_type = NULL;
@@ -1999,12 +1984,12 @@ int dap_cli_take_compose(int a_argc, char **a_argv)
     }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-url", &l_url_str)) {
-        l_url_str = s_get_net_url(l_net_str);
+        l_url_str = dap_compose_get_net_url(l_net_str);
     }
 
     const char *l_port_str = NULL;
     if (!dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-port", &l_port_str)) {
-        l_port = s_get_net_port(l_net_str);
+        l_port = dap_compose_get_net_port(l_net_str);
     } else {
         l_port = atoi(l_port_str);
     }
@@ -2117,7 +2102,7 @@ int dap_cli_take_compose(int a_argc, char **a_argv)
         return -15;
     }
 
-    if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, arg_wallets_path, NULL))) {
+    if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallet_path, NULL))) {
         printf("Error: Unable to open wallet\n");
         return -16;
     }
@@ -2379,7 +2364,7 @@ int dap_cli_voting_compose(int a_argc, char **a_argv)
     const char *l_wallet_path = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-wallet_path", &l_wallet_path);
     if (!l_wallet_path) {
-        arg_wallets_path =
+        l_wallet_path =
         #ifdef DAP_OS_WINDOWS
                     dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
         #elif defined DAP_OS_MAC
@@ -2387,9 +2372,7 @@ int dap_cli_voting_compose(int a_argc, char **a_argv)
         #elif defined DAP_OS_UNIX
                     dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
         #endif
-    } else {
-        arg_wallets_path = dap_strdup(l_wallet_path);
-    }
+    }  
     
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
     // Select chain network
@@ -2399,12 +2382,12 @@ int dap_cli_voting_compose(int a_argc, char **a_argv)
     }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-url", &l_url_str)) {
-        l_url_str = s_get_net_url(l_net_str);
+        l_url_str = dap_compose_get_net_url(l_net_str);
     }
 
     const char *l_port_str = NULL;
     if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-port", &l_port_str)) {
-        l_port = s_get_net_port(l_net_str);
+        l_port = dap_compose_get_net_port(l_net_str);
     } else {
         l_port = atoi(l_port_str);
     }
@@ -2466,7 +2449,7 @@ int dap_cli_voting_compose(int a_argc, char **a_argv)
 
     bool l_is_delegated_key = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-delegated_key_required", NULL) ? true : false;
     bool l_is_vote_changing_allowed = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-vote_changing_allowed", NULL) ? true : false;
-    dap_chain_wallet_t *l_wallet_fee = dap_chain_wallet_open(l_wallet_str, arg_wallets_path, NULL);
+    dap_chain_wallet_t *l_wallet_fee = dap_chain_wallet_open(l_wallet_str, l_wallet_path, NULL);
     if (!l_wallet_fee) {
         printf("Wallet %s does not exist\n", l_wallet_str);
         return -DAP_CHAIN_NET_VOTE_CREATE_WALLET_DOES_NOT_EXIST;
@@ -2740,8 +2723,8 @@ int dap_cli_vote_compose(int a_argc, char **a_argv){
         return -DAP_CHAIN_NET_VOTE_VOTING_OPTION_IDX_PARAM_NOT_VALID;
     }
 
-    const char *arg_wallets_path = dap_chain_wallet_get_path(g_config);
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, arg_wallets_path,NULL);
+    const char *l_wallet_path = dap_chain_wallet_get_path(g_config);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallet_path,NULL);
     if (!l_wallet) {
         printf("Wallet %s does not exist\n", l_wallet_str);
         return -DAP_CHAIN_NET_VOTE_VOTING_WALLET_DOES_NOT_EXIST;
@@ -3545,8 +3528,8 @@ dap_sign_t* dap_get_remote_srv_order_sign(const char* l_net_str, const char* l_o
 
 int dap_cli_srv_stake_delegate_compose(json_object* a_json_obj_ret, const char* a_net_str, const char* a_wallet_str, const char* a_cert_str, 
                                         const char* a_pkey_full_str, const char* a_sign_type_str, const char* a_value_str, const char* a_node_addr_str, 
-                                        const char* a_order_hash_str, const char* a_url_str, uint16_t a_port, const char* a_sovereign_addr_str, const char* a_fee_str) {
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_str, arg_wallets_path, NULL);
+                                        const char* a_order_hash_str, const char* a_url_str, uint16_t a_port, const char* a_sovereign_addr_str, const char* a_fee_str, const char* a_wallets_path) {
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_str, a_wallets_path, NULL);
     if (!l_wallet) {
         printf("Specified wallet not found\n");
         return STAKE_DELEGATE_COMPOSE_ERR_WALLET_NOT_FOUND;
@@ -3985,9 +3968,10 @@ static dap_chain_datum_tx_t *dap_order_tx_create_compose(const char * a_net_str,
                                                 const char *l_url_str, int l_port)
 {
     dap_chain_node_addr_t l_node_addr = {};
+    int l_ret = 0;
     return dap_stake_tx_create_compose(a_net_str, a_key, a_value, a_fee,
                              (dap_chain_addr_t *)&c_dap_chain_addr_blank, &l_node_addr,
-                             a_sovereign_addr, a_sovereign_tax, NULL, NULL, l_url_str, l_port);
+                             a_sovereign_addr, a_sovereign_tax, NULL, NULL, l_url_str, l_port, &l_ret);
 }
 
 //srv_stake order create staker -net <net_name> -w <wallet_with_m_tokens> -value <stake_value> -fee <value> -tax <percent> [-addr <for_tax_collecting>]  [-cert <for_order_signing>] [-H {hex(default) | base58}]
@@ -4009,10 +3993,10 @@ int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv) {
     }
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-url", &l_url_str)) {
-        l_url_str = s_get_net_url(l_net_str);
+        l_url_str = dap_compose_get_net_url(l_net_str);
     }
     if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_port_str)) {
-        l_port = s_get_net_port(l_net_str);
+        l_port = dap_compose_get_net_port(l_net_str);
     } else {
         l_port = atoi(l_port_str);
     }
@@ -4020,7 +4004,7 @@ int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv) {
     const char *l_wallet_path = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet_path", &l_wallet_path);
     if (!l_wallet_path) {
-        arg_wallets_path =
+        l_wallet_path =
         #ifdef DAP_OS_WINDOWS
                     dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
         #elif defined DAP_OS_MAC
@@ -4028,9 +4012,7 @@ int dap_cli_srv_stake_order_create_staker_compose(int a_argc, char **a_argv) {
         #elif defined DAP_OS_UNIX
                     dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
         #endif
-    } else {
-        arg_wallets_path = dap_strdup(l_wallet_path);
-    }
+    }  
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str) || !l_value_str) {
         printf("Staker order creation requires parameter -value\n");
@@ -4133,10 +4115,10 @@ int dap_cli_srv_stake_order_remove_compose(int a_argc, char **a_argv) {
     }
 
         if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-url", &l_url_str)) {
-        l_url_str = s_get_net_url(l_net_str);
+        l_url_str = dap_compose_get_net_url(l_net_str);
     }
     if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_port_str)) {
-        l_port = s_get_net_port(l_net_str);
+        l_port = dap_compose_get_net_port(l_net_str);
     } else {
         l_port = atoi(l_port_str);
     }
@@ -4144,7 +4126,7 @@ int dap_cli_srv_stake_order_remove_compose(int a_argc, char **a_argv) {
     const char *l_wallet_path = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet_path", &l_wallet_path);
     if (!l_wallet_path) {
-        arg_wallets_path =
+        l_wallet_path =
         #ifdef DAP_OS_WINDOWS
                     dap_strdup_printf("%s/var/lib/wallets", regGetUsrPath());
         #elif defined DAP_OS_MAC
@@ -4152,9 +4134,7 @@ int dap_cli_srv_stake_order_remove_compose(int a_argc, char **a_argv) {
         #elif defined DAP_OS_UNIX
                     dap_strdup_printf("/opt/CellframeNode/var/lib/wallets");
         #endif
-    } else {
-        arg_wallets_path = dap_strdup(l_wallet_path);
-    }
+    }  
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_str);
     if (!l_wallet_str) {
@@ -4611,7 +4591,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(const char *a_net
 //         printf("Error: Command 'purchase' requires parameter -w\n");
 //         return -1;
 //     }
-//     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, arg_wallets_path, NULL);
+//     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path, NULL);
 //     if (!l_wallet) {
 //         printf("Error: Specified wallet not found\n");
 //         return -2;
