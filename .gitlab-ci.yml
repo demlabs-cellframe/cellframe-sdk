@@ -89,4 +89,4 @@ build:android:
     image: demlabs/android/any:qt5
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
-      - ./prod_build/build.sh --target android
+      - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1

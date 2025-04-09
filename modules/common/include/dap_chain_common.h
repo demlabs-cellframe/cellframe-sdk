@@ -194,6 +194,7 @@ enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_OUT_OLD = 0x10,        // Deprecated
     TX_ITEM_TYPE_OUT_EXT = 0x11,
     TX_ITEM_TYPE_OUT = 0x12,
+    TX_ITEM_TYPE_OUT_STD = 0x13,
     TX_ITEM_TYPE_OUT_COND = 0x61,
 
     /// @brief Transaction: misc
@@ -225,6 +226,7 @@ dap_chain_addr_str_t dap_chain_addr_to_str_static_(const dap_chain_addr_t *a_add
 #define dap_chain_addr_to_str dap_chain_addr_to_str_static
 
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
+size_t dap_chain_addr_from_str_array(const char *a_addr_str, dap_chain_addr_t **a_addr);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);

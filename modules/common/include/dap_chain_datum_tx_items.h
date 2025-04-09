@@ -33,7 +33,6 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_out.h"
-#include "dap_chain_datum_tx_out_ext.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_sig.h"
@@ -42,18 +41,17 @@
 #include "dap_chain_datum_tx_in_reward.h"
 
 typedef struct dap_chain_datum_tx_item_groups {
-
     dap_list_t *items_in_all;
     dap_list_t *items_in;
     dap_list_t *items_in_cond;
     dap_list_t *items_in_reward;
     dap_list_t *items_sig;
-
     
     dap_list_t *items_out;
     dap_list_t *items_out_all;
     dap_list_t *items_out_old;
     dap_list_t *items_out_ext;
+    dap_list_t *items_out_std;
     dap_list_t *items_out_cond;
     dap_list_t *items_out_cond_srv_fee;
     dap_list_t *items_out_cond_srv_pay;
@@ -90,6 +88,7 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_OUT_OLD: return "TX_ITEM_TYPE_OUT_OLD";
         case TX_ITEM_TYPE_OUT: return "TX_ITEM_TYPE_OUT"; // 256
         case TX_ITEM_TYPE_OUT_EXT: return "TX_ITEM_TYPE_OUT_EXT"; // 256
+        case TX_ITEM_TYPE_OUT_STD: return "TX_ITEM_TYPE_OUT_STD";
         case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
         case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
         case TX_ITEM_TYPE_IN_EMS: return "TX_ITEM_TYPE_IN_EMS";
@@ -163,7 +162,14 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token);
+dap_chain_tx_out_ext_t *dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token);
+
+/**
+ * Create item dap_chain_tx_out_std_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_std_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token, dap_time_t a_ts_unlock);
 
 /**
  * Create item dap_chain_tx_out_cond_t with fee subtype
@@ -212,7 +218,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_emit_delegate(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                    uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
-                                                                                   size_t a_pkey_hashes_count);
+                                                                                   size_t a_pkey_hashes_count, const char *a_tag_str);
 
 /**
  * Create item dap_chain_tx_sig_t

@@ -790,11 +790,11 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
         if (!dap_chain_policy_num_is_valid(l_policy_num)) {
             log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U, l_policy_num);
         } else {
-            dap_chain_policy_t *l_new_policy = NULL;
-            l_new_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, dap_chain_policy_activate_calc_size(), NULL, l_ret->pub.name, l_ret); 
+            dap_chain_policy_t *l_new_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_activate_t), NULL, l_ret->pub.name, l_ret); 
+            l_new_policy->type = DAP_CHAIN_POLICY_ACTIVATE;
             l_new_policy->version = DAP_CHAIN_POLICY_VERSION;
             ((dap_chain_policy_activate_t *)(l_new_policy->data))->num = l_policy_num;
-            ((dap_chain_policy_activate_t *)(l_new_policy->data))->flags = DAP_FLAG_ADD(((dap_chain_policy_activate_t *)(l_new_policy->data))->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG);
+            l_new_policy->flags = DAP_FLAG_ADD(l_new_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG);
             dap_chain_policy_add(l_new_policy, l_ret->pub.id.uint64);
         }
     }
@@ -1818,6 +1818,7 @@ void dap_chain_net_deinit()
         dap_chain_net_delete(l_net);
     }
     dap_http_ban_list_client_deinit();
+    dap_chain_policy_deinit();
 }
 
 /**
@@ -2229,7 +2230,7 @@ static void *s_net_load(void *a_arg)
     snprintf(l_net->pub.gdb_nodes, sizeof(l_net->pub.gdb_nodes), "%s.%s", l_net->pub.gdb_groups_prefix, s_gdb_nodes_postfix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                         l_net->pub.gdb_nodes, 0, true,
+                                                         l_net->pub.gdb_nodes, 7200, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
@@ -2951,13 +2952,12 @@ void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
 {
     dap_return_if_fail(a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    if ( l_net_pvt->node_info->ext_port ) {
+    if ( l_net_pvt->node_info->ext_port && l_net_pvt->node_role.enums >= NODE_ROLE_MASTER ) {
         log_it(L_INFO, "Announce our node address "NODE_ADDR_FP_STR" [ %s : %u ] in net %s",
                NODE_ADDR_FP_ARGS_S(g_node_addr),
                l_net_pvt->node_info->ext_host,
                l_net_pvt->node_info->ext_port, a_net->pub.name);
         dap_chain_net_node_list_request(a_net, l_net_pvt->node_info->ext_port, true, 'a');
-        
     }
 }
 
@@ -3147,7 +3147,6 @@ static void s_ch_out_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const v
     default:
         break;
     }
-    l_net_pvt->sync_context.stage_last_activity = dap_time_now();
     debug_if(s_debug_more, L_DEBUG, "Sent OUT sync packet type %hhu size %zu to addr " NODE_ADDR_FP_STR,
                                     a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
 }
