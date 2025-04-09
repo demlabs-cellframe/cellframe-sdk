@@ -2773,7 +2773,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
  * @param a_datum_size
  * @return
  */
-int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash)
+int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, dap_time_t a_cur_block_timestamp)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
     if (a_datum_size < l_datum_data_size + sizeof(a_datum->header)) {
@@ -2807,7 +2807,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
                 log_it(L_WARNING, "Corrupted trnsaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
             }
-            return dap_ledger_tx_remove(l_ledger, l_tx, a_datum_hash);
+            return dap_ledger_tx_remove(l_ledger, l_tx, a_datum_hash, a_cur_block_timestamp);
         }
         case DAP_CHAIN_DATUM_CA:
             return 0;//dap_cert_chain_file_save(a_datum, a_chain->net_name);

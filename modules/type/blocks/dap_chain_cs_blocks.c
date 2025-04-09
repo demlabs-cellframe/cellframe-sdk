@@ -1666,7 +1666,7 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
         HASH_FIND(hh, PVT(a_blocks)->datum_index, l_datum_hash, sizeof(dap_hash_fast_t), l_datum_index);
         if (l_datum_index){
             if (l_datum_index->ret_code >= 0)
-                dap_chain_datum_remove(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
+                dap_chain_datum_remove(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, a_block_cache->block->hdr.ts_created);
             l_ret++;
             HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
             // notify datum removed
@@ -1732,12 +1732,15 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
                 l_atom = l_atom->hh.next;
         }
         // Next we must to remove all blocks from main branch and delete all datums in this atoms from storages
-        dap_chain_block_forked_branch_atoms_table_t *l_last_new_forked_item = HASH_LAST(l_new_forked_branch);
-        for (l_curr_index = 0; l_last_new_forked_item && l_curr_index < a_main_branch_length; l_last_new_forked_item = l_last_new_forked_item->hh.prev, ++l_curr_index){
-            s_delete_atom_datums(l_blocks, l_last_new_forked_item->block_cache);
+        unsigned l_new_forked_branch_len = HASH_COUNT(l_new_forked_branch);
+        for (l_curr_index = 0; l_curr_index < l_new_forked_branch_len; ++l_curr_index) {
+            dap_chain_block_cache_t *l_curr_atom = HASH_LAST(PVT(l_blocks)->blocks);
+            dap_time_t l_prev_block_timestamp = l_curr_atom->hh.prev ? ((dap_chain_block_cache_t *)l_curr_atom->hh.prev)->block->hdr.ts_created : 0;
+            dap_chain_atom_remove_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, l_prev_block_timestamp);
+            s_delete_atom_datums(l_blocks, l_curr_atom);
             --PVT(l_blocks)->blocks_count;
-            HASH_DEL(PVT(l_blocks)->blocks_num, l_last_new_forked_item->block_cache);
-            HASH_DELETE(hh2, PVT(l_blocks)->blocks, l_last_new_forked_item->block_cache);
+            HASH_DEL(PVT(l_blocks)->blocks, l_curr_atom);
+            HASH_DELETE(hh2, PVT(l_blocks)->blocks_num, l_curr_atom);
         }
 
         // Next we add all atoms from new main branch into blockchain 
@@ -1745,14 +1748,14 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
         dap_chain_block_forked_branch_atoms_table_t *new_main_branch = l_longest_branch_cache_ptr->forked_branch_atoms,
                                                     *l_temp = NULL, *l_item = NULL;
 
-        HASH_ITER(hh, new_main_branch, l_item, l_temp){
+        HASH_ITER(hh, new_main_branch, l_item, l_temp) {
             dap_chain_block_cache_t *l_curr_atom = l_item->block_cache;
             ++PVT(l_blocks)->blocks_count;
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_curr_atom->block_hash), l_curr_atom);
             HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_curr_atom->block_number), l_curr_atom->block_number, l_curr_atom);
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", l_curr_atom);
             s_add_atom_datums(l_blocks, l_curr_atom);
-            dap_chain_atom_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size);
+            dap_chain_atom_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size, l_curr_atom->block->hdr.ts_created);
             HASH_DEL(new_main_branch, l_item);
             l_main_blocks_cnt++;
         }
@@ -1820,7 +1823,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
                 debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
                 s_add_atom_datums(l_blocks, l_block_cache);
-                dap_chain_atom_notify(a_chain, l_block->hdr.cell_id, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size);
+                dap_chain_atom_notify(a_chain, l_block->hdr.cell_id, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
                 dap_chain_atom_add_from_threshold(a_chain);
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
 

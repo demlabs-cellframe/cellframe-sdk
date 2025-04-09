@@ -1141,7 +1141,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                                         "Can't delete node %s, error %d", l_addr_str, l_res);
         } else {
             json_object* json_obj_out = json_object_new_object();
-            if (!json_obj_out) DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+            if (!json_obj_out)
+                return DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
             json_object_object_add(json_obj_out, "successfully_deleted_node", json_object_new_string(l_addr_str));
             json_object_array_add(*a_json_arr_reply, json_obj_out);
         }

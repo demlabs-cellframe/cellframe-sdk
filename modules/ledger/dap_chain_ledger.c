@@ -573,6 +573,30 @@ void dap_ledger_load_cache(dap_ledger_t *a_ledger)
     DAP_DELETE(l_gdb_group);
 }
 
+static void s_blockchain_timer_callback(dap_chain_t *a_chain, dap_time_t a_blockchain_time, void UNUSED_ARG *a_arg, bool a_reverse)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    assert(l_net);
+    dap_ledger_private_t *l_ledger_pvt = PVT(l_net->pub.ledger);
+    l_ledger_pvt->blockchain_time = a_blockchain_time;
+    if (a_reverse)
+        return;
+    pthread_rwlock_rdlock(&l_ledger_pvt->locked_outs_rwlock);
+    dap_ledger_locked_out_t *it, *tmp;
+    LL_FOREACH_SAFE(l_ledger_pvt->locked_outs, it, tmp) {
+        if (it->unlock_time > a_blockchain_time)
+            break;
+        dap_ledger_tx_balance_update(l_net->pub.ledger, &it->tx_hash, it->out_num);
+        LL_DELETE(l_ledger_pvt->locked_outs, it);
+        DAP_DELETE(it);
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->locked_outs_rwlock);
+}
+
+dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger)
+{
+    return PVT(a_ledger)->blockchain_time;
+}
 
 /**
  * @brief
@@ -619,6 +643,11 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
 #endif
     // Decrees initializing
     dap_ledger_decree_init(l_ledger);
+    dap_chain_t *l_default_tx_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if (l_default_tx_chain)
+        dap_chain_add_callback_timer(l_default_tx_chain, s_blockchain_timer_callback, NULL);
+    else
+        log_it(L_WARNING, "Can't get deafult chain for transactions, timelocks for it will be disabled");
     return l_ledger;
 }
 
@@ -708,7 +737,6 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     HASH_FIND(hh, l_ledger_pvt->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_tx_item);
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    
     
     if(l_tx_item) {
         dap_ledger_service_info_t *l_sinfo = NULL;

@@ -118,6 +118,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND,
     DAP_LEDGER_TX_CHECK_PREV_OUT_ITEM_NOT_FOUND,
     DAP_LEDGER_TX_CHECK_PREV_OUT_ITEM_MISSTYPED,
+    DAP_LEDGER_TX_CHECK_PREV_OUT_ITEM_LOCKED,
     DAP_LEDGER_TX_CHECK_PKEY_HASHES_DONT_MATCH,
     DAP_LEDGER_TX_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX,
     DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET,
@@ -266,6 +267,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND: return "No previous transaction found";
     case DAP_LEDGER_TX_CHECK_PREV_OUT_ITEM_NOT_FOUND: return "Specified output number not found in previous transaction";
     case DAP_LEDGER_TX_CHECK_PREV_OUT_ITEM_MISSTYPED: return "Previuos transaction output has unknown type, possible ledger corruption";
+    case DAP_LEDGER_TX_CHECK_PREV_OUT_ITEM_LOCKED: return "Trying to spend locked transaction output before unlock time";
     case DAP_LEDGER_TX_CHECK_PKEY_HASHES_DONT_MATCH: return "Trying to spend transaction output from wrongful wallet";
     case DAP_LEDGER_TX_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX: return "Double spend attempt within single transaction";
     case DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET: return "No verificator found for specified conditional ipnput";
@@ -331,7 +333,7 @@ DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const c
  */
 int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
-int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
+int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_time_t a_cur_block_timestamp);
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 /**
@@ -533,6 +535,8 @@ void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
 void dap_ledger_colour_clear_callback(void *a_list_data);
 
 dap_list_t *dap_ledger_decrees_get_by_type(dap_ledger_t *a_ledger, int a_type);
+
+dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger);
 
 #ifdef __cplusplus
 }
