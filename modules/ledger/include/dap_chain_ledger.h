@@ -47,6 +47,14 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
+typedef struct dap_ledger_locked_out {
+    dap_chain_addr_t addr;
+    uint256_t value;
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    dap_time_t unlock_time;
+    struct dap_ledger_locked_out *next;
+} dap_ledger_locked_out_t;
+
 typedef struct dap_ledger_tracker_item {
     dap_hash_fast_t pkey_hash;
     uint256_t coloured_value;
@@ -445,6 +453,9 @@ uint256_t dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t
 
 uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
             const char *a_token_ticker);
+
+dap_ledger_locked_out_t *dap_ledger_get_locked_values(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr);
+
 /**
  * Get transaction in the cache by hash
  *

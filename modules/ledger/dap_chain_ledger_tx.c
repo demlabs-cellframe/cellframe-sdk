@@ -1282,7 +1282,7 @@ void s_trackers_clear(void *a_list_elm)
     DAP_DELETE(a_list_elm);
 }
 
-int s_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse)
+int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     const char *l_addr_str = dap_chain_addr_to_str_static(a_addr);
@@ -1655,8 +1655,9 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     goto FIN;
                 }
-                l_new_locked_out->tx_hash = l_tx_hash;
-                l_new_locked_out->out_num = i;
+                l_new_locked_out->addr = *l_addr;
+                l_new_locked_out->value = l_value;
+                dap_strncpy(l_new_locked_out->ticker, l_cur_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
                 l_new_locked_out->unlock_time = l_out_item_std->ts_unlock;
                 LL_INSERT_INORDER(l_ledger_pvt->locked_outs, l_new_locked_out, s_compare_locked_outs);
                 l_balance_update = false;
@@ -1689,7 +1690,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_multichannel = true;
 
         if (l_balance_update)
-            s_balance_update_for_addr(a_ledger, l_addr, l_cur_token_ticker, l_value, false);
+            dap_ledger_pvt_balance_update_for_addr(a_ledger, l_addr, l_cur_token_ticker, l_value, false);
 
         // Moving colour to new outputs
         bool l_voting_found = false;
@@ -1839,27 +1840,6 @@ FIN:
         DAP_DEL_MULTY(l_cache_used_outs, l_ledger_cache_group);
     }
     return l_ret;
-}
-
-int dap_ledger_tx_balance_update(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, uint32_t a_out_num, bool a_reverse)
-{
-    dap_return_val_if_fail(a_ledger && a_tx_hash, -1);
-    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_unspent_find_by_hash(a_ledger, a_tx_hash);
-    if (!l_tx) {
-        log_it(L_ERROR, "Can't find tx %s in ledger for unlock balance", dap_hash_fast_to_str_static(a_tx_hash));
-        return -2;
-    }
-    uint8_t *l_locked_out = dap_chain_datum_tx_item_get_nth(l_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
-    if (!l_locked_out || *l_locked_out != TX_ITEM_TYPE_OUT_STD) {
-        log_it(L_ERROR, "Can't find out number %u in tx %s for unlock balance", a_out_num, dap_hash_fast_to_str_static(a_tx_hash));
-        return -3;
-    }
-    dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)l_locked_out;
-    if (!l_out_std->ts_unlock || l_out_std->ts_unlock > (PVT(a_ledger)->blockchain_time)) {
-        log_it(L_ERROR, "Can't unlock out number %u in tx %s", a_out_num, dap_hash_fast_to_str_static(a_tx_hash));
-        return -4;
-    }
-    return s_balance_update_for_addr(a_ledger, &l_out_std->addr, l_out_std->token, l_out_std->value, a_reverse);
 }
 
 /**
@@ -2081,7 +2061,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         else if (l_addr->net_id.uint64 != a_ledger->net->pub.id.uint64 &&
                  !dap_chain_addr_is_blank(l_addr))
             l_cross_network = true;
-        s_balance_update_for_addr(a_ledger, l_addr, l_cur_token_ticker, l_value, true);
+        dap_ledger_pvt_balance_update_for_addr(a_ledger, l_addr, l_cur_token_ticker, l_value, true);
     }
 
     if (s_voting_callbacks.voting_delete_callback) {

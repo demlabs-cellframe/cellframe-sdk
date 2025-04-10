@@ -577,25 +577,24 @@ static void s_blockchain_timer_callback(dap_chain_t *a_chain, dap_time_t a_block
     assert(l_net);
     dap_ledger_private_t *l_ledger_pvt = PVT(l_net->pub.ledger);
     l_ledger_pvt->blockchain_time = a_blockchain_time;
+    pthread_rwlock_wrlock(&l_ledger_pvt->locked_outs_rwlock);
     if (a_reverse) {
-        pthread_rwlock_wrlock(&l_ledger_pvt->locked_outs_rwlock);
         dap_ledger_locked_out_t *it, *tmp;
         LL_FOREACH_SAFE(l_ledger_pvt->reverse_list, it, tmp) {
             if (it->unlock_time <= a_blockchain_time)
                 break;
-            dap_ledger_tx_balance_update(l_net->pub.ledger, &it->tx_hash, it->out_num, true);
+            dap_ledger_pvt_balance_update_for_addr(l_net->pub.ledger, &it->addr, it->ticker, it->value, true);
             LL_DELETE(l_ledger_pvt->reverse_list, it);
             LL_APPEND(l_ledger_pvt->locked_outs, it);
         }
         pthread_rwlock_unlock(&l_ledger_pvt->locked_outs_rwlock);
         return;
     }
-    pthread_rwlock_wrlock(&l_ledger_pvt->locked_outs_rwlock);
     dap_ledger_locked_out_t *it, *tmp;
     LL_FOREACH_SAFE(l_ledger_pvt->locked_outs, it, tmp) {
         if (it->unlock_time > a_blockchain_time)
             break;
-        dap_ledger_tx_balance_update(l_net->pub.ledger, &it->tx_hash, it->out_num, false);
+        dap_ledger_pvt_balance_update_for_addr(l_net->pub.ledger, &it->addr, it->ticker, it->value, false);
         LL_DELETE(l_ledger_pvt->locked_outs, it);
         if (!dap_chain_net_get_load_mode(l_net))
             LL_PREPEND(l_ledger_pvt->reverse_list, it);
@@ -624,6 +623,25 @@ static void s_blockchain_cutoff_callback(void *a_arg, dap_chain_t *a_chain, dap_
 dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger)
 {
     return PVT(a_ledger)->blockchain_time;
+}
+
+dap_ledger_locked_out_t *dap_ledger_get_locked_values(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr)
+{
+    dap_ledger_locked_out_t *ret = NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->locked_outs_rwlock);
+    for (dap_ledger_locked_out_t *it = l_ledger_pvt->locked_outs; it; it = it->next) {
+        if (!dap_chain_addr_compare(&it->addr, a_addr))
+            continue;
+        dap_ledger_locked_out_t *l_out_new = DAP_DUP(it);
+        if (!l_out_new) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            break;
+        }
+        LL_APPEND(ret, l_out_new); // includes nullification of 'next' field
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->locked_outs_rwlock);
+    return ret;
 }
 
 /**

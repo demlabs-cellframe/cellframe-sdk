@@ -1926,9 +1926,9 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
             json_object_object_add(json_obj_wall, "addr", l_addr_str ? json_object_new_string(l_addr_str) : json_object_new_string("-"));
             json_object_object_add(json_obj_wall, "network", l_net_name? json_object_new_string(l_net_name) : json_object_new_string("-"));
 
-            size_t l_l_addr_tokens_size = 0;
-            char **l_l_addr_tokens = NULL;
-            dap_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_l_addr_tokens, &l_l_addr_tokens_size);
+            size_t l_addr_tokens_size = 0;
+            char **l_addr_tokens = NULL;
+            dap_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
             if (l_wallet) {
                 //Get sign for wallet
                 json_object *l_jobj_sings = NULL;
@@ -1953,17 +1953,15 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_wall, "signs",
                                        json_object_new_string(dap_sign_type_to_str(l_addr->sig_type)));
             }
-            if(l_l_addr_tokens_size <= 0)
-                json_object_object_add(json_obj_wall, "balance", json_object_new_string("0"));
-            json_object * j_arr_balance= json_object_new_array();
-            for(size_t i = 0; i < l_l_addr_tokens_size; i++) {
-                if(l_l_addr_tokens[i]) {
+            if (l_addr_tokens_size) {
+                json_object * j_arr_balance = json_object_new_array();
+                for(size_t i = 0; i < l_addr_tokens_size; i++) {
                     json_object * j_balance_data = json_object_new_object();
-                    uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
+                    uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
                     const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
                     json_object *l_jobj_token = json_object_new_object();
-                    json_object *l_jobj_ticker = json_object_new_string(l_l_addr_tokens[i]);
-                    const char *l_description =  dap_ledger_get_description_by_ticker(l_ledger, l_l_addr_tokens[i]);
+                    json_object *l_jobj_ticker = json_object_new_string(l_addr_tokens[i]);
+                    const char *l_description =  dap_ledger_get_description_by_ticker(l_ledger, l_addr_tokens[i]);
                     json_object *l_jobj_description = l_description ? json_object_new_string(l_description)
                                                                     : json_object_new_null();
                     json_object_object_add(l_jobj_token, "ticker", l_jobj_ticker);
@@ -1973,14 +1971,25 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
                     json_object_object_add(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
                     json_object_object_add(j_balance_data, "token", l_jobj_token);
                     json_object_array_add(j_arr_balance, j_balance_data);
+                    DAP_DELETE(l_addr_tokens[i]);
                 }
-                DAP_DELETE(l_l_addr_tokens[i]);
+                DAP_DELETE(l_addr_tokens);
+                json_object_object_add(json_obj_wall, "tokens", j_arr_balance);
             }
-            json_object_object_add(json_obj_wall, "tokens", j_arr_balance);
-            json_object_array_add(json_arr_out, json_obj_wall);
-            DAP_DELETE(l_l_addr_tokens);
-            DAP_DELETE(l_addr);
+            dap_ledger_locked_out_t *l_locked_outs = dap_ledger_get_locked_values(l_ledger, l_addr);
+            if (l_locked_outs) {
+                json_object *j_arr_locked_balance = json_object_new_array();
+                dap_ledger_locked_out_t *it, *tmp;
+                LL_FOREACH_SAFE(l_locked_outs, it, tmp) {
+                    "locked_until"
+                    LL_DELETE(l_locked_outs, it);
+                    DAP_DELETE(it);
+                }
+            } else if (!l_addr_tokens_size)
+                json_object_object_add(json_obj_wall, "balance", json_object_new_string("0"));
 
+            json_object_array_add(json_arr_out, json_obj_wall);
+            DAP_DELETE(l_addr);
             if(l_wallet)
                 dap_chain_wallet_close(l_wallet);
             break;

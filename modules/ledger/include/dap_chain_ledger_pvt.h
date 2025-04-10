@@ -160,13 +160,6 @@ typedef struct dap_ledger_anchor_item {
     UT_hash_handle hh;
 } dap_ledger_anchor_item_t;
 
-typedef struct dap_ledger_locked_out {
-    dap_hash_fast_t tx_hash;
-    uint32_t out_num;
-    dap_time_t unlock_time;
-    struct dap_ledger_locked_out *next;
-} dap_ledger_locked_out_t;
-
 // dap_ledger_t private section
 typedef struct dap_ledger_private {
     // separate access to transactions
@@ -249,4 +242,4 @@ dap_ledger_token_emission_item_t *dap_ledger_pvt_emission_item_find(dap_ledger_t
                 const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash, dap_ledger_token_item_t **a_token_item);
 dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive);
 void dap_ledger_pvt_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
-int dap_ledger_tx_balance_update(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, uint32_t a_out_num, bool a_reverse);
+int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse);
