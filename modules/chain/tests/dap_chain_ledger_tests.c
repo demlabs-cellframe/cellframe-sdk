@@ -105,7 +105,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_datum_base_tx(
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) &l_in_ems);
     if ( !strcmp(l_in_ems.header.ticker, s_token_ticker) ) {
         SUBTRACT_256_256(l_value_need, l_value_fee, &l_value_need);
-        dap_chain_datum_tx_add_out_item(&l_tx, &a_addr_to, l_value_need);
+        dap_chain_datum_tx_add_out_ext_item(&l_tx, &a_addr_to, l_value_need, s_token_ticker);
         dap_chain_datum_tx_add_fee_item(&l_tx, l_value_fee);
     } else {
         dap_chain_datum_tx_add_out_ext_item(&l_tx, &a_addr_to, l_value_need, l_in_ems.header.ticker);
@@ -418,14 +418,14 @@ int dap_ledger_test_create_reward_decree(dap_chain_t *a_chain, dap_chain_net_id_
     }
     //add 'out' items
     if (!IS_ZERO_256(l_value_out)) {
-        if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_out) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, l_value_out, l_ledger->net->pub.native_ticker) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_WARNING, "Can't create out item in transaction fee");
             return NULL;
         }
     }
     if (!IS_ZERO_256(l_value_tax)) {
-        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax, l_ledger->net->pub.native_ticker) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_WARNING, "Can't create out item in transaction fee");
             return NULL;

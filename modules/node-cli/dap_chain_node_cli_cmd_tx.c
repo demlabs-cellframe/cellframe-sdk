@@ -441,7 +441,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         bool l_is_need_correction = false;
         bool l_continue = true;
         uint256_t l_corr_value = {}, l_cond_value = {};
-        bool l_recv_from_cond = false, l_send_to_same_cond = false;
+        bool l_recv_from_cond = false, l_send_to_same_cond = false, l_found_out_to_same_addr_from_out_cond = false;
         json_object *l_corr_object = NULL, *l_cond_recv_object = NULL, *l_cond_send_object = NULL;
         
         dap_chain_addr_t *l_src_addr = NULL;
@@ -602,7 +602,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
 
             if (l_src_addr && l_dst_addr &&
                     dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
-                    (!l_recv_from_cond || (l_noaddr_token && dap_strcmp(l_noaddr_token, l_dst_token))))
+                    (!l_recv_from_cond || (l_noaddr_token && (dap_strcmp(l_noaddr_token, l_dst_token) || l_found_out_to_same_addr_from_out_cond))))
                 continue;   // sent to self (coinback)
 
             if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
@@ -644,8 +644,11 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     l_src_str = l_reward_collect ? "reward collecting" : "emission";
                 else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
                     l_src_str = dap_chain_addr_to_str_static(l_src_addr);
-                else
+                else{
                     l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
+                    if (l_src_addr && !dap_strcmp(l_dst_token, l_noaddr_token) && l_recv_from_cond)
+                        l_found_out_to_same_addr_from_out_cond = true;
+                }
                 if (l_recv_from_cond)
                     l_value = l_cond_value;
                 else if (!dap_strcmp(l_native_ticker, l_noaddr_token)) {
@@ -674,7 +677,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 if (l_is_need_correction)
                     l_corr_object = j_obj_data;
                 
-            } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
+            } else if (!l_src_addr || (dap_chain_addr_compare(l_src_addr, a_addr) && (!l_recv_from_cond || 
+                (!l_dst_addr || dap_strcmp(l_dst_token, l_noaddr_token) || dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))))) {
                 if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype && l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                     continue;
                 if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
@@ -737,7 +741,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
         }
-        if (l_send_to_same_cond) {
+        if (l_send_to_same_cond && l_found_out_to_same_addr_from_out_cond) {
             uint256_t l_cond_recv_value = l_cond_value;
             json_object *l_cond_send_value_obj = json_object_object_get(l_cond_send_object, "send_datoshi");
             const char *l_cond_send_value_str = json_object_get_string(l_cond_send_value_obj);
@@ -2656,7 +2660,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
     SUBTRACT_256_256(l_cond_value_sum, l_total_fee, &l_coin_back);
     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
     // return coins to owner
-    if (dap_chain_datum_tx_add_out_item(&l_tx, l_wallet_addr, l_coin_back) == -1) {
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_wallet_addr, l_coin_back, l_native_ticker) == -1) {
         dap_chain_datum_tx_delete(l_tx);
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_RETURNING_COINS_OUTPUT,
                                "Can't create new TX. Something went wrong.\n");
@@ -2669,7 +2673,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply)
      DAP_DELETE(l_wallet_addr);
     // Network fee
     if (l_net_fee_used &&
-            dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         dap_chain_wallet_close(l_wallet);
         DAP_DEL_Z(l_wallet_pkey);
