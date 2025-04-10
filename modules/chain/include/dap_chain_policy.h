@@ -70,13 +70,3 @@ DAP_STATIC_INLINE const char *dap_chain_policy_to_str(dap_chain_policy_t *a_poli
     return ("DAP_CHAIN_POLICY_DEACTIVATE");
 }
 
-/**
- * @brief check policy num
- * @param a_num
- * @return true if valid, fail if not
- */
-DAP_STATIC_INLINE bool dap_chain_policy_num_is_valid(uint64_t a_num)
-{
-    uint32_t l_num = dap_maxval(l_num);
-    return (a_num && a_num <= l_num);
-}

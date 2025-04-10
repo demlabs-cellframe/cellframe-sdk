@@ -8373,10 +8373,14 @@ int com_policy(int argc, char **argv, void **reply) {
         l_deactivate_array = dap_strsplit(l_num_str, ",", l_deactivate_count);
         l_policy = dap_chain_policy_create_deactivate(l_deactivate_array, l_deactivate_count);
         dap_strfreev(l_deactivate_array);
+        if (!l_policy) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -17, "Can't create deactivate policy object");
+            return -17;
+        }
     } else {
         l_policy_num = strtoull(l_num_str, NULL, 10);
-        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be less or equal than %u and not equal 0", dap_maxval((uint32_t)l_policy_num));
+        if (!l_policy_num) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be not equal 0");
             return -16;
         }
     }
@@ -8442,6 +8446,10 @@ int com_policy(int argc, char **argv, void **reply) {
             }
         }
         l_policy = dap_chain_policy_create_activate(l_policy_num, l_ts_start, l_block_start, l_chain_id, 0);
+        if (!l_policy) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -18, "Can't create activate policy object");
+            return -18;
+        }
     }
 
     // if cmd none - only print preaparing result
