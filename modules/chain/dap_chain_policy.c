@@ -283,7 +283,11 @@ int dap_chain_policy_add_exceptions(dap_chain_net_id_t a_net_id, const char **a_
         log_it(L_ERROR, "Exception list already exist in net %"DAP_UINT64_FORMAT_X"", a_net_id.uint64);
         return -3;
     }
-
+    l_net_item->exceptions = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint32_t, a_count + 1, -4);
+    l_net_item->exceptions[0] = a_count;
+    for (uint32_t i = 0; i < a_count; ++i) {
+        l_net_item->exceptions[i + 1] = strtoul(a_nums[i], NULL, 10);
+    }
     return 0;
 }
 
@@ -378,8 +382,8 @@ json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id)
     dap_string_free(l_active_str, true);
     dap_string_erase(l_inactive_str, 0, -1);
     if (l_net_item->exceptions)
-        for (uint32_t i = 1; i < l_net_item->exceptions[0]; ++i) {
-            dap_string_append_printf(l_inactive_str, "CN-%u ", l_net_item->exceptions[i]);
+        for (uint32_t i = 0; i < l_net_item->exceptions[0]; ++i) {
+            dap_string_append_printf(l_inactive_str, "CN-%u ", l_net_item->exceptions[i + 1]);
         }
     json_object_object_add(l_ret, "exceptions", json_object_new_string(l_inactive_str->str));
     dap_string_free(l_inactive_str, true);

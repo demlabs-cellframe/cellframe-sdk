@@ -8422,7 +8422,7 @@ int com_policy(int argc, char **argv, void **reply) {
         dap_chain_id_t l_chain_id = {};
         if (l_ts_start_str) {
             l_ts_start = dap_time_from_str_custom(l_ts_start_str, "%d/%m/%y-%H:%M:%S");
-            if (l_ts_start) {
+            if (!l_ts_start) {
                 dap_json_rpc_error_add(*a_json_arr_reply, -13, "Can't read ts_start \"%s\"", l_ts_start_str);
                 return -13;
             }
