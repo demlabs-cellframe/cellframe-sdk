@@ -94,7 +94,7 @@ DAP_STATIC_INLINE void s_net_item_purge(struct net_policy_item *a_item)
         *l_temp = NULL,
         *l_current = NULL;
     HASH_ITER(hh, a_item->policies, l_current, l_temp) {
-        HASH_DEL(s_net_policy_items, l_current);
+        HASH_DEL(a_item->policies, l_current);
         DAP_DELETE(l_current);
     }
 }
