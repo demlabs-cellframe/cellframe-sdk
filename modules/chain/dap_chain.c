@@ -847,6 +847,7 @@ struct chain_thread_notifier {
     dap_hash_fast_t hash;
     void *atom;
     size_t atom_size;
+    dap_time_t atom_time;
 };
 
 struct chain_thread_datum_notifier {
@@ -877,7 +878,7 @@ static bool s_notify_atom_on_thread(void *a_arg)
 {
     struct chain_thread_notifier *l_arg = a_arg;
     assert(l_arg->atom && l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, &l_arg->hash, l_arg->atom, l_arg->atom_size);
+    l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, &l_arg->hash, l_arg->atom, l_arg->atom_size, l_arg->atom_time);
     if ( !l_arg->chain->is_mapped )
         DAP_DELETE(l_arg->atom);
     DAP_DELETE(l_arg);
@@ -986,7 +987,9 @@ void dap_chain_atom_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, 
             .chain = a_chain,     .cell_id = a_cell_id,
             .hash = *a_hash,
             .atom = a_chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE((byte_t*)a_atom, a_atom_size),
-            .atom_size = a_atom_size };
+            .atom_size = a_atom_size,
+            .atom_time = a_atom_time
+        };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }

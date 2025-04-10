@@ -143,9 +143,10 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
  * return 0 Ok, -2 not enough funds to transfer, -1 other Error
  */
 char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
-        const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t **a_addr_to,
-        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t *a_value, uint256_t a_value_fee, const char *a_hash_out_type, size_t a_tx_num)
+                                  const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
+                                  const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX], uint256_t *a_value,
+                                  uint256_t a_value_fee, const char *a_hash_out_type,
+                                  size_t a_tx_num, dap_time_t a_time_lock)
 {
     // check valid param
     dap_return_val_if_pass(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
