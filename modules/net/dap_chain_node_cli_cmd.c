@@ -2101,7 +2101,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         }
                     }
 
-                    dap_sign_type_t l_sign_types[MAX_ENC_KEYS_IN_MULTYSIGN] = {0};
+                    dap_sign_type_t l_sign_types[MAX_ENC_KEYS_IN_MULTYSIGN] = {};
                     size_t l_sign_count = 0;
                     if (!l_sign_type_str) {
                         l_sign_types[0].type = SIG_TYPE_DILITHIUM;

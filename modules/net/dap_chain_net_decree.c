@@ -641,8 +641,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get policy from decree.");
                 return -105;
             }
-            dap_chain_policy_apply(l_policy, a_net->pub.id);
-            return ;
+            return dap_chain_policy_apply(l_policy, a_net->pub.id);
         }
         default:
             return -1;

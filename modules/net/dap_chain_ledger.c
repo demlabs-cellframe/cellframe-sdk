@@ -1411,7 +1411,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         dap_sign_t *l_sign = (dap_sign_t *)(l_signs_ptr + l_signs_size);
         if (l_signs_offset + l_signs_size + sizeof(dap_sign_t) > l_token_size ||
                 l_signs_offset + l_signs_size + sizeof(dap_sign_t) < l_signs_offset) {
-            log_it(L_WARNING, "Incorrect size %"DAP_UINT64_FORMAT_U" of datum token, expected at least %zu", l_token_size,
+            log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %"DAP_UINT64_FORMAT_U, l_token_size,
                                                     l_signs_offset + l_signs_size + sizeof(dap_sign_t));
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_INVALID_SIZE;
@@ -1425,7 +1425,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         l_signs_size += l_sign_size;
     }
     if (l_token_size != l_signs_offset + l_signs_size) {
-        log_it(L_WARNING, "Incorrect size %"DAP_UINT64_FORMAT_U" of datum token, expected %zu", l_token_size, l_signs_offset + l_signs_size);
+        log_it(L_WARNING, "Incorrect size %zu of datum token, expected %"DAP_UINT64_FORMAT_U, l_token_size, l_signs_offset + l_signs_size);
         DAP_DELETE(l_token);
         return DAP_LEDGER_CHECK_INVALID_SIZE;
     }

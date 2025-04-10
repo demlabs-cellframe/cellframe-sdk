@@ -42,7 +42,7 @@ typedef struct dap_chain_policy {
 int dap_chain_policy_init();
 void dap_chain_policy_deinit();
 dap_chain_policy_t *dap_chain_policy_create_activate(uint32_t a_num, int64_t ts_start, uint64_t a_block_start, dap_chain_id_t a_chain_id, uint16_t a_generation);
-dap_chain_policy_t *dap_chain_policy_create_deactivate(const char **a_nums, uint32_t a_count);
+dap_chain_policy_t *dap_chain_policy_create_deactivate(char **a_nums, uint32_t a_count);
 int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id);
 void dap_chain_policy_net_purge(dap_chain_net_id_t a_net_id);
 void dap_chain_policy_net_remove(dap_chain_net_id_t a_net_id);

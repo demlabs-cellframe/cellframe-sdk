@@ -193,7 +193,7 @@ dap_chain_policy_t *dap_chain_policy_create_activate(uint32_t a_num, int64_t ts_
     return l_ret;
 }
 
-dap_chain_policy_t *dap_chain_policy_create_deactivate(const char **a_nums, uint32_t a_count)
+dap_chain_policy_t *dap_chain_policy_create_deactivate(char **a_nums, uint32_t a_count)
 {
     dap_return_val_if_pass(!a_nums || a_count, NULL);
     size_t l_data_size = sizeof(dap_chain_policy_deactivate_t) + sizeof(uint32_t) * a_count;
