@@ -101,6 +101,7 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
 
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
 {
+    dap_chain_policy_net_purge(a_net->pub.id);
     dap_chain_net_decree_t *l_decree = dap_chain_net_get_net_decree(a_net);
     dap_list_free_full(l_decree->pkeys, NULL);
     DAP_DELETE(l_decree);

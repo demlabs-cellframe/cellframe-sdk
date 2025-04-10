@@ -8449,6 +8449,11 @@ int com_policy(int argc, char **argv, void **reply) {
     // if cmd none - only print preaparing result
     if (!l_execute) {
         json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        if (!l_answer) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't collect policy info");
+            DAP_DELETE(l_policy);
+            return -15;
+        }
         char l_time[DAP_TIME_STR_SIZE] = {};
         dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, dap_time_now());
         json_object_object_add(l_answer, "Current time", json_object_new_string(l_time));
