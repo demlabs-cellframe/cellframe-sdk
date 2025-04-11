@@ -47,9 +47,8 @@ int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id, dap_config_t *a_net_cf
 void dap_chain_policy_net_purge(dap_chain_net_id_t a_net_id);
 void dap_chain_policy_net_remove(dap_chain_net_id_t a_net_id);
 int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_net_id);
-//TODO: put under rwlock and unify
-int dap_chain_policy_add_exceptions(dap_chain_net_id_t a_net_id, const char **a_nums, uint32_t a_count);
-int dap_chain_policy_update_last_num(dap_chain_net_id_t a_net_id, uint32_t a_num);
+void dap_chain_policy_add_exceptions(dap_chain_net_id_t a_net_id, const char **a_nums, uint32_t a_count);
+void dap_chain_policy_update_last_num(dap_chain_net_id_t a_net_id, uint32_t a_num);
 uint32_t dap_chain_policy_get_last_num(dap_chain_net_id_t a_net_id);
 json_object *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num);
 json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy);
@@ -67,14 +66,4 @@ DAP_STATIC_INLINE const char *dap_chain_policy_to_str(dap_chain_policy_t *a_poli
     return a_policy ? DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE)
         ? "DAP_CHAIN_POLICY_ACTIVATE" : "DAP_CHAIN_POLICY_DEACTIVATE"
     : "<null>";
-}
-
-/**
- * @brief check policy num
- * @param a_num
- * @return true if valid, fail if not
- */
-DAP_STATIC_INLINE bool dap_chain_policy_num_is_valid(uint64_t a_num)
-{
-    return a_num > 0 && a_num < UINT32_MAX;
 }

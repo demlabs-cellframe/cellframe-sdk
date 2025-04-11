@@ -8372,18 +8372,20 @@ int com_policy(int argc, char **argv, void **reply) {
         l_deactivate_array = dap_strsplit(l_num_str, ",", 0);
         l_policy = dap_chain_policy_create_deactivate(l_deactivate_array, dap_str_countv(l_deactivate_array));
         dap_strfreev(l_deactivate_array);
+        if (!l_policy) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -17, "Can't create deactivate policy object");
+            return -17;
+        }
     } else {
         l_policy_num = strtoull(l_num_str, NULL, 10);
-        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be less or equal than %u and not equal 0", dap_maxval((uint32_t)l_policy_num));
+        if (!l_policy_num) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be not equal 0");
             return -16;
         }
     }
 
-    uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id);
-
     if (l_cmd == CMD_FIND) {
-        json_object *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, l_last_num);
+        json_object *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, l_policy_num);
         if (l_answer) {
             json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_is_activated(l_net->pub.id, l_policy_num) ? "true" : "false"));
             json_object_array_add(*a_json_arr_reply, l_answer);
@@ -8443,11 +8445,20 @@ int com_policy(int argc, char **argv, void **reply) {
             }
         }
         l_policy = dap_chain_policy_create_activate(l_policy_num, l_ts_start, l_block_start, l_chain_id, 0);
+        if (!l_policy) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -18, "Can't create activate policy object");
+            return -18;
+        }
     }
 
     // if cmd none - only print preaparing result
     if (!l_execute) {
         json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        if (!l_answer) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't collect policy info");
+            DAP_DELETE(l_policy);
+            return -15;
+        }
         char l_time[DAP_TIME_STR_SIZE] = {};
         dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, dap_time_now());
         json_object_object_add(l_answer, "Current time", json_object_new_string(l_time));
