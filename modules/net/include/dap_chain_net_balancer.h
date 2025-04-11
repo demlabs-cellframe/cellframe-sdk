@@ -26,8 +26,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_node.h"
 #include "dap_http_simple.h"
 
-#define DAP_BALANCER_URI_HASH "f0intlt4eyl03htogu"
-#define DAP_BALANCER_PROTOCOL_VERSION 2
 #define DAP_BALANCER_MAX_REPLY_SIZE 2048
 
 typedef struct dap_balancer_request_info dap_balancer_request_info_t;
@@ -65,7 +63,7 @@ void dap_chain_net_balancer_deinit();
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
 dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name);
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net);
-dap_string_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net);
+json_object *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net);
 void dap_chain_net_balancer_request(void *a_arg);
 
 #ifdef __cplusplus

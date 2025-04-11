@@ -201,8 +201,8 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
  */
 int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
-    return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,
-        dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
+    return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,  dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
+    //return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, 0) );
 }
 
 /**
@@ -308,7 +308,7 @@ uint8_t* dap_chain_datum_tx_item_get(const dap_chain_datum_tx_t *a_tx, int *a_it
             break;
         case TX_ITEM_TYPE_OUT_ALL:
             switch (*l_item) {
-            case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_COND: case TX_ITEM_TYPE_OUT_EXT:
+            case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_COND: case TX_ITEM_TYPE_OUT_EXT: case TX_ITEM_TYPE_OUT_STD:
                 break;
             default:
                 continue;
@@ -382,7 +382,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
                 if (a_out_num) *a_out_num += l_idx;
                 return (dap_chain_tx_out_cond_t*)l_item;
             }
-        case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_EXT:
+        case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_EXT: case TX_ITEM_TYPE_OUT_STD:
             ++l_idx;
         default:
             break;
@@ -399,6 +399,7 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_sig);
     dap_list_free(a_items_groups->items_out);
     dap_list_free(a_items_groups->items_out_ext);
+    dap_list_free(a_items_groups->items_out_std);
     dap_list_free(a_items_groups->items_out_cond);
     dap_list_free(a_items_groups->items_out_cond_srv_fee);
     dap_list_free(a_items_groups->items_out_cond_srv_pay);
@@ -456,6 +457,11 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
 
         case TX_ITEM_TYPE_OUT_EXT:
             DAP_LIST_SAPPEND(a_res_group->items_out_ext, l_item);
+            DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
+            break;
+
+        case TX_ITEM_TYPE_OUT_STD:
+            DAP_LIST_SAPPEND(a_res_group->items_out_std, l_item);
             DAP_LIST_SAPPEND(a_res_group->items_out_all, l_item);
             break;
 

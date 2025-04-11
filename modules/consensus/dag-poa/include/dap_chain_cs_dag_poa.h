@@ -35,8 +35,9 @@ typedef struct dap_chain_cs_dag_poa
     void * _inheritor;
 } dap_chain_cs_dag_poa_t;
 
-#define DAP_CHAIN_CS_DAG_POA(a) ( (dap_chain_cs_dag_poa_t *) (a)->_inheritor)
+#define DAG_ROUND_NEW_TTL 600 // 10 min
 
+#define DAP_CHAIN_CS_DAG_POA(a) ( (dap_chain_cs_dag_poa_t *) (a)->_inheritor)
 
 int dap_chain_cs_dag_poa_init();
 void dap_chain_cs_dag_poa_deinit(void);

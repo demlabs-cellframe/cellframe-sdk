@@ -62,7 +62,10 @@ typedef struct dap_chain_net {
         dap_chain_net_id_t id;
         char name[DAP_CHAIN_NET_NAME_MAX + 1], gdb_nodes[DAP_CHAIN_NET_NAME_MAX + sizeof(s_gdb_nodes_postfix) + 1];
         const char *gdb_groups_prefix, *native_ticker;
+        // PoA section
         dap_list_t *keys;               // List of PoA certs for net
+        uint16_t keys_min_count;        // PoA minimum required number
+        //
         dap_chain_t *chains;            // double-linked list of chains
         dap_ledger_t *ledger;
         uint256_t fee_value;            // Net fee
@@ -205,7 +208,7 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
  */
 dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
-int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data, bool a_hardfork_related);
+int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);

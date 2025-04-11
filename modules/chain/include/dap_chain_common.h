@@ -80,14 +80,14 @@ typedef union dap_chain_node_role{
 DAP_STATIC_INLINE const char *dap_chain_node_role_to_str(dap_chain_node_role_t a_node_role)
 {
     switch (a_node_role.enums) {
-        case NODE_ROLE_ROOT_MASTER: return "NODE_ROLE_ROOT_MASTER";
-        case NODE_ROLE_ROOT: return "NODE_ROLE_ROOT";
-        case NODE_ROLE_ARCHIVE: return "NODE_ROLE_ARCHIVE";
-        case NODE_ROLE_CELL_MASTER: return "NODE_ROLE_CELL_MASTER";
-        case NODE_ROLE_MASTER: return "NODE_ROLE_MASTER";
-        case NODE_ROLE_FULL: return "NODE_ROLE_FULL";
-        case NODE_ROLE_LIGHT: return "NODE_ROLE_LIGHT";
-        default: return "UNDEFINED";
+        case NODE_ROLE_ROOT_MASTER: return "root master";
+        case NODE_ROLE_ROOT: return "root";
+        case NODE_ROLE_ARCHIVE: return "archive";
+        case NODE_ROLE_CELL_MASTER: return "cell master";
+        case NODE_ROLE_MASTER: return "master";
+        case NODE_ROLE_FULL: return "full";
+        case NODE_ROLE_LIGHT: return "liht";
+        default: return "none";
     }
 }
 
@@ -144,6 +144,7 @@ typedef union {
 
 extern const dap_chain_srv_uid_t c_dap_chain_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
+extern const dap_chain_cell_id_t c_dap_chain_cell_id_hardfork;
 extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
 enum dap_chain_srv_unit_enum {
@@ -195,6 +196,7 @@ enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_OUT_OLD = 0x10,        // Deprecated
     TX_ITEM_TYPE_OUT_EXT = 0x11,
     TX_ITEM_TYPE_OUT = 0x12,
+    TX_ITEM_TYPE_OUT_STD = 0x13,
     TX_ITEM_TYPE_OUT_COND = 0x61,
 
     /// @brief Transaction: misc
@@ -226,6 +228,7 @@ dap_chain_addr_str_t dap_chain_addr_to_str_static_(const dap_chain_addr_t *a_add
 #define dap_chain_addr_to_str dap_chain_addr_to_str_static
 
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
+size_t dap_chain_addr_from_str_array(const char *a_addr_str, dap_chain_addr_t **a_addr);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
 dap_chain_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);

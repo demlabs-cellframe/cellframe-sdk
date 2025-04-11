@@ -48,7 +48,7 @@ dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree,
     return l_signs_section;
 }
 
-bool dap_chain_datum_decree_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pkey_t *a_pkey)
+static bool s_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pkey_t *a_pkey)
 {
     dap_return_val_if_pass(!a_decree || !a_pkey || !a_pkey->header.size, false);
     dap_sign_t *l_signs_section = (dap_sign_t*)(a_decree->data_n_signs + a_decree->header.data_size);
@@ -103,6 +103,13 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
     if (a_owners_num)
         *a_owners_num = (uint16_t)dap_list_length(l_ret);
     return l_ret;
+}
+
+int dap_chain_datum_decree_get_hardfork_changed_addrs(dap_chain_datum_decree_t *a_decree, json_object **a_json_obj)
+{
+    dap_return_val_if_fail(a_decree && a_json_obj, -1);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
+    return l_tsd ? (!dap_strcmp(dap_tsd_get_string_const(l_tsd), DAP_TSD_CORRUPTED_STRING) ? (*a_json_obj = json_tokener_parse(dap_tsd_get_string_const(l_tsd)), 0) :  1)  : 1;
 }
 
 int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num)
@@ -221,44 +228,44 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
         switch(l_tsd->type) {
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE:
             if (l_tsd->size > sizeof(uint256_t)){
-                json_object_object_add(a_json_out, "Value", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "value", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint256_t l_value = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_value);
             const char *l_value_str = dap_uint256_to_char(l_value, NULL);
-            json_object_object_add(a_json_out, "Value", json_object_new_string(l_value_str));
+            json_object_object_add(a_json_out, "value", json_object_new_string(l_value_str));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
         break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE:
             if (l_tsd->size > sizeof(uint256_t)){
-                json_object_object_add(a_json_out, "Fee", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "fee", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint256_t l_fee_value = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_fee_value);
             const char *l_fee_value_str = dap_uint256_to_char(l_fee_value, NULL);
-            json_object_object_add(a_json_out, "Fee", json_object_new_string(l_fee_value_str));
+            json_object_object_add(a_json_out, "fee", json_object_new_string(l_fee_value_str));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER:
             if (l_tsd->size < sizeof(dap_pkey_t)) {
-                json_object_object_add(a_json_out, "Owner fingerprint", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "owner_fingerprint", json_object_new_string("WRONG SIZE"));
                 break;
             }
             dap_pkey_t *l_owner_pkey = /*DAP_NEW_STACK_SIZE(dap_pkey_t, l_tsd->size);
             memcpy(l_owner_pkey, l_tsd->data, l_tsd->size);*/ _dap_tsd_get_object(l_tsd, dap_pkey_t);
-            json_object_object_add(a_json_out, "Owner fingerprint", json_object_new_string(dap_get_data_hash_str(l_owner_pkey->pkey, l_owner_pkey->header.size).s));
+            json_object_object_add(a_json_out, "owner_fingerprint", json_object_new_string(dap_get_data_hash_str(l_owner_pkey->pkey, l_owner_pkey->header.size).s));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER:
             if (l_tsd->size > sizeof(uint256_t)){
-                json_object_object_add(a_json_out, "Owner min", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "owner_min", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint256_t l_owner_min = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_owner_min);
             const char *l_owner_min_str = dap_uint256_to_char(l_owner_min, NULL);
-            json_object_object_add(a_json_out, "Owner min", json_object_new_string(l_owner_min_str));
+            json_object_object_add(a_json_out, "owner_min", json_object_new_string(l_owner_min_str));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET:
             if (l_tsd->size > sizeof(dap_chain_addr_t)) {
@@ -267,10 +274,10 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             }
             dap_chain_addr_t *l_addr_fee_wallet = /*{ };
             _dap_tsd_get_scalar(l_tsd, &l_addr_fee_wallet);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-            json_object_object_add(a_json_out, "Wallet for fee", json_object_new_string(dap_chain_addr_to_str_static(l_addr_fee_wallet)));
+            json_object_object_add(a_json_out, "wallet_for_fee", json_object_new_string(dap_chain_addr_to_str_static(l_addr_fee_wallet)));
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH:
             if (l_tsd->size > sizeof(dap_hash_fast_t)) {
-                json_object_object_add(a_json_out, "Stake tx", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "stake_tx", json_object_new_string("WRONG SIZE"));
                 break;
             }
             dap_hash_fast_t *l_stake_tx = /*{ };
@@ -278,108 +285,122 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             const char *l_stake_tx_hash = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str_static(l_stake_tx)
                     : dap_chain_hash_fast_to_str_static(l_stake_tx);
-            json_object_object_add(a_json_out, "Stake tx", json_object_new_string(l_stake_tx_hash));
+            json_object_object_add(a_json_out, "stake_tx", json_object_new_string(l_stake_tx_hash));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE:
             if (l_tsd->size > sizeof(uint256_t)){
-                json_object_object_add(a_json_out, "Stake value", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "stake_value", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint256_t l_stake_value = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_stake_value);
             const char *l_stake_value_str = dap_uint256_to_char(l_stake_value, NULL);
-            json_object_object_add(a_json_out, "Stake value", json_object_new_string(l_stake_value_str));
+            json_object_object_add(a_json_out, "stake_value", json_object_new_string(l_stake_value_str));
             break;
        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
             if (l_tsd->size > sizeof(dap_chain_addr_t)) {
-                json_object_object_add(a_json_out, "Signing addr", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "signing_addr", json_object_new_string("WRONG SIZE"));
                 break;
             }
             dap_chain_addr_t *l_stake_addr_signing = /*{ };
             _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-            json_object_object_add(a_json_out, "Signing addr", json_object_new_string(dap_chain_addr_to_str_static(l_stake_addr_signing)));
+            json_object_object_add(a_json_out, "signing_addr", json_object_new_string(dap_chain_addr_to_str_static(l_stake_addr_signing)));
             dap_chain_hash_fast_t l_pkey_signing = l_stake_addr_signing->data.hash_fast;
             const char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
                     : dap_chain_hash_fast_to_str_static(&l_pkey_signing);
-            json_object_object_add(a_json_out, "Signing pkey fingerprint", json_object_new_string(l_pkey_signing_str));
+            json_object_object_add(a_json_out, "signing_pkey_fingerprint", json_object_new_string(l_pkey_signing_str));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
             if(l_tsd->size > sizeof(dap_chain_node_addr_t)){
-                json_object_object_add(a_json_out, "Node addr", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "node_addr", json_object_new_string("WRONG SIZE"));
                 break;
             }
             dap_chain_node_addr_t *l_node_addr = _dap_tsd_get_object(l_tsd, dap_chain_node_addr_t);
             char l_buf[24];
             snprintf(l_buf, sizeof(l_buf), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(l_node_addr));
-            json_object_object_add(a_json_out, "Node addr", json_object_new_string(l_buf));
+            json_object_object_add(a_json_out, "node_addr", json_object_new_string(l_buf));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE:
             if (l_tsd->size > sizeof(uint256_t)) {
-                json_object_object_add(a_json_out, "Min value", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "min_value", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint256_t l_min_value = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_min_value);
             const char *l_min_value_str = dap_uint256_to_char(l_min_value, NULL);
-            json_object_object_add(a_json_out, "Min value", json_object_new_string(l_min_value_str));
+            json_object_object_add(a_json_out, "min_value", json_object_new_string(l_min_value_str));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
             if (l_tsd->size > sizeof(uint256_t)) {
-                json_object_object_add(a_json_out, "Min signers count", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "min_signers_count", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint256_t l_min_signers_count = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_min_signers_count);
             const char *l_min_signers_count_str = dap_uint256_to_char(l_min_signers_count, NULL);
-            json_object_object_add(a_json_out, "Min signers count", json_object_new_string(l_min_signers_count_str));
+            json_object_object_add(a_json_out, "min_signers_count", json_object_new_string(l_min_signers_count_str));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING:
-            json_object_object_add(a_json_out, "Host address", json_object_new_string(dap_tsd_get_string(l_tsd)));
+            json_object_object_add(a_json_out, "host_address", json_object_new_string(dap_tsd_get_string(l_tsd)));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION:
             if (l_tsd->size != sizeof(uint8_t)) {
-                json_object_object_add(a_json_out, "Action", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "action", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint8_t l_action = 0;
             _dap_tsd_get_scalar(l_tsd, &l_action);
-            json_object_object_add(a_json_out, "tAction", l_action ?
+            json_object_object_add(a_json_out, "action", l_action ?
                                         json_object_new_string("add (enable)") : json_object_new_string("delete (disable)"));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE:
             if (l_tsd->size != sizeof(uint32_t)) {
-                json_object_object_add(a_json_out, "Signature type", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "signature_type", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint32_t l_type = 0;
             _dap_tsd_get_scalar(l_tsd, &l_type);
             dap_sign_type_t l_sign_type = { .type = l_type };
-            json_object_object_add(a_json_out, "Signature type", json_object_new_string(dap_sign_type_to_str(l_sign_type)));
+            json_object_object_add(a_json_out, "signature_type", json_object_new_string(dap_sign_type_to_str(l_sign_type)));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY:
             if (l_tsd->size != dap_pkey_get_size((dap_pkey_t *)(l_tsd->data))) {
-                json_object_object_add(a_json_out, "pkey type", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "pkey_type", json_object_new_string("WRONG SIZE"));
                 break;
             }
-            json_object_object_add(a_json_out, "pkey type", json_object_new_string( dap_pkey_type_to_str(((dap_pkey_t *)(l_tsd->data))->header.type) ));
+            json_object_object_add(a_json_out, "pkey_type", json_object_new_string( dap_pkey_type_to_str(((dap_pkey_t *)(l_tsd->data))->header.type) ));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM:
             if (l_tsd->size != sizeof(uint64_t)) {
-                json_object_object_add(a_json_out, "Signature type", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "signature_type", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint64_t l_num = 0;
             _dap_tsd_get_scalar(l_tsd, &l_type);
-            json_object_object_add(a_json_out, "Signature type", json_object_new_uint64(l_num));
+            json_object_object_add(a_json_out, "signature_type", json_object_new_uint64(l_num));
             break;
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE:
-            if (l_tsd->size != dap_chain_policy_get_size((dap_chain_policy_t *)(l_tsd->data))) {
-                json_object_object_add(a_json_out, "Policy num", json_object_new_string("WRONG SIZE"));
+
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS:
+            if (l_tsd->size != sizeof(uint64_t)) {
+                json_object_object_add(a_json_out, "wallet_addr_pair", json_object_new_string("WRONG SIZE"));
                 break;
             }
-            json_object_object_add(a_json_out, "Policy num", json_object_new_uint64(((dap_chain_policy_t *)(l_tsd->data))->activate.num));
+            json_object* l_json_obj = NULL;
+            if (!dap_strcmp(dap_tsd_get_string_const(l_tsd), DAP_TSD_CORRUPTED_STRING)) { 
+                l_json_obj = json_tokener_parse(dap_tsd_get_string_const(l_tsd));
+            } else {
+                l_json_obj = json_object_new_string("Can't parse json in Wallet_addr_pair");
+            }
+            json_object_object_add(a_json_out, "wallet_addr_pair", l_json_obj);
+
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE:
+            if (l_tsd->size != dap_chain_policy_get_size((dap_chain_policy_t *)(l_tsd->data))) {
+                json_object_object_add(a_json_out, "policy_type", json_object_new_string("WRONG SIZE"));
+                break;
+            }
+            json_object_object_add(a_json_out, "policy_type", json_object_new_string( dap_chain_policy_to_str((dap_chain_policy_t *)(l_tsd->data))));
             break;
         default:
             json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));
@@ -392,9 +413,8 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
 
 void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type)
 {
-    json_object_object_add(a_json_out, "signatures", json_object_new_string(""));
     if (!a_certs_size) {
-        json_object_object_add(a_json_out, "Cert status", json_object_new_string("NONE"));
+        json_object_object_add(a_json_out, "cert_status", json_object_new_string("NONE"));
         return;
     }
     json_object* json_arr_certs_out = json_object_new_array();
@@ -404,14 +424,14 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
         dap_sign_t *l_sign = (dap_sign_t *) (a_signs + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {
-            json_object_object_add(json_obj_sign, "sign status", json_object_new_string("CORRUPTED - 0 size signature"));
+            json_object_object_add(json_obj_sign, "sign_status", json_object_new_string("CORRUPTED - 0 size signature"));
             json_object_array_add(json_arr_certs_out, json_obj_sign);
             continue;
         }
 
         dap_chain_hash_fast_t l_pkey_hash = {0};
         if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
-            json_object_object_add(json_obj_sign, "sign status", json_object_new_string("CORRUPTED - can't calc hash"));
+            json_object_object_add(json_obj_sign, "sign_status", json_object_new_string("CORRUPTED - can't calc hash"));
             json_object_array_add(json_arr_certs_out, json_obj_sign);
             continue;
         }
@@ -419,10 +439,10 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
         const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                 : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
-        json_object_object_add(json_obj_sign, "sign #", json_object_new_uint64(i));
+        json_object_object_add(json_obj_sign, "sign_#", json_object_new_uint64(i));
         json_object_object_add(json_obj_sign, "hash", json_object_new_string(l_hash_str));
         json_object_object_add(json_obj_sign, "type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
-        json_object_object_add(json_obj_sign, "sign size", json_object_new_uint64(l_sign->header.sign_size));
+        json_object_object_add(json_obj_sign, "sign_size", json_object_new_uint64(l_sign->header.sign_size));
         json_object_array_add(json_arr_certs_out, json_obj_sign);        
     }
     json_object_object_add(a_json_out,"SIGNS", json_arr_certs_out);
@@ -450,7 +470,7 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
     size_t l_total_signs_size = a_datum_decree->header.signs_size, l_total_sign_count = 0;
     for(size_t i = 0; i < a_certs_count; i++) {
         dap_pkey_t *l_cur_pkey = dap_cert_to_pkey(a_certs[i]);
-        if (dap_chain_datum_decree_find_pkey(a_datum_decree, l_cur_pkey)) {
+        if (s_find_pkey(a_datum_decree, l_cur_pkey)) {
             dap_chain_hash_fast_t l_pkey_hash = { };
             dap_pkey_get_hash(l_cur_pkey, &l_pkey_hash);
             log_it(L_ERROR, "Sign with %s pkey already exist in decree", dap_hash_fast_to_str_static(&l_pkey_hash));

@@ -101,6 +101,7 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_chain_net_srv_vpn_cmd.h"
 #include "dap_chain_ledger.h"
 #include "dap_events.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #include "dap_http_simple.h"
 #include "http_status_code.h"
@@ -862,11 +863,12 @@ static void *s_vpn_service_create(dap_chain_net_id_t a_net_id, dap_config_t *a_c
     return l_srv;
 }
 
-static void s_vpn_service_delete(void *a_service)
+static int s_vpn_service_delete(dap_chain_net_id_t a_net_id, void *a_service)
 {
     dap_chain_net_srv_t *l_srv = a_service;
     DAP_DELETE(l_srv->_pvt);
     dap_chain_net_srv_del(l_srv);
+    return 0;
 }
 
 
@@ -905,14 +907,14 @@ int dap_chain_net_srv_vpn_init()
         return -4;
     }
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
-    dap_chain_static_srv_callbacks_t l_callbacks = { .start = s_vpn_service_create, .delete = s_vpn_service_delete };
+    dap_chain_static_srv_callbacks_t l_callbacks = { .start = s_vpn_service_create, .purge = s_vpn_service_delete };
     dap_chain_srv_add(l_uid, "VPN", &l_callbacks);
 
     dap_stream_ch_proc_add(DAP_CHAIN_NET_SRV_VPN_CH_ID, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
 
     // add console command to display vpn statistics
-    dap_cli_server_cmd_add ("vpn_stat", com_vpn_statistics, "VPN statistics",
+    dap_cli_server_cmd_add ("vpn_stat", com_vpn_statistics, "VPN statistics", dap_chain_node_cli_cmd_id_from_str("vpn_stat"),
             "vpn_stat -net <net_name> [-full]\n"
             );
 

@@ -264,7 +264,6 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_tsd_n
  */
 void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_t * a_tsd_n_signs, size_t a_certs_size, const char *a_hash_out_type)
 {
-    json_object_object_add(a_json_obj_out, "Signatures", json_object_new_string(""));
     if (!a_certs_size) {
         json_object_object_add(a_json_obj_out, "status", json_object_new_string("<NONE>"));
         return;
@@ -491,7 +490,7 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
     size_t l_count, l_sign_size;
     for (l_count = 0, l_sign_size = 0; l_count < a_emission->data.type_auth.signs_count; ++l_count) {
         l_sign_size = dap_sign_get_size(l_sign);
-        if (!dap_sign_verify_size(l_sign, l_sign_size)) {
+        if (dap_sign_verify_size(l_sign, l_sign_size)) {
             break;
         }
         l_actual_size += l_sign_size;

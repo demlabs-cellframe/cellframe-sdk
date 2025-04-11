@@ -29,15 +29,18 @@
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 
+#define DAP_CHAIN_CELL_MAX_COUNT    32
+#define DAP_CHAIN_CELL_FILE_EXT     "dchaincell"
+
+typedef struct dap_chain_cell_mmap_data dap_chain_cell_mmap_data_t;
+
 typedef struct dap_chain_cell {
     dap_chain_cell_id_t id;
-    dap_chain_t * chain;
-
+    dap_chain_t *chain;
     char file_storage_path[MAX_PATH];
-    char *map, *map_pos, *map_end;
+    dap_chain_cell_mmap_data_t *mapping;
     FILE *file_storage;
     uint8_t file_storage_type;
-    dap_list_t *map_range_bounds;
 #ifdef DAP_OS_DARWIN
     size_t cur_vol_start;
 #endif
@@ -76,14 +79,26 @@ typedef struct dap_chain_cell_decl{
 
 
 int dap_chain_cell_init(void);
-dap_chain_cell_t *dap_chain_cell_create_fill(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
-dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
-void dap_chain_cell_close(dap_chain_cell_t *a_cell);
-void dap_chain_cell_delete(dap_chain_cell_t *a_cell);
-void dap_chain_cell_delete_all_and_free_file(dap_chain_t *a_chain);
-void dap_chain_cell_delete_all(dap_chain_t *a_chain);
-int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell);
-ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell,const void *a_atom, size_t a_atom_size);
-DAP_STATIC_INLINE ssize_t dap_chain_cell_file_update(dap_chain_cell_t *a_cell) {
-    return dap_chain_cell_file_append(a_cell, NULL, 0);
+int dap_chain_cell_open(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id, const char a_mode);
+DAP_STATIC_INLINE int dap_chain_cell_create(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id) {
+    return dap_chain_cell_open(a_chain, a_cell_id, 'w');
 }
+
+DAP_INLINE dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id) {
+    dap_chain_cell_t *l_cell = NULL;
+    HASH_FIND(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
+    return l_cell;
+}
+DAP_INLINE dap_chain_cell_t *dap_chain_cell_capture_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id) {
+    pthread_rwlock_rdlock(&a_chain->cell_rwlock);
+    return dap_chain_cell_find_by_id(a_chain, a_cell_id);
+}
+DAP_INLINE void dap_chain_cell_remit(const dap_chain_cell_t *a_cell) {
+    pthread_rwlock_unlock(&a_cell->chain->cell_rwlock);
+}
+
+void dap_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
+void dap_chain_cell_close_all(dap_chain_t *a_chain);
+int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
+                                   const void *a_atom, size_t a_atom_size, char **a_atom_map);
+

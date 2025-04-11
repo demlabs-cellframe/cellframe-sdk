@@ -23,7 +23,8 @@
 
 #include "dap_chain_ledger.h"
 
-#define MAX_OUT_ITEMS   10
+#define LEDGER_PVT_TX_META_FLAG_MULTICHANNEL    BIT(1)
+#define LEDGER_PVT_TX_META_FLAG_IMMUTABLE       BIT(2)
 
 enum ledger_permissions {
     LEDGER_PERMISSION_RECEIVER_ALLOWED,
@@ -104,7 +105,7 @@ typedef struct dap_ledger_tx_item {
         uint32_t n_outs;
         uint32_t n_outs_used;
         char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        byte_t multichannel;
+        byte_t flags;
         dap_time_t ts_spent;
         dap_chain_srv_uid_t tag; //tag (or service this tx is belong to)
         dap_chain_tx_tag_action_type_t action;
@@ -148,12 +149,14 @@ typedef struct dap_ledger_decree_item {
     bool wait_for_apply, is_applied;
     dap_chain_datum_decree_t *decree;
     dap_hash_fast_t anchor_hash;
+    dap_chain_id_t storage_chain_id;
     UT_hash_handle hh;
 } dap_ledger_decree_item_t;
 
 typedef struct dap_ledger_anchor_item {
     dap_hash_fast_t anchor_hash;
     dap_chain_datum_anchor_t *anchor;
+    dap_chain_id_t storage_chain_id;
     UT_hash_handle hh;
 } dap_ledger_anchor_item_t;
 
@@ -186,12 +189,13 @@ typedef struct dap_ledger_private {
     dap_ledger_decree_item_t *decrees;
     dap_ledger_anchor_item_t *anchors;
 
-    // Save/load operations condition
+    // Save/load cache operations condition
     pthread_mutex_t load_mutex;
     pthread_cond_t load_cond;
     bool load_end;
     // Ledger flags
-    bool check_ds, check_cells_ds, check_token_emission, cached, mapped, threshold_enabled;
+    //bool check_ds, check_cells_ds, check_token_emission, cached, mapped, threshold_enabled;
+    uint16_t flags;
     //notifiers
     dap_list_t *bridged_tx_notifiers;
     dap_list_t *tx_add_notifiers;
@@ -201,6 +205,13 @@ typedef struct dap_ledger_private {
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
+
+#define is_ledger_ds_chk(l)         ( l->flags & DAP_LEDGER_CHECK_LOCAL_DS )
+#define is_ledger_cells_ds_chk(l)   ( l->flags & DAP_LEDGER_CHECK_CELLS_DS )
+#define is_ledger_ems_chk(l)        ( l->flags & DAP_LEDGER_CHECK_TOKEN_EMISSION )
+#define is_ledger_mapped(l)         ( l->flags & DAP_LEDGER_MAPPED )
+#define is_ledger_cached(l)         ( l->flags & DAP_LEDGER_CACHE_ENABLED )
+#define is_ledger_threshld(l)       ( l->flags & DAP_LEDGER_THRESHOLD_ENABLED )
 
 extern bool g_debug_ledger;
 

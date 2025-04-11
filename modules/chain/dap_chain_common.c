@@ -34,6 +34,7 @@
 
 const dap_chain_srv_uid_t c_dap_chain_srv_uid_null = {0};
 const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
+const dap_chain_cell_id_t c_dap_chain_cell_id_hardfork = { .uint64 = INT64_MIN }; // 0x800...
 const dap_chain_addr_t c_dap_chain_addr_blank = {0};
 
 /**
@@ -76,24 +77,72 @@ dap_chain_addr_str_t dap_chain_addr_to_str_static_(const dap_chain_addr_t *a_add
 }
 
 /**
- * @brief dap_chain_str_to_addr
- * @param a_addr
- * @return
+ * @brief s_addr_from_str
+ * @param [out] a_addr - pointer to addr fill
+ * @param [in] a_str - string with one addr
+ * @return 0 if pass, other if error
  */
-dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
+static int s_addr_from_str(dap_chain_addr_t *a_addr, const char *a_str)
 {
-    size_t l_str_len = (a_str) ? strlen(a_str) : 0;
-    if(l_str_len <= 0)
-        return NULL;
+    dap_return_val_if_pass(!a_addr || !a_str || !a_str[0], -1);
     if (!dap_strcmp(a_str, "null") || !dap_strcmp(a_str, "0")) {
-        return DAP_NEW_Z(dap_chain_addr_t);
+        memset(a_addr, 0, sizeof(dap_chain_addr_t));
+        return 0;
     }
-    size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(l_str_len);
-    dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
-    return ( dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t) ) 
-        && !dap_chain_addr_check_sum(l_addr)
-            ? l_addr
-            : ( DAP_DELETE(l_addr), NULL );
+    int l_ret = 0;
+    size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(a_str));
+    dap_chain_addr_t *l_addr_cur = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, l_ret_size, -2);
+    if (dap_enc_base58_decode(a_str, l_addr_cur) == sizeof(dap_chain_addr_t) && !dap_chain_addr_check_sum(l_addr_cur)) {
+        memcpy(a_addr, l_addr_cur, sizeof(dap_chain_addr_t));
+    } else {
+        l_ret = -3;
+    }
+    DAP_DELETE(l_addr_cur);
+    return l_ret;
+}
+
+/**
+ * @brief dap_chain_str_to_addr
+ * @param a_str - string with one addr
+ * @return pointer to dap_chain_addr_t if pass, if not - NULL
+ */
+dap_chain_addr_t *dap_chain_addr_from_str(const char *a_str)
+{
+    dap_chain_addr_t *l_ret = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_addr_t, NULL);
+    if (s_addr_from_str(l_ret, a_str)) {
+        DAP_DELETE(l_ret);
+        return NULL;
+    }
+    return l_ret;
+}
+
+
+/**
+ * @brief parce addrs string div by ',', alloc memory to addrs
+ * @param a_addr_str - ddrs string div by ','
+ * @param a_addr - pointer to memory alloc
+ * @return addr count
+ */
+size_t dap_chain_addr_from_str_array(const char *a_addr_str, dap_chain_addr_t **a_addr)
+{
+    dap_return_val_if_pass(!a_addr_str || !a_addr, 0);
+    size_t l_count = dap_str_symbol_count(a_addr_str, ',') + 1;
+    dap_chain_addr_t *l_addr = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_chain_addr_t, l_count, 0);
+    char **l_addr_str_array = dap_strsplit(a_addr_str, ",", l_count);
+    if (!l_addr_str_array) {
+        DAP_DELETE(l_addr);
+        return 0;
+    }
+    for (size_t i = 0; i < l_count; ++i) {
+        if (s_addr_from_str(l_addr + i, l_addr_str_array[i])) {
+            DAP_DELETE(l_addr);
+            dap_strfreev(l_addr_str_array);
+            return 0;
+        }
+    }
+    dap_strfreev(l_addr_str_array);
+    *a_addr = l_addr;
+    return l_count;
 }
 
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr)

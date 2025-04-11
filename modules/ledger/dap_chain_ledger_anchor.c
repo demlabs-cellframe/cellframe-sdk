@@ -171,11 +171,59 @@ int dap_ledger_anchor_load(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_ch
             return -1;
         }
         l_new_anchor->anchor_hash = *a_anchor_hash;
-        l_new_anchor->anchor = a_anchor;
+        dap_chain_datum_anchor_t *l_anchor = a_anchor;
+        if (!a_chain->is_mapped) {
+            l_anchor = DAP_DUP_SIZE(a_anchor, dap_chain_datum_anchor_get_size(a_anchor));
+            if (!l_anchor) {
+                log_it(L_CRITICAL, "Memory allocation error");
+                pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+                return -1;
+            }
+        }
+        l_new_anchor->anchor = l_anchor;
+        l_new_anchor->storage_chain_id = a_chain->id;
         HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->anchors, anchor_hash, sizeof(dap_hash_fast_t), l_hash_value, l_new_anchor);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     return ret_val;
+}
+
+int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
+{
+    dap_return_val_if_fail(a_ledger, -1);
+    dap_chain_t *l_chain = dap_chain_find_by_id(a_ledger->net->pub.id, a_chain_id);
+    if (!l_chain) {
+        log_it(L_ERROR, "Can't find chain 0x016%" DAP_UINT64_FORMAT_x "in net %s", a_chain_id.uint64, a_ledger->net->pub.name);
+        return -2;
+    }
+    if (!dap_chain_datum_type_supported_by_chain(l_chain, DAP_CHAIN_DATUM_ANCHOR))
+        return 0;
+    dap_ledger_anchor_item_t *it = NULL, *tmp;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
+    HASH_ITER(hh, l_ledger_pvt->anchors, it, tmp) {
+        if (it->storage_chain_id.uint64 != a_chain_id.uint64)
+            continue;
+        HASH_DEL(l_ledger_pvt->anchors, it);
+        dap_hash_fast_t l_decree_hash;
+        if (!dap_chain_datum_anchor_get_hash_from_data(it->anchor, &l_decree_hash)) {
+            dap_ledger_decree_item_t *l_decree = NULL;
+            HASH_FIND(hh, l_ledger_pvt->decrees, &l_decree_hash, sizeof(dap_hash_fast_t), l_decree);
+            if (l_decree) {
+                l_decree->is_applied = l_decree->wait_for_apply = false;
+                l_decree->anchor_hash = (dap_hash_fast_t) { };
+                if (l_decree->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD)
+                    dap_chain_net_remove_last_reward(a_ledger->net);
+            } else
+                log_it(L_ERROR, "Corrupted datum anchor, can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
+        } else
+            log_it(L_ERROR, "Corrupted datum anchor %s, can't get decree hash from it", dap_hash_fast_to_str_static(&it->anchor_hash));
+        if (!l_chain->is_mapped)
+            DAP_DELETE(it->anchor);
+        DAP_DELETE(it);
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+    return 0;
 }
 
 static dap_ledger_anchor_item_t *s_find_anchor(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash)

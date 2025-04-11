@@ -78,7 +78,10 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE         0x000E
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK                      0x000F
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY                        0x0011 
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE             0x0011
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY                        0x0012
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY                0x0013
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL               0x001F
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -90,17 +93,19 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH                                0x0107
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE                         0x0108
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR                  0x0109
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM                           0x010C
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION                          0x010F
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR                           0x0110
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE                     0x0111
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT             0x0112
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST                                0x0113
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING                              0x0115
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION                              0x010A
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM                           0x010C
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E 
-
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS              0x0116
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CANCEL_CHAIN_ID            0x0117
 
 #ifdef __cplusplus
 extern "C" {
@@ -216,6 +221,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_
         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING:
         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS:
+        return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION:
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ACTION";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE:
@@ -388,15 +395,6 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
  */
 dap_chain_datum_decree_t* dap_chain_datum_decree_sign_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
                                                   size_t a_certs_count, size_t *a_total_sign_count);
-
-/**
- * @brief dap_chain_datum_decree_find_sign
- * @details find pkey in decree
- * @param a_decree - decree to search sign
- * @param a_pkey - pkey to search
- * @return true if finded
- */
-bool dap_chain_datum_decree_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pkey_t *a_pkey);
 
 #ifdef __cplusplus
 }

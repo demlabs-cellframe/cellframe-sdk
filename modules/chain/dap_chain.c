@@ -83,11 +83,11 @@ int dap_chain_init(void)
  */
 void dap_chain_deinit(void)
 {
-    dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
+    /*dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(l_item->chain);
           DAP_DELETE(l_item);
-    }
+    }*/ // TODO!
     dap_chain_srv_deinit();
 }
 
@@ -147,7 +147,52 @@ void dap_chain_set_cs_type(dap_chain_t *a_chain, const char *a_cs_type)
 int dap_chain_purge(dap_chain_t *a_chain)
 {
     int ret = dap_chain_cs_class_purge(a_chain);
-    return ret + dap_chain_cs_purge(a_chain);
+    ret += dap_chain_cs_purge(a_chain);
+    dap_chain_cell_close_all(a_chain);
+    return ret;
+}
+
+static int s_compare_generations(dap_list_t *a_list1, dap_list_t *a_list2)
+{
+    uint16_t l_elm1 = *(uint16_t *)a_list1->data,
+             l_elm2 = *(uint16_t *)a_list2->data;
+    return (int16_t)(l_elm1 - l_elm2);
+}
+
+bool dap_chain_generation_banned(dap_chain_t *a_chain, uint16_t a_generation)
+{
+    dap_chain_pvt_t *l_chain_pvt = DAP_CHAIN_PVT(a_chain);
+    return dap_list_find(l_chain_pvt->generation_banlist, &a_generation, s_compare_generations);
+}
+
+int dap_chain_generation_ban(dap_chain_t *a_chain, uint16_t a_generation)
+{
+    if (!a_generation) {
+        log_it(L_ERROR, "Can't ban basic generation for chain 0x%016" DAP_UINT64_FORMAT_x, a_chain->id.uint64);
+        return -3;
+    }
+    if (a_chain->generation > a_generation) {
+        log_it(L_ERROR, "Can't ban old generation for chain 0x%016" DAP_UINT64_FORMAT_x, a_chain->id.uint64);
+        return -1;
+    }
+    dap_chain_pvt_t *l_chain_pvt = DAP_CHAIN_PVT(a_chain);
+    dap_list_t *l_banned = dap_list_find(l_chain_pvt->generation_banlist, &a_generation, s_compare_generations);
+    if (l_banned)
+        return 1;
+    uint16_t *l_generation = DAP_DUP_RET_VAL_IF_FAIL(&a_generation, -2);
+    l_chain_pvt->generation_banlist = dap_list_insert_sorted(l_chain_pvt->generation_banlist, l_generation, s_compare_generations);
+    if (a_chain->generation == a_generation)
+        while (dap_chain_generation_banned(a_chain, a_chain->generation))
+            a_chain->generation--;
+    assert((int16_t)a_chain->generation != -1);
+    return 0;
+}
+
+uint16_t dap_chain_generation_next(dap_chain_t *a_chain)
+{
+    uint16_t l_generation = a_chain->generation;
+    while (dap_chain_generation_banned(a_chain, ++l_generation));
+    return l_generation;
 }
 
 /**
@@ -174,7 +219,6 @@ void dap_chain_delete(dap_chain_t *a_chain)
     }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     dap_list_free_full(a_chain->atom_notifiers, NULL);
-    dap_config_close(a_chain->config);
     dap_chain_cs_class_delete(a_chain);
     if (DAP_CHAIN_PVT(a_chain)) {
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
@@ -214,8 +258,9 @@ dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain
  * @param a_cell_id
  * @return
  */
-dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id)
+dap_chain_t *dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id)
 {
+    // TODO! Reconsider lock mechanics
     dap_chain_item_id_t l_chain_item_id = {
         .id = a_chain_id,
         .net_id = a_chain_net_id,
@@ -347,6 +392,15 @@ static bool s_datum_in_chain_types(uint16_t datum_type, dap_chain_type_t *chain_
 	return (false);
 }
 
+bool dap_chain_datum_type_supported_by_chain(dap_chain_t *a_chain, uint16_t a_datum_type)
+{
+    dap_return_val_if_fail(a_chain, false);
+    for (uint16_t i = 0; i < a_chain->datum_types_count; i++)
+        if (s_chain_type_convert(a_chain->datum_types[i]) == a_datum_type)
+            return true;
+    return false;
+}
+
 /**
  * @brief dap_chain_load_from_cfg
  * Loading chain from config file
@@ -385,10 +439,11 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
         if (!dap_dir_test(DAP_CHAIN_PVT(l_chain)->file_storage_dir))
             dap_mkdir_with_parents(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
     } else
-        log_it (L_INFO, "Not set file storage path, will not stored in files");
+        log_it (L_INFO, "Not set file storage path, will not be stored in files"); // TODO
 
-    if (!l_chain->cells)
-        dap_chain_cell_create_fill( l_chain, (dap_chain_cell_id_t){ .uint64 = 0 } );
+    /*if (!l_chain->cells)
+        dap_chain_cell_create_fill( l_chain, (dap_chain_cell_id_t){ .uint64 = 0 } );*/
+    
     l_chain->config = a_cfg;
     l_chain->load_priority = dap_config_get_item_uint16_default(a_cfg, "chain", "load_priority", 100);
 
@@ -490,26 +545,8 @@ const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
     return (const char *)DAP_CHAIN_PVT(l_chain)->cs_name;
 }
 
-/**
- * @brief dap_chain_save_all
- * @param l_chain
- * @return
- */
-int dap_chain_save_all(dap_chain_t *l_chain)
-{
-    int l_ret = 0;
-    pthread_rwlock_rdlock(&l_chain->cell_rwlock);
-    dap_chain_cell_t *l_item = NULL, *l_item_tmp = NULL;
-    HASH_ITER(hh,l_chain->cells,l_item,l_item_tmp){
-        if(dap_chain_cell_file_update(l_item) <= 0)
-            l_ret++;
-    }
-    pthread_rwlock_unlock(&l_chain->cell_rwlock);
-    return l_ret;
-}
-
 //send chain load_progress data to notify socket
-bool download_notify_callback(dap_chain_t* a_chain) {
+static bool s_load_notify_callback(dap_chain_t* a_chain) {
     json_object* l_chain_info = json_object_new_object();
     json_object_object_add(l_chain_info, "class", json_object_new_string("chain_init"));
     json_object_object_add(l_chain_info, "net", json_object_new_string(a_chain->net_name));
@@ -522,6 +559,13 @@ bool download_notify_callback(dap_chain_t* a_chain) {
     return true;
 }
 
+static int s_ids_sort(const void *a_cell_id1, const void *a_cell_id2)
+{
+    uint64_t a = ((dap_chain_cell_id_t *)a_cell_id1)->uint64,
+             b = ((dap_chain_cell_id_t *)a_cell_id2)->uint64;
+    return a > b ? 1 : (a < b ? -1 : 0);
+}
+
 /**
  * @brief dap_chain_load_all
  * @param l_chain
@@ -529,56 +573,74 @@ bool download_notify_callback(dap_chain_t* a_chain) {
  */
 int dap_chain_load_all(dap_chain_t *a_chain)
 {
-    int l_ret = 0;
-    if (!a_chain)
-        return -2;
+    dap_return_val_if_fail(a_chain, -2);
     if (a_chain->callback_load_from_gdb) {
         a_chain->is_mapped = false;
         a_chain->callback_load_from_gdb(a_chain);
         return 0;
     }
     char *l_storage_dir = DAP_CHAIN_PVT(a_chain)->file_storage_dir;
-    if (!l_storage_dir)
-        return 0;
+    dap_return_val_if_fail_err(l_storage_dir, 0, "No path set for chains files in net %s", a_chain->net_name); // TODO: light mode?
+
     DIR *l_dir = opendir(l_storage_dir);
-    if (!l_dir) {
-        log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
-        return -3;
-    }
-    for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir)) {
-        const char * l_filename = l_dir_entry->d_name;
-        const char l_suffix[] = ".dchaincell";
-        size_t l_suffix_len = strlen(l_suffix);
-        if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
-            uint64_t l_cell_id_uint64 = 0;
-            sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
-            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
-            dap_timerfd_t* l_download_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)download_notify_callback, a_chain);
-            l_ret += dap_chain_cell_load(a_chain, l_cell);
-            if ( DAP_CHAIN_PVT(a_chain)->need_reorder ) {
-#ifdef DAP_OS_WINDOWS
-                strcat(l_cell->file_storage_path, ".new");
-                if (remove(l_cell->file_storage_path) == -1) {
-                    log_it(L_ERROR, "File %s doesn't exist", l_cell->file_storage_path);
+    dap_return_val_if_fail_err(l_dir, -3, "Cannot open directory %s, error %d: \"%s\"",
+                                          DAP_CHAIN_PVT(a_chain)->file_storage_dir, errno, dap_strerror(errno));
+    int l_err = 0, l_cell_idx = 0;
+    const char l_suffix[] = "." DAP_CHAIN_CELL_FILE_EXT, *l_filename;
+    struct dirent *l_dir_entry = NULL;
+    dap_chain_cell_id_t l_cell_ids[DAP_CHAIN_CELL_MAX_COUNT];
+    while (( l_dir_entry = readdir(l_dir) ) ) {
+        l_filename = l_dir_entry->d_name;
+        size_t l_namelen = strlen(l_filename);
+        if (l_namelen >= sizeof(l_suffix)) {
+             /* Check filename */
+            char l_fmt[32] = "", l_ext[ sizeof(DAP_CHAIN_CELL_FILE_EXT) ] = "", l_ext2 = '\0';
+            snprintf(l_fmt, sizeof(l_fmt), "%s%lu%s", "%"DAP_UINT64_FORMAT_x".%", sizeof(DAP_CHAIN_CELL_FILE_EXT) - 1, "[^.].%c");
+            switch ( sscanf(l_filename, l_fmt, &l_cell_ids[l_cell_idx].uint64, l_ext, &l_ext2) ) {
+            case 3:
+                // TODO: X.dchaincell.*, just ignore for now
+                break;
+            case 2:
+                if ( !dap_strncmp(l_ext, DAP_CHAIN_CELL_FILE_EXT, sizeof(l_ext)) ) {
+                    l_cell_idx++;
+                    break;
                 }
-                *(l_cell->file_storage_path + strlen(l_cell->file_storage_path) - 4) = '\0';
-#else
-                const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
-                if (remove(l_filename_backup) == -1) {
-                    log_it(L_ERROR, "File %s doesn't exist", l_filename_backup);
-                }
-                if (rename(l_cell->file_storage_path, l_filename_backup)) {
-                    log_it(L_ERROR, "Couldn't rename %s to %s", l_cell->file_storage_path, l_filename_backup);
-                }
-                DAP_DELETE(l_filename_backup);
-#endif
+            default:
+                log_it(L_ERROR, "Invalid cell file name \"%s\"", l_filename);
+                l_err = EINVAL;
+                break;
             }
-            dap_timerfd_delete(l_download_notify_timer->worker, l_download_notify_timer->esocket_uuid);
-            download_notify_callback(a_chain);
         }
     }
     closedir(l_dir);
-    return l_ret;
+
+    if (!l_cell_idx) {
+        if (!l_err)
+            l_err = dap_chain_cell_open(a_chain, c_dap_chain_cell_id_null, 'w');
+        if (l_err)
+            log_it(L_ERROR, "Chain \"%s : %s\" was not loaded, error %d", a_chain->net_name, a_chain->name, l_err);
+        else
+            log_it(L_INFO, "Initialized chain \"%s : %s\" cell 0", a_chain->net_name, a_chain->name);
+        return l_err;
+    }
+
+    qsort(l_cell_ids, l_cell_idx, sizeof(dap_chain_cell_id_t), s_ids_sort);
+
+    dap_time_t l_ts_start = dap_time_now();
+    for (int i = 0; i < l_cell_idx; i++) {
+        dap_timerfd_t* l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_load_notify_callback, a_chain);
+        l_err = dap_chain_cell_open(a_chain, l_cell_ids[i], 'a');
+        dap_timerfd_delete(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+        if (l_err) {
+            log_it(L_ERROR, "Chain \"%s : %s\" cell 0x%016" DAP_UINT64_FORMAT_x " was not loaded, error %d",
+                                    a_chain->net_name, a_chain->name, (uint64_t)l_cell_idx, l_err);
+            return l_err;
+        }
+        s_load_notify_callback(a_chain);
+    }
+    log_it(L_INFO, "Loaded all chain \"%s : %s\" cells in %lf s",
+                    a_chain->net_name, a_chain->name, difftime((time_t)dap_time_now(), l_ts_start));
+    return l_err;
 }
 
 /**
@@ -729,7 +791,8 @@ void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callbac
  */
 bool dap_chain_get_atom_last_hash_num_ts(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num, dap_time_t *a_atom_timestamp)
 {
-    dap_return_val_if_fail(a_atom_hash || a_atom_num, false);
+    dap_return_val_if_fail(a_chain && a_chain->callback_atom_iter_create &&
+                           a_chain->callback_atom_iter_get && a_chain->callback_atom_iter_delete, false);
     dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, NULL);
     if (!l_iter)
         return false;
@@ -774,6 +837,7 @@ struct chain_thread_datum_removed_notifier {
     dap_chain_t *chain;
     dap_chain_cell_id_t cell_id;
     dap_hash_fast_t hash;
+    dap_chain_datum_t *datum;
     int ret_code;
 };
 
@@ -804,22 +868,21 @@ static bool s_notify_datum_removed_on_thread(void *a_arg)
 {
     struct chain_thread_datum_removed_notifier *l_arg = a_arg;
     assert(l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, &l_arg->hash);
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum);
     DAP_DELETE(l_arg);
     return false;
 }
 
-ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash)
+int dap_chain_atom_save(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
+                            const uint8_t *a_atom, size_t a_atom_size,
+                            dap_hash_fast_t *a_new_atom_hash, char **a_atom_map)
 {
-    dap_return_val_if_fail(a_chain_cell && a_chain_cell->chain, -1);
-    dap_chain_t *l_chain = a_chain_cell->chain;
-
     if (a_new_atom_hash) { // Atom is new and need to be distributed for the net
-        dap_cluster_t *l_net_cluster = dap_cluster_find(dap_guuid_compose(l_chain->net_id.uint64, 0));
+        dap_cluster_t *l_net_cluster = dap_cluster_find(dap_guuid_compose(a_chain->net_id.uint64, 0));
         if (l_net_cluster) {
             size_t l_pkt_size = a_atom_size + sizeof(dap_chain_ch_pkt_t);
-            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id, l_chain->id,
-                                                             a_chain_cell->id, a_atom, a_atom_size,
+            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(a_chain->net_id, a_chain->id,
+                                                             a_cell_id, a_atom, a_atom_size,
                                                              DAP_CHAIN_CH_PKT_VERSION_CURRENT);
             if (l_pkt) {
                 dap_gossip_msg_issue(l_net_cluster, DAP_CHAIN_CH_ID, l_pkt, l_pkt_size, a_new_atom_hash);
@@ -827,7 +890,7 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
             }
         }
     }
-    return dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
+    return dap_chain_cell_file_append(a_chain, a_cell_id, a_atom, a_atom_size, a_atom_map);
 }
 
 /**
@@ -870,51 +933,43 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
 }
 
-void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size) {
+void dap_chain_atom_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
 
-    if ( !a_chain_cell->chain->atom_notifiers )
+    if ( !a_chain->atom_notifiers )
         return;
     dap_list_t *l_iter;
-    DL_FOREACH(a_chain_cell->chain->atom_notifiers, l_iter) {
+    DL_FOREACH(a_chain->atom_notifiers, l_iter) {
         dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-        struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
-        if (!l_arg) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            continue;
-        }
+        struct chain_thread_notifier *l_arg = DAP_NEW_Z_RET_IF_FAIL(struct chain_thread_notifier);
         *l_arg = (struct chain_thread_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .chain = a_chain,     .cell_id = a_cell_id,
             .hash = *a_hash,
-            .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE((byte_t*)a_atom, a_atom_size),
+            .atom = a_chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE((byte_t*)a_atom, a_atom_size),
             .atom_size = a_atom_size };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
 
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid) {
+void dap_chain_datum_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
 
-    if ( !a_chain_cell->chain->datum_notifiers )
+    if ( !a_chain->datum_notifiers )
         return;
     dap_list_t *l_iter;
-    DL_FOREACH(a_chain_cell->chain->datum_notifiers, l_iter) {
+    DL_FOREACH(a_chain->datum_notifiers, l_iter) {
         dap_chain_datum_notifier_t *l_notifier = (dap_chain_datum_notifier_t*)l_iter->data;
-        struct chain_thread_datum_notifier *l_arg = DAP_NEW_Z(struct chain_thread_datum_notifier);
-        if (!l_arg) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            continue;
-        }
+        struct chain_thread_datum_notifier *l_arg = DAP_NEW_Z_RET_IF_FAIL(struct chain_thread_datum_notifier);
         *l_arg = (struct chain_thread_datum_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
+            .chain = a_chain,     .cell_id = a_cell_id,
             .hash = *a_hash,
-            .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE((byte_t*)a_datum, a_datum_size),
+            .datum = a_chain->is_mapped ? (byte_t*)a_datum : DAP_DUP_SIZE((byte_t*)a_datum, a_datum_size),
             .datum_size = a_datum_size,
             .ret_code = a_ret_code,
             .action = a_action,
@@ -923,15 +978,15 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
     }
 }
 
-void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash) {
+void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, dap_chain_datum_t *a_datum) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
 
-    if ( !a_chain_cell->chain->datum_removed_notifiers )
+    if ( !a_chain->datum_removed_notifiers )
         return;
     dap_list_t *l_iter;
-    DL_FOREACH(a_chain_cell->chain->datum_removed_notifiers, l_iter) {
+    DL_FOREACH(a_chain->datum_removed_notifiers, l_iter) {
         dap_chain_datum_removed_notifier_t *l_notifier = (dap_chain_datum_removed_notifier_t*)l_iter->data;
         struct chain_thread_datum_removed_notifier *l_arg = DAP_NEW_Z(struct chain_thread_datum_removed_notifier);
         if (!l_arg) {
@@ -940,8 +995,8 @@ void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fa
         }
         *l_arg = (struct chain_thread_datum_removed_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
-            .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
-            .hash = *a_hash};
+            .chain = a_chain,   .cell_id = a_cell_id,
+            .hash = *a_hash,    .datum = a_datum };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_removed_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }

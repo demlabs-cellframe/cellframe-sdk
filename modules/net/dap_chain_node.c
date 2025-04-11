@@ -19,33 +19,18 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#include <pthread.h>
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#endif
-
+#include "dap_common.h"
 #include "dap_hash.h"
+#include "dap_chain_cell.h"
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
+#include "dap_chain_node_client.h"
 #include "dap_chain_cs_esbocs.h" // TODO set RPC callbacks for exclude consensus specific dependency
 #include "dap_chain_cs_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
+#include "dap_chain_net_srv_stake_pos_delegate.h" // TODO set RPC callbacks for exclude service specific dependency
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_balancer.h"
 #include "dap_cli_server.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_mempool.h"
@@ -75,14 +60,12 @@ typedef struct dap_chain_node_net_states_info {
 #define node_info_v1_shift ( sizeof(uint16_t) + 16 + sizeof(dap_chain_node_role_t) )
 
 enum hardfork_state {
-    STATE_START = 0,
-    STATE_ANCHORS,
+    STATE_ANCHORS = 0,
     STATE_BALANCES,
     STATE_CONDOUTS,
     STATE_FEES,
     STATE_SERVICES,
-    STATE_MEMPOOL,
-    STATE_FINISH
+    STATE_MEMPOOL
 };
 
 struct hardfork_states {
@@ -249,20 +232,17 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
         return;
     }
     int l_ret = -1;
-    for (size_t i = 0; i < 3 || l_ret == 0; i++) {
+    for (size_t i = 0; i < 3 && l_ret != 0; i++) {
         dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
         if (l_client)
             l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
-        dap_chain_node_client_close_unsafe(l_client);
-        if (!l_ret)
-            break;
+        // dap_chain_node_client_close_unsafe(l_client); TODO unexpected del in s_go_stage_on_client_worker_unsafe
     }
     if (l_ret == 0) {
-        a_obj->timestamp = dap_time_now();
-        dap_global_db_driver_apply(a_obj, 1);
+        dap_global_db_set_sync(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, a_obj->flags & DAP_GLOBAL_DB_RECORD_PINNED);
     } else {
-        dap_global_db_driver_delete(a_obj, 1);
         log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ] delete from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
+        dap_global_db_driver_delete(a_obj, 1);
     }
     dap_strfreev(l_group_strings);
 }
@@ -283,7 +263,7 @@ int dap_chain_node_list_clean_init() {
 int dap_chain_node_init()
 {
     if (dap_proc_thread_timer_add(NULL, s_update_node_states_info, NULL, s_timer_update_states_info)) {
-        log_it(L_ERROR, "Can't activate timer on node states update");
+        // log_it(L_ERROR, "Can't activate timer on node states update");
         return -1;
     }
     return 0;
@@ -414,7 +394,8 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS &&
-            l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE) {
+            l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE &&
+            l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_FEE) {
                 if (a_ret)
                     *a_ret = l_verify_datum;
                 return true;
@@ -466,31 +447,6 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
                 continue;
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
-
-                if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
-                        !dap_strcmp(dap_chain_get_cs_type(a_chain), "esbocs")) {
-                    uint256_t l_tx_fee = {};
-                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-                    if (dap_chain_datum_tx_get_fee_value (l_tx, &l_tx_fee) ||
-                            IS_ZERO_256(l_tx_fee)) {
-                        if (!dap_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
-                            log_it(L_WARNING, "Can't get fee value from tx %s", l_objs[i].key);
-                            continue;
-                        } else
-                            log_it(L_DEBUG, "Process service tx without fee");
-                    } else {
-                        uint256_t l_min_fee = dap_chain_esbocs_get_fee(a_chain->net_id);
-                        if (compare256(l_tx_fee, l_min_fee) < 0) {
-                            char *l_tx_fee_str = dap_chain_balance_coins_print(l_tx_fee);
-                            char *l_min_fee_str = dap_chain_balance_coins_print(l_min_fee);
-                            log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
-                                   l_tx_fee_str, l_min_fee_str, l_objs[i].key);
-                            DAP_DELETE(l_tx_fee_str);
-                            DAP_DELETE(l_min_fee_str);
-                            continue;
-                        }
-                    }
-                }
                 int l_ret = 0;
                 if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, &l_ret)) {
                     // Delete processed objects
@@ -512,7 +468,7 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
 {
     dap_chain_datum_t **ret = NULL;
     size_t l_datums_count = 0;
-    const uint64_t l_max_step_size = DAP_CHAIN_ATOM_MAX_SIZE - sizeof(dap_chain_datum_service_state_t);
+    const uint64_t l_max_step_size = DAP_CHAIN_CANDIDATE_MAX_SIZE - sizeof(dap_chain_datum_service_state_t);
     uint64_t l_step_size = dap_min(l_max_step_size, a_state->size);
     byte_t *l_offset = a_state->data, *l_ptr = l_offset, *l_end = a_state->data + a_state->size * a_state->count;
     while (l_offset < l_end) {
@@ -537,15 +493,20 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
     return ret;
 }
 
-int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs)
+int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, json_object * a_changed_addrs)
 {
     if (dap_strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR))
         return log_it(L_ERROR, "Can't prepare harfork for chain type %s is not supported", dap_chain_get_cs_type(a_chain)), -2;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     assert(l_net);
+    if (dap_chain_net_srv_stake_hardfork_data_verify(l_net, &a_chain->hardfork_decree_hash)) {
+        log_it(L_ERROR, "Stake delegate data verifying with hardfork decree failed");
+        return -3;
+    }
+    log_it(L_ATT, "Starting data prepare for hardfork of chain '%s' for net '%s'", a_chain->name, l_net->pub.name);
     struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1, NULL);
-    l_states->balances = dap_ledger_states_aggregate(l_net->pub.ledger, a_last_block_timestamp, &l_states->condouts);
-    l_states->anchors = dap_ledger_anchors_aggregate(l_net->pub.ledger);
+    l_states->balances = dap_ledger_states_aggregate(l_net->pub.ledger, a_last_block_timestamp, &l_states->condouts, a_changed_addrs);
+    l_states->anchors = dap_ledger_anchors_aggregate(l_net->pub.ledger, a_chain->id);
     l_states->fees = dap_chain_cs_blocks_fees_aggregate(a_chain);
     size_t l_state_size = 0;
     l_states->service_states = dap_chain_srv_hardfork_all(l_net->pub.id);
@@ -562,8 +523,28 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     }
     l_states->trusted_addrs = a_trusted_addrs;
     a_chain->hardfork_data = l_states;
-    DAP_CHAIN_CS_BLOCKS(a_chain)->is_hardfork_state = true;
-    l_net->pub.ledger->is_hardfork_state = true;
+    dap_chain_cell_create(a_chain, c_dap_chain_cell_id_hardfork);
+    return 0;
+}
+
+static int s_tx_trackers_add(dap_chain_datum_tx_t **a_tx, dap_list_t *a_trackers)
+{
+    for (dap_list_t *it = a_trackers; it; it = it->next) {
+        dap_ledger_tracker_t *l_tracker = it->data;
+        dap_chain_tx_tsd_t *l_tracker_hash_tsd = dap_chain_datum_tx_item_tsd_create(&l_tracker->voting_hash, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_VOTING_HASH, sizeof(dap_hash_fast_t));
+        if (!l_tracker_hash_tsd)
+            return -1;
+        if (dap_chain_datum_tx_add_item(a_tx, l_tracker_hash_tsd) != 1)
+            return -2;
+        for (dap_ledger_tracker_item_t *l_item = l_tracker->items; l_item; l_item = l_item->next) {
+            dap_ledger_hardfork_tracker_t l_hardfork_tracker = { .pkey_hash = l_item->pkey_hash, .coloured_value = l_item->coloured_value };
+            dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(&l_hardfork_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_hardfork_tracker_t));
+            if (!l_tracker_tsd)
+                return -3;
+            if (dap_chain_datum_tx_add_item(a_tx, l_tracker_tsd) != 1)
+                return -4;
+        }
+    }
     return 0;
 }
 
@@ -576,17 +557,9 @@ dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_tic
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    for (dap_list_t *it = a_trackers; it; it = it->next) {
-        dap_ledger_tracker_t *l_tracker = it->data;
-        dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(l_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_tracker_t));
-        if (!l_tracker_tsd) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
-        }
-        if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_tsd) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
-        }
+    if (s_tx_trackers_add(&l_tx, a_trackers)) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
     }
     dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
     dap_chain_datum_tx_delete(l_tx);
@@ -624,17 +597,9 @@ dap_chain_datum_t *s_cond_tx_create(dap_chain_tx_out_cond_t *a_cond, dap_chain_t
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    for (dap_list_t *it = a_trackers; it; it = it->next) {
-        dap_ledger_tracker_t *l_tracker = it->data;
-        dap_chain_tx_tsd_t *l_tracker_tsd = dap_chain_datum_tx_item_tsd_create(l_tracker, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER, sizeof(dap_ledger_tracker_t));
-        if (!l_tracker_tsd) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
-        }
-        if (dap_chain_datum_tx_add_item(&l_tx, l_tracker_tsd) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
-        }
+    if (s_tx_trackers_add(&l_tx, a_trackers)) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
     }
     dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
     dap_chain_datum_tx_delete(l_tx);
@@ -664,17 +629,17 @@ dap_chain_datum_t *s_fee_tx_create(uint256_t a_value, dap_sign_t *a_owner_sign)
 int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
 {
     dap_return_val_if_fail(a_chain, -1);
-    if (!dap_chain_net_by_id(a_chain->net_id)->pub.mempool_autoproc)
-        return -2;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_return_val_if_fail(l_net, -10);
+    if (!l_net->pub.mempool_autoproc)
+        return -12;
     if (!a_chain->hardfork_data)
         return log_it(L_ERROR, "Can't process chain with no harfork data. Use dap_chain_node_hardfork_prepare() for collect it first"), -2;
     struct hardfork_states *l_states = a_chain->hardfork_data;
     switch (l_states->state_current) {
-    case STATE_START:
-        l_states->state_current = STATE_ANCHORS;
     case STATE_ANCHORS:
         for (dap_ledger_hardfork_anchors_t *it = l_states->anchors; it; it = it->next) {
-            dap_chain_datum_t *l_datum_anchor = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, it->anchor, dap_chain_datum_anchor_get_size(it->anchor));
+            dap_chain_datum_t *l_datum_anchor = dap_chain_datum_create(DAP_CHAIN_DATUM_ANCHOR, it->anchor, dap_chain_datum_anchor_get_size(it->anchor));
             if (!l_datum_anchor)
                 return -2;
             if (!a_chain->callback_add_datums(a_chain, &l_datum_anchor, 1)) {
@@ -686,7 +651,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             }
             DAP_DELETE(l_datum_anchor);
         }
-        l_states->state_current = STATE_BALANCES;
     case STATE_BALANCES:
         for (dap_ledger_hardfork_balances_t *it = l_states->balances; it; it = it->next) {
             dap_chain_datum_t *l_tx = s_datum_tx_create(&it->addr, it->ticker, it->value, it->trackers);
@@ -699,7 +663,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             }
             DAP_DELETE(l_tx);
         }
-        l_states->state_current = STATE_CONDOUTS;
     case STATE_CONDOUTS:
         for (dap_ledger_hardfork_condouts_t *it = l_states->condouts; it; it = it->next) {
             dap_chain_datum_t *l_cond_tx = s_cond_tx_create(it->cond, it->sign, &it->hash, it->ticker, it->trackers);
@@ -712,7 +675,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             }
             DAP_DELETE(l_cond_tx);
         }
-        l_states->state_current = STATE_FEES;
     case STATE_FEES:
         for (dap_chain_cs_blocks_hardfork_fees_t *it = l_states->fees; it; it = it->next) {
             dap_chain_datum_t *l_fee_tx = s_fee_tx_create(it->fees_n_rewards_sum, it->owner_sign);
@@ -726,7 +688,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             }
             DAP_DELETE(l_fee_tx);
         }
-        l_states->state_current = STATE_SERVICES;
     case STATE_SERVICES:
         for (dap_chain_srv_hardfork_state_t *it = l_states->service_states; it; it = it->next) {
             if (it->uid.uint64 >= (uint64_t)INT64_MIN)       // MSB is set
@@ -751,12 +712,10 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             if (l_break)
                 break;
         }
-        l_states->state_current = STATE_MEMPOOL;
     case STATE_MEMPOOL: {
         char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
         size_t l_objs_count = 0;
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
-        bool l_nothing_processed = true;
         for (size_t i = 0; i < l_objs_count; i++) {
             if (dap_store_obj_get_type(l_objs +i) == DAP_GLOBAL_DB_OPTYPE_DEL)
                 continue;
@@ -765,42 +724,63 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             if (!l_objs[i].sign)
                 continue;
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_SERVICE_STATE)
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_SERVICE_STATE &&
+                    l_datum->header.type_id != DAP_CHAIN_DATUM_ANCHOR)
                 continue;
-            dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
-            bool l_addr_match = false;
-            for (dap_list_t *it = l_states->trusted_addrs; it; it = it->next) {
-                if (((dap_stream_node_addr_t *)it->data)->uint64 != l_addr.uint64)
-                    continue;
-                l_addr_match = true;
-                break;
-            }
-            if (!l_addr_match) {
-                log_it(L_WARNING, "Trying to inject hardfork service state datum from addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_addr));
-                continue;
-            }
-            dap_hash_str_t l_key = dap_get_data_hash_str(l_datum->data, l_datum->header.data_size);
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
-                log_it(L_WARNING, "Trying to process hardfork service state datum with incorrect size %zu (expect %zu)",
-                                                                            dap_chain_datum_size(l_datum), l_objs[i].value_len);
+                log_it(L_WARNING, "Trying to process hardfork %s datum with incorrect size %zu (expect %zu)",
+                                            l_datum->header.type_id == DAP_CHAIN_DATUM_SERVICE_STATE ? "service state" : "anchor",
+                                                dap_chain_datum_size(l_datum), l_objs[i].value_len);
                 continue;
             }
-            if (dap_strcmp(l_objs[i].key, l_key.s)) {
-                log_it(L_WARNING, "Trying to process hardfork service state datum with hash mismatch");
-                continue;
+            if (l_datum->header.type_id == DAP_CHAIN_DATUM_SERVICE_STATE) {
+                if (l_datum->header.data_size <= sizeof(dap_chain_datum_service_state_t)) {
+                    log_it(L_WARNING, "Hardfork service state datum size %u less than minimum", l_datum->header.data_size);
+                    continue;
+                }
+                dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
+                bool l_addr_match = false;
+                for (dap_list_t *it = l_states->trusted_addrs; it; it = it->next) {
+                    if (((dap_stream_node_addr_t *)it->data)->uint64 != l_addr.uint64)
+                        continue;
+                    l_addr_match = true;
+                    break;
+                }
+                if (!l_addr_match) {
+                    log_it(L_WARNING, "Trying to inject hardfork service state datum from addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_addr));
+                    continue;
+                }
+            } else { // DATUM_ANCHOR
+                if (l_datum->header.data_size <= sizeof(dap_chain_datum_service_state_t)) {
+                    log_it(L_WARNING, "Hardfork service state datum size %u less than minimum", l_datum->header.data_size);
+                    continue;
+                }
+                dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)l_datum->data;
+                dap_hash_fast_t l_decree_hash = {};
+                dap_chain_datum_decree_t *l_decree = NULL;
+                if (dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash) != 0) {
+                    log_it(L_WARNING, "Can't get hash from anchor data");
+                    continue;
+                }
+                bool l_is_applied = false;
+                l_decree = dap_ledger_decree_get_by_hash(l_net, &l_decree_hash, &l_is_applied);
+                if (!l_decree) {
+                    log_it(L_WARNING, "Can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
+                    return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;
+                }
+                if (l_decree->header.sub_type != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE)
+                    continue;
+                if (l_is_applied) {
+                    log_it(L_ERROR, "Decree %s for harfork completion already applied", dap_hash_fast_to_str_static(&l_decree_hash));
+                    continue;
+                }
             }
             if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, NULL))
                 dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
-            else
-                l_nothing_processed = false;
         }
         dap_store_obj_free(l_objs, l_objs_count);
         DAP_DELETE(l_gdb_group_mempool);
-        if (l_nothing_processed)
-            l_states->state_current = STATE_FINISH;
-    }
-    case STATE_FINISH:
-        break;
+    } break;
     // No default here
     }
     return 0;
@@ -813,11 +793,19 @@ static int s_compare_trackers(dap_list_t *a_list1, dap_list_t *a_list2)
         dap_ledger_tracker_t *l_tracker1 = it1->data,
                              *l_tracker2 = it2->data;
         ret = memcmp(&l_tracker1->voting_hash, &l_tracker1->voting_hash, sizeof(dap_hash_fast_t));
-        if (ret)
+        if (ret)            // hash mismatch
             break;
-        ret = compare256(l_tracker1->colored_value, l_tracker2->colored_value);
-        if (ret)
-            break;
+        dap_ledger_tracker_item_t *it1 = l_tracker1->items, *it2 = l_tracker2->items;
+        for (; it1 && it2; it1 = it1->next, it2 = it2->next) {
+            ret = memcmp(&it1->pkey_hash, &it2->pkey_hash, sizeof(dap_hash_fast_t));
+            if (ret)        // pkey mismatch
+                break;
+            ret = compare256(it1->coloured_value, it2->coloured_value);
+            if (ret)        // value mismatch
+                break;
+        }
+        if (it1 || it2)     // count mismatch
+            return 1;
     }
     return ret;
 }
@@ -894,6 +882,30 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
     }
     switch (a_datum->header.type_id) {
 
+    case DAP_CHAIN_DATUM_ANCHOR: {
+        dap_ledger_hardfork_anchors_t *l_found = NULL,
+                                       l_sought = { .anchor = (dap_chain_datum_anchor_t *)a_datum->data };
+
+        DL_SEARCH(a_chain->hardfork_data->anchors, l_found, &l_sought, s_compare_anchors);
+        if (l_found) {
+            if (a_remove) {
+                DL_DELETE(a_chain->hardfork_data->anchors, l_found);
+                DAP_DELETE(l_found);
+                if (!a_chain->hardfork_data->anchors)
+                    a_chain->hardfork_data->state_current = STATE_BALANCES;
+            }
+            break;
+        }
+    } break;
+
+#define m_ret_clear(rc) {                                                               \
+        if (l_regular.trackers)                                                         \
+            dap_list_free_full(l_regular.trackers, dap_ledger_colour_clear_callback);   \
+        if (l_conitional.trackers)                                                      \
+            dap_list_free_full(l_conitional.trackers, dap_ledger_colour_clear_callback);\
+        return rc;                                                                      \
+    }
+
     case DAP_CHAIN_DATUM_TX: {
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
         if (!l_tx->header.ts_created /* TODO add || l_tx->header.ts_created other criteria */) {
@@ -904,37 +916,42 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
         // Parse datum
         dap_ledger_hardfork_balances_t l_regular = {};
         dap_ledger_hardfork_condouts_t l_conitional = {};
+        dap_ledger_tracker_t *l_tracker_current = NULL;
         bool l_out = false;
         byte_t *l_item; size_t l_size;
         TX_ITEM_ITER_TX(l_item, l_size, l_tx) {
             switch (*l_item) {
-            case TX_ITEM_TYPE_OUT_EXT:
+            case TX_ITEM_TYPE_OUT_STD:
                 if (l_out || l_conitional.cond) {
                     log_it(L_WARNING, "Additional OUT_EXT item for harfork datum tx is forbidden");
-                    return -4;
+                    m_ret_clear(-4);
                 }
                 l_out = true;
-                dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_item;
-                l_regular.addr = l_out_ext->addr;
-                dap_stpcpy(l_regular.ticker, l_out_ext->token);
-                l_regular.value = l_out_ext->header.value;
+                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)l_item;
+                l_regular.addr = l_out_std->addr;
+                dap_stpcpy(l_regular.ticker, l_out_std->token);
+                l_regular.value = l_out_std->value;
                 break;
             case TX_ITEM_TYPE_OUT_COND:
                 if (l_out || l_conitional.cond) {
                     log_it(L_WARNING, "Additional OUT_COND item for harfork datum tx is forbidden");
-                    return -5;
+                    m_ret_clear(-5);
                 }
                 l_conitional.cond = (dap_chain_tx_out_cond_t *)l_item;
                 break;
             case TX_ITEM_TYPE_SIG:
                 if (l_conitional.sign) {
                     log_it(L_WARNING, "Additional SIG item for harfork datum tx is forbidden");
-                    return -6;
+                    m_ret_clear(-6);
                 }
                 l_conitional.sign = (dap_chain_tx_sig_t *)l_item;
                 break;
             case TX_ITEM_TYPE_TSD: {
                 dap_chain_tx_tsd_t *l_tx_tsd = (dap_chain_tx_tsd_t *)l_item;
+                if (l_tx_tsd->header.size < sizeof(dap_tsd_t)) {
+                    log_it(L_WARNING, "Illegal harfork datum tx TSD header size %" DAP_UINT64_FORMAT_U, l_tx_tsd->header.size);
+                    m_ret_clear(-8);
+                }
                 dap_tsd_t *l_tsd = (dap_tsd_t *)l_tx_tsd->tsd;
                 switch (l_tsd->type) {
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TX_HASH:
@@ -943,23 +960,45 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TICKER:
                     if (!l_tsd->size || l_tsd->size > DAP_CHAIN_TICKER_SIZE_MAX) {
                         log_it(L_WARNING, "Illegal harfork datum tx TSD TICKER size %u", l_tsd->size);
-                        return -8;
+                        m_ret_clear(-8);
                     }
-                    dap_stpcpy((char *)l_conitional.ticker, (char *)l_tsd->data);
+                    dap_strncpy(l_conitional.ticker, (char *)l_tsd->data, DAP_CHAIN_TICKER_SIZE_MAX);
                     break;
-                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER:
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_VOTING_HASH: {
+                    if (l_tsd->size != sizeof(dap_hash_fast_t)) {
+                        log_it(L_WARNING, "Illegal harfork datum tx TSD VOTING_HASH size %u", l_tsd->size);
+                        m_ret_clear(-8);
+                    }
+                    l_tracker_current = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_tracker_t, -2);
+                    l_tracker_current->voting_hash = *(dap_hash_fast_t *)l_tsd->data;
                     if (l_out)
-                        l_regular.trackers = dap_list_append(l_regular.trackers, l_tsd->data);
+                        l_regular.trackers = dap_list_append(l_regular.trackers, l_tracker_current);
                     else
-                        l_conitional.trackers = dap_list_append(l_conitional.trackers, l_tsd->data);
+                        l_conitional.trackers = dap_list_append(l_conitional.trackers, l_tracker_current);
+                } break;
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TRACKER: {
+                    if (l_tsd->size != sizeof(dap_ledger_hardfork_tracker_t)) {
+                        log_it(L_WARNING, "Illegal harfork datum tx TSD TRACKER size %u", l_tsd->size);
+                        m_ret_clear(-8);
+                    }
+                    if (!l_tracker_current) {
+                        log_it(L_WARNING, "No voting hash defined for tracking item");
+                        m_ret_clear(-19);
+                    }
+                    dap_ledger_hardfork_tracker_t *l_tsd_item = (dap_ledger_hardfork_tracker_t *)l_tsd->data;
+                    dap_ledger_tracker_item_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_tracker_item_t, -2);
+                    l_item->pkey_hash = l_tsd_item->pkey_hash;
+                    l_item->coloured_value = l_tsd_item->coloured_value;
+                    DL_APPEND(l_tracker_current->items, l_item);
+                } break;
                 default:
-                    log_it(L_WARNING, "Illegal harfork datum tx TSD item type %d", l_tsd->type);
-                    return -7;
+                    log_it(L_WARNING, "Illegal harfork datum tx TSD item type 0x%X", l_tsd->type);
+                    m_ret_clear(-7);
                 }
             } break;
             default:
                 log_it(L_WARNING, "Illegal harfork datum tx item type %d", *l_item);
-                return -4;
+                m_ret_clear(-4);
             }
         }
         // Call comparators
@@ -967,49 +1006,55 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             dap_ledger_hardfork_balances_t *l_found = NULL;
             DL_SEARCH(a_chain->hardfork_data->balances, l_found, &l_regular, s_compare_balances);
             if (l_found) {
-                if (a_remove)
+                if (a_remove) {
                     DL_DELETE(a_chain->hardfork_data->balances, l_found);
+                    dap_list_free_full(l_found->trackers, dap_ledger_colour_clear_callback);
+                    DAP_DELETE(l_found);
+                    if (!a_chain->hardfork_data->balances)
+                        a_chain->hardfork_data->state_current = STATE_CONDOUTS;
+                }
                 break;
             }
         } else if (l_conitional.cond) {
-            if (l_conitional.cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK) {
+            if (l_conitional.cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK) {
+                dap_ledger_hardfork_condouts_t *l_found = NULL;
+                DL_SEARCH(a_chain->hardfork_data->condouts, l_found, &l_conitional, s_compare_condouts);
+                if (l_found) {
+                    if (a_remove) {
+                        DL_DELETE(a_chain->hardfork_data->condouts, l_found);
+                        dap_list_free_full(l_found->trackers, dap_ledger_colour_clear_callback);
+                        DAP_DELETE(l_found);
+                        if (!a_chain->hardfork_data->condouts)
+                            a_chain->hardfork_data->state_current = STATE_FEES;
+                    }
+                    break;
+                }
+            } else {
                 dap_chain_cs_blocks_hardfork_fees_t *l_found = NULL,
                                                      l_sought = { .fees_n_rewards_sum = l_conitional.cond->header.value,
                                                                   .owner_sign = dap_chain_datum_tx_item_sig_get_sign(l_conitional.sign) };
                 DL_SEARCH(a_chain->hardfork_data->fees, l_found, &l_sought, s_compare_fees);
                 if (l_found) {
-                    if (a_remove)
+                    if (a_remove) {
                         DL_DELETE(a_chain->hardfork_data->fees, l_found);
-                    break;
-                }
-            } else {
-                dap_ledger_hardfork_condouts_t *l_found = NULL;
-                DL_SEARCH(a_chain->hardfork_data->condouts, l_found, &l_conitional, s_compare_condouts);
-                if (l_found) {
-                    if (a_remove)
-                        DL_DELETE(a_chain->hardfork_data->condouts, l_found);
+                        DAP_DELETE(l_found);
+                        if (!a_chain->hardfork_data->fees)
+                            a_chain->hardfork_data->state_current = STATE_SERVICES;
+                    }
                     break;
                 }
             }
         } else {
             log_it(L_WARNING, "Illegal harfork datum tx item with no OUT");
-            return -8;
+            m_ret_clear(-18);
         }
         // Clean memory
-
+        if (l_regular.trackers)
+            dap_list_free_full(l_regular.trackers, dap_ledger_colour_clear_callback);
+        if (l_conitional.trackers)
+            dap_list_free_full(l_conitional.trackers, dap_ledger_colour_clear_callback);
     } break;
-
-    case DAP_CHAIN_DATUM_ANCHOR: {
-        dap_ledger_hardfork_anchors_t *l_found = NULL,
-                                       l_sought = { .anchor = (dap_chain_datum_anchor_t *)a_datum->data };
-
-        DL_SEARCH(a_chain->hardfork_data->anchors, l_found, &l_sought, s_compare_anchors);
-        if (l_found) {
-            if (a_remove)
-                DL_DELETE(a_chain->hardfork_data->anchors, l_found);
-            break;
-        }
-    } break;
+#undef m_ret_clear
 
     case DAP_CHAIN_DATUM_SERVICE_STATE: {
         dap_chain_srv_hardfork_state_t *l_found = NULL,
@@ -1017,8 +1062,12 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
 
         DL_SEARCH(a_chain->hardfork_data->service_states, l_found, &l_sought, s_compare_service_states);
         if (l_found) {
-            if (a_remove)
+            if (a_remove) {
                 DL_DELETE(a_chain->hardfork_data->service_states, l_found);
+                DAP_DEL_MULTY(l_found->data, l_found);
+                if (!a_chain->hardfork_data->service_states)
+                    a_chain->hardfork_data->state_current = STATE_MEMPOOL;
+            }
             break;
         }
         dap_hash_str_t l_key = dap_get_data_hash_str(a_datum->data, a_datum->header.data_size);
@@ -1032,11 +1081,12 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
                 break;
             }
+
 #define m_ret(rc) { \
-    dap_store_obj_free(l_objs, l_objs_count); \
-    DAP_DELETE(l_gdb_group_mempool); \
-    return rc; \
-}
+        dap_store_obj_free(l_objs, l_objs_count); \
+        DAP_DELETE(l_gdb_group_mempool); \
+        return rc; \
+    }
             if (dap_store_obj_get_type(l_objs +i) == DAP_GLOBAL_DB_OPTYPE_DEL) {
                 log_it(L_WARNING, "Mempool record %s already deleted, can' process", l_objs[i].key);
                 m_ret(-8);
@@ -1081,6 +1131,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
         }
 
     } break;
+#undef m_ret
 
     default:
         log_it(L_WARNING, "Incorrect harfork datum type %u", a_datum->header.type_id);
@@ -1276,7 +1327,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object *a_json_a
                 return DAP_DELETE(l_str_reply), DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
             }
         } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
-            if (!( *a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type) ))
+            if (( *a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type) ))
                 return 0;
             else {
                 dap_json_rpc_error_add(a_json_arr_reply, 
