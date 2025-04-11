@@ -290,6 +290,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX: return "Not enough sovereign tax provided with current transaction";
     case DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX: return "Can't find tx in ledger for removing.";
     case DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET: return "The transaction was rejected because it contains multiple outputs to other networks.";
+    case DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL: return "Usage of timed locked out is forbidden for this tx";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";

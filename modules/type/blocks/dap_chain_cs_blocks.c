@@ -802,6 +802,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             else {
                 uint16_t num = 0;
                 dap_digit_from_string(l_num_str, &num, sizeof(uint16_t));
+                if (!num && dap_strcmp(l_num_str, "0")) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, "Invalid block number %s", l_num_str);
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
+                }
                 l_block_cache = dap_chain_block_cache_get_by_number(l_blocks, num);
             }
             if (!l_block_cache) {
