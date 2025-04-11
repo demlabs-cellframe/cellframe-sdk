@@ -43,6 +43,13 @@ typedef struct {
     uint16_t port;
 } NetInfo;
 
+typedef struct {
+    const char *net_name;
+    const char *url_str;
+    uint16_t port;
+    json_object *response_handler;
+} compose_config_t;
+
 static NetInfo netinfo[NET_COUNT] = {
     {"riemann",  "tKEL",  {.uint64 = 0x000000000000dddd}, "45.76.140.191", 8081},
     {"raiden",   "tCELL", {.uint64 = 0x000000000000bbbb}, "http://rpc.cellframe.net", 8081},
@@ -53,13 +60,13 @@ static NetInfo netinfo[NET_COUNT] = {
 };
 
 
-const char* dap_compose_get_net_url(const char* name);
-uint16_t dap_compose_get_net_port(const char* name);
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+const char* dap_compose_get_net_url(const char* name);
+uint16_t dap_compose_get_net_port(const char* name);
 
 int dap_tx_create_compose(int argc, char ** argv);
 int dap_tx_create_xchange_compose(int argc, char ** argv);
@@ -69,14 +76,15 @@ int dap_cli_take_compose(int a_argc, char **a_argv);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
 typedef enum {
     STAKE_ORDER_CREATE_STAKER_OK = 0,
-    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_VALUE = -1,
-    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_FEE = -2,
-    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_TAX = -3,
-    STAKE_ORDER_CREATE_STAKER_ERR_WALLET_NOT_FOUND = -4,
-    STAKE_ORDER_CREATE_STAKER_ERR_KEY_NOT_FOUND = -5,
-    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_ADDR = -6,
-    STAKE_ORDER_CREATE_STAKER_ERR_TX_CREATE_FAILED = -7,
-    STAKE_ORDER_CREATE_STAKER_ERR_JSON_FAILED = -8
+    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_PARAMS = -1,
+    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_VALUE = -2,
+    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_FEE = -3,
+    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_TAX = -4,
+    STAKE_ORDER_CREATE_STAKER_ERR_WALLET_NOT_FOUND = -5,
+    STAKE_ORDER_CREATE_STAKER_ERR_KEY_NOT_FOUND = -6,
+    STAKE_ORDER_CREATE_STAKER_ERR_INVALID_ADDR = -7,
+    STAKE_ORDER_CREATE_STAKER_ERR_TX_CREATE_FAILED = -8,
+    STAKE_ORDER_CREATE_STAKER_ERR_JSON_FAILED = -9
 } dap_cli_srv_stake_order_create_staker_error_t;
 json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str, const char *l_value_str, const char *l_fee_str, const char *l_tax_str, const char *l_addr_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, int l_port);
 
@@ -155,11 +163,19 @@ typedef enum {
     DAP_STAKE_TX_INVALIDATE_COMPOSE_FEE_ERROR = -27,
     DAP_STAKE_TX_INVALIDATE_COMPOSE_FEE_BACK_ERROR = -28
 } dap_cli_stake_invalidate_error_t;
+dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, compose_config_t *a_config);
 json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const char *a_tx_hash_str, const char *a_wallet_str, 
                         const char *a_wallet_path, const char *a_cert_str, uint256_t a_fee, const char *a_url_str, uint16_t a_port);
-dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(const char *a_net_str, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, const char *l_url_str, uint16_t l_port, json_object *a_error_handler);
 
-json_object* dap_request_command_to_rpc(const char *request, const char * a_net_name, const char * a_url_str, uint16_t a_port);
+typedef enum {
+    DAP_COMPOSE_ERROR_NONE = 0,
+    DAP_COMPOSE_ERROR_RESPONSE_NULL = -1,
+    DAP_COMPOSE_ERROR_RESULT_NOT_FOUND = -2,
+    DAP_COMPOSE_ERROR_REQUEST_INIT_FAILED = -3,
+    DAP_COMPOSE_ERROR_REQUEST_TIMEOUT = -4,
+    DAP_COMPOSE_ERROR_REQUEST_FAILED = -5
+} dap_compose_error_t;
+json_object* dap_request_command_to_rpc(const char *request, compose_config_t *a_config);
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
 
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer);
@@ -176,7 +192,7 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(const char *a_net
         dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
         uint256_t a_value_fee, const void *a_cond,
         size_t a_cond_size, const char *a_url_str, uint16_t a_port);
-bool dap_get_remote_net_fee_and_address(const char *l_net_name, uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee, const char * a_url_str, uint16_t a_port);
+bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee, compose_config_t *a_config);
 bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker, const char *l_net_name,
                                          json_object **l_outs, int *l_outputs_count, const char * a_url_str, uint16_t a_port);
 dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(const char *a_net_name, dap_enc_key_t *a_key_from,
@@ -196,11 +212,11 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
                               uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                               bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                               const char *a_net_str, const char *a_token_ticker, const char *l_url_str, uint16_t l_port);
-dap_chain_datum_tx_t *dap_stake_tx_create_compose(const char * a_net_str, dap_enc_key_t *a_key,
+dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
                                                uint256_t a_value, uint256_t a_fee,
                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
                                                dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax,
-                                               dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey, const char *l_url_str, int l_port, json_object *l_error_handle);
+                                               dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey, compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(const char *a_net_str, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
                                      dap_chain_wallet_t *a_wallet, const char *l_url_str, int l_port);
