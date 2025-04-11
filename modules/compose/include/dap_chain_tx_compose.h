@@ -68,8 +68,8 @@ extern "C" {
 const char* dap_compose_get_net_url(const char* name);
 uint16_t dap_compose_get_net_port(const char* name);
 
-json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_fee_str, const char *addr_base58_to, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, int l_port);
-int dap_tx_create_xchange_compose(int argc, char ** argv);
+json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_fee_str, const char *addr_base58_to, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, uint16_t l_port);
+json_object* dap_tx_create_xchange_compose(const char *l_net_str, const char *l_token_sell, const char *l_token_buy, const char *l_wallet_str, const char *l_wallet_path, const char *l_value_str, const char *l_rate_str, const char *l_fee_str, const char *l_url_str, uint16_t l_port);
 int dap_tx_cond_create_compose(int argc, char ** argv);
 int dap_cli_hold_compose(int a_argc, char **a_argv);
 int dap_cli_take_compose(int a_argc, char **a_argv);
@@ -86,7 +86,7 @@ typedef enum {
     STAKE_ORDER_CREATE_STAKER_ERR_TX_CREATE_FAILED = -8,
     STAKE_ORDER_CREATE_STAKER_ERR_JSON_FAILED = -9
 } dap_cli_srv_stake_order_create_staker_error_t;
-json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str, const char *l_value_str, const char *l_fee_str, const char *l_tax_str, const char *l_addr_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, int l_port);
+json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str, const char *l_value_str, const char *l_fee_str, const char *l_tax_str, const char *l_addr_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, uint16_t l_port);
 
 typedef enum {
     SRV_STAKE_ORDER_REMOVE_COMPOSE_OK = 0,
@@ -124,7 +124,7 @@ typedef enum {
 } srv_stake_order_remove_compose_error_t;
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
                                      dap_chain_wallet_t *a_wallet, compose_config_t *a_config);
-json_object* dap_cli_srv_stake_order_remove_compose(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, int l_port);
+json_object* dap_cli_srv_stake_order_remove_compose(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, uint16_t l_port);
 
 typedef enum {
     STAKE_DELEGATE_COMPOSE_OK = 0,
@@ -218,10 +218,10 @@ int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer);
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
         const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, size_t a_tx_num, compose_config_t *a_config);
-dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_net_name, const char *a_token_buy, const char *a_token_sell, uint256_t a_datoshi_sell,
-                                     uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet, const char * a_url_str, uint16_t a_port);
+dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_token_buy, const char *a_token_sell, uint256_t a_datoshi_sell,
+                                     uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet, compose_config_t *a_config);
 dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet,
-                                                                const char *a_native_ticker, const char *a_net_name, const char * a_url_str, uint16_t a_port);
+                                                                 const char *a_native_ticker, compose_config_t *a_config);
 dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(const char *a_net_name,
         dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
