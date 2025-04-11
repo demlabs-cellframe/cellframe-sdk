@@ -75,6 +75,7 @@ typedef struct dap_ledger_hardfork_balances {
     dap_chain_addr_t addr;
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t value;
+    dap_time_t ts_unlock;
     dap_list_t *trackers;
     struct dap_ledger_hardfork_balances *prev, *next;
 } dap_ledger_hardfork_balances_t;

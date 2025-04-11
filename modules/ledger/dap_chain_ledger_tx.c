@@ -1682,10 +1682,10 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             goto FIN;
         }
 
-        assert(l_addr);
-        if (l_addr->net_id.uint64 != a_ledger->net->pub.id.uint64 &&
+        if (l_addr && l_addr->net_id.uint64 != a_ledger->net->pub.id.uint64 &&
                 !dap_chain_addr_is_blank(l_addr))
             l_cross_network = true;
+
         if (!l_multichannel && dap_strcmp(l_main_token_ticker, l_cur_token_ticker))
             l_multichannel = true;
 
@@ -2632,6 +2632,8 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
 
 static int s_compare_balances(dap_ledger_hardfork_balances_t *a_list1, dap_ledger_hardfork_balances_t *a_list2)
 {
+    if (a_list1->ts_unlock)
+        return -1;
     int ret = memcmp(&a_list1->addr, &a_list2->addr, sizeof(dap_chain_addr_t));
     return ret ? ret : memcmp(a_list1->ticker, a_list2->ticker, DAP_CHAIN_TICKER_SIZE_MAX);
 }
@@ -2680,12 +2682,29 @@ dap_list_t *s_trackers_aggregate_hardfork(dap_ledger_t *a_ledger, dap_list_t *a_
     return a_trackers;
 }
 
+static dap_chain_addr_t* s_change_addr(struct json_object *a_json, dap_chain_addr_t *a_addr)
+{
+    if(!a_json || !a_addr)
+        return NULL;
+    const char * l_out_addr = dap_chain_addr_to_str_static(a_addr);
+    struct json_object *l_json = json_object_object_get(a_json, l_out_addr);
+    if(l_json && json_object_is_type(l_json, json_type_string)) {
+        const char *l_change_str =  json_object_get_string(l_json);
+        dap_chain_addr_t* l_ret_addr =  dap_chain_addr_from_str(l_change_str);
+        DAP_DELETE(l_change_str);
+        return l_ret_addr;
+    }
+    return NULL;
+}
+
 static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, dap_ledger_t *a_ledger,
                            const char *a_ticker, dap_chain_addr_t *a_addr,
                            uint256_t a_value, dap_time_t a_hardfork_start_time,
-                           dap_list_t *a_trackers)
+                           dap_list_t *a_trackers, json_object *a_changed_addrs)
 {
-    dap_ledger_hardfork_balances_t l_new_balance = { .addr = *a_addr, .value = a_value };
+    dap_chain_addr_t *l_change_addr = s_change_addr(a_changed_addrs, a_addr);
+    dap_ledger_hardfork_balances_t l_new_balance = { .addr = l_change_addr ? *l_change_addr : *a_addr, .value = a_value };
+    DAP_DEL_Z(l_change_addr);
     memcpy(l_new_balance.ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     dap_ledger_hardfork_balances_t *l_exist = NULL;
     DL_SEARCH(*a_out_list, l_exist, &l_new_balance, s_compare_balances);
@@ -2705,36 +2724,33 @@ static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, dap_ledg
     return 0;
 }
 
+static int s_aggregate_out_locked(dap_ledger_hardfork_balances_t **a_out_list, dap_ledger_t *a_ledger,
+                                  const char *a_ticker, dap_chain_addr_t *a_addr,
+                                  uint256_t a_value, dap_time_t a_hardfork_start_time,
+                                  dap_list_t *a_trackers, json_object *a_changed_addrs,
+                                  dap_time_t a_unlock_time)
+{
+    dap_ledger_hardfork_balances_t *l_new_balance = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_hardfork_balances_t, -1);
+    dap_chain_addr_t *l_change_addr = s_change_addr(a_changed_addrs, a_addr);
+    *l_new_balance = (dap_ledger_hardfork_balances_t){ .addr = l_change_addr ? *l_change_addr : *a_addr, .value = a_value, .ts_unlock = a_unlock_time };
+    DAP_DEL_Z(l_change_addr);
+    memcpy(l_new_balance->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    l_new_balance->trackers = s_trackers_aggregate_hardfork(a_ledger, NULL, a_trackers, a_hardfork_start_time);
+    DL_APPEND(*a_out_list, l_new_balance);
+    return 0;
+}
+
 static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap_ledger_t *a_ledger,
                                 dap_chain_tx_out_cond_t *a_out_cond, dap_chain_tx_sig_t *a_sign,
                                 dap_hash_fast_t *a_tx_hash, const char *a_token_ticker,
                                 dap_time_t a_hardfork_start_time, dap_list_t *a_trackers)
 {
-    dap_ledger_hardfork_condouts_t *l_new_condout = DAP_NEW_Z(dap_ledger_hardfork_condouts_t);
-    if (!l_new_condout) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return -1;
-    }
+    dap_ledger_hardfork_condouts_t *l_new_condout = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_hardfork_condouts_t, -1);
     *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign };
     dap_strncpy(l_new_condout->ticker, a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     l_new_condout->trackers = s_trackers_aggregate_hardfork(a_ledger, NULL, a_trackers, a_hardfork_start_time);
     DL_APPEND(*a_ret_list, l_new_condout);
     return 0;
-}
-
-static dap_chain_addr_t* s_change_addr(struct json_object *a_json, dap_chain_addr_t *a_addr)
-{
-    if(!a_json || !a_addr)
-        return NULL;
-    const char * l_out_addr = dap_chain_addr_to_str_static(a_addr);
-    struct json_object *l_json = json_object_object_get(a_json, l_out_addr);
-    if(l_json && json_object_is_type(l_json, json_type_string)) {
-        const char *l_change_str =  json_object_get_string(l_json);
-        dap_chain_addr_t* l_ret_addr =  dap_chain_addr_from_str(l_change_str);
-        DAP_DELETE(l_change_str);
-        return l_ret_addr;
-    }
-    return NULL;
 }
 
 dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object *a_changed_addrs)
@@ -2760,30 +2776,25 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
             switch(l_tx_item_type) {
             case TX_ITEM_TYPE_OUT: {
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_tx_item;
-                dap_chain_addr_t * l_change_addr = s_change_addr(a_changed_addrs, &l_out->addr);
-                s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, l_change_addr ? l_change_addr : &l_out->addr, l_out->header.value, a_hardfork_decree_creation_time, l_trackers);
-                DAP_DEL_Z(l_change_addr);
+                s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, &l_out->addr, l_out->header.value, a_hardfork_decree_creation_time, l_trackers, a_changed_addrs);
                 break;
             }
             case TX_ITEM_TYPE_OUT_OLD: {
                 dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t *)l_tx_item;
-                dap_chain_addr_t * l_change_addr = s_change_addr(a_changed_addrs, &l_out->addr);
-                s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, l_change_addr ? l_change_addr : &l_out->addr, GET_256_FROM_64(l_out->header.value), a_hardfork_decree_creation_time, l_trackers);
-                DAP_DEL_Z(l_change_addr);
+                s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, &l_out->addr, GET_256_FROM_64(l_out->header.value), a_hardfork_decree_creation_time, l_trackers, a_changed_addrs);
                 break;
             }
             case TX_ITEM_TYPE_OUT_EXT: {
                 dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_tx_item;
-                dap_chain_addr_t * l_change_addr = s_change_addr(a_changed_addrs, &l_out->addr);
-                s_aggregate_out(&ret, a_ledger, l_out->token, l_change_addr ? l_change_addr : &l_out->addr, l_out->header.value, a_hardfork_decree_creation_time, l_trackers);
-                DAP_DEL_Z(l_change_addr);
+                s_aggregate_out(&ret, a_ledger, l_out->token, &l_out->addr, l_out->header.value, a_hardfork_decree_creation_time, l_trackers, a_changed_addrs);
                 break;
             }
             case TX_ITEM_TYPE_OUT_STD: {
                 dap_chain_tx_out_std_t *l_out = (dap_chain_tx_out_std_t *)l_tx_item;
-                dap_chain_addr_t * l_change_addr = s_change_addr(a_changed_addrs, &l_out->addr);
-                s_aggregate_out(&ret, a_ledger, l_out->token, l_change_addr ? l_change_addr : &l_out->addr, l_out->value, a_hardfork_decree_creation_time, l_trackers);
-                DAP_DEL_Z(l_change_addr);
+                if (l_out->ts_unlock <= dap_ledger_get_blockchain_time(a_ledger))
+                    s_aggregate_out(&ret, a_ledger, l_out->token, &l_out->addr, l_out->value, a_hardfork_decree_creation_time, l_trackers, a_changed_addrs);
+                else
+                    s_aggregate_out_locked(&ret, a_ledger, l_out->token, &l_out->addr, l_out->value, a_hardfork_decree_creation_time, l_trackers, a_changed_addrs, l_out->ts_unlock);
                 break;
             }
             case TX_ITEM_TYPE_OUT_COND: {
