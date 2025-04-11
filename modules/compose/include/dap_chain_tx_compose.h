@@ -88,7 +88,43 @@ typedef enum {
 } dap_cli_srv_stake_order_create_staker_error_t;
 json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str, const char *l_value_str, const char *l_fee_str, const char *l_tax_str, const char *l_addr_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, int l_port);
 
-int dap_cli_srv_stake_order_remove_compose(int a_argc, char **a_argv);
+typedef enum {
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_OK = 0,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_WALLET_NOT_FOUND,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_KEY_NOT_FOUND,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_FEE,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_ORDER_HASH,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_RPC_RESPONSE,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_ADDR,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_TAX,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_COND_TX,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_TOKEN_TICKER,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_TS_CREATED,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PRICE,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_TX,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NOT_ENOUGH_FUNDS,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_TX_COMPOSE,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_TX_SIGN,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_REMOTE_NODE_UNREACHABLE,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_RESPONSE_FORMAT,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NO_ITEMS_FOUND,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NO_COND_TX,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NO_TOKEN_TICKER,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NO_TIMESTAMP,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INSUFFICIENT_FUNDS,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_TX_COMPOSE_FAILED,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_COIN_RETURN_FAILED,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NET_FEE_FAILED,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_FEE_COINBACK_FAILED,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_FEE_TOO_HIGH,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_VALIDATOR_FEE_FAILED,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_TX_ALREADY_USED,
+    SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NOT_OWNER
+} srv_stake_order_remove_compose_error_t;
+dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+                                     dap_chain_wallet_t *a_wallet, compose_config_t *a_config);
+json_object* dap_cli_srv_stake_order_remove_compose(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, int l_port);
 
 typedef enum {
     STAKE_DELEGATE_COMPOSE_OK = 0,
@@ -218,8 +254,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
                                                dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax,
                                                dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey, compose_config_t *a_config);
 
-dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(const char *a_net_str, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
-                                     dap_chain_wallet_t *a_wallet, const char *l_url_str, int l_port);
+
 
 
 #ifdef __cplusplus
