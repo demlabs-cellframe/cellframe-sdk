@@ -46,15 +46,6 @@ typedef struct dap_ledger dap_ledger_t;
 typedef struct dap_chain_net_decree dap_chain_net_decree_t;
 typedef struct decree_table decree_table_t;
 typedef struct anchor_table anchor_table_t;
-typedef enum dap_chain_net_state {
-    NET_STATE_LOADING = 0,
-    NET_STATE_OFFLINE,
-    NET_STATE_LINKS_PREPARE,
-    NET_STATE_LINKS_CONNECTING,
-    NET_STATE_LINKS_ESTABLISHED,
-    NET_STATE_SYNC_CHAINS,
-    NET_STATE_ONLINE
-} dap_chain_net_state_t;
 
 static const char s_gdb_nodes_postfix[] = "nodes.list";
 
