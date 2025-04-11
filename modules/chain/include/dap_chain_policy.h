@@ -43,10 +43,11 @@ int dap_chain_policy_init();
 void dap_chain_policy_deinit();
 dap_chain_policy_t *dap_chain_policy_create_activate(uint32_t a_num, int64_t ts_start, uint64_t a_block_start, dap_chain_id_t a_chain_id, uint16_t a_generation);
 dap_chain_policy_t *dap_chain_policy_create_deactivate(char **a_nums, uint32_t a_count);
-int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id);
+int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id, dap_config_t *a_net_cfg);
 void dap_chain_policy_net_purge(dap_chain_net_id_t a_net_id);
 void dap_chain_policy_net_remove(dap_chain_net_id_t a_net_id);
 int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_net_id);
+//TODO: put under rwlock and unify
 int dap_chain_policy_add_exceptions(dap_chain_net_id_t a_net_id, const char **a_nums, uint32_t a_count);
 int dap_chain_policy_update_last_num(dap_chain_net_id_t a_net_id, uint32_t a_num);
 uint32_t dap_chain_policy_get_last_num(dap_chain_net_id_t a_net_id);
@@ -58,16 +59,14 @@ bool dap_chain_policy_is_activated(dap_chain_net_id_t a_net_id, uint32_t a_polic
 
 DAP_STATIC_INLINE size_t dap_chain_policy_get_size(dap_chain_policy_t *a_policy)
 {
-    return a_policy ? sizeof(dap_chain_policy_t)  + a_policy->data_size : 0;
+    return a_policy ? sizeof(dap_chain_policy_t) + a_policy->data_size : 0;
 }
 
 DAP_STATIC_INLINE const char *dap_chain_policy_to_str(dap_chain_policy_t *a_policy)
 {
-    if(!a_policy)
-        return "NULL";
-    if (DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE))
-        return ("DAP_CHAIN_POLICY_ACTIVATE");
-    return ("DAP_CHAIN_POLICY_DEACTIVATE");
+    return a_policy ? DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE)
+        ? "DAP_CHAIN_POLICY_ACTIVATE" : "DAP_CHAIN_POLICY_DEACTIVATE"
+    : "<null>";
 }
 
 /**
@@ -77,6 +76,5 @@ DAP_STATIC_INLINE const char *dap_chain_policy_to_str(dap_chain_policy_t *a_poli
  */
 DAP_STATIC_INLINE bool dap_chain_policy_num_is_valid(uint64_t a_num)
 {
-    uint32_t l_num = dap_maxval(l_num);
-    return (a_num && a_num <= l_num);
+    return a_num > 0 && a_num < UINT32_MAX;
 }
