@@ -247,7 +247,7 @@ int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id, dap_config_t *a_net_cf
     }
     struct net_policy_item *l_new_item = DAP_NEW_Z_RET_VAL_IF_FAIL(struct net_policy_item, -3);
     l_new_item->net_id = a_net_id;
-    l_new_item->last_num_policy = dap_config_get_item_uint32(a_net_cfg, "policy", "activate");
+    l_new_item->last_num = dap_config_get_item_uint32(a_net_cfg, "policy", "activate");
     HASH_ADD_BYHASHVALUE(hh, s_net_policy_items, net_id, sizeof(l_new_item->net_id), l_new_item->net_id.uint64, l_new_item);
     uint16_t l_policy_count = 0;
     const char **l_policy_str = dap_config_get_array_str(a_net_cfg, "policy", "deactivate", &l_policy_count);
