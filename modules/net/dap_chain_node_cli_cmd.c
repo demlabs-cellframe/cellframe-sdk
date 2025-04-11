@@ -8369,9 +8369,8 @@ int com_policy(int argc, char **argv, void **reply) {
     dap_chain_policy_t *l_policy = NULL;
     uint64_t l_policy_num = 0;
     if (l_cmd == CMD_DEACTIVATE) {
-        l_deactivate_count = dap_str_symbol_count(l_num_str, ',') + 1;
-        l_deactivate_array = dap_strsplit(l_num_str, ",", l_deactivate_count);
-        l_policy = dap_chain_policy_create_deactivate(l_deactivate_array, l_deactivate_count);
+        l_deactivate_array = dap_strsplit(l_num_str, ",", 0);
+        l_policy = dap_chain_policy_create_deactivate(l_deactivate_array, dap_str_countv(l_deactivate_array));
         dap_strfreev(l_deactivate_array);
         if (!l_policy) {
             dap_json_rpc_error_add(*a_json_arr_reply, -17, "Can't create deactivate policy object");

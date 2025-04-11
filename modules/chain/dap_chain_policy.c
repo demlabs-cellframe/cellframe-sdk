@@ -238,7 +238,7 @@ dap_chain_policy_t *dap_chain_policy_create_deactivate(char **a_nums, uint32_t a
  * @param a_net_id
  * @return 0 if pass, other if error
  */
-int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id)
+int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id, dap_config_t *a_net_cfg)
 {
     dap_return_val_if_pass(!a_net_id.uint64, -1);
     if(s_net_item_find(a_net_id)) {
@@ -247,7 +247,17 @@ int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id)
     }
     struct net_policy_item *l_new_item = DAP_NEW_Z_RET_VAL_IF_FAIL(struct net_policy_item, -3);
     l_new_item->net_id = a_net_id;
+    l_new_item->last_num_policy = dap_config_get_item_uint32(a_net_cfg, "policy", "activate");
     HASH_ADD_BYHASHVALUE(hh, s_net_policy_items, net_id, sizeof(l_new_item->net_id), l_new_item->net_id.uint64, l_new_item);
+    uint16_t l_policy_count = 0;
+    const char **l_policy_str = dap_config_get_array_str(a_net_cfg, "policy", "deactivate", &l_policy_count);
+    if (l_policy_count && l_policy_str) {
+        l_new_item->exceptions = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint32_t, l_policy_count + 1, -4);
+        l_new_item->exceptions[0] = l_policy_count;
+        for (uint32_t i = 0; i < l_policy_count; ++i) {
+            l_new_item->exceptions[i + 1] = strtoul(l_policy_str[i], NULL, 10);
+        }
+    }
     return 0;
 }
 
@@ -354,7 +364,7 @@ void dap_chain_policy_update_last_num(dap_chain_net_id_t a_net_id, uint32_t a_nu
 
 DAP_INLINE bool dap_chain_policy_is_exist(dap_chain_net_id_t a_net_id, uint32_t a_num)
 {
-   return s_policy_activate_find(a_net_id, a_num) ? true : false;
+   return !!s_policy_activate_find(a_net_id, a_num);
 }
 
 /**

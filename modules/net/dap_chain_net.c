@@ -778,20 +778,11 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                 NULL;
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
     
-    if (dap_chain_policy_net_add(l_ret->pub.id)) {
+    if ( dap_chain_policy_net_add(l_ret->pub.id, a_cfg) ) {
         log_it(L_ERROR, "Can't add net %s to policy module", l_ret->pub.name);
         DAP_DEL_MULTY(l_ret->pub.name, l_ret);
         return NULL;
     }
-    // activate policy
-    uint64_t l_policy_num = dap_config_get_item_uint32(a_cfg, "policy", "activate");
-    if (l_policy_num)
-        dap_chain_policy_update_last_num(l_ret->pub.id, l_policy_num);
-    // deactivate policy
-    uint16_t l_policy_count = 0;
-    const char **l_policy_str = dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
-    if (l_policy_count && l_policy_str)
-        dap_chain_policy_add_exceptions(l_ret->pub.id, l_policy_str, l_policy_count);
     
     l_ret->pub.config = a_cfg;
     l_ret->pub.gdb_groups_prefix
