@@ -49,7 +49,7 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
         return log_it(L_WARNING, "Anchor size is too small"), -120;
 
     if (dap_chain_datum_anchor_get_size(a_anchor) != a_data_size)
-        return log_it(L_WARNING, "Anchor size is invalid, %lu != %lu", dap_chain_datum_anchor_get_size(a_anchor), a_data_size), -121;
+        return log_it(L_WARNING, "Anchor size is invalid, %zu != %zu", dap_chain_datum_anchor_get_size(a_anchor), a_data_size), -121;
 
     int ret_val = 0;
     size_t l_signs_size = a_anchor->header.signs_size;
