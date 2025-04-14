@@ -3999,11 +3999,6 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         case TX_ITEM_TYPE_OUT_STD: {
             dap_chain_tx_out_std_t *l_tx_out = (dap_chain_tx_out_std_t *)it;
-            if (l_tx_out->ts_unlock &&
-                    !dap_chain_policy_activated(DAP_CHAIN_POLICY_OUT_STD_TIMELOCK_USE, a_ledger->net->pub.id.uint64)) {
-                l_err_num = DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL;
-                break;
-            }
             l_value = l_tx_out->value;
             l_token = l_tx_out->token;
             l_tx_out_to = l_tx_out->addr;
