@@ -89,7 +89,8 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
 
 json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_ticker_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_coins_str, const char *a_time_staking_str,
                                     const char *a_cert_str, const char *a_value_fee_str, const char *a_reinvest_percent_str, const char *a_url_str, uint16_t a_port);
-int dap_cli_take_compose(int a_argc, char **a_argv);
+json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_tx_str, const char *a_tx_burning_str,
+                                    const char *a_value_fee_str, const char *a_url_str, uint16_t a_port);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
 typedef enum {
     STAKE_ORDER_CREATE_STAKER_OK = 0,
@@ -255,12 +256,12 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value,
                                                     const char * a_chain_id_str, compose_config_t *a_config);
 bool check_token_in_ledger(json_object *l_json_coins, const char *a_token);
-dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(const char *a_net_name, dap_enc_key_t *a_key_from,
+dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key_from,
                                                dap_hash_fast_t *a_stake_tx_hash, uint32_t a_prev_cond_idx,
                                                const char *a_main_ticker, uint256_t a_value,
                                                uint256_t a_value_fee,
                                                const char *a_delegated_ticker_str, uint256_t a_delegated_value,
-                                               const char *l_url_str, uint16_t l_port);
+                                               compose_config_t *a_config);
 dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
                               uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                               bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
