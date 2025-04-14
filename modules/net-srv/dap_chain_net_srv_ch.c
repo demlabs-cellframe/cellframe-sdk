@@ -1097,7 +1097,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             return false;
         }
         if (l_request->data_size_recv > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX || l_request->data_size > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX) {
-            log_it(L_WARNING, "Too large payload %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
+            log_it(L_WARNING, "Too large payload %"DAP_UINT64_FORMAT_U" [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;

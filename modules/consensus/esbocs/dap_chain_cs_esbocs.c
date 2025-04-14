@@ -2625,7 +2625,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                             l_message->hdr.attempt_num, l_candidate_hash_str);
             size_t l_offset = dap_chain_block_get_sign_offset(l_store->candidate, l_store->candidate_size);
             uint32_t l_hash_type = DAP_SIGN_HASH_TYPE_DEFAULT;
-            if (dap_chain_policy_activated(DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS, a_session->chain->net_id.uint64))
+            if (dap_chain_policy_is_activated(a_session->chain->net_id, DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS))
                 l_hash_type = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_hash_type);
             dap_sign_t *l_candidate_sign = dap_sign_create_with_hash_type(PVT(l_session->esbocs)->blocks_sign_key,
                                             l_store->candidate, l_offset + sizeof(l_store->candidate->hdr), l_hash_type);
