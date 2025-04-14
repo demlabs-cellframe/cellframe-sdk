@@ -451,7 +451,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
 }
 
 static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id,
-                                dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size)
+                                dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size, dap_time_t a_atom_time)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     assert(l_session->chain == a_chain);
@@ -1257,8 +1257,7 @@ static bool s_session_round_new(void *a_arg)
     if (!a_session->is_hardfork) {
         a_session->is_hardfork = a_session->esbocs->hardfork_from && l_cur_atom_count == a_session->esbocs->hardfork_from;
         if (a_session->is_hardfork) {
-            dap_time_t l_last_block_timestamp = 0;
-            dap_chain_get_atom_last_hash_num_ts(a_session->chain, c_dap_chain_cell_id_null, NULL, NULL, &l_last_block_timestamp);
+            dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
             int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
                                                      a_session->esbocs->hardfork_trusted_addrs,
                                                      a_session->esbocs->hardfork_changed_addrs);

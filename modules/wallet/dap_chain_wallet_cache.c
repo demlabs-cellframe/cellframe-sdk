@@ -439,6 +439,8 @@ int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_to
                     continue;
                 if (IS_ZERO_256(l_out_std->value) )
                     continue;
+                if (l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_net->pub.ledger))
+                    continue;
                 l_value = l_out_std->value;
             } break;
             default:
@@ -537,6 +539,8 @@ int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const c
                     continue;
                 if (IS_ZERO_256(l_out_std->value) )
                     continue;
+                if (l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_net->pub.ledger))
+                    continue;
                 l_value = l_out_std->value;
             } break;
             default:
@@ -567,7 +571,6 @@ int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const c
    
     return 0;
 }
-
 
 static int s_save_cache_for_addr_in_net(dap_chain_net_t *a_net, dap_chain_addr_t *a_addr)
 {

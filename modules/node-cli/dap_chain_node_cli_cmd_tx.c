@@ -1613,6 +1613,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
     const char * l_tx_num_str = NULL;
     const char *l_emission_hash_str = NULL;
     const char *l_cert_str = NULL;
+    const char *l_time_str = NULL;
     dap_cert_t *l_cert = NULL;
     dap_enc_key_t *l_priv_key = NULL;
     dap_chain_hash_fast_t l_emission_hash = {};
@@ -1647,6 +1648,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx_num", &l_tx_num_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-lock_before", &l_time_str);
 
     if(l_tx_num_str)
         l_tx_num = strtoul(l_tx_num_str, NULL, 10);
@@ -1906,6 +1908,16 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
         }
     }
 
+    dap_time_t l_time_lock = 0;
+    if (l_time_str) {
+        l_time_lock = dap_time_from_str_rfc822(l_time_str);
+        if (!l_time_lock) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT,
+                                    "Wrong time format. Parameter -lock_before must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +00\"");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT;
+        }
+    }
+
     json_object *l_jobj_transfer_status = NULL;
     json_object *l_jobj_tx_hash = NULL;
 
@@ -1917,7 +1929,8 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply)
         json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
     } else {
         char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, l_addr_to,
-                                                                  l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count);
+                                                          l_token_ticker, l_value, l_value_fee, l_hash_out_type,
+                                                          l_addr_el_count, l_time_lock);
         if (l_tx_hash_str) {
             l_jobj_transfer_status = json_object_new_string("Ok");
             l_jobj_tx_hash = json_object_new_string(l_tx_hash_str);
