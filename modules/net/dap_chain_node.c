@@ -244,8 +244,11 @@ int dap_chain_node_list_clean_init() {
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
         if (l_role.enums == NODE_ROLE_ROOT) {
-            char * l_group_name = dap_strdup_printf("%s.nodes.list", l_net->pub.name);
-            dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_by_group(dap_global_db_instance_get_default(), l_group_name);
+            dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_by_group(dap_global_db_instance_get_default(), l_net->pub.gdb_nodes);
+            if ( !l_cluster ) {
+                log_it(L_ERROR, "Cluster for nodelist group \"%s\" not found", l_net->pub.gdb_nodes);
+                return -1;
+            }
             l_cluster->del_callback = dap_chain_node_list_cluster_del_callback;
             log_it(L_DEBUG, "Node list clean inited for net %s", l_net->pub.name);
         }
