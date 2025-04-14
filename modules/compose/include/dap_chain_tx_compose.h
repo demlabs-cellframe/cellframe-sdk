@@ -70,8 +70,25 @@ uint16_t dap_compose_get_net_port(const char* name);
 
 json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_fee_str, const char *addr_base58_to, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, uint16_t l_port);
 json_object* dap_tx_create_xchange_compose(const char *l_net_str, const char *l_token_sell, const char *l_token_buy, const char *l_wallet_str, const char *l_wallet_path, const char *l_value_str, const char *l_rate_str, const char *l_fee_str, const char *l_url_str, uint16_t l_port);
-int dap_tx_cond_create_compose(int argc, char ** argv);
-int dap_cli_hold_compose(int a_argc, char **a_argv);
+typedef enum dap_tx_cond_create_compose_error {
+    TX_COND_CREATE_COMPOSE_ERROR_INVALID_FEE = 1,
+    TX_COND_CREATE_COMPOSE_ERROR_INVALID_SERVICE_UID,
+    TX_COND_CREATE_COMPOSE_ERROR_INVALID_UNIT,
+    TX_COND_CREATE_COMPOSE_ERROR_INVALID_VALUE,
+    TX_COND_CREATE_COMPOSE_ERROR_WALLET_OPEN_FAILED,
+    TX_COND_CREATE_COMPOSE_ERROR_CERT_NOT_FOUND,
+    TX_COND_CREATE_COMPOSE_ERROR_INVALID_CERT_KEY,
+    TX_COND_CREATE_COMPOSE_ERROR_NATIVE_TOKEN_REQUIRED,
+    TX_COND_CREATE_COMPOSE_ERROR_NOT_ENOUGH_FUNDS,
+    TX_COND_CREATE_COMPOSE_ERROR_COND_OUTPUT_FAILED,
+    TX_COND_CREATE_COMPOSE_ERROR_COIN_BACK_FAILED
+} dap_tx_cond_create_compose_error_t;
+json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_token_ticker, const char *a_wallet_str, const char *a_wallet_path,
+                                        const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, 
+                                        const char *a_srv_uid_str, const char *a_url_str, uint16_t a_port);
+
+json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_ticker_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_coins_str, const char *a_time_staking_str,
+                                    const char *a_cert_str, const char *a_value_fee_str, const char *a_reinvest_percent_str, const char *a_url_str, uint16_t a_port);
 int dap_cli_take_compose(int a_argc, char **a_argv);
 int dap_cli_voting_compose(int a_argc, char **a_argv);
 typedef enum {
@@ -222,22 +239,21 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
                                      uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet, compose_config_t *a_config);
 dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet,
                                                                  const char *a_native_ticker, compose_config_t *a_config);
-dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(const char *a_net_name,
-        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
+dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max,
         dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
         uint256_t a_value_fee, const void *a_cond,
-        size_t a_cond_size, const char *a_url_str, uint16_t a_port);
+        size_t a_cond_size, compose_config_t *a_config);
 bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee, compose_config_t *a_config);
 bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker,
                                          json_object **l_outs, int *l_outputs_count, compose_config_t *a_config);
-dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(const char *a_net_name, dap_enc_key_t *a_key_from,
+dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_from,
                                                     const char *a_main_ticker,
                                                     uint256_t a_value, uint256_t a_value_fee,
                                                     dap_time_t a_time_staking, uint256_t a_reinvest_percent,
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value,
-                                                    const char * l_chain_id_str, const char *l_url_str, uint16_t l_port);
+                                                    const char * a_chain_id_str, compose_config_t *a_config);
 bool check_token_in_ledger(json_object *l_json_coins, const char *a_token);
 dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(const char *a_net_name, dap_enc_key_t *a_key_from,
                                                dap_hash_fast_t *a_stake_tx_hash, uint32_t a_prev_cond_idx,
