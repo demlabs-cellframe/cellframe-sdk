@@ -33,6 +33,8 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv.h"
 #include "dap_cli_server.h"
+#include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
 
 static bool s_debug_more = false;
 
@@ -253,7 +255,7 @@ static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
 int dap_chain_net_srv_stake_lock_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, NULL, NULL, s_stake_lock_callback_updater, NULL, NULL);
-    dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, "Stake lock service commands",
+    dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, "Stake lock service commands", dap_chain_node_cli_cmd_id_from_str("stake_lock"),
                 "stake_lock hold -net <net_name> -w <wallet_name> -time_staking <YYMMDD> -token <ticker> -value <value> -fee <value>"
                             "[-chain <chain_name>] [-reinvest <percentage>]\n"
                 "stake_lock take -net <net_name> -w <wallet_name> -tx <transaction_hash> -fee <value>"
@@ -1013,7 +1015,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         return -1;
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME &&
-            a_cond->subtype.srv_stake_lock.time_unlock > dap_time_now())
+            a_cond->subtype.srv_stake_lock.time_unlock > dap_ledger_get_blockchain_time(a_ledger))
         return -2;
 
     if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(
