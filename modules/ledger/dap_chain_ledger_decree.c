@@ -58,6 +58,7 @@ static int s_decree_clear(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_decree_item_t *l_cur_decree, *l_tmp;
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
+    dap_chain_policy_net_purge(a_ledger->net->pub.id);
     HASH_ITER(hh, l_ledger_pvt->decrees, l_cur_decree, l_tmp) {
         if (l_cur_decree->storage_chain_id.uint64 != a_chain_id.uint64)
             continue;
@@ -698,13 +699,7 @@ const char *l_ban_addr;
                 log_it(L_WARNING,"Can't get policy from decree.");
                 return -105;
             }
-            l_policy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_policy, dap_chain_policy_get_size(l_policy), -106);
-            if (l_policy->type == DAP_CHAIN_POLICY_ACTIVATE) {
-                dap_chain_policy_activate_t *l_policy_activate = (dap_chain_policy_activate_t *)l_policy->data;
-                if(DAP_FLAG_CHECK(l_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
-                    l_policy_activate->chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy_activate->chain_union.chain_id);
-            }
-            return dap_chain_policy_add(l_policy, a_net->pub.id.uint64);
+            return dap_chain_policy_apply(l_policy, a_net->pub.id);
         }
         default:
             return -1;
