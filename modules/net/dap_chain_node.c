@@ -548,12 +548,12 @@ static int s_tx_trackers_add(dap_chain_datum_tx_t **a_tx, dap_list_t *a_trackers
     return 0;
 }
 
-dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_ticker, uint256_t a_value, dap_list_t *a_trackers)
+dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_ticker, uint256_t a_value, dap_list_t *a_trackers, dap_time_t a_unlock_time)
 {
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx)
         return NULL;
-    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr, a_value, a_ticker) != 1) {
+    if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr, a_value, a_ticker, a_unlock_time) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
@@ -653,7 +653,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         }
     case STATE_BALANCES:
         for (dap_ledger_hardfork_balances_t *it = l_states->balances; it; it = it->next) {
-            dap_chain_datum_t *l_tx = s_datum_tx_create(&it->addr, it->ticker, it->value, it->trackers);
+            dap_chain_datum_t *l_tx = s_datum_tx_create(&it->addr, it->ticker, it->value, it->trackers, it->ts_unlock);
             if (!l_tx)
                 return -3;
             if (!a_chain->callback_add_datums(a_chain, &l_tx, 1)) {
@@ -819,6 +819,9 @@ static int s_compare_balances(dap_ledger_hardfork_balances_t *a_list1, dap_ledge
     if (ret)
         return ret;
     ret = compare256(a_list1->value, a_list2->value);
+    if (ret)
+        return ret;
+    ret = a_list1->ts_unlock != a_list2->ts_unlock;
     if (ret)
         return ret;
     return s_compare_trackers(a_list1->trackers, a_list2->trackers);

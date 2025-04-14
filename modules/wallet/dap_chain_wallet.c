@@ -1111,7 +1111,7 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
     uint256_t l_value_transfer = { };
     dap_chain_datum_tx_t *l_tx;
     while ( compare256(l_value_transfer, a_value_need) == -1
-            && (l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash)) )
+            && (l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash, true)) )
     {
         // Get all item from transaction by type
         byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
@@ -1151,29 +1151,90 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
                 l_out_addr = l_out_std->addr;
                 if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
                 || strcmp((char *)a_token_ticker, l_out_std->token)
-                || IS_ZERO_256(l_out_std->value) )
+                || IS_ZERO_256(l_out_std->value)
+                || l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_ledger))
                     continue;
                 l_value = l_out_std->value;
             } break;
             default:
                 continue;
             }
-            // Check whether used 'out' items
-            if ( !dap_ledger_tx_hash_is_used_out_item (a_ledger, &l_tx_cur_hash, l_out_idx_tmp, NULL) ) {
-                dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
-                *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
-                l_list_used_out = dap_list_append(l_list_used_out, l_item);
-                SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
-                // already accumulated the required value, finish the search for 'out' items
-                if ( compare256(l_value_transfer, a_value_need) != -1 ) {
-                    break;
-                }
+            dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+            *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
+            l_list_used_out = dap_list_append(l_list_used_out, l_item);
+            SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
+            // already accumulated the required value, finish the search for 'out' items
+            if ( compare256(l_value_transfer, a_value_need) != -1 ) {
+                break;
             }
         }
     }
     return compare256(l_value_transfer, a_value_need) >= 0 && l_list_used_out
         ? ({ if (a_value_transfer) *a_value_transfer = l_value_transfer; l_list_used_out; })
         : ( dap_list_free_full(l_list_used_out, NULL), NULL );
+}
+
+dap_list_t *dap_chain_wallet_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                        uint256_t *a_value_transfer)
+{
+    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+    dap_chain_hash_fast_t l_tx_cur_hash = { };
+    uint256_t l_value_transfer = {};
+    dap_chain_datum_tx_t *l_tx;
+    while (( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash, true) )) {
+        byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
+        dap_chain_addr_t l_out_addr = { };
+        TX_ITEM_ITER_TX_TYPE(it, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_tx) {
+            ++l_out_idx_tmp;
+            uint256_t l_value = { };
+            switch (*it) {
+            case TX_ITEM_TYPE_OUT_OLD: {
+                dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t*)it;
+                l_out_addr = l_out->addr;
+                if ( !l_out->header.value || !dap_chain_addr_compare(a_addr_from, &l_out_addr) )
+                    continue;
+                l_value = GET_256_FROM_64(l_out->header.value);
+            } break;
+            case TX_ITEM_TYPE_OUT: {
+                dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)it;
+                l_out_addr = l_out->addr;
+                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+                || dap_strcmp( dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_cur_hash), a_token_ticker )
+                || IS_ZERO_256(l_out->header.value))
+                    continue;
+                l_value = l_out->header.value;
+            } break;
+            case TX_ITEM_TYPE_OUT_EXT: {
+                dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)it;
+                l_out_addr = l_out_ext->addr;
+                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+                || strcmp((char*)a_token_ticker, l_out_ext->token)
+                || IS_ZERO_256(l_out_ext->header.value) )
+                    continue;
+                l_value = l_out_ext->header.value;
+            } break;
+            case TX_ITEM_TYPE_OUT_STD: {
+                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)it;
+                l_out_addr = l_out_std->addr;
+                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+                || strcmp((char*)a_token_ticker, l_out_std->token)
+                || IS_ZERO_256(l_out_std->value)
+                || l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_ledger))
+                    continue;
+                l_value = l_out_std->value;
+            } break;
+            default:
+                continue;
+            }
+            dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+            *(l_item) = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
+            l_list_used_out = dap_list_append(l_list_used_out, l_item);
+            SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
+        }
+    }
+    if (a_value_transfer)
+        *a_value_transfer = l_value_transfer;
+    return l_list_used_out;
 }
 
 /**

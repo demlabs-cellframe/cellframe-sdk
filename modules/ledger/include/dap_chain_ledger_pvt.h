@@ -189,6 +189,12 @@ typedef struct dap_ledger_private {
     dap_ledger_decree_item_t *decrees;
     dap_ledger_anchor_item_t *anchors;
 
+    dap_ledger_locked_out_t *locked_outs;
+    dap_ledger_locked_out_t *reverse_list;
+    dap_time_t blockchain_time;
+    dap_time_t cutoff_time;
+    pthread_rwlock_t locked_outs_rwlock;
+
     // Save/load cache operations condition
     pthread_mutex_t load_mutex;
     pthread_cond_t load_cond;
@@ -236,3 +242,4 @@ dap_ledger_token_emission_item_t *dap_ledger_pvt_emission_item_find(dap_ledger_t
                 const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash, dap_ledger_token_item_t **a_token_item);
 dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive);
 void dap_ledger_pvt_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
+int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse);
