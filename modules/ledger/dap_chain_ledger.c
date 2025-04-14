@@ -622,7 +622,11 @@ static void s_blockchain_cutoff_callback(void *a_arg, dap_chain_t *a_chain, dap_
 
 dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger)
 {
+#ifndef DAP_LEDGER_TEST
     return PVT(a_ledger)->blockchain_time;
+#else
+    return dap_time_now();
+#endif
 }
 
 dap_ledger_locked_out_t *dap_ledger_get_locked_values(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr)
