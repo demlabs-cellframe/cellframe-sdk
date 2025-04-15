@@ -192,15 +192,18 @@ uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t *a_
     uint16_t l_ret = 0;
     dap_return_val_if_fail(a_receipt, 0);
     byte_t *l_receipt_signs = NULL;
+    size_t l_receipt_size = 0;
 
     if (a_receipt->receipt_info.version == 1){
         l_receipt_signs = ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->exts_n_signs + ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->exts_size;
+        l_receipt_size = ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->size;
     } else {
         l_receipt_signs = a_receipt->exts_n_signs + a_receipt->exts_size;
+        l_receipt_size = a_receipt->size;
     } 
 
     dap_sign_t *l_sign;
-    for (l_sign = (dap_sign_t *)l_receipt_signs + ; a_receipt->size > (size_t) ( (byte_t *) l_sign - (byte_t *) a_receipt ) ;
+    for (l_sign = (dap_sign_t *)l_receipt_signs ; l_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) a_receipt ) ;
         l_sign =(dap_sign_t *) (((byte_t*) l_sign)+  dap_sign_get_size( l_sign )) ){
         l_ret++;
     }
