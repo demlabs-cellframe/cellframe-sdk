@@ -1477,7 +1477,7 @@ static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_s
         *a_state_size = l_total_size / l_states_count;
     if (*a_state_size)
         (*a_state_size)--;
-    return 0;
+    return ret;
 }
 
 static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_states_count)

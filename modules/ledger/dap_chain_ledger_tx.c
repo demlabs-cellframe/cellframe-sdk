@@ -2290,7 +2290,7 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const c
                 continue;
             }
             if ( dap_chain_addr_compare(a_addr, &l_addr) ) {
-                if (a_unspent_only && s_ledger_tx_hash_is_used_out_item(l_iter_current, num, NULL))
+                if (a_unspent_only && s_ledger_is_used_out_item(l_iter_current, num, NULL))
                     continue;
                 *a_tx_first_hash = *l_tx_hash;
                 is_tx_found = true;
