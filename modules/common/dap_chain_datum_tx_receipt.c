@@ -107,7 +107,7 @@ dap_sign_t *dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t *a_
         dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
         l_offset = l_receipt_old->exts_size;
         l_total_signs_size = l_receipt_old->size - sizeof(dap_chain_datum_tx_receipt_old_t) - l_receipt_old->exts_size;
-        l_receipt_exts_n_signs = l_receipt_old->exts_n_signs
+        l_receipt_exts_n_signs = l_receipt_old->exts_n_signs;
     } else {
         l_offset = a_receipt->exts_size;
         l_total_signs_size = a_receipt->size - sizeof(dap_chain_datum_tx_receipt_t) - a_receipt->exts_size;
@@ -172,12 +172,12 @@ uint256_t dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t *a_r
 
 uint32_t dap_chain_datum_tx_receipt_utype_get(dap_chain_datum_tx_receipt_t *a_receipt)
 {
-    dap_return_val_if_fail(a_receipt, uint256_0);
+    dap_return_val_if_fail(a_receipt, 0);
     if (a_receipt->receipt_info.version == 1){
         dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
-        return l_receipt_old->receipt_info.units_type;
+        return l_receipt_old->receipt_info.units_type.uint32;
     } else {
-        return a_receipt->receipt_info.units_type;
+        return a_receipt->receipt_info.units_type.uint32;
     }
 }
 
