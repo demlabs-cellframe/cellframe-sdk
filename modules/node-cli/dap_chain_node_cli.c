@@ -42,6 +42,7 @@
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli.h"
+#include "dap_chain_node_rpc.h"
 #include "dap_notify_srv.h"
 
 #define LOG_TAG "chain_node_cli"
@@ -54,6 +55,7 @@ static bool s_debug_cli = false;
  * init commands description
  * return 0 if OK, -1 error
  * @param g_config
+ * @param a_server_enabled - if server and rpc enabled will be wrn inform
  * @return int
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
@@ -63,8 +65,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     s_debug_cli = dap_config_get_item_bool_default(g_config, "cli-server", "debug-cli", false);
     if ( dap_cli_server_init(s_debug_cli, "cli-server") )
         return log_it(L_ERROR, "Can't init CLI server!"), -1;
+    if (dap_config_get_item_bool_default(g_config, "rpc", "enabled", false)) {
+        dap_chain_node_rpc_init(g_config);
+    }
 
-    dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
+    dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database", dap_chain_node_cli_cmd_id_from_str("global_db"),
             "global_db flush \n"
                 "\tFlushes the current state of the database to disk.\n\n"
             "global_db write -group <group_name> -key <key_name> -value <value>\n"
@@ -82,12 +87,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
-    dap_cli_server_cmd_add("mempool", com_signer, "Sign operations",
+    dap_cli_server_cmd_add("mempool", com_signer, "Sign operations", dap_chain_node_cli_cmd_id_from_str("mempool"),
                "mempool sign -cert <priv_cert_name> -net <net_name> -chain <chain_name> -file <filename> [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                                           );
-    dap_cli_server_cmd_add("node", com_node, "Work with node",
-                    "node add -net <net_name> [-port <port>]\n\n"
+    dap_cli_server_cmd_add("node", com_node, "Work with node", dap_chain_node_cli_cmd_id_from_str("node"),
+                    "node add { -net <net_name> | -rpc [-port <port>] } | { -rpc -addr <node_address> -host <node_host> [-port <port>] }\n\n"
                     "node del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
                     "node link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
@@ -95,27 +100,27 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
                     "node connections [-net <net_name>]\n"
                     "node balancer -net <net_name>\n"
-                    "node dump [-net <net_name> | -addr <node_address>]\n\n"
-                    "node list -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full]\n\n"
+                    "node dump { [-net <net_name> | -addr <node_address>] } | { -rpc [-addr <node_address>] }\n\n"
+                    "node list { -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full] } | -rpc\n\n"
                     "node ban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
                     "node unban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
                     "node banlist\n\n");
     
-    dap_cli_server_cmd_add ("version", com_version, "Return software version",
+    dap_cli_server_cmd_add ("version", com_version, "Return software version", dap_chain_node_cli_cmd_id_from_str("version"),
                                         "version\n"
                                         "\tReturn version number\n"
                                         );
 
-    dap_cli_server_cmd_add ("help", com_help, "Description of command parameters",
+    dap_cli_server_cmd_add ("help", com_help, "Description of command parameters", dap_chain_node_cli_cmd_id_from_str("help"),
                                         "help [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_cli_server_cmd_add ("?", com_help, "Synonym for \"help\"",
+    dap_cli_server_cmd_add ("?", com_help, "Synonym for \"help\"", dap_chain_node_cli_cmd_id_from_str("help"),
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
     // Token commands
-    dap_cli_server_cmd_add ("token_decl", com_token_decl, "Token declaration",
+    dap_cli_server_cmd_add ("token_decl", com_token_decl, "Token declaration", dap_chain_node_cli_cmd_id_from_str("token_decl"),
             "Simple token declaration:\n"
             "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -total_supply <total_supply> -signs_total <sign_total> -signs_emission <signs_for_emission> -certs <certs_list>\n"
             "\t  Declare new simple token for <net_name>:<chain_name> with ticker <token_ticker>, maximum emission <total_supply> and <signs_for_emission> from <signs_total> signatures on valid emission\n"
@@ -166,12 +171,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n"
     );
-    dap_cli_server_cmd_add ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
+    dap_cli_server_cmd_add ("token_decl_sign", com_token_decl_sign, "Token declaration add sign", dap_chain_node_cli_cmd_id_from_str("token_decl_sign"),
             "token_decl_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
             "\t Sign existent <datum_hash> in mempool with <certs_list>\n"
     );
 
-    dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
+    dap_cli_server_cmd_add ("token_update", com_token_update, "Token update", dap_chain_node_cli_cmd_id_from_str("token_update"),
                             "\nPrivate or CF20 token update\n"
                             "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type <CF20|private> [-total_supply_change <value>] "
                             "-certs <name_certs> [-flag_set <flag>] [-flag_unset <flag>] [-total_signs_valid <value>] [-description <value>] "
@@ -210,19 +215,19 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\t -tx_sender_blocked <wallet_addr>:\t Adds specified wallet address to the list of blocked senders.\n"
                             "\n"
     );
-    dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign to datum",
+    dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign to datum", dap_chain_node_cli_cmd_id_from_str("token_update_sign"),
                                         "token_update_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <cert_list>\n"
                                         "\t Sign existent <datum hash> in mempool with <certs_list>\n"
     );
 
-    dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission",
+    dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission", dap_chain_node_cli_cmd_id_from_str("token_emit"),
                             "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
                             "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n"
                             "Available hint:\n"
                             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
 
-    dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations",
+    dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations", dap_chain_node_cli_cmd_id_from_str("wallet"),
                             "wallet list\n"
                             "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value> | -restore_legacy <restore_string>] [-net <net_name>] [-force] [-password <password>]\n"
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
@@ -232,7 +237,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet find -addr <addr> {-file <file path>}\n"
                             "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [-value <uint256_value>]\n");
 
-    dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
+    dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool", dap_chain_node_cli_cmd_id_from_str("mempool"),
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
                            "mempool check -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
@@ -251,83 +256,83 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "mempool count -net <net_name> [-chain <chain_name>]\n"
                            "\tDisplays the number of elements in the mempool of a given network.");
     dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_find("mempool");
-    dap_cli_server_alias_add("mempool_list", "list", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_check", "check", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_proc", "proc", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_proc_all", "proc_all", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_delete", "delete", l_cmd_mempool);
-    dap_cli_server_alias_add("mempool_add_ca", "add_ca", l_cmd_mempool);
-    dap_cli_server_alias_add("chain_ca_copy", "add_ca", l_cmd_mempool);
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_list", "list");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_check", "check");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_proc", "proc");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_proc_all", "proc_all");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_delete", "delete");
+    dap_cli_server_alias_add(l_cmd_mempool, "mempool_add_ca", "add_ca");
+    dap_cli_server_alias_add(l_cmd_mempool, "chain_ca_copy", "add_ca");
 
 
     dap_cli_server_cmd_add ("chain_ca_pub", com_chain_ca_pub,
-                                        "Add pubic certificate into the mempool to prepare its way to chains",
+                                        "Add pubic certificate into the mempool to prepare its way to chains", dap_chain_node_cli_cmd_id_from_str("chain_ca_pub"),
             "chain_ca_pub -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n");
 
     // Transaction commands
-    dap_cli_server_cmd_add ("tx_create", com_tx_create, "Make transaction",
-                "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr>"
+    dap_cli_server_cmd_add ("tx_create", com_tx_create, "Make transaction", dap_chain_node_cli_cmd_id_from_str("tx_create"),
+                "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822>]"
                 "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n\n"
                 "Hint:\n"
                 "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
-    dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
+    dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction", dap_chain_node_cli_cmd_id_from_str("tx_create_json"),
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
-    dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
+    dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction", dap_chain_node_cli_cmd_id_from_str("tx_cond_create"),
                 "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                 " -cert <pub_cert_name> -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
                 "Hint:\n"
                 "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
-        dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, "Remove cond transactions and return funds from condition outputs to wallet",
+    dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, "Remove cond transactions and return funds from condition outputs to wallet",  dap_chain_node_cli_cmd_id_from_str("tx_cond_remove"),
                 "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
                 " -fee <value> -srv_uid <numeric_uid>\n" 
                 "Hint:\n"
                 "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
-        dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, "Find cond transactions by wallet",
+    dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, "Find cond transactions by wallet", dap_chain_node_cli_cmd_id_from_str("tx_cond_unspent_find"),
                                         "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
 
-    dap_cli_server_cmd_add ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
+    dap_cli_server_cmd_add ("tx_verify", com_tx_verify, "Verifing transaction in mempool", dap_chain_node_cli_cmd_id_from_str("tx_verify"),
             "tx_verify -net <net_name> [-chain <chain_name>] -tx <tx_hash>\n" );
 
     // Transaction history
-    dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
+    dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)", dap_chain_node_cli_cmd_id_from_str("tx_history"),
             "tx_history  {-addr <addr> | {-w <wallet_name> | -tx <tx_hash>} -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head]\n"
             "tx_history -count -net <net_name>\n");
 
 	// Ledger info
-    dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information",
+    dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information", dap_chain_node_cli_cmd_id_from_str("ledger"),
             "ledger list coins -net <net_name> [-limit] [-offset]\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n");
 
     // Token info
-    dap_cli_server_cmd_add("token", com_token, "Token info",
+    dap_cli_server_cmd_add("token", com_token, "Token info", dap_chain_node_cli_cmd_id_from_str("token"),
             "token list -net <net_name>\n"
             "token info -net <net_name> -name <token_ticker>\n");
 
     // Statisticss
-    dap_cli_server_cmd_add("stats", com_stats, "Print statistics",
+    dap_cli_server_cmd_add("stats", com_stats, "Print statistics", dap_chain_node_cli_cmd_id_from_str("stats"),
                 "stats cpu");
 
     // Export GDB to JSON
-    dap_cli_server_cmd_add("gdb_export", cmd_gdb_export, "Export gdb to JSON",
+    dap_cli_server_cmd_add("gdb_export", cmd_gdb_export, "Export gdb to JSON", dap_chain_node_cli_cmd_id_from_str("gdb_export"),
                                         "gdb_export filename <filename without extension> [-groups <group names list>]");
 
     //Import GDB from JSON
-    dap_cli_server_cmd_add("gdb_import", cmd_gdb_import, "Import gdb from JSON",
+    dap_cli_server_cmd_add("gdb_import", cmd_gdb_import, "Import gdb from JSON", dap_chain_node_cli_cmd_id_from_str("gdb_import"),
                                         "gdb_import filename <filename_without_extension>");
 
-    dap_cli_server_cmd_add ("remove", cmd_remove, "Delete chain files or global database",
+    dap_cli_server_cmd_add ("remove", cmd_remove, "Delete chain files or global database", dap_chain_node_cli_cmd_id_from_str("remove"),
            "remove -gdb\n"
            "remove -chains [-net <net_name> | -all]\n"
                      "Be careful, the '-all' option for '-chains' will delete all chains and won't ask you for permission!");
 
     // Decree create command
-    dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
+    dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree", dap_chain_node_cli_cmd_id_from_str("decree"),
             "decree create [common] -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> |"
                                                                                                                         " -hardfork_from <atom_number> [-trusted_addrs <node_addr1,node_add2,...>] [-addr_pairs <\"old_addr:new_addr\",\"old_addr1:new_addr1\"...>] |"
                                                                                                                         " -hardfork_retry |"
@@ -359,11 +364,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\texample coins amount syntax (only natural) 1.0 123.4567\n"
             "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
 
-    dap_cli_server_cmd_add ("exec_cmd", com_exec_cmd, "Execute command on remote node",
+    dap_cli_server_cmd_add ("exec_cmd", com_exec_cmd, "Execute command on remote node", dap_chain_node_cli_cmd_id_from_str("exec_cmd"),
             "exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,all,args,separated,by,commas>\n" );
 
     //Find command
-    dap_cli_server_cmd_add("find", cmd_find, "The command searches for the specified elements by the specified attributes",
+    dap_cli_server_cmd_add("find", cmd_find, "The command searches for the specified elements by the specified attributes", dap_chain_node_cli_cmd_id_from_str("find"),
                            "find datum -net <net_name> [-chain <chain_name>] -hash <datum_hash>\n"
                            "\tSearches for datum by hash in the specified network in chains and mempool.\n"
                            "find atom -net <net_name> [-chain <chain_name>] -hash <atom_hash>\n"
@@ -374,7 +379,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "min_validators_count, ban, unban, reward, validator_max_weight, emergency_validators, check_signs_structure\n");
 
 
-    dap_cli_server_cmd_add ("file", com_file, "Work with logs and files",
+    dap_cli_server_cmd_add ("file", com_file, "Work with logs and files", dap_chain_node_cli_cmd_id_from_str("file"),
                 "file print {-num_line <number_of_lines> | -ts_after <Tue, 10 Dec 2024 18:37:47 +0700> } {-log | -path <path_to_file>}\n"
                 "\t print the last <num_line> lines from the log file or all logs after the specified date and time\n"
                 "\t -path <path_to_file> allows printing from a text file, but -ts_after option might not work\n"
@@ -384,7 +389,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "file clear_log\n"
                 "\t CAUTION !!! This command will clear the entire log file\n");
 
-    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands",
+    dap_cli_server_cmd_add ("policy", com_policy, "Policy commands", dap_chain_node_cli_cmd_id_from_str("policy"),
                 "policy activate - prepare policy activate decree\n"
                 "\t[execute] - used to create policy decree, otherwise show policy decree draft\n"
                 "\t-net <net_name>\n"
@@ -404,7 +409,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "policy list - show all policies from table in net\n"
                 "\t-net <net_name>\n");
     // Exit - always last!
-    dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
+    dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit", dap_chain_node_cli_cmd_id_from_str("exit"),
                 "exit\n" );
     dap_notify_srv_set_callback_new(dap_notify_new_client_send_info);
     return 0;
@@ -420,4 +425,5 @@ void dap_chain_node_cli_delete(void)
     dap_cli_server_deinit();
     // deinit client for handshake
     dap_chain_node_client_deinit();
+    dap_chain_node_rpc_deinit();
 }

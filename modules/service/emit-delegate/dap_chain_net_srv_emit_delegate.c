@@ -32,6 +32,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_emit_delegate.h"
 #include "dap_list.h"
+#include "dap_chain_node_cli_cmd.h"
 
 enum emit_delegation_error {
     DAP_NO_ERROR = 0,
@@ -260,7 +261,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     uint256_t l_value_back = {};
     SUBTRACT_256_256(l_value_transfer, l_value, &l_value_back);
     if (!IS_ZERO_256(l_value_back)) {
-        int rc = l_delegate_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_value_back)
+        int rc = l_delegate_native ? dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_native_ticker)
                                    : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, a_token_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add coin back output");
@@ -268,8 +269,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
 
     // add fee items
     if (l_net_fee_used) {
-        int rc = l_delegate_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee)
-                                   : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker);
+        int rc = dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add net fee output");
     }
@@ -388,7 +388,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
     // coin back
     SUBTRACT_256_256(l_value_transfer, l_value, &l_value_back);
     if (!IS_ZERO_256(l_value_back)) {
-        int rc = l_refill_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_value_back)
+        int rc = l_refill_native ? dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, a_net->pub.native_ticker)
                                    : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_tx_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add coin back output");
@@ -396,8 +396,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
 
     // add fee items
     if (l_net_fee_used) {
-        int rc = l_refill_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee)
-                                   : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, a_net->pub.native_ticker);
+        int rc = dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, a_net->pub.native_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add net fee output");
     }
@@ -506,7 +505,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
 
     // add 'out' or 'out_ext' item for emission
     for (size_t i = 0; i < a_addr_count; ++i) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, a_to_addr + i, a_value[i]) :
+        int rc = l_taking_native ? dap_chain_datum_tx_add_out_ext_item(&l_tx, a_to_addr + i, a_value[i], a_net->pub.native_ticker) :
             dap_chain_datum_tx_add_out_ext_item(&l_tx, a_to_addr + i, a_value[i], l_tx_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add tx output");
@@ -546,8 +545,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
 
     // add fee items
     if (l_net_fee_used) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee)
-            : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, a_net->pub.native_ticker);
+        int rc = dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, a_net->pub.native_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add net fee output");
     }
@@ -558,8 +556,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     // fee coin back
     SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
     if (!IS_ZERO_256(l_fee_back)) {
-        int rc = l_taking_native ? dap_chain_datum_tx_add_out_item(&l_tx, &l_owner_addr, l_fee_back)
-            : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker);
+        int rc = dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, a_net->pub.native_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add fee back output");
     }
@@ -1139,7 +1136,7 @@ static int s_cli_emit_delegate(int a_argc, char **a_argv, void **a_str_reply)
 int dap_chain_net_srv_emit_delegate_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, s_emit_delegate_verificator, NULL, NULL, NULL, NULL, NULL);
-    dap_cli_server_cmd_add("emit_delegate", s_cli_emit_delegate, "Emitting delegation service commands",
+    dap_cli_server_cmd_add("emit_delegate", s_cli_emit_delegate, "Emitting delegation service commands", dap_chain_node_cli_cmd_id_from_str("emit_delegate"),
                 "emit_delegate hold - to create new delegation\n"
                 "\t-net <net_name>\n"
                 "\t-w <wallet_name> - wallet to writeoff value, pay fee and sign tx\n"

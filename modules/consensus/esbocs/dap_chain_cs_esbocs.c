@@ -203,7 +203,7 @@ int dap_chain_cs_esbocs_init()
                            NULL,
                            s_stream_ch_packet_in,
                            NULL);
-    dap_cli_server_cmd_add (DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_cli_esbocs, "ESBOCS commands",
+    dap_cli_server_cmd_add (DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_cli_esbocs, "ESBOCS commands", dap_chain_node_cli_cmd_id_from_str(DAP_CHAIN_ESBOCS_CS_TYPE_STR),
         "esbocs min_validators_count set -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> -val_count <value>\n"
             "\tSets minimum validators count for ESBOCS consensus\n"
         "esbocs min_validators_count show -net <net_name> [-chain <chain_name>]\n"
@@ -451,7 +451,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
 }
 
 static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id,
-                                dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size)
+                                dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size, dap_time_t a_atom_time)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     assert(l_session->chain == a_chain);
@@ -1257,8 +1257,7 @@ static bool s_session_round_new(void *a_arg)
     if (!a_session->is_hardfork) {
         a_session->is_hardfork = a_session->esbocs->hardfork_from && l_cur_atom_count == a_session->esbocs->hardfork_from;
         if (a_session->is_hardfork) {
-            dap_time_t l_last_block_timestamp = 0;
-            dap_chain_get_atom_last_hash_num_ts(a_session->chain, c_dap_chain_cell_id_null, NULL, NULL, &l_last_block_timestamp);
+            dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
             int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
                                                      a_session->esbocs->hardfork_trusted_addrs,
                                                      a_session->esbocs->hardfork_changed_addrs);
@@ -2626,7 +2625,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                             l_message->hdr.attempt_num, l_candidate_hash_str);
             size_t l_offset = dap_chain_block_get_sign_offset(l_store->candidate, l_store->candidate_size);
             uint32_t l_hash_type = DAP_SIGN_HASH_TYPE_DEFAULT;
-            if (dap_chain_policy_activated(DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS, a_session->chain->net_id.uint64))
+            if (dap_chain_policy_is_activated(a_session->chain->net_id, DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS))
                 l_hash_type = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_hash_type);
             dap_sign_t *l_candidate_sign = dap_sign_create_with_hash_type(PVT(l_session->esbocs)->blocks_sign_key,
                                             l_store->candidate, l_offset + sizeof(l_store->candidate->hdr), l_hash_type);

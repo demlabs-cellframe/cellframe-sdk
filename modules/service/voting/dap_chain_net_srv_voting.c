@@ -31,6 +31,8 @@
 #include "uthash.h"
 #include "dap_chain_srv.h"
 #include "dap_cli_server.h"
+#include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_net_srv_voting"
 
@@ -84,7 +86,7 @@ int dap_chain_net_srv_voting_init()
 {
     dap_ledger_voting_verificator_add(s_voting_verificator, s_vote_verificator,
                                       s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
-    dap_cli_server_cmd_add("poll", s_cli_voting, "Voting/poll commands",
+    dap_cli_server_cmd_add("poll", s_cli_voting, "Voting/poll commands",  dap_chain_node_cli_cmd_id_from_str("poll"),
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>] [-max_votes_count <votes_count>]"
                                         " [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll vote -net <net_name> -hash <poll_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value> -w <fee_wallet_name>\n"
@@ -1194,7 +1196,7 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
 
     bool l_native_tx = !dap_strcmp(l_token_ticker, a_net->pub.native_ticker);
     dap_ledger_t *l_ledger = a_net->pub.ledger;
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs(l_ledger, l_token_ticker, l_addr_from, &l_value_transfer);
+    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs(l_ledger, l_token_ticker, l_addr_from, &l_value_transfer);
     if (!l_list_used_out || (l_native_tx && compare256(l_value_transfer, l_total_fee) < 0)) {
         dap_list_free_full(l_list_used_out, NULL);
         return DAP_CHAIN_NET_VOTE_VOTING_NOT_ENOUGH_FUNDS_TO_TRANSFER;

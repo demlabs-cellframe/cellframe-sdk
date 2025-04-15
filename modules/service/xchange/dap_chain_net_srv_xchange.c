@@ -44,6 +44,8 @@
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_cli_server.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
 
@@ -214,7 +216,7 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
+    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands", dap_chain_node_cli_cmd_id_from_str("srv_xchange"),
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"
@@ -596,10 +598,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         DAP_DELETE(l_tx_out);
         // Network fee
         if (l_net_fee_used) {
-            if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_net_fee, l_net_fee) != 1) ||
-                    (!l_single_channel &&
-                        dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_net_fee, l_net_fee, l_native_ticker) != 1)) {
+            if ( dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_net_fee, l_net_fee, l_native_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 log_it(L_ERROR, "Cant add network fee output");
                 return NULL;
@@ -618,7 +617,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         SUBTRACT_256_256(l_value_transfer, l_value_need, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_value_back) != 1) ||
+                    dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_value_back, l_native_ticker) != 1) ||
                     (!l_single_channel &&
                         dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_value_back, a_price->token_sell) != 1)) {
                 dap_chain_datum_tx_delete(l_tx);
@@ -1158,14 +1157,14 @@ static char* s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price,
         }
         SUBTRACT_256_256(l_tx_out_cond->header.value, l_total_fee, &l_coin_back);
         // return coins to owner
-        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_coin_back) == -1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_coin_back, l_native_ticker) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Cant add returning coins output");
             return l_ret;
         }
         // Network fee
         if (l_net_fee_used &&
-                dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Cant add network fee output");
             return l_ret;
@@ -2223,7 +2222,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
     if(!l_from_wallet_cache){  
         dap_chain_datum_tx_t *l_datum_tx = NULL;
         for (l_tx_total = 0;
-                (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_hash_curr));
+                (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_hash_curr, false));
                     l_tx_total++)
         {
             /* Check time range (if need ) */

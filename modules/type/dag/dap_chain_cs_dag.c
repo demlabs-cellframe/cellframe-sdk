@@ -155,7 +155,7 @@ int dap_chain_cs_dag_init()
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
-    dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands",
+    dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands", dap_chain_node_cli_cmd_id_from_str("dag"),
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
@@ -599,7 +599,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         }
         HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
-        dap_chain_atom_notify(l_dag->chain, l_event_item->event->header.cell_id, &l_event_item->hash, (const byte_t*)l_event_item->event, l_event_item->event_size);
+        dap_chain_atom_notify(l_dag->chain, l_event->header.cell_id, &l_event_item->hash, (const byte_t*)l_event, l_event_item->event_size, l_event->header.ts_created);
         dap_chain_atom_add_from_threshold(a_chain);
     } break;
     default:
@@ -961,7 +961,8 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
                 HASH_ADD(hh, PVT(a_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
                 s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
                 debug_if(s_debug_more, L_INFO, "... moved from threshold to chain");
-                dap_chain_atom_notify(a_dag->chain, l_event_item->event->header.cell_id, &l_event_item->hash, (byte_t*)l_event_item->event, l_event_item->event_size);
+                dap_chain_atom_notify(a_dag->chain, l_event_item->event->header.cell_id, &l_event_item->hash,
+                                      (byte_t*)l_event_item->event, l_event_item->event_size, l_event_item->event->header.ts_created);
                 res = true;
             } else {
                 // TODO clear other threshold items linked with this one
@@ -1793,11 +1794,14 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         }
                     }
                     else {
+                        dap_time_t temp = l_from_time;
+                        l_from_time = l_to_time;
+                        l_to_time = temp;
                         l_event_item = HASH_LAST(PVT(l_dag)->events);
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
+                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts <= l_to_time)) {
                                 i_tmp++;
                             } else {
                                 if (l_from_hash_str && !l_hash_flag) {
@@ -1850,11 +1854,14 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         }
                     }
                     else {
+                        dap_time_t temp = l_from_time;
+                        l_from_time = l_to_time;
+                        l_to_time = temp;
                         l_event_item = HASH_LAST(PVT(l_dag)->events);
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
+                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts <= l_to_time)) {
                                 i_tmp++;
                             } else {
                                 if (l_from_hash_str && !l_hash_flag) {

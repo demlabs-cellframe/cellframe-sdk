@@ -43,6 +43,8 @@
 #include "dap_cli_server.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_tsd.h"
+#include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake_pos_delegate"
 
@@ -125,7 +127,7 @@ static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_node_info_t *a_node_info, dap_chain_t *a_chain,
-                                 dap_chain_net_t *a_net, dap_time_t a_time_form, dap_time_t a_time_to,
+                                 dap_chain_net_t *a_net, dap_time_t a_time_from, dap_time_t a_time_to,
                                  size_t a_limit, size_t a_offset, bool a_brief, bool a_head);
 
 static bool s_debug_more = false;
@@ -183,7 +185,7 @@ DAP_STATIC_INLINE char *s_get_approved_group(dap_chain_net_t *a_net)
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_out_check_callback, s_stake_updater_callback, NULL, s_stake_deleted_callback, NULL);
-    dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
+    dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands", dap_chain_node_cli_cmd_id_from_str("srv_stake"),
             "\t\t=== Commands for work with orders ===\n"
     "srv_stake order create [fee] -net <net_name> -value <value> -cert <priv_cert_name> [-H {hex(default) | base58}]\n"
         "\tCreates an order declaring the minimum fee that the validator agrees to for process a transaction.\n"
@@ -3885,7 +3887,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 }
 
 static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_node_info_t *a_node_info, dap_chain_t *a_chain,
-                                 dap_chain_net_t *a_net, dap_time_t a_time_form, dap_time_t a_time_to,
+                                 dap_chain_net_t *a_net, dap_time_t a_time_from, dap_time_t a_time_to,
                                  size_t a_limit, size_t a_offset, bool a_brief, bool a_head)
 {
     json_object* json_obj_reward = json_object_new_array();
@@ -3930,6 +3932,11 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                         : a_chain->callback_datum_iter_get_last;
     iter_direc = a_head ? a_chain->callback_datum_iter_get_next
                         : a_chain->callback_datum_iter_get_prev;
+    if (!a_head) {
+        dap_time_t temp = a_time_from;
+        a_time_from = a_time_to;
+        a_time_to = temp;
+    }
 
     for (dap_chain_datum_t *l_datum = iter_begin(l_datum_iter);
                             l_datum;
@@ -3950,10 +3957,17 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                                      //dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_datum_hash);
         if (!l_tx_token_ticker)//DECLINED transaction
             continue;
-        if (a_time_form && l_datum->header.ts_create < a_time_form)
-            continue;
-        if (a_time_to && l_datum->header.ts_create >= a_time_to)
+        if (a_head) {
+            if (a_time_from && l_datum->header.ts_create < a_time_from)
                 continue;
+            if (a_time_to && l_datum->header.ts_create >= a_time_to)
+                continue;
+        } else {
+            if (a_time_from && l_datum->header.ts_create > a_time_from)
+                continue;
+            if (a_time_to && l_datum->header.ts_create <= a_time_to)
+                continue;
+        }
         if (i_tmp >= l_arr_end)
             break;
         
