@@ -101,6 +101,7 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
 
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
 {
+    dap_chain_policy_net_purge(a_net->pub.id);
     dap_chain_net_decree_t *l_decree = dap_chain_net_get_net_decree(a_net);
     dap_list_free_full(l_decree->pkeys, NULL);
     DAP_DELETE(l_decree);
@@ -641,13 +642,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get policy from decree.");
                 return -105;
             }
-            l_policy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_policy, dap_chain_policy_get_size(l_policy), -106);
-            if (l_policy->type == DAP_CHAIN_POLICY_ACTIVATE) {
-                dap_chain_policy_activate_t *l_policy_activate = (dap_chain_policy_activate_t *)l_policy->data;
-                if(DAP_FLAG_CHECK(l_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM))
-                    l_policy_activate->chain_union.chain = dap_chain_find_by_id(a_net->pub.id, l_policy_activate->chain_union.chain_id);
-            }
-            return dap_chain_policy_add(l_policy, a_net->pub.id.uint64);
+            return dap_chain_policy_apply(l_policy, a_net->pub.id);
         }
         default:
             return -1;

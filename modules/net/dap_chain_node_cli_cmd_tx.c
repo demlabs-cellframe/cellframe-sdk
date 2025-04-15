@@ -412,8 +412,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         bool l_is_need_correction = false;
         bool l_continue = true;
         uint256_t l_corr_value = {}, l_cond_value = {};
-        bool l_recv_from_cond = false, l_send_to_same_cond = false;
-        json_object *l_corr_object = NULL, *l_cond_recv_object = NULL, *l_cond_send_object = NULL;
+        bool l_recv_from_cond = false, l_send_to_same_cond = false, l_found_out_to_same_addr_from_out_cond = false;
+        json_object *l_corr_object = NULL, *l_cond_recv_object = NULL, *l_cond_send_object = NULL, 
+                    *l_possible_recv_from_cond_object = NULL;
            
         dap_chain_addr_t *l_src_addr = NULL;
         bool l_base_tx = false, l_reward_collect = false;
@@ -472,6 +473,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_src_addr = &((dap_chain_tx_out_ext_t *)l_prev_out_union)->addr;
                     break;
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_src_addr = &((dap_chain_tx_out_std_t *)l_prev_out_union)->addr;
+                    break;
                 case TX_ITEM_TYPE_OUT_COND: {
                     dap_chain_tx_out_cond_t *l_cond_prev = (dap_chain_tx_out_cond_t *)l_prev_out_union;
                     l_src_subtype = l_cond_prev->header.subtype;
@@ -515,6 +519,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     break;
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_dst_addr = &((dap_chain_tx_out_ext_t *)it->data)->addr;
+                    break;
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_dst_addr = &((dap_chain_tx_out_std_t *)it->data)->addr;
                 default:
                     break;
                 }
@@ -549,6 +556,11 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 l_value = ((dap_chain_tx_out_ext_t *)it->data)->header.value;
                 l_dst_token = ((dap_chain_tx_out_ext_t *)it->data)->token;
                 break;
+            case TX_ITEM_TYPE_OUT_STD:
+                l_dst_addr = &((dap_chain_tx_out_std_t *)it->data)->addr;
+                l_value = ((dap_chain_tx_out_std_t *)it->data)->value;
+                l_dst_token = ((dap_chain_tx_out_std_t *)it->data)->token;
+                break;
             case TX_ITEM_TYPE_OUT_COND:
                 l_value = ((dap_chain_tx_out_cond_t *)it->data)->header.value;
                 if (((dap_chain_tx_out_cond_t *)it->data)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
@@ -562,7 +574,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
 
             if (l_src_addr && l_dst_addr &&
                     dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
-                    (!l_recv_from_cond || (l_noaddr_token && dap_strcmp(l_noaddr_token, l_dst_token))))
+                    (!l_recv_from_cond || (l_noaddr_token && (dap_strcmp(l_noaddr_token, l_dst_token) || l_found_out_to_same_addr_from_out_cond))))
                 continue;   // sent to self (coinback)
 
             if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
@@ -604,8 +616,12 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     l_src_str = l_reward_collect ? "reward collecting" : "emission";
                 else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
                     l_src_str = dap_chain_addr_to_str_static(l_src_addr);
-                else
+                else{
                     l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
+                    if (l_src_addr && !dap_strcmp(l_dst_token, l_noaddr_token) && l_recv_from_cond)
+                        l_found_out_to_same_addr_from_out_cond = true;
+                }
+                    
                 if (l_recv_from_cond)
                     l_value = l_cond_value;
                 else if (!dap_strcmp(l_native_ticker, l_noaddr_token)) {
@@ -634,7 +650,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 if (l_is_need_correction)
                     l_corr_object = j_obj_data;
                 
-            } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
+            } else if (!l_src_addr || (dap_chain_addr_compare(l_src_addr, a_addr) && (!l_recv_from_cond || 
+                (!l_dst_addr || dap_strcmp(l_dst_token, l_noaddr_token) || dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))))) {
                 if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype && l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                     continue;
                 if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
@@ -681,8 +698,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 json_object_object_add(j_obj_data, "destination_address", json_object_new_string(l_dst_addr_str));
                 if (l_send_to_same_cond && !l_cond_send_object)
                     l_cond_send_object = j_obj_data;
-                else
+                else 
                     json_object_array_add(j_arr_data, j_obj_data);
+
             }
         }  
         if (l_continue) {
@@ -697,7 +715,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
         }
-        if (l_send_to_same_cond) {
+        if (l_send_to_same_cond && l_found_out_to_same_addr_from_out_cond) {
             uint256_t l_cond_recv_value = l_cond_value;
             json_object *l_cond_send_value_obj = json_object_object_get(l_cond_send_object, "send_datoshi");
             const char *l_cond_send_value_str = json_object_get_string(l_cond_send_value_obj);
