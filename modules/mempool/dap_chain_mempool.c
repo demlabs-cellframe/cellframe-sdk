@@ -1102,6 +1102,9 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
             return NULL;
         }
     } else { //native ticker
+        //this brunch not only for native ticker
+        // it performs when we use service base tx with zero fee for non-native
+        // have to use emission ticker for tx
         if (!IS_ZERO_256(a_value_fee)) {
             SUBTRACT_256_256(l_emission_value, a_value_fee, &l_emission_value);
             if (!dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee)){
@@ -1116,7 +1119,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
                 return NULL;
             }
         }
-        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_to, l_emission_value, l_native_ticker)) {
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_to, l_emission_value, l_emission_ticker)) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }        
