@@ -980,8 +980,6 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                                     , const void * a_request, size_t a_request_size )
 {
     int l_ret = 0;
-    const dap_chain_datum_tx_receipt_t * l_receipt = (const dap_chain_datum_tx_receipt_t *) a_request;
-    size_t l_receipt_size = a_request_size;
     log_it( L_INFO, "s_callback_response_success is called");
 
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
@@ -1065,10 +1063,6 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t
         log_it(L_ERROR, "No VPN service stream channel, its closed?");
         return -3;
     }
-
-    const dap_chain_datum_tx_receipt_t * l_receipt_next = (const dap_chain_datum_tx_receipt_t *) a_receipt_next;
-    size_t l_receipt_next_size = a_receipt_next_size;
-
     log_it(L_INFO, "Next receipt successfuly accepted");
     // usage is present, we've accepted packets
     dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
@@ -1516,7 +1510,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
             log_it( L_NOTICE, "Send next receipt to sign to user %s", l_user_key);
             DAP_DELETE(l_user_key);
-            a_usage->receipt_next = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0);
+            a_usage->receipt_next = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0, );
             a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN;
             //start timeout timer
             a_usage->receipt_timeout_timer_start_callback(a_usage);

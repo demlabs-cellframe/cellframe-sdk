@@ -710,7 +710,6 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
         case TX_ITEM_TYPE_SIG:
             DAP_LIST_SAPPEND(a_res_group->items_sig, l_item);
             break;
-        case TX_ITEM_TYPE_RECEIPT_OLD:
         case TX_ITEM_TYPE_RECEIPT:
             DAP_LIST_SAPPEND(a_res_group->items_receipt, l_item);
             break;
@@ -730,7 +729,6 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
         }
     }
     return true;
-
 }
 
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type)

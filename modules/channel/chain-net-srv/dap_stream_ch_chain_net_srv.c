@@ -826,6 +826,12 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             return false;
         }
         dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
+        if (l_receipt->receipt_info.version != 2){
+            log_it(L_WARNING, "Version of receipt must be 2.");
+            l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_VERSION;
+            s_service_substate_go_to_error(l_usage);
+            break;
+        }
         // TODO calculate actual receipt size and compare it with provided packet size
         size_t l_receipt_size = l_ch_pkt->hdr.data_size;
 
@@ -1399,12 +1405,12 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                 dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
                 DAP_DELETE(l_success);
                 // create and fill first receipt
-                a_usage->receipt = dap_chain_datum_tx_receipt_create(a_usage->service->uid, a_usage->price->units_uid, a_usage->price->units, a_usage->price->value_datoshi, NULL, 0);
+                a_usage->receipt = dap_chain_datum_tx_receipt_create(a_usage->service->uid, a_usage->price->units_uid, a_usage->price->units, a_usage->price->value_datoshi, NULL, 0, &a_usage->tx_cond_hash);
                 s_service_state_go_to_normal(a_usage);               
             }                        
         } else {
             log_it(L_INFO, "Send first receipt to sign");
-            a_usage->receipt = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0);
+            a_usage->receipt = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0, &a_usage->tx_cond_hash);
             dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                 a_usage->receipt, a_usage->receipt->size);
                 
