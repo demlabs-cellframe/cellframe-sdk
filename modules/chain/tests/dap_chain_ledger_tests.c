@@ -141,7 +141,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_full(dap_enc_key_t *a_key_from, 
     //dap_chain_tx_out_ext_t *l_out = dap_chain_datum_tx_item_out_ext_create(a_addr_to, a_value, "a_ledger->net->pub.native_ticker");
     uint256_t l_change = {};
     if (l_tx_prev_out)
-        SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_change);
+    SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_change);
     dap_chain_tx_out_t *l_out_change = dap_chain_datum_tx_item_out_create(&l_addr, l_change);
     //dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, "a_ledger->net->pub.native_ticker");
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
