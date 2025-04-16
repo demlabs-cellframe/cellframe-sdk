@@ -32,6 +32,7 @@
 #include "dap_chain_datum_tx_in_reward.h"
 #include "dap_chain_tx.h"
 #include "dap_list.h"
+#include "dap_chain_cs_blocks.h"
 
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_wallet.h"
