@@ -778,36 +778,10 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                 NULL;
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
     
-    if (dap_chain_policy_net_add(l_ret->pub.id.uint64)) {
+    if ( dap_chain_policy_net_add(l_ret->pub.id, a_cfg) ) {
         log_it(L_ERROR, "Can't add net %s to policy module", l_ret->pub.name);
         DAP_DEL_MULTY(l_ret->pub.name, l_ret);
         return NULL;
-    }
-    // activate policy
-    uint64_t l_policy_num = dap_config_get_item_uint64(a_cfg, "policy", "activate");
-    dap_chain_policy_t *l_new_policy = NULL;
-    if (l_policy_num) {
-        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
-            log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U, l_policy_num);
-        } else {
-            dap_chain_policy_t *l_new_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, sizeof(dap_chain_policy_activate_t), NULL, l_ret->pub.name, l_ret); 
-            l_new_policy->type = DAP_CHAIN_POLICY_ACTIVATE;
-            l_new_policy->version = DAP_CHAIN_POLICY_VERSION;
-            ((dap_chain_policy_activate_t *)(l_new_policy->data))->num = l_policy_num;
-            l_new_policy->flags = DAP_FLAG_ADD(l_new_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_CONFIG);
-            dap_chain_policy_add(l_new_policy, l_ret->pub.id.uint64);
-        }
-    }
-    // deactivate policy
-    uint16_t l_policy_count = 0;
-    const char **l_policy_str = dap_config_get_array_str(a_cfg, "policy", "deactivate", &l_policy_count);
-    for (uint16_t i = 0; i < l_policy_count; ++i) {
-        l_policy_num = strtoull(l_policy_str[i], NULL, 10);
-        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
-            log_it(L_ERROR, "Can't add policy CN-%"DAP_UINT64_FORMAT_U" to exception list", l_policy_num);
-        } else {
-            dap_chain_policy_add_to_exception_list(l_policy_num, l_ret->pub.id.uint64);
-        }
     }
     
     l_ret->pub.config = a_cfg;
@@ -1856,7 +1830,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
             dap_chain_delete(l_cur);
         }
     }
-    dap_chain_policy_net_remove(a_net->pub.id.uint64);
+    dap_chain_policy_net_remove(a_net->pub.id);
     HASH_DEL(s_nets_by_name, a_net);
     HASH_DELETE(hh2, s_nets_by_id, a_net);
     DAP_DELETE(a_net);
