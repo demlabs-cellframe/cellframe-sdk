@@ -1219,10 +1219,10 @@ const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void)
  */
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
-                                                               const void * a_ext, size_t a_ext_size)
+                                                               const void * a_ext, size_t a_ext_size, dap_hash_fast_t *a_prev_tx_hash)
 {
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
-                    a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size);
+                    a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size, a_prev_tx_hash);
     // Sign with our wallet
     return dap_chain_datum_tx_receipt_sign_add(l_receipt, a_price->receipt_sign_cert->enc_key);
 }

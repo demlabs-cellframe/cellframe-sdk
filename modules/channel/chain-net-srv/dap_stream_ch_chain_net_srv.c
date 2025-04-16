@@ -1110,6 +1110,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                     dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
 
                     // create and fill limits and first receipt
+                    
                     l_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
                                 l_grace->usage->service->uid, l_price->units_uid, l_price->units, l_price->value_datoshi, NULL, 0);
                     // l_grace->usage->is_waiting_first_receipt_sign = true;
