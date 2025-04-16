@@ -551,13 +551,14 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_chain_addr_fill_from_key(&l_addr_first, l_first_cert->enc_key, a_net_id);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     dap_chain_t *l_chain_main = dap_chain_net_get_chain_by_name(l_net, "test_chain_main");
+    dap_print_module_name("step_1");
     
     // Check common tx removing
     dap_chain_datum_tx_t *l_first_tx = dap_ledger_test_create_tx_full(a_from_key, a_prev_hash, &l_addr_first, dap_chain_uint256_from(1U), l_net->pub.ledger);
     dap_chain_hash_fast_t l_first_tx_hash = dap_ledger_test_add_tx(l_net, l_first_tx);
 
     dap_ledger_test_print_balance(a_ledger, &l_addr);
-
+    dap_print_module_name("step_2");
     dap_chain_datum_tx_t *l_second_tx = dap_ledger_test_create_tx_full(a_from_key, &l_first_tx_hash, &l_addr_first, dap_chain_uint256_from(1U), l_net->pub.ledger);
     dap_assert(l_second_tx, "Test of creating second tx:");  
     dap_chain_hash_fast_t l_second_tx_hash = {0};
