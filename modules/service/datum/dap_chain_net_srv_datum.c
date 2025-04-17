@@ -46,7 +46,7 @@ static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
 int dap_chain_net_srv_datum_init()
 {
-    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", dap_chain_node_cli_cmd_id_from_str("srv_datum"),
+    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", DAP_CHAIN_NODE_CLI_CMD_ID_SRV_DATUM,
         "srv_datum -net <net_name> -chain <chain_name> datum save -datum <datum_hash>\n"
             "\tSaving datum from mempool to file.\n\n"
         "srv_datum -net <net_name> -chain <chain_name> datum load -datum <datum_hash>\n"
