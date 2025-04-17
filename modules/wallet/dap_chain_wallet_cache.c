@@ -744,7 +744,7 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
         dap_chain_addr_t l_addr;
         uint256_t l_value;
         uint8_t *l_prev_item = NULL;
-        int l_prev_idx;
+        int l_prev_idx = 0;
 
         switch(*l_tx_item) {
         case TX_ITEM_TYPE_IN: {
