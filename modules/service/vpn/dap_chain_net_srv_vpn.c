@@ -914,7 +914,7 @@ int dap_chain_net_srv_vpn_init()
             s_ch_packet_out);
 
     // add console command to display vpn statistics
-    dap_cli_server_cmd_add ("vpn_stat", com_vpn_statistics, "VPN statistics", dap_chain_node_cli_cmd_id_from_str("vpn_stat"),
+    dap_cli_server_cmd_add ("vpn_stat", com_vpn_statistics, "VPN statistics", DAP_CHAIN_NODE_CLI_CMD_ID_VPN_STAT,
             "vpn_stat -net <net_name> [-full]\n"
             );
 

@@ -216,7 +216,7 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands", dap_chain_node_cli_cmd_id_from_str("srv_xchange"),
+    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands", DAP_CHAIN_NODE_CLI_CMD_ID_SRV_XCHANGE,
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"

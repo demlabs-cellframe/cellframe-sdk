@@ -86,7 +86,7 @@ int dap_chain_net_srv_voting_init()
 {
     dap_ledger_voting_verificator_add(s_voting_verificator, s_vote_verificator,
                                       s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
-    dap_cli_server_cmd_add("poll", s_cli_voting, "Voting/poll commands",  dap_chain_node_cli_cmd_id_from_str("poll"),
+    dap_cli_server_cmd_add("poll", s_cli_voting, "Voting/poll commands",  DAP_CHAIN_NODE_CLI_CMD_ID_POLL,
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>] [-max_votes_count <votes_count>]"
                                         " [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll vote -net <net_name> -hash <poll_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value> -w <fee_wallet_name>\n"

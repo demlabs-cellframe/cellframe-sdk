@@ -199,7 +199,7 @@ int dap_chain_cs_blocks_init()
     dap_chain_block_init();
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
-    dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains", dap_chain_node_cli_cmd_id_from_str("block"),
+    dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains", DAP_CHAIN_NODE_CLI_CMD_ID_BLOCK,
         "New block create, fill and complete commands:\n"
             "block -net <net_name> [-chain <chain_name>] new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
