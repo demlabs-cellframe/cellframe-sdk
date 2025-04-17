@@ -73,7 +73,7 @@ DAP_STATIC_INLINE rpc_role_t s_get_role_from_str(const char *a_str)
  */
 static void s_collect_cmd_stat_info_callback(int16_t a_cmd_id, int64_t a_call_time)
 {
-    dap_return_if_pass(a_cmd_id >= DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
+    dap_return_if_pass(a_cmd_id >= DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL || a_cmd_id < DAP_CHAIN_NODE_CLI_CMD_ID_UNKNOWN);
     atomic_fetch_add(&(s_cmd_call_stat + a_cmd_id)->count, 1);
     atomic_fetch_add(&(s_cmd_call_stat + a_cmd_id)->time, a_call_time);
 }

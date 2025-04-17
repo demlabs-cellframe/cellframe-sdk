@@ -468,7 +468,6 @@ typedef enum dap_chain_node_cli_cmd {
     DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL
 } dap_chain_node_cli_cmd_t;
 
-dap_chain_node_cli_cmd_t dap_chain_node_cli_cmd_id_from_str(const char *a_cmd_str);
 
 int com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
 int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply);
