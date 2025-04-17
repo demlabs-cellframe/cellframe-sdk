@@ -253,7 +253,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
     int l_out_idx = 0;
-    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT, NULL);
+    dap_chain_tx_out_ext_t *l_tx_prev_out = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
     
     dap_chain_addr_t l_addr_to = {0};
     dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
@@ -275,7 +275,8 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
 
     // add all items to tx
     uint256_t value_change = {};
-    SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &value_change);
+    if (l_tx_prev_out)
+        SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &value_change);
     dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, value_change, s_token_ticker);
     uint256_t a_delegated_value = {};
     MULT_256_COIN(a_value, dap_chain_balance_coins_scan("0.1"), &a_delegated_value);
