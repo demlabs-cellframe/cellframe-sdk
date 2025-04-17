@@ -159,7 +159,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, 
     dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net->pub.id);
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
     int l_out_idx = 0;
-    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT, NULL);
+    dap_chain_tx_out_ext_t *l_tx_prev_out = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
     dap_chain_srv_uid_t l_srv_uid = {.uint64 = 1};
@@ -167,7 +167,8 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, 
     dap_pkey_t *l_pkey = dap_pkey_from_enc_key(a_key_from);
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_pay(l_pkey, l_srv_uid, a_value, uint256_0, l_uint_type, NULL, 0);
     uint256_t l_change = {};
-    SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_change);
+    if (l_tx_prev_out)
+        SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_change);
     dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, a_ledger->net->pub.native_ticker);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
