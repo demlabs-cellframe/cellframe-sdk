@@ -472,7 +472,6 @@ typedef enum dap_chain_node_cli_cmd {
     DAP_CHAIN_NODE_CLI_CMD_ID_HELP,
     DAP_CHAIN_NODE_CLI_CMD_ID_EXIT,
     DAP_CHAIN_NODE_CLI_CMD_ID_FILE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_PLUGINS,
     DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL
 } dap_chain_node_cli_cmd_t;
 
