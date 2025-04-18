@@ -2986,7 +2986,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     json_object* json_arr_bl_cache_out = json_object_new_array();
                     size_t l_arr_start = 0;
                     size_t l_arr_end  = 0;
-                    dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_datum_num);
+                    dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_datum_num, false);
                     size_t i_tmp = 0;
 
                     size_t l_total = 0;
