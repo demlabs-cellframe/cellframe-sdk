@@ -122,14 +122,20 @@ DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net
 void dap_chain_net_load_all();
 void dap_chain_net_try_online_all();
 
-int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
-dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
-dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
+// int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
+// dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
+// dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
-inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
+int dap_chain_net_start(dap_chain_net_t * a_net);
 bool dap_chain_net_stop(dap_chain_net_t *a_net);
-inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
-inline static int dap_chain_net_sync(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
+
+bool dap_chain_net_state_is_online(dap_chain_net_t *a_net);
+bool dap_chain_net_state_is_offline(dap_chain_net_t *a_net);
+bool dap_chain_net_state_is_sync(dap_chain_net_t *a_net);
+
+
+// inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
+// inline static int dap_chain_net_sync(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_mempool(dap_chain_net_t *a_net);

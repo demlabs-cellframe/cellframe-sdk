@@ -156,7 +156,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, sizeof(l_err_str));
             return false;
         }
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        if (dap_chain_net_state_is_offline(l_net)) {
             char l_err_str[] = "ERROR_NET_IS_OFFLINE";
             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR,
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, sizeof(l_err_str));

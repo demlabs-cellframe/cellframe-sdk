@@ -478,7 +478,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         // not free service
         log_it( L_INFO, "Valid pricelist is founded. Start service in pay mode.");
 
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        if (dap_chain_net_state_is_offline(l_net)) {
             log_it(L_ERROR, "Can't start service because net %s is offline.", l_net->pub.name);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
             if(a_ch)
@@ -683,7 +683,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         }
 
     } else { // Start service in normal pay mode
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        if (dap_chain_net_state_is_offline(l_net)) {
             log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
             s_grace_error(a_grace, l_err);
@@ -995,7 +995,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         log_it( L_WARNING, "No tx cond transaction");
         RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND);
     } else { // Start service in normal pay mode
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        if (dap_chain_net_state_is_offline(l_net)) {
             log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
             RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE);
         }
@@ -1342,7 +1342,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             l_usage->receipts_timeout_timer = NULL;
         } 
 
-        if (dap_chain_net_get_state(l_usage->net) == NET_STATE_OFFLINE) {
+        if (dap_chain_net_state_is_offline(l_usage->net)) {
             log_it(L_ERROR, "Can't pay service because net %s is offline.", l_usage->net->pub.name);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
             return false;

@@ -2169,7 +2169,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         log_it(L_WARNING, "Can't find net with ID 0x%" DAP_UINT64_FORMAT_x, l_message->hdr.net_id.uint64);
         return false;
     }
-    if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+    if (dap_chain_net_state_is_offline(l_net)) {
         log_it(L_MSG, "Reject packet because net %s is offline", l_net->pub.name);
         a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         return false;
