@@ -92,8 +92,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                                           );
     dap_cli_server_cmd_add("node", com_node, "Work with node", DAP_CHAIN_NODE_CLI_CMD_ID_NODE,
-                    "node add { -net <net_name> | -rpc [-port <port>] } | { -rpc -addr <node_address> -host <node_host> [-port <port>] }\n\n"
-                    "node del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
+                    "node add { -net <net_name> | -rpc [-port <port>] } | { -rpc -addr <node_address> -host <node_host> [-port <port>] [-force] }\n\n"
+                    "node del { -net <net_name> {-addr <node_address> | -alias <node_alias>} } | { -rpc [-addr <node_address>] }\n\n"
                     "node link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
                     "node connect -net <net_name> {-addr <node_address> | -alias <node_alias> | auto}\n\n"
