@@ -1089,7 +1089,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                         break;
                 }
                 char *l_user_key = dap_chain_hash_fast_to_str_new(&l_grace->usage->client_pkey_hash);
-                log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", l_user_key,
+                log_it(L_INFO, "User %s has %"DAP_INT64_FORMAT" %s remain service. Start service without paying.", l_user_key,
                             l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, 
                             dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                 DAP_DELETE(l_user_key);
@@ -1272,7 +1272,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
 
         if (l_request->data_size_recv > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX || l_request->data_size > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX) {
-            log_it(L_WARNING, "Too large payload %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
+            log_it(L_WARNING, "Too large payload %"DAP_UINT64_FORMAT_U" [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;

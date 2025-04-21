@@ -792,6 +792,13 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
                                 l_net_name_str),
                 NULL;
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
+    
+    if ( dap_chain_policy_net_add(l_ret->pub.id, a_cfg) ) {
+        log_it(L_ERROR, "Can't add net %s to policy module", l_ret->pub.name);
+        DAP_DEL_MULTY(l_ret->pub.name, l_ret);
+        return NULL;
+    }
+    
     l_ret->pub.config = a_cfg;
     l_ret->pub.gdb_groups_prefix
         = dap_config_get_item_str_default( a_cfg, "general", "gdb_groups_prefix", dap_config_get_item_str(a_cfg, "general", "name") );
@@ -1836,6 +1843,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
             dap_chain_delete(l_cur);
         }
     }
+    dap_chain_policy_net_remove(a_net->pub.id);
     HASH_DEL(s_nets_by_name, a_net);
     HASH_DELETE(hh2, s_nets_by_id, a_net);
     DAP_DELETE(a_net);

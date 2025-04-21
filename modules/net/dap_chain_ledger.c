@@ -1411,7 +1411,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         dap_sign_t *l_sign = (dap_sign_t *)(l_signs_ptr + l_signs_size);
         if (l_signs_offset + l_signs_size + sizeof(dap_sign_t) > l_token_size ||
                 l_signs_offset + l_signs_size + sizeof(dap_sign_t) < l_signs_offset) {
-            log_it(L_WARNING, "Incorrect size %"DAP_UINT64_FORMAT_U" of datum token, expected at least %zu", l_token_size,
+            log_it(L_WARNING, "Incorrect size %zu of datum token, expected at least %"DAP_UINT64_FORMAT_U, l_token_size,
                                                     l_signs_offset + l_signs_size + sizeof(dap_sign_t));
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_INVALID_SIZE;
@@ -1425,7 +1425,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         l_signs_size += l_sign_size;
     }
     if (l_token_size != l_signs_offset + l_signs_size) {
-        log_it(L_WARNING, "Incorrect size %"DAP_UINT64_FORMAT_U" of datum token, expected %zu", l_token_size, l_signs_offset + l_signs_size);
+        log_it(L_WARNING, "Incorrect size %zu of datum token, expected %"DAP_UINT64_FORMAT_U, l_token_size, l_signs_offset + l_signs_size);
         DAP_DELETE(l_token);
         return DAP_LEDGER_CHECK_INVALID_SIZE;
     }
@@ -1782,7 +1782,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
     uint32_t l_counter = 0;
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
-    dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->threshold_txs));
+    dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->threshold_txs),false);
 
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     if (a_threshold_hash) {
@@ -1851,7 +1851,7 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
-    dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->balance_accounts));
+    dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->balance_accounts),false);
 
     size_t i_tmp = 0;
     if (a_head)
@@ -3905,7 +3905,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         case TX_ITEM_TYPE_OUT_STD: {
             dap_chain_tx_out_std_t *l_tx_out = (dap_chain_tx_out_std_t *)it;
             if (l_tx_out->ts_unlock) {
-                if (!dap_chain_policy_activated(DAP_CHAIN_POLICY_OUT_STD_TIMELOCK_USE, a_ledger->net->pub.id.uint64)) {
+                if (!dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_OUT_STD_TIMELOCK_USE)) {
                     l_err_num = DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL;
                     break;
                 }
