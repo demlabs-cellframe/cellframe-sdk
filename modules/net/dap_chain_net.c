@@ -3381,10 +3381,11 @@ static void s_net_states_proc(dap_chain_net_t *a_net)
             break;
         case NET_STATE_ONLINE:
             if (PVT(a_net)->sync_context.state != CHAIN_SYNC_STATE_SYNCED)
-                if (!PVT(a_net)->sync_context.current_link.uint64)
+                if (!PVT(a_net)->sync_context.current_link.uint64) {
                     s_net_state_set(a_net, NET_STATE_LINKS_CONNECTING);
-                else
+                } else {
                     s_net_state_set(a_net, NET_STATE_SYNC_CHAINS);
+                }
             break;
         default:
             log_it(L_DEBUG, "Unprocessed state");

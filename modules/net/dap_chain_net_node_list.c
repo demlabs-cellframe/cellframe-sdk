@@ -93,7 +93,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     uint64_t addr = 0;
     uint16_t port = 0;
     const char l_net_token[] = "net=";
-    if ( 4 != sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%zu,port=%hu,net=",
+    if ( 4 != sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%"DAP_UINT64_FORMAT_U",port=%hu,net=",
                                                                   &l_protocol_version, &l_issue_method, &addr, &port) )
     {
         log_it( L_ERROR, "Bad request \"%s\"", a_http_simple->http_client->in_query_string );
