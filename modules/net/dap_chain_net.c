@@ -118,7 +118,7 @@
 #define F_DAP_CHAIN_NET_SYNC_FROM_ZERO   ( 1 << 8 )
 
 static bool s_debug_more = false;
-static const int c_sync_timer_period = 5000;  // msec
+static const int c_sync_timer_period = 2000;  // msec
 static bool s_server_enabled = false;
 
 struct request_link_info {
@@ -145,15 +145,16 @@ struct chain_sync_context {
     size_t                  links_count;
 };
 
-typedef enum dap_chain_net_state {
-    NET_STATE_LOADING = 0,
-    NET_STATE_OFFLINE,
-    NET_STATE_LINKS_PREPARE,
-    NET_STATE_LINKS_CONNECTING,
-    NET_STATE_LINKS_ESTABLISHED,
-    NET_STATE_SYNC_CHAINS,
-    NET_STATE_ONLINE
-} dap_chain_net_state_t;
+// typedef enum dap_chain_net_state {
+//     NET_STATE_LOADING = 0,
+//     NET_STATE_OFFLINE,
+//     NET_STATE_LINKS_PREPARE,
+//     NET_STATE_LINKS_CONNECTING,
+//     NET_STATE_LINKS_ESTABLISHED,
+//     NET_STATE_SYNC_CHAINS,
+//     NET_STATE_ONLINE,
+//     NET_STATE_UNKNOWN
+// } dap_chain_net_state_t;
 
 /**
   * @struct dap_chain_net_pvt
@@ -208,12 +209,9 @@ static const char *c_net_states[] = {
     [NET_STATE_LINKS_CONNECTING]    = "NET_STATE_LINKS_CONNECTING",
     [NET_STATE_LINKS_ESTABLISHED]   = "NET_STATE_LINKS_ESTABLISHED",
     [NET_STATE_SYNC_CHAINS]         = "NET_STATE_SYNC_CHAINS",
-    [NET_STATE_ONLINE]              = "NET_STATE_ONLINE"
+    [NET_STATE_ONLINE]              = "NET_STATE_ONLINE",
+    [NET_STATE_UNKNOWN]             = "NET_STATE_UNKNOWN"
 };
-
-static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
-    return a_state < NET_STATE_LOADING || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
-}
 
 // Node link callbacks
 static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net_id);
@@ -239,11 +237,36 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
 static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx);
 static void *s_net_load(void *a_arg);
-static int s_net_try_online(dap_chain_net_t *a_net);
 static int s_cli_net(int argc, char ** argv, void **a_str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_net_state_timer_callback(void *a_arg);
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_object *a_json_out);
+
+DAP_STATIC_INLINE dap_chain_net_state_t s_net_state_get(dap_chain_net_t *a_net)
+{
+    dap_return_val_if_pass(!a_net || !PVT(a_net) || PVT(a_net)->state < NET_STATE_LOADING ||  PVT(a_net)->state > NET_STATE_ONLINE, NET_STATE_UNKNOWN);
+    return PVT(a_net)->state;
+}
+
+
+DAP_STATIC_INLINE dap_chain_net_state_t s_net_state_target_get(dap_chain_net_t *a_net)
+{
+    dap_return_val_if_pass(!a_net || !PVT(a_net) || PVT(a_net)->state_target < NET_STATE_LOADING ||  PVT(a_net)->state_target > NET_STATE_ONLINE, NET_STATE_UNKNOWN);
+    return PVT(a_net)->state_target;
+}
+
+DAP_STATIC_INLINE const char *s_net_state_to_str(dap_chain_net_state_t a_state) {
+    return a_state >= NET_STATE_LOADING && a_state <= NET_STATE_ONLINE ? c_net_states[a_state] : c_net_states[NET_STATE_UNKNOWN];
+}
+
+DAP_STATIC_INLINE const char *s_net_state_get_str(dap_chain_net_t *a_net) {
+    return s_net_state_to_str(s_net_state_get(a_net));
+}
+
+DAP_STATIC_INLINE const char *s_net_state_target_get_str(dap_chain_net_t *a_net) {
+    return s_net_state_to_str(s_net_state_target_get(a_net));
+}
+
 
 /**
  * @brief
@@ -552,7 +575,7 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     uint16_t l_port = 0;
     struct request_link_info *l_permanent_link = NULL;
     for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
-        if ( !dap_chain_net_get_load_mode(l_net) && !dap_chain_net_state_is_offline(l_net) && ( l_permanent_link = s_get_permanent_link_info(l_net, &a_link->addr) )) {
+        if ( !dap_chain_net_state_is_load(l_net) && !dap_chain_net_state_is_offline(l_net) && ( l_permanent_link = s_get_permanent_link_info(l_net, &a_link->addr) )) {
             l_host = l_permanent_link->addr;
             l_port = l_permanent_link->port;
             break;
@@ -602,7 +625,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
                 l_jobj_chain_status = json_object_new_string("unknown");
                 break;
         }
-        if (dap_chain_net_get_load_mode(a_net)) {
+        if (dap_chain_net_state_is_load(a_net)) {
             char *l_percent_str = dap_strdup_printf("%d %c", l_chain->load_progress, '%');
             l_jobj_percent = json_object_new_string(l_percent_str);
             DAP_DELETE(l_percent_str);
@@ -629,9 +652,9 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
 void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out) {
     json_object_object_add(a_json_out, "name", json_object_new_string((const char *) a_net->pub.name));
     json_object_object_add(a_json_out, "networkState",
-                           json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
+                           json_object_new_string(s_net_state_get_str(a_net)));
     json_object_object_add(a_json_out, "targetState",
-                           json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
+                           json_object_new_string(s_net_state_get_str(a_net)));
     json_object_object_add(a_json_out, "linksCount", json_object_new_int(0));
     json_object_object_add(a_json_out, "activeLinksCount",
                            json_object_new_int(dap_link_manager_links_count(a_net->pub.id.uint64)));
@@ -674,18 +697,6 @@ struct json_object *dap_chain_nets_info_json_collect(){
     }
     json_object_object_add(l_json, "networks", l_json_networks);
     return l_json;
-}
-
-/**
- * @brief s_net_states_notify
- * @param l_net
- */
-static void s_net_states_notify(dap_chain_net_t *a_net)
-{
-    struct json_object *l_json = dap_chain_net_states_json_collect(a_net);
-    json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
-    dap_notify_server_send_mt(json_object_get_string(l_json));
-    json_object_put(l_json);
 }
 
 /**
@@ -898,8 +909,8 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_objec
     json_object_object_add(a_json_out, "processed", l_json_sync_status);
 
     json_object *l_jobj_states = json_object_new_object();
-    json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
-    json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
+    json_object *l_jobj_current_states = json_object_new_string(s_net_state_get_str(a_net));
+    json_object *l_jobj_target_states = json_object_new_string(s_net_state_target_get_str(a_net));
     json_object_object_add(l_jobj_states, "current", l_jobj_current_states);
     json_object_object_add(l_jobj_states, "target", l_jobj_target_states);
     json_object_object_add(a_json_out, "states", l_jobj_states);
@@ -920,8 +931,8 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
                                                            dap_link_manager_links_count(a_net->pub.id.uint64), 0);
     dap_cli_server_cmd_set_reply_text(a_str_reply,
                                       "Network \"%s\" has state %s (target state %s)%s%s",
-                                      a_net->pub.name, c_net_states[PVT(a_net)->state],
-                                      c_net_states[PVT(a_net)->state_target],
+                                      a_net->pub.name, s_net_state_get_str(a_net),
+                                      s_net_state_target_get_str(a_net),
                                       (l_sync_current_link_text_block)? l_sync_current_link_text_block: "",
                                       l_node_address_text_block
                                       );
@@ -1319,7 +1330,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
             }
         } else if ( l_go_str){
             json_object *l_jobj_net = json_object_new_string(l_net->pub.name);
-            json_object *l_jobj_current_status = json_object_new_string(c_net_states[PVT(l_net)->state]);
+            json_object *l_jobj_current_status = json_object_new_string(s_net_state_get_str(l_net));
             if (!l_jobj_net || !l_jobj_current_status) {
                 json_object_put(l_jobj_return);
                 json_object_put(l_jobj_net);
@@ -1330,14 +1341,14 @@ static int s_cli_net(int argc, char **argv, void **reply)
             json_object_object_add(l_jobj_return, "net", l_jobj_net);
             json_object_object_add(l_jobj_return, "current", l_jobj_current_status);
             if ( strcmp(l_go_str,"online") == 0 ) {
-                json_object *l_jobj_to = json_object_new_string(c_net_states[NET_STATE_ONLINE]);
+                json_object *l_jobj_to = json_object_new_string(s_net_state_to_str(NET_STATE_ONLINE));
                 if (!l_jobj_to) {
                     json_object_put(l_jobj_return);
                     dap_json_rpc_allocation_error(*a_json_arr_reply);
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_return, "to", l_jobj_to);
-                if (dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE)) {
+                if (dap_chain_net_start(l_net)) {
                     json_object_put(l_jobj_return);
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
                                             "Can't change state of loading network\n");
@@ -1345,14 +1356,14 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 }
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
-                json_object *l_jobj_to = json_object_new_string(c_net_states[NET_STATE_OFFLINE]);
+                json_object *l_jobj_to = json_object_new_string(s_net_state_to_str(NET_STATE_OFFLINE));
                 if (!l_jobj_to) {
                     json_object_put(l_jobj_return);
                     dap_json_rpc_allocation_error(*a_json_arr_reply);
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_return, "to", l_jobj_to);
-                if ( dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE) ) {
+                if ( dap_chain_net_stop(l_net) ) {
                     json_object_put(l_jobj_return);
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
                                             "Can't change state of loading network\n");
@@ -1368,9 +1379,9 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 }
                 json_object_object_add(l_jobj_return, "start", l_jobj_to);
                 if (PVT(l_net)->state_target == NET_STATE_ONLINE)
-                    l_ret = dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                    l_ret = dap_chain_net_start(l_net);
                 else
-                    l_ret = dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
+                    l_ret = dap_chain_net_sync(l_net);
                 if (l_ret) {
                     json_object_put(l_jobj_return);
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START, "%s",
@@ -1538,7 +1549,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
         } else if( l_sync_str) {
             json_object *l_jobj_state_machine = json_object_new_object();
             json_object *l_jobj_requested = json_object_new_string("SYNC_ALL");
-            json_object *l_jobj_current = json_object_new_string(c_net_states[PVT(l_net)->state]);
+            json_object *l_jobj_current = json_object_new_string(s_net_state_get_str(l_net));
             if (!l_jobj_state_machine || !l_jobj_current) {
                 json_object_put(l_jobj_state_machine);
                 json_object_put(l_jobj_current);
@@ -1712,8 +1723,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 return DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
-            int l_return_state = dap_chain_net_stop(l_net);
-            sleep(1);   // wait to net going offline
+            int l_return_state = dap_chain_net_stop_wait_for(l_net);
             dap_chain_net_purge(l_net);
             if (l_return_state)
                 dap_chain_net_start(l_net);
@@ -1800,8 +1810,7 @@ void dap_chain_net_deinit()
 void dap_chain_net_delete(dap_chain_net_t *a_net)
 {
     // Synchronously going to offline state
-    PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
-    s_net_states_proc(a_net);
+    dap_chain_net_stop_wait_for(a_net);
     dap_global_db_cluster_t *l_mempool = PVT(a_net)->mempool_clusters;
     while (l_mempool) {
         dap_global_db_cluster_t *l_next = l_mempool->next;
@@ -2862,7 +2871,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
     return 0;
 }
 
-bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
+bool dap_chain_net_state_is_load(dap_chain_net_t * a_net)
 {
     return PVT(a_net)->state == NET_STATE_LOADING;
 }
@@ -2945,20 +2954,6 @@ anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net) {
 /*------------------------------------State machine block------------------------------------*/
 
 /**
- * @brief try net to go online
- * @param a_net dap_chain_net_t *: network 
- * @return 0 if ok
- **/
-static int s_net_try_online(dap_chain_net_t *a_net)
-{
-// sanity check
-    dap_return_val_if_pass(!a_net || !PVT(a_net), -1);
-// func work
-    log_it(L_INFO, "Network \"%s\" goes online",a_net->pub.name);
-    return dap_chain_net_state_go_to(a_net, NET_STATE_ONLINE);
-}
-
-/**
  * @brief
  * change all network states according to auto-online settings
  */
@@ -2972,7 +2967,7 @@ void dap_chain_net_try_online_all() {
         return log_it(L_DEBUG, "Auto online is off in config");
 
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
-        if (( l_ret = s_net_try_online(net) ))
+        if (( l_ret = dap_chain_net_start(net) ))
             log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", net->pub.name, l_ret);
     }
 }
@@ -3166,7 +3161,7 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     }
     debug_if(s_debug_more, L_DEBUG, "Go to next chain: <NULL>");
     if (l_net_pvt->state_target != NET_STATE_ONLINE) {
-        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+        dap_chain_net_stop_wait_for(a_net);
         return NULL;
     }
     dap_chain_net_state_t l_prev_state = l_net_pvt->state;
@@ -3184,79 +3179,18 @@ static dap_chain_sync_state_t s_sync_context_state_forming(dap_chain_t *a_chains
     return l_ret;
 }
 
-/**
- * @brief set current network state to F_DAP_CHAIN_NET_GO_SYNC
- *
- * @param a_net dap_chain_net_t network object
- * @param a_new_state dap_chain_net_state_t new network state
- * @return int
- */
-static int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
-{
-    if (dap_chain_net_get_load_mode(a_net)) {
-        log_it(L_ERROR, "Can't change state of loading network '%s'", a_net->pub.name);
-        return -1;
-    }
-    if (PVT(a_net)->state_target == a_new_state) {
-        log_it(L_NOTICE, "Network %s already %s state %s", a_net->pub.name,
-                                PVT(a_net)->state == a_new_state ? "have" : "going to", dap_chain_net_state_to_str(a_new_state));
-        return 0;
-    }
-    //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
-    PVT(a_net)->state_target = a_new_state;
-    if (a_new_state == NET_STATE_OFFLINE) {
-        char l_err_str[] = "ERROR_NET_IS_OFFLINE";
-        size_t l_error_size = sizeof(dap_stream_ch_chain_net_pkt_t) + sizeof(l_err_str);
-        dap_stream_ch_chain_net_pkt_t *l_error = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_pkt_t, l_error_size);
-        l_error->hdr.version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION;
-        l_error->hdr.net_id = a_net->pub.id;
-        l_error->hdr.data_size = sizeof(l_err_str);
-        memcpy(l_error->data, l_err_str, sizeof(l_err_str));
-        dap_cluster_broadcast(PVT(a_net)->nodes_cluster->links_cluster, DAP_STREAM_CH_CHAIN_NET_ID,
-                              DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR, l_error, l_error_size, NULL, 0);
-        dap_link_manager_set_net_condition(a_net->pub.id.uint64, false);
-        dap_chain_esbocs_stop_timer(a_net->pub.id);
-    } else if (PVT(a_net)->state == NET_STATE_OFFLINE) {
-        dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
-        uint16_t l_permalink_hosts_count = 0;
-        dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
-        for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
-            if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i, 
-                i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,
-                i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->port : 0)
-             ) {
-                log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->permanent_links_addrs + i));
-                continue;
-            }
-        }
-        if (a_new_state == NET_STATE_ONLINE) {
-            dap_chain_esbocs_start_timer(a_net->pub.id);
-            PVT(a_net)->sync_context.current_link.uint64 = 0;
-            PVT(a_net)->sync_context.cur_chain = NULL;
-            PVT(a_net)->sync_context.cur_cell = NULL;
-        }
-    }
-    s_net_states_proc(a_net);
-    return 0;
-}
-
-DAP_INLINE dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
-{
-    return PVT(a_net)->state_target;
-}
-
 /*------------------------------------State machine block end---------------------------------*/
 
 
 DAP_INLINE bool dap_chain_net_state_is_online(dap_chain_net_t *a_net)
 {
-    dap_return_val_if_fail(!a_net, false);
+    dap_return_val_if_fail(!a_net || PVT(a_net), false);
     return PVT(a_net)->state == NET_STATE_ONLINE;
 }
 
 DAP_INLINE bool dap_chain_net_state_is_offline(dap_chain_net_t *a_net)
 {
-    dap_return_val_if_fail(!a_net, false);
+    dap_return_val_if_fail(!a_net || PVT(a_net), true);
     return PVT(a_net)->state == NET_STATE_OFFLINE;
 }
 
@@ -3264,16 +3198,6 @@ DAP_INLINE bool dap_chain_net_state_is_sync(dap_chain_net_t *a_net)
 {
     dap_return_val_if_fail(!a_net, false);
     return PVT(a_net)->state == NET_STATE_SYNC_CHAINS;
-}
-
-DAP_INLINE int dap_chain_net_start(dap_chain_net_t *a_net)
-{
-    return dap_chain_net_state_go_to(a_net, NET_STATE_ONLINE);
-}
-
-DAP_STATIC_INLINE dap_chain_net_state_t s_net_state_get(dap_chain_net_t *a_net)
-{
-    return PVT(a_net)->state;
 }
 
 DAP_STATIC_INLINE void s_net_state_set(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
@@ -3295,21 +3219,18 @@ DAP_STATIC_INLINE void s_net_state_set(dap_chain_net_t *a_net, dap_chain_net_sta
     PVT(a_net)->state = a_new_state;
 }
 
-
 DAP_STATIC_INLINE bool s_net_state_need_update(dap_chain_net_t *a_net)
 {
     return PVT(a_net)->state != PVT(a_net)->state_target;
 }
 
-DAP_STATIC_INLINE dap_chain_net_state_t s_net_state_target_get(dap_chain_net_t *a_net)
-{
-    return PVT(a_net)->state_target;
-}
-
-DAP_STATIC_INLINE void s_net_state_target_set(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
+static void s_net_state_target_set(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
 {
     PVT(a_net)->state_target = a_new_state;
-    s_net_states_notify(a_net);
+    struct json_object *l_json = dap_chain_net_states_json_collect(a_net);
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
 }
 
 DAP_STATIC_INLINE bool s_net_state_target_is_online(dap_chain_net_t *a_net)
@@ -3328,6 +3249,61 @@ DAP_STATIC_INLINE bool s_net_state_target_is_sync(dap_chain_net_t *a_net)
 }
 
 /**
+ * @brief set current network state to F_DAP_CHAIN_NET_GO_SYNC
+ *
+ * @param a_net dap_chain_net_t network object
+ * @param a_new_state dap_chain_net_state_t new network state
+ * @return int
+ */
+static int s_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
+{
+    dap_return_val_if_pass(!a_net, -1);
+    log_it(L_INFO, "Network \"%s\" goes %s", a_net->pub.name, s_net_state_to_str(a_new_state));
+    if (dap_chain_net_state_is_load(a_net)) {
+        log_it(L_ERROR, "Can't change state of loading network '%s'", a_net->pub.name);
+        return -2;
+    }
+    if (PVT(a_net)->state_target == a_new_state) {
+        log_it(L_NOTICE, "Network %s already %s state %s", a_net->pub.name,
+                                PVT(a_net)->state == a_new_state ? "have" : "going to", s_net_state_get_str(a_net));
+        return 0;
+    }
+    //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
+    s_net_state_target_set(a_net, a_new_state);
+    return 0;
+}
+
+DAP_INLINE int dap_chain_net_start(dap_chain_net_t *a_net)
+{
+    return s_state_go_to(a_net, NET_STATE_ONLINE);
+}
+
+DAP_INLINE int dap_chain_net_sync(dap_chain_net_t *a_net)
+{
+    return s_state_go_to(a_net, NET_STATE_SYNC_CHAINS);
+}
+
+DAP_INLINE int dap_chain_net_stop(dap_chain_net_t *a_net)
+{
+    return s_state_go_to(a_net, NET_STATE_OFFLINE);
+}
+
+int dap_chain_net_stop_wait_for(dap_chain_net_t *a_net)
+{
+    int l_attempts_count = 0;
+    int l_ret = s_state_go_to(a_net, NET_STATE_OFFLINE);
+    while (!dap_chain_net_state_is_offline(a_net) && l_attempts_count++ < 5) {
+        sleep(c_sync_timer_period / 1000);
+        if (l_ret)
+            l_ret = s_state_go_to(a_net, NET_STATE_OFFLINE);
+    }
+    if (!dap_chain_net_state_is_offline(a_net)) {
+        log_it(L_ERROR, "Can't stop net %s", a_net->pub.name);
+    }
+    return l_ret;
+}
+
+/**
  * @brief s_net_states_proc
  * @param l_net
  */
@@ -3338,14 +3314,42 @@ static void s_net_states_proc(dap_chain_net_t *a_net)
 
     if (s_net_state_target_is_offline(a_net)) {
         s_net_state_set(a_net, NET_STATE_OFFLINE);
+        char l_err_str[] = "ERROR_NET_IS_OFFLINE";
+        size_t l_error_size = sizeof(dap_stream_ch_chain_net_pkt_t) + sizeof(l_err_str);
+        dap_stream_ch_chain_net_pkt_t *l_error = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_pkt_t, l_error_size);
+        l_error->hdr.version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION;
+        l_error->hdr.net_id = a_net->pub.id;
+        l_error->hdr.data_size = sizeof(l_err_str);
+        memcpy(l_error->data, l_err_str, sizeof(l_err_str));
+        dap_cluster_broadcast(PVT(a_net)->nodes_cluster->links_cluster, DAP_STREAM_CH_CHAIN_NET_ID,
+                              DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR, l_error, l_error_size, NULL, 0);
+        dap_link_manager_set_net_condition(a_net->pub.id.uint64, false);
+        dap_chain_esbocs_stop_timer(a_net->pub.id);
         return;
     }
     
     switch (s_net_state_get(a_net)) {
         // State OFFLINE where we don't do anything
         case NET_STATE_OFFLINE: {
-            if (!PVT(a_net)->sync_context.links_count)
-                s_net_state_set(a_net, NET_STATE_LINKS_CONNECTING);
+            PVT(a_net)->sync_context.current_link.uint64 = 0;
+            PVT(a_net)->sync_context.cur_chain = NULL;
+            PVT(a_net)->sync_context.cur_cell = NULL;
+            PVT(a_net)->sync_context.links_count = 0;
+    
+            dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
+            uint16_t l_permalink_hosts_count = 0;
+            dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
+            for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
+                if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i, 
+                    i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,
+                    i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->port : 0)
+                ) {
+                    log_it(L_ERROR, "Can't create permanent link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->permanent_links_addrs + i));
+                    continue;
+                }
+            }
+            dap_chain_esbocs_start_timer(a_net->pub.id);
+            s_net_state_set(a_net, NET_STATE_LINKS_PREPARE);
         } break;
 
         case NET_STATE_LINKS_PREPARE:
@@ -3354,17 +3358,25 @@ static void s_net_states_proc(dap_chain_net_t *a_net)
         case NET_STATE_LINKS_CONNECTING:
             if (PVT(a_net)->sync_context.links_count)
                 s_net_state_set(a_net, NET_STATE_LINKS_ESTABLISHED);
+            break;
         case NET_STATE_LINKS_ESTABLISHED:
             if (!PVT(a_net)->sync_context.current_link.uint64)
                 s_net_state_set(a_net, NET_STATE_LINKS_CONNECTING);
             else
                 s_net_state_set(a_net, NET_STATE_SYNC_CHAINS);
+            break;
         case NET_STATE_SYNC_CHAINS:
             if (PVT(a_net)->sync_context.state == CHAIN_SYNC_STATE_SYNCED)
                 s_net_state_set(a_net, NET_STATE_ONLINE);
             else if (!PVT(a_net)->sync_context.cur_chain)
                 s_net_state_set(a_net, NET_STATE_LINKS_ESTABLISHED);
+            break;
         case NET_STATE_ONLINE:
+            if (PVT(a_net)->sync_context.state != CHAIN_SYNC_STATE_SYNCED)
+                if (!PVT(a_net)->sync_context.current_link.uint64)
+                    s_net_state_set(a_net, NET_STATE_LINKS_CONNECTING);
+                else
+                    s_net_state_set(a_net, NET_STATE_SYNC_CHAINS);
             break;
         default:
             log_it(L_DEBUG, "Unprocessed state");
@@ -3443,21 +3455,4 @@ static void s_net_state_timer_callback(void *a_arg)
     l_net_pvt->sync_context.requested_atom_hash = l_request.hash_from;
     l_net_pvt->sync_context.requested_atom_num = l_last_num;
     DAP_DELETE(l_chain_pkt);
-}
-
-bool dap_chain_net_stop(dap_chain_net_t *a_net)
-{
-    int l_attempts_count = 0;
-    bool l_ret = false;
-    if (s_net_state_target_is_online(a_net)) {
-        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
-        l_ret = true;
-    } else if (!dap_chain_net_state_is_offline(a_net)) {
-        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
-    }
-    while (!dap_chain_net_state_is_offline(a_net) && l_attempts_count++ < 5) { sleep(1); }
-    if (!dap_chain_net_state_is_offline(a_net) != NET_STATE_OFFLINE) {
-        log_it(L_ERROR, "Can't stop net %s", a_net->pub.name);
-    }
-    return l_ret;
 }

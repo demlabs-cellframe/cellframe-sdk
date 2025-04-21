@@ -1110,7 +1110,7 @@ static int s_cli_emit_delegate(int a_argc, char **a_argv, void **a_str_reply)
     if (l_err_net_chain)
         return l_err_net_chain;
 
-    if (dap_chain_net_get_load_mode(l_net)) {
+    if (dap_chain_net_state_is_load(l_net)) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_NETWORK, "Can't apply command while network in load mode");
         return ERROR_NETWORK;
     }

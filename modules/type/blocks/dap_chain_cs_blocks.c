@@ -1798,7 +1798,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     case ATOM_ACCEPT:{
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
-        if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
+        if ( !dap_chain_net_state_is_load( dap_chain_net_by_id(a_chain->net_id)) ) {
             if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", ret);
                 return ATOM_REJECT;
@@ -1832,7 +1832,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                 // Send it to notificator listeners
 #ifndef DAP_CHAIN_BLOCKS_TEST
-                if (!dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id))){
+                if (!dap_chain_net_state_is_load( dap_chain_net_by_id(a_chain->net_id))){
 #endif
                     dap_list_t *l_iter;
                     DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
@@ -1868,7 +1868,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                         // Send it to notificator listeners
 #ifndef DAP_CHAIN_BLOCKS_TEST
-                        if (!dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id))){
+                        if (!dap_chain_net_state_is_load( dap_chain_net_by_id(a_chain->net_id))){
 #endif
                             dap_list_t *l_iter;
                             DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
@@ -1920,7 +1920,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     case ATOM_FORK:{
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
-        if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
+        if ( !dap_chain_net_state_is_load( dap_chain_net_by_id(a_chain->net_id)) ) {
             if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", ret);
                 return ATOM_REJECT;

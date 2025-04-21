@@ -641,7 +641,7 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
 {
 
     for(dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net=dap_chain_net_iter_next(l_net)){
-        if (dap_chain_net_get_load_mode(l_net))
+        if (dap_chain_net_state_is_load(l_net))
             continue;
         // get wallet addr in current net
         dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, l_net->pub.id);

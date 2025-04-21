@@ -85,7 +85,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 #define DAP_VERSION "0.9-15"
 #endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE) {
+        if(dap_chain_net_state_is_offline(l_net)) {
             size_t
                 l_uplinks_count = 0,
                 l_downlinks_count = 0,

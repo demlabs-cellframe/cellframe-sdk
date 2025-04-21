@@ -485,7 +485,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     case ATOM_ACCEPT:
         ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size, &l_event_hash);
         if (ret == ATOM_MOVE_TO_THRESHOLD) {
-            if (!s_threshold_enabled /*&& !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id))*/)
+            if (!s_threshold_enabled /*&& !dap_chain_net_state_is_load(dap_chain_net_by_id(a_chain->net_id))*/)
                 ret = ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, dap_chain_atom_verify_res_str[ret]);
@@ -516,7 +516,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         dap_chain_cs_dag_blocked_t *el = NULL;
         HASH_FIND(hh, PVT(l_dag)->removed_events_from_treshold, &l_event_hash, sizeof(dap_chain_hash_fast_t), el);
         if (!el) {
-            if ( a_chain->is_mapped && dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)) )
+            if ( a_chain->is_mapped && dap_chain_net_state_is_load(dap_chain_net_by_id(a_chain->net_id)) )
                 l_event_item->mapped_region = (char*)l_event;
             HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_hash), l_event_item);
             debug_if(s_debug_more, L_DEBUG, "... added to threshold");
@@ -528,7 +528,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     }
     case ATOM_ACCEPT: {
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_event->header.cell_id);
-        if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
+        if ( !dap_chain_net_state_is_load( dap_chain_net_by_id(a_chain->net_id)) ) {
             if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_event_hash : NULL) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file");
                 ret = ATOM_REJECT;

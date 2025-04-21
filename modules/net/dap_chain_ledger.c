@@ -1727,7 +1727,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
 
 int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size)
 {
-    if (dap_chain_net_get_load_mode(a_ledger->net)) {
+    if (dap_chain_net_state_is_load(a_ledger->net)) {
         const char *l_ticker = NULL;
         switch (*(uint16_t *)a_token) {
         case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
@@ -2798,7 +2798,7 @@ dap_ledger_stake_lock_item_t *s_emissions_for_stake_lock_item_find(dap_ledger_t 
 int dap_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission,
                                          size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash)
 {
-    if (dap_chain_net_get_load_mode(a_ledger->net)) {
+    if (dap_chain_net_state_is_load(a_ledger->net)) {
         dap_ledger_token_emission_item_t *l_token_emission_item = NULL;
         dap_ledger_token_item_t *l_token_item, *l_item_tmp;
         pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
@@ -4148,7 +4148,7 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
         DAP_DELETE(l_gdb_group);
     }
     /* Notify the world*/
-    if ( !dap_chain_net_get_load_mode(a_ledger->net) ) {
+    if ( !dap_chain_net_state_is_load(a_ledger->net) ) {
         struct json_object *l_json = wallet_info_json_collect(a_ledger, a_balance);
         if (l_json) {
             dap_notify_server_send_mt(json_object_get_string(l_json));
@@ -4201,7 +4201,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                                                        l_main_token_ticker, &l_tag, &l_action, false))) {                                                        
         if ((l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS ||
                 l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION) &&
-                l_ledger_pvt->threshold_enabled && !dap_chain_net_get_load_mode(a_ledger->net)) {
+                l_ledger_pvt->threshold_enabled && !dap_chain_net_state_is_load(a_ledger->net)) {
             if (!l_from_threshold) {
                 unsigned l_hash_value = 0;
                 HASH_VALUE(a_tx_hash, sizeof(*a_tx_hash), l_hash_value);
@@ -4513,7 +4513,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     l_tx_item->cache_data.multichannel = l_multichannel;
     l_tx_item->ts_added = dap_nanotime_now();
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
-    if (dap_chain_net_get_load_mode(a_ledger->net) || dap_chain_net_state_is_sync(a_ledger->net))
+    if (dap_chain_net_state_is_load(a_ledger->net) || dap_chain_net_state_is_sync(a_ledger->net))
         HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
     else
         HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
@@ -4883,7 +4883,7 @@ FIN:
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
 #ifndef DAP_LEDGER_TEST
-    if (dap_chain_net_get_load_mode(a_ledger->net)) {
+    if (dap_chain_net_state_is_load(a_ledger->net)) {
         if (PVT(a_ledger)->cache_tx_check_callback)
             PVT(a_ledger)->cache_tx_check_callback(a_ledger, a_tx_hash);
         dap_ledger_tx_item_t *l_tx_item = NULL;
