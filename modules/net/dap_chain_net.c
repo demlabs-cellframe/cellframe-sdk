@@ -3192,19 +3192,19 @@ static dap_chain_sync_state_t s_sync_context_state_forming(dap_chain_t *a_chains
 
 DAP_INLINE bool dap_chain_net_state_is_online(dap_chain_net_t *a_net)
 {
-    dap_return_val_if_fail(!a_net || PVT(a_net), false);
+    dap_return_val_if_pass(!a_net || !PVT(a_net), false);
     return PVT(a_net)->state == NET_STATE_ONLINE;
 }
 
 DAP_INLINE bool dap_chain_net_state_is_offline(dap_chain_net_t *a_net)
 {
-    dap_return_val_if_fail(!a_net || PVT(a_net), true);
+    dap_return_val_if_pass(!a_net || !PVT(a_net), true);
     return PVT(a_net)->state == NET_STATE_OFFLINE;
 }
 
 DAP_INLINE bool dap_chain_net_state_is_sync(dap_chain_net_t *a_net)
 {
-    dap_return_val_if_fail(!a_net, false);
+    dap_return_val_if_pass(!a_net || !PVT(a_net), false);
     return PVT(a_net)->state == NET_STATE_SYNC_CHAINS;
 }
 
