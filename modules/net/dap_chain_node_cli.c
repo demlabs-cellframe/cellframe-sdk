@@ -43,6 +43,7 @@
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli.h"
 #include "dap_notify_srv.h"
+#include "dap_json_rpc_response.h"
 
 #define LOG_TAG "chain_node_cli"
 static bool s_debug_cli = false;
@@ -376,6 +377,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
     dap_notify_srv_set_callback_new(dap_notify_new_client_send_info);
+    return 0;
+}
+int dap_chain_node_cli_parser_init(void) {
+    dap_cli_server_cmd_add("token", NULL, json_print_for_token_list, "---","---");
     return 0;
 }
 

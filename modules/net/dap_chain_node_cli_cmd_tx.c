@@ -1946,3 +1946,244 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
 
     return 0;
 }
+
+void  json_print_for_mempool_list(dap_json_rpc_response_t* response){
+    json_object * json_obj_response = json_object_array_get_idx(response->result_json_object, 0);
+    json_object * j_obj_net_name, * j_arr_chains, * j_obj_chain, *j_obj_removed, *j_arr_datums, *j_arr_total;
+    json_object_object_get_ex(json_obj_response, "net", &j_obj_net_name);
+    json_object_object_get_ex(json_obj_response, "chains", &j_arr_chains);
+    int result_count = json_object_array_length(j_arr_chains);
+    for (int i = 0; i < result_count; i++) {
+        json_object * json_obj_result = json_object_array_get_idx(j_arr_chains, i);
+        json_object_object_get_ex(json_obj_result, "name", &j_obj_chain);
+        json_object_object_get_ex(json_obj_result, "removed", &j_obj_removed);
+        json_object_object_get_ex(json_obj_result, "datums", &j_arr_datums);
+        json_object_object_get_ex(json_obj_result, "total", &j_arr_total);
+        printf("Removed %d records from the %s chain mempool in %s network.\n", 
+                json_object_get_int(j_obj_removed), json_object_get_string(j_obj_chain), json_object_get_string(j_obj_net_name));
+        printf("Datums:\n");
+        json_print_object(j_arr_datums, 1);
+        // TODO total parser
+        json_print_object(j_arr_total, 1);
+    }
+}
+void json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response){
+    if (!response || !response->result_json_object) {
+        printf("Response is empty\n");
+        return;
+    }
+    if (json_object_get_type(response->result_json_object) == json_type_array) {
+        int result_count = json_object_array_length(response->result_json_object);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return;
+        }
+        printf("Node addres \t\t| Pkey hash \t\t\t\t\t\t\t     | Stake val | Eff val | Rel weight | Sover addr | Sover tax\n");
+        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        result_count = json_object_array_length(json_obj_array);
+        for (int i = 0; i < result_count; i++) {
+            struct json_object *json_obj_result = json_object_array_get_idx(json_obj_array, i);
+            if (!json_obj_result) {
+                printf("Failed to get array element at index %d\n", i);
+                continue;
+            }
+
+            json_object *j_obj_node_addr, *j_obj_pkey_hash, *j_obj_stake_value, *j_obj_effective_value, *j_obj_related_weight,
+                   *j_obj_sovereign_addr, *j_obj_sovereign_tax;
+            if (json_object_object_get_ex(json_obj_result, "node_addr", &j_obj_node_addr) &&
+                json_object_object_get_ex(json_obj_result, "pkey_hash", &j_obj_pkey_hash) &&
+                json_object_object_get_ex(json_obj_result, "stake_value", &j_obj_stake_value) &&
+                json_object_object_get_ex(json_obj_result, "effective_value", &j_obj_effective_value) &&
+                json_object_object_get_ex(json_obj_result, "related_weight", &j_obj_related_weight))
+            {
+                json_object_object_get_ex(json_obj_result, "sovereign_addr", &j_obj_sovereign_addr);
+                json_object_object_get_ex(json_obj_result, "sovereign_tax", &j_obj_sovereign_tax);
+
+                if (j_obj_node_addr && j_obj_pkey_hash && j_obj_stake_value && j_obj_effective_value && j_obj_related_weight
+                    && j_obj_sovereign_addr && j_obj_sovereign_tax) {
+                    printf("%s \t| %s | %d \t | %d | %d | %s | %d",
+                            json_object_get_string(j_obj_node_addr), json_object_get_string(j_obj_pkey_hash), json_object_get_int(j_obj_stake_value),
+                            json_object_get_int(j_obj_effective_value), json_object_get_int(j_obj_related_weight), json_object_get_string(j_obj_sovereign_addr),
+                            json_object_get_int(j_obj_sovereign_tax));
+                } else {
+                    printf("Missing required fields in array element at index %d\n", i);
+                }
+            } else {
+                json_print_object(json_obj_result, 0);
+            }
+            printf("\n");
+        }
+    } else {
+        json_print_object(response->result_json_object, 0);
+    }
+
+}
+
+void json_print_for_block_list(dap_json_rpc_response_t* response){
+    if (!response || !response->result_json_object) {
+        printf("Response is empty\n");
+        return;
+    }
+    if (json_object_get_type(response->result_json_object) == json_type_array) {
+        int result_count = json_object_array_length(response->result_json_object);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return;
+        }
+        printf("Node addres \t\t| Pkey hash \t\t\t\t\t\t\t     | Stake val | Eff val | Rel weight | Sover addr | Sover tax\n");
+        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        result_count = json_object_array_length(json_obj_array);
+        for (int i = 0; i < result_count; i++) {
+            struct json_object *json_obj_result = json_object_array_get_idx(json_obj_array, i);
+            if (!json_obj_result) {
+                printf("Failed to get array element at index %d\n", i);
+                continue;
+            }
+
+            json_object *j_obj_block_number, *j_obj_hash, *j_obj_create;
+            if (json_object_object_get_ex(json_obj_result, "block number", &j_obj_block_number) &&
+                json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
+                json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
+            {
+
+                if (j_obj_block_number && j_obj_hash && j_obj_create) {
+                    printf("%s \t| %s | %s",
+                            json_object_get_string(j_obj_block_number), json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create));
+                } else {
+                    printf("Missing required fields in array element at index %d\n", i);
+                }
+            } else {
+                json_print_object(json_obj_result, 0);
+            }
+            printf("\n");
+        }
+    } else {
+        json_print_object(response->result_json_object, 0);
+    }
+
+}
+
+void json_print_for_dag_list(dap_json_rpc_response_t* response){
+    if (!response || !response->result_json_object) {
+        printf("Response is empty\n");
+        return;
+    }
+    if (json_object_get_type(response->result_json_object) == json_type_array) {
+        int result_count = json_object_array_length(response->result_json_object);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return;
+        }
+        printf("________________________________________________________________________________________________________________\n");
+        printf("   # \t| Hash \t\t\t\t\t\t\t\t     | Time create \t\t\t|");
+        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        struct json_object *j_object_events = NULL;
+        char *l_limit = NULL;
+        if (!json_object_object_get_ex(json_obj_array, "EVENTS", &j_object_events)) {
+            printf("EVENTS is empty\n");
+            return;
+        }
+        result_count = json_object_array_length(j_object_events);
+        for (int i = 0; i < result_count; i++) {
+            struct json_object *json_obj_result = json_object_array_get_idx(j_object_events, i);
+            if (!json_obj_result) {
+                printf("Failed to get array element at index %d\n", i);
+                continue;
+            }
+
+            json_object *j_obj_event_number, *j_obj_hash, *j_obj_create, *j_obj_lim;
+            if (json_object_object_get_ex(json_obj_result, "event number", &j_obj_event_number) &&
+                json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
+                json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
+            {
+
+                if (j_obj_event_number && j_obj_hash && j_obj_create) {
+                    printf("   %s \t| %s | %s\t|",
+                            json_object_get_string(j_obj_event_number), json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create));
+                } else {
+                    printf("Missing required fields in array element at index %d\n", i);
+                }
+            } else if (json_object_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
+                l_limit = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim));
+            } else {
+                json_print_object(json_obj_result, 0);
+            }             
+            printf("\n");
+        }
+        printf("________|____________________________________________________________________|__________________________________|\n\n");
+        if (l_limit) {            
+            printf("\tlimit: %s", l_limit);
+            DAP_DELETE(l_limit);
+        }            
+    } else {
+        json_print_object(response->result_json_object, 0);
+    }
+
+}
+
+int json_print_for_token_list(dap_json_rpc_response_t* response){
+    if (!response || !response->result_json_object) {
+        printf("Response is empty\n");
+        return -1;
+    }
+    if (json_object_get_type(response->result_json_object) == json_type_array) {
+        int result_count = json_object_array_length(response->result_json_object);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return -2;
+        }
+        printf("TOKENS is %d\n", result_count);
+        printf("______________________________________________________________________________________________________\n");
+        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        struct json_object *j_object_tokens = NULL;
+        struct json_object *j_object_tKEL = NULL;
+        char *l_limit = NULL;
+        if (!json_object_object_get_ex(json_obj_array, "TOKENS", &j_object_tokens)) {
+            printf("TOKENS is empty\n");
+            return -3;
+        }
+        struct json_object *json_obj_array2 = json_object_array_get_idx(j_object_tokens, 0);
+        result_count = json_object_array_length(json_obj_array2);
+        printf("TOKENS is %d\n", result_count);
+        if (json_object_object_get_ex(json_obj_array2, "mtKEL", &j_object_tKEL)) {
+            printf("mtKEL found\n");
+            return -4;
+        }
+        
+        printf("TOKENS is %d\n", result_count);
+        for (int i = 0; i < result_count; i++) {
+            struct json_object *json_obj_result = json_object_array_get_idx(j_object_tokens, i);
+            if (!json_obj_result) {
+                printf("Failed to get array element at index %d\n", i);
+                continue;
+            }
+
+            json_object *j_obj_event_number, *j_obj_hash, *j_obj_create, *j_obj_lim;
+            if (json_object_object_get_ex(json_obj_result, "event number", &j_obj_event_number) &&
+                json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
+                json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
+            {
+
+                if (j_obj_event_number && j_obj_hash && j_obj_create) {
+                    printf("   %s \t| %s | %s\t|",
+                            json_object_get_string(j_obj_event_number), json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create));
+                } else {
+                    printf("Missing required fields in array element at index %d\n", i);
+                }
+            } else if (json_object_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
+                l_limit = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim));
+            } else {
+                json_print_object(json_obj_result, 0);
+            }             
+            printf("______________________________________________________________________________________________________\n");
+        }
+        if (l_limit) {            
+            printf("\tlimit: %s", l_limit);
+            DAP_DELETE(l_limit);
+        }            
+    } else {
+        json_print_object(response->result_json_object, 0);
+    }
+    return 0;
+}
+
