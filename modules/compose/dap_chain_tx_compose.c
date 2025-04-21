@@ -1875,7 +1875,7 @@ typedef enum {
     CLI_TAKE_COMPOSE_ERROR_NOT_ENOUGH_TIME_PASSED = -13
 } cli_take_compose_error_t;
 
-json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_tx_str, const char *a_tx_burning_str,
+json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_tx_str,
                                     const char *a_value_fee_str, const char *a_url_str, uint16_t a_port){
 
     compose_config_t * l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
@@ -2661,7 +2661,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
 //             return DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT;
 //         char data[512];
 //         snprintf(data, sizeof(data), 
-//                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", a_net_str);
+//                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", a_config->net_name);
 //         json_object *l_json_coins = dap_request_command_to_rpc(data, a_config);
 //         if (!l_json_coins) {
 //             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_FAILED_TO_RETRIEVE_COINS_FROM_LEDGER, "Failed to retrieve coins from ledger\n");
@@ -2818,20 +2818,20 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
 //         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_ADD_OUT_WITH_VALUE_BACK;
 //     }
 
-//     dap_enc_key_t *l_priv_key = dap_chain_wallet_get_key(a_wallet, 0);
-//     // add 'sign' items with wallet sign
-//     if (dap_chain_datum_tx_add_sign_item(&l_tx, l_priv_key) != 1) {
-//         dap_chain_datum_tx_delete(l_tx);
-//         dap_enc_key_delete(l_priv_key);
-//         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_SIGN_TX;
-//     }
-//     dap_enc_key_delete(l_priv_key);
+//     // dap_enc_key_t *l_priv_key = dap_chain_wallet_get_key(a_wallet, 0);
+//     // // add 'sign' items with wallet sign
+//     // if (dap_chain_datum_tx_add_sign_item(&l_tx, l_priv_key) != 1) {
+//     //     dap_chain_datum_tx_delete(l_tx);
+//     //     dap_enc_key_delete(l_priv_key);
+//     //     return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_SIGN_TX;
+//     // }
+//     // dap_enc_key_delete(l_priv_key);
 
 //     // add 'sign' items with delegated key if needed
-//     if (a_cert && dap_chain_datum_tx_add_sign_item(&l_tx, a_cert->enc_key) != 1) {
-//         dap_chain_datum_tx_delete(l_tx);
-//         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_SIGN_TX;
-//     }
+//     // if (a_cert && dap_chain_datum_tx_add_sign_item(&l_tx, a_cert->enc_key) != 1) {
+//     //     dap_chain_datum_tx_delete(l_tx);
+//     //     return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_SIGN_TX;
+//     // }
 
 
 //     return l_tx;
