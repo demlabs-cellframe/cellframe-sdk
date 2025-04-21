@@ -3172,7 +3172,6 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
         dap_chain_net_stop_wait_for(a_net);
         return NULL;
     }
-    dap_chain_net_state_t l_prev_state = l_net_pvt->state;
     s_net_states_proc(a_net);
     return NULL;
 }
@@ -3396,7 +3395,7 @@ static void s_net_state_timer_callback(void *a_arg)
 {
     dap_chain_net_t *l_net = a_arg;
     s_net_states_proc(l_net);
-    if (s_net_state_target_is_offline(l_net)) // if offline no need sync
+    if (s_net_state_is_offline(l_net)) // if offline no need sync
         return;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->sync_context.state = s_sync_context_state_forming(l_net->pub.chains);
@@ -3408,7 +3407,7 @@ static void s_net_state_timer_callback(void *a_arg)
             log_it(L_INFO, "Can't start sync chains in net %s, wait seccond attempt", l_net->pub.name);
             return;
         }
-    } else if (dap_chain_net_state_is_online(l_net) && l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_SYNCED) {
+    } else if (dap_chain_net_state_is_online(l_net)) {
         return;
     }
     if (!s_switch_sync_chain(l_net)) {  // return if all chans synced
@@ -3423,11 +3422,6 @@ static void s_net_state_timer_callback(void *a_arg)
         log_it(L_DEBUG, "Chain %s in net %s will sync from gdb", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
         return;
-    }
-    // if sync more than 3 mins after online state, change state to SYNC
-    if (dap_chain_net_state_is_online(l_net) && l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_WAITING &&
-        dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time ) {
-        s_net_states_proc(l_net);
     }
 
     l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
