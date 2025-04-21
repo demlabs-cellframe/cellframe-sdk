@@ -4653,7 +4653,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
 
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
-    if (!dap_get_remote_wallet_outs_and_count(l_wallet_addr, a_price->token_sell, &l_outs, &l_outputs_count, a_config)) {
+    if (!dap_get_remote_wallet_outs_and_count(&l_buyer_addr, a_price->token_sell, &l_outs, &l_outputs_count, a_config)) {
         dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Not enough funds to transfer");
         return NULL;
     }
