@@ -1198,7 +1198,7 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
         if (dap_strcmp(l_tx_token, a_voting->voting_params.token_ticker))
             continue;
     }
-
+    dap_list_free(l_ins_list);
     return s_tx_is_spent(a_ledger, &l_prev_hash, a_voting_hash, a_pkey_hash, a_voting, a_voting_ts);
 }
 
