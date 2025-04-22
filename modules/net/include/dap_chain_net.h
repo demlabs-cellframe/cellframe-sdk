@@ -136,7 +136,6 @@ void dap_chain_net_try_online_all();
 int dap_chain_net_start(dap_chain_net_t *a_net);
 int dap_chain_net_sync(dap_chain_net_t *a_net);
 int dap_chain_net_stop(dap_chain_net_t *a_net);
-int dap_chain_net_stop_wait_for(dap_chain_net_t *a_net);
 
 bool dap_chain_net_state_is_online(dap_chain_net_t *a_net);
 bool dap_chain_net_state_is_offline(dap_chain_net_t *a_net);

@@ -143,6 +143,7 @@ struct chain_sync_context {
     dap_hash_fast_t         requested_atom_hash;
     uint64_t                requested_atom_num;
     size_t                  links_count;
+    size_t                  errors_count;
 };
 
 // typedef enum dap_chain_net_state {
@@ -220,6 +221,7 @@ static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_
 static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static int s_link_manager_link_request(uint64_t a_net_id);
 static int s_link_manager_link_count_changed();
+static int s_net_stop_wait_for(dap_chain_net_t *a_net, bool a_force);
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = s_link_manager_callback_connected,
@@ -616,6 +618,9 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
                 l_jobj_chain_status = json_object_new_string("idle");
                 break;
             case CHAIN_SYNC_STATE_WAITING:
+                l_jobj_chain_status = json_object_new_string("wait to sync");
+                break;
+            case CHAIN_SYNC_STATE_SYNCING:
                 l_jobj_chain_status = json_object_new_string("sync in process");
                 break;
             case CHAIN_SYNC_STATE_SYNCED:
@@ -1730,7 +1735,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 return DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
-            int l_return_state = dap_chain_net_stop_wait_for(l_net);
+            int l_return_state = s_net_stop_wait_for(l_net, false);
             dap_chain_net_purge(l_net);
             if (l_return_state)
                 dap_chain_net_start(l_net);
@@ -1817,7 +1822,7 @@ void dap_chain_net_deinit()
 void dap_chain_net_delete(dap_chain_net_t *a_net)
 {
     // Synchronously going to offline state
-    dap_chain_net_stop_wait_for(a_net);
+    s_net_stop_wait_for(a_net, false);
     dap_global_db_cluster_t *l_mempool = PVT(a_net)->mempool_clusters;
     while (l_mempool) {
         dap_global_db_cluster_t *l_next = l_mempool->next;
@@ -3010,6 +3015,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         }
         log_it(L_DEBUG, "Got ERROR paket to %s chain in net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_ERROR;
+        l_net_pvt->sync_context.errors_count++;
         return;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
@@ -3146,7 +3152,7 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net)
                                 DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback, a_net);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain) {
-        l_chain->state = CHAIN_SYNC_STATE_IDLE;
+        l_chain->state = CHAIN_SYNC_STATE_WAITING;
     }
     l_net_pvt->sync_context.stage_last_activity = dap_time_now();
     return 0;
@@ -3169,7 +3175,7 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     }
     debug_if(s_debug_more, L_DEBUG, "Go to next chain: <NULL>");
     if (l_net_pvt->state_target != NET_STATE_ONLINE) {
-        dap_chain_net_stop_wait_for(a_net);
+        s_net_stop_wait_for(a_net, false);
         return NULL;
     }
     s_net_states_proc(a_net);
@@ -3280,6 +3286,19 @@ static int s_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_sta
     return 0;
 }
 
+/**
+ * @brief restart net
+ * 
+ * @param a_net net to restart
+ */
+static void s_net_restart(dap_chain_net_t *a_net)
+{
+    dap_return_if_pass(!a_net || !PVT(a_net));
+    dap_chain_net_state_t l_target_state = PVT(a_net)->state_target;
+    s_net_stop_wait_for(a_net, true);
+    s_state_go_to(a_net, l_target_state);
+}
+
 DAP_INLINE int dap_chain_net_start(dap_chain_net_t *a_net)
 {
     return s_state_go_to(a_net, NET_STATE_ONLINE);
@@ -3295,15 +3314,19 @@ DAP_INLINE int dap_chain_net_stop(dap_chain_net_t *a_net)
     return s_state_go_to(a_net, NET_STATE_OFFLINE);
 }
 
-int dap_chain_net_stop_wait_for(dap_chain_net_t *a_net)
+static int s_net_stop_wait_for(dap_chain_net_t *a_net, bool a_force)
 {
     int l_attempts_count = 0;
-    int l_ret = s_state_go_to(a_net, NET_STATE_OFFLINE);
-    while (!dap_chain_net_state_is_offline(a_net) && l_attempts_count++ < 5) {
-        sleep(c_sync_timer_period / 1000);
-        if (l_ret)
+    int l_ret = 0;
+    do {
+        if (!s_net_state_target_is_offline(a_net))
             l_ret = s_state_go_to(a_net, NET_STATE_OFFLINE);
-    }
+        if (a_force)
+            s_net_states_proc(a_net);
+        if (dap_chain_net_state_is_offline(a_net))
+            break;
+        sleep(c_sync_timer_period / 1000);
+    } while (l_attempts_count++ < 5);
     if (!dap_chain_net_state_is_offline(a_net)) {
         log_it(L_ERROR, "Can't stop net %s", a_net->pub.name);
     }
@@ -3332,6 +3355,10 @@ static void s_net_states_proc(dap_chain_net_t *a_net)
                               DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR, l_error, l_error_size, NULL, 0);
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, false);
         dap_chain_esbocs_stop_timer(a_net->pub.id);
+        dap_chain_t *l_chain = NULL;
+        DL_FOREACH(a_net->pub.chains, l_chain) {
+            l_chain->state = CHAIN_SYNC_STATE_IDLE;
+        }
         return;
     }
     
@@ -3342,6 +3369,7 @@ static void s_net_states_proc(dap_chain_net_t *a_net)
             PVT(a_net)->sync_context.cur_chain = NULL;
             PVT(a_net)->sync_context.cur_cell = NULL;
             PVT(a_net)->sync_context.links_count = 0;
+            PVT(a_net)->sync_context.errors_count = 0;
     
             dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
             uint16_t l_permalink_hosts_count = 0;
@@ -3379,12 +3407,13 @@ static void s_net_states_proc(dap_chain_net_t *a_net)
                 s_net_state_set(a_net, NET_STATE_LINKS_ESTABLISHED);
             break;
         case NET_STATE_ONLINE:
-            if (PVT(a_net)->sync_context.state != CHAIN_SYNC_STATE_SYNCED)
+            if (PVT(a_net)->sync_context.state != CHAIN_SYNC_STATE_SYNCED) {
                 if (!PVT(a_net)->sync_context.current_link.uint64) {
                     s_net_state_set(a_net, NET_STATE_LINKS_CONNECTING);
                 } else {
                     s_net_state_set(a_net, NET_STATE_SYNC_CHAINS);
                 }
+            }
             break;
         default:
             log_it(L_DEBUG, "Unprocessed state");
@@ -3395,7 +3424,7 @@ static void s_net_state_timer_callback(void *a_arg)
 {
     dap_chain_net_t *l_net = a_arg;
     s_net_states_proc(l_net);
-    if (s_net_state_is_offline(l_net)) // if offline no need sync
+    if (dap_chain_net_state_is_offline(l_net)) // if offline no need sync
         return;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->sync_context.state = s_sync_context_state_forming(l_net->pub.chains);
@@ -3403,6 +3432,11 @@ static void s_net_state_timer_callback(void *a_arg)
         l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_ERROR ||
         dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time
     ) {
+        if (l_net_pvt->sync_context.errors_count > l_net_pvt->sync_context.links_count * 2 + 1) {
+            log_it(L_INFO, "Can't start sync chains in net %s, restart net", l_net->pub.name);
+            s_net_restart(l_net);
+            return;
+        }
         if (s_restart_sync_chains(l_net)) {
             log_it(L_INFO, "Can't start sync chains in net %s, wait seccond attempt", l_net->pub.name);
             return;
@@ -3414,7 +3448,7 @@ static void s_net_state_timer_callback(void *a_arg)
         log_it(L_DEBUG, "All chains in net %s synced, no need new sync request", l_net->pub.name);
         return;
     }
-    if (l_net_pvt->sync_context.cur_chain->state == CHAIN_SYNC_STATE_WAITING) {
+    if (l_net_pvt->sync_context.cur_chain->state == CHAIN_SYNC_STATE_SYNCING) {
         return;
     }
     if (l_net_pvt->sync_context.cur_chain->callback_load_from_gdb) {
@@ -3425,7 +3459,7 @@ static void s_net_state_timer_callback(void *a_arg)
     }
 
     l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
-    l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_WAITING;
+    l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCING;
     dap_chain_ch_sync_request_t l_request = {};
     uint64_t l_last_num = 0;
     if (!dap_chain_get_atom_last_hash_num(l_net_pvt->sync_context.cur_chain,

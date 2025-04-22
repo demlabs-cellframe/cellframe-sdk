@@ -153,7 +153,8 @@ typedef enum dap_chain_sync_state {
     CHAIN_SYNC_STATE_SYNCED = -1,  // chain was synced
     CHAIN_SYNC_STATE_IDLE = 0,  // do nothink
     CHAIN_SYNC_STATE_WAITING = 1,  // wait packet in
-    CHAIN_SYNC_STATE_ERROR = 2 // have a error
+    CHAIN_SYNC_STATE_SYNCING = 2,  // sync chain
+    CHAIN_SYNC_STATE_ERROR = 3 // have a error
 } dap_chain_sync_state_t;
 
 typedef struct dap_chain {
