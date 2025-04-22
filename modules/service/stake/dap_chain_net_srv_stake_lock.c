@@ -1037,13 +1037,19 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         size_t l_receipt_size = 0;
         l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, &l_receipt_size);
         if (l_receipt) {
+            // Checking politics
+            if (dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
+                l_receipt->receipt_info.version < 2){
+                log_it(L_ERROR, "Receipt version must be >= 2.");
+                return -17;
+            }
             if (dap_chain_datum_tx_receipt_check_size(l_receipt, l_receipt_size))
                 return -13;
             if (!dap_chain_net_srv_uid_compare_scalar(l_receipt->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
                 return -7;
-            if (l_receipt->exts_size < sizeof(dap_hash_fast_t))
+            if ((l_receipt->receipt_info.version > 1 ? l_receipt->exts_size : ((dap_chain_datum_tx_receipt_old_t*)l_receipt)->exts_size) < sizeof(dap_hash_fast_t))
                 return -8;
-            l_burning_tx_hash = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
+            l_burning_tx_hash = *(dap_hash_fast_t*)(l_receipt->receipt_info.version > 1 ? l_receipt->exts_n_signs : ((dap_chain_datum_tx_receipt_old_t*)l_receipt)->exts_n_signs);
             if (dap_hash_fast_is_blank(&l_burning_tx_hash))
                 return -9;
             l_burning_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_burning_tx_hash);

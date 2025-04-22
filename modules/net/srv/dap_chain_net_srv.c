@@ -729,7 +729,14 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -1;
     }
 
-    // Check provider sign
+    // Checking politics
+    if (dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
+        l_receipt->receipt_info.version < 2){
+        log_it(L_ERROR, "Receipt version must be >= 2.");
+        return -17;
+    }
+
+    // Checking provider sign
     dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt_size, 0);
 
     if (!l_sign){
@@ -737,7 +744,8 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -2;
     }
 
-    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
+    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, 
+                                                    l_receipt->receipt_info.version > 1 ? sizeof(dap_chain_receipt_info_t) : sizeof(dap_chain_receipt_info_old_t))){
         log_it(L_ERROR, "Provider sign in receipt not passed verification.");
         return -3;
     }
@@ -773,7 +781,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -7;
     }
 
-    // Check client sign
+    // Checking client sign
     l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt_size, 1);
     if (!l_sign){
         log_it(L_ERROR, "Can't get client signature from receipt.");
@@ -790,13 +798,26 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -10;
     }
 
-    // Check price is less than maximum
+    // Verifyig of client sign
+    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, 
+                                                    l_receipt->receipt_info.version > 1 ? sizeof(dap_chain_receipt_info_t) : sizeof(dap_chain_receipt_info_old_t))){
+        log_it(L_ERROR, "Provider sign in receipt not passed verification.");
+        return -3;
+    }
+
+    // Checking price is less than maximum
     dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger , &l_tx_in_cond->header.tx_prev_hash);
     dap_chain_tx_out_cond_t *l_prev_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
     if (!l_prev_out_cond) {
         log_it(L_ERROR, "Can't find datum tx");
         return -15;
+    }
+
+    // Checking the tx hash in receipt matched tx hash in in cond
+    if (l_receipt->receipt_info.version > 1 && !dap_hash_fast_compare(&l_receipt->receipt_info.prev_tx_cond_hash, &l_tx_in_cond->header.tx_prev_hash)){
+        log_it(L_ERROR, "The hashes of previous transactions in receipt and conditional input doesn't match.");
+        return -16;
     }
 
     uint256_t l_unit_price = {};
@@ -812,7 +833,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -12;
     }
 
-    // check remainder on srv pay cond out is valid
+    // checking remainder on srv pay cond out is valid
     // find 'out' items
     uint256_t l_value = l_receipt->receipt_info.value_datoshi;
     uint256_t l_cond_out_value = {};
@@ -846,10 +867,12 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
             break;
         }
     }
+
     if (SUBTRACT_256_256(l_prev_out_cond->header.value, l_value, &l_value)) {
         log_it(L_WARNING, "Integer overflow while payback calculation");
         return -14;
     }
+
     return compare256(l_value, l_cond_out_value) ? log_it(L_ERROR, "Value in tx out is invalid!"), -13 : 0;
 }
 

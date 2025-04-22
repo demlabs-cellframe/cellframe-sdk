@@ -40,23 +40,23 @@ typedef struct dap_chain_net_srv_client_remote dap_chain_net_srv_client_remote_t
 typedef struct dap_chain_net_srv_price dap_chain_net_srv_price_t;
 
 typedef enum dap_chain_net_srv_usage_service_state{
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE = 0,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_ERROR,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE,
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE = 0, //Initial state.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE, // Start of service when tx for paying is not in the leger yet.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL, // Normal state after first receipt paid.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_ERROR, // Error state, stop of service providing.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE, // The only state in free mode.
 } dap_chain_net_srv_usage_service_state_t;
 
 typedef enum dap_chain_net_srv_usage_service_substate{
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE=0,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL,
-    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR,
-    
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE=0, // Initial substate.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN, // Waiting responce from client with first receipt sign.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN, // Waiting responce from client with next receipt sign in normal state.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING, // Waiting previous transaction validation to pay next receipt.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT, // Waiting new tx from client for receipt paying, because previous tx has not enough funds.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT, // Waiting new receipt with new tx from client.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER, // Waiting new tx validation.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL, // Substate for normal work. Current service is paid, nothing waiting.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR, // Error sustate. Wait current service is over and go to error state.
 } dap_chain_net_srv_usage_service_substate_t;
 
 

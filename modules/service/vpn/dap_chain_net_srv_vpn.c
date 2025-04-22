@@ -1503,7 +1503,6 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);              
             }
         }
-
     }
     // If issue new receipt
     if ( l_issue_new_receipt && !dap_hash_fast_is_blank(&a_usage->tx_cond_hash)) {
