@@ -1116,6 +1116,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
         json_object_object_add(json_vote_out, "total_sum", json_object_new_string(l_tw_coins));
         json_object_object_add(json_vote_out, "total_sum_datoshi", json_object_new_string(l_tw_datoshi));
+        json_object_object_add(json_vote_out, "votes_list", l_json_arr_vote_list);
         json_object_array_add(*json_arr_reply, json_vote_out);
     } break;
     default:
