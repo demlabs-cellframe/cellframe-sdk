@@ -1947,6 +1947,9 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
     return 0;
 }
 
+
+
+
 void  json_print_for_mempool_list(dap_json_rpc_response_t* response){
     json_object * json_obj_response = json_object_array_get_idx(response->result_json_object, 0);
     json_object * j_obj_net_name, * j_arr_chains, * j_obj_chain, *j_obj_removed, *j_arr_datums, *j_arr_total;
@@ -2116,8 +2119,10 @@ void json_print_for_dag_list(dap_json_rpc_response_t* response){
             DAP_DELETE(l_limit);
         }            
     } else {
-        json_print_object(response->result_json_object, 0);
+        //json_print_object(response->result_json_object, 0);
+        return -1;
     }
+    return 0;
 
 }
 

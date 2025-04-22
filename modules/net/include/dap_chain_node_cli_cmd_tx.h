@@ -122,6 +122,13 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply);
  */
 int cmd_decree(int a_argc, char **a_argv, void **a_str_reply);
 
+/*commands for parsing json response*/
+void json_print_for_mempool_list(dap_json_rpc_response_t* response);
+void json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response);
+void json_print_for_block_list(dap_json_rpc_response_t* response);
+void json_print_for_dag_list(dap_json_rpc_response_t* response);
+int json_print_for_token_list(dap_json_rpc_response_t* response);
+
 #ifdef __cplusplus
 }
 #endif

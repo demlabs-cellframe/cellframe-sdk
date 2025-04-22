@@ -381,6 +381,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 }
 int dap_chain_node_cli_parser_init(void) {
     dap_cli_server_cmd_add("token", NULL, json_print_for_token_list, "---","---");
+    dap_cli_server_cmd_add("block", NULL, json_print_for_block_list, "---","---");
+    dap_cli_server_cmd_add("mempool", NULL, json_print_for_mempool_list, "---","---");
+    dap_cli_server_cmd_add("srv_stake", NULL, json_print_for_srv_stake_list_keys, "---","---");
+    dap_cli_server_cmd_add("dag", NULL, json_print_for_dag_list, "---","---");
     return 0;
 }
 
