@@ -132,7 +132,7 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
     // Receipt size calculation is non-trivial...
     case TX_ITEM_TYPE_RECEIPT:{
-        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version == 1)
+        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
             return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_old_t) < a_max_size && 
                                     ((dap_chain_datum_tx_receipt_old_t*)a_item)->size < a_max_size ) ? 
                                     ((dap_chain_datum_tx_receipt_old_t*)a_item)->size : 0;
