@@ -43,7 +43,7 @@
 
 static compose_config_t* s_compose_config_init(const char *a_net_name, const char *a_url_str,
                                  uint16_t a_port) {
-    if (!a_net_name || !a_url_str || a_port == 0) {
+    if (!a_net_name) {
         return NULL;
     }
     compose_config_t *l_config = DAP_NEW_Z(compose_config_t);
@@ -51,28 +51,55 @@ static compose_config_t* s_compose_config_init(const char *a_net_name, const cha
         return NULL;
     }
     l_config->net_name = a_net_name;
-    l_config->url_str = a_url_str ? a_url_str : dap_compose_get_net_url(a_net_name);
-    l_config->port = a_port ? a_port : dap_compose_get_net_port(a_net_name);
+    
+    const char *l_url = a_url_str ? a_url_str : dap_compose_get_net_url(a_net_name);
+    if (!l_url) {
+        DAP_DELETE(l_config);
+        return NULL;
+    }
+    l_config->url_str = l_url;
+
+    uint16_t l_port = a_port ? a_port : dap_compose_get_net_port(a_net_name);
+    if (!l_port) {
+        DAP_DELETE(l_config);
+        return NULL;
+    }
+    l_config->port = l_port;
+
     l_config->response_handler = json_object_new_object();
+    if (!l_config->response_handler) {
+        DAP_DELETE(l_config);
+        return NULL;
+    }
+
     return l_config;
 }
-
 static json_object* s_compose_config_return_response_handler(compose_config_t *a_config) {
     if (!a_config || !a_config->response_handler) {
         return NULL;
     }
     json_object* l_response_handler = a_config->response_handler;
+    a_config->response_handler = NULL; // Prevent double free
     DAP_DEL_Z(a_config);
     return l_response_handler;
 }
 
 static int s_compose_config_deinit(compose_config_t *a_config) {
-    json_object_put(a_config->response_handler);
+    if (!a_config) {
+        return -1;
+    }
+    if (a_config->response_handler) {
+        json_object_put(a_config->response_handler);
+        a_config->response_handler = NULL;
+    }
     DAP_DEL_Z(a_config);
     return 0;
 }
 
 const char* dap_compose_get_net_url(const char* name) {
+    if (!name) {
+        return NULL;
+    }
     for (int i = 0; i < NET_COUNT; i++) {
         if (strcmp(netinfo[i].name, name) == 0) {
             return netinfo[i].url;
@@ -82,6 +109,9 @@ const char* dap_compose_get_net_url(const char* name) {
 }
 
 uint16_t dap_compose_get_net_port(const char* name) {
+    if (!name) {
+        return 0;
+    }
     for (int i = 0; i < NET_COUNT; i++) {
         if (strcmp(netinfo[i].name, name) == 0) {
             return netinfo[i].port;
@@ -91,6 +121,9 @@ uint16_t dap_compose_get_net_port(const char* name) {
 }
 
 static const char* s_get_native_ticker(const char* name) {
+    if (!name) {
+        return NULL;
+    }
     for (int i = 0; i < NET_COUNT; i++) {
         if (strcmp(netinfo[i].name, name) == 0) {
             return netinfo[i].native_ticker;
@@ -100,49 +133,82 @@ static const char* s_get_native_ticker(const char* name) {
 }
 
 static dap_chain_net_id_t s_get_net_id(const char* name) {
+    dap_chain_net_id_t empty_id = {.uint64 = 0};
+    if (!name) {
+        return empty_id;
+    }
     for (int i = 0; i < NET_COUNT; i++) {
         if (strcmp(netinfo[i].name, name) == 0) {
             return netinfo[i].net_id;
         }
     }
-    dap_chain_net_id_t empty_id = {.uint64 = 0};
     return empty_id;
 }
 
-
 int dap_json_compose_error_add(json_object* a_json_obj_reply, int a_code_error, const char *msg, ...)
 {
+    if (!a_json_obj_reply || !msg || !json_object_is_type(a_json_obj_reply, json_type_object)) {
+        return -1;
+    }
+
     va_list args;
     va_start(args, msg);
-    char *l_msg = dap_strdup_vprintf(msg, args);
+    char *l_msg = dap_strdup_vprintf(msg, args); 
     va_end(args);
 
-    if (!a_json_obj_reply || !json_object_is_type(a_json_obj_reply, json_type_object)) {
+    if (!l_msg) {
         return -1;
     }
 
     json_object *l_json_arr_errors = NULL;
     if (!json_object_object_get_ex(a_json_obj_reply, "errors", &l_json_arr_errors)) {
         l_json_arr_errors = json_object_new_array();
+        if (!l_json_arr_errors) {
+            DAP_DEL_Z(l_msg);
+            return -1;
+        }
         json_object_object_add(a_json_obj_reply, "errors", l_json_arr_errors);
     }
 
     json_object* l_obj_error = json_object_new_object();
-    json_object_object_add(l_obj_error, "code", json_object_new_int(a_code_error));
-    json_object_object_add(l_obj_error, "message", json_object_new_string(l_msg));
+    if (!l_obj_error) {
+        DAP_DEL_Z(l_msg);
+        return -1;
+    }
+
+    json_object *l_code = json_object_new_int(a_code_error);
+    json_object *l_message = json_object_new_string(l_msg);
+
+    if (!l_code || !l_message) {
+        json_object_put(l_obj_error);
+        if (l_code) json_object_put(l_code);
+        if (l_message) json_object_put(l_message);
+        DAP_DEL_Z(l_msg);
+        return -1;
+    }
+
+    json_object_object_add(l_obj_error, "code", l_code);
+    json_object_object_add(l_obj_error, "message", l_message);
     json_object_array_add(l_json_arr_errors, l_obj_error);
 
     DAP_DEL_Z(l_msg);
     return 0;
 }
 
+int dap_tx_json_tsd_add(json_object *json_tx, json_object *json_add) {
+    if (!json_tx || !json_add) {
+        return -1;
+    }
 
-int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add) {
     json_object *items_array;
     if (!json_object_object_get_ex(json_tx, "items", &items_array)) {
-        fprintf(stderr, "Failed to get 'items' array\n");
-        return 1;
+        return -1;
     }
+
+    if (!json_object_is_type(items_array, json_type_array)) {
+        return -1;
+    }
+
     json_object_array_add(items_array, json_add);
     return 0;
 }
@@ -335,7 +401,7 @@ static json_object* s_request_command_to_rpc(const char *request, compose_config
                                 s_cmd_response_handler, s_cmd_error_handler,
                                 l_cmd_request, NULL);
 
-    int l_ret = dap_chain_cmd_list_wait(l_cmd_request, 15000);
+    int l_ret = dap_chain_cmd_list_wait(l_cmd_request, 60000);
 
     if (!l_ret){
         if (s_cmd_request_get_response(l_cmd_request, &l_response, &l_response_size)) {
@@ -2548,294 +2614,490 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
     return l_tx;
 }
 
+typedef enum {
+    DAP_CLI_VOTE_COMPOSE_OK = 0,
+    DAP_CLI_VOTE_COMPOSE_INVALID_CONFIG = -1,
+    DAP_CLI_VOTE_COMPOSE_INVALID_HASH = -2,
+    DAP_CLI_VOTE_COMPOSE_CERT_NOT_FOUND = -3,
+    DAP_CLI_VOTE_COMPOSE_INVALID_FEE = -4,
+    DAP_CLI_VOTE_COMPOSE_WALLET_NOT_FOUND = -5
+} dap_cli_vote_compose_error_t;
 
-// json_object* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str, const char *a_cert_name, const char *a_fee_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_option_idx_str, const char *a_url_str, uint16_t a_port) {
-//     compose_config_t *l_config = s_compose_config_init(a_net_str, a_url_str, a_port);
-//     if (!l_config) {
-//         json_object* l_json_obj_ret = json_object_new_object();
-//         dap_json_compose_error_add(l_json_obj_ret, TX_CREATE_COMPOSE_INVALID_CONFIG, "Can't create compose config");
-//         return l_json_obj_ret;
-//     }
+json_object* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str, const char *a_cert_name, const char *a_fee_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_option_idx_str, const char *a_url_str, uint16_t a_port) {
+    compose_config_t *l_config = s_compose_config_init(a_net_str, a_url_str, a_port);
+    if (!l_config) {
+        json_object* l_json_obj_ret = json_object_new_object();
+        dap_json_compose_error_add(l_json_obj_ret, DAP_CLI_VOTE_COMPOSE_INVALID_CONFIG, "Can't create compose config");
+        return l_json_obj_ret;
+    }
 
-//     dap_hash_fast_t l_voting_hash = {};
-//     if (dap_chain_hash_fast_from_str(a_hash_str, &l_voting_hash)) {
-//         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_HASH_INVALID, "Hash string is not recognozed as hex of base58 hash\n");
-//         return s_compose_config_return_response_handler(l_config);
-//     }
+    dap_hash_fast_t l_voting_hash = {};
+    if (dap_chain_hash_fast_from_str(a_hash_str, &l_voting_hash)) {
+        dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_COMPOSE_INVALID_HASH, "Hash string is not recognozed as hex of base58 hash\n");
+        return s_compose_config_return_response_handler(l_config);
+    }
 
-//     dap_cert_t * l_cert = dap_cert_find_by_name(a_cert_name);
-//     if (a_cert_name){
-//         if (l_cert == NULL) {
-//             dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_CERT, "Can't find \"%s\" certificate\n", l_cert_name);
-//             return s_compose_config_return_response_handler(l_config);
-//         }
-//     }
-//     uint256_t l_value_fee = dap_chain_balance_scan(a_fee_str);
-//     if (IS_ZERO_256(l_value_fee)) {
-//         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_FEE_PARAM_BAD_TYPE, "command requires parameter '-fee' to be valid uint256\n");            
-//         return s_compose_config_return_response_handler(l_config);
-//     }
-
-
-//     const char *l_wallet_path = dap_chain_wallet_get_path(g_config);
-//     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_str, a_wallet_path,NULL);
-//     if (!l_wallet) {
-//         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_WALLET_DOES_NOT_EXIST, "Wallet %s does not exist\n", a_wallet_str);
-//         return s_compose_config_return_response_handler(l_config);
-//     }
-
-//     uint64_t l_option_idx_count = strtoul(a_option_idx_str, NULL, 10);
-
-//     char *l_hash_tx;
-
-//     int res = dap_chain_net_vote_voting_compose(l_cert, l_value_fee, l_wallet, l_voting_hash, l_option_idx_count, &l_hash_tx, l_config);
-//     dap_chain_wallet_close(l_wallet);
-
-//     return res;
-// }
+    dap_cert_t * l_cert = dap_cert_find_by_name(a_cert_name);
+    if (a_cert_name){
+        if (l_cert == NULL) {
+            dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_COMPOSE_CERT_NOT_FOUND, "Can't find \"%s\" certificate\n", a_cert_name);
+            return s_compose_config_return_response_handler(l_config);
+        }
+    }
+    uint256_t l_value_fee = dap_chain_balance_scan(a_fee_str);
+    if (IS_ZERO_256(l_value_fee)) {
+        dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_COMPOSE_INVALID_FEE, "command requires parameter '-fee' to be valid uint256\n");            
+        return s_compose_config_return_response_handler(l_config);
+    }
 
 
-// dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_hash,
-//                               uint64_t a_option_idx, const char *a_hash_out_type,
-//                               char **a_hash_tx_out, compose_config_t *a_config) {
-//     if (!a_config) {
-//         return NULL;
-//     }
-//     const char * l_hash_str = dap_chain_hash_fast_to_str_static(&a_hash);
-//     char data[512];
-//     snprintf(data, sizeof(data), 
-//             "{\"method\": \"voting\",\"params\": [\"voting;dump;-hash;%s\"],\"id\": \"2\"}", l_hash_str);
-//     json_object *l_json_voting = dap_request_command_to_rpc(data, a_config);
-//     if (!l_json_voting) {
-//         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info\n");
-//         return NULL;
-//     }
+    const char *l_wallet_path = dap_chain_wallet_get_path(g_config);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_str, a_wallet_path,NULL);
+    if (!l_wallet) {
+        dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_COMPOSE_WALLET_NOT_FOUND, "Wallet %s does not exist\n", a_wallet_str);
+        return s_compose_config_return_response_handler(l_config);
+    }
+
+    uint64_t l_option_idx_count = strtoul(a_option_idx_str, NULL, 10);
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_vote_voting_compose(l_cert, l_value_fee, l_wallet, l_voting_hash, l_option_idx_count, l_config);
+    dap_chain_wallet_close(l_wallet);
+    if (l_tx) {
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
+        dap_chain_datum_tx_delete(l_tx);
+    }
+    return s_compose_config_return_response_handler(l_config);
+}
+
+
+static bool s_datum_tx_voting_coin_check_spent_compose(json_object *a_votes_list, dap_hash_fast_t a_tx_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash) {
+    if (!a_votes_list)
+        return false;
+
+    int l_votes_count = json_object_array_length(a_votes_list);
+    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+
+    for (int i = 0; i < l_votes_count; i++) {
+        json_object *l_vote = json_object_array_get_idx(a_votes_list, i);
+        const char *l_vote_hash = json_object_get_string(json_object_object_get(l_vote, "vote_hash"));
+        if (!dap_strcmp(l_vote_hash, l_tx_hash_str) && a_out_idx == json_object_get_int(json_object_object_get(l_vote, "answer_idx"))) {
+            return a_pkey_hash ? !dap_hash_fast_compare(a_pkey_hash, json_object_object_get(l_vote, "pkey_hash")) : 1;
+        }
+    }
+    return false;
+}
+typedef enum {
+    DAP_CHAIN_NET_VOTE_COMPOSE_OK = 0,
+    DAP_CHAIN_NET_VOTE_COMPOSE_CAN_NOT_FIND_CERT = -1,
+    DAP_CHAIN_NET_VOTE_COMPOSE_FEE_PARAM_BAD_TYPE = -2,
+    DAP_CHAIN_NET_VOTE_COMPOSE_WALLET_DOES_NOT_EXIST = -3,
+    DAP_CHAIN_NET_VOTE_COMPOSE_SOURCE_ADDRESS_INVALID = -4,
+    DAP_CHAIN_NET_VOTE_COMPOSE_CERT_REQUIRED = -5,
+    DAP_CHAIN_NET_VOTE_COMPOSE_NO_KEY_FOUND_IN_CERT = -6,
+    DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_RETRIEVE_COINS_FROM_LEDGER = -7,
+    DAP_CHAIN_NET_VOTE_COMPOSE_KEY_IS_NOT_DELEGATED = -8,
+    DAP_CHAIN_NET_VOTE_COMPOSE_NOT_ENOUGH_FUNDS_TO_TRANSFER = -9,
+    DAP_CHAIN_NET_VOTE_COMPOSE_INTEGER_OVERFLOW = -10,
+    DAP_CHAIN_NET_VOTE_COMPOSE_UNSPENT_UTX0_FOR_PARTICIPATION_THIS_VOTING = -11,
+    DAP_CHAIN_NET_VOTE_COMPOSE_INVALID_OPTION_INDEX = -12,
+    DAP_CHAIN_NET_VOTE_COMPOSE_CAN_NOT_CREATE_VOTE_ITEM = -13,
+    DAP_CHAIN_NET_VOTE_COMPOSE_CAN_NOT_GET_STAKE_LIST = -14,
+    DAP_CHAIN_NET_VOTE_COMPOSE_CAN_NOT_CREATE_TSD_TX_COND_ITEM = -15,
+    DAP_CHAIN_NET_VOTE_COMPOSE_CAN_NOT_ADD_NET_FEE_OUT = -16,
+    DAP_CHAIN_NET_VOTE_COMPOSE_CAN_NOT_ADD_OUT_WITH_VALUE_BACK = -17,
+    DAP_CHAIN_NET_VOTE_COMPOSE_THIS_VOTING_HAVE_MAX_VALUE_VOTES = -18,
+    DAP_CHAIN_NET_VOTE_COMPOSE_ALREADY_EXPIRED = -19,
+    DAP_CHAIN_NET_VOTE_COMPOSE_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE = -20,
+    DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS = -21,
+    DAP_CHAIN_NET_VOTE_COMPOSE_ERR_NOT_ENOUGH_FUNDS = -22,
+    DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_GET_REMOTE_WALLET_OUTS = -23
+} dap_chain_net_vote_compose_error_t;
+
+dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_hash,
+                              uint64_t a_option_idx, compose_config_t *a_config) {
+    if (!a_config) {
+        return NULL;
+    }
+    const char * l_hash_str = dap_chain_hash_fast_to_str_static(&a_hash);
+    char data[512];
+    snprintf(data, sizeof(data), 
+            "{\"method\": \"poll\",\"params\": [\"poll;dump;-need_vote_list;-net;%s;-hash;%s\"],\"id\": \"2\"}", a_config->net_name, l_hash_str);
+    json_object *l_json_voting = dap_request_command_to_rpc(data, a_config);
+    if (!l_json_voting) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info\n");
+        return NULL;
+    }
 
     
-//     json_object *l_voting_info = json_object_array_get_idx(l_json_voting, 0);
-//     if (!l_voting_info) {
-//         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info from JSON\n");
-//         return NULL;
-//     }
+    json_object *l_voting_info = json_object_array_get_idx(l_json_voting, 0);
+    if (!l_voting_info) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info from JSON\n");
+        return NULL;
+    }
 
-//     const char *l_voting_tx = json_object_get_string(json_object_object_get(l_voting_info, "voting_tx"));
-//     const char *l_expiration_str = json_object_get_string(json_object_object_get(l_voting_info, "expiration"));
-//     const char *l_status = json_object_get_string(json_object_object_get(l_voting_info, "status"));
-//     int l_votes_max = json_object_get_int(json_object_object_get(l_voting_info, "votes_max"));
-//     int l_votes_available = json_object_get_int(json_object_object_get(l_voting_info, "votes_available"));
-//     bool l_vote_changed = json_object_get_boolean(json_object_object_get(l_voting_info, "can_change_status"));
-//     bool l_delegated_key_required = json_object_get_boolean(json_object_object_get(l_voting_info, "delegated_key_required"));
+    const char *l_voting_tx = json_object_get_string(json_object_object_get(l_voting_info, "voting_tx"));
+    const char *l_expiration_str = json_object_get_string(json_object_object_get(l_voting_info, "expiration"));
+    const char *l_status = json_object_get_string(json_object_object_get(l_voting_info, "status"));
+    int l_votes_max = json_object_get_int(json_object_object_get(l_voting_info, "votes_max"));
+    int l_votes_available = json_object_get_int(json_object_object_get(l_voting_info, "votes_available"));
+    bool l_vote_changed = json_object_get_boolean(json_object_object_get(l_voting_info, "can_change_status"));
+    bool l_delegated_key_required = json_object_get_boolean(json_object_object_get(l_voting_info, "delegated_key_required"));
+    json_object *l_options = json_object_object_get(l_voting_info, "results");
+    if (!l_options) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get options from JSON\n");
+        return NULL;
+    }
 
-//     json_object *l_results = json_object_object_get(l_voting_info, "results");
-//     if (!l_results) {
-//         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get results from JSON\n");
-//         return NULL;
-//     }
-
-//     int l_results_count = json_object_array_length(l_results);
-
-
-//     if (l_votes_max && l_votes_max <= l_results_count)
-//         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_THIS_VOTING_HAVE_MAX_VALUE_VOTES, "This voting have max value votes\n");
-//         return NULL;
-
-//     if (l_expiration_str) {
-//         struct tm tm;
-//         strptime(l_expiration_str, "%a, %d %b %Y %H:%M:%S %z", &tm);
-//         time_t l_expiration_time = mktime(&tm);
-//         if (l_expiration_time && dap_time_now() > l_expiration_time)
-//             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED, "This voting already expired\n");
-//             return NULL;
-//     }
-
-//     dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(a_wallet, s_get_net_id(l_config->net_name));
-//     if (!l_addr_from)
-//         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_SOURCE_ADDRESS_INVALID, "Source address is invalid\n");
-//         return NULL;
-
-//     dap_hash_fast_t l_pkey_hash = {0};
-//     if (l_delegated_key_required) {
-//         if (!a_cert)
-//             return DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED;
-//         if (dap_cert_get_pkey_hash(a_cert, &l_pkey_hash))
-//             return DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT;
-//         char data[512];
-//         snprintf(data, sizeof(data), 
-//                 "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", a_config->net_name);
-//         json_object *l_json_coins = dap_request_command_to_rpc(data, a_config);
-//         if (!l_json_coins) {
-//             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_FAILED_TO_RETRIEVE_COINS_FROM_LEDGER, "Failed to retrieve coins from ledger\n");
-//             return NULL;
-//         }
-//         const char * l_hash_fast_str[DAP_HASH_FAST_STR_SIZE] = {};
-//         dap_chain_hash_fast_from_str(l_hash_fast_str, &l_pkey_hash);
-//         if (!l_hash_fast_str) {
-//             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_FAILED_TO_RETRIEVE_COINS_FROM_LEDGER, "Can't covert l_pkey_hash to str");
-//             return NULL;
-//         }
-//         int items_count = json_object_array_length(l_json_coins);
-//         bool found = false;
-//         for (int i = 0; i < items_count; i++) {
-//             json_object *item = json_object_array_get_idx(l_json_coins, i);
-//             const char *pkey_hash_str = json_object_get_string(json_object_object_get(item, "pkey_hash"));
-//             if (l_hash_fast_str && !dap_strcmp(l_hash_fast_str, pkey_hash_str)) {
-//                 const char *tx_hash_str = json_object_get_string(json_object_object_get(item, "tx_hash"));
-//                 if (dap_chain_hash_fast_from_str(tx_hash_str, &l_pkey_hash)) {
-//                     dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED, "Invalid transaction hash format\n");
-//                     return NULL;
-//                 }
-//                 found = true;
-//                 break;
-//             }
-//         }
-//         if (!found) {
-//             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED, "Specified certificate/pkey hash is not delegated nor this delegating is approved. Try to invalidate with tx hash instead\n");
-//             return NULL;
-//         }
+    int l_options_count = json_object_array_length(l_options);
+    if (a_option_idx >= l_options_count) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_INVALID_OPTION_INDEX, "Invalid option index\n");
+        return NULL;
+    }
 
 
-//     } else
-//         l_pkey_hash = l_addr_from->data.hash_fast;
+    json_object *l_results = json_object_object_get(l_voting_info, "results");
+    if (!l_results) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get results from JSON\n");
+        return NULL;
+    }
+
+    int l_results_count = json_object_array_length(l_results);
 
 
-//     const char *l_token_ticker = json_object_get_string(json_object_object_get(l_voting_info, "token"));
-//     uint256_t l_net_fee = {}, l_total_fee = a_fee, l_value_transfer, l_fee_transfer;
-//     dap_chain_addr_t* l_addr_fee = NULL;
-//     bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, l_config);
-//     if (l_net_fee_used)
-//         SUM_256_256(l_net_fee, a_fee, &l_total_fee);
+    if (l_votes_max && l_votes_max <= l_results_count) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_THIS_VOTING_HAVE_MAX_VALUE_VOTES, "This voting have max value votes\n");
+        return NULL;
+    }
 
-//     bool l_native_tx = !dap_strcmp(l_token_ticker, s_get_native_ticker(l_config->net_name));
+    if (l_expiration_str) {
+        struct tm tm;
+        strptime(l_expiration_str, "%a, %d %b %Y %H:%M:%S %z", &tm);
+        time_t l_expiration_time = mktime(&tm);
+        if (l_expiration_time && dap_time_now() > l_expiration_time) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ALREADY_EXPIRED, "This voting already expired\n");
+            return NULL;
+        }
+    }
 
-//     json_object *l_outs = NULL;
-//     int l_outputs_count = 0;
-//     if (!dap_get_remote_wallet_outs_and_count(l_addr_from, l_token_ticker, l_config->net_name, &l_outs, &l_outputs_count)) {
-//         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_VOTING_FAILED_TO_GET_REMOTE_WALLET_OUTS, "Failed to get remote wallet outs\n");
-//         return NULL;
-//     }
+    dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(a_wallet, s_get_net_id(a_config->net_name));
+    if (!l_addr_from) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_SOURCE_ADDRESS_INVALID, "Source address is invalid\n");
+        return NULL;
+    }
 
-//     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
-//                                                             l_total_fee,
-//                                                             &l_value_transfer);
-//     json_object_put(l_outs);
-//     if (!l_list_used_out) {
-//         printf("Not enough funds to transfer");
-//         return DAP_CHAIN_NET_VOTE_VOTING_NOT_ENOUGH_FUNDS_TO_TRANSFER;
-//     }
-
-//     // check outputs UTXOs
-//     uint256_t l_value_transfer_new = {};
-//     dap_list_t *it, *tmp;
-//     DL_FOREACH_SAFE(l_list_used_out, it, tmp) {
-//         dap_chain_tx_used_out_item_t *l_out = (dap_chain_tx_used_out_item_t *)it->data;
-//         if (s_datum_tx_voting_coin_check_spent(a_net, a_hash, l_out->tx_hash_fast, l_out->num_idx_out,
-//                                                l_vote_changed ? &l_pkey_hash : NULL)) {
-//             l_list_used_out = dap_list_delete_link(l_list_used_out, it);
-//             continue;
-//         }
-//         if (SUM_256_256(l_value_transfer_new, l_out->value, &l_value_transfer_new))
-//             return DAP_CHAIN_NET_VOTE_VOTING_INTEGER_OVERFLOW;
-//     }
-
-//     if (IS_ZERO_256(l_value_transfer_new) || (l_native_tx && compare256(l_value_transfer_new, l_total_fee) <= 0))
-//         return DAP_CHAIN_NET_VOTE_VOTING_UNSPENT_UTX0_FOR_PARTICIPATION_THIS_VOTING;
-
-//     l_value_transfer = l_value_transfer_new;
-
-//     // create empty transaction
-//     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-
-//     uint256_t l_value_back = l_value_transfer, l_fee_back = {};
-//     if (!l_native_tx) {
-//         dap_list_t *l_list_fee_outs = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker, l_addr_from, l_total_fee, &l_fee_transfer);
-//         if (!l_list_fee_outs) {
-//             dap_chain_datum_tx_delete(l_tx);
-//             return DAP_CHAIN_NET_VOTE_VOTING_NOT_ENOUGH_FUNDS_TO_TRANSFER;
-//         }
-//         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_outs);
-//         assert(EQUAL_256(l_value_fee_items, l_fee_transfer));
-//         dap_list_free_full(l_list_fee_outs, NULL);
-//         SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_fee_back);
-//     } else
-//         SUBTRACT_256_256(l_value_transfer, l_total_fee, &l_value_back);
-
-//     // add 'in' items
-//     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
-//     assert(EQUAL_256(l_value_to_items, l_value_transfer));
-//     dap_list_free_full(l_list_used_out, NULL);
-
-//     // Add vote item
-//     if (a_option_idx > dap_list_length(l_voting->voting_params.option_offsets_list)){
-//         dap_chain_datum_tx_delete(l_tx);
-//         return DAP_CHAIN_NET_VOTE_VOTING_INVALID_OPTION_INDEX;
-//     }
-//     dap_chain_tx_vote_t* l_vote_item = dap_chain_datum_tx_item_vote_create(&a_hash, &a_option_idx);
-//     if(!l_vote_item){
-//         dap_chain_datum_tx_delete(l_tx);
-//         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_CREATE_VOTE_ITEM;
-//     }
-//     dap_chain_datum_tx_add_item(&l_tx, l_vote_item);
-//     DAP_DEL_Z(l_vote_item);
-
-//     // add out conds items
-//     dap_list_t *l_outs = dap_ledger_get_list_tx_cond_outs(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL, l_token_ticker, l_addr_from);
-//     for (dap_list_t *it = l_outs; it; it = it->next) {
-//         dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)it->data;
-//         if (s_datum_tx_voting_coin_check_cond_out(a_net, a_hash, l_out_item->tx_hash_fast, l_out_item->num_idx_out,
-//                                                   l_vote_changed ? &l_pkey_hash : NULL) != 0)
-//             continue;
-//         dap_chain_tx_tsd_t *l_item = dap_chain_datum_voting_vote_tx_cond_tsd_create(l_out_item->tx_hash_fast, l_out_item->num_idx_out);
-//         if(!l_item){
-//             dap_chain_datum_tx_delete(l_tx);
-
-//             dap_list_free_full(l_outs, NULL);
-//             return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_CREATE_TSD_TX_COND_ITEM;
-//         }
-//         dap_chain_datum_tx_add_item(&l_tx, l_item);
-//         DAP_DEL_Z(l_item);
-//     }
-//     dap_list_free_full(l_outs, NULL);
-
-//     // Network fee
-//     if (l_net_fee_used && dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, a_net->pub.native_ticker) != 1) {
-//         dap_chain_datum_tx_delete(l_tx);
-//         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_ADD_NET_FEE_OUT;
-//     }
-
-//     // Validator's fee
-//     if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
-//         dap_chain_datum_tx_delete(l_tx);
-//         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_ADD_NET_FEE_OUT;
-//     }
-
-//     // coin back
-//     if (!IS_ZERO_256(l_value_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_token_ticker) != 1) {
-//         dap_chain_datum_tx_delete(l_tx);
-//         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_ADD_OUT_WITH_VALUE_BACK;
-//     }
-//     if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_fee_back, a_net->pub.native_ticker) != 1) {
-//         dap_chain_datum_tx_delete(l_tx);
-//         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_ADD_OUT_WITH_VALUE_BACK;
-//     }
-
-//     // dap_enc_key_t *l_priv_key = dap_chain_wallet_get_key(a_wallet, 0);
-//     // // add 'sign' items with wallet sign
-//     // if (dap_chain_datum_tx_add_sign_item(&l_tx, l_priv_key) != 1) {
-//     //     dap_chain_datum_tx_delete(l_tx);
-//     //     dap_enc_key_delete(l_priv_key);
-//     //     return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_SIGN_TX;
-//     // }
-//     // dap_enc_key_delete(l_priv_key);
-
-//     // add 'sign' items with delegated key if needed
-//     // if (a_cert && dap_chain_datum_tx_add_sign_item(&l_tx, a_cert->enc_key) != 1) {
-//     //     dap_chain_datum_tx_delete(l_tx);
-//     //     return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_SIGN_TX;
-//     // }
+    dap_hash_fast_t l_pkey_hash = {0};
+    if (l_delegated_key_required) {
+        if (!a_cert) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_CERT_REQUIRED, "Certificate is required for delegated key voting\n");
+            return NULL;
+        }
+        if (dap_cert_get_pkey_hash(a_cert, &l_pkey_hash)) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_NO_KEY_FOUND_IN_CERT, "No key found in certificate\n");
+            return NULL;
+        }
+        char data[512];
+        snprintf(data, sizeof(data), 
+                "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", a_config->net_name);
+        json_object *l_json_coins = dap_request_command_to_rpc(data, a_config);
+        if (!l_json_coins) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_RETRIEVE_COINS_FROM_LEDGER, "Failed to retrieve coins from ledger\n");
+            return NULL;
+        }
+        char l_hash_fast_str[DAP_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_pkey_hash, l_hash_fast_str, sizeof(l_hash_fast_str));
+        if (strlen(l_hash_fast_str) == 0) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_RETRIEVE_COINS_FROM_LEDGER, "Can't covert l_pkey_hash to str");
+            return NULL;
+        }
+        int items_count = json_object_array_length(l_json_coins);
+        bool found = false;
+        for (int i = 0; i < items_count; i++) {
+            json_object *item = json_object_array_get_idx(l_json_coins, i);
+            const char *pkey_hash_str = json_object_get_string(json_object_object_get(item, "pkey_hash"));
+            if (!dap_strcmp(l_hash_fast_str, pkey_hash_str)) {
+                const char *tx_hash_str = json_object_get_string(json_object_object_get(item, "tx_hash"));
+                if (dap_chain_hash_fast_from_str(tx_hash_str, &l_pkey_hash)) {
+                    dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_KEY_IS_NOT_DELEGATED, "Invalid transaction hash format\n");
+                    return NULL;
+                }
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_KEY_IS_NOT_DELEGATED, "Specified certificate/pkey hash is not delegated nor this delegating is approved. Try to invalidate with tx hash instead\n");
+            return NULL;
+        }
 
 
-//     return l_tx;
-// }
+    } else
+        l_pkey_hash = l_addr_from->data.hash_fast;
+
+
+    const char *l_token_ticker = json_object_get_string(json_object_object_get(l_voting_info, "token"));
+    uint256_t l_net_fee = {}, l_total_fee = a_fee, l_value_transfer, l_fee_transfer;
+    dap_chain_addr_t* l_addr_fee = NULL;
+    bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+    if (l_net_fee_used)
+        SUM_256_256(l_net_fee, a_fee, &l_total_fee);
+
+    bool l_native_tx = !dap_strcmp(l_token_ticker, s_get_native_ticker(a_config->net_name));
+
+    json_object *l_outs = NULL;
+    int l_outputs_count = 0;
+    if (!dap_get_remote_wallet_outs_and_count(l_addr_from, l_token_ticker, &l_outs, &l_outputs_count, a_config)) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_GET_REMOTE_WALLET_OUTS, "Failed to get remote wallet outs\n");
+        return NULL;
+    }
+
+    // todo replace with func witch will return all outpurs not only enough outputs
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
+                                                            l_total_fee,
+                                                            &l_value_transfer);
+    json_object_put(l_outs);
+    if (!l_list_used_out) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_NOT_ENOUGH_FUNDS_TO_TRANSFER, "Not enough funds to transfer");
+        return NULL;
+    }
+
+    uint256_t l_value_transfer_new = {};
+    // snprintf(data, sizeof(data), 
+    //     "{\"method\": \"poll\",\"params\": [\"poll;dump;-need_vote_list;-net;%s;-hash;%s\"],\"id\": \"2\"}", a_config->net_name, l_hash_str);
+    // json_object *l_json_poll = dap_request_command_to_rpc(data, a_config);
+    // if (!l_json_poll) {
+    //     dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info\n");
+    //     return NULL;
+    // }
+    json_object *l_votes_list = json_object_object_get(l_voting_info, "votes_list");
+    if (!l_votes_list) { 
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info\n");
+        return NULL;
+    }
+    int l_votes_count = json_object_array_length(l_votes_list);
+    for (int i = 0; i < l_votes_count; i++) {
+        json_object *l_vote = json_object_array_get_idx(l_votes_list, i);
+        const char *l_vote_pkey_hash = json_object_get_string(json_object_object_get(l_vote, "pkey_hash"));
+        char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str));
+        if (!dap_strcmp(l_vote_pkey_hash, l_pkey_hash_str)) {
+            if (!l_vote_changed) {
+                dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE, "The poll doesn't allow change your vote.");
+                json_object_put(l_json_voting);
+                return NULL;
+            }
+        }
+    }
+    json_object_get(l_votes_list);
+    json_object_put(l_json_voting);
+
+    dap_list_t *it, *tmp;
+    DL_FOREACH_SAFE(l_list_used_out, it, tmp) {
+        dap_chain_tx_used_out_item_t *l_out = (dap_chain_tx_used_out_item_t *)it->data;
+        if (s_datum_tx_voting_coin_check_spent_compose(l_votes_list, l_out->tx_hash_fast, l_out->num_idx_out,
+                                               l_vote_changed ? &l_pkey_hash : NULL)) {
+            l_list_used_out = dap_list_delete_link(l_list_used_out, it);
+            continue;
+        }
+        if (SUM_256_256(l_value_transfer_new, l_out->value, &l_value_transfer_new))
+            return NULL;
+    }
+
+    if (IS_ZERO_256(l_value_transfer_new) || (l_native_tx && compare256(l_value_transfer_new, l_total_fee) <= 0))
+        return NULL;
+
+    l_value_transfer = l_value_transfer_new;
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+    uint256_t l_value_back = l_value_transfer, l_fee_back = {};
+    if (!l_native_tx) {
+        dap_list_t * l_list_fee_outs = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
+                                                               l_total_fee, 
+                                                               &l_fee_transfer);
+        if (!l_list_fee_outs) {
+            dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FEE_ERROR, "Not enough funds to pay fee");
+            json_object_put(l_outs);
+            return NULL;
+        }
+
+        uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_outs);
+        assert(EQUAL_256(l_value_fee_items, l_fee_transfer));
+        dap_list_free_full(l_list_fee_outs, NULL);
+        SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_fee_back);
+    } else
+        SUBTRACT_256_256(l_value_transfer, l_total_fee, &l_value_back);
+
+    // add 'in' items
+    uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+    assert(EQUAL_256(l_value_to_items, l_value_transfer));
+    dap_list_free_full(l_list_used_out, NULL);
+
+    dap_chain_tx_vote_t* l_vote_item = dap_chain_datum_tx_item_vote_create(&a_hash, &a_option_idx);
+    if(!l_vote_item){
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    dap_chain_datum_tx_add_item(&l_tx, l_vote_item);
+    DAP_DEL_Z(l_vote_item);
+
+    snprintf(data, sizeof(data), 
+            "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", a_config->net_name);
+    json_object *l_json_stake = dap_request_command_to_rpc(data, a_config);
+    if (!l_json_stake) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Get first array from JSON response
+    json_object *l_stake_array = json_object_array_get_idx(l_json_stake, 0);
+    if (!l_stake_array) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    // Find matching pkey_hash in stake list
+    int l_stake_count = json_object_array_length(l_stake_array);
+    bool l_found = false;
+
+    for (int i = 0; i < l_stake_count; i++) {
+        json_object *l_stake = json_object_array_get_idx(l_stake_array, i);
+        if (!l_stake || !json_object_is_type(l_stake, json_type_object))
+            continue;
+
+        json_object *l_node_addr_json_str = json_object_object_get(l_stake, "node_addr");
+        if (!l_node_addr_json_str)
+            continue;
+
+        const char *l_node_addr_str = json_object_get_string(l_node_addr_json_str);
+        if (!l_node_addr_str)
+            continue;
+
+        if (dap_strcmp(l_node_addr_str, dap_chain_addr_to_str(l_addr_from)) == 0) {
+            json_object *l_tx_hash_json_str = json_object_object_get(l_stake, "tx_hash");
+            if (!l_tx_hash_json_str)
+                return NULL;
+
+            snprintf(data, sizeof(data), 
+            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
+            json_object_get_string(l_tx_hash_json_str), a_config->net_name);
+            json_object *l_json_ledger_info = dap_request_command_to_rpc(data, a_config);
+            if (!l_json_ledger_info) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+
+            json_object *l_ledger_array = json_object_array_get_idx(l_json_ledger_info, 0);
+            if (!l_ledger_array) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+
+            json_object *l_token_ticker_obj = NULL;
+            if (!json_object_object_get_ex(l_ledger_array, "Token_ticker", &l_token_ticker_obj)) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+
+            const char *l_stake_token_ticker = json_object_get_string(l_token_ticker_obj);
+            if (!l_stake_token_ticker) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+            snprintf(data, sizeof(data), 
+                "{\"method\": \"wallet\",\"params\": [\"wallet;outputs;-addr;%s;-net;%s;-token;%s\"],\"id\": \"1\"}",
+                                json_object_get_string(l_tx_hash_json_str), a_config->net_name, l_stake_token_ticker);
+            json_object *l_json_wallet_outs = dap_request_command_to_rpc(data, a_config);
+            if (!l_json_wallet_outs) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+
+            json_object *l_first_array = json_object_array_get_idx(l_json_wallet_outs, 0);
+            if (!l_first_array || !json_object_is_type(l_first_array, json_type_array)) {
+                json_object_put(l_json_wallet_outs);
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+
+            json_object *l_wallet_info = json_object_array_get_idx(l_first_array, 0);
+            if (!l_wallet_info || !json_object_is_type(l_wallet_info, json_type_object)) {
+                json_object_put(l_json_wallet_outs);
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+
+            json_object *l_outs_array = NULL;
+            if (!json_object_object_get_ex(l_wallet_info, "outs", &l_outs_array) || 
+                !json_object_is_type(l_outs_array, json_type_array)) {
+                json_object_put(l_json_wallet_outs);
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+
+            int l_outs_count = json_object_array_length(l_outs_array);
+            const char *l_tx_hash_str = json_object_get_string(l_tx_hash_json_str);
+            for (int i = 0; i < l_outs_count; i++) {
+                json_object *l_out = json_object_array_get_idx(l_outs_array, i);
+                if (!l_out || !json_object_is_type(l_out, json_type_object))
+                    continue;
+
+                json_object *l_prev_hash_obj = NULL;
+                if (!json_object_object_get_ex(l_out, "prev_hash", &l_prev_hash_obj))
+                    continue;
+
+                const char *l_prev_hash_str = json_object_get_string(l_prev_hash_obj);
+                if (!l_prev_hash_str)
+                    continue;
+
+                if (dap_strcmp(l_prev_hash_str, l_tx_hash_str) == 0) {
+                    json_object *l_out_prev_idx_obj = NULL;
+                    if (!json_object_object_get_ex(l_out, "out_prev_idx", &l_out_prev_idx_obj))
+                        continue;
+
+                    int l_out_prev_idx = json_object_get_int(l_out_prev_idx_obj);
+                    dap_chain_hash_fast_t l_prev_hash;
+                    if (dap_chain_hash_fast_from_str(l_prev_hash_str, &l_prev_hash))
+                        continue;
+
+                    dap_chain_tx_tsd_t *l_item = dap_chain_datum_voting_vote_tx_cond_tsd_create(l_prev_hash, l_out_prev_idx);
+                    if (!l_item) {
+                        json_object_put(l_json_wallet_outs);
+                        dap_chain_datum_tx_delete(l_tx);
+                        return NULL;
+                    }
+                    dap_chain_datum_tx_add_item(&l_tx, l_item);
+                    DAP_DEL_Z(l_item);
+                    break;
+                }
+            }
+            json_object_put(l_json_wallet_outs);
+            break;
+        }
+    }
+
+    // Network fee
+    if (l_net_fee_used && dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_fee, l_net_fee, s_get_native_ticker(a_config->net_name)) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Validator's fee
+    if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // coin back
+    if (!IS_ZERO_256(l_value_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_token_ticker) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_fee_back, s_get_native_ticker(a_config->net_name)) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    return l_tx;
+}
 
 
 
