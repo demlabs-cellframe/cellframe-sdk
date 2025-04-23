@@ -356,7 +356,6 @@ int dap_chain_net_init()
 
 /**
  * @brief get certificate hash from chain config [acl_accept_ca_gdb] param
- *
  * @param a_net dap_chain_net_t chain object
  * @return char*
  */
@@ -478,7 +477,6 @@ static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_nod
  * @param a_node_client
  * @param a_arg
  */
-
 static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count)
 {
 // sanity check
@@ -520,10 +518,9 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
 }
 
 /**
- * @brief Launch a connect with a link
- * @param a_net
- * @param a_link_node_info node parameters
- * @return list of dap_chain_node_info_t
+ * @brief Process link request in link manager
+ * @param a_net_id Network ID
+ * @return Returns 0 on success
  */
 int s_link_manager_link_request(uint64_t a_net_id)
 {
@@ -568,7 +565,11 @@ struct request_link_info *s_get_permanent_link_info(dap_chain_net_t *a_net, dap_
     }
     return NULL;
 }
-
+/**
+ * @brief Fill network information for link manager
+ * @param a_link Link object to fill info for
+ * @return Returns 0 on success
+ */
 int s_link_manager_fill_net_info(dap_link_t *a_link)
 {
 // sanity check
@@ -655,6 +656,11 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
     return l_jobj_chains_array;
 }
 
+/**
+ * @brief Convert network states to JSON format
+ * @param a_net Network object to convert states from
+ * @param a_json_out Output JSON object to fill
+ */
 void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out) {
     json_object_object_add(a_json_out, "name", json_object_new_string((const char *) a_net->pub.name));
     json_object_object_add(a_json_out, "networkState",
@@ -2361,15 +2367,15 @@ bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stre
     return l_ret;
 }
 
-size_t dap_chain_net_count() {
+DAP_INLINE size_t dap_chain_net_count() {
     return HASH_COUNT(s_nets_by_name);
 }
 
-dap_chain_net_t *dap_chain_net_iter_start() {
+DAP_INLINE dap_chain_net_t *dap_chain_net_iter_start() {
     return s_nets_by_name;
 }
 
-dap_chain_net_t *dap_chain_net_iter_next(dap_chain_net_t *a_it) {
+DAP_INLINE dap_chain_net_t *dap_chain_net_iter_next(dap_chain_net_t *a_it) {
     return a_it ? a_it->hh.next : NULL;
 }
 
@@ -2391,7 +2397,7 @@ dap_chain_net_t *dap_chain_net_by_name(const char *a_name)
  * @param a_net_name
  * @return
  */
-dap_ledger_t * dap_ledger_by_net_name( const char * a_net_name)
+DAP_INLINE dap_ledger_t * dap_ledger_by_net_name( const char * a_net_name)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
     return l_net ? l_net->pub.ledger : NULL;
@@ -2414,7 +2420,7 @@ dap_chain_net_t *dap_chain_net_by_id(dap_chain_net_id_t a_id)
  * @param a_id
  * @return
  */
-uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net)
+DAP_INLINE uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net)
 {
     return a_net ? PVT(a_net)->acl_idx : (uint16_t)-1;
 }
@@ -2553,7 +2559,7 @@ void dap_chain_net_set_flag_sync_from_zero(dap_chain_net_t * a_net, bool a_flag_
  * @param a_net
  * @return
  */
-bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
+DAP_INLINE bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
 {
     return PVT(a_net)->flags &F_DAP_CHAIN_NET_SYNC_FROM_ZERO ;
 }
@@ -2884,11 +2890,13 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
     return 0;
 }
 
-bool dap_chain_net_state_is_load(dap_chain_net_t * a_net)
-{
-    return PVT(a_net)->state == NET_STATE_LOADING;
-}
-
+/**
+ * @brief Add reward for block signing to network
+ * @param a_net Network object
+ * @param a_reward Reward amount
+ * @param a_block_num Block number
+ * @return Returns 0 on success
+ */
 int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num)
 {
     dap_return_val_if_fail(a_net, -1);
@@ -2908,11 +2916,21 @@ int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_
     return 0;
 }
 
+/**
+ * @brief Remove the last added reward from network
+ * @param a_net Network object
+ */
 void dap_chain_net_remove_last_reward(dap_chain_net_t *a_net)
 {
     DL_DELETE(PVT(a_net)->rewards, PVT(a_net)->rewards);
 }
 
+/**
+ * @brief Get reward amount for specific block number
+ * @param a_net Network object
+ * @param a_block_num Block number
+ * @return Returns reward amount
+ */
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
 {
     struct block_reward *l_reward;
@@ -2923,13 +2941,19 @@ uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
     return uint256_0;
 }
 
-
+/**
+ * @brief Announce addresses for all networks
+ */
 void dap_chain_net_announce_addr_all()
 {
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next)
         dap_chain_net_announce_addr(net);
 }
 
+/**
+ * @brief Announce address for specific network
+ * @param a_net Network object
+ */
 void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
 {
     dap_return_if_fail(a_net);
@@ -2944,10 +2968,20 @@ void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
     }
 }
 
+/**
+ * @brief Get network decree
+ * @param a_net Network object
+ * @return Returns network decree
+ */
 dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net) {
     return a_net ? PVT(a_net)->decree : NULL;
 }
 
+/**
+ * @brief Set network decree
+ * @param a_net Network object
+ * @param a_decree Decree to set
+ */
 void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree) {
     if (!a_net) {
         log_it(L_ERROR, "Net is not initialized");
@@ -2956,10 +2990,20 @@ void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t
     PVT(a_net)->decree = a_decree;
 }
 
+/**
+ * @brief Get network decrees
+ * @param a_net Network object
+ * @return Returns pointer to network decrees
+ */
 decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net) {
     return a_net ? &(PVT(a_net)->decrees) : NULL;
 }
 
+/**
+ * @brief Get network anchors
+ * @param a_net Network object
+ * @return Returns pointer to network anchors
+ */
 anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net) {
     return a_net ? &(PVT(a_net)->anchors) : NULL;
 }
@@ -3174,9 +3218,7 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     debug_if(s_debug_more, L_DEBUG, "Go to next chain: <NULL>");
     if (!s_net_state_target_is_online(a_net)) {
         s_net_stop_wait_for(a_net, false);
-        return NULL;
     }
-    s_net_states_proc(a_net);
     return NULL;
 }
 
@@ -3190,8 +3232,10 @@ static dap_chain_sync_state_t s_sync_context_state_forming(dap_chain_t *a_chains
     return l_ret;
 }
 
-/*------------------------------------State machine block end---------------------------------*/
-
+DAP_INLINE bool dap_chain_net_state_is_load(dap_chain_net_t * a_net)
+{
+    return PVT(a_net)->state == NET_STATE_LOADING;
+}
 
 DAP_INLINE bool dap_chain_net_state_is_online(dap_chain_net_t *a_net)
 {
@@ -3211,7 +3255,7 @@ DAP_INLINE bool dap_chain_net_state_is_sync(dap_chain_net_t *a_net)
     return PVT(a_net)->state == NET_STATE_SYNC_CHAINS;
 }
 
-DAP_STATIC_INLINE void s_net_state_set(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
+static void s_net_state_set(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
 {
     switch (s_net_state_get(a_net)) {
         case NET_STATE_OFFLINE:
@@ -3247,7 +3291,6 @@ static void s_net_state_target_set(dap_chain_net_t *a_net, dap_chain_net_state_t
 
 /**
  * @brief set current network state to F_DAP_CHAIN_NET_GO_SYNC
- *
  * @param a_net dap_chain_net_t network object
  * @param a_new_state dap_chain_net_state_t new network state
  * @return int
@@ -3272,7 +3315,6 @@ static int s_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_sta
 
 /**
  * @brief restart net
- * 
  * @param a_net net to restart
  */
 static void s_net_restart(dap_chain_net_t *a_net)
@@ -3469,3 +3511,5 @@ static void s_net_state_timer_callback(void *a_arg)
     l_net_pvt->sync_context.requested_atom_num = l_last_num;
     DAP_DELETE(l_chain_pkt);
 }
+
+/*------------------------------------State machine block end---------------------------------*/
