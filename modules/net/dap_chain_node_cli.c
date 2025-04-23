@@ -115,7 +115,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_cli_server_cmd_add ("token_update", NULL, com_token_update, "Token update",
+    dap_cli_server_cmd_add ("token_update", com_token_update, NULL, "Token update",
                             "\nPrivate or CF20 token update\n"
                             "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type <CF20|private> [-total_supply_change <value>] "
                             "-certs <name_certs> [-flag_set <flag>] [-flag_unset <flag>] [-total_signs_valid <value>] [-description <value>] "

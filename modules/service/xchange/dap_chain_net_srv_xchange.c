@@ -2638,10 +2638,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             size_t l_arr_start = 0;            
             size_t l_arr_end = 0;
+            size_t l_total = dap_list_length(l_list);
             json_object* json_obj_order = json_object_new_object();
             json_object* json_arr_orders_out = json_object_new_array();
-            dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list),true);
-            size_t i_tmp = 0;
+            dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_total,true);
+            size_t i_tmp = 0, l_orders_count = 0;
 
             // Print all txs
             for (dap_list_t *it = l_head ? dap_list_last(l_list) : dap_list_first(l_list);
@@ -2759,6 +2760,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 }
                 i_tmp++;
 
+                l_orders_count++;
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_tx->header.ts_created);
 
@@ -2796,9 +2798,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             } else {
                 dap_list_free_full(l_list, NULL);
             }
-            char *l_total = dap_strdup_printf("Total %"DAP_UINT64_FORMAT_U" orders.\n\r", i_tmp);
-            json_object_object_add(json_obj_order, "number of transactions", json_object_new_string(l_total));
-            DAP_DELETE(l_total);
+            json_object_object_add(json_obj_order, "Filtered orders", json_object_new_uint64(l_orders_count));
+            json_object_object_add(json_obj_order, "Total orders", json_object_new_uint64(l_total));
 
             if (!json_object_array_length(json_arr_orders_out)) {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_UNREC_STATUS_ERR, "No orders found");
