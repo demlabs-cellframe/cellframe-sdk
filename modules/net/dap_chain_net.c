@@ -3394,6 +3394,7 @@ static void s_net_states_proc(dap_chain_net_t *a_net)
             PVT(a_net)->sync_context.cur_chain = NULL;
             PVT(a_net)->sync_context.cur_cell = NULL;
             PVT(a_net)->sync_context.errors_count = 0;
+            PVT(a_net)->sync_context.stage_last_activity = dap_time_now();
     
             dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
             uint16_t l_permalink_hosts_count = 0;
@@ -3452,8 +3453,9 @@ static void s_net_state_timer_callback(void *a_arg)
         l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_ERROR ||
         dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time
     ) {
+        l_net_pvt->sync_context.errors_count += l_net_pvt->sync_context.state != CHAIN_SYNC_STATE_SYNCED;
         if (l_net_pvt->sync_context.errors_count > 10) {
-            log_it(L_INFO, "Can't start sync chains in net %s, restart net", l_net->pub.name);
+            log_it(L_INFO, "Can't sync chains in net %s, restart net", l_net->pub.name);
             s_net_restart(l_net);
             return;
         }
