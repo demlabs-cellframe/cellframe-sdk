@@ -1265,7 +1265,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
         pkt_test_t *l_request = (pkt_test_t*)l_ch_pkt->data;
         if (dap_chain_net_srv_get(l_request->srv_uid) == NULL){
-            log_it(L_WARNING, "Can't find service with id %"DAP_UINT64_FORMAT_U, l_request->srv_uid);
+            log_it(L_WARNING, "Can't find service with id %"DAP_UINT64_FORMAT_U, l_request->srv_uid.uint64);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;

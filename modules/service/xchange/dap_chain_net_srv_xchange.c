@@ -229,7 +229,7 @@ int dap_chain_net_srv_xchange_init()
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>\n"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
-    "srv_xchange orders -net <net_name> [-status {opened|closed|all}] [-token_from <token_ticker>] [-token_to <token_ticker>] [-addr <wallet_addr>] [-limit <limit>] [-offset <offset>]\n"
+    "srv_xchange orders -net <net_name> [-status {opened|closed|all}] [-token_from <token_ticker>] [-token_to <token_ticker>] [-addr <wallet_addr>] [-limit <limit>] [-offset <offset>] [-head]\n"
          "\tGet the exchange orders list within specified net name\n"
 
     "srv_xchange purchase -order <order hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>\n"
@@ -363,11 +363,14 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
     byte_t *l_tx_item; size_t l_size;
     TX_ITEM_ITER_TX(l_tx_item, l_size, a_tx_in) {
         switch (*l_tx_item) {
-        case TX_ITEM_TYPE_OUT_EXT: {
-            dap_chain_tx_out_ext_t *l_tx_in_output = (dap_chain_tx_out_ext_t*)l_tx_item;
-            const char *l_out_token = l_tx_in_output->token;
-            const uint256_t l_out_value = l_tx_in_output->header.value;
-            dap_chain_addr_t l_out_addr = l_tx_in_output->addr;
+        case TX_ITEM_TYPE_OUT_EXT:
+        case TX_ITEM_TYPE_OUT_STD: {
+            const char *l_out_token = *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t *)l_tx_item)->token
+                                                                         : ((dap_chain_tx_out_std_t *)l_tx_item)->token;
+            uint256_t l_out_value = *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t *)l_tx_item)->header.value
+                                                                       : ((dap_chain_tx_out_std_t *)l_tx_item)->value;
+            dap_chain_addr_t l_out_addr = *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t *)l_tx_item)->addr
+                                                                             : ((dap_chain_tx_out_std_t *)l_tx_item)->addr;
             // Out is with token to buy
             if (!strcmp(l_out_token, l_buy_ticker) &&
                     !memcmp(&l_out_addr, l_seller_addr, sizeof(l_out_addr)) &&
@@ -619,10 +622,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         DAP_DELETE(l_tx_out);
         // Network fee
         if (l_net_fee_used) {
-            if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_net_fee, l_net_fee) != 1) ||
-                    (!l_single_channel &&
-                        dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_net_fee, l_net_fee, l_native_ticker) != 1)) {
+            if ( dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_net_fee, l_net_fee, l_native_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 log_it(L_ERROR, "Cant add network fee output");
                 return NULL;
@@ -641,7 +641,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         SUBTRACT_256_256(l_value_transfer, l_value_need, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_value_back) != 1) ||
+                        dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_value_back, l_native_ticker) != 1) ||
                     (!l_single_channel &&
                         dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_value_back, a_price->token_sell) != 1)) {
                 dap_chain_datum_tx_delete(l_tx);
@@ -1185,14 +1185,14 @@ static char* s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price,
         }
         SUBTRACT_256_256(l_tx_out_cond->header.value, l_total_fee, &l_coin_back);
         // return coins to owner
-        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_coin_back) == -1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_coin_back, l_native_ticker) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Cant add returning coins output");
             return l_ret;
         }
         // Network fee
         if (l_net_fee_used &&
-                dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Cant add network fee output");
             return l_ret;
@@ -2600,6 +2600,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
             const char * l_token_from_str = NULL;
             const char * l_token_to_str = NULL;
+            const char * l_head_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_from", &l_token_from_str);
             if(l_token_from_str){
                 dap_chain_datum_token_t * l_token_from_datum = dap_ledger_token_ticker_check( l_net->pub.ledger, l_token_from_str);
@@ -2620,6 +2621,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 }
             }
 
+            bool l_head = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-head", &l_head_str) ? true : false;
+            
             dap_chain_addr_t *l_addr = NULL;
             const char *l_addr_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
@@ -2639,9 +2642,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             json_object* json_arr_orders_out = json_object_new_array();
             dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list));
             size_t i_tmp = 0;
-            
+
             // Print all txs
-            for (dap_list_t *it = l_list; it; it = it->next) {
+            for (dap_list_t *it = l_head ? dap_list_last(l_list) : dap_list_first(l_list);
+                    it; it = l_head ? it->prev : it->next) {
                 dap_chain_datum_tx_t *l_tx = NULL;
                 char l_buy_token[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
                 char l_sell_token[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
@@ -2745,9 +2749,13 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     continue;
                 }
 
-                if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
+                if (i_tmp < l_arr_start) {
                     i_tmp++;
                     continue;
+                }
+
+                if (i_tmp >= l_arr_end) {
+                    break;
                 }
                 i_tmp++;
 
@@ -2778,10 +2786,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_order, "owner_addr", json_object_new_string(l_owner_addr));
                 json_object_array_add(*json_arr_reply, json_obj_order);
                 DAP_DELETE(l_owner_addr);
-                l_printed_orders_count++;
+                l_printed_orders_count++; 
+                if (l_head && (it->prev->next == NULL)) break;              
             }
             json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
-            json_object_array_add(*json_arr_reply, json_obj_order);            
+            json_object_array_add(*json_arr_reply, json_obj_order); 
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 dap_list_free(l_list);
             } else {
@@ -3339,7 +3348,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
                     size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
-                    size_t l_limit  = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+                    size_t l_limit  = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
                     
                     char ** l_tickers = NULL;
                     size_t l_tickers_count = 0;
@@ -3350,7 +3359,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         size_t l_arr_start = 0;
                         size_t l_arr_end  = 0;
                         json_object* json_arr_bl_cache_out = json_object_new_array();
-                        dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_tickers_count); 
+                        dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_tickers_count*l_tickers_count); 
 
                         size_t i_tmp = 0;
                         for(size_t i = 0; i< l_tickers_count; i++){
