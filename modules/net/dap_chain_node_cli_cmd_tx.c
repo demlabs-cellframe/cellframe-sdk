@@ -1950,7 +1950,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
 
 
 
-void  json_print_for_mempool_list(dap_json_rpc_response_t* response){
+int  json_print_for_mempool_list(dap_json_rpc_response_t* response){
     json_object * json_obj_response = json_object_array_get_idx(response->result_json_object, 0);
     json_object * j_obj_net_name, * j_arr_chains, * j_obj_chain, *j_obj_removed, *j_arr_datums, *j_arr_total;
     json_object_object_get_ex(json_obj_response, "net", &j_obj_net_name);
@@ -1969,17 +1969,18 @@ void  json_print_for_mempool_list(dap_json_rpc_response_t* response){
         // TODO total parser
         json_print_object(j_arr_total, 1);
     }
+    return 0;
 }
 int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response){
     if (!response || !response->result_json_object) {
         printf("Response is empty\n");
-        return;
+        return -1;
     }
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
-            return;
+            return -2;
         }
         printf("__________________________________________________________________________________________________"
             "_______________________________________________________\n");
@@ -2028,7 +2029,7 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response){
     } else {
         json_print_object(response->result_json_object, 0);
     }
-
+    return 0;
 }
 
 int json_print_for_block_list(dap_json_rpc_response_t* response){
@@ -2227,3 +2228,73 @@ int json_print_for_token_list(dap_json_rpc_response_t* response){
     return 0;
 }
 
+
+int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response){
+    if (!response || !response->result_json_object) {
+        printf("Response is empty\n");
+        return -1;
+    }
+    if (json_object_get_type(response->result_json_object) == json_type_array) {
+        int result_count = json_object_array_length(response->result_json_object);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return -2;
+        }
+        //printf("ORDERS is %d\n", result_count);
+        printf("______________________________________________________________________________________________________\n");
+
+        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        struct json_object *j_object_events = NULL;
+        char *l_limit = NULL;
+        char *l_offset = NULL;
+        
+        for (int i = 0; i < result_count; i++) {
+            struct json_object *json_obj_result = json_object_array_get_idx(json_obj_array, i);
+
+            json_object *j_obj_event_number, *j_obj_hash, *j_obj_create, *j_obj_lim, *j_obj_off;
+            if (json_object_object_get_ex(json_obj_result, "order_hash", &j_obj_event_number) &&
+                json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_hash) &&
+                json_object_object_get_ex(json_obj_result, "status", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "proposed_coins", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "proposed_datoshi", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "amount_coins", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "amount_datoshi", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "filled_percent", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "token_buy", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "token_sell", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "rate", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "net", &j_obj_create))
+            {
+                if (j_obj_event_number && j_obj_hash && j_obj_create) {
+                    printf("   %s \t| %s | %s\t|",
+                            json_object_get_string(j_obj_event_number), json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create));
+                } else {
+                    printf("Missing required fields in array element at index %d\n", i);
+                }
+            } else if (json_object_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
+                json_object_object_get_ex(json_obj_result, "offset", &j_obj_off);
+                l_limit = json_object_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
+                if (j_obj_off)
+                    l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_off));
+                continue;
+            } else {
+                json_print_object(json_obj_result, 0);
+            }
+            printf("\n");
+        }
+        printf("________|____________________________________________________________________|__________________________________|\n\n");
+        if (l_limit) {
+            printf("\tlimit: %s \n", l_limit);
+            DAP_DELETE(l_limit);
+        }
+        if (l_offset) {
+            printf("\toffset: %s \n", l_offset);
+            DAP_DELETE(l_offset);
+        }
+    } else {
+        //json_print_object(response->result_json_object, 0);
+        return -4;
+    }
+    return 0;
+
+}
