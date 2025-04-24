@@ -96,7 +96,7 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
     if (dap_log_level_get() <= L_DEBUG ) {
         char l_ignored_str[4096];
         int l_pos = snprintf(l_ignored_str, sizeof(l_ignored_str), 
-                             "Next %zu nodes will be ignored in balancer links preparing in net %s:\n"
+                             "Next %"DAP_UINT64_FORMAT_U" nodes will be ignored in balancer links preparing in net %s:\n"
                              "\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n\tActive links (%zu):\n",
                              l_ret->count_node, a_net->pub.name, NODE_ADDR_FP_ARGS(l_curr_addr), l_links_count);
         for (size_t i = 0; i < l_links_count && l_pos < (int)sizeof(l_ignored_str); ++i) {

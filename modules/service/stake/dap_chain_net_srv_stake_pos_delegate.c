@@ -3779,7 +3779,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
 
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
-    dap_chain_set_offset_limit_json(json_obj_reward, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
+    dap_chain_set_offset_limit_json(json_obj_reward, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain),false);
 
     if (a_node_info){
         json_object* json_obj_addr = json_object_new_object();
