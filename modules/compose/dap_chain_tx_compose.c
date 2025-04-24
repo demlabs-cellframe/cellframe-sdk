@@ -925,6 +925,16 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
 
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer)
 {
+    return dap_ledger_get_list_tx_outs_from_jso_ex(a_outputs_array, a_outputs_count, a_value_need, a_value_transfer, false);
+}
+
+dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer)
+{
+    return dap_ledger_get_list_tx_outs_from_jso_ex(a_outputs_array, a_outputs_count, a_value_need, a_value_transfer, true);
+}
+
+
+dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer, bool a_need_all_outputs) {
     dap_list_t *l_list_used_out = NULL;
     uint256_t l_value_transfer = {};
 
@@ -970,7 +980,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array,
         
         SUM_256_256(l_value_transfer, l_value, &l_value_transfer);
 
-        if (compare256(l_value_transfer, a_value_need) >= 0) {
+        if (!a_need_all_outputs && compare256(l_value_transfer, a_value_need) >= 0) {
             break;
         }
     }
@@ -4614,16 +4624,6 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
             return NULL;
         }
     }
-    // // add 'sign' items
-    // dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
-    // if(dap_chain_datum_tx_add_sign_item(&l_tx, l_seller_key) != 1) {
-    //     dap_chain_datum_tx_delete(l_tx);
-    //     dap_enc_key_delete(l_seller_key);
-    //     log_it( L_ERROR, "Can't add sign output");
-    //     return false;
-    // }
-    // dap_enc_key_delete(l_seller_key);
-    // l_ret = s_xchange_tx_put(l_tx, a_price->net);
 
     return l_tx;
 }
@@ -4708,11 +4708,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *
     if (!l_price) {
         return NULL;
     }
-    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_invalidate_compose(a_hash_tx, a_wallet, a_config);
-    json_object * l_json_obj_ret = json_object_new_object();
-    dap_chain_net_tx_to_json(l_tx, l_json_obj_ret);
-    printf("%s", json_object_to_json_string(l_json_obj_ret));
-    json_object_put(l_json_obj_ret);
+    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_invalidate_compose(l_price, a_wallet, a_config);
 
     DAP_DELETE(l_price);
     return l_tx;
