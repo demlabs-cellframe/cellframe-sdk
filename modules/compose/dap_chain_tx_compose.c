@@ -2759,7 +2759,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
         return NULL;
     }
 
-    int l_options_count = json_object_array_length(l_options);
+    uint64_t l_options_count = json_object_array_length(l_options);
     if (a_option_idx >= l_options_count) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_INVALID_OPTION_INDEX, "Invalid option index\n");
         return NULL;
@@ -2783,7 +2783,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     if (l_expiration_str) {
         struct tm tm;
         strptime(l_expiration_str, "%a, %d %b %Y %H:%M:%S %z", &tm);
-        time_t l_expiration_time = mktime(&tm);
+        dap_time_t l_expiration_time = mktime(&tm);
         if (l_expiration_time && dap_time_now() > l_expiration_time) {
             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ALREADY_EXPIRED, "This voting already expired\n");
             return NULL;
@@ -4714,13 +4714,11 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *
         return NULL;
     }
     dap_chain_datum_tx_t *l_tx = dap_xchange_tx_invalidate_compose(l_price, a_wallet, a_config);
-<<<<<<< Updated upstream
-=======
+
     json_object * l_json_obj_ret = json_object_new_object();
     dap_chain_net_tx_to_json(l_tx, l_json_obj_ret);
     printf("%s", json_object_to_json_string(l_json_obj_ret));
     json_object_put(l_json_obj_ret);
->>>>>>> Stashed changes
 
     DAP_DELETE(l_price);
     return l_tx;
