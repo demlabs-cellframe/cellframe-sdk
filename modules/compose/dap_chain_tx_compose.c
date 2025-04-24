@@ -4505,9 +4505,14 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
                 l_cond_tx->subtype.srv_xchange.buy_token[sizeof(l_cond_tx->subtype.srv_xchange.buy_token) - 1] = '\0';
                 l_cond_tx->subtype.srv_xchange.rate = dap_chain_balance_scan(json_object_get_string(json_object_object_get(item, "rate")));
                 l_cond_tx->tsd_size = json_object_get_int(json_object_object_get(item, "tsd_size"));
-                break;
+                // break;s
             } else if (dap_strcmp(subtype, "OUT") == 0 || dap_strcmp(subtype, "OUT COND") == 0 || dap_strcmp(subtype, "OUT OLD") == 0) {
                 l_prev_cond_idx++;
+            }
+        }  else if (dap_strcmp(item_type, "SIG") == 0) {
+            const char *l_sender_addr_str = json_object_get_string(json_object_object_get(item, "Sender addr"));
+            if (l_sender_addr_str) {
+                l_cond_tx->subtype.srv_xchange.seller_addr = *dap_chain_addr_from_str(l_sender_addr_str);
             }
         }
     }
@@ -4709,6 +4714,13 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *
         return NULL;
     }
     dap_chain_datum_tx_t *l_tx = dap_xchange_tx_invalidate_compose(l_price, a_wallet, a_config);
+<<<<<<< Updated upstream
+=======
+    json_object * l_json_obj_ret = json_object_new_object();
+    dap_chain_net_tx_to_json(l_tx, l_json_obj_ret);
+    printf("%s", json_object_to_json_string(l_json_obj_ret));
+    json_object_put(l_json_obj_ret);
+>>>>>>> Stashed changes
 
     DAP_DELETE(l_price);
     return l_tx;
