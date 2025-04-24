@@ -2101,7 +2101,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         }
                     }
 
-                    dap_sign_type_t l_sign_types[MAX_ENC_KEYS_IN_MULTYSIGN] = {0};
+                    dap_sign_type_t l_sign_types[MAX_ENC_KEYS_IN_MULTYSIGN] = {};
                     size_t l_sign_count = 0;
                     if (!l_sign_type_str) {
                         l_sign_types[0].type = SIG_TYPE_DILITHIUM;
@@ -2880,11 +2880,12 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         json_object *l_jobj_stake_lock_list = json_object_new_array();
                         json_object *l_jobj_xchange_list = json_object_new_array();
                         json_object *l_jobj_stake_pos_delegate_list = json_object_new_array();
+                        json_object *l_jobj_emit_delegate_list = json_object_new_array();
                         json_object *l_jobj_pay_list = json_object_new_array();
                         json_object *l_jobj_tx_vote = json_object_new_array();
                         json_object *l_jobj_tx_voting = json_object_new_array();
                         if (!l_jobj_to_list || !l_jobj_change_list || !l_jobj_fee_list || !l_jobj_stake_lock_list ||
-                            !l_jobj_xchange_list || !l_jobj_stake_pos_delegate_list || !l_jobj_pay_list) {
+                            !l_jobj_xchange_list || !l_jobj_stake_pos_delegate_list || !l_jobj_emit_delegate_list || !l_jobj_pay_list) {
                             json_object_put(l_jobj_to_list);
                             json_object_put(l_jobj_change_list);
                             json_object_put(l_jobj_to_from_emi);
@@ -2892,6 +2893,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             json_object_put(l_jobj_stake_lock_list);
                             json_object_put(l_jobj_xchange_list);
                             json_object_put(l_jobj_stake_pos_delegate_list);
+                            json_object_put(l_jobj_emit_delegate_list);
                             json_object_put(l_jobj_pay_list);
                             json_object_put(l_jobj_tx_vote);
                             json_object_put(l_jobj_tx_voting);
@@ -2908,7 +2910,8 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             OUT_COND_TYPE_FEE,
                             OUT_COND_TYPE_STAKE_LOCK,
                             OUT_COND_TYPE_XCHANGE,
-                            OUT_COND_TYPE_POS_DELEGATE
+                            OUT_COND_TYPE_POS_DELEGATE,
+                            OUT_COND_TYPE_EMIT_DELEGATE
                         } l_out_cond_subtype = {0};
                         dap_list_t *l_vote_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTE, NULL);
                         dap_list_t *l_voting_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTING, NULL);
@@ -2963,6 +2966,11 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
                                             l_dist_token = l_main_ticker;
                                             l_out_cond_subtype = OUT_COND_TYPE_PAY;
+                                        }
+                                            break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE: {
+                                            l_dist_token = l_main_ticker;
+                                            l_out_cond_subtype = OUT_COND_TYPE_EMIT_DELEGATE;
                                         }
                                             break;
                                         default:
@@ -3080,6 +3088,9 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                     case OUT_COND_TYPE_POS_DELEGATE:
                                         json_object_array_add(l_jobj_stake_pos_delegate_list, l_jobj_money);
                                         break;
+                                    case OUT_COND_TYPE_EMIT_DELEGATE:
+                                        json_object_array_add(l_jobj_emit_delegate_list, l_jobj_money);
+                                        break;
                                     default:
                                         log_it(L_ERROR,
                                                "An unknown subtype output was found in a transaction in the mempool list.");
@@ -3112,6 +3123,10 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         json_object_object_add(l_jobj_datum, "srv_stake_pos_delegate", l_jobj_stake_pos_delegate_list)
                                                                                      : json_object_put(
                                 l_jobj_stake_pos_delegate_list);
+                        json_object_array_length(l_jobj_emit_delegate_list) > 0 ?
+                        json_object_object_add(l_jobj_datum, "srv_emit_delegate", l_jobj_emit_delegate_list)
+                                                                                     : json_object_put(
+                                l_jobj_emit_delegate_list);
                         json_object_array_length(l_jobj_to_from_emi) > 0 ?
                         json_object_object_add(l_jobj_datum, "from_emission", l_jobj_to_from_emi) : json_object_put(
                                 l_jobj_to_from_emi);
@@ -8340,7 +8355,7 @@ int com_policy(int argc, char **argv, void **reply) {
     }
 
     if (l_cmd == CMD_LIST) {
-        json_object *l_answer = dap_chain_policy_list(l_net->pub.id.uint64);
+        json_object *l_answer = dap_chain_policy_list(l_net->pub.id);
         json_object_array_add(*a_json_arr_reply, l_answer);
         return 0;
     }
@@ -8351,48 +8366,28 @@ int com_policy(int argc, char **argv, void **reply) {
         return -7;
     }
 
-    void *l_policy_data = NULL;
-    size_t l_data_size = 0;
+    dap_chain_policy_t *l_policy = NULL;
     uint64_t l_policy_num = 0;
-    int l_policy_type = -1;
     if (l_cmd == CMD_DEACTIVATE) {
-        l_policy_type = DAP_CHAIN_POLICY_DEACTIVATE;
-        l_deactivate_count = dap_str_symbol_count(l_num_str, ',') + 1;
-        l_deactivate_array = dap_strsplit(l_num_str, ",", l_deactivate_count);
-        l_data_size = sizeof(dap_chain_policy_deactivate_t) + l_deactivate_count * sizeof(uint32_t);
-        l_policy_data = DAP_NEW_Z_SIZE(void, l_data_size);
-        if (!l_policy_data) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -16, "%s", c_error_memory_alloc);
-            dap_strfreev(l_deactivate_array);
-            return -16;
-        }
-        ((dap_chain_policy_deactivate_t *)l_policy_data)->count = l_deactivate_count;
-        for (size_t i = 0; i < l_deactivate_count; ++i) {
-            l_policy_num = strtoull(l_deactivate_array[i], NULL, 10);
-            if (!dap_chain_policy_num_is_valid(l_policy_num)) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy nums sould be less or equal than %u and not equal 0", dap_maxval((uint32_t)l_policy_num));
-                dap_strfreev(l_deactivate_array);
-                DAP_DELETE(l_policy_data);
-                return -16;
-            }
-            ((dap_chain_policy_deactivate_t *)l_policy_data)->nums[i] = l_policy_num;
-        }
+        l_deactivate_array = dap_strsplit(l_num_str, ",", 0);
+        l_policy = dap_chain_policy_create_deactivate(l_deactivate_array, dap_str_countv(l_deactivate_array));
         dap_strfreev(l_deactivate_array);
+        if (!l_policy) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -17, "Can't create deactivate policy object");
+            return -17;
+        }
     } else {
         l_policy_num = strtoull(l_num_str, NULL, 10);
-        if (!dap_chain_policy_num_is_valid(l_policy_num)) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be less or equal than %u and not equal 0", dap_maxval((uint32_t)l_policy_num));
+        if (!l_policy_num) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be not equal 0");
             return -16;
         }
     }
 
-    uint32_t l_last_num = dap_chain_policy_get_last_num(l_net->pub.id.uint64);
-
     if (l_cmd == CMD_FIND) {
-        dap_chain_policy_t *l_policy = dap_chain_policy_find(l_policy_num, l_net->pub.id.uint64);
-        json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        json_object *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, l_policy_num);
         if (l_answer) {
-            json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_activated(((dap_chain_policy_activate_t *)(l_policy->data))->num, l_net->pub.id.uint64) ? "true" : "false"));
+            json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_is_activated(l_net->pub.id, l_policy_num) ? "true" : "false"));
             json_object_array_add(*a_json_arr_reply, l_answer);
         } else {
             json_object_array_add(*a_json_arr_reply, json_object_new_string("Detailed information not exist"));
@@ -8410,73 +8405,60 @@ int com_policy(int argc, char **argv, void **reply) {
     if (l_execute) {
         if (!l_certs_str) {
             dap_json_rpc_error_add(*a_json_arr_reply, -4, "Command 'execute' requires parameter -certs");
-            DAP_DELETE(l_policy_data);
             return -4;
         }
         dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
         if (!l_certs || !l_certs_count) {
             dap_json_rpc_error_add(*a_json_arr_reply, -5, "Specified certificates not found");
-            DAP_DELETE(l_policy_data);
             return -5;
         }
     }
-
     if (l_cmd == CMD_ACTIVATE) {
-        if (l_policy_num == l_last_num) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -15, "Specified policy num already existed");
+        if (dap_chain_policy_is_exist(l_net->pub.id, l_policy_num)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -15, "Specified policy num already exist");
             return -15;
         }
-        l_policy_type = DAP_CHAIN_POLICY_ACTIVATE;
-        l_data_size = sizeof(dap_chain_policy_activate_t);
-        l_policy_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(void, l_data_size, -5);
-        dap_chain_policy_activate_t *l_policy_activate = (dap_chain_policy_activate_t *)l_policy_data;
-        
-        l_policy_activate->num = l_policy_num;
+        int64_t l_ts_start = 0;
+        uint64_t l_block_start = 0;
+        dap_chain_id_t l_chain_id = {};
         if (l_ts_start_str) {
-            l_policy_activate->ts_start = dap_time_from_str_custom(l_ts_start_str, "%d/%m/%y-%H:%M:%S");
-            if (!l_policy_activate->ts_start) {
+            l_ts_start = dap_time_from_str_custom(l_ts_start_str, "%d/%m/%y-%H:%M:%S");
+            if (!l_ts_start) {
                 dap_json_rpc_error_add(*a_json_arr_reply, -13, "Can't read ts_start \"%s\"", l_ts_start_str);
-                DAP_DELETE(l_policy_activate);
                 return -13;
             }
-            l_flags = DAP_FLAG_ADD(l_flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_TS);
         }
 
-        if (l_block_start_str)
-            l_policy_activate->block_start = strtoull(l_block_start_str, NULL, 10);
-        
-        if (l_policy_activate->block_start) {
-            if (!l_chain_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -8, "Command policy create with -block_start require args -chain");
-                DAP_DELETE(l_policy_activate);
-                return -8;
+        if (l_block_start_str) {
+            l_block_start = strtoull(l_block_start_str, NULL, 10);
+            if (l_block_start) {
+                if (!l_chain_str) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, -8, "Command policy create with -block_start require args -chain");
+                    return -8;
+                }
+                dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+                if (!l_chain) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, -9, "%s Chain not found", l_chain_str);
+                    return -9;
+                }
+                l_chain_id.uint64 = l_chain->id.uint64;
             }
-            dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
-            if (!l_chain) {
-                dap_json_rpc_error_add(*a_json_arr_reply, -9, "%s Chain not found", l_chain_str);
-                DAP_DELETE(l_policy_activate);
-                return -9;
-            }
-            l_policy_activate->chain_union.chain = l_chain;
-            l_flags = DAP_FLAG_ADD(l_flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE_BY_BLOCK_NUM);
         }
-        if (!l_flags && l_policy_activate->num < l_last_num) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -16, "Specified policy already activated by CN-%u", l_last_num);
-            DAP_DELETE(l_policy_activate);
-            return -16;
+        l_policy = dap_chain_policy_create_activate(l_policy_num, l_ts_start, l_block_start, l_chain_id, 0);
+        if (!l_policy) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -18, "Can't create activate policy object");
+            return -18;
         }
     }
 
-    dap_chain_policy_t *l_policy = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_policy_t, l_data_size + sizeof(dap_chain_policy_t), -5, l_policy_data);
-    l_policy->data_size = l_data_size;
-    l_policy->version = DAP_CHAIN_POLICY_VERSION;
-    l_policy->type = l_policy_type;
-    l_policy->flags = l_flags;
-    memcpy(l_policy->data, l_policy_data, l_policy->data_size);
-    DAP_DELETE(l_policy_data);
     // if cmd none - only print preaparing result
     if (!l_execute) {
         json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        if (!l_answer) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't collect policy info");
+            DAP_DELETE(l_policy);
+            return -15;
+        }
         char l_time[DAP_TIME_STR_SIZE] = {};
         dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, dap_time_now());
         json_object_object_add(l_answer, "Current time", json_object_new_string(l_time));
@@ -8490,10 +8472,6 @@ int com_policy(int argc, char **argv, void **reply) {
         }
         DAP_DELETE(l_policy);
         return 0;
-    }
-    // change pointer to id to decree
-    if (l_policy->type == DAP_CHAIN_POLICY_ACTIVATE && ((dap_chain_policy_activate_t *)(l_policy->data))->chain_union.chain) {
-        ((dap_chain_policy_activate_t *)(l_policy->data))->chain_union.chain_id = ((dap_chain_policy_activate_t *)(l_policy->data))->chain_union.chain->id;
     }
 
     dap_chain_datum_decree_t *l_decree = s_decree_policy_execute(l_net, l_policy);
