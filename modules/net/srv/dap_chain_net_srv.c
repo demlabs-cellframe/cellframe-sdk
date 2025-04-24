@@ -853,6 +853,15 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
                 return -14;
             }
         } break;
+        case TX_ITEM_TYPE_OUT_EXT: { // 256
+            dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t*)l_item;
+            l_out_addr = l_tx_out->addr;
+            if (dap_chain_addr_compare(&l_out_addr, &l_network_fee_addr) &&
+                    SUM_256_256(l_receipt_value_datoshi, l_tx_out->header.value, &l_receipt_value_datoshi)) {
+                log_it(L_WARNING, "Integer overflow while sum of outs calculation");
+                return -14;
+            }
+        } break;
         case TX_ITEM_TYPE_OUT_COND: {
             dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t*)l_item;
             if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
@@ -873,10 +882,6 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         log_it(L_WARNING, "Integer overflow while payback calculation");
         return -14;
     }
-
-
-    log_it(L_INFO, "Value in receipt: %s", dap_chain_balance_print(l_receipt_value_datoshi));
-    log_it(L_INFO, "Value in cond_value: %s", dap_chain_balance_print(l_cond_out_value));
 
     return compare256(l_receipt_value_datoshi, l_cond_out_value) ? log_it(L_ERROR, "Value in tx out is invalid!"), -13 : 0;
 }
