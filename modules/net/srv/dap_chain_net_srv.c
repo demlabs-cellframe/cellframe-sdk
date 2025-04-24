@@ -822,6 +822,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
 
     uint256_t l_unit_price = {};
     uint256_t l_receipt_value_datoshi = dap_chain_datum_tx_receipt_value_get(l_receipt);
+    log_it(L_INFO, "Value in receipt: %s", dap_chain_balance_print(l_receipt_value_datoshi));
     uint64_t l_receipt_units = dap_chain_datum_tx_receipt_units_get(l_receipt);
     if (!l_receipt_units) {
         log_it(L_ERROR, "Receipt units can't be a zero");

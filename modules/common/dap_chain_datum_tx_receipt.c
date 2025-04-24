@@ -165,9 +165,8 @@ uint256_t dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t *a_r
     if (a_receipt->receipt_info.version < 2){
         dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
         return l_receipt_old->receipt_info.value_datoshi;
-    } else {
+    } else 
         return a_receipt->receipt_info.value_datoshi;
-    }
 }
 
 uint32_t dap_chain_datum_tx_receipt_utype_get(dap_chain_datum_tx_receipt_t *a_receipt)
