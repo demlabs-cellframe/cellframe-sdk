@@ -38,6 +38,7 @@
 #include "json.h"
 #include "dap_chain_net_srv.h"
 #include "dap_enc_base64.h"
+#include "dap_chain_cs_blocks.h"
 
 #define LOG_TAG "dap_chain_net_tx"
 
