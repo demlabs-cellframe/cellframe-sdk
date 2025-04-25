@@ -242,7 +242,8 @@ static struct cmd_request* s_cmd_request_init()
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    pthread_cond_init(&l_cmd_request->wait_cond, &attr);    
+    pthread_cond_init(&l_cmd_request->wait_cond, &attr);
+    pthread_condattr_destroy(&attr);
 #endif
 #endif
     return l_cmd_request;
@@ -259,13 +260,16 @@ void s_cmd_request_free(struct cmd_request *a_cmd_request)
     pthread_mutex_destroy(&a_cmd_request->wait_mutex);
     pthread_cond_destroy(&a_cmd_request->wait_cond);
 #endif
-    DAP_DEL_MULTY(a_cmd_request->response, a_cmd_request);
+    DAP_DEL_Z(a_cmd_request->response);
+    DAP_DELETE(a_cmd_request);
 }
 
 static void s_cmd_response_handler(void *a_response, size_t a_response_size, void *a_arg,
                                             http_status_code_t http_status_code) {
     (void)http_status_code;
     struct cmd_request *l_cmd_request = (struct cmd_request *)a_arg;
+    if (!l_cmd_request || !a_response)
+        return;
 #ifdef DAP_OS_WINDOWS
     EnterCriticalSection(&l_cmd_request->wait_crit_sec);
 #else
@@ -284,14 +288,18 @@ static void s_cmd_response_handler(void *a_response, size_t a_response_size, voi
 
 static void s_cmd_error_handler(int a_error_code, void *a_arg){
     struct cmd_request * l_cmd_request = (struct cmd_request *)a_arg;
+    if (!l_cmd_request)
+        return;
 #ifdef DAP_OS_WINDOWS
     EnterCriticalSection(&l_cmd_request->wait_crit_sec);
+    DAP_DEL_Z(l_cmd_request->response);
     l_cmd_request->response = NULL;
     l_cmd_request->error_code = a_error_code;
     WakeConditionVariable(&l_cmd_request->wait_cond);
     LeaveCriticalSection(&l_cmd_request->wait_crit_sec);
 #else
     pthread_mutex_lock(&l_cmd_request->wait_mutex);
+    DAP_DEL_Z(l_cmd_request->response);
     l_cmd_request->response = NULL;
     l_cmd_request->error_code = a_error_code;
     pthread_cond_signal(&l_cmd_request->wait_cond);
@@ -299,8 +307,10 @@ static void s_cmd_error_handler(int a_error_code, void *a_arg){
 #endif
 }
 
-
 static int dap_chain_cmd_list_wait(struct cmd_request *a_cmd_request, int a_timeout_ms) {
+    if (!a_cmd_request || a_timeout_ms <= 0)
+        return -1;
+
 #ifdef DAP_OS_WINDOWS
     EnterCriticalSection(&a_cmd_request->wait_crit_sec);
     if (a_cmd_request->response)
@@ -325,7 +335,10 @@ static int dap_chain_cmd_list_wait(struct cmd_request *a_cmd_request, int a_time
     l_cond_timeout.tv_sec = a_timeout_ms / 1000;
     l_cond_timeout.tv_nsec = (a_timeout_ms % 1000) * 1000000;
 #else
-    clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
+    if (clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout) != 0) {
+        pthread_mutex_unlock(&a_cmd_request->wait_mutex);
+        return -1;
+    }
     l_cond_timeout.tv_sec += a_timeout_ms / 1000;
     l_cond_timeout.tv_nsec += (a_timeout_ms % 1000) * 1000000;
     if (l_cond_timeout.tv_nsec >= 1000000000) {
@@ -361,20 +374,28 @@ static int dap_chain_cmd_list_wait(struct cmd_request *a_cmd_request, int a_time
 
 static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_object **a_response_out, size_t *a_response_out_size)
 {
+    if (!a_cmd_request || !a_response_out || !a_response_out_size)
+        return -1;
+
     int ret = 0;
+    *a_response_out = NULL;
+    *a_response_out_size = 0;
 
     if (a_cmd_request->error_code) {
-        ret = - 1;
+        ret = -1;
     } else if (a_cmd_request->response) {
-            *a_response_out = json_tokener_parse(a_cmd_request->response);
+        *a_response_out = json_tokener_parse(a_cmd_request->response);
+        if (!*a_response_out) {
+            ret = -3;
+        } else {
             *a_response_out_size = a_cmd_request->response_size;
+        }
     } else {
         ret = -2;
     }
 
     return ret;
 }
-
 typedef enum {
     DAP_COMPOSE_ERROR_NONE = 0,
     DAP_COMPOSE_ERROR_RESPONSE_NULL = -1,
@@ -383,10 +404,15 @@ typedef enum {
     DAP_COMPOSE_ERROR_REQUEST_TIMEOUT = -4,
     DAP_COMPOSE_ERROR_REQUEST_FAILED = -5
 } dap_compose_error_t;
+
 static json_object* s_request_command_to_rpc(const char *request, compose_config_t *a_config) {
-    json_object * l_response = NULL;
+    if (!request || !a_config) {
+        return NULL;
+    }
+
+    json_object *l_response = NULL;
     size_t l_response_size = 0;
-    struct cmd_request* l_cmd_request = s_cmd_request_init();
+    struct cmd_request *l_cmd_request = s_cmd_request_init();
 
     if (!l_cmd_request) {
         dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_REQUEST_INIT_FAILED, "Failed to initialize command request");
@@ -403,70 +429,128 @@ static json_object* s_request_command_to_rpc(const char *request, compose_config
 
     int l_ret = dap_chain_cmd_list_wait(l_cmd_request, 60000);
 
-    if (!l_ret){
+    if (!l_ret) {
         if (s_cmd_request_get_response(l_cmd_request, &l_response, &l_response_size)) {
             dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_REQUEST_FAILED, "Response error code: %d", l_cmd_request->error_code);
+            s_cmd_request_free(l_cmd_request);
+            return NULL;
         }
     } else {
         dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_REQUEST_TIMEOUT, "Request timed out");
+        s_cmd_request_free(l_cmd_request);
+        return NULL;
     }
+
     s_cmd_request_free(l_cmd_request);
     return l_response;
 }
 
 static json_object* s_request_command_parse(json_object *l_response, compose_config_t *a_config) {
-    if (!l_response) {
-        dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_RESPONSE_NULL, "Response is NULL");
+    if (!l_response || !a_config) {
+        if (a_config) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_RESPONSE_NULL, "Response is NULL");
+        }
         return NULL;
     }
 
-    json_object * l_result = NULL;
+    json_object *l_result = NULL;
     if (!json_object_object_get_ex(l_response, "result", &l_result)) {
         dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_RESULT_NOT_FOUND, "Failed to get 'result' from response");
         return NULL;
     }
 
-    json_object *errors_array = NULL;
-    if (json_object_is_type(l_result, json_type_array) && json_object_array_length(l_result) > 0) {
-        json_object *first_element = json_object_array_get_idx(l_result, 0);
-        if (json_object_object_get_ex(first_element, "errors", &errors_array)) {
-            int errors_len = json_object_array_length(errors_array);
-            for (int j = 0; j < errors_len; j++) {
-                json_object *error_obj = json_object_array_get_idx(errors_array, j);
-                json_object *error_code = NULL, *error_message = NULL;
-                if (json_object_object_get_ex(error_obj, "code", &error_code) &&
-                    json_object_object_get_ex(error_obj, "message", &error_message)) {
-                    dap_json_compose_error_add(a_config->response_handler, json_object_get_int(error_code), json_object_get_string(error_message));
-                }
-            }
-            l_result = NULL;
-        }
+    if (!json_object_is_type(l_result, json_type_array) || json_object_array_length(l_result) == 0) {
+        return json_object_get(l_result);
     }
-    json_object_get(l_result);
+
+    json_object *first_element = json_object_array_get_idx(l_result, 0);
+    if (!first_element) {
+        return json_object_get(l_result);
+    }
+
+    json_object *errors_array = NULL;
+    if (json_object_object_get_ex(first_element, "errors", &errors_array) && 
+        json_object_is_type(errors_array, json_type_array)) {
+        
+        int errors_len = json_object_array_length(errors_array);
+        for (int j = 0; j < errors_len; j++) {
+            json_object *error_obj = json_object_array_get_idx(errors_array, j);
+            if (!error_obj) continue;
+            
+            json_object *error_code = NULL, *error_message = NULL;
+            if (json_object_object_get_ex(error_obj, "code", &error_code) &&
+                json_object_object_get_ex(error_obj, "message", &error_message)) {
+                dap_json_compose_error_add(a_config->response_handler, 
+                                         json_object_get_int(error_code),
+                                         json_object_get_string(error_message));
+            }
+        }
+        return NULL;
+    }
+
+    if (l_result) {
+        json_object_get(l_result);
+    }
     return l_result;
 }
-
 
 json_object* dap_request_command_to_rpc(const char *request, compose_config_t *a_config) {
-    json_object * l_response = s_request_command_to_rpc(request, a_config);
+    if (!request || !a_config) {
+        return NULL;
+    }
+
+    json_object *l_response = s_request_command_to_rpc(request, a_config);
     if (!l_response) {
-        dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_RESPONSE_NULL, "Failed to get response from RPC request");
         return NULL;
     }
-    json_object * l_result = s_request_command_parse(l_response, a_config);
+
+    json_object *l_result = s_request_command_parse(l_response, a_config);
     json_object_put(l_response);
-    if (!l_result) {
-        json_object_put(l_result);
-        return NULL;
-    }
     return l_result;
 }
 
 
+json_object* dap_request_command_to_rpc_with_params(compose_config_t *a_config, const char *a_method, const char *msg, ...) {
+    if (!a_config || !msg || !a_method) {
+        return NULL;
+    }
+
+    va_list args;
+    va_start(args, msg);
+    char *l_msg = dap_strdup_vprintf(msg, args);
+    va_end(args);
+
+    if (!l_msg) {
+        return NULL;
+    }
+
+    if (dap_strlen(a_method) * 2 + dap_strlen(l_msg) + 50 >= 512) {
+        DAP_FREE(l_msg);
+        return NULL;
+    }
+    char data[512] = {0};
+    int l_ret = snprintf(data, sizeof(data),
+                        "{\"method\": \"%s\",\"params\": [\"%s;%s\"],\"id\": \"1\"}",
+                        a_method, a_method, l_msg);
+
+    DAP_FREE(l_msg);
+
+    if (l_ret < 0 || l_ret >= (int)sizeof(data)) {
+        return NULL;
+    }
+
+    return dap_request_command_to_rpc(data, a_config);
+}
+    
+
 bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee, compose_config_t *a_config) {
-    char data[512];
-    snprintf(data, sizeof(data), "{\"method\": \"net\",\"params\": [\"net;get;fee;-net;%s\"],\"id\": \"1\"}", a_config->net_name);
-    json_object * l_json_get_fee = dap_request_command_to_rpc(data, a_config);
+    if (!a_net_fee || !l_addr_fee || !a_config || !a_config->net_name) {
+        return false;
+    }
+    
+    *l_addr_fee = NULL;
+
+    json_object *l_json_get_fee = dap_request_command_to_rpc_with_params(a_config, "net", "get;fee;-net;%s", a_config->net_name);
     if (!l_json_get_fee) {
         return false;
     }
@@ -497,7 +581,14 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
         json_object_put(l_json_get_fee);
         return false;
     }
-    *a_net_fee = dap_chain_balance_scan(json_object_get_string(l_balance));
+
+    const char *l_balance_str = json_object_get_string(l_balance);
+    if (!l_balance_str) {
+        json_object_put(l_json_get_fee);
+        return false;
+    }
+
+    *a_net_fee = dap_chain_balance_scan(l_balance_str);
 
     json_object *l_addr = NULL;
     if (!json_object_object_get_ex(l_network, "addr", &l_addr) || 
@@ -505,19 +596,27 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
         json_object_put(l_json_get_fee);
         return false;
     }
-    *l_addr_fee = dap_chain_addr_from_str(json_object_get_string(l_addr));
 
+    const char *l_addr_str = json_object_get_string(l_addr);
+    if (!l_addr_str) {
+        json_object_put(l_json_get_fee);
+        return false;
+    }
+
+    *l_addr_fee = dap_chain_addr_from_str(l_addr_str);
     json_object_put(l_json_get_fee);
+
+    if (!*l_addr_fee) {
+        return false;
+    }
+
     return true;
 }
 
 bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker,
                                          json_object **l_outs, int *l_outputs_count, compose_config_t *a_config) {
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"wallet\",\"params\": [\"wallet;outputs;-addr;%s;-token;%s;-net;%s\"],\"id\": \"1\"}", 
-            dap_chain_addr_to_str(a_addr_from), a_token_ticker, a_config->net_name);
-    json_object *l_json_outs = dap_request_command_to_rpc(data, a_config);
+    json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s", 
+                                                                      dap_chain_addr_to_str(a_addr_from), a_token_ticker, a_config->net_name);
     if (!l_json_outs) {
         return false;
     }
@@ -998,11 +1097,8 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_arra
 
 
 json_object *dap_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_t * a_addr, compose_config_t *a_config) { 
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"wallet\",\"params\": [\"wallet;outputs;-addr;%s;-token;%s;-net;%s\"],\"id\": \"1\"}", 
-            dap_chain_addr_to_str(a_addr), a_token_ticker, a_config->net_name);
-    json_object *l_json_outs = dap_request_command_to_rpc(data, a_config);
+    json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s", 
+                                                                      dap_chain_addr_to_str(a_addr), a_token_ticker, a_config->net_name);
     if (!l_json_outs) {
         dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_RESPONSE_NULL, "Failed to get response from RPC request");
         return NULL;
@@ -1194,10 +1290,8 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_VALUE_SELL_IS_ZERO, "Invalid parameter value sell");
         return NULL;
     }
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;list;coins;-net;%s\"],\"id\": \"2\"}", a_config->net_name);
-    json_object *l_json_coins = dap_request_command_to_rpc(data, a_config);
+
+    json_object *l_json_coins = dap_request_command_to_rpc_with_params(a_config, "ledger", "list;coins;-net;%s", a_config->net_name);
     if (!l_json_coins) {
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Can't get tx outs");
         return NULL;
@@ -1209,11 +1303,9 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
     }
     json_object_put(l_json_coins);
     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, s_get_net_id(a_config->net_name));
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"wallet\",\"params\": [\"wallet;info;-addr;%s;-net;%s\"],\"id\": \"2\"}", 
-            dap_chain_addr_to_str(l_wallet_addr), a_config->net_name);
+    json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "info;-addr;%s;-net;%s", 
+                                                                      dap_chain_addr_to_str(l_wallet_addr), a_config->net_name);
     DAP_DEL_Z(l_wallet_addr);
-    json_object *l_json_outs = dap_request_command_to_rpc(data, a_config);
     uint256_t l_value = get_balance_from_json(l_json_outs, a_token_sell);
 
     uint256_t l_value_sell = a_datoshi_sell;
@@ -1620,10 +1712,8 @@ json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_i
     uint256_t							l_value_delegated	=	{};
     uint256_t                           l_value_fee     	=	{};
     uint256_t 							l_value             =   {};
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;list;coins;-net;%s\"],\"id\": \"2\"}", l_config->net_name);
-    json_object *l_json_coins = dap_request_command_to_rpc(data, l_config);
+
+    json_object *l_json_coins = dap_request_command_to_rpc_with_params(l_config, "ledger", "list;coins;-net;%s", l_config->net_name);
     if (!l_json_coins) {
         return s_compose_config_return_response_handler(l_config);
     }
@@ -1729,13 +1819,11 @@ json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_i
         dap_json_compose_error_add(l_config->response_handler, CLI_HOLD_COMPOSE_ERROR_UNABLE_TO_GET_WALLET_ADDRESS, "Unable to get wallet address for '%s'\n", a_wallet_str);
         return s_compose_config_return_response_handler(l_config);
     }
-
-    snprintf(data, sizeof(data), 
-        "{\"method\": \"wallet\",\"params\": [\"wallet;info;-addr;%s;-net;%s\"],\"id\": \"2\"}", 
-        dap_chain_addr_to_str(l_addr_holder), l_config->net_name);
+    
+    json_object *l_json_outs = dap_request_command_to_rpc_with_params(l_config, "wallet", "info;-addr;%s;-net;%s", 
+                                                                      dap_chain_addr_to_str(l_addr_holder), l_config->net_name);
     DAP_DEL_Z(l_addr_holder);
 
-    json_object *l_json_outs = dap_request_command_to_rpc(data, l_config);
     uint256_t l_value_balance = get_balance_from_json(l_json_outs, a_ticker_str);
     json_object_put(l_json_outs);
     if (compare256(l_value_balance, l_value) == -1) {
@@ -1975,12 +2063,8 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
         return s_compose_config_return_response_handler(l_config);
     }
 
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-            a_tx_str, a_net_name);
-    
-    json_object *response = dap_request_command_to_rpc(data, l_config);
+    json_object *response = dap_request_command_to_rpc_with_params(l_config, "ledger", "info;-hash;%s;-net;%s", 
+                                                                      a_tx_str, a_net_name);
     if (!response) {
         dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_GET_RESPONSE, "Failed to get response from remote node\n");
         return s_compose_config_return_response_handler(l_config);
@@ -2291,13 +2375,9 @@ typedef enum {
 } get_key_delegating_min_value_error_t;
 
 uint256_t s_get_key_delegating_min_value(compose_config_t *a_config){
+
     uint256_t l_key_delegating_min_value = uint256_0;
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", 
-            a_config->net_name);
-    
-    json_object *response = dap_request_command_to_rpc(data, a_config);
+    json_object *response = dap_request_command_to_rpc_with_params(a_config, "srv_stake", "list;keys;-net;%s", a_config->net_name);
     if (!response) {
         dap_json_compose_error_add(a_config->response_handler, GET_KEY_DELEGATING_MIN_VALUE_FAILED_TO_GET_RESPONSE, "Failed to get response from remote node\n");
         return l_key_delegating_min_value;
@@ -2388,10 +2468,7 @@ json_object* dap_cli_voting_compose(const char *a_net_name, const char *a_questi
     }
 
         
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;list;coins;-net;%s\"],\"id\": \"2\"}", a_net_name);
-    json_object *l_json_coins = dap_request_command_to_rpc(data, l_config);
+    json_object *l_json_coins = dap_request_command_to_rpc_with_params(l_config, "ledger", "list;coins;-net;%s", l_config->net_name);
     if (!l_json_coins) {
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS, "Can't get ledger coins list\n");
         return s_compose_config_return_response_handler(l_config);
@@ -2730,10 +2807,9 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
         return NULL;
     }
     const char * l_hash_str = dap_chain_hash_fast_to_str_static(&a_hash);
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"poll\",\"params\": [\"poll;dump;-need_vote_list;-net;%s;-hash;%s\"],\"id\": \"2\"}", a_config->net_name, l_hash_str);
-    json_object *l_json_voting = dap_request_command_to_rpc(data, a_config);
+
+    json_object *l_json_voting = dap_request_command_to_rpc_with_params(a_config, "poll", "dump;-need_vote_list;-net;%s;-hash;%s", 
+                                                                      a_config->net_name, l_hash_str);
     if (!l_json_voting) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info\n");
         return NULL;
@@ -2759,7 +2835,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
         return NULL;
     }
 
-    int l_options_count = json_object_array_length(l_options);
+    uint64_t l_options_count = json_object_array_length(l_options);
     if (a_option_idx >= l_options_count) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_INVALID_OPTION_INDEX, "Invalid option index\n");
         return NULL;
@@ -2783,7 +2859,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     if (l_expiration_str) {
         struct tm tm;
         strptime(l_expiration_str, "%a, %d %b %Y %H:%M:%S %z", &tm);
-        time_t l_expiration_time = mktime(&tm);
+        dap_time_t l_expiration_time = mktime(&tm);
         if (l_expiration_time && dap_time_now() > l_expiration_time) {
             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ALREADY_EXPIRED, "This voting already expired\n");
             return NULL;
@@ -2806,14 +2882,13 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_NO_KEY_FOUND_IN_CERT, "No key found in certificate\n");
             return NULL;
         }
-        char data[512];
-        snprintf(data, sizeof(data), 
-                "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", a_config->net_name);
-        json_object *l_json_coins = dap_request_command_to_rpc(data, a_config);
+
+        json_object *l_json_coins = dap_request_command_to_rpc_with_params(a_config, "srv_stake", "list;keys;-net;%s", a_config->net_name);
         if (!l_json_coins) {
             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_RETRIEVE_COINS_FROM_LEDGER, "Failed to retrieve coins from ledger\n");
             return NULL;
         }
+
         char l_hash_fast_str[DAP_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&l_pkey_hash, l_hash_fast_str, sizeof(l_hash_fast_str));
         if (strlen(l_hash_fast_str) == 0) {
@@ -2872,13 +2947,6 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     }
 
     uint256_t l_value_transfer_new = {};
-    // snprintf(data, sizeof(data), 
-    //     "{\"method\": \"poll\",\"params\": [\"poll;dump;-need_vote_list;-net;%s;-hash;%s\"],\"id\": \"2\"}", a_config->net_name, l_hash_str);
-    // json_object *l_json_poll = dap_request_command_to_rpc(data, a_config);
-    // if (!l_json_poll) {
-    //     dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info\n");
-    //     return NULL;
-    // }
     json_object *l_votes_list = json_object_object_get(l_voting_info, "votes_list");
     if (!l_votes_list) { 
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info\n");
@@ -2951,9 +3019,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     dap_chain_datum_tx_add_item(&l_tx, l_vote_item);
     DAP_DEL_Z(l_vote_item);
 
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", a_config->net_name);
-    json_object *l_json_stake = dap_request_command_to_rpc(data, a_config);
+    json_object *l_json_stake = dap_request_command_to_rpc_with_params(a_config, "srv_stake", "list;keys;-net;%s", a_config->net_name);
     if (!l_json_stake) {
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
@@ -2987,10 +3053,8 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
             if (!l_tx_hash_json_str)
                 return NULL;
 
-            snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-            json_object_get_string(l_tx_hash_json_str), a_config->net_name);
-            json_object *l_json_ledger_info = dap_request_command_to_rpc(data, a_config);
+            json_object *l_json_ledger_info = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", 
+                                                                      json_object_get_string(l_tx_hash_json_str), a_config->net_name);
             if (!l_json_ledger_info) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
@@ -3013,10 +3077,9 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
-            snprintf(data, sizeof(data), 
-                "{\"method\": \"wallet\",\"params\": [\"wallet;outputs;-addr;%s;-net;%s;-token;%s\"],\"id\": \"1\"}",
-                                json_object_get_string(l_tx_hash_json_str), a_config->net_name, l_stake_token_ticker);
-            json_object *l_json_wallet_outs = dap_request_command_to_rpc(data, a_config);
+
+            json_object *l_json_wallet_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-net;%s;-token;%s", 
+                                                                      json_object_get_string(l_tx_hash_json_str), a_config->net_name, l_stake_token_ticker);
             if (!l_json_wallet_outs) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
@@ -3177,10 +3240,7 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
         }
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_signing_addr);
 
-        char data[512];
-        snprintf(data, sizeof(data), 
-                "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;keys;-net;%s\"],\"id\": \"1\"}", l_config->net_name);
-        json_object *l_json_coins = dap_request_command_to_rpc(data, l_config);
+        json_object *l_json_coins = dap_request_command_to_rpc_with_params(l_config, "srv_stake", "list;keys;-net;%s", l_config->net_name);
         if (!l_json_coins) {
             return s_compose_config_return_response_handler(l_config);
         }
@@ -3210,10 +3270,9 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
 
     const char *l_tx_hash_str_tmp = a_tx_hash_str ? a_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash);
 
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_config->net_name);
-    json_object *l_json_response = dap_request_command_to_rpc(data, l_config);
+
+    json_object *l_json_response = dap_request_command_to_rpc_with_params(l_config, "ledger", "info;-hash;%s;-net;%s", 
+                                                                      l_tx_hash_str_tmp, l_config->net_name);
     if (!l_json_response) {
         return s_compose_config_return_response_handler(l_config);
     }
@@ -3255,9 +3314,8 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
                     return s_compose_config_return_response_handler(l_config);
                 }
                 l_tx_hash_str_tmp = dap_hash_fast_to_str_static(&l_tx_hash);
-                snprintf(data, sizeof(data), 
-                        "{\"method\": \"ledger\",\"params\": [\"ledger;tx;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", l_tx_hash_str_tmp, l_config->net_name);
-                json_object *l_json_prev_tx = dap_request_command_to_rpc(data, l_config);
+                json_object *l_json_prev_tx = dap_request_command_to_rpc_with_params(l_config, "ledger", "tx;info;-hash;%s;-net;%s", 
+                                                                      l_tx_hash_str_tmp, l_config->net_name);
                 if (!l_json_prev_tx) {
                     json_object_put(l_json_response);
                     dap_json_compose_error_add(l_config->response_handler, DAP_CLI_STAKE_INVALIDATE_PREV_TX_NOT_FOUND, "Previous transaction not found");
@@ -3272,9 +3330,7 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
 
     if (a_tx_hash_str) {
         char data[512];
-        snprintf(data, sizeof(data), 
-                "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;list;tx;-net;%s\"],\"id\": \"1\"}", l_config->net_name);
-        json_object *l_json_coins = dap_request_command_to_rpc(data, l_config);
+        json_object *l_json_coins = dap_request_command_to_rpc_with_params(l_config, "srv_stake", "list;tx;-net;%s", l_config->net_name);
         if (!l_json_coins) {
             return s_compose_config_return_response_handler(l_config);
         }
@@ -3315,12 +3371,9 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
 {
     if(!a_config || !a_config->net_name || !*a_config->net_name || !a_tx_hash || !a_key || !a_config->url_str || !*a_config->url_str || a_config->port == 0)
         return NULL;
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-need_sign;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-            dap_hash_fast_to_str_static(a_tx_hash), a_config->net_name);
-    
-    json_object *response = dap_request_command_to_rpc(data, a_config);
+
+    json_object *response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-need_sign;-hash;%s;-net;%s", 
+                                                                  dap_hash_fast_to_str_static(a_tx_hash), a_config->net_name);
     if (!response) {
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_INVALIDATE_COMPOSE_LEDGER_ERROR, "Failed to get ledger info");
         return NULL;
@@ -3365,11 +3418,8 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
                 return NULL;
             }
             l_prev_cond_idx = json_object_get_int(json_object_object_get(l_item, "Tx_out_prev_idx"));
-            snprintf(data, sizeof(data), 
-                    "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-                    l_tx_prev_hash, a_config->net_name);
-            
-            json_object *response_cond = dap_request_command_to_rpc(data, a_config);
+            json_object *response_cond = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", 
+                                                                      l_tx_prev_hash, a_config->net_name);
             if (!response_cond) {
                 json_object_put(response);
                 DAP_DELETE(l_tx_out_cond);
@@ -3616,11 +3666,9 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
 dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_order_hash_str, uint256_t* a_tax,
                                                     uint256_t* a_value_max, dap_chain_addr_t* a_sovereign_addr, uint256_t* a_sovereign_tax,
                                                     compose_config_t *a_config){
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;order;list;staker;-net;%s\"],\"id\": \"1\"}", 
-            a_config->net_name);
-    json_object *response = dap_request_command_to_rpc(data, a_config);
+
+    json_object *response = dap_request_command_to_rpc_with_params(a_config, "srv_stake", "order;list;staker;-net;%s", 
+                                                                  a_config->net_name);
     if (!response) {
         printf("Error: Failed to get response from remote node\n");
         return NULL;
@@ -3630,10 +3678,8 @@ dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_order_hash_str
     json_object_put(response);
 
     if (!l_order) {
-        snprintf(data, sizeof(data), 
-                "{\"method\": \"srv_stake\",\"params\": [\"srv_stake;order;list;validator;-net;%s\"],\"id\": \"1\"}", 
-                a_config->net_name);
-        response = dap_request_command_to_rpc(data, a_config);
+        response = dap_request_command_to_rpc_with_params(a_config, "srv_stake", "order;list;validator;-net;%s", 
+                                                          a_config->net_name);
         if (!response) {
             printf("Error: Failed to get response from remote node\n");
             return NULL;
@@ -3645,11 +3691,9 @@ dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_order_hash_str
 }
 
 dap_sign_t* dap_get_remote_srv_order_sign(const char* l_order_hash_str, compose_config_t *a_config){
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"net_srv\",\"params\": [\"net_srv;-net;%s;order;dump;-hash;%s;-need_sign\"],\"id\": \"1\"}", 
-            a_config->net_name, l_order_hash_str);
-    json_object *response = dap_request_command_to_rpc(data, a_config);
+
+    json_object *response = dap_request_command_to_rpc_with_params(a_config, "net_srv", "order;dump;-hash;%s;-need_sign;-net;%s", 
+                                                                  l_order_hash_str, a_config->net_name);
     if (!response) {
         printf("Error: Failed to get response from remote node\n");
         return NULL;
@@ -3825,12 +3869,9 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
             }
 
             dap_chain_tx_out_cond_t *l_cond_tx = NULL;
-            char data[512];
-            snprintf(data, sizeof(data), 
-                    "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-                    dap_chain_hash_fast_to_str_static(&l_order->tx_cond_hash), a_net_str);
             
-            json_object *response = dap_request_command_to_rpc(data, l_config);
+            json_object *response = dap_request_command_to_rpc_with_params(l_config, "ledger", "info;-hash;%s;-net;%s", 
+                                                                      dap_chain_hash_fast_to_str_static(&l_order->tx_cond_hash), a_net_str);
             if (!response) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_RPC_RESPONSE, "Error: Failed to get response from remote node");
                 return s_compose_config_return_response_handler(l_config);
@@ -4328,12 +4369,9 @@ static bool s_process_ledger_response(dap_chain_tx_out_cond_subtype_t a_cond_typ
     *a_out_hash = *a_tx_hash;
     int l_prev_tx_count = 0;
     dap_chain_hash_fast_t l_hash = {};
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-            dap_chain_hash_fast_to_str_static(a_tx_hash), a_config->net_name);
     
-    json_object *response = dap_request_command_to_rpc(data, a_config);
+    json_object *response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", 
+                                                                  dap_chain_hash_fast_to_str_static(a_tx_hash), a_config->net_name);
     if (!response) {
         printf("Error: Failed to get response from remote node\n");
         return false;
@@ -4464,12 +4502,9 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
 
 
     dap_chain_tx_out_cond_t *l_cond_tx = NULL;
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-        dap_chain_hash_fast_to_str_static(&a_price->tx_hash), a_config->net_name);
-    
-    json_object *response = dap_request_command_to_rpc(data, a_config);
+
+    json_object *response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", 
+                                                                  dap_chain_hash_fast_to_str_static(&a_price->tx_hash), a_config->net_name);
     if (!response) {
         dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_REMOTE_NODE_UNREACHABLE, "Failed to get response from remote node");
         return NULL;
@@ -4646,12 +4681,8 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *
     dap_time_t ts_created = 0;
 
     dap_chain_tx_out_cond_t *l_cond_tx = NULL;
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-        dap_chain_hash_fast_to_str_static(a_hash_tx), a_config->net_name);
-    
-    json_object *response = dap_request_command_to_rpc(data, a_config);
+    json_object *response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", 
+                                                                  dap_chain_hash_fast_to_str_static(a_hash_tx), a_config->net_name);
     if (!response) {
         dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_REMOTE_NODE_UNREACHABLE, "Failed to get response from remote node");
         return NULL;
@@ -4713,6 +4744,11 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *
         return NULL;
     }
     dap_chain_datum_tx_t *l_tx = dap_xchange_tx_invalidate_compose(l_price, a_wallet, a_config);
+
+    json_object * l_json_obj_ret = json_object_new_object();
+    dap_chain_net_tx_to_json(l_tx, l_json_obj_ret);
+    printf("%s", json_object_to_json_string(l_json_obj_ret));
+    json_object_put(l_json_obj_ret);
 
     DAP_DELETE(l_price);
     return l_tx;
@@ -4785,12 +4821,8 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t
     dap_time_t ts_created = 0;
 
     dap_chain_tx_out_cond_t *l_cond_tx = NULL;
-    char data[512];
-    snprintf(data, sizeof(data), 
-            "{\"method\": \"ledger\",\"params\": [\"ledger;info;-hash;%s;-net;%s\"],\"id\": \"1\"}", 
-        dap_chain_hash_fast_to_str_static(a_order_hash), a_config->net_name);
-    
-    json_object *response = dap_request_command_to_rpc(data, a_config);
+    json_object *response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", 
+                                                                  dap_chain_hash_fast_to_str_static(a_order_hash), a_config->net_name);
     if (!response) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_REMOTE_NODE_UNREACHABLE, "Failed to get response from remote node");
         return NULL;

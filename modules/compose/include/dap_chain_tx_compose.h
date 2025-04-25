@@ -108,6 +108,7 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
 
 
 json_object* dap_request_command_to_rpc(const char *request, compose_config_t *a_config);
+json_object* dap_request_command_to_rpc_with_params(compose_config_t *a_config, const char *a_method, const char *msg, ...);
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
 
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer);
