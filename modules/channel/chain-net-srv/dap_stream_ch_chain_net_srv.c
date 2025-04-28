@@ -385,15 +385,25 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
         dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
         l_item->grace->usage->tx_cond = a_tx;
 
+        dap_chain_datum_tx_receipt_t *l_new_receipt = NULL;
         if (l_item->grace->usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER) {
             // Send new receipt with new tx
-            l_item->grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_item->grace->usage->service, l_item->grace->usage->price, NULL, 0, &l_item->grace->usage->tx_cond_hash);
+            if (l_item->grace->usage->receipt_next){
+                DAP_DEL_Z(l_item->grace->usage->receipt_next);
+                l_item->grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(l_item->grace->usage->service, l_item->grace->usage->price, NULL, 0, &l_item->grace->usage->tx_cond_hash);
+                l_new_receipt = l_item->grace->usage->receipt_next;
+            } else if (l_item->grace->usage->receipt) {
+                DAP_DEL_Z(l_item->grace->usage->receipt);
+                l_item->grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_item->grace->usage->service, l_item->grace->usage->price, NULL, 0, &l_item->grace->usage->tx_cond_hash);
+                l_new_receipt = l_item->grace->usage->receipt;
+            }
+            
             l_item->grace->usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
+
             //start timeout timer
             l_item->grace->usage->receipt_timeout_timer_start_callback(l_item->grace->usage);
             log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_chain_hash_fast_to_str_static(&l_item->grace->usage->tx_cond_hash));
-            dap_stream_ch_pkt_write_unsafe(l_item->grace->usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-                l_item->grace->usage->receipt, l_item->grace->usage->receipt->size);
+            dap_stream_ch_pkt_write_unsafe(l_item->grace->usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST, l_new_receipt, l_new_receipt->size);
         } else {
             s_service_substate_pay_service(l_item->grace->usage);
             s_set_usage_data_to_gdb(l_item->grace->usage);
@@ -799,6 +809,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     } break; /* DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST */
 
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE: { // Check receipt sign and make tx if success
+        log_it(L_INFO, "Received receipt sign responce");
         dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;
         if (! l_usage ){
             log_it(L_WARNING, "No usage in srv.");
@@ -808,7 +819,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
 
         if (l_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN &&
-            l_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN){
+            l_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN  &&
+            l_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT){
             // wrong responce
             break;
         }
@@ -854,6 +866,16 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }else if (l_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){ // If we sign first receipt
             if ( memcmp(&l_usage->receipt->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
                 l_is_found = true;
+            }
+        } else if (l_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT) {
+            if (l_usage->receipt_next){
+                if ( memcmp(&l_usage->receipt_next->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
+                    l_is_found = true;
+                }
+            } else if (l_usage->receipt) {
+                if ( memcmp(&l_usage->receipt->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
+                    l_is_found = true;
+                }
             }
         }
         if ( !l_is_found || ! l_usage ){
@@ -1047,7 +1069,13 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     pthread_mutex_unlock(&l_srv->grace_mutex);
                     // s_service_substate_pay_service(l_usage);
                     // Send new receipt with new tx
-                    l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0, &l_usage->tx_cond_hash);
+                    if (l_usage->receipt_next){
+                        DAP_DEL_Z(l_usage->receipt_next);
+                        l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0, &l_usage->tx_cond_hash);
+                    } else if (l_usage->receipt) {
+                        DAP_DEL_Z(l_usage->receipt);
+                        l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0, &l_usage->tx_cond_hash);
+                    }
                     l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
                     //start timeout timer
                     l_usage->receipt_timeout_timer_start_callback(l_usage);
