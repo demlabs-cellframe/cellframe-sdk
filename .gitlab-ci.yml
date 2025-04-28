@@ -90,3 +90,24 @@ build:android:
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1
+
+
+# Performs an in-depth static code analysis with cppcheck, producing a detailed HTML report for manual inspection.
+cppcheck_full_analysis:
+  extends: .tests
+  image: demlabs/debian/amd64:cpp_check
+  timeout: 12h
+  script:
+    - mkdir -p cpp_report && cd cpp_report
+    - cmake -DENABLE_CPPCHECK_ANALYSIS=ON ..
+    - make cppcheck_analysis
+    - echo "HTML report generated at cpp_report/cppcheck_html_report/index.html"
+  artifacts:
+    paths:
+      - cpp_report/cppcheck_html_report/
+    expire_in: 1 day
+  rules:
+    - when: manual
+      allow_failure: true
+  tags:
+    - ci-polygon
