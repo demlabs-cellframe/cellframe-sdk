@@ -40,13 +40,16 @@ typedef enum s_com_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS,
     DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
     DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS,
+    DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR
 }s_com_tx_create_json_err_t;
 
 typedef enum s_type_of_tx {
     DAP_CHAIN_NET_TX_NORMAL = 0,
     DAP_CHAIN_NET_TX_STAKE_LOCK,
     DAP_CHAIN_NET_TX_STAKE_UNLOCK,
-    DAP_CHAIN_NET_TX_REWARD
+    DAP_CHAIN_NET_TX_REWARD,
+
+    DAP_CHAIN_NET_TX_TYPE_ERR
 }s_type_of_tx_t;
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
