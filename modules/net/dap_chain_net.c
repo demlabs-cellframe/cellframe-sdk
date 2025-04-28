@@ -170,7 +170,8 @@ typedef struct dap_chain_net_pvt{
 
     struct chain_sync_context sync_context;
 
-    _Atomic(dap_chain_net_state_t) state, state_target;
+    dap_chain_net_state_t state;
+    _Atomic(dap_chain_net_state_t) state_target;
     uint16_t acl_idx;
 
     //Global DB clusters for different access groups. Notification with cluster contents changing
@@ -242,23 +243,24 @@ DAP_STATIC_INLINE dap_chain_net_state_t s_net_state_get(dap_chain_net_t *a_net)
 
 DAP_STATIC_INLINE dap_chain_net_state_t s_net_state_target_get(dap_chain_net_t *a_net)
 {
-    dap_return_val_if_pass(!a_net || !PVT(a_net) || PVT(a_net)->state_target < NET_STATE_LOADING ||  PVT(a_net)->state_target > NET_STATE_ONLINE, NET_STATE_UNKNOWN);
-    return PVT(a_net)->state_target;
+    dap_chain_net_state_t l_target = atomic_load(&PVT(a_net)->state_target);
+    dap_return_val_if_pass(!a_net || !PVT(a_net) || l_target < NET_STATE_LOADING ||  l_target > NET_STATE_ONLINE, NET_STATE_UNKNOWN);
+    return l_target;
 }
 
 DAP_STATIC_INLINE bool s_net_state_target_is_online(dap_chain_net_t *a_net)
 {
-    return PVT(a_net)->state_target == NET_STATE_ONLINE;
+    return atomic_load(&PVT(a_net)->state_target) == NET_STATE_ONLINE;
 }
 
 DAP_STATIC_INLINE bool s_net_state_target_is_offline(dap_chain_net_t *a_net)
 {
-    return PVT(a_net)->state_target == NET_STATE_OFFLINE;
+    return atomic_load(&PVT(a_net)->state_target) == NET_STATE_OFFLINE;
 }
 
 DAP_STATIC_INLINE bool s_net_state_target_is_sync(dap_chain_net_t *a_net)
 {
-    return PVT(a_net)->state_target == NET_STATE_SYNC_CHAINS;
+    return atomic_load(&PVT(a_net)->state_target) == NET_STATE_SYNC_CHAINS;
 }
 
 DAP_STATIC_INLINE const char *s_net_state_to_str(dap_chain_net_state_t a_state) {
@@ -3231,8 +3233,14 @@ static dap_chain_sync_state_t s_sync_context_state_forming(dap_chain_t *a_chains
     return l_ret;
 }
 
+DAP_STATIC_INLINE bool s_net_state_need_update(dap_chain_net_t *a_net)
+{
+    return PVT(a_net)->state != PVT(a_net)->state_target;
+}
+
 DAP_INLINE bool dap_chain_net_state_is_load(dap_chain_net_t * a_net)
 {
+    dap_return_val_if_pass(!a_net || !PVT(a_net), false);
     return PVT(a_net)->state == NET_STATE_LOADING;
 }
 
@@ -3273,14 +3281,9 @@ static void s_net_state_set(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_
     PVT(a_net)->state = a_new_state;
 }
 
-DAP_STATIC_INLINE bool s_net_state_need_update(dap_chain_net_t *a_net)
-{
-    return PVT(a_net)->state != PVT(a_net)->state_target;
-}
-
 static void s_net_state_target_set(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
 {
-    PVT(a_net)->state_target = a_new_state;
+    atomic_store(&PVT(a_net)->state_target, a_new_state);
     struct json_object *l_json = dap_chain_net_states_json_collect(a_net);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
     dap_notify_server_send_mt(json_object_get_string(l_json));
@@ -3302,7 +3305,7 @@ static int s_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_sta
         log_it(L_ERROR, "Can't change state of loading network '%s'", a_net->pub.name);
         return -2;
     }
-    if (PVT(a_net)->state_target == a_new_state) {
+    if (atomic_load(&PVT(a_net)->state_target) == a_new_state) {
         log_it(L_NOTICE, "Network %s already %s state %s", a_net->pub.name,
                                 PVT(a_net)->state == a_new_state ? "have" : "going to", s_net_state_get_str(a_net));
         return 0;
@@ -3319,7 +3322,7 @@ static int s_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_sta
 static void s_net_restart(dap_chain_net_t *a_net)
 {
     dap_return_if_pass(!a_net || !PVT(a_net));
-    dap_chain_net_state_t l_target_state = PVT(a_net)->state_target;
+    dap_chain_net_state_t l_target_state = atomic_load(&PVT(a_net)->state_target);
     s_net_stop_wait_for(a_net, true);
     s_state_go_to(a_net, l_target_state);
 }
