@@ -3159,7 +3159,6 @@ static void s_ch_out_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const v
     default:
         break;
     }
-    l_net_pvt->sync_context.stage_last_activity = dap_time_now();
     debug_if(s_debug_more, L_DEBUG, "Sent OUT sync packet type %hhu size %zu to addr " NODE_ADDR_FP_STR,
                                     a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
 }
@@ -3394,7 +3393,7 @@ static void s_net_states_proc(dap_chain_net_t *a_net)
             PVT(a_net)->sync_context.cur_chain = NULL;
             PVT(a_net)->sync_context.cur_cell = NULL;
             PVT(a_net)->sync_context.errors_count = 0;
-            PVT(a_net)->sync_context.stage_last_activity = dap_time_now();
+            PVT(a_net)->sync_context.stage_last_activity = 0;
     
             dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
             uint16_t l_permalink_hosts_count = 0;
