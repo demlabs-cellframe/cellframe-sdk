@@ -118,7 +118,7 @@ cppcheck_code_quality:
   extends: .tests
   timeout: 1h
   script:
-    - /usr/bin/cppcheck --xml --library=std --suppress=missingIncludeSystem --suppress=preprocessorErrorDirective --suppress=*:dap-sdk/3rdparty/* --suppress=*:dap-sdk/crypto/src/Kyber/* --suppress=*:dap-sdk/crypto/XKCP/* --force  -j$(nproc) -q . 2> cppcheck-report.xml
+    - /usr/bin/cppcheck --xml --library=std --suppress=missingIncludeSystem --suppress=preprocessorErrorDirective --suppress=*:dap-sdk/3rdparty/* --suppress=*:dap-sdk/crypto/src/Kyber/* --suppress=*:dap-sdk/crypto/XKCP/* --suppress=*:3rdparty/* --force  -j$(nproc) -q . 2> cppcheck-report.xml
     - cppcheck-codequality --input-file cppcheck-report.xml --output-file gl-code-quality-report.json
     - cat gl-code-quality-report.json
   artifacts:
