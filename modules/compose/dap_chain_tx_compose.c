@@ -826,6 +826,7 @@ int dap_chain_datum_tx_add_out_ext_item_without_addr(dap_chain_datum_tx_t **a_tx
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
         const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, size_t a_tx_num, compose_config_t *a_config)
 {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!a_config) {
         return NULL;
     }
@@ -853,6 +854,9 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         }
     }
     const char * l_native_ticker = s_get_native_ticker(a_config->net_name);
+#else
+    const char * l_native_ticker = "BUZ";
+#endif
     bool l_single_channel = !dap_strcmp(a_token_ticker, l_native_ticker);
 
     uint256_t l_value_transfer = {}; // how many coins to transfer
@@ -865,17 +869,23 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
     dap_list_t *l_list_fee_out = NULL;
     uint256_t l_net_fee = {};
     dap_chain_addr_t *l_addr_fee = NULL;
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config)) {
         return NULL;
     }
+#else
+    l_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
+#endif
 
     bool l_net_fee_used = !IS_ZERO_256(l_net_fee);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!dap_get_remote_wallet_outs_and_count(a_addr_from, a_token_ticker, &l_outs, &l_outputs_count, a_config)) {
         return NULL;
     }
+#endif
 
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
@@ -890,6 +900,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         }
     }
     dap_list_t *l_list_used_out = NULL;
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                             l_value_need,
                                                             &l_value_transfer);
@@ -898,6 +909,10 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Not enough funds to transfer");
         return NULL;
     }
+#else
+    dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+    l_list_used_out = dap_list_append(l_list_used_out, l_item);
+#endif
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     // add 'in' items

@@ -1,11 +1,13 @@
 # Prerequisites
 build/*
+debug/*
 cmake-build-*/
 build_stretch/*
 test/build
 *.txt.user
 *.txt.user.*
 *.autosave
+.devcontainer/*
 # Object files
 *.o
 *.ko
@@ -73,4 +75,4 @@ cmake_install.cmake
 
 # OS files
 .DS_Store
-
+.vscode

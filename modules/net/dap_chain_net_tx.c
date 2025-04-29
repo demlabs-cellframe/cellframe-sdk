@@ -863,7 +863,14 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             bool l_is_value = s_json_get_uint256(l_json_item_obj, "value", &l_value);
             const char *l_token = s_json_get_text(l_json_item_obj, "token");
             if(l_is_value && l_json_item_addr_str) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
+#else
+                size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_json_item_addr_str));
+                dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, l_addr_size, -2);
+                if (dap_enc_base58_decode(l_json_item_addr_str, l_addr) != sizeof(dap_chain_addr_t))
+                    return -3;
+#endif
                 if(l_addr && !IS_ZERO_256(l_value)) {
                     if(l_item_type == TX_ITEM_TYPE_OUT) {
                         // Create OUT item
