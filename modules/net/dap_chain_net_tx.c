@@ -1107,7 +1107,7 @@ const uint8_t * s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
 }
 
 const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_item_obj, json_object *a_jobj_errors, int a_type_tx, uint256_t *a_value_reward, 
-                                    uint256_t *a_value_need, uint256_t *a_value_delegated, uint256_t *a_value_need_fee, dap_chain_addr_t *a_seller_addr, int i) 
+                                    uint256_t *a_value_need, uint256_t *a_value_delegated, uint256_t *a_value_need_fee, dap_chain_addr_t *a_seller_addr, size_t i)
 {
     // Read subtype of item
     const char *l_subtype_str = s_json_get_text(a_json_item_obj, "subtype");
@@ -1370,12 +1370,65 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
     return NULL;
 }
 
-const uint8_t * s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, json_object *a_jobj_errors, dap_chain_datum_tx_t *a_tx, uint256_t *a_value_reward, 
-    uint256_t *a_value_need, uint256_t *a_value_delegated, uint256_t *a_value_need_fee, dap_chain_addr_t *a_seller_addr, int i)
+const uint8_t * s_dap_chain_net_tx_create_receipt_item(json_object *a_json_item_obj, json_object *a_jobj_errors, dap_chain_datum_tx_t *a_tx, dap_list_t *a_sign_list)
+{
+    dap_chain_net_srv_uid_t l_srv_uid;
+    if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+        log_it(L_ERROR, "Json TX: bad service_id in TYPE_RECEIPT");
+        return NULL;
+    }
+    dap_chain_net_srv_price_unit_uid_t l_price_unit;
+    if(!s_json_get_unit(a_json_item_obj, "price_unit", &l_price_unit)) {
+        log_it(L_ERROR, "Json TX: bad price_unit in TYPE_RECEIPT");
+        return NULL;
+    }
+    int64_t l_units;
+    if(!s_json_get_int64(a_json_item_obj, "units", &l_units)) {
+        log_it(L_ERROR, "Json TX: bad units in TYPE_RECEIPT");
+        return NULL;
+    }
+    uint256_t l_value = { };
+    if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+        log_it(L_ERROR, "Json TX: bad value in TYPE_RECEIPT");
+        return NULL;
+    }
+    const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+    size_t l_params_size = dap_strlen(l_params_str);
+    dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params_str, l_params_size);
+    if (!l_receipt) {
+        char *l_str_err = dap_strdup_printf("Unable to create receipt out for transaction "
+                                            "described by item %zu.", i);
+        json_object *l_jobj_err = json_object_new_string(l_str_err);
+        DAP_DELETE(l_str_err);
+        if (a_jobj_errors) json_object_array_add(a_jobj_errors, l_jobj_err);
+        return NULL;
+    } else
+        return (const uint8_t*) l_receipt;
+}
+
+const uint8_t * s_dap_chain_net_tx_create_tsd_item(json_object *a_json_item_obj, json_object *a_jobj_errors, dap_chain_datum_tx_t *a_tx, dap_list_t *a_sign_list)
+{
+    int64_t l_tsd_type;
+    if(!s_json_get_int64(a_json_item_obj, "type_tsd", &l_tsd_type)) {
+        log_it(L_ERROR, "Json TX: bad type_tsd in TYPE_TSD");
+        return NULL;
+    }
+    const char *l_tsd_data = s_json_get_text(a_json_item_obj, "data");
+    if (!l_tsd_data) {
+        log_it(L_ERROR, "Json TX: bad data in TYPE_TSD");
+        return NULL;
+    }
+    size_t l_data_size = dap_strlen(l_tsd_data);
+    dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create((void*)l_tsd_data, (int)l_tsd_type, l_data_size);
+    return (const uint8_t*) l_tsd;
+    // l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+}
+
+const uint8_t * s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, json_object *a_jobj_errors, dap_chain_datum_tx_t *a_tx, dap_list_t *a_sign_list)
 {
     json_object *l_jobj_sign = json_object_object_get(a_json_item_obj, "sig_b64");
     if (!l_jobj_sign) {
-        l_sign_list = dap_list_append(l_sign_list, a_json_item_obj);
+        a_sign_list = dap_list_append(a_sign_list, a_json_item_obj);
         return NULL;
     }
     const char *l_sign_b64_str = json_object_get_string(l_jobj_sign);
@@ -1388,6 +1441,7 @@ const uint8_t * s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj,
             l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
     if ( !s_json_get_int64(a_json_item_obj, "sig_size", &l_sign_size) )
         log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
+
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
     *l_tx_sig = (dap_chain_tx_sig_t) {
         .header = {
@@ -1395,22 +1449,21 @@ const uint8_t * s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj,
             .sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE)
         }
     };
-    
+
     debug_if(l_sign_size && l_tx_sig->header.sig_size != l_sign_size, L_ERROR,
              "Json TX: sign size mismatch, %zu != %u!", l_sign_size, l_tx_sig->header.sig_size);
     /* But who cares?... */
-    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx), l_tx_items_size = a_tx->header.tx_items_size;
-    a_tx->header.tx_items_size = 0;
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx), l_tx_items_size = l_tx->header.tx_items_size;
+    l_tx->header.tx_items_size = 0;
     if ( dap_sign_verify_all((dap_sign_t*)l_tx_sig->sig, l_tx_sig->header.sig_size, (byte_t*)a_tx, l_tx_size) ) {
         json_object_array_add(a_jobj_errors, json_object_new_string("Sign verification failed!"));
         log_it(L_ERROR, "Json TX: sign verification failed!");
         return NULL;
         // TODO: delete the datum and return
     } else {
-        l_tx->header.tx_items_size = l_tx_items_size;
-        l_item = (const uint8_t*)l_tx_sig;
+        a_tx->header.tx_items_size = l_tx_items_size;
+        return (const uint8_t*)l_tx_sig;
     }
-
 }
 
 int dap_chain_net_tx_create_by_json_mod(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
