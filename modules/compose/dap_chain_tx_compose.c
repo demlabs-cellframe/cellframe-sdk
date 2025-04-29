@@ -875,6 +875,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
     }
 #else
     l_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
+    randombytes(l_addr_fee, sizeof(dap_chain_addr_t));
 #endif
 
     bool l_net_fee_used = !IS_ZERO_256(l_net_fee);
@@ -911,6 +912,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
     }
 #else
     dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+    randombytes(l_item, sizeof(dap_chain_tx_used_out_item_t));
     l_list_used_out = dap_list_append(l_list_used_out, l_item);
 #endif
     // create empty transaction
@@ -918,7 +920,9 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
     // add 'in' items
     {
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         assert(EQUAL_256(l_value_to_items, l_value_transfer));
+#endif
         dap_list_free_full(l_list_used_out, NULL);
         if (l_list_fee_out) {
             uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);

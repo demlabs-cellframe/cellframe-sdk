@@ -19,15 +19,16 @@ void s_chain_datum_tx_create_test()
     randombytes(l_addr_from, sizeof(dap_chain_addr_t));
     randombytes(l_addr_to, sizeof(dap_chain_addr_t));
     randombytes(&l_value, sizeof(uint256_t));
-    randombytes(&l_value_fee, sizeof(uint256_t));
+    randombytes(&l_value_fee, sizeof(uint256_t)); 
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(l_addr_from, &l_addr_to, l_ticker, &l_value, l_value_fee, 1, NULL);
     dap_assert_PIF(l_datum_1, "tx_create_compose");
+    dap_enc_key_t *l_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(dap_chain_datum_tx_add_sign_item(&l_datum_1, l_key), "datum_1 sign create");
+    dap_enc_key_delete(l_key);
     json_object *l_datum_1_json = json_object_new_object();
     json_object *l_error_json = json_object_new_array();
     dap_chain_net_tx_to_json(l_datum_1, l_datum_1_json);
     dap_assert_PIF(l_datum_1, "tx_create_compose");
-    const char *l_to_print = json_object_to_json_string(l_datum_1_json);
-    dap_pass_msg(l_to_print);
     dap_chain_datum_tx_t *l_datum_2 = DAP_NEW_Z(dap_chain_datum_tx_t);
     size_t
         l_items_count = 0,
@@ -36,6 +37,7 @@ void s_chain_datum_tx_create_test()
     dap_assert_PIF(l_items_count == l_items_ready, "items_count == items_ready")
     dap_assert_PIF(l_datum_1->header.tx_items_size == l_datum_2->header.tx_items_size, "items_size_1 == items_size_2");
     dap_assert_PIF(!memcmp(l_datum_1, l_datum_2, dap_chain_datum_size(l_datum_1)), "datum_1 == datum_2");
+    dap_assert_PIF(!dap_chain_datum_tx_verify_sign(l_datum_1, 0), "datum_2 sign verify");
     dap_chain_datum_tx_delete(l_datum_1);
     dap_chain_datum_tx_delete(l_datum_2);
     return;
