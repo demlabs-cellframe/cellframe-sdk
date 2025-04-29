@@ -722,7 +722,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     if (a_owner)
         return 0;
     size_t l_receipt_size = 0;
-    dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_t *)
+    dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t *)
                                                dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
     dap_chain_datum_tx_receipt_t *l_receipt = NULL;
 
@@ -731,6 +731,9 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
             log_it(L_ERROR, "Can't find receipt.");
             return -1;
         }
+    } else if (l_receipt_old->receipt_info.version > 1) {
+        log_it(L_ERROR, "Old receipt version is wrong.");
+        return -17;
     }
 
     // Checking politics
@@ -741,7 +744,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     }
 
     // Checking provider sign
-    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt_size, 0);
+    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt ? l_receipt : (dap_chain_datum_tx_receipt_t *)l_receipt_old, l_receipt_size, 0);
 
     if (!l_sign){
         log_it(L_ERROR, "Can't get provider sign from receipt.");
@@ -792,7 +795,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     }
 
     // Checking client sign
-    l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt_size, 1);
+    l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt ? l_receipt : (dap_chain_datum_tx_receipt_t *)l_receipt_old, l_receipt_size, 1);
     if (!l_sign){
         log_it(L_ERROR, "Can't get client signature from receipt.");
         return -8;
@@ -837,8 +840,8 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     }
 
     uint256_t l_unit_price = {};
-    uint256_t l_receipt_value_datoshi = dap_chain_datum_tx_receipt_value_get(l_receipt);
-    uint64_t l_receipt_units = dap_chain_datum_tx_receipt_units_get(l_receipt);
+    uint256_t l_receipt_value_datoshi = dap_chain_datum_tx_receipt_value_get(l_receipt ? l_receipt : (dap_chain_datum_tx_receipt_t *)l_receipt_old);
+    uint64_t l_receipt_units = dap_chain_datum_tx_receipt_units_get(l_receipt ? l_receipt : (dap_chain_datum_tx_receipt_t *)l_receipt_old);
     if (!l_receipt_units) {
         log_it(L_ERROR, "Receipt units can't be a zero");
         return -11;
