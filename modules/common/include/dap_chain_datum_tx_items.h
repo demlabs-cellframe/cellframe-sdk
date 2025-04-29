@@ -96,6 +96,7 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
         case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND"; // 256
         case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
+        case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT_OLD";
         case TX_ITEM_TYPE_TSD: return "TX_ITEM_TYPE_TSD";
         case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_OLDALL";
         case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";

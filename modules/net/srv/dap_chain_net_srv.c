@@ -722,16 +722,20 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     if (a_owner)
         return 0;
     size_t l_receipt_size = 0;
-    dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
-                                               dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, &l_receipt_size);
-    if (!l_receipt){
-        log_it(L_ERROR, "Can't find receipt.");
-        return -1;
+    dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_t *)
+                                               dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
+    dap_chain_datum_tx_receipt_t *l_receipt = NULL;
+
+    if (!l_receipt_old){
+        if ((l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, &l_receipt_size))==NULL){
+            log_it(L_ERROR, "Can't find receipt.");
+            return -1;
+        }
     }
 
     // Checking politics
     if (dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
-        l_receipt->receipt_info.version < 2){
+        (!l_receipt || l_receipt->receipt_info.version < 2)){
         log_it(L_ERROR, "Receipt version must be >= 2.");
         return -17;
     }
@@ -744,10 +748,16 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -2;
     }
 
-    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, 
-                                                    l_receipt->receipt_info.version > 1 ? sizeof(dap_chain_receipt_info_t) : sizeof(dap_chain_receipt_info_old_t))){
-        log_it(L_ERROR, "Provider sign in receipt not passed verification.");
-        return -3;
+    if (l_receipt){
+        if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(dap_chain_receipt_info_t))){
+            log_it(L_ERROR, "Provider sign in receipt not passed verification.");
+            return -3;
+        }
+    } else {
+        if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt_old->receipt_info, sizeof(dap_chain_receipt_info_old_t))){
+            log_it(L_ERROR, "Provider sign in receipt not passed verification.");
+            return -3;
+        }
     }
 
     // Checking the signature matches the provider's signature
@@ -799,10 +809,16 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     }
 
     // Verifyig of client sign
-    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, 
-                                                    l_receipt->receipt_info.version > 1 ? sizeof(dap_chain_receipt_info_t) : sizeof(dap_chain_receipt_info_old_t))){
-        log_it(L_ERROR, "Provider sign in receipt not passed verification.");
-        return -3;
+    if (l_receipt){
+        if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(dap_chain_receipt_info_t))){
+            log_it(L_ERROR, "Client sign in receipt not passed verification.");
+            return -3;
+        }
+    } else {
+        if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt_old->receipt_info, sizeof(dap_chain_receipt_info_old_t))){
+            log_it(L_ERROR, "CLient sign in receipt not passed verification.");
+            return -3;
+        }
     }
 
     // Checking price is less than maximum
@@ -815,7 +831,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
     }
 
     // Checking the tx hash in receipt matched tx hash in in cond
-    if (l_receipt->receipt_info.version > 1 && !dap_hash_fast_compare(&l_receipt->receipt_info.prev_tx_cond_hash, &l_tx_in_cond->header.tx_prev_hash)){
+    if (l_receipt && l_receipt->receipt_info.version > 1 && !dap_hash_fast_compare(&l_receipt->receipt_info.prev_tx_cond_hash, &l_tx_in_cond->header.tx_prev_hash)){
         log_it(L_ERROR, "The hashes of previous transactions in receipt and conditional input doesn't match.");
         return -16;
     }
