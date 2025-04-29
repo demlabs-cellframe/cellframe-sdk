@@ -1076,7 +1076,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 }
 
                 dap_time_t l_time_staking = 0;
-                l_time_staking = dap_time_from_str_simplified(l_time_staking_str);
+                l_time_staking = dap_time_from_str_rfc822(l_time_staking_str);
                 if (0 == l_time_staking){
                     log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                     break;
@@ -1626,8 +1626,8 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
                     dap_time_t l_ts_unlock = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
-                    const char * l_date_str = dap_time_to_str_simplified(l_ts_unlock);
-                    json_object_object_add(json_obj_item,"time_staking", json_object_new_string(l_date_str));
+                    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_unlock);
+                    json_object_object_add(json_obj_item,"time_staking", json_object_new_string(l_tmp_buf));
                     json_object_object_add(json_obj_item,"subtype", json_object_new_string("srv_stake_lock"));
                 } break;
                 default: break;
