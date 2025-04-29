@@ -1048,7 +1048,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
 
             if (dap_chain_datum_tx_receipt_check_size(l_receipt ? l_receipt : (dap_chain_datum_tx_receipt_t*)l_receipt_old, l_receipt_size))
                 return -13;
-            if (!dap_chain_net_srv_uid_compare_scalar((l_receipt ? l_receipt : l_receipt_old)->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
+            if (!dap_chain_net_srv_uid_compare_scalar((l_receipt ? l_receipt->receipt_info.srv_uid : l_receipt_old->receipt_info.srv_uid), DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
                 return -7;
             if ((l_receipt ? l_receipt->exts_size : l_receipt_old->exts_size) < sizeof(dap_hash_fast_t))
                 return -8;

@@ -306,7 +306,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
         } break;
         case TX_ITEM_TYPE_RECEIPT_OLD:{
             dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)item;
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_receipt_old->receipt_info.value_datoshi);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_receipt_old->receipt_info.value_datoshi, &l_coins_str);
             json_object_object_add(json_obj_item,"item type", json_object_new_string("RECEIPT"));
             json_object_object_add(json_obj_item,"size", json_object_new_uint64(l_receipt_old->size));
             json_object_object_add(json_obj_item,"ext size", json_object_new_uint64(l_receipt_old->exts_size));
