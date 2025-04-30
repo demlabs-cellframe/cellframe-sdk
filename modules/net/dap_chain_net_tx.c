@@ -1515,7 +1515,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     return DAP_CHAIN_NET_TX_CREATE_JSON_OK;
 }
 
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json)
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json, const char *a_net_name)
 {
     if(!a_tx || !a_out_json)
         return log_it(L_ERROR, "Empty transaction"), DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS;
@@ -1533,6 +1533,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
     json_object_object_add(json_obj_out, "datum_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "ts_created", json_object_new_int64(a_tx->header.ts_created));
     json_object_object_add(json_obj_out, "datum_type", json_object_new_string("tx"));
+    json_object_object_add(json_obj_out, "net", json_object_new_string(a_net_name));
 
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
         json_object* json_obj_item = json_object_new_object();
@@ -1544,20 +1545,20 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(l_hash_str));
             json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_uint64(((dap_chain_tx_in_t*)item)->header.tx_out_prev_idx));
             break;
-        case TX_ITEM_TYPE_OUT: { // 256
-            const char *l_coins_str,
-                    *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_t*)item)->header.value, &l_coins_str),
-                    *l_addr_str = dap_chain_addr_to_str_static(&((dap_chain_tx_out_t*)item)->addr);
-            json_object_object_add(json_obj_item,"type", json_object_new_string("out"));
+        case TX_ITEM_TYPE_OUT:
+        case TX_ITEM_TYPE_OUT_EXT: {
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str );
+            json_object_object_add(json_obj_item,"type", json_object_new_string("out_ext"));
+            json_object_object_add(json_obj_item,"addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_ext_t*)item)->addr)));
+            json_object_object_add(json_obj_item,"token", json_object_new_string(((dap_chain_tx_out_ext_t*)item)->token));
             json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
-            json_object_object_add(json_obj_item,"addr", json_object_new_string(l_addr_str));            
+            
         } break;
         case TX_ITEM_TYPE_SIG: {
             dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)item);
             char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1);
             size_t l_sign_size = dap_sign_get_size(l_sign);
             dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-
             json_object_object_add(json_obj_item, "type",       json_object_new_string("sign"));
             json_object_object_add(json_obj_item, "sig_size",   json_object_new_uint64(l_sign_size));
             json_object_object_add(json_obj_item, "sig_b64",    json_object_new_string(l_sign_b64));
@@ -1633,14 +1634,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                 default: break;
             }
         } break;
-        case TX_ITEM_TYPE_OUT_EXT: {
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str );
-            json_object_object_add(json_obj_item,"type", json_object_new_string("out"));
-            json_object_object_add(json_obj_item,"addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_ext_t*)item)->addr)));
-            json_object_object_add(json_obj_item,"token", json_object_new_string(((dap_chain_tx_out_ext_t*)item)->token));
-            json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
-            
-        } break;
+
         case TX_ITEM_TYPE_IN_EMS: {
             json_object_object_add(json_obj_item,"type", json_object_new_string("in_ems"));
             json_object_object_add(json_obj_item,"chain_id", json_object_new_uint64(((dap_chain_tx_in_ems_t*)item)->header.token_emission_chain_id.uint64));
