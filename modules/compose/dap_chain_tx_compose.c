@@ -775,12 +775,10 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
     }
 
     dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
-    dap_chain_datum_tx_t* l_tx = dap_chain_datum_tx_create_compose( l_addr_from, l_addr_to, l_token_ticker, l_value, l_value_fee, l_addr_el_count, l_config, l_key_from);
+    dap_chain_datum_tx_t* l_tx = dap_chain_datum_tx_create_compose( l_addr_from, l_addr_to, l_token_ticker, l_value, l_value_fee, l_addr_el_count, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
         dap_chain_datum_tx_delete(l_tx);
-        DAP_DEL_MULTY(l_addr_to, l_value, l_addr_from);
-        return s_compose_config_return_response_handler(l_config);
     }
 
     DAP_DEL_MULTY(l_addr_to, l_value, l_addr_from);
@@ -824,7 +822,7 @@ int dap_chain_datum_tx_add_out_ext_item_without_addr(dap_chain_datum_tx_t **a_tx
 
 
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
-        const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, size_t a_tx_num, compose_config_t *a_config, dap_enc_key_t *a_key_from)
+        const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, size_t a_tx_num, compose_config_t *a_config)
 {
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!a_config) {
@@ -1038,11 +1036,6 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         }
 
 
-    }
-    // add 'sign' items
-    if(a_key_from && dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
-        dap_chain_datum_tx_delete(l_tx);
-        return NULL;
     }
     DAP_DELETE(l_addr_fee);
     return l_tx;

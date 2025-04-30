@@ -148,7 +148,7 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
 
 dap_chain_datum_tx_t* dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
                                                        const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, 
-                                                       size_t a_tx_num, compose_config_t *a_config, dap_enc_key_t *a_key_from);
+                                                       size_t a_tx_num, compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_token_buy, const char *a_token_sell, 
                                                               uint256_t a_datoshi_sell, uint256_t a_rate, uint256_t a_fee, 
