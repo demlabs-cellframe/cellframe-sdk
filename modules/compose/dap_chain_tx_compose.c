@@ -1922,7 +1922,6 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
     dap_chain_addr_fill_from_key(&l_addr, a_key_from, s_get_net_id(a_config->net_name));
     bool l_net_fee_used = dap_get_remote_net_fee_and_address( &l_net_fee, &l_addr_fee, a_config);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
-    dap_list_t * l_list_used_out = NULL;
     dap_list_t *l_list_fee_out = NULL;
     json_object *l_outs_native = NULL;
     json_object *l_outs_main = NULL;
@@ -1955,7 +1954,7 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
     }
 #endif
     // list of transaction with 'out' items
-    dap_ledger_get_list_tx_outs_from_json(l_outs_main, l_out_main_count,
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_main, l_out_main_count,
                                                             l_value_need,
                                                             &l_value_transfer);
     if (!l_list_used_out) {

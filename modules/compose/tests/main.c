@@ -18,7 +18,6 @@ struct tests_data {
     uint256_t value_delegate;
     uint256_t value_per_unit_max;
     uint256_t reinvest_percent;
-    dap_chain_net_srv_price_unit_uid_t price;
     dap_chain_net_srv_uid_t srv_uid;
     compose_config_t config;
     time_t time_staking;
@@ -33,6 +32,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 
 void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 {
+    size_t l_tx_size = dap_chain_datum_tx_get_size(*a_datum);
     dap_assert_PIF(dap_chain_datum_tx_add_sign_item(a_datum, s_key), "datum_1 sign create");
     json_object *l_datum_1_json = json_object_new_object();
     json_object *l_error_json = json_object_new_array();
@@ -69,9 +69,11 @@ void s_chain_datum_cond_create_test()
     pkey->header.type.type = DAP_PKEY_TYPE_SIGN_BLISS;
     pkey->header.size = l_pkey_size;
     randombytes(pkey->pkey, l_pkey_size);
+    dap_chain_net_srv_price_unit_uid_t price_unit;
+    price_unit.enm = SERV_UNIT_B;
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_mempool_tx_create_cond_compose(
         s_key, pkey, s_ticker, s_data->value,
-        s_data->value_per_unit_max, s_data->price,
+        s_data->value_per_unit_max, price_unit,
         s_data->srv_uid, s_data->value_fee, l_rand_data, l_rand_data_size, &s_data->config
     );
     dap_assert_PIF(l_datum_1, "tx_create_compose");
@@ -82,7 +84,7 @@ void s_chain_datum_cond_create_test()
 
 void s_chain_datum_stake_lock_test()
 { 
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_lock_datum_create_compose(s_key, s_ticker, s_data->value, s_data->value_fee, s_data->time_staking, s_data->reinvest_percent, s_ticker_delegate, s_data->value_delegate, "0x0123456789abcdef", NULL);
+    dap_chain_datum_tx_t *l_datum_1 = dap_stake_lock_datum_create_compose(s_key, s_ticker, s_data->value, s_data->value_fee, s_data->time_staking, s_data->reinvest_percent, s_ticker_delegate, s_data->value_delegate, "0x0123456789abcdef", &s_data->config);
     dap_assert_PIF(l_datum_1, "tx_lock_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -90,7 +92,7 @@ void s_chain_datum_stake_lock_test()
 
 void s_chain_datum_tx_ser_deser_test()
 {
-    s_data = DAP_NEW_Z_RET_VAL_IF_FAIL(struct tests_data, -1);
+    s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
     randombytes(s_data, sizeof(struct tests_data));
     s_data->time_staking = dap_time_now() + 10000;
     s_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);

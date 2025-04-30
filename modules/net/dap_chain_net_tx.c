@@ -924,7 +924,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                         SUM_256_256(l_value_need, l_value, &l_value_need);
                                 }
                             } else {
-                                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, 0);
+                                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
                                 if (!l_out_item) {
                                     json_object *l_jobj_err = json_object_new_string("Failed to create a out ext"
                                                                         "for a transaction. There may not be enough funds "
@@ -1583,8 +1583,8 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                         dap_uint256_to_char( ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str );
                     l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
                     l_hash_str = dap_hash_fast_to_str_static(&l_hash_tmp);
-                    sprintf(l_tmp_buff,"0x%08x",((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32);
-                    json_object_object_add(json_obj_item,"price_unit", json_object_new_string(l_tmp_buff));
+                    const char *l_unit = dap_chain_net_srv_price_unit_uid_to_str(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit);
+                    json_object_object_add(json_obj_item,"price_unit", json_object_new_string(l_unit));
                     json_object_object_add(json_obj_item,"pkey", json_object_new_string(l_hash_str));
                     json_object_object_add(json_obj_item,"value_max_per_unit", json_object_new_string(l_value_str));
                     json_object_object_add(json_obj_item,"subtype", json_object_new_string("srv_pay"));
@@ -1619,7 +1619,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
         } break;
         case TX_ITEM_TYPE_OUT_EXT: {
             const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str );
-            json_object_object_add(json_obj_item,"type", json_object_new_string("out"));
+            json_object_object_add(json_obj_item,"type", json_object_new_string("out_ext"));
             json_object_object_add(json_obj_item,"addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_ext_t*)item)->addr)));
             json_object_object_add(json_obj_item,"token", json_object_new_string(((dap_chain_tx_out_ext_t*)item)->token));
             json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
