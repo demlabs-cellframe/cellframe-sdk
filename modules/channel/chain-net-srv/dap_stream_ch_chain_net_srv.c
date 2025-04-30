@@ -291,6 +291,16 @@ static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
             dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        a_usage->receipt_next, a_usage->receipt_next->size);
             return true;
+        } else if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT) {
+            if (l_item->grace->usage->receipt_next){
+                dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                    a_usage->receipt, a_usage->receipt->size);
+                return true;
+            } else if (l_item->grace->usage->receipt) {
+                dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                    a_usage->receipt_next, a_usage->receipt_next->size);
+                return true;
+            }
         }
     }
     log_it(L_WARNING, "Receipt signing by client max attempt is reached!");
@@ -813,9 +823,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;
         if (! l_usage ){
             log_it(L_WARNING, "No usage in srv.");
-            l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
-            s_service_substate_go_to_error(l_usage);
-            break;
+            return false;
         }
 
         if (l_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN &&
