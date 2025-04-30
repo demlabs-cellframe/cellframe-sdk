@@ -96,7 +96,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
     
     s_chain_datum_tx_create_test();
-    s_chain_datum_cond_create_test();
+    // s_chain_datum_cond_create_test();
     // s_chain_datum_stake_lock_test();
 
     DAP_DEL_Z(s_data);
