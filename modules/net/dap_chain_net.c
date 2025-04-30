@@ -244,9 +244,6 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_objec
  */
 int dap_chain_net_init()
 {
-#ifndef DAP_OS_WINDOWS
-    tzset();
-#endif
     dap_ledger_init();
     dap_chain_ch_init();
     dap_chain_net_anchor_init();
