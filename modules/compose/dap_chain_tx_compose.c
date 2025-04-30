@@ -134,6 +134,9 @@ static const char* s_get_native_ticker(const char* name) {
 
 static dap_chain_net_id_t s_get_net_id(const char* name) {
     dap_chain_net_id_t empty_id = {.uint64 = 0};
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    randombytes(&empty_id, sizeof(dap_chain_net_id_t));
+#else
     if (!name) {
         return empty_id;
     }
@@ -142,6 +145,7 @@ static dap_chain_net_id_t s_get_net_id(const char* name) {
             return netinfo[i].net_id;
         }
     }
+#endif
     return empty_id;
 }
 
@@ -572,6 +576,11 @@ json_object* dap_request_command_to_rpc_with_params(compose_config_t *a_config, 
     
 
 bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee, compose_config_t *a_config) {
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    *l_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
+    randombytes(*l_addr_fee, sizeof(dap_chain_addr_t));
+    randombytes(a_net_fee, sizeof(uint256_t));
+#else
     if (!a_net_fee || !l_addr_fee || !a_config || !a_config->net_name) {
         return false;
     }
@@ -637,7 +646,7 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
     if (!*l_addr_fee) {
         return false;
     }
-
+#endif
     return true;
 }
 
@@ -896,14 +905,9 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
     dap_list_t *l_list_fee_out = NULL;
     uint256_t l_net_fee = {};
     dap_chain_addr_t *l_addr_fee = NULL;
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config)) {
         return NULL;
     }
-#else
-    l_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
-    randombytes(l_addr_fee, sizeof(dap_chain_addr_t));
-#endif
 
     bool l_net_fee_used = !IS_ZERO_256(l_net_fee);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
@@ -928,7 +932,6 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         }
     }
     dap_list_t *l_list_used_out = NULL;
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                             l_value_need,
                                                             &l_value_transfer);
@@ -937,11 +940,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Not enough funds to transfer");
         return NULL;
     }
-#else
-    dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
-    randombytes(l_item, sizeof(dap_chain_tx_used_out_item_t));
-    l_list_used_out = dap_list_append(l_list_used_out, l_item);
-#endif
+
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     // add 'in' items
@@ -1072,7 +1071,18 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
 
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer)
 {
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    size_t l_out_count = rand() % 10 + 1;
+    dap_list_t *l_ret = NULL;
+    for (size_t i = 0; i < l_out_count; ++i) {
+        dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+        randombytes(l_item, sizeof(dap_chain_tx_used_out_item_t));
+        l_ret = dap_list_append(l_ret, l_item);
+    }
+    return l_ret;
+#else
     return dap_ledger_get_list_tx_outs_from_jso_ex(a_outputs_array, a_outputs_count, a_value_need, a_value_transfer, false);
+#endif
 }
 
 dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer)
@@ -1637,6 +1647,7 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
         size_t a_cond_size, compose_config_t *a_config)
 {
     // check valid param
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!a_config->net_name || !*a_config->net_name || !a_key_from || !a_key_cond ||
             !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || IS_ZERO_256(a_value) || !a_config->url_str || !*a_config->url_str || a_config->port == 0)
         return NULL;
@@ -1645,10 +1656,12 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
         dap_json_compose_error_add(a_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_NATIVE_TOKEN_REQUIRED, "Pay for service should be only in native token ticker\n");
         return NULL;
     }
-
+#endif
     uint256_t l_net_fee = {};
     dap_chain_addr_t* l_addr_fee = NULL;
-    bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+    dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+
+    bool l_net_fee_used = !IS_ZERO_256(l_net_fee);
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need = {};
@@ -1662,9 +1675,11 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
     // list of transaction with 'out' items
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!dap_get_remote_wallet_outs_and_count(&l_addr_from, a_token_ticker, &l_outs, &l_outputs_count, a_config)) {
         return NULL;
     }
+#endif
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                             l_value_need,
                                                             &l_value_transfer);
@@ -1987,28 +2002,25 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
     uint256_t l_value_need = a_value, l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
     dap_chain_addr_t * l_addr_fee = NULL;
     dap_chain_addr_t l_addr = {};
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     dap_chain_addr_fill_from_key(&l_addr, a_key_from, s_get_net_id(a_config->net_name));
-#else
-    randombytes(&l_addr, sizeof(dap_chain_addr_t));
-#endif
     bool l_net_fee_used = dap_get_remote_net_fee_and_address( &l_net_fee, &l_addr_fee, a_config);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
-    dap_list_t * l_list_used_out = NULL;
     dap_list_t *l_list_fee_out = NULL;
+    json_object *l_outs_native = NULL;
+    json_object *l_outs_main = NULL;
+    int l_out_main_count = 0;
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
-    json_object *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, &l_addr, a_config);
+    l_outs_native = dap_get_remote_tx_outs(l_native_ticker, &l_addr, a_config);
     if (!l_outs_native) {
         return NULL;
     }
-    json_object *l_outs_main = NULL;
     if (!dap_strcmp(a_main_ticker, l_native_ticker)) {
         l_outs_main = l_outs_native;
     } else {
         l_outs_main = dap_get_remote_tx_outs(a_main_ticker, &l_addr, a_config);
     }
     int l_out_native_count = json_object_array_length(l_outs_native);
-    int l_out_main_count = json_object_array_length(l_outs_main);
+    l_out_main_count = json_object_array_length(l_outs_main);
 
     if (l_main_native)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
@@ -2023,8 +2035,9 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
             return NULL;
         }
     }
+#endif
     // list of transaction with 'out' items
-    dap_ledger_get_list_tx_outs_from_json(l_outs_main, l_out_main_count,
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_main, l_out_main_count,
                                                             l_value_need,
                                                             &l_value_transfer);
     if (!l_list_used_out) {
@@ -2033,11 +2046,6 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
         json_object_put(l_outs_main);
         return NULL;
     }
-#else
-    dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
-    randombytes(l_item, sizeof(dap_chain_tx_used_out_item_t));
-    l_list_used_out = dap_list_append(l_list_used_out, l_item);
-#endif
 
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
