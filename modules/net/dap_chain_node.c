@@ -221,11 +221,16 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     dap_return_if_fail(l_net);
     int l_ret = -1;
-    for (size_t i = 0; i < 3 && l_ret != 0; i++) {
-        dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
-        if (l_client)
-            l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
-        // dap_chain_node_client_close_unsafe(l_client);  del in s_go_stage_on_client_worker_unsafe
+    dap_worker_t *l_wrk;
+    if ( dap_stream_find_by_addr(&l_node_info->address, &l_wrk) )
+        l_ret = 0;
+    else {
+        for (size_t i = 0; i < 3 && l_ret != 0; i++) {
+            dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
+            if (l_client)
+                l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
+            dap_chain_node_client_close_mt(l_client); // del in s_go_stage_on_client_worker_unsafe
+        }
     }
     if (l_ret == 0) {
         dap_global_db_set_sync(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, a_obj->flags & DAP_GLOBAL_DB_RECORD_PINNED);

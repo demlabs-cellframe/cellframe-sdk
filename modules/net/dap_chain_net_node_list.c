@@ -131,7 +131,8 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             .ext_port = port,
             .ext_host_len = dap_strncpy(l_node_info->ext_host, a_http_simple->es_hostaddr, l_host_size) - l_node_info->ext_host
         };
-        l_response = !dap_chain_net_balancer_handshake(l_node_info, l_net)
+        dap_worker_t *l_wrk;
+        l_response = dap_stream_find_by_addr(&(dap_chain_node_addr_t){ .uint64 = addr }, &l_wrk) || !dap_chain_net_balancer_handshake(l_node_info, l_net)
             ? s_dap_chain_net_node_list_add(l_net, l_node_info)
             : ( log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ]", l_key, l_node_info->ext_host, l_node_info->ext_port), ERR_HANDSHAKE );
         *l_return_code = Http_Status_OK;

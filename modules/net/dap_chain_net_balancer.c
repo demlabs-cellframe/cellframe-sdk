@@ -360,7 +360,10 @@ void dap_chain_net_balancer_deinit()
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t *a_net)
 {
     dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(a_net, a_node_info);
-    return l_client ? dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 5000) : -1;
+    int l_ret = l_client ? dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 5000) : -1;
+    if (l_client)
+        dap_chain_node_client_close_mt(l_client);
+    return l_ret;
 }
 
 /**
