@@ -99,7 +99,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply);
 static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
                                                     const char *a_main_ticker, uint256_t a_value,
                                                     uint256_t a_value_fee,
-                                                    dap_time_t a_time_staking, uint256_t a_reinvest_percent,
+                                                    dap_time_t a_time_unlock, uint256_t a_reinvest_percent,
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value);
 // Create unlock datum
 dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
@@ -395,10 +395,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     l_time_staking = dap_time_from_str_simplified(l_time_staking_str);
     if (0 == l_time_staking)
         return TIME_ERROR;
-    dap_time_t l_time_now = dap_time_now();
-    if (l_time_staking < l_time_now)
+    if (l_time_staking < dap_time_now())
         return TIME_ERROR;
-    l_time_staking -= l_time_now;
 
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
     && NULL != l_reinvest_percent_str) {
@@ -1132,7 +1130,7 @@ static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datu
 static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
                                                     const char *a_main_ticker,
                                                     uint256_t a_value, uint256_t a_value_fee,
-                                                    dap_time_t a_time_staking, uint256_t a_reinvest_percent,
+                                                    dap_time_t a_time_unlock, uint256_t a_reinvest_percent,
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value)
 {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
@@ -1201,7 +1199,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
     {
         uint256_t l_value_pack = {}, l_native_pack = {}; // how much coin add to 'out_ext' items
         dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-                                                        l_uid, a_value, a_time_staking, a_reinvest_percent);
+                                                        l_uid, a_value, a_time_unlock, a_reinvest_percent);
         if (l_tx_out_cond) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
             dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out_cond);

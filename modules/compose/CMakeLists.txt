@@ -10,6 +10,9 @@ target_link_libraries(${PROJECT_NAME} dap_cli_server dap_chain_net dap_chain_net
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/json-c)
 
+if(BUILD_CELLFRAME_SDK_TESTS)
+    add_subdirectory(tests)
+endif()
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_COMPOSE_HEADERS}")
