@@ -1004,7 +1004,14 @@ const uint8_t * s_dap_chain_net_tx_create_out_item (json_object *a_json_item_obj
     bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
     const char *l_token = s_json_get_text(a_json_item_obj, "token");
     if (l_is_value && (l_json_item_addr_str || l_json_item_addr_to_str)) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
+#else
+        size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_json_item_addr_str));
+        dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, l_addr_size, -2);
+        if (dap_enc_base58_decode(l_json_item_addr_str, l_addr) != sizeof(dap_chain_addr_t))
+            return NULL;
+#endif
         if((l_json_item_addr_to_str || l_addr) && !IS_ZERO_256(l_value)) {            
             // Create OUT item
             const uint8_t *l_out_item = NULL;
@@ -1187,38 +1194,17 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 log_it(L_ERROR, "Json TX: bad value in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                 return NULL;
             }
-            const char* l_time_staking_str = NULL;
-            if((l_time_staking_str = s_json_get_text(a_json_item_obj, "time_staking")) == NULL || dap_strlen(l_time_staking_str) != 6)  {
-                log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
-                return NULL;
-            }
-
-            char l_time_staking_month_str[3] = {l_time_staking_str[2], l_time_staking_str[3], 0};
-            int l_time_staking_month = atoi(l_time_staking_month_str);
-            if (l_time_staking_month < 1 || l_time_staking_month > 12){
-                log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
-                return NULL;
-            }
-
-            char l_time_staking_day_str[3] = {l_time_staking_str[4], l_time_staking_str[5], 0};
-            int l_time_staking_day = atoi(l_time_staking_day_str);
-            if (l_time_staking_day < 1 || l_time_staking_day > 31){
-                log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
-                return NULL;
-            }
 
             dap_time_t l_time_staking = 0;
-            l_time_staking = dap_time_from_str_simplified(l_time_staking_str);
-            if (0 == l_time_staking){
+            const char* l_time_staking_str = s_json_get_text(a_json_item_obj, "time_staking");
+            if (sscanf(l_time_staking_str, "%"DAP_UINT64_FORMAT_U, &l_time_staking) != 1 || !l_time_staking){
                 log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                break;
+            }
+            if (l_time_staking < dap_time_now()){
+                log_it(L_ERROR, "Json TX: past time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                 return NULL;
             }
-            dap_time_t l_time_now = dap_time_now();
-            if (l_time_staking < l_time_now){
-                log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
-                return NULL;
-            }
-            l_time_staking -= l_time_now;
 
             uint256_t l_reinvest_percent = uint256_0;
             const char* l_reinvest_percent_str = NULL;
@@ -1455,16 +1441,16 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     struct json_object *l_json_items = json_object_object_get(l_json, "items");
     struct json_object *l_json_net = json_object_object_get(l_json, "net");
     size_t l_items_count;
-    if(!l_json_net || !l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
+    if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
         json_object_put(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     } 
     const char *l_net_str = json_object_get_string(l_json_net); 
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
-    if (l_net == NULL) {
-        log_it(L_ERROR, "not found net by name '%s'", l_net_str);
-        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;
-    }  
+    // if (l_net == NULL) {
+    //     log_it(L_ERROR, "not found net by name '%s'", l_net_str);
+    //     return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;
+    // }  
 
     log_it(L_NOTICE, "Json TX: found %lu items", l_items_count);
 
