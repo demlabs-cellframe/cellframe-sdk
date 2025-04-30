@@ -3,7 +3,7 @@ variables:
 
 stages:
     - build
-    - deploy
+    - cppchecks
 
 .ci-polygon:
   tags:
@@ -12,6 +12,11 @@ stages:
 .tests:  
   extends: .ci-polygon
   stage: build
+  rules:
+   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+     when: always
+   - when: always
+
   timeout: 3 hours 30 minutes
   dependencies: []
   
@@ -94,7 +99,8 @@ build:android:
 
 # Performs an in-depth static code analysis with cppcheck, producing a detailed HTML report for manual inspection.
 cppcheck_full_analysis:
-  extends: .tests
+  extends: .ci-polygon
+  stage: cppchecks
   image: demlabs/debian/amd64:cpp_check
   timeout: 12h
   script:
@@ -115,7 +121,8 @@ cppcheck_full_analysis:
 # Generates a code quality report in JSON format for merge requests, identifying potential issues in the codebase.
 cppcheck_code_quality:
   image: demlabs/debian/amd64:cpp_check
-  extends: .tests
+  extends: .ci-polygon
+  stage: cppchecks
   timeout: 1h
   script:
     - /usr/bin/cppcheck --xml --library=std --suppress=missingIncludeSystem --suppress=preprocessorErrorDirective --suppress=*:dap-sdk/3rdparty/* --suppress=*:dap-sdk/crypto/src/Kyber/* --suppress=*:dap-sdk/crypto/XKCP/* --suppress=*:3rdparty/* --force  -j$(nproc) -q . 2> cppcheck-report.xml
