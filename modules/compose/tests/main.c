@@ -18,9 +18,9 @@ struct tests_data {
     uint256_t value_delegate;
     uint256_t value_per_unit_max;
     uint256_t reinvest_percent;
-    dap_pkey_t pkey;
     dap_chain_net_srv_price_unit_uid_t price;
     dap_chain_net_srv_uid_t srv_uid;
+    compose_config_t config;
     time_t time_staking;
 };
 
@@ -63,10 +63,16 @@ void s_chain_datum_cond_create_test()
 { 
     size_t l_rand_data_size = rand() % 256;
     char *l_rand_data = DAP_NEW_Z_SIZE_RET_IF_FAIL(char, l_rand_data_size);
+    randombytes(l_rand_data, l_rand_data_size);
+    size_t l_pkey_size = rand() % 1024;
+    dap_pkey_t *pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, l_pkey_size + sizeof(dap_pkey_t));
+    pkey->header.type.type = DAP_PKEY_TYPE_SIGN_BLISS;
+    pkey->header.size = l_pkey_size;
+    randombytes(pkey->pkey, l_pkey_size);
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_mempool_tx_create_cond_compose(
-        s_key, &s_data->pkey, s_ticker, s_data->value,
+        s_key, pkey, s_ticker, s_data->value,
         s_data->value_per_unit_max, s_data->price,
-        s_data->srv_uid, s_data->value_fee, l_rand_data, l_rand_data_size, NULL
+        s_data->srv_uid, s_data->value_fee, l_rand_data, l_rand_data_size, &s_data->config
     );
     dap_assert_PIF(l_datum_1, "tx_create_compose");
     s_datum_sign_and_check(&l_datum_1);
@@ -90,6 +96,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
     
     s_chain_datum_tx_create_test();
+    s_chain_datum_cond_create_test();
     // s_chain_datum_stake_lock_test();
 
     DAP_DEL_Z(s_data);

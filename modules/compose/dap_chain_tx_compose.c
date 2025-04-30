@@ -1646,9 +1646,11 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
     // list of transaction with 'out' items
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!dap_get_remote_wallet_outs_and_count(&l_addr_from, a_token_ticker, &l_outs, &l_outputs_count, a_config)) {
         return NULL;
     }
+#endif
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                             l_value_need,
                                                             &l_value_transfer);
