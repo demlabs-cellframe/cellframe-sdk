@@ -16,8 +16,12 @@ struct tests_data {
     uint256_t value;
     uint256_t value_fee;
     uint256_t value_delegate;
+    uint256_t value_per_unit_max;
     uint256_t reinvest_percent;
-    time_t time_staking
+    dap_pkey_t pkey;
+    dap_chain_net_srv_price_unit_uid_t price;
+    dap_chain_net_srv_uid_t srv_uid;
+    time_t time_staking;
 };
 
 static struct tests_data *s_data = NULL;
@@ -48,9 +52,22 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 
 void s_chain_datum_tx_create_test()
 { 
-    dap_chain_addr_t *l_addr_to = DAP_NEW_Z(dap_chain_addr_t);
-    randombytes(l_addr_to, sizeof(dap_chain_addr_t));
+    dap_chain_addr_t *l_addr_to = &s_data->addr_to;
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(&s_data->addr_from, &l_addr_to, s_ticker, &s_data->value, s_data->value_fee, 1, NULL);
+    dap_assert_PIF(l_datum_1, "tx_create_compose");
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+}
+
+void s_chain_datum_cond_create_test()
+{ 
+    size_t l_rand_data_size = rand() % 256;
+    char *l_rand_data = DAP_NEW_Z_SIZE_RET_IF_FAIL(char, l_rand_data_size);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_mempool_tx_create_cond_compose(
+        s_key, &s_data->pkey, s_ticker, s_data->value,
+        s_data->value_per_unit_max, s_data->price,
+        s_data->srv_uid, s_data->value_fee, l_rand_data, l_rand_data_size, NULL
+    );
     dap_assert_PIF(l_datum_1, "tx_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
