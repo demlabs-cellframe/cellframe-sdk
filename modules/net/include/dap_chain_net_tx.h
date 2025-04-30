@@ -52,6 +52,24 @@ typedef enum s_type_of_tx {
 
     DAP_CHAIN_NET_TX_TYPE_ERR
 }s_type_of_tx_t;
+
+typedef struct dap_tx_creator_tokenizer {
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t sum;
+    UT_hash_handle hh;
+} dap_tx_creator_tokenizer_t;
+
+typedef struct dap_chain_datum_tx_spends_item{
+    dap_chain_datum_tx_t * tx;
+    dap_hash_fast_t tx_hash;
+
+    dap_chain_tx_out_cond_t *out_cond;
+    dap_chain_tx_in_cond_t *in_cond;
+
+    dap_chain_datum_tx_t * tx_next;
+    UT_hash_handle hh;
+}dap_chain_datum_tx_spends_item_t;
+
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
     TX_SEARCH_TYPE_LOCAL,

@@ -1435,6 +1435,10 @@ const uint8_t * s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj,
     }
 }
 
+int s_dap_chain_net_tx_add_back(uint256_t a_value_need, ){
+
+}
+
 int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
