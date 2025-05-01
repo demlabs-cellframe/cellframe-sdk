@@ -292,11 +292,11 @@ static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
                                        a_usage->receipt_next, a_usage->receipt_next->size);
             return true;
         } else if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT) {
-            if (l_item->grace->usage->receipt_next){
+            if (a_usage->receipt_next){
                 dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                     a_usage->receipt, a_usage->receipt->size);
                 return true;
-            } else if (l_item->grace->usage->receipt) {
+            } else if (a_usage->receipt) {
                 dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                     a_usage->receipt_next, a_usage->receipt_next->size);
                 return true;
