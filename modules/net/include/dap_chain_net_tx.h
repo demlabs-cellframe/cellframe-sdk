@@ -40,6 +40,8 @@ typedef enum s_com_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS,
     DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
     DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS,
+    DAP_CHAIN_NET_TX_CREATE_JSON_ENOUGH_MEMORY,
+    DAP_CHAIN_NET_TX_CREATE_JSON_INTEGER_OVERFLOW,
     DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR,    
     DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR
 }s_com_tx_create_json_err_t;
@@ -58,17 +60,6 @@ typedef struct dap_tx_creator_tokenizer {
     uint256_t sum;
     UT_hash_handle hh;
 } dap_tx_creator_tokenizer_t;
-
-typedef struct dap_chain_datum_tx_spends_item{
-    dap_chain_datum_tx_t * tx;
-    dap_hash_fast_t tx_hash;
-
-    dap_chain_tx_out_cond_t *out_cond;
-    dap_chain_tx_in_cond_t *in_cond;
-
-    dap_chain_datum_tx_t * tx_next;
-    UT_hash_handle hh;
-}dap_chain_datum_tx_spends_item_t;
 
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
