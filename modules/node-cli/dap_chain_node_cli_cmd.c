@@ -55,6 +55,7 @@
 #include "dap_enc_ks.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
+#include "dap_chain_wallet_shared.h"
 #include "dap_chain_node.h"
 #include "dap_chain_node_rpc.h"
 #include "dap_global_db.h"
@@ -1821,9 +1822,10 @@ static void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out
  */
 int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-    enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT, CMD_WALLET_OUTPUTS, CMD_WALLET_FIND };
+    enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, 
+                CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT, CMD_WALLET_OUTPUTS, CMD_WALLET_FIND, CMD_WALLET_SHARED };
     int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
     // find  add parameter ('alias' or 'handshake')
@@ -1843,12 +1845,14 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
         cmd_num = CMD_WALLET_OUTPUTS;
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "find", NULL))
         cmd_num = CMD_WALLET_FIND;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "shared", NULL))
+        cmd_num = CMD_WALLET_SHARED;
 
     l_arg_index++;
 
     if(cmd_num == CMD_NONE) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
-                "Format of command: wallet {new -w <wallet_name> | list | info [-addr <addr>]|[-w <wallet_name> -net <net_name>]}");
+                "Format of command: wallet { new -w <wallet_name> | list | info | activate | deactivate | convert | outputs | find | shared }");
         return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;        
     }
 
@@ -2146,6 +2150,8 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR;
             }           
         } break;
+        case CMD_WALLET_SHARED:
+            return dap_chain_wallet_shared_cli(a_argc, a_argv, a_str_reply);
         default: {
             if( !l_wallet_name ) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
@@ -2854,7 +2860,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                             l_out_cond_subtype = OUT_COND_TYPE_PAY;
                                         }
                                             break;
-                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE: {
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
                                             l_dist_token = l_main_ticker;
                                             l_out_cond_subtype = OUT_COND_TYPE_EMIT_DELEGATE;
                                         }

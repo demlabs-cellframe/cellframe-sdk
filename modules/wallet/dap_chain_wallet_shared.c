@@ -30,7 +30,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_cli_server.h"
 #include "dap_chain_net_tx.h"
-#include "dap_chain_net_srv_emit_delegate.h"
+#include "dap_chain_wallet_shared.h"
 #include "dap_list.h"
 #include "dap_chain_node_cli_cmd.h"
 
@@ -50,9 +50,9 @@ enum emit_delegation_error {
     ERROR_NETWORK
 };
 
-#define LOG_TAG "dap_chain_net_srv_emit_delegate"
+#define LOG_TAG "dap_chain_wallet_shared"
 
-static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner)
+static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner)
 {
     size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];
@@ -77,7 +77,7 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
             break;
         case TX_ITEM_TYPE_TSD: {
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
-            if (l_tsd->type != DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF && l_tsd->type != DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL)
+            if (l_tsd->type != DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && l_tsd->type != DAP_CHAIN_WALLET_SHARED_TSD_REFILL)
                 break; // Skip it
             if (l_tsd->size != sizeof(uint256_t)) {
                 log_it(L_ERROR, "TSD section size control error");
@@ -127,7 +127,7 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
     }
 
     uint256_t l_change_value;
-    if (l_change_type == DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF && SUBTRACT_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
+    if (l_change_type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && SUBTRACT_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
         char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
         const char *l_writeoff = NULL;
         dap_uint256_to_char(l_change_value, &l_writeoff);
@@ -135,7 +135,7 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
         DAP_DELETE(l_balance);
         return -7;
     }
-    if (l_change_type == DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL && SUM_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
+    if (l_change_type == DAP_CHAIN_WALLET_SHARED_TSD_REFILL && SUM_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
         char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
         const char *l_refill = NULL;
         dap_uint256_to_char(l_change_value, &l_refill);
@@ -161,9 +161,9 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
         }
     }
 
-    if (l_change_type == DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF && l_signs_verified < a_cond->subtype.srv_emit_delegate.signers_minimum) {
-        log_it(L_WARNING, "Not enough valid signs (%u from %u) for delegated emission",
-                                    l_signs_verified, a_cond->subtype.srv_emit_delegate.signers_minimum);
+    if (l_change_type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && l_signs_verified < a_cond->subtype.wallet_shared.signers_minimum) {
+        log_it(L_WARNING, "Not enough valid signs (%u from %u) for shared funds tx",
+                                    l_signs_verified, a_cond->subtype.wallet_shared.signers_minimum);
         return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS;
     }
     return 0;
@@ -171,12 +171,12 @@ static int s_emit_delegate_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
 
 static bool s_tag_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {   
-    if (!a_items_grp->items_out_cond_srv_emit_delegate)
+    if (!a_items_grp->items_out_cond_wallet_shared)
         return false;
     if (a_action) {
-        if (dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF))
+        if (dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF))
             *a_action = DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE;
-        else if (dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL))
+        else if (dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL))
             *a_action = DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL;
         else
             *a_action = DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD;
@@ -208,7 +208,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
                                                   uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str)
 {
     const char *l_native_ticker = a_net->pub.native_ticker;
-    bool l_delegate_native = !dap_strcmp(l_native_ticker, a_token_ticker);
+    bool l_share_native = !dap_strcmp(l_native_ticker, a_token_ticker);
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     uint256_t l_value = a_value, l_value_transfer = {}, l_fee_transfer = {}; // how many coins to transfer
     uint256_t l_net_fee, l_fee_total = a_fee;
@@ -219,7 +219,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
-    if (l_delegate_native && SUM_256_256(l_value, l_fee_total, &l_value))
+    if (l_share_native && SUM_256_256(l_value, l_fee_total, &l_value))
         m_tx_fail(ERROR_OVERFLOW, "Integer overflow in TX composer");
 
     // list of transaction with 'out' items to sell
@@ -228,16 +228,16 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
                                                                        &l_owner_addr, l_value, &l_value_transfer);
     if (!l_list_used_out)
-        m_tx_fail(ERROR_FUNDS, "Nothing to pay for delegate (not enough funds)");
+        m_tx_fail(ERROR_FUNDS, "Nothing to pay for share (not enough funds)");
 
-    // add 'in' items to pay for delegate
+    // add 'in' items to pay for share
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
     if (!EQUAL_256(l_value_to_items, l_value_transfer))
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction input");
 
-    if (!l_delegate_native) {
-        dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+    if (!l_share_native) {
+        dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                           &l_owner_addr, l_fee_total, &l_fee_transfer);
         if (!l_list_fee_out)
             m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
@@ -249,8 +249,8 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     }
 
     // add 'out_cond' & 'out_ext' items
-    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_EMIT_DELEGATE_ID };
-    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_emit_delegate(
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
+    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_wallet_shared(
                                                 l_uid, a_value, a_signs_min, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
     if (!l_tx_out)
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction conditional output");
@@ -261,7 +261,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     uint256_t l_value_back = {};
     SUBTRACT_256_256(l_value_transfer, l_value, &l_value_back);
     if (!IS_ZERO_256(l_value_back)) {
-        int rc = l_delegate_native ? dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_native_ticker)
+        int rc = l_share_native ? dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_native_ticker)
                                    : dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, a_token_ticker);
         if (rc != 1)
             m_tx_fail(ERROR_COMPOSE, "Cant add coin back output");
@@ -276,7 +276,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1)
         m_tx_fail(ERROR_COMPOSE, "Cant add validator fee output");
 
-    if (!l_delegate_native) {
+    if (!l_share_native) {
         uint256_t l_fee_back = {};
         // fee coin back
         SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
@@ -290,7 +290,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
 }
 
 
-dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
+dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
     uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
     dap_return_val_if_pass(!a_net || IS_ZERO_256(a_value) || IS_ZERO_256(a_fee), NULL);
@@ -317,7 +317,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
     if (!l_list_used_out)
         m_tx_fail(ERROR_FUNDS, "Nothing to pay for refill (not enough funds)");
 
-    // add 'in' items to pay for delegate
+    // add 'in' items to pay for share
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
     if (!EQUAL_256(l_value_to_items, l_value_transfer))
@@ -335,7 +335,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
             m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
     }
 
-    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash, false);
+    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, a_tx_in_hash, false);
     if (dap_hash_fast_is_blank(&l_final_tx_hash))
         m_tx_fail(ERROR_FUNDS, "Nothing to refill, can't find tx");
 
@@ -343,7 +343,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
     dap_chain_datum_tx_t *l_tx_in = dap_ledger_tx_find_by_hash(l_ledger, &l_final_tx_hash);
     assert(l_tx_in);
     int l_prev_cond_idx = 0;
-    dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_out_cond_get(l_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_prev_cond_idx);
+    dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_out_cond_get(l_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_prev_cond_idx);
     if (!l_cond_prev)
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction requires conditional output");
 
@@ -372,7 +372,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_refilling_tx_create(json_o
     DAP_DELETE(l_out_cond);
 
     // add track for refill from conditional value
-    dap_chain_tx_tsd_t *l_refill_tsd = dap_chain_datum_tx_item_tsd_create(&a_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_REFILL, sizeof(uint256_t));
+    dap_chain_tx_tsd_t *l_refill_tsd = dap_chain_datum_tx_item_tsd_create(&a_value, DAP_CHAIN_WALLET_SHARED_TSD_REFILL, sizeof(uint256_t));
     if (dap_chain_datum_tx_add_item(&l_tx, l_refill_tsd) != 1) {
         DAP_DELETE(l_refill_tsd);
         m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with withdraw value");
@@ -433,8 +433,8 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
     return false;
 }
 
-dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
-    dap_chain_addr_t *a_to_addr, uint256_t *a_value, uint32_t a_addr_count /*!not change type!*/, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* a_tsd_items)
+dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
+    dap_chain_addr_t *a_to_addr, uint256_t *a_value, uint32_t a_addr_count /*!not change type!*/, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
 {
     dap_return_val_if_pass(!a_to_addr, NULL);
     dap_return_val_if_pass(!a_value, NULL);
@@ -476,7 +476,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer))
         m_tx_fail(ERROR_COMPOSE, "Can't compose the fee transaction input");
 
-    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, a_tx_in_hash, true);
+    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, a_tx_in_hash, true);
     if (dap_hash_fast_is_blank(&l_final_tx_hash))
         m_tx_fail(ERROR_FUNDS, "Nothing to emit (not enough funds)");
 
@@ -484,7 +484,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     dap_chain_datum_tx_t *l_tx_in = dap_ledger_tx_find_by_hash(l_ledger, &l_final_tx_hash);
     assert(l_tx_in);
     int l_prev_cond_idx = 0;
-    dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_out_cond_get(l_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_prev_cond_idx);
+    dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_out_cond_get(l_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_prev_cond_idx);
     if (!l_cond_prev)
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction requires conditional output");
 
@@ -532,7 +532,7 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
     }
 
     // add track for takeoff from conditional value
-    dap_chain_tx_tsd_t *l_takeoff_tsd = dap_chain_datum_tx_item_tsd_create(&l_value, DAP_CHAIN_NET_SRV_EMIT_DELEGATE_TSD_WRITEOFF, sizeof(uint256_t));
+    dap_chain_tx_tsd_t *l_takeoff_tsd = dap_chain_datum_tx_item_tsd_create(&l_value, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF, sizeof(uint256_t));
     if (!l_takeoff_tsd || dap_chain_datum_tx_add_item(&l_tx, l_takeoff_tsd) != 1)
         m_tx_fail(ERROR_COMPOSE, "Can't add TSD section item with withdraw value");
     DAP_DELETE(l_takeoff_tsd);
@@ -571,10 +571,10 @@ dap_chain_datum_tx_t *dap_chain_net_srv_emit_delegate_taking_tx_create(json_obje
 
 #undef m_tx_fail
 
-static dap_chain_datum_tx_t *s_taking_tx_sign(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key, dap_chain_datum_tx_t *a_tx_in)
+dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key, dap_chain_datum_tx_t *a_tx_in)
 {
     int l_cond_idx = 0;
-    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_cond_idx);
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_cond_idx);
     if (!l_cond)
         m_sign_fail(ERROR_TX_MISMATCH, "Requested conditional transaction requires conditional output");
     if (!dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL))
@@ -726,17 +726,17 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
         DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
         return ERROR_VALUE;
     }
-    // Create conditional transaction for delegated emissions
+    // Create conditional transaction for shared fundss
     dap_chain_datum_tx_t *l_tx = s_emitting_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_token_str, l_value, l_fee, l_signs_min, l_pkey_hashes, l_hashes_count, l_tag_str);
     DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
     if (!l_tx) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for shared funds");
         return ERROR_CREATE;
     }
     char *l_tx_hash_str = s_tx_put(l_tx, a_chain, a_hash_out_type);
     DAP_DELETE(l_tx);
     if (!l_tx_hash_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for delegated emission in mempool");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for shared funds in mempool");
         return ERROR_PLACE;
     }
     json_object * l_json_obj_create_val = json_object_new_object();
@@ -805,7 +805,7 @@ static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object 
     dap_chain_wallet_close(l_wallet);
 
     // Create conditional transaction for refill
-    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_refilling_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_value, l_fee, &l_tx_in_hash, NULL);
+    dap_chain_datum_tx_t *l_tx = dap_chain_wallet_shared_refilling_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_value, l_fee, &l_tx_in_hash, NULL);
     DAP_DELETE(l_enc_key);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for refill shared funds tx");
@@ -923,17 +923,17 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
 
     // Create emission from conditional transaction
     
-    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_emit_delegate_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_to_addr, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
+    dap_chain_datum_tx_t *l_tx = dap_chain_wallet_shared_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_to_addr, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
     DAP_DEL_MULTY(l_value, l_to_addr, l_enc_key);
     dap_list_free_full(l_tsd_list, NULL);
     if (!l_tx) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for shared funds");
         return ERROR_CREATE;
     }
     char *l_tx_hash_str = s_tx_put(l_tx, a_chain, a_hash_out_type);
     DAP_DELETE(l_tx);
     if (!l_tx_hash_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for delegated emission in mempool");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for shared funds in mempool");
         return ERROR_PLACE;
     }
     json_object * l_json_obj_create_val = json_object_new_object();
@@ -997,16 +997,16 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
 
      // Create emission from conditional transaction
-    dap_chain_datum_tx_t *l_tx = s_taking_tx_sign(*a_json_arr_reply, a_net, l_enc_key, (dap_chain_datum_tx_t *)l_tx_in->data);
+    dap_chain_datum_tx_t *l_tx = dap_chain_wallet_shared_taking_tx_sign(*a_json_arr_reply, a_net, l_enc_key, (dap_chain_datum_tx_t *)l_tx_in->data);
     DAP_DELETE(l_enc_key);
     if (!l_tx) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for delegated emission");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for shared funds");
         return ERROR_CREATE;
     }
     char *l_tx_hash_str = s_tx_put(l_tx, a_chain, a_hash_out_type);
     DAP_DELETE(l_tx);
     if (!l_tx_hash_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for delegated emission in mempool");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for shared funds in mempool");
         return ERROR_PLACE;
     }
     char *l_mempool_group = dap_chain_mempool_group_new(a_chain);
@@ -1035,9 +1035,9 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_hash_str);
         return ERROR_VALUE;
     }
-    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, &l_tx_hash, false);
+    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_tx_hash, false);
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_final_tx_hash);
-    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, NULL);
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
     if (!l_cond) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find final tx_out_cond");
         return ERROR_TX_MISMATCH;
@@ -1064,7 +1064,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_jobj_balance, "coins", json_object_new_string(l_balance_coins));
     json_object_object_add(l_jobj_balance, "datoshi", json_object_new_string(l_balance_datoshi));
     // verify block
-    json_object_object_add(l_jobj_take_verify, "signs_minimum", json_object_new_uint64(l_cond->subtype.srv_emit_delegate.signers_minimum));
+    json_object_object_add(l_jobj_take_verify, "signs_minimum", json_object_new_uint64(l_cond->subtype.wallet_shared.signers_minimum));
     dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
@@ -1093,10 +1093,10 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
  * @param a_str_reply
  * @return
  */
-static int s_cli_emit_delegate(int a_argc, char **a_argv, void **a_str_reply)
+int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
-    int l_arg_index = 1;
+    int l_arg_index = 2;
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
     const char *l_hash_out_type = NULL;
@@ -1133,51 +1133,10 @@ static int s_cli_emit_delegate(int a_argc, char **a_argv, void **a_str_reply)
     }
 }
 
-int dap_chain_net_srv_emit_delegate_init()
+int dap_chain_wallet_shared_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE, s_emit_delegate_verificator, NULL, NULL, NULL, NULL, NULL);
-    dap_cli_server_cmd_add("emit_delegate", s_cli_emit_delegate, "Emitting delegation service commands", dap_chain_node_cli_cmd_id_from_str("emit_delegate"),
-                "emit_delegate hold - to create new delegation\n"
-                "\t-net <net_name>\n"
-                "\t-w <wallet_name> - wallet to writeoff value, pay fee and sign tx\n"
-                "\t-token <ticker> - token ticker to hold\n"
-                "\t-value <value> - value to hold\n"
-                "\t-fee <value> - fee value\n"
-                "\t-signs_minimum <value_int> - minimum signs count needed to verify take datum\n"
-                "\t-pkey_hashes <hash1[,hash2,...,hashN]> - owners pkey hashes, who can sign take datum\n"
-                "\t[-tag \"<str>\"] - additional info about tx\n"
-                "\t[-H {hex(default) | base58}] - datum hash return format\n"
-                "emit_delegate refill - to refill value\n"
-                "\t-net <net_name>\n"
-                "\t-w <wallet_name> - wallet to writeoff value and pay fee\n"
-                "\t-value <value> - value to refill\n"
-                "\t-fee <value> - fee value\n"
-                "\t-tx <transaction_hash> - shared funds tx hash to refill\n"
-                "\t[-H {hex(default) | base58}] - datum hash return format\n"
-                "emit_delegate take - create take datum to writeoff value from0 shared funds tx\n"
-                "\t-net <net_name>\n"
-                "\t-w <wallet_name> - wallet to pay fee\n"
-                "\t-tx <transaction_hash> - shared funds tx hash to writeoff\n"
-                "\t-to_addr <addr1[,addr2,...,addrN]> - recipient addresses, count should be equal values count\n"
-                "\t-value <value1[,value2,...,valueN]> - value sent to each recipient, count should be equal addresses count\n"
-                "\t-fee <value> - fee value\n"
-                "\t[-H {hex(default) | base58}] - datum hash return format\n"
-                "emit_delegate sign - add wallet sign to take datum\n"
-                "\t-net <net_name>\n"
-                "\t-w <wallet_name> | -cert <cert_name> - wallet or cert to sign\n"
-                "\t-tx <transaction_hash> - shared funds tx hash to sign\n"
-                "\t[-H {hex(default) | base58}] - datum hash return format\n"
-                "emit_delegate info - get info about shared funds tx by hash\n"
-                "\t-net <net_name>\n"
-                "\t-tx <transaction_hash> - shared funds tx hash to get info\n"
-                "\t[-H {hex(default) | base58}] - tx hash format\n"
-                "Hint:\n"
-                "\texample value_coins (only natural) 1.0 123.4567\n"
-                "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
-    );
-
-    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_EMIT_DELEGATE_ID };
-    dap_ledger_service_add(l_uid, "emit-delegate", s_tag_check);
-
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL);
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
+    dap_ledger_service_add(l_uid, "wallet shared", s_tag_check);
     return 0;
 }
