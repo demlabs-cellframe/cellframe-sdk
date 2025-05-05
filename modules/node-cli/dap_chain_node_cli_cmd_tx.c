@@ -381,7 +381,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
 
-    dap_chain_set_offset_limit_json(json_obj_datum, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
+    dap_chain_set_offset_limit_json(json_obj_datum, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain),false);
     
     size_t i_tmp = 0;
     size_t
@@ -873,7 +873,7 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
         size_t l_arr_start = 0;
         size_t l_arr_end = 0;
 
-        dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain));
+        dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, a_chain->callback_count_tx(a_chain),false);
         
         bool look_for_unknown_service = (a_srv && strcmp(a_srv,"unknown") == 0);
         // load transactions
@@ -1519,7 +1519,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
     if((l_ret = dap_chain_net_tx_create_by_json(l_json, l_net, l_jobj_errors, &l_tx, &l_items_count, &l_items_ready)) != DAP_CHAIN_NET_TX_CREATE_JSON_OK) {
         dap_json_rpc_error_add(*a_json_arr_reply, l_ret,
                                "Can't create transaction from json file");
-        json_object_put(l_json);
         return l_ret;
     }
     json_object *l_jobj_ret = json_object_new_object();
