@@ -83,24 +83,21 @@ void dap_chain_net_srv_order_deinit()
 
 }
 
-int dap_chain_srv_order_pin_init()
-{
+int dap_chain_srv_order_pin_init() {
     dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*.service.orders");
-    for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list)) {
+    for (dap_list_t *l_list = l_group_list; l_list && dap_global_db_group_match_mask((char*)l_list->data, "*pinned"); l_list = dap_list_next(l_list)) {
         size_t l_ret_count;
-        dap_store_obj_t *l_ret = dap_global_db_get_all_raw_sync((char*)l_list->data, &l_ret_count);
-        if (!l_ret) {
-            dap_store_obj_free(l_ret, l_ret_count);
+        dap_store_obj_t  * l_ret = dap_global_db_get_all_raw_sync((char*)l_list->data, &l_ret_count);
+        if (!l_ret)
             return -2;
-        }
         dap_cert_t *l_cert = dap_cert_find_by_name("node-addr");
-        if (!l_cert)
+        if (!l_cert) {
+            dap_store_obj_free(l_ret, l_ret_count);
             return -1;
+        }
         dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_cert(l_cert);
         const char * l_node_addr_str = dap_stream_node_addr_to_str_static(l_addr);
         for(size_t i = 0; i < l_ret_count; i++) {
-            if (dap_store_obj_get_type(l_ret + i) != DAP_GLOBAL_DB_OPTYPE_ADD)
-                continue;
             const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_ret[i].key, l_ret[i].value, l_ret[i].value_len);
             if (!l_order)
                 continue;
@@ -110,7 +107,6 @@ int dap_chain_srv_order_pin_init()
                 log_it(L_DEBUG, "Pin *.service.orders obj %s group, %s key", l_ret[i].group, l_ret[i].key);
             }
         }
-        // DAP_DELETE(l_order); order delete in dap_store_obj_free
         dap_store_obj_free(l_ret, l_ret_count);
     }
     return 0;
