@@ -322,7 +322,12 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
             dap_string_append_printf(l_string_reply, "%-26s%-20s%-8s%s", "Address", "IPv4", "Port", "Timestamp\n");
 
             for (size_t i = 0; i < l_nodes_count; i++) {
+                if (!l_objs[i].value) {
+                    log_it(L_ERROR, "Empty node record %s, skip it", l_objs[i].key);
+                    continue;
+                }
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
+
                 if (dap_chain_node_addr_is_blank(&l_node_info->address)){
                     log_it(L_ERROR, "Node address is empty");
                     continue;
