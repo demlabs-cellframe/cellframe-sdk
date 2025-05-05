@@ -1519,7 +1519,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply)
     if((l_ret = dap_chain_net_tx_create_by_json(l_json, l_net, l_jobj_errors, &l_tx, &l_items_count, &l_items_ready)) != DAP_CHAIN_NET_TX_CREATE_JSON_OK) {
         dap_json_rpc_error_add(*a_json_arr_reply, l_ret,
                                "Can't create transaction from json file");
-        json_object_put(l_json);
         return l_ret;
     }
     json_object *l_jobj_ret = json_object_new_object();
