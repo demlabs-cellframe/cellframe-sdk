@@ -311,8 +311,10 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
         if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
+            dap_pkey_t *l_pkey = dap_pkey_from_enc_key(l_cert_cur->enc_key);
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, NULL,
-                                                 l_weight, &l_signer_node_addr, dap_pkey_from_enc_key(l_cert_cur->enc_key));
+                                                 l_weight, &l_signer_node_addr, l_pkey);
+            DAP_DELETE(l_pkey);
         }
     }
     if (!i)

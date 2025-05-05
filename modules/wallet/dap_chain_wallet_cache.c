@@ -222,15 +222,23 @@ int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_
 
     pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
     HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-    if ((l_wallet_item && l_wallet_item->is_loading) || (!l_wallet_item && s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)){
-        log_it(L_INFO, "Can't find wallet with address %s", dap_chain_addr_to_str_static(a_addr));
+    if ( l_wallet_item ) {
+        if ( l_wallet_item->is_loading ) {
+            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+            log_it( L_WARNING, "Wallet address \"%s\" is pending...", dap_chain_addr_to_str_static(a_addr));
+            return -101;
+        }
+    } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return -101;
-    } else if(!l_wallet_item) {
-        log_it(L_INFO, "Can't find wallet with address %s. All wallets cache enabled, so the wallet is empty.", dap_chain_addr_to_str_static(a_addr));
-        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return 0;
+        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
+            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
+            return 0;
+        } else {
+            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
+            return -101;
+        }
     }
+
     dap_wallet_tx_cache_t *l_current_wallet_tx = NULL;
     if (!dap_hash_fast_is_blank(a_tx_hash_curr)) {
         // find start transaction
@@ -320,14 +328,21 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
 
     pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
     HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-    if ((l_wallet_item && l_wallet_item->is_loading) || (!l_wallet_item && s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)){
-        log_it(L_INFO, "Can't find wallet with address %s", dap_chain_addr_to_str_static(a_addr));
+    if ( l_wallet_item ) {
+        if ( l_wallet_item->is_loading ) {
+            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+            log_it( L_WARNING, "Wallet address \"%s\" is pending...", dap_chain_addr_to_str_static(a_addr));
+            return -101;
+        }
+    } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return -101;
-    } else if(!l_wallet_item) {
-        log_it(L_INFO, "Can't find wallet with address %s. All wallets cache enabled, so the wallet is empty.", dap_chain_addr_to_str_static(a_addr));
-        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return 0;
+        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
+            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
+            return 0;
+        } else {
+            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
+            return -101;
+        }
     }
     
     dap_wallet_tx_cache_t *l_current_wallet_tx = NULL;
@@ -406,14 +421,21 @@ int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_to
     dap_wallet_cache_t *l_wallet_item = NULL;
     pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
     HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-    if ((l_wallet_item && l_wallet_item->is_loading) || (!l_wallet_item && s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)){
-        log_it(L_INFO, "Can't find wallet with address %s", dap_chain_addr_to_str_static(a_addr));
+    if ( l_wallet_item ) {
+        if ( l_wallet_item->is_loading ) {
+            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+            log_it( L_WARNING, "Wallet address \"%s\" is pending...", dap_chain_addr_to_str_static(a_addr));
+            return -101;
+        }
+    } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return -101;
-    } else if(!l_wallet_item) {
-        log_it(L_INFO, "Can't find wallet with address %s. All wallets cache enabled, so the wallet is empty.", dap_chain_addr_to_str_static(a_addr));
-        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return 0;
+        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
+            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
+            return 0;
+        } else {
+            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
+            return -101;
+        }
     }
 
     dap_wallet_cache_unspent_outs_t *l_item_cur = NULL, *l_tmp = NULL;
@@ -510,14 +532,21 @@ int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const c
     dap_wallet_cache_t *l_wallet_item = NULL;
     pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
     HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-    if ((l_wallet_item && l_wallet_item->is_loading) || (!l_wallet_item && s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)){
-        log_it(L_INFO, "Can't find wallet with address %s", dap_chain_addr_to_str_static(a_addr));
+    if ( l_wallet_item ) {
+        if ( l_wallet_item->is_loading ) {
+            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+            log_it( L_WARNING, "Wallet address \"%s\" is pending...", dap_chain_addr_to_str_static(a_addr));
+            return -101;
+        }
+    } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return -101;
-    } else if(!l_wallet_item) {
-        log_it(L_INFO, "Can't find wallet with address %s. All wallets cache enabled, so the wallet is empty.", dap_chain_addr_to_str_static(a_addr));
-        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return 0;
+        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
+            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
+            return 0;
+        } else {
+            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
+            return -101;
+        }
     }
 
     dap_wallet_cache_unspent_outs_t *l_item_cur = NULL, *l_tmp = NULL;
@@ -715,7 +744,7 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
         dap_chain_addr_t l_addr;
         uint256_t l_value;
         uint8_t *l_prev_item = NULL;
-        int l_prev_idx;
+        int l_prev_idx = 0;
 
         switch(*l_tx_item) {
         case TX_ITEM_TYPE_IN: {
