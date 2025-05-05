@@ -38,6 +38,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     json_object *l_error_json = json_object_new_array();
     dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
     dap_assert_PIF(*a_datum, "tx_create_compose");
+    printf("\n");
     dap_chain_datum_tx_t *l_datum_2 = DAP_NEW_Z(dap_chain_datum_tx_t);
     size_t
         l_items_count = 0,
@@ -99,7 +100,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
     
     s_chain_datum_tx_create_test();
-    // s_chain_datum_cond_create_test();
+    s_chain_datum_cond_create_test();
     s_chain_datum_stake_lock_test();
 
     DAP_DEL_Z(s_data);

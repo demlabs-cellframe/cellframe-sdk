@@ -188,6 +188,10 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size);
 
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_net_srv_uid_t a_srv_uid,
+                                                                             uint256_t a_value, uint256_t a_value_max_per_unit,
+                                                                             dap_chain_net_srv_price_unit_uid_t a_unit,
+                                                                             const void *a_params, size_t a_params_size);
 /**
  * Create item dap_chain_tx_out_cond_t for eXchange service
  *

@@ -294,6 +294,33 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
     return l_item;
 }
 
+/**
+ * Create item dap_chain_tx_out_cond_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_net_srv_uid_t a_srv_uid,
+                                                                             uint256_t a_value, uint256_t a_value_max_per_unit,
+                                                                             dap_chain_net_srv_price_unit_uid_t a_unit,
+                                                                             const void *a_params, size_t a_params_size)
+{
+    if (!a_key_hash || IS_ZERO_256(a_value))
+        return NULL;
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_pay.unit = a_unit;
+    l_item->subtype.srv_pay.unit_price_max_datoshi = a_value_max_per_unit;
+    memcpy( &l_item->subtype.srv_pay.pkey_hash, a_key_hash, sizeof(l_item->subtype.srv_pay.pkey_hash));
+    if (a_params && a_params_size) {
+        l_item->tsd_size = (uint32_t)a_params_size;
+        memcpy(l_item->tsd, a_params, a_params_size);
+    }
+    return l_item;
+}
+
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
                                                                              uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
                                                                              const char *a_token, uint256_t a_value_rate,
