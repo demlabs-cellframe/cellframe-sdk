@@ -624,7 +624,9 @@ static bool s_json_get_srv_uid(struct json_object *a_json, const char *a_key_ser
     if(!a_out)
         return false;
     // Read service id
-    if(s_json_get_int64(a_json, a_key_service_id, (int64_t*) &l_srv_id)) {
+    const char *l_id = s_json_get_text(a_json, a_key_service_id);
+    
+    if(sscanf(l_id,"0x%016"DAP_UINT64_FORMAT_x, &l_srv_id) == 1) {
         *a_out = l_srv_id;
         return true;
     }
@@ -1211,8 +1213,8 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             if((l_reinvest_percent_str = s_json_get_text(a_json_item_obj, "reinvest_percent"))!=NULL) {
                 l_reinvest_percent = dap_chain_coins_to_balance(l_reinvest_percent_str);
                 if (compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1){
-                log_it(L_ERROR, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
-                return NULL;
+                    log_it(L_ERROR, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                    return NULL;
                 }
                 if (IS_ZERO_256(l_reinvest_percent)) {
                     int l_reinvest_percent_int = atoi(l_reinvest_percent_str);
@@ -2976,6 +2978,9 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                     snprintf(l_tmp_buf, DAP_TIME_STR_SIZE, "%"DAP_UINT64_FORMAT_U, l_ts_unlock);
                     json_object_object_add(json_obj_item,"time_staking", json_object_new_string(l_tmp_buf));
                     json_object_object_add(json_obj_item,"subtype", json_object_new_string("srv_stake_lock"));
+                    char *l_reinvest_percent = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.reinvest_percent);
+                    json_object_object_add(json_obj_item, "reinvest_percent", json_object_new_string(l_reinvest_percent));
+                    DAP_DELETE(l_reinvest_percent);
                 } break;
                 default: break;
             }
