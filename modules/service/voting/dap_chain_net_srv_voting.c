@@ -1475,8 +1475,6 @@ static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_s
         *a_state_count = l_states_count;
     if (a_state_size)
         *a_state_size = l_total_size / l_states_count;
-    if (*a_state_size)
-        (*a_state_size)--;
     return ret;
 }
 
@@ -1511,7 +1509,7 @@ static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint6
             };
             dap_tsd_t *l_tsd; size_t l_tsd_size;
             dap_tsd_iter(l_tsd, l_tsd_size,
-                         cur->question_n_options_n_votes + sizeof(struct voting_serial),
+                         cur->question_n_options_n_votes,
                          l_data_size - sizeof(struct voting_serial)) {
                 switch (l_tsd->type) {
                 case VOTING_TSD_TYPE_QUESTION:

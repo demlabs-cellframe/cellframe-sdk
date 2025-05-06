@@ -482,7 +482,8 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
             l_offset += l_addition;
             i++;
         }
-        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, l_ptr, sizeof(dap_chain_datum_service_state_t) + l_cur_step_size);
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, NULL, sizeof(dap_chain_datum_service_state_t) + l_cur_step_size);
+        memcpy(((dap_chain_datum_service_state_t *)l_datum->data)->states, l_ptr, l_cur_step_size);
         ((dap_chain_datum_service_state_t *)l_datum->data)->srv_uid = a_state->uid;
         ((dap_chain_datum_service_state_t *)l_datum->data)->state_size = a_state->size;
         ((dap_chain_datum_service_state_t *)l_datum->data)->states_count = i;
