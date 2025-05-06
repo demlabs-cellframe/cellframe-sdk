@@ -1537,7 +1537,7 @@ typedef enum dap_tx_cond_create_compose_error {
     TX_COND_CREATE_COMPOSE_ERROR_COIN_BACK_FAILED
 } dap_tx_cond_create_compose_error_t;
 json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_token_ticker, const char *a_wallet_str, const char *a_wallet_path,
-                                        const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, 
+                                        const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, const char *a_value_per_unit_max_str,
                                         const char *a_srv_uid_str, const char *a_url_str, uint16_t a_port) {    
     compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
     if (!l_config) {
@@ -1548,6 +1548,7 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
     
     uint256_t l_value_datoshi = {};    
     uint256_t l_value_fee = {};
+    uint256_t l_value_per_unit_max;
     dap_chain_net_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(a_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
@@ -1574,6 +1575,12 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
         return s_compose_config_return_response_handler(l_config);
     }
 
+    l_value_per_unit_max = dap_chain_balance_scan(a_value_per_unit_max_str);
+    if(IS_ZERO_256(l_value_fee)) {
+        dap_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_VALUE, "Can't recognize value '%s' as a number\n", a_value_per_unit_max_str);
+        return s_compose_config_return_response_handler(l_config);
+    }
+
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_str, a_wallet_path, NULL);
     if(!l_wallet) {
         dap_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_WALLET_OPEN_FAILED, "Can't open wallet '%s'\n", a_wallet_str);
@@ -1596,7 +1603,6 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
         return s_compose_config_return_response_handler(l_config);
     }
 
-    uint256_t l_value_per_unit_max = {};
     dap_chain_datum_tx_t *l_tx = dap_chain_mempool_tx_create_cond_compose(l_key_from, l_key_cond, a_token_ticker,
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_config);

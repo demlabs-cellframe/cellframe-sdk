@@ -72,7 +72,7 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
 json_object* dap_tx_create_xchange_compose(const char *l_net_str, const char *l_token_sell, const char *l_token_buy, const char *l_wallet_str, const char *l_wallet_path, const char *l_value_str, const char *l_rate_str, const char *l_fee_str, const char *l_url_str, uint16_t l_port);
 
 json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_token_ticker, const char *a_wallet_str, const char *a_wallet_path,
-                                        const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, 
+                                        const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, const char *a_value_per_unit_max_str,
                                         const char *a_srv_uid_str, const char *a_url_str, uint16_t a_port);
 
 json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_ticker_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_coins_str, const char *a_time_staking_str,
