@@ -2640,7 +2640,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_arr_end = 0;
             json_object* json_obj_order = json_object_new_object();
             json_object* json_arr_orders_out = json_object_new_array();
-            dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list));
+            dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list),true);
             size_t i_tmp = 0;
 
             // Print all txs
@@ -3231,7 +3231,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     json_object* json_arr_bl_cache_out = json_object_new_array();
                     size_t l_arr_start = 0;
                     size_t l_arr_end  = 0;
-                    dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_datum_num);
+                    dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_datum_num, false);
                     
                     size_t i_tmp = 0;
 
@@ -3359,7 +3359,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         size_t l_arr_start = 0;
                         size_t l_arr_end  = 0;
                         json_object* json_arr_bl_cache_out = json_object_new_array();
-                        dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_tickers_count*l_tickers_count); 
+                        dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_tickers_count*l_tickers_count, false); 
 
                         size_t i_tmp = 0;
                         for(size_t i = 0; i< l_tickers_count; i++){

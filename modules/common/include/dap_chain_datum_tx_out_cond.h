@@ -36,7 +36,7 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE = 0x03,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
-    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE = 0x07,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED = 0x07,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL = 0xFF
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;
@@ -118,7 +118,7 @@ typedef struct dap_chain_tx_out_cond {
         } DAP_ALIGN_PACKED srv_stake_lock;
         struct {
             uint32_t signers_minimum;
-        } DAP_ALIGN_PACKED srv_emit_delegate;
+        } DAP_ALIGN_PACKED wallet_shared;
         byte_t free_space[272]; // TODO increase it to 512 with version update
     } DAP_ALIGN_PACKED subtype;
     uint32_t tsd_size; // Condition parameters size
@@ -136,7 +136,7 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK";
-    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE";
+    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED";
     default: {}
     }
     return "UNDEFINED";
