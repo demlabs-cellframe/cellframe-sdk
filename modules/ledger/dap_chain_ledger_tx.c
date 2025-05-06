@@ -106,7 +106,7 @@ typedef struct dap_ledger_cache_gdb_record {
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_ledger_cache_gdb_record_t;
 
-static bool s_ledger_tx_hash_is_used_out_item(dap_ledger_tx_item_t *a_item, uint32_t a_idx_out, dap_hash_fast_t *a_out_spender_hash);
+static bool s_ledger_is_used_out_item(dap_ledger_tx_item_t *a_item, uint32_t a_idx_out, dap_hash_fast_t *a_out_spender_hash);
 static dap_ledger_stake_lock_item_t *s_emissions_for_stake_lock_item_find(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
 void dap_ledger_colour_clear_callback(void *a_list_data);
 static dap_chain_datum_tx_t *s_tx_find_by_hash(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash, dap_ledger_tx_item_t **a_item_out, bool a_unspent_only);
@@ -670,7 +670,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
             // 2. Check if out in previous transaction has spent
             dap_hash_fast_t l_spender = {};
-            if (s_ledger_tx_hash_is_used_out_item(l_item_out, l_tx_prev_out_idx, &l_spender) && !a_check_for_removing) {
+            if (s_ledger_is_used_out_item(l_item_out, l_tx_prev_out_idx, &l_spender) && !a_check_for_removing) {
                 l_err_num = DAP_LEDGER_TX_CHECK_OUT_ITEM_ALREADY_USED;
                 char l_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(&l_spender, l_hash, sizeof(l_hash));
@@ -1244,19 +1244,18 @@ dap_list_t *s_trackers_aggregate(dap_ledger_t *a_ledger, dap_list_t *a_trackers,
             continue;       // Remove expired colour
         }
         dap_list_t *l_exists = dap_list_find(a_trackers, &l_new_tracker->voting_hash, s_compare_trackers);
-        struct tracker_mover *l_exists_tracker = NULL;
-        if (!l_exists) {
-            l_exists_tracker = DAP_NEW_Z_RET_VAL_IF_FAIL(struct tracker_mover, a_trackers);
-            l_exists_tracker->voting_hash = l_new_tracker->voting_hash;
-            dap_strncpy(l_exists_tracker->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
-            a_trackers = dap_list_append(a_trackers, l_exists_tracker);
-        } else
-            l_exists_tracker = l_exists->data;
+        struct tracker_mover *l_exists_tracker = l_exists ? l_exists->data : NULL;
         dap_ledger_tracker_item_t *l_item;
         DL_FOREACH(l_new_tracker->items, l_item) {
-            if (a_voting_hash && dap_hash_fast_compare(a_voting_hash, &l_exists_tracker->voting_hash) &&
+            if (a_voting_hash && dap_hash_fast_compare(a_voting_hash, &l_new_tracker->voting_hash) &&
                     dap_hash_fast_compare(a_pkey_hash, &l_item->pkey_hash))
                 continue;
+            if (!l_exists_tracker) {
+                l_exists_tracker = DAP_NEW_Z_RET_VAL_IF_FAIL(struct tracker_mover, a_trackers);
+                l_exists_tracker->voting_hash = l_new_tracker->voting_hash;
+                dap_strncpy(l_exists_tracker->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                a_trackers = dap_list_append(a_trackers, l_exists_tracker);
+            }
             struct tracker_mover_item *l_exists_item, l_sought = { .pkey_hash = l_item->pkey_hash };
             DL_SEARCH(l_exists_tracker->items, l_exists_item, &l_sought, s_compare_tracker_items);
             if (!l_exists_item) {
@@ -1281,6 +1280,40 @@ void s_trackers_clear(void *a_list_elm)
     DL_FOREACH_SAFE(l_free->items, it, tmp)
         DAP_DELETE(it); // No need for DL_DELETE cause clear the full list
     DAP_DELETE(a_list_elm);
+}
+
+int s_compare_tracker_items_out(dap_ledger_tracker_item_t *a_item1, dap_ledger_tracker_item_t *a_item2)
+{
+    return memcmp(&a_item1->pkey_hash, &a_item1->pkey_hash, sizeof(dap_hash_fast_t));
+}
+
+int s_compare_trackers_out(dap_list_t *a_tracker1, dap_list_t *a_tracker2)
+{
+    dap_ledger_tracker_t *l_tracker1 = a_tracker1->data, *l_tracker2 = a_tracker2->data;
+    return memcmp(&l_tracker1->voting_hash, &l_tracker2->voting_hash, sizeof(dap_hash_fast_t));
+}
+
+dap_list_t *s_trackers_update_out(dap_list_t *a_trackers, dap_hash_fast_t *a_voting_hash, dap_hash_fast_t *a_pkey_hash, uint256_t a_value)
+{
+    dap_list_t *l_trackers = a_trackers;
+    dap_ledger_tracker_t *l_exists_tracker = NULL;
+    dap_list_t *l_exists = dap_list_find(l_trackers, a_voting_hash, s_compare_trackers_out);
+    if (!l_exists) {
+        l_exists_tracker = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_tracker_t, a_trackers);
+        l_exists_tracker->voting_hash = *a_voting_hash;
+        l_trackers = dap_list_append(l_trackers, l_exists_tracker);
+    } else
+        l_exists_tracker = l_exists->data;
+    dap_ledger_tracker_item_t *l_exists_item;
+    dap_ledger_tracker_item_t l_sought = { .pkey_hash = *a_pkey_hash };
+    DL_SEARCH(l_exists_tracker->items, l_exists_item, &l_sought, s_compare_tracker_items_out);
+    if (!l_exists_item) {
+        l_exists_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_tracker_item_t, a_trackers);
+        l_exists_item->pkey_hash = *a_pkey_hash;
+        DL_APPEND(l_exists_tracker->items, l_exists_item);
+    }
+    l_exists_item->coloured_value = a_value;
+    return l_trackers;
 }
 
 int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse)
@@ -1404,7 +1437,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                     break;
                 }
                 l_tracker_item->pkey_hash = l_tsd_item->pkey_hash;
-                l_tracker_item->coloured_value = l_tsd_item->coloured_value;
+                l_tracker_item->coloured_value = l_tracker_item->cur_value = l_tsd_item->coloured_value;
                 DL_APPEND(l_hardfork_tracker->items, l_tracker_item);
             } break;
             default:
@@ -1415,7 +1448,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     }
 
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+    dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
 
     int l_ret_check;
     dap_chain_srv_uid_t l_tag =  { .uint64 = 0 };
@@ -1524,9 +1557,9 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             pthread_rwlock_wrlock(&l_ledger_pvt->rewards_rwlock);
             HASH_ADD(hh, l_ledger_pvt->rewards, key, sizeof(l_item->key), l_item);
             pthread_rwlock_unlock(&l_ledger_pvt->rewards_rwlock);
+            l_outs_used--; // Do not calc this output with tx used items
+            continue;
         }
-        l_outs_used--; // Do not calc this output with tx used items
-        continue;
 
         case TX_ITEM_TYPE_IN: {
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
@@ -1566,18 +1599,14 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             break;
         }
 
-        // Gather colour information from previous outputs
+        // add a used output
         dap_ledger_tx_item_t *l_prev_item_out = l_bound_item->prev_item;
         l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].tx_spent_hash_fast = l_tx_hash;
-        // Clear trackers info for immutable tx's
-        if (l_prev_item_out->cache_data.flags & LEDGER_PVT_TX_META_FLAG_IMMUTABLE)
-            dap_list_free_full(l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, dap_ledger_colour_clear_callback);
-        else
-            l_trackers_mover = s_trackers_aggregate(a_ledger, l_trackers_mover, l_bound_item->in.token_ticker,
-                                                    l_vote_tx_item ? &l_vote_tx_item->voting_hash : NULL, &l_vote_pkey_hash,
-                                                    &l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, a_tx->header.ts_created);
-        // add a used output
         l_prev_item_out->cache_data.n_outs_used++;
+        // mark previous transactions as used with the extra timestamp
+        if (l_prev_item_out->cache_data.n_outs_used == l_prev_item_out->cache_data.n_outs)
+            l_prev_item_out->cache_data.ts_spent = a_tx->header.ts_created;
+
         if ( is_ledger_cached(l_ledger_pvt) ) {
             // mirror it in the cache
             size_t l_cache_size = sizeof(l_prev_item_out->cache_data) + l_prev_item_out->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
@@ -1596,9 +1625,14 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             };
             l_cache_used_outs[l_spent_idx].timestamp = dap_nanotime_now();
         }
-        // mark previous transactions as used with the extra timestamp
-        if (l_prev_item_out->cache_data.n_outs_used == l_prev_item_out->cache_data.n_outs)
-            l_prev_item_out->cache_data.ts_spent = a_tx->header.ts_created;
+
+        // Gather colour information from previous outputs
+        l_trackers_mover = s_trackers_aggregate(a_ledger, l_trackers_mover, l_bound_item->in.token_ticker,
+                                                l_vote_tx_item ? &l_vote_tx_item->voting_hash : NULL, &l_vote_pkey_hash,
+                                                &l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, a_tx->header.ts_created);
+        // Clear trackers info for immutable tx's
+        if (l_prev_item_out->cache_data.flags & LEDGER_PVT_TX_META_FLAG_IMMUTABLE)
+            dap_list_free_full(l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, dap_ledger_colour_clear_callback);
     }
 
     uint32_t l_outs_count = dap_list_length(l_list_tx_out);
@@ -1694,13 +1728,9 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             dap_ledger_pvt_balance_update_for_addr(a_ledger, l_addr, l_cur_token_ticker, l_value, false);
 
         // Moving colour to new outputs
-        bool l_voting_found = false;
         for (dap_list_t *mv = l_trackers_mover; mv; mv = mv->next) {
             struct tracker_mover *l_mover = mv->data;
             assert(!dap_hash_fast_is_blank(&l_mover->voting_hash));
-            bool l_vote_add = false;
-            if (!l_voting_found && l_vote_tx_item && dap_hash_fast_compare(&l_mover->voting_hash, &l_vote_tx_item->voting_hash))
-                l_voting_found = l_vote_add = true;
             uint256_t l_moving_sum = {};
             if (!a_ledger->is_hardfork_state) {
                 if (dap_strcmp(l_cur_token_ticker, l_mover->ticker))
@@ -1710,20 +1740,17 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                 l_moving_sum = l_moving_sum_per_token->sum;
             } else
                 l_moving_sum = l_value;
-            dap_ledger_tracker_t *l_tracker = NULL;
+            dap_ledger_tracker_t *l_tracker = DAP_NEW_Z(dap_ledger_tracker_t);
+            if (!l_tracker) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                goto FIN;
+            }
+            l_tracker->voting_hash = l_mover->voting_hash;
             struct tracker_mover_item *it;
             uint256_t l_moved_value = {};
             DL_FOREACH(l_mover->items, it) {
                 if (IS_ZERO_256(it->cur_value))
                     continue;
-                if (!l_tracker) {
-                    l_tracker = DAP_NEW_Z(dap_ledger_tracker_t);
-                    if (!l_tracker) {
-                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                        goto FIN;
-                    }
-                    l_tracker->voting_hash = l_mover->voting_hash;
-                }
                 dap_ledger_tracker_item_t *l_tracker_item = DAP_NEW_Z(dap_ledger_tracker_item_t);
                 if (!l_tracker_item) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1742,36 +1769,35 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                     l_tracker_item->coloured_value = it->cur_value;
                     it->cur_value = uint256_0;
                 }
-                if (l_vote_add)
-                    SUM_256_256(l_moved_value, l_tracker_item->coloured_value, &l_moved_value);
             }
-            if (l_vote_add) {
-                dap_ledger_tracker_item_t *l_tracker_item = DAP_NEW_Z(dap_ledger_tracker_item_t);
-                if (!l_tracker_item) {
-                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    goto FIN;
-                }
-                l_tracker_item->pkey_hash = l_vote_pkey_hash;
-                assert(compare256(l_value, l_moved_value) > 0);
-                SUBTRACT_256_256(l_value, l_moved_value, &l_tracker_item->coloured_value);
-                l_vote_add = false;
-            }
-            l_tx_item->out_metadata[i].trackers = dap_list_append(l_tx_item->out_metadata[i].trackers, l_tracker);
-
+            if (l_tracker->items)
+                l_tx_item->out_metadata[i].trackers = dap_list_append(l_tx_item->out_metadata[i].trackers, l_tracker);
+            else
+                DAP_DELETE(l_tracker);
         }
-        if (!l_voting_found && l_vote_tx_item) {
-            dap_ledger_tracker_t *l_new_tracker = DAP_NEW_Z(dap_ledger_tracker_t);
-            dap_ledger_tracker_item_t *l_item_new = DAP_NEW_Z(dap_ledger_tracker_item_t);
-            if (!l_new_tracker || !l_item_new) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                l_ret = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
-                goto FIN;
+        if (l_vote_tx_item)
+            l_tx_item->out_metadata[i].trackers = s_trackers_update_out(l_tx_item->out_metadata[i].trackers, &l_vote_tx_item->voting_hash, &l_vote_pkey_hash, l_value);
+    }
+    if (l_vote_tx_item) {
+        byte_t *l_item; size_t l_tx_item_size;
+        TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+            if (*l_item != TX_ITEM_TYPE_TSD)
+                continue;
+            // check out conds
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
+            if (l_tsd->type != VOTING_TSD_TYPE_VOTE_TX_COND)
+                continue;
+            dap_hash_fast_t l_prev_tx_hash = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->tx_hash;
+            uint32_t l_prev_out_idx = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->out_idx;
+            dap_ledger_tx_item_t *l_prev_item = NULL;
+            dap_chain_datum_tx_t *l_tx_prev = s_tx_find_by_hash(a_ledger, &l_tx_hash, &l_prev_item, true);
+            if (!l_prev_item || l_prev_item->cache_data.n_outs <= l_prev_out_idx) {
+                log_it(L_ERROR, "Can't find tx %s in ledger for vote tracking", dap_hash_fast_to_str_static(&l_prev_tx_hash));
+                continue;
             }
-            l_new_tracker->voting_hash = l_vote_tx_item->voting_hash;
-            l_item_new->pkey_hash = l_vote_pkey_hash;
-            l_item_new->coloured_value = l_value;
-            DL_APPEND(l_new_tracker->items, l_item_new);
-            l_tx_item->out_metadata[i].trackers = dap_list_append(l_tx_item->out_metadata[i].trackers, l_new_tracker);
+            dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev, l_prev_out_idx);
+            l_tx_item->out_metadata[l_prev_out_idx].trackers = s_trackers_update_out(l_tx_item->out_metadata[i].trackers,
+                                                                                     &l_vote_tx_item->voting_hash, &l_vote_pkey_hash, l_prev_out->header.value);
         }
     }
 
@@ -2264,7 +2290,7 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const c
                 continue;
             }
             if ( dap_chain_addr_compare(a_addr, &l_addr) ) {
-                if (a_unspent_only && s_ledger_tx_hash_is_used_out_item(l_iter_current, num, NULL))
+                if (a_unspent_only && s_ledger_is_used_out_item(l_iter_current, num, NULL))
                     continue;
                 *a_tx_first_hash = *l_tx_hash;
                 is_tx_found = true;
@@ -2379,11 +2405,12 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
 /**
  * Check whether used 'out' items (local function)
  */
-static bool s_ledger_tx_hash_is_used_out_item(dap_ledger_tx_item_t *a_item, uint32_t a_idx_out, dap_hash_fast_t *a_out_spender_hash)
+static bool s_ledger_is_used_out_item(dap_ledger_tx_item_t *a_item, uint32_t a_idx_out, dap_hash_fast_t *a_out_spender_hash)
 {
-    dap_return_val_if_fail(a_item && a_item->cache_data.n_outs, true);
+    dap_return_val_if_fail(a_item && a_item->cache_data.n_outs >= a_idx_out, true);
     // if there are used 'out' items
-    if ((a_item->cache_data.n_outs_used >= a_idx_out) && !dap_hash_fast_is_blank(&(a_item->out_metadata[a_idx_out].tx_spent_hash_fast))) {
+    if (a_item->cache_data.n_outs_used &&
+            !dap_hash_fast_is_blank(&(a_item->out_metadata[a_idx_out].tx_spent_hash_fast))) {
         if (a_out_spender_hash)
             *a_out_spender_hash = a_item->out_metadata[a_idx_out].tx_spent_hash_fast;
         return true;
@@ -2398,7 +2425,7 @@ bool dap_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_
 {
     dap_ledger_tx_item_t *l_item_out = NULL;
     s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
-    return l_item_out ? s_ledger_tx_hash_is_used_out_item(l_item_out, a_idx_out, a_out_spender) : true;
+    return l_item_out ? s_ledger_is_used_out_item(l_item_out, a_idx_out, a_out_spender) : true;
 }
 
 dap_list_t *dap_ledger_tx_get_trackers(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, uint32_t a_out_idx)
@@ -2417,7 +2444,7 @@ uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_
 {
     dap_return_val_if_fail(a_ledger && a_voting_hash && a_tx_hash, uint256_0);
     dap_ledger_tx_item_t *l_item_out = NULL;
-    dap_chain_datum_tx_t *l_tx = s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
+    dap_chain_datum_tx_t *l_tx = s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, true);
     if (!l_item_out || l_item_out->cache_data.n_outs <= (uint32_t)a_out_idx ||
             !dap_hash_fast_is_blank(&(l_item_out->out_metadata[a_out_idx].tx_spent_hash_fast)))
         return uint256_0;
@@ -2620,7 +2647,7 @@ uint256_t dap_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_a
             ++l_out_idx;
             if (    !dap_strcmp( a_token_ticker, l_iter_current->cache_data.token_ticker )  // Tokens match
                 &&  !dap_chain_addr_compare( a_addr, &l_out_addr )                          // Addresses match
-                &&  !s_ledger_tx_hash_is_used_out_item( l_iter_current, l_out_idx, NULL )   // Output is unused
+                &&  !s_ledger_is_used_out_item( l_iter_current, l_out_idx, NULL )           // Output is unused
                 )
             {
                 SUM_256_256(balance, l_add, &balance);
@@ -2639,17 +2666,6 @@ static int s_compare_balances(dap_ledger_hardfork_balances_t *a_list1, dap_ledge
     return ret ? ret : memcmp(a_list1->ticker, a_list2->ticker, DAP_CHAIN_TICKER_SIZE_MAX);
 }
 
-int s_compare_tracker_items_hardfork(dap_ledger_tracker_item_t *a_item1, dap_ledger_tracker_item_t *a_item2)
-{
-    return memcmp(&a_item1->pkey_hash, &a_item1->pkey_hash, sizeof(dap_hash_fast_t));
-}
-
-int s_compare_trackers_hardfork(dap_list_t *a_tracker1, dap_list_t *a_tracker2)
-{
-    dap_ledger_tracker_t *l_tracker1 = a_tracker1->data, *l_tracker2 = a_tracker2->data;
-    return memcmp(&l_tracker1->voting_hash, &l_tracker2->voting_hash, sizeof(dap_hash_fast_t));
-}
-
 dap_list_t *s_trackers_aggregate_hardfork(dap_ledger_t *a_ledger, dap_list_t *a_trackers, dap_list_t *a_added, dap_time_t a_ts_creation_time)
 {
     dap_return_val_if_fail(s_voting_callbacks.voting_expire_callback, a_trackers);
@@ -2658,7 +2674,7 @@ dap_list_t *s_trackers_aggregate_hardfork(dap_ledger_t *a_ledger, dap_list_t *a_
         dap_time_t l_exp_time = s_voting_callbacks.voting_expire_callback(a_ledger, &l_new_tracker->voting_hash);
         if (a_ts_creation_time > l_exp_time)    // Don't track expired votings
             continue;
-        dap_list_t *l_exists = dap_list_find(a_trackers, &l_new_tracker->voting_hash, s_compare_trackers_hardfork);
+        dap_list_t *l_exists = dap_list_find(a_trackers, &l_new_tracker->voting_hash, s_compare_trackers_out);
         if (!l_exists) {
             l_exists_tracker = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_tracker_t, a_trackers);
             l_exists_tracker->voting_hash = l_new_tracker->voting_hash;
@@ -2668,7 +2684,7 @@ dap_list_t *s_trackers_aggregate_hardfork(dap_ledger_t *a_ledger, dap_list_t *a_
         dap_ledger_tracker_item_t *l_item, *l_exists_item;
         DL_FOREACH(l_new_tracker->items, l_item) {
             dap_ledger_tracker_item_t l_sought = { .pkey_hash = l_item->pkey_hash };
-            DL_SEARCH(l_exists_tracker->items, l_exists_item, &l_sought, s_compare_tracker_items_hardfork);
+            DL_SEARCH(l_exists_tracker->items, l_exists_item, &l_sought, s_compare_tracker_items_out);
             if (!l_exists_item) {
                 l_exists_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_tracker_item_t, a_trackers);
                 l_exists_item->pkey_hash = l_item->pkey_hash;
@@ -2721,6 +2737,13 @@ static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, dap_ledg
                                     dap_chain_addr_to_str_static(a_addr), a_ticker, dap_uint256_to_char(a_value, NULL));
         return -2;
     }
+    if (g_debug_ledger) {
+        char *l_total_value_str = dap_uint256_decimal_to_char(l_exist->value);
+        const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
+        log_it(L_NOTICE, "Aggregate %s %s for addr %s with total value %s", l_value_str, a_ticker,
+                                            dap_chain_addr_to_str_static(a_addr), l_total_value_str);
+        DAP_DELETE(l_total_value_str);
+    }
     l_exist->trackers = s_trackers_aggregate_hardfork(a_ledger, l_exist->trackers, a_trackers, a_hardfork_start_time);
     return 0;
 }
@@ -2766,13 +2789,11 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
             continue;
         uint8_t *l_tx_item = NULL;
         size_t l_size;
-        int i, j = 0;
+        int i, j = -1;
         TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, it->tx) {
-            if (!dap_hash_fast_is_blank(&it->out_metadata[j].tx_spent_hash_fast)) {
-                j++;
+            if (s_ledger_is_used_out_item(it, ++j, NULL))
                 continue;
-            }
-            dap_list_t *l_trackers = it->out_metadata[j++].trackers;
+            dap_list_t *l_trackers = it->out_metadata[j].trackers;
             uint8_t l_tx_item_type = *l_tx_item;
             switch(l_tx_item_type) {
             case TX_ITEM_TYPE_OUT: {

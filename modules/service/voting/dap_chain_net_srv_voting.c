@@ -86,7 +86,8 @@ int dap_chain_net_srv_voting_init()
 {
     dap_ledger_voting_verificator_add(s_voting_verificator, s_vote_verificator,
                                       s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
-    dap_cli_server_cmd_add("poll", s_cli_voting, "Voting/poll commands",  dap_chain_node_cli_cmd_id_from_str("poll"),
+     dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
+                            "poll", s_cli_voting, "Voting/poll commands", dap_chain_node_cli_cmd_id_from_str("poll"),
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>] [-max_votes_count <votes_count>]"
                                         " [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll vote -net <net_name> -hash <poll_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value> -w <fee_wallet_name>\n"
@@ -95,6 +96,7 @@ int dap_chain_net_srv_voting_init()
                             "Hint:\n"
                             "\texample value_coins (only natural) 1.0 123.4567\n"
                             "\texample value_datoshi (only integer) 1 20 0.4321e+4\n");
+    dap_cli_server_alias_add(l_poll_cmd, NULL, "voting");
 
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID };
     dap_chain_static_srv_callbacks_t l_srv_callbacks = { .start = s_callback_start,
@@ -395,7 +397,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 return -14;
             l_tx_hash = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->tx_hash;
             l_out_idx = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->out_idx;
-            dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_tx_hash);
+            dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_unspent_find_by_hash(a_ledger, &l_tx_hash);
             dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_out_idx);
             if (!l_prev_out || l_prev_out->header.item_type != TX_ITEM_TYPE_OUT_COND ||
                     l_prev_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
@@ -1473,9 +1475,7 @@ static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_s
         *a_state_count = l_states_count;
     if (a_state_size)
         *a_state_size = l_total_size / l_states_count;
-    if (*a_state_size)
-        (*a_state_size)--;
-    return 0;
+    return ret;
 }
 
 static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_states_count)
@@ -1509,7 +1509,7 @@ static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint6
             };
             dap_tsd_t *l_tsd; size_t l_tsd_size;
             dap_tsd_iter(l_tsd, l_tsd_size,
-                         cur->question_n_options_n_votes + sizeof(struct voting_serial),
+                         cur->question_n_options_n_votes,
                          l_data_size - sizeof(struct voting_serial)) {
                 switch (l_tsd->type) {
                 case VOTING_TSD_TYPE_QUESTION:
