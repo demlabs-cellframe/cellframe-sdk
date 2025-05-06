@@ -9,6 +9,8 @@
 
 const char *s_ticker = "BUZ";
 const char *s_ticker_delegate = "mBUZ";
+const char *s_net_name = "foobar";
+const char *s_url = "localhost";
 
 struct tests_data {
     dap_chain_addr_t addr_from;
@@ -18,6 +20,8 @@ struct tests_data {
     uint256_t value_delegate;
     uint256_t value_per_unit_max;
     uint256_t reinvest_percent;
+    uint32_t idx_1;
+    dap_hash_fast_t hash_1;
     dap_chain_net_srv_uid_t srv_uid;
     compose_config_t config;
     time_t time_staking;
@@ -54,7 +58,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 void s_chain_datum_tx_create_test()
 { 
     dap_chain_addr_t *l_addr_to = &s_data->addr_to;
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(&s_data->addr_from, &l_addr_to, s_ticker, &s_data->value, s_data->value_fee, 1, NULL);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(&s_data->addr_from, &l_addr_to, s_ticker, &s_data->value, s_data->value_fee, 1, &s_data->config);
     dap_assert_PIF(l_datum_1, "tx_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -91,6 +95,16 @@ void s_chain_datum_stake_lock_test()
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
+void s_chain_datum_stake_unlock_test()
+{ 
+    dap_chain_datum_tx_t *l_datum_1 = dap_stake_unlock_datum_create_compose(
+        s_key, &s_data->hash_1, s_data->idx_1, s_ticker, s_data->value, s_data->value_fee, 
+        s_ticker_delegate, s_data->value_delegate, &s_data->config);
+    dap_assert_PIF(l_datum_1, "tx_unlock_compose");
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+}
+
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
@@ -98,10 +112,15 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->time_staking = dap_time_now() + 10000;
     s_data->reinvest_percent = dap_chain_coins_to_balance("12.3456789");
     s_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    s_data->config.net_name = s_net_name;
+    s_data->config.url_str = s_url;
+    s_data->value_fee._hi.a = 0;
+    s_data->value_fee._hi.b = 0;
     
     s_chain_datum_tx_create_test();
     s_chain_datum_cond_create_test();
     s_chain_datum_stake_lock_test();
+    // s_chain_datum_stake_unlock_test();  // problem in creating in_cond - ledger searching
 
     DAP_DEL_Z(s_data);
     dap_enc_key_delete(s_key);

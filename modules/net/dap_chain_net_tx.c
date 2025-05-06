@@ -2124,13 +2124,13 @@ int dap_chain_net_tx_create_by_json_old(json_object *a_tx_json, dap_chain_net_t 
             }
         }break;
         case TX_ITEM_TYPE_IN_EMS:{
-            dap_chain_id_t l_chain_id;
-            bool l_is_chain_id = s_json_get_int64(l_json_item_obj, "chain_id", &l_chain_id.uint64);
+            uint64_t l_chain_id;
+            bool l_is_chain_id = s_json_get_int64(l_json_item_obj, "chain_id", &l_chain_id);
 
             const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
             if (l_json_item_token && l_is_chain_id){
                 dap_hash_fast_t l_blank_hash = {};
-                dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, l_json_item_token);
+                dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create((dap_chain_id_t) { .uint64 = l_chain_id }, &l_blank_hash, l_json_item_token);
                 l_item = (const uint8_t*) l_in_ems;
             } else {
                 char *l_str_err = NULL;
@@ -2956,8 +2956,8 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             l_hash_tmp = ((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
             l_hash_str = dap_hash_fast_to_str_static(&l_hash_tmp);
             json_object_object_add(json_obj_item,"receipt_idx", json_object_new_int(((dap_chain_tx_in_cond_t*)item)->header.receipt_idx));
-            json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_string(l_hash_str));
-            json_object_object_add(json_obj_item,"prev_hash", json_object_new_uint64(((dap_chain_tx_in_cond_t*)item)->header.tx_out_prev_idx));
+            json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(l_hash_str));
+            json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_uint64(((dap_chain_tx_in_cond_t*)item)->header.tx_out_prev_idx));
             break;
         case TX_ITEM_TYPE_OUT_COND: {
             char l_tmp_buff[70]={0};

@@ -121,6 +121,9 @@ uint16_t dap_compose_get_net_port(const char* name) {
 }
 
 static const char* s_get_native_ticker(const char* name) {
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    return "BUZ";
+#endif
     if (!name) {
         return NULL;
     }
@@ -551,12 +554,11 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     *l_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
     randombytes(*l_addr_fee, sizeof(dap_chain_addr_t));
-    randombytes(a_net_fee, sizeof(uint256_t));
+    randombytes(&a_net_fee->_lo.b, sizeof(a_net_fee->_lo.b));
 #else
     if (!a_net_fee || !l_addr_fee || !a_config || !a_config->net_name) {
         return false;
     }
-    
     *l_addr_fee = NULL;
 
     json_object *l_json_get_fee = dap_request_command_to_rpc_with_params(a_config, "net", "get;fee;-net;%s", a_config->net_name);
@@ -862,10 +864,9 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
             return NULL;
         }
     }
-    const char * l_native_ticker = s_get_native_ticker(a_config->net_name);
-#else
-    const char * l_native_ticker = "BUZ";
 #endif
+    const char * l_native_ticker = s_get_native_ticker(a_config->net_name);
+
     bool l_single_channel = !dap_strcmp(a_token_ticker, l_native_ticker);
 
     uint256_t l_value_transfer = {}; // how many coins to transfer
@@ -1618,7 +1619,6 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
         size_t a_cond_size, compose_config_t *a_config)
 {
     // check valid param
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!a_config->net_name || !*a_config->net_name || !a_key_from || !a_key_cond ||
             !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || IS_ZERO_256(a_value) || !a_config->url_str || !*a_config->url_str || a_config->port == 0)
         return NULL;
@@ -1627,7 +1627,6 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
         dap_json_compose_error_add(a_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_NATIVE_TOKEN_REQUIRED, "Pay for service should be only in native token ticker\n");
         return NULL;
     }
-#endif
     uint256_t l_net_fee = {};
     dap_chain_addr_t* l_addr_fee = NULL;
     dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
@@ -1904,15 +1903,11 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
 {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // check valid param
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!a_config->net_name || !a_key_from ||
         !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || IS_ZERO_256(a_value))
         return NULL;
 
     const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
-#else
-    const char *l_native_ticker = "BUZ";
-#endif
     bool l_main_native = !dap_strcmp(a_main_ticker, l_native_ticker);
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
@@ -2263,6 +2258,7 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
 
     bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
 
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST    
     json_object *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, &l_addr, a_config);
     if (!l_outs_native) {
         return NULL;
@@ -2272,9 +2268,15 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
     if (!l_outs_delegated) {
         return NULL;
     }
-
     int l_out_native_count = json_object_array_length(l_outs_native);
     int l_out_delegated_count = json_object_array_length(l_outs_delegated);
+#else
+    json_object *l_outs_native = NULL;
+    json_object *l_outs_delegated = NULL;
+    int l_out_native_count = 0;
+    int l_out_delegated_count = 0;
+#endif
+
 
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     if (!IS_ZERO_256(l_total_fee)) {
@@ -2288,12 +2290,15 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
                 json_object_put(l_outs_delegated);
                 return NULL;
             }
-        } else if (compare256(a_value, l_total_fee) == -1) {
+        }
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST  
+        else if (compare256(a_value, l_total_fee) == -1) {
             dap_json_compose_error_add(a_config->response_handler, TX_STAKE_UNLOCK_COMPOSE_TOTAL_FEE_MORE_THAN_STAKE, "Total fee more than stake\n");
             json_object_put(l_outs_native);
             json_object_put(l_outs_delegated);
             return NULL;
         }
+#endif
     }
     if (!IS_ZERO_256(a_delegated_value)) {
         l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_delegated, l_out_delegated_count,
@@ -2315,7 +2320,9 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
         dap_chain_datum_tx_add_in_cond_item(&l_tx, a_stake_tx_hash, a_prev_cond_idx, 0);
         if (l_list_used_out) {
             uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST  
             assert(EQUAL_256(l_value_to_items, l_value_transfer));
+#endif
             dap_list_free_full(l_list_used_out, NULL);
         }
         if (l_list_fee_out) {
@@ -2353,7 +2360,7 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
         // coin back
         //SUBTRACT_256_256(l_fee_transfer, l_value_pack, &l_value_back);
         if(l_main_native){
-            if (SUBTRACT_256_256(a_value, l_value_pack, &l_value_back)) {
+             if (SUBTRACT_256_256(a_value, l_value_pack, &l_value_back)) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, TX_STAKE_UNLOCK_COMPOSE_CANT_SUBTRACT_VALUE_PACK, "Can't subtract value pack from value\n");
                 return NULL;
