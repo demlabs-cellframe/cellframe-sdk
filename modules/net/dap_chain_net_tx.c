@@ -1043,7 +1043,6 @@ const uint8_t * s_dap_chain_net_tx_create_out_item (json_object *a_json_item_obj
                         return (const uint8_t*) l_out_item;
                     }
                     else {
-                        //l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token ? l_token : (l_main_token ? l_main_token : l_native_token), 0);
                         l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
                         s_find_add_token_val(l_token, l_value);
                     }                    
@@ -1171,7 +1170,8 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                                                                                                             NULL, 0);        
             // Save value for using in In item
             if (l_out_cond_item) {
-                SUM_256_256(*a_value_need, l_value, a_value_need);  
+                s_find_add_token_val(a_net->pub.native_ticker, l_value);
+                SUM_256_256(*a_value_need, l_value, a_value_need); ///---will be delete 
                 return (const uint8_t*) l_out_cond_item;                      
             } else {
                 char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
@@ -1247,7 +1247,8 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(l_srv_uid, l_value, l_time_staking, l_reinvest_percent);
             // Save value for using in In item
             if(l_out_cond_item) {
-                SUM_256_256(*a_value_need, l_value, a_value_need);
+                s_find_add_token_val(a_net->pub.native_ticker, l_value);
+                SUM_256_256(*a_value_need, l_value, a_value_need);///---will be delete 
                 return (const uint8_t*) l_out_cond_item;
             } else {
                 char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
