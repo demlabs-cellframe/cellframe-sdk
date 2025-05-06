@@ -1111,11 +1111,11 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 l_srv_uid.uint64 = 0x0000000000000001;
             }
             const char *l_params_str = s_json_get_text(a_json_item_obj, "params");
-            char *l_params = NULL;
+            uint8_t *l_params = NULL;
             size_t l_params_size = 0;
             if (l_params_str) {
                 l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
-                l_params = DAP_NEW_Z_SIZE(char, l_params_size);
+                l_params = DAP_NEW_Z_SIZE(uint8_t, l_params_size);
                 l_params_size = dap_enc_base58_decode(l_params_str, l_params);
             }
 
@@ -1264,26 +1264,42 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 return NULL;
             }
-            uint256_t l_fee_value = { };
-            if(!s_json_get_uint256(a_json_item_obj, "fee", &l_fee_value) || IS_ZERO_256(l_fee_value)) {
-                return NULL;
-            }
+            // uint256_t l_fee_value = { };
+            // if(!s_json_get_uint256(a_json_item_obj, "fee", &l_fee_value) || IS_ZERO_256(l_fee_value)) {
+            //     return NULL;
+            // }
 
             const char *l_signing_addr_str = s_json_get_text(a_json_item_obj, "signing_addr");
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
             dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(l_signing_addr_str);
+#else
+            size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_signing_addr_str));
+            dap_chain_addr_t *l_signing_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, l_addr_size, -2);
+            if (dap_enc_base58_decode(l_signing_addr_str, l_signing_addr) != sizeof(dap_chain_addr_t))
+                return NULL;
+#endif
             if(!l_signing_addr) {
                 log_it(L_ERROR, "Json TX: bad signing_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 return NULL;
             }                
 
             dap_chain_node_addr_t l_signer_node_addr;
-            const char *l_node_addr_str = s_json_get_text(a_json_item_obj, "node_addr");
+            const char *l_node_addr_str = s_json_get_text(a_json_item_obj, "signer_node_addr");
             if(!l_node_addr_str || dap_chain_node_addr_from_str(&l_signer_node_addr, l_node_addr_str)) {
                 log_it(L_ERROR, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 return NULL;
             }
-            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr,
-                                                                                                         &l_signer_node_addr, NULL, uint256_0, NULL);
+
+            const char *l_params_str = s_json_get_text(a_json_item_obj, "params");
+            uint8_t *l_params = NULL;
+            size_t l_params_size = 0;
+            if (l_params_str) {
+                l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
+                l_params = DAP_NEW_Z_SIZE(uint8_t, l_params_size);
+                l_params_size = dap_enc_base58_decode(l_params_str, l_params);
+            }
+            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_params(l_srv_uid, l_value, l_signing_addr,
+                                                                                                         &l_signer_node_addr, uint256_0, l_params, l_params_size);
             DAP_DELETE(l_signing_addr);
             // Save value for using in In item
             if(l_out_cond_item) {
@@ -2124,7 +2140,7 @@ int dap_chain_net_tx_create_by_json_old(json_object *a_tx_json, dap_chain_net_t 
             }
         }break;
         case TX_ITEM_TYPE_IN_EMS:{
-            uint64_t l_chain_id;
+            int64_t l_chain_id;
             bool l_is_chain_id = s_json_get_int64(l_json_item_obj, "chain_id", &l_chain_id);
 
             const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
@@ -2628,11 +2644,11 @@ int dap_chain_net_tx_create_by_json_old(json_object *a_tx_json, dap_chain_net_t 
                 break;
             }
             const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
-            char *l_params = NULL;
+            uint8_t *l_params = NULL;
             size_t l_params_size = 0;
             if (l_params_str) {
                 l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
-                l_params = DAP_NEW_Z_SIZE(char, l_params_size);
+                l_params = DAP_NEW_Z_SIZE(uint8_t, l_params_size);
                 l_params_size = dap_enc_base58_decode(l_params_str, l_params);
             }
             dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params, l_params_size);
@@ -2997,6 +3013,9 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                     sprintf(l_tmp_buff,""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(l_signer_node_addr));
                     json_object_object_add(json_obj_item,"signer_node_addr", json_object_new_string(l_tmp_buff));
                     json_object_object_add(json_obj_item,"subtype", json_object_new_string("srv_stake_pos_delegate"));
+                    char *l_params_str = dap_enc_base58_encode_to_str(((dap_chain_tx_out_cond_t*)item)->tsd, ((dap_chain_tx_out_cond_t*)item)->tsd_size);
+                    json_object_object_add(json_obj_item,"params", json_object_new_string(l_params_str));
+                    DAP_DELETE(l_params_str);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
                     const char *l_rate_str, *l_tmp_str =

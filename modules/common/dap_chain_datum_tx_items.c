@@ -381,6 +381,27 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     return l_item;
 }
 
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                           dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                           uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size)
+{
+    if (IS_ZERO_256(a_value))
+        return NULL;
+    
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
+    l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
+    l_item->tsd_size = a_params_size;
+    if (l_item->tsd_size) {
+        memcpy(l_item->tsd, a_params, l_item->tsd_size);
+    }
+    return l_item;
+}
+
 /**
  * @brief dap_chain_net_srv_stake_lock_create_cond_out
  * @param a_key

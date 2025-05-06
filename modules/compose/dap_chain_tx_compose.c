@@ -4138,6 +4138,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
 
     dap_list_t *l_list_fee_out = NULL;
 
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST   
     json_object *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, &l_owner_addr, a_config);
     if (!l_outs_native) {
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_NOT_ENOUGH_FUNDS_FEE, "Not enough funds to pay fee");
@@ -4151,7 +4152,13 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
     }
 
     int l_out_native_count = json_object_array_length(l_outs_native);
-    int l_out_delegated_count = json_object_array_length(l_outs_delegated);
+    int l_out_delegated_count = json_object_array_length(l_outs_delegated); 
+#else
+    json_object *l_outs_native = NULL;
+    json_object *l_outs_delegated = NULL;
+    int l_out_native_count = 0;
+    int l_out_delegated_count = 0;
+#endif
 
     l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
                                                     l_fee_total, 
@@ -4179,10 +4186,12 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
         // add 'in' items to pay for delegate
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
         dap_list_free_full(l_list_used_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST 
         if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
             dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_TX_IN_ERROR, "Error creating transaction input");
             goto tx_fail;
         }
+#endif
     } else {
         dap_hash_fast_t l_prev_tx_hash;
         dap_hash_fast(a_prev_tx, dap_chain_datum_tx_get_size(a_prev_tx), &l_prev_tx_hash);
@@ -4197,11 +4206,12 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
     // add 'in' items to pay fee
     uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
     dap_list_free_full(l_list_fee_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST 
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_TX_IN_ERROR, "Error creating transaction input");
         goto tx_fail;
     }
-
+#endif
     // add 'out_cond' & 'out_ext' items
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_uid, a_value, a_signing_addr, a_node_addr,
