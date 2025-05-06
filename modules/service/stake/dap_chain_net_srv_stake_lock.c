@@ -1009,7 +1009,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         return -1;
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME &&
-            a_cond->subtype.srv_stake_lock.time_unlock > dap_time_now())
+            a_cond->subtype.srv_stake_lock.time_unlock > dap_ledger_get_blockchain_time(a_ledger))
         return -2;
 
     if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(
