@@ -87,7 +87,7 @@ void s_chain_datum_cond_create_test()
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
-void s_chain_datum_stake_test()
+void s_chain_datum_delegate_test()
 { 
     size_t l_pkey_size = rand() % 1024;
     dap_pkey_t *pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, l_pkey_size + sizeof(dap_pkey_t));
@@ -118,6 +118,29 @@ void s_chain_datum_stake_unlock_test()
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
+
+
+void s_chain_datum_vote_test()
+{ 
+    const char *l_question = "Test is PASS?";
+    const char *l_options[] = {
+        "YES!!!",
+        "no:(",
+        "I don't know",
+        "See results"
+    };
+    dap_list_t *l_options_list = NULL;
+    for (size_t i = 0; i < sizeof(l_options) / sizeof(const char *); ++i)
+        l_options_list = dap_list_append(l_options_list, l_options[i]);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_create_compose(
+        l_question, l_options_list, s_data->time_staking, rand() % 10, s_data->value_fee, false, false, NULL, 
+        s_ticker, &s_data->config);
+    dap_assert_PIF(l_datum_1, "tx_unlock_compose");
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+    dap_list_free_full(l_options_list, NULL);
+}
+
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
@@ -131,9 +154,10 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->value_fee._hi.b = 0;
     
     s_chain_datum_tx_create_test();
-    s_chain_datum_stake_test();
     s_chain_datum_cond_create_test();
     s_chain_datum_stake_lock_test();
+    s_chain_datum_delegate_test();
+    // s_chain_datum_vote_test();
     // s_chain_datum_stake_unlock_test();  // problem in creating in_cond - ledger searching
 
     DAP_DEL_Z(s_data);

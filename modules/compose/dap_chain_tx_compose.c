@@ -2591,23 +2591,30 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
         return NULL;
     }
 
-    dap_chain_addr_t *l_addr_from =  dap_chain_wallet_get_addr(a_wallet, s_get_net_id(a_config->net_name));
-    if(!l_addr_from) {
-        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_COMPOSE_ERR_WALLET_NOT_FOUND, "Wallet does not exist\n");
-        return NULL;
-    }
-
     const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
     uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer;
     dap_chain_addr_t *l_addr_fee = NULL;
     bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
     SUM_256_256(l_net_fee, a_fee, &l_total_fee);
 
+
+    dap_chain_addr_t *l_addr_from = NULL;
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST   
+    l_addr_from = dap_chain_wallet_get_addr(a_wallet, s_get_net_id(a_config->net_name));
+    if(!l_addr_from) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_COMPOSE_ERR_WALLET_NOT_FOUND, "Wallet does not exist\n");
+        return NULL;
+    }
     if (!dap_get_remote_wallet_outs_and_count(l_addr_from, l_native_ticker, &l_outs, &l_outputs_count, a_config)) {
         return NULL;
     }
+#else
+    l_addr_from = DAP_NEW_Z(dap_chain_addr_t);
+    randombytes(*l_addr_from, sizeof(dap_chain_addr_t));
+#endif
+
 
     dap_list_t *l_list_used_out = NULL;
     l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
@@ -2719,7 +2726,9 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
 
     // add 'in' items
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST 
     assert(EQUAL_256(l_value_to_items, l_value_transfer));
+#endif
     dap_list_free_full(l_list_used_out, NULL);
     uint256_t l_value_pack = {};
     // Network fee
@@ -2751,7 +2760,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
             return NULL;
         }
     }
-
+    DAP_DELETE(l_addr_from);
     return l_tx;
 }
 
