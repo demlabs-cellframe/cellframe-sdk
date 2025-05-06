@@ -96,34 +96,34 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 #define DAP_VERSION "0.9-15"
 #endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        if(dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE) {
-            size_t
-                l_uplinks_count = 0,
-                l_downlinks_count = 0,
-                l_info_size = 0;
-            dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
-            l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
-            dap_chain_node_net_states_info_t *l_info = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
-            l_info->version_info = DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION;
-            dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node));
-            l_info->role = dap_chain_net_get_role(l_net);
-            l_info->info_v1.address.uint64 = g_node_addr.uint64;
-            l_info->info_v1.uplinks_count = l_uplinks_count;
-            l_info->info_v1.downlinks_count = l_downlinks_count;
+        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE || dap_chain_net_get_load_mode(l_net))
+            continue;
+        size_t
+            l_uplinks_count = 0,
+            l_downlinks_count = 0,
+            l_info_size = 0;
+        dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
+        l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
+        dap_chain_node_net_states_info_t *l_info = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
+        l_info->version_info = DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION;
+        dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node));
+        l_info->role = dap_chain_net_get_role(l_net);
+        l_info->info_v1.address.uint64 = g_node_addr.uint64;
+        l_info->info_v1.uplinks_count = l_uplinks_count;
+        l_info->info_v1.downlinks_count = l_downlinks_count;
 
-            dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 0 });  // zerochain
-            l_info->info_v1.events_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
-            l_chain = l_chain ? l_chain->next : NULL;  // mainchain
-            l_info->info_v1.atoms_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
-            
-            memcpy( l_info->info_v1.links_addrs, l_linked_node_addrs,
-                   (l_info->info_v1.uplinks_count + l_info->info_v1.downlinks_count) * sizeof(dap_chain_node_addr_t) );
-            // DB write
-            char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
-            const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->info_v1.address);
-            dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
-            DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
-        }
+        dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 0 });  // zerochain
+        l_info->info_v1.events_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
+        l_chain = l_chain ? l_chain->next : NULL;  // mainchain
+        l_info->info_v1.atoms_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
+
+        memcpy( l_info->info_v1.links_addrs, l_linked_node_addrs,
+               (l_info->info_v1.uplinks_count + l_info->info_v1.downlinks_count) * sizeof(dap_chain_node_addr_t) );
+        // DB write
+        char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
+        const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->info_v1.address);
+        dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
+        DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
     }
 }
 
@@ -482,7 +482,8 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
             l_offset += l_addition;
             i++;
         }
-        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, l_ptr, sizeof(dap_chain_datum_service_state_t) + l_cur_step_size);
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, NULL, sizeof(dap_chain_datum_service_state_t) + l_cur_step_size);
+        memcpy(((dap_chain_datum_service_state_t *)l_datum->data)->states, l_ptr, l_cur_step_size);
         ((dap_chain_datum_service_state_t *)l_datum->data)->srv_uid = a_state->uid;
         ((dap_chain_datum_service_state_t *)l_datum->data)->state_size = a_state->size;
         ((dap_chain_datum_service_state_t *)l_datum->data)->states_count = i;
@@ -1003,7 +1004,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 }
             } break;
             default:
-                log_it(L_WARNING, "Illegal harfork datum tx item type %d", *l_item);
+                log_it(L_WARNING, "Illegal harfork datum tx item type 0x%X", *l_item);
                 m_ret_clear(-4);
             }
         }

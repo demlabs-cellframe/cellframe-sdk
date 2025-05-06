@@ -225,13 +225,6 @@ void dap_chain_cs_esbocs_deinit(void)
 {
 }
 
-void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);    
-    dap_chain_esbocs_t *l_esbocs = l_blocks->_inheritor;
-    dap_chain_esbocs_pvt_t * l_esbocs_pvt = PVT(l_esbocs);    
-    l_esbocs_pvt->debug = a_enable;
-}
-
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_set_cs_type(a_chain, "blocks");
@@ -513,6 +506,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(l_fee_addr_str);
     l_esbocs_pvt->collecting_level = dap_chain_balance_coins_scan(dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "collecting_level",
                                                                                                 dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "set_collect_fee", "10.0")));
+    l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_net_cfg, "esbocs", "consensus_debug", false);
+
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it; it = it->next) {
         dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
@@ -769,6 +764,8 @@ int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_gener
     uint64_t l_last_num = a_chain->callback_count_atom(a_chain);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    if (l_generation <= a_chain->generation)
+        return -1;
     l_esbocs->hardfork_from = dap_max(l_last_num, a_block_num);
     if (l_generation)
         l_esbocs->hardfork_generation = l_generation;
@@ -1257,7 +1254,8 @@ static bool s_session_round_new(void *a_arg)
     a_session->listen_ensure = 0;
     uint64_t l_cur_atom_count = a_session->chain->callback_count_atom(a_session->chain);
     if (!a_session->is_hardfork) {
-        a_session->is_hardfork = a_session->esbocs->hardfork_from && l_cur_atom_count == a_session->esbocs->hardfork_from;
+        a_session->is_hardfork = a_session->esbocs->hardfork_generation > a_session->chain->generation &&
+                                    a_session->esbocs->hardfork_from && l_cur_atom_count == a_session->esbocs->hardfork_from;
         if (a_session->is_hardfork) {
             dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
             int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
