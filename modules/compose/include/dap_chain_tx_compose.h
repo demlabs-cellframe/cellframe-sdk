@@ -158,7 +158,7 @@ json_object *dap_tx_create_xchange_purchase_compose (const char *a_net_name, con
                                                      const char *a_url_str, uint16_t a_port);
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out, compose_config_t *a_config);
-dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet, uint256_t a_datoshi_buy,
+dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_addr_t *a_buyer_addr, uint256_t a_datoshi_buy,
                                                           uint256_t a_datoshi_fee, dap_chain_tx_out_cond_t* a_cond_tx, uint32_t a_prev_cond_idx, compose_config_t *a_config);
 
 #ifdef __cplusplus
