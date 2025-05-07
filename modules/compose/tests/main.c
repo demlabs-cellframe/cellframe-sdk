@@ -22,6 +22,7 @@ struct tests_data {
     uint256_t value_per_unit_max;
     uint256_t reinvest_percent;
     uint32_t idx_1;
+    uint32_t idx_2;
     dap_hash_fast_t hash_1;
     dap_chain_net_srv_uid_t srv_uid;
     compose_config_t config;
@@ -152,13 +153,15 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->config.url_str = s_url;
     s_data->value_fee._hi.a = 0;
     s_data->value_fee._hi.b = 0;
+    s_data->value_fee._lo.a = 0;
+    s_data->value_fee._lo.b = rand() % 1000;
     
     s_chain_datum_tx_create_test();
     s_chain_datum_cond_create_test();
     s_chain_datum_stake_lock_test();
     s_chain_datum_delegate_test();
     // s_chain_datum_vote_test();
-    // s_chain_datum_stake_unlock_test();  // problem in creating in_cond - ledger searching
+    s_chain_datum_stake_unlock_test();  // problem in creating in_cond - ledger searching
 
     DAP_DEL_Z(s_data);
     dap_enc_key_delete(s_key);

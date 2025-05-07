@@ -554,7 +554,7 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     *l_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
     randombytes(*l_addr_fee, sizeof(dap_chain_addr_t));
-    randombytes(&a_net_fee->_lo.b, sizeof(a_net_fee->_lo.b));
+    a_net_fee->_lo.b = rand() % 500;
 #else
     if (!a_net_fee || !l_addr_fee || !a_config || !a_config->net_name) {
         return false;

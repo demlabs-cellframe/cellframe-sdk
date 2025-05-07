@@ -938,7 +938,7 @@ const uint8_t * s_dap_chain_net_tx_create_in_reward_item (json_object *a_json_it
     return NULL;
 }
 
-const uint8_t * s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item_obj, json_object *a_jobj_errors, dap_chain_net_t *a_net, uint256_t *a_value_delegated ) {
+const uint8_t *s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item_obj, json_object *a_jobj_errors, dap_chain_net_t *a_net, uint256_t *a_value_delegated ) {
     const char *l_prev_hash_str = s_json_get_text(a_json_item_obj, "prev_hash");
     int64_t l_out_prev_idx;
     char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
@@ -948,6 +948,11 @@ const uint8_t * s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
         dap_chain_tx_out_cond_t	*l_tx_out_cond = NULL;
         dap_chain_datum_token_t *l_delegated_token;
         if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+            int64_t l_receipt_idx = 0;
+            s_json_get_int64(a_json_item_obj, "receipt_idx", &l_receipt_idx);
+            return (const uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
+#endif
             //check out token
             dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
             byte_t *l_item; size_t l_tx_item_size;
@@ -1015,9 +1020,15 @@ const uint8_t * s_dap_chain_net_tx_create_out_item (json_object *a_json_item_obj
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
 #else
         size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_json_item_addr_str));
-        dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, l_addr_size, -2);
-        if (dap_enc_base58_decode(l_json_item_addr_str, l_addr) != sizeof(dap_chain_addr_t))
-            return NULL;
+        dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, dap_max(sizeof(dap_chain_addr_t), l_addr_size), NULL);
+        if (l_json_item_addr_str) {
+            if (strcmp("null", l_json_item_addr_str)) {
+                if (dap_enc_base58_decode(l_json_item_addr_str, l_addr) != sizeof(dap_chain_addr_t)) {
+                    DAP_DELETE(l_addr);
+                    return NULL;
+                }
+            }
+        }
 #endif
         if((l_json_item_addr_to_str || l_addr) && !IS_ZERO_256(l_value)) {            
             // Create OUT item
@@ -1101,7 +1112,7 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             }
             uint256_t l_value_max_per_unit = { };
             l_is_value = s_json_get_uint256(a_json_item_obj, "value_max_per_unit", &l_value_max_per_unit);
-            if(!l_is_value || IS_ZERO_256(l_value_max_per_unit)) {
+            if(!l_is_value) {
                 log_it(L_ERROR, "Json TX: bad value_max_per_unit in OUT_COND_SUBTYPE_SRV_PAY");
                 return NULL;
             }
@@ -2352,7 +2363,7 @@ int dap_chain_net_tx_create_by_json_old(json_object *a_tx_json, dap_chain_net_t 
                 }
                 uint256_t l_value_max_per_unit = { };
                 l_is_value = s_json_get_uint256(l_json_item_obj, "value_max_per_unit", &l_value_max_per_unit);
-                if(!l_is_value || IS_ZERO_256(l_value_max_per_unit)) {
+                if(!l_is_value) {
                     log_it(L_ERROR, "Json TX: bad value_max_per_unit in OUT_COND_SUBTYPE_SRV_PAY");
                     break;
                 }
