@@ -1335,9 +1335,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, s_get_net_id(a_config->net_name));
     json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "info;-addr;%s;-net;%s", 
                                                                       dap_chain_addr_to_str(l_wallet_addr), a_config->net_name);
-    DAP_DEL_Z(l_wallet_addr);
     uint256_t l_value = get_balance_from_json(l_json_outs, a_token_sell);
-
     uint256_t l_value_sell = a_datoshi_sell;
     if (!dap_strcmp(s_get_native_ticker(a_config->net_name), a_token_sell)) {
         if (SUM_256_256(l_value_sell, a_fee, &l_value_sell)) {
@@ -1367,18 +1365,19 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
     l_price->rate = a_rate;
     l_price->fee = a_fee;
     dap_chain_datum_tx_t *l_tx = dap_xchange_tx_create_request_compose(l_price, a_wallet, s_get_native_ticker(a_config->net_name), a_config);
+    DAP_DEL_Z(l_wallet_addr);
     return l_tx;
 }
 
 
 
-dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet,
+dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_addr_t *a_seller_addr,
                                                                  const char *a_native_ticker, compose_config_t *a_config)
 {
     if (!a_config) {
         return NULL;
     }
-    if (!a_price || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
+    if (!a_price || !*a_price->token_sell || !*a_price->token_buy || !a_seller_addr) {
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_INVALID_ARGUMENT, "Invalid parameter");
         return NULL;
     }
@@ -1396,10 +1395,8 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
     bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_net_fee, a_config);
     if (l_net_fee_used)
         SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
-
-    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, s_get_net_id(a_config->net_name));
-    dap_chain_addr_t l_seller_addr = *l_wallet_addr;
-    json_object *l_outs_native = dap_get_remote_tx_outs(a_native_ticker, l_wallet_addr, a_config);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST    
+    json_object *l_outs_native = dap_get_remote_tx_outs(a_native_ticker, a_seller_addr, a_config);
     if (!l_outs_native) {
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Can't get tx outs");
         return NULL;
@@ -1409,11 +1406,16 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
     if (!dap_strcmp(a_price->token_sell, a_native_ticker)) {
         l_outs = l_outs_native;
     } else {
-        l_outs = dap_get_remote_tx_outs(a_price->token_sell, l_wallet_addr, a_config);
+        l_outs = dap_get_remote_tx_outs(a_price->token_sell, a_seller_addr, a_config);
     }
-    DAP_DELETE(l_wallet_addr);
     int l_out_native_count = json_object_array_length(l_outs_native);
     int l_out_count = json_object_array_length(l_outs);
+#else
+    json_object *l_outs = NULL;
+    json_object *l_outs_native = NULL;
+    int l_out_count = 0;
+    int l_out_native_count = 0;
+#endif
 
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
@@ -1444,11 +1446,13 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
     // add 'in' items to sell
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST   
     if (!EQUAL_256(l_value_to_items, l_value_transfer) != 0) {
         dap_chain_datum_tx_delete(l_tx);
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_COMPOSE_THE_TRANSACTION_INPUT, "Can't compose the transaction input");
         return NULL;
     }
+#endif
     if (!l_single_channel) {
         // add 'in' items to fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
@@ -1465,7 +1469,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
         dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
         dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_uid, s_get_net_id(a_config->net_name), a_price->datoshi_sell,
                                                                                                 s_get_net_id(a_config->net_name), a_price->token_buy, a_price->rate,
-                                                                                                &l_seller_addr, NULL, 0);
+                                                                                                a_seller_addr, NULL, 0);
         if (!l_tx_out) {
             dap_chain_datum_tx_delete(l_tx);
             dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_COMPOSE_THE_TRANSACTION_CONDITIONAL_OUTPUT, "Can't compose the transaction conditional output");
@@ -1475,10 +1479,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
         DAP_DELETE(l_tx_out);
         // Network fee
         if (l_net_fee_used) {
-            if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, l_addr_net_fee, l_net_fee) != 1) ||
-                    (!l_single_channel &&
-                        dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_net_fee, l_net_fee, l_native_ticker) != 1)) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_net_fee, l_net_fee, l_native_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_ADD_NETWORK_FEE_OUTPUT, "Can't add network fee output");
                 return NULL;
@@ -1497,10 +1498,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
         uint256_t l_value_back = {};
         SUBTRACT_256_256(l_value_transfer, l_value_need, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_value_back) != 1) ||
-                    (!l_single_channel &&
-                        dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_value_back, a_price->token_sell) != 1)) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_seller_addr, l_value_back, a_price->token_sell) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_ADD_COIN_BACK_OUTPUT, "Can't add coin back output");
                 return NULL;
@@ -1511,7 +1509,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
             uint256_t l_fee_coinback = {};
             SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_fee_coinback);
             if (!IS_ZERO_256(l_fee_coinback)) {
-                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_fee_coinback, l_native_ticker) != 1) {
+                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_seller_addr, l_fee_coinback, l_native_ticker) != 1) {
                     dap_chain_datum_tx_delete(l_tx);
                     dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_ADD_FEE_BACK_OUTPUT, "Can't add fee back output");
                     return NULL;
@@ -1548,7 +1546,7 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
     
     uint256_t l_value_datoshi = {};    
     uint256_t l_value_fee = {};
-    uint256_t l_value_per_unit_max;
+    uint256_t l_value_per_unit_max = {};
     dap_chain_net_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(a_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
@@ -1574,12 +1572,8 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
         dap_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_VALUE, "Can't recognize value '%s' as a number\n", a_value_fee_str);
         return s_compose_config_return_response_handler(l_config);
     }
-
-    l_value_per_unit_max = dap_chain_balance_scan(a_value_per_unit_max_str);
-    if(IS_ZERO_256(l_value_fee)) {
-        dap_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_VALUE, "Can't recognize value '%s' as a number\n", a_value_per_unit_max_str);
-        return s_compose_config_return_response_handler(l_config);
-    }
+    if (a_value_per_unit_max_str)
+        l_value_per_unit_max = dap_chain_balance_scan(a_value_per_unit_max_str);
 
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_str, a_wallet_path, NULL);
     if(!l_wallet) {

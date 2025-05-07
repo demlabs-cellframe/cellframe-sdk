@@ -142,6 +142,22 @@ void s_chain_datum_vote_test()
     dap_list_free_full(l_options_list, NULL);
 }
 
+void s_chain_datum_exchange_create_test()
+{ 
+    dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
+    dap_stpcpy(l_price->token_sell, s_ticker);
+    dap_stpcpy(l_price->token_buy, s_ticker_delegate);
+    l_price->datoshi_sell = s_data->value;
+    l_price->rate = s_data->reinvest_percent;
+    l_price->fee = s_data->reinvest_percent;
+    dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_create_request_compose(l_price, &s_data->addr_from, s_ticker, &s_data->config);
+    dap_assert_PIF(l_datum_1, "tx_exchange_create_compose");
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+    DAP_DELETE(l_price);
+}
+
+
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
@@ -160,8 +176,9 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_cond_create_test();
     s_chain_datum_stake_lock_test();
     s_chain_datum_delegate_test();
+    s_chain_datum_stake_unlock_test();
+    s_chain_datum_exchange_create_test();
     // s_chain_datum_vote_test();
-    s_chain_datum_stake_unlock_test();  // problem in creating in_cond - ledger searching
 
     DAP_DEL_Z(s_data);
     dap_enc_key_delete(s_key);

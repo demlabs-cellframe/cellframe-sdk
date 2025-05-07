@@ -118,7 +118,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, size_t a_tx_num, compose_config_t *a_config);
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_token_buy, const char *a_token_sell, uint256_t a_datoshi_sell,
                                      uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet, compose_config_t *a_config);
-dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet,
+dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_addr_t *a_seller_addr,
                                                                  const char *a_native_ticker, compose_config_t *a_config);
 dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
