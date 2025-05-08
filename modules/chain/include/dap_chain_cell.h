@@ -93,12 +93,13 @@ DAP_INLINE dap_chain_cell_t *dap_chain_cell_capture_by_id(dap_chain_t *a_chain, 
     pthread_rwlock_rdlock(&a_chain->cell_rwlock);
     return dap_chain_cell_find_by_id(a_chain, a_cell_id);
 }
-DAP_INLINE void dap_chain_cell_remit(const dap_chain_cell_t *a_cell) {
-    pthread_rwlock_unlock(&a_cell->chain->cell_rwlock);
+DAP_INLINE void dap_chain_cell_remit(dap_chain_t *a_chain) {
+    pthread_rwlock_unlock(&a_chain->cell_rwlock);
 }
 
 void dap_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
 void dap_chain_cell_close_all(dap_chain_t *a_chain);
 int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
                                    const void *a_atom, size_t a_atom_size, char **a_atom_map);
-
+int dap_chain_cell_remove(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_archivate);
+int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, size_t a_delta);

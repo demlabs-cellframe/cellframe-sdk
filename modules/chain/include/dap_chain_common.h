@@ -144,7 +144,6 @@ typedef union {
 
 extern const dap_chain_srv_uid_t c_dap_chain_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
-extern const dap_chain_cell_id_t c_dap_chain_cell_id_hardfork;
 extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
 enum dap_chain_srv_unit_enum {
