@@ -4462,5 +4462,6 @@ void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net)
      if (!l_srv_stake)
          return log_it(L_ERROR, "Can't update tx list: no stake service found by net id %" DAP_UINT64_FORMAT_U, a_net->pub.id.uint64);
      for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
-         s_stake_add_tx(a_net, it);
+        if (!dap_hash_fast_is_blank(&it->tx_hash))
+            s_stake_add_tx(a_net, it);
  }
