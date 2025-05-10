@@ -454,15 +454,22 @@ static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id)
 static void s_stake_add_tx(dap_chain_net_t *a_net, dap_chain_net_srv_stake_item_t *a_stake)
 {
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &a_stake->tx_hash);
-    if (!l_tx)
+    if (!l_tx) {
+        log_it(L_ERROR, "Can't find tx %s for delegated key update", dap_hash_fast_to_str_static(&a_stake->tx_hash));
         return;
+    }
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
-    if (l_cond && (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, dap_pkey_get_size(a_stake->pkey)))) {
+    if (!l_cond) {
+        log_it(L_ERROR, "Can't find pos-delegate COND_OUT for tx %s for delegated key update", dap_hash_fast_to_str_static(&a_stake->tx_hash));
+        return;
+    }
+    a_stake->locked_value = a_stake->value = l_cond->header.value;
+    if (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, dap_pkey_get_size(a_stake->pkey))) {
         dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
         a_stake->sovereign_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
         l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
         a_stake->sovereign_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
-        if (compare256(a_stake->sovereign_tax, dap_chain_balance_coins_scan("1.0")) == 1)
+        if (compare256(a_stake->sovereign_tax, dap_chain_balance_coins_scan("1.0")) > 1)
             a_stake->sovereign_tax = dap_chain_balance_coins_scan("1.0");
     }
 }
@@ -498,7 +505,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->is_active = true;
     if (dap_pkey_get_size(a_pkey)) {
         DAP_DELETE(l_stake->pkey);
-        l_stake->pkey = DAP_DUP_SIZE(a_pkey, dap_pkey_get_size(a_pkey));
+        l_stake->pkey = DAP_DUP_SIZE_RET_IF_FAIL(a_pkey, dap_pkey_get_size(a_pkey));
     }
     if (!l_found)
         HASH_ADD(hh, l_srv_stake->itemlist, signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
@@ -511,7 +518,9 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     }
     if (!dap_hash_fast_is_blank(&l_stake->tx_hash)) {
         HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
-        s_stake_add_tx(a_net, l_stake);
+        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+        if (!l_chain || !l_chain->generation)
+            s_stake_add_tx(a_net, l_stake);
     }
     dap_chain_esbocs_add_validator_to_clusters(a_net->pub.id, a_node_addr);
     const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
@@ -4453,5 +4462,6 @@ void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net)
      if (!l_srv_stake)
          return log_it(L_ERROR, "Can't update tx list: no stake service found by net id %" DAP_UINT64_FORMAT_U, a_net->pub.id.uint64);
      for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
-         s_stake_add_tx(a_net, it);
+        if (!dap_hash_fast_is_blank(&it->tx_hash))
+            s_stake_add_tx(a_net, it);
  }

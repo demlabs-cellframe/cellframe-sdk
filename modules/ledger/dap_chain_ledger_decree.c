@@ -688,8 +688,9 @@ const char *l_ban_addr;
             uint16_t l_banned_generation = *(uint16_t *)l_generation->data;
             if (!a_apply)
                 break;
-            return dap_chain_generation_ban(l_chain, l_banned_generation) +
-                   dap_chain_esbocs_set_hardfork_complete(l_chain);
+            if (l_chain->hardfork_data && l_chain->hardfork_generation == l_banned_generation)
+                dap_chain_esbocs_set_hardfork_complete(l_chain);
+            return dap_chain_generation_ban(l_chain, l_banned_generation);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY: {
             if (!a_apply)
