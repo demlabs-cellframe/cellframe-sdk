@@ -70,12 +70,12 @@ enum hardfork_state {
 
 struct hardfork_states {
     enum hardfork_state state_current;
-    size_t iterator;
     dap_ledger_hardfork_anchors_t  *anchors;
     dap_ledger_hardfork_balances_t *balances;
     dap_ledger_hardfork_condouts_t *condouts;
     dap_chain_cs_blocks_hardfork_fees_t *fees;
     dap_chain_srv_hardfork_state_t *service_states;
+    size_t iterator;
     dap_list_t *trusted_addrs;
 };
 
@@ -526,8 +526,8 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         DAP_DELETE(it);
     }
     l_states->trusted_addrs = a_trusted_addrs;
+    a_chain->hardfork_generation = dap_chain_generation_next(a_chain);
     a_chain->hardfork_data = l_states;
-    dap_chain_cell_create(a_chain, c_dap_chain_cell_id_hardfork);
     return 0;
 }
 

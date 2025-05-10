@@ -173,8 +173,6 @@ typedef struct dap_chain {
     atomic_int load_progress; 
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;
-    dap_chain_cell_id_t active_cell_id;
-    dap_chain_cell_id_t forking_cell_id;
 
     uint16_t datum_types_count;
     dap_chain_type_t *datum_types;
@@ -248,6 +246,7 @@ typedef struct dap_chain {
     dap_config_t *config;
 
     dap_hash_fast_t hardfork_decree_hash;
+    uint16_t hardfork_generation;
     struct hardfork_states *hardfork_data;
     void * _pvt; // private data
     void * _inheritor; // inheritor object

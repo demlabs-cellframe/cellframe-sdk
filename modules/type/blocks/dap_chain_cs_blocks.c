@@ -23,6 +23,7 @@
 #include <pthread.h>
 #include "dap_common.h"
 #include "dap_chain.h"
+#include "dap_chain_cell.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
@@ -1854,7 +1855,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
                         for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
                         if (l_checked_atoms_cnt == 0 && l_tmp) {
-                            l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
+                            l_notifier->callback(l_notifier->arg, a_chain, c_dap_chain_cell_id_null, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
 #ifndef DAP_CHAIN_BLOCKS_TEST
                             for (size_t i = 0; i < l_tmp->datum_count; i++)
                                 dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
@@ -1893,7 +1894,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                                 int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
                                 for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
                                 if (l_checked_atoms_cnt == 0 && l_tmp)
-                                    l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
+                                    l_notifier->callback(l_notifier->arg, a_chain, c_dap_chain_cell_id_null, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
                             }    
 #ifndef DAP_CHAIN_BLOCKS_TEST
                         }
@@ -1916,12 +1917,30 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                     return ATOM_REJECT;
                 }
-                a_chain->generation = l_generation;
-                dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id);
-                dap_ledger_tx_purge(l_net->pub.ledger, false);
-                dap_chain_srv_purge_all(a_chain->net_id);
-                dap_chain_purge(a_chain);
+                if (!dap_chain_net_get_load_mode(l_net)) {
+                    dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id);
+                    dap_ledger_tx_purge(l_net->pub.ledger, false);
+                    dap_chain_srv_purge_all(a_chain->net_id);
+                    dap_chain_cell_truncate(a_chain, c_dap_chain_cell_id_null, a_atom_size);
+                    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
+                    if (dap_chain_cell_remove(a_chain, c_dap_chain_cell_id_null, l_role.enums == NODE_ROLE_ARCHIVE)) {
+                        log_it(L_ERROR, "Can't accept hardfork genesis block %s: removing cell error", dap_hash_fast_to_str_static(a_atom_hash));
+                        return ATOM_REJECT;
+                    }
+                    dap_chain_purge(a_chain);
+                    dap_chain_cell_create(a_chain, c_dap_chain_cell_id_null);
+                    int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
+                    if (l_err) {
+                        log_it(L_ERROR, "Can't save atom to file, code %d", l_err);
+                        return ATOM_REJECT;
+                    }
+                    if (!( l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped) )) {
+                        log_it(L_ERROR, "Block %s is corrupted!", l_block_cache->block_hash_str);
+                        return ATOM_REJECT;
+                    }
+                }
                 l_net->pub.ledger->is_hardfork_state = true;
+                a_chain->generation = l_generation;
                 if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // True import
                     log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
@@ -2686,10 +2705,10 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         }
         if (!l_blocks->block_new) {
             dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
-            if (a_chain->hardfork_data && l_bcache_last->block->hdr.cell_id.uint64 != c_dap_chain_cell_id_hardfork.uint64)
-                l_bcache_last = NULL;       // Workaround until separate cells storages will be realized
+            if (a_chain->hardfork_data && a_chain->hardfork_generation != a_chain->generation)
+                l_bcache_last = NULL;
             l_blocks->block_new = dap_chain_block_new(l_bcache_last ? &l_bcache_last->block_hash : NULL, &l_blocks->block_new_size);
-            l_blocks->block_new->hdr.cell_id = a_chain->hardfork_data ? c_dap_chain_cell_id_hardfork : c_dap_chain_cell_id_null;
+            l_blocks->block_new->hdr.cell_id = c_dap_chain_cell_id_null;
             l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
         }
         l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size, l_datum, l_datum_size);

@@ -195,10 +195,6 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
 
 DAP_STATIC_INLINE int s_cell_close(dap_chain_cell_t *a_cell) {
     //pthread_rwlock_wrlock(&a_cell->storage_rwlock);
-    if(a_cell->file_storage) {
-        fclose(a_cell->file_storage);
-        a_cell->file_storage = NULL;
-    }
     if (a_cell->chain->is_mapped) {
         a_cell->mapping->cursor = NULL;
         int i = 0;
@@ -217,6 +213,10 @@ DAP_STATIC_INLINE int s_cell_close(dap_chain_cell_t *a_cell) {
         NtClose(a_cell->mapping->section);
 #endif
     }
+    if(a_cell->file_storage) {
+        fclose(a_cell->file_storage);
+        a_cell->file_storage = NULL;
+    }
     //pthread_rwlock_unlock(&a_cell->storage_rwlock);
     //pthread_rwlock_destroy(&a_cell->storage_rwlock);
     return 0;
@@ -227,16 +227,62 @@ DAP_STATIC_INLINE int s_cell_close(dap_chain_cell_t *a_cell) {
  * close a_cell->file_storage file object
  * @param a_cell dap_chain_cell_t object
  */
-void dap_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id)
+int s_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_remove_file, bool a_make_file_copy)
 {
-    dap_return_if_fail(a_chain);
+    dap_return_val_if_fail(a_chain, -1);
     dap_chain_cell_t *l_cell = dap_chain_cell_capture_by_id(a_chain, a_cell_id);
-    dap_return_if_fail_err(l_cell, "Cell 0x%016"DAP_UINT64_FORMAT_X" not found in chain \"%s : %s\"",
-                                    a_cell_id.uint64, a_chain->net_name, a_chain->name);
+    if (!l_cell) {
+        dap_chain_cell_remit(a_chain);
+        log_it(L_ERROR, "Cell 0x%016"DAP_UINT64_FORMAT_X" not found in chain \"%s : %s\"",
+                                            a_cell_id.uint64, a_chain->net_name, a_chain->name);
+        return -2;
+    }
     s_cell_close(l_cell);
     HASH_DEL(a_chain->cells, l_cell);
-    dap_chain_cell_remit(l_cell);
+    dap_chain_cell_remit(a_chain);
+    if (a_make_file_copy) {
+        if (!a_remove_file)
+            dap_return_val_if_fail_err(l_cell, -3, "Can't arhivate without removing original file");
+        char *l_new_name = dap_strdup_printf("%s.gen%hu", l_cell->file_storage_path, a_chain->generation);
+        rename(l_cell->file_storage_path, l_new_name);
+        log_it(L_NOTICE, "Cell 0x%016" DAP_UINT64_FORMAT_X " in chain \"%s : %s\" is archived with filename %s",
+                                            a_cell_id.uint64, a_chain->net_name, a_chain->name, l_new_name);
+    } else if (a_remove_file) {
+        log_it(L_NOTICE, "Cell 0x%016" DAP_UINT64_FORMAT_X " in chain \"%s : %s\" is dropped",
+                                            a_cell_id.uint64, a_chain->net_name, a_chain->name);
+        remove(l_cell->file_storage_path);
+    }
     DAP_DELETE(l_cell);
+    return 0;
+}
+
+void dap_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id)
+{
+    s_chain_cell_close(a_chain, a_cell_id, false, false);
+}
+
+int dap_chain_cell_remove(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_archivate)
+{
+    return s_chain_cell_close(a_chain, a_cell_id, true, a_archivate);
+}
+
+int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, size_t a_delta)
+{
+    dap_return_val_if_fail(a_chain, -1);
+    dap_chain_cell_t *l_cell = dap_chain_cell_capture_by_id(a_chain, a_cell_id);
+    if (!l_cell) {
+        dap_chain_cell_remit(a_chain);
+        log_it(L_ERROR, "Cell 0x%016"DAP_UINT64_FORMAT_X" not found in chain \"%s : %s\"",
+                                            a_cell_id.uint64, a_chain->net_name, a_chain->name);
+        return -2;
+    }
+    off_t l_pos = !fseeko(l_cell->file_storage, 0, SEEK_END) ? ftello(l_cell->file_storage) : -1;
+    if (l_pos < (off_t)a_delta)
+        dap_return_val_if_fail_err(l_cell, -3, "Can't truncate more than file size %" DAP_UINT64_FORMAT_U, l_pos);
+    l_pos -= a_delta;
+    ftruncate(fileno(l_cell->file_storage), l_pos);
+    dap_chain_cell_remit(a_chain);
+    return 0;
 }
 
 void dap_chain_cell_close_all(dap_chain_t *a_chain) {
@@ -527,6 +573,6 @@ int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_
         log_it(L_ERROR, "Noting saved to chain \"%s : %s\", cell 0x%016"DAP_UINT64_FORMAT_X", error %d",
                         a_chain->net_name, a_chain->name, a_cell_id.uint64, l_err);
     //pthread_rwlock_unlock(&l_cell->storage_rwlock);
-    dap_chain_cell_remit(l_cell);
+    dap_chain_cell_remit(a_chain);
     return 0;
 }

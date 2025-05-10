@@ -1083,9 +1083,7 @@ static void s_session_send_startsync(void *a_arg)
     if (a_session->cur_round.sync_sent)
         return;     // Sync message already was sent
     dap_chain_hash_fast_t l_last_block_hash;
-    dap_chain_get_atom_last_hash(a_session->chain,          // Actually not working. TODO implement cells in type storage
-                                 a_session->is_hardfork ? c_dap_chain_cell_id_hardfork : c_dap_chain_cell_id_null,
-                                 &l_last_block_hash);
+    dap_chain_get_atom_last_hash(a_session->chain, c_dap_chain_cell_id_null, &l_last_block_hash);
     if (dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash))
         memset(&l_last_block_hash, 0, sizeof(dap_hash_fast_t)); // Workaround for unimpemented storage cell_id request
     a_session->ts_round_sync_start = dap_time_now();
@@ -1181,7 +1179,7 @@ static bool s_session_round_new(void *a_arg)
     a_session->ts_stage_entry = 0;
 
     dap_hash_fast_t l_last_block_hash;
-    dap_chain_get_atom_last_hash(a_session->chain, a_session->is_hardfork ? c_dap_chain_cell_id_null : c_dap_chain_cell_id_hardfork, &l_last_block_hash);
+    dap_chain_get_atom_last_hash(a_session->chain, c_dap_chain_cell_id_null, &l_last_block_hash);
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash) ||
             (!dap_hash_fast_is_blank(&l_last_block_hash) &&
                 dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash))) {
