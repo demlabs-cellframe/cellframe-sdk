@@ -757,6 +757,8 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
 
 static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond)
 {
+    if (dap_chain_net_get_load_mode(a_ledger->net))
+        return;
     dap_chain_net_srv_t *l_net_srv = dap_chain_srv_get_internal(a_ledger->net->pub.id, a_cond->header.srv_uid);
     if (!l_net_srv) {
         log_it(L_ERROR, "Can't find dap_chain_net_srv_t uid 0x%016"DAP_UINT64_FORMAT_X"", a_cond->header.srv_uid.uint64);

@@ -1265,8 +1265,13 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
                     continue;
                 }
                 dap_chain_node_net_states_info_v1_t *l_info_old = (dap_chain_node_net_states_info_v1_t*)l_node_info_data;
-                l_node_info = DAP_NEW_Z_SIZE( dap_chain_node_net_states_info_t, sizeof(dap_chain_node_net_states_info_t) 
-                                            + (l_info_old->uplinks_count + l_info_old->downlinks_count) * sizeof(dap_chain_node_addr_t) );
+                if (l_info_old->uplinks_count + l_info_old->downlinks_count > 1000000) {
+                    log_it(L_ERROR, "Irrelevant links count of node %s info, ignore it", l_objs[i].key);
+                    DAP_DEL_MULTY(l_node_info_data, l_item);
+                    continue;
+                }
+                l_node_info = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_node_net_states_info_t, sizeof(dap_chain_node_net_states_info_t)
+                                            + (l_info_old->uplinks_count + l_info_old->downlinks_count) * sizeof(dap_chain_node_addr_t), l_ret);
                 l_node_info->version_info = 1;
                 memcpy( (byte_t*)l_node_info + node_info_v1_shift, l_info_old, l_data_size );
                 DAP_DELETE(l_node_info_data);
