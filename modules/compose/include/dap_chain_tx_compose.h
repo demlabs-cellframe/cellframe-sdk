@@ -68,6 +68,7 @@ extern "C" {
 
 const char* dap_compose_get_net_url(const char* name);
 uint16_t dap_compose_get_net_port(const char* name);
+dap_chain_net_id_t dap_get_net_id(const char* name);
 
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
 
@@ -85,8 +86,8 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_arra
                                                     uint256_t *a_value_transfer, bool a_need_all_outputs);
 
 json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, 
-                                  const char *l_fee_str, const char *addr_base58_to, const char *l_wallet_str, 
-                                  const char *l_wallet_path, const char *l_wallet_pass, const char *l_url_str, uint16_t l_port);
+                                  const char *l_fee_str, const char *addr_base58_to, dap_chain_addr_t *l_addr_from, 
+                                  const char *l_url_str, uint16_t l_port);
 
 json_object* dap_tx_create_xchange_compose(const char *l_net_str, const char *l_token_sell, const char *l_token_buy, 
                                           const char *l_wallet_str, const char *l_wallet_path, const char *l_wallet_pass, 
