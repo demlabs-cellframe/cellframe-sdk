@@ -1902,66 +1902,10 @@ json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_i
 
     dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_key_from);
-    // if (l_tx) {
+    if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
-    //     dap_chain_datum_tx_delete(l_tx);
-    // }
-    // Extract sig_b64 from the transaction JSON response
-    json_object *l_jobj_sign = json_object_new_object();
-    int64_t l_sig_size = 0;
-    const char *l_sign_b64_str = NULL;
-    size_t l_sign_b64_strlen = 0;
-    json_object *l_tx_json = NULL;
-    if (l_config->response_handler) {
-        json_object *l_items_array = NULL;
-        if (json_object_object_get_ex(l_config->response_handler, "items", &l_items_array) && l_items_array) {
-            int l_items_count = json_object_array_length(l_items_array);
-            for (int i = 0; i < l_items_count; i++) {
-                json_object *l_item = json_object_array_get_idx(l_items_array, i);
-                if (!l_item)
-                    continue;
-                
-                json_object *l_type_obj = NULL;
-                if (json_object_object_get_ex(l_item, "type", &l_type_obj) && l_type_obj) {
-                    const char *l_type_str = json_object_get_string(l_type_obj);
-                    if (l_type_str && !strcmp(l_type_str, "sign")) {
-                        json_object *l_sig_b64_obj = NULL;
-                        if (json_object_object_get_ex(l_item, "sig_b64", &l_sig_b64_obj) && l_sig_b64_obj) {
-                            l_sign_b64_str = json_object_get_string(l_sig_b64_obj);
-                            l_sign_b64_strlen = json_object_get_string_len(l_sig_b64_obj);
-
-                            json_object * l_sig_size_obj = json_object_object_get(l_item, "sig_size");
-                            if (l_sig_size_obj) {
-                                l_sig_size = atol(json_object_get_string(l_sig_size_obj));
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        dap_chain_datum_tx_delete(l_tx);
     }
-
-            
-
-            int64_t l_sign_size = 0,
-                    l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
-
-
-            dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
-            *l_tx_sig = (dap_chain_tx_sig_t) {
-                .header = {
-                    .type = TX_ITEM_TYPE_SIG, .version = 1,
-                    .sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE)
-                }
-            };
-            /* But who cares?... */
-            size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx), l_tx_items_size = l_tx->header.tx_items_size;
-            l_tx->header.tx_items_size = 0;
-            if ( dap_sign_verify_all((dap_sign_t*)l_tx_sig->sig, l_tx_sig->header.sig_size, (byte_t*)l_tx, l_tx_size) ) {
-                dap_chain_datum_tx_delete(l_tx);
-                // dap_json_compose_error_add(l_config->response_handler, 10, "Invalid signature\n");
-                // return s_compose_config_return_response_handler(l_config);
-            } 
 
     return s_compose_config_return_response_handler(l_config);
 }
