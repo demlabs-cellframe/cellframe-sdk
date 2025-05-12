@@ -2447,7 +2447,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
     if(!l_from_wallet_cache){  
         dap_chain_datum_tx_t *l_datum_tx = NULL;
         for (l_tx_total = 0;
-                (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_hash_curr));
+                (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_hash_curr, false));
                     l_tx_total++)
         {
             /* Check time range (if need ) */
