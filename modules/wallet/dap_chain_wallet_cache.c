@@ -473,6 +473,8 @@ int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_to
                     continue;
                 if (IS_ZERO_256(l_out_std->value) )
                     continue;
+                if (l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_net->pub.ledger))
+                    continue;
                 l_value = l_out_std->value;
             } break;
             default:
@@ -581,6 +583,8 @@ int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const c
                 if (dap_strcmp(l_out_std->token, a_token_ticker))
                     continue;
                 if (IS_ZERO_256(l_out_std->value) )
+                    continue;
+                if (l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_net->pub.ledger))
                     continue;
                 l_value = l_out_std->value;
             } break;
@@ -877,6 +881,7 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                             l_item = DAP_NEW(dap_wallet_cache_unspent_outs_t);
                             *l_item = (dap_wallet_cache_unspent_outs_t) { .key = l_key, .output = l_out_item->data };
                             dap_strncpy(l_item->token_ticker, *l_prev_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t*)l_prev_item)->token
+                                        : *l_tx_item == TX_ITEM_TYPE_OUT_STD ? ((dap_chain_tx_out_std_t*)l_tx_item)->token
                                         : l_wallet_prev_tx_item->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
                             HASH_ADD(hh, l_wallet_item->unspent_outputs, key, sizeof(unspent_cache_hh_key), l_item);
                         }
@@ -908,6 +913,7 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                         l_item = DAP_NEW(dap_wallet_cache_unspent_outs_t);
                         *l_item = (dap_wallet_cache_unspent_outs_t) { .key = l_key, .output = l_out };
                         dap_strncpy(l_item->token_ticker, *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t*)l_tx_item)->token
+                                : *l_tx_item == TX_ITEM_TYPE_OUT_STD ? ((dap_chain_tx_out_std_t*)l_tx_item)->token
                                 : a_main_token_ticker ? a_main_token_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);                   
                         HASH_ADD(hh, l_wallet_item->unspent_outputs, key, sizeof(unspent_cache_hh_key), l_item);
                     }

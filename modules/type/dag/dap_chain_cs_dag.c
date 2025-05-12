@@ -565,7 +565,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         } else
             HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
-        dap_chain_atom_notify(l_cell, &l_event_item->hash, (const byte_t*)l_event_item->event, l_event_item->event_size);
+        dap_chain_atom_notify(l_cell, &l_event_item->hash, (const byte_t *)l_event, l_event_item->event_size, l_event->header.ts_created);
         dap_chain_atom_add_from_threshold(a_chain);
     } break;
     default:
@@ -953,7 +953,7 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
                 HASH_ADD(hh, PVT(a_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
                 s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
                 debug_if(s_debug_more, L_INFO, "... moved from threshold to chain");
-                dap_chain_atom_notify(l_cell, &l_event_item->hash, (byte_t*)l_event_item->event, l_event_item->event_size);
+                dap_chain_atom_notify(l_cell, &l_event_item->hash, (byte_t *)l_event_item->event, l_event_item->event_size, l_event_item->event->header.ts_created);
                 res = true;
             } else {
                 // TODO clear other threshold items linked with this one
@@ -1736,7 +1736,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
                         size_t l_arr_start = 0;
                         size_t l_arr_end = 0;
-                        dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, l_objs_count);
+                        dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, l_objs_count, false);
                         
                         json_object_object_add(json_obj_event_list,"net name", json_object_new_string(l_net->pub.name));
                         json_object_object_add(json_obj_event_list,"chain", json_object_new_string(l_chain->name));
@@ -1761,7 +1761,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                     size_t l_arr_start = 0;
                     size_t l_arr_end = 0;
-                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events));
+                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events), false);
                     
                     size_t i_tmp = 0;
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
@@ -1820,7 +1820,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     size_t l_arr_start = 0;
                     size_t l_arr_end = 0;
-                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events_treshold));
+                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events_treshold), false);
 
                     size_t i_tmp = 0;
                     if (l_head){
