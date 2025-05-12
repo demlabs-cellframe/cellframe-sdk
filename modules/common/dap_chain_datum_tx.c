@@ -78,6 +78,9 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     memcpy((uint8_t*) tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
     *a_tx = tx_new;
+    const char *hash = dap_hash_fast_str_new(a_item, size);
+    printf("%s\n", hash);
+    DAP_DELETE(hash);
     return 1;
 }
 
