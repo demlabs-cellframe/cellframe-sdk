@@ -63,6 +63,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 
 void s_chain_datum_tx_create_test()
 { 
+    dap_print_module_name("tx_create_compose");
     dap_chain_addr_t *l_addr_to = &s_data->addr_to;
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(&s_data->addr_from, &l_addr_to, s_ticker_native, &s_data->value, s_data->value_fee, 1, &s_data->config);
     dap_assert_PIF(l_datum_1, "tx_create_compose");
@@ -71,7 +72,8 @@ void s_chain_datum_tx_create_test()
 }
 
 void s_chain_datum_cond_create_test()
-{ 
+{
+    dap_print_module_name("tx_cond_create_compose");
     size_t l_rand_data_size = rand() % 256;
     char *l_rand_data = DAP_NEW_Z_SIZE_RET_IF_FAIL(char, l_rand_data_size);
     randombytes(l_rand_data, l_rand_data_size);
@@ -87,13 +89,14 @@ void s_chain_datum_cond_create_test()
         s_data->value_per_unit_max, price_unit,
         s_data->srv_uid, s_data->value_fee, l_rand_data, l_rand_data_size, &s_data->config
     );
-    dap_assert_PIF(l_datum_1, "tx_create_compose");
+    dap_assert_PIF(l_datum_1, "tx_cond_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
 void s_chain_datum_delegate_test()
-{ 
+{
+    dap_print_module_name("tx_stake_compose");
     size_t l_pkey_size = rand() % 1024;
     dap_pkey_t *pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, l_pkey_size + sizeof(dap_pkey_t));
     pkey->header.type.type = DAP_PKEY_TYPE_SIGN_BLISS;
@@ -106,7 +109,8 @@ void s_chain_datum_delegate_test()
 }
 
 void s_chain_datum_stake_lock_test()
-{ 
+{
+    dap_print_module_name("tx_lock_compose");
     dap_chain_datum_tx_t *l_datum_1 = dap_stake_lock_datum_create_compose(s_key, s_ticker_native, s_data->value, s_data->value_fee, s_data->time_staking, s_data->reinvest_percent, s_ticker_delegate, s_data->value_delegate, "0x0123456789abcdef", &s_data->config);
     dap_assert_PIF(l_datum_1, "tx_lock_compose");
     s_datum_sign_and_check(&l_datum_1);
@@ -114,7 +118,8 @@ void s_chain_datum_stake_lock_test()
 }
 
 void s_chain_datum_stake_unlock_test()
-{ 
+{
+    dap_print_module_name("tx_unlock_compose");
     dap_chain_datum_tx_t *l_datum_1 = dap_stake_unlock_datum_create_compose(
         s_key, &s_data->hash_1, s_data->idx_1, s_ticker_native, s_data->value, s_data->value_fee, 
         s_ticker_delegate, s_data->value_delegate, &s_data->config);
@@ -124,7 +129,8 @@ void s_chain_datum_stake_unlock_test()
 }
 
 void s_chain_datum_stake_invalidate_test()
-{ 
+{
+    dap_print_module_name("tx_invalidate_compose");
     dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_invalidate_compose(
         &s_data->hash_1, s_data->value_fee, s_key, &s_data->config);
     dap_assert_PIF(l_datum_1, "tx_invalidate_compose");
@@ -133,7 +139,8 @@ void s_chain_datum_stake_invalidate_test()
 }
 
 void s_chain_datum_vote_test()
-{ 
+{
+    dap_print_module_name("tx_vote_compose");
     const char *l_question = "Test is PASS?";
     const char *l_options[] = {
         "YES!!!",
@@ -147,14 +154,15 @@ void s_chain_datum_vote_test()
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_create_compose(
         l_question, l_options_list, s_data->time_staking, rand() % 10, s_data->value_fee, false, false, NULL, 
         s_ticker_native, &s_data->config);
-    dap_assert_PIF(l_datum_1, "tx_unlock_compose");
+    dap_assert_PIF(l_datum_1, "tx_vote_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
     dap_list_free_full(l_options_list, NULL);
 }
 
 void s_chain_datum_exchange_create_test()
-{ 
+{
+    dap_print_module_name("tx_exchange_create_compose");
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     dap_stpcpy(l_price->token_sell, s_ticker_native);
     dap_stpcpy(l_price->token_buy, s_ticker_delegate);
@@ -163,19 +171,20 @@ void s_chain_datum_exchange_create_test()
     l_price->fee = s_data->value_fee;
     // sell native
     dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_create_request_compose(l_price, &s_data->addr_from, s_ticker_native, &s_data->config);
-    dap_assert_PIF(l_datum_1, "tx_exchange_create_compose");
+    dap_assert_PIF(l_datum_1, "tx_exchange_create_compose sell native");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
     // sell non native
     l_datum_1 = dap_xchange_tx_create_request_compose(l_price, &s_data->addr_from, s_ticker_delegate, &s_data->config);
-    dap_assert_PIF(l_datum_1, "tx_exchange_create_compose");
+    dap_assert_PIF(l_datum_1, "tx_exchange_create_compose sell non native");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
     DAP_DELETE(l_price);
 }
 
 void s_chain_datum_exchange_purchase_test(const char *a_token_sell, const char *a_token_buy)
-{ 
+{
+    dap_print_module_name("tx_exchange_purchase_compose");
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     dap_stpcpy(l_price->token_sell, a_token_sell);
     dap_stpcpy(l_price->token_buy, a_token_buy);
