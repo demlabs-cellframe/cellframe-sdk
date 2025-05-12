@@ -807,18 +807,19 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
             for (size_t j = 0; j < l_addr_el_count; ++j) {
                     DAP_DELETE(l_addr_to[j]);
             }
+            dap_chain_wallet_close(l_wallet);
             DAP_DEL_MULTY(l_addr_to, l_value);
             return s_compose_config_return_response_handler(l_config);
         }
     }
 
-    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
     dap_chain_datum_tx_t* l_tx = dap_chain_datum_tx_create_compose( l_addr_from, l_addr_to, l_token_ticker, l_value, l_value_fee, l_addr_el_count, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
         dap_chain_datum_tx_delete(l_tx);
     }
 
+    dap_chain_wallet_close(l_wallet);
     DAP_DEL_MULTY(l_addr_to, l_value, l_addr_from);
     return s_compose_config_return_response_handler(l_config);
 }
