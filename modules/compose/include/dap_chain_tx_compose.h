@@ -95,7 +95,7 @@ json_object* dap_tx_create_xchange_compose(const char *l_net_str, const char *l_
 
 json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_token_ticker, const char *a_wallet_str, 
                                        const char *a_wallet_path, const char *a_wallet_pass, const char *a_cert_str, 
-                                       const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, 
+                                       const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, const char *a_value_per_unit_max_str,
                                        const char *a_srv_uid_str, const char *a_url_str, uint16_t a_port);
 
 json_object* dap_cli_hold_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_ticker_str, 
@@ -159,7 +159,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
                                                               dap_chain_wallet_t *a_wallet, compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, 
-                                                           dap_chain_wallet_t *a_wallet, const char *a_native_ticker, 
+                                                           dap_chain_addr_t *a_seller_addr, const char *a_native_ticker, 
                                                            compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
@@ -199,7 +199,7 @@ json_object* dap_tx_create_xchange_purchase_compose(const char *a_net_name, cons
                                                    const char *a_wallet_pass, const char *a_url_str, uint16_t a_port);
 
 dap_chain_datum_tx_t* dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_xchange_price_t *a_price, 
-                                                            dap_chain_wallet_t *a_wallet, uint256_t a_datoshi_buy,
+                                                            dap_chain_addr_t *a_buyer_addr, uint256_t a_datoshi_buy,
                                                             uint256_t a_datoshi_fee, dap_chain_tx_out_cond_t* a_cond_tx, 
                                                             uint32_t a_prev_cond_idx, compose_config_t *a_config);
 
