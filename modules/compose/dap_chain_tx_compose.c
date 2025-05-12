@@ -2822,14 +2822,13 @@ static bool s_datum_tx_voting_coin_check_spent_compose(json_object *a_votes_list
         return false;
 
     int l_votes_count = json_object_array_length(a_votes_list);
-    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(&a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
 
     for (int i = 0; i < l_votes_count; i++) {
         json_object *l_vote = json_object_array_get_idx(a_votes_list, i);
-        const char *l_vote_hash = json_object_get_string(json_object_object_get(l_vote, "vote_hash"));
-        if (!dap_strcmp(l_vote_hash, l_tx_hash_str) && a_out_idx == json_object_get_int(json_object_object_get(l_vote, "answer_idx"))) {
-            return a_pkey_hash ? !dap_hash_fast_compare(a_pkey_hash, json_object_object_get(l_vote, "pkey_hash")) : 1;
+        const char *l_vote_hash = json_object_get_string(json_object_object_get(l_vote, "vote_hash")),
+                *l_pkey_hash = json_object_get_string(json_object_object_get(l_vote, "pkey_hash"));
+        if (!dap_strcmp(l_vote_hash, dap_chain_hash_fast_to_str_static(&a_tx_hash)) && a_out_idx == json_object_get_int(json_object_object_get(l_vote, "answer_idx"))) {
+            return a_pkey_hash ? !dap_strcmp(l_pkey_hash, dap_chain_hash_fast_to_str_static(a_pkey_hash)) : true;
         }
     }
     return false;
