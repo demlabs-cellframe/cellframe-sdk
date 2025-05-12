@@ -281,9 +281,9 @@ int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
         dap_return_val_if_fail_err(l_cell, -3, "Can't truncate more than file size %" DAP_UINT64_FORMAT_U, l_pos);
     l_pos -= a_delta;
 #ifdef DAP_OS_WINDOWS
-    if (a_cell->chain->is_mapped) {
+    if (l_cell->chain->is_mapped) {
         LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_pos };
-        NTSTATUS err = pfnNtExtendSection(a_cell->mapping->section, &SectionSize);
+        NTSTATUS err = pfnNtExtendSection(l_cell->mapping->section, &SectionSize);
         if ( !NT_SUCCESS(err) )
             log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
     } else
