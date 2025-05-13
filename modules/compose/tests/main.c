@@ -58,6 +58,9 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     size_t l_signs_count = rand() % KEY_COUNT + 1;
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]), "datum_1 sign create");
+    dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
+    assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1);
+    DAP_DEL_Z(l_out_count);
     json_object *l_datum_1_json = json_object_new_object();
     json_object *l_error_json = json_object_new_array();
     dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
@@ -252,6 +255,7 @@ void s_chain_datum_tx_ser_deser_test()
 
 int main(void){
     dap_log_level_set(L_WARNING);
+    dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
     s_chain_datum_tx_ser_deser_test();
     return 0;
 }
