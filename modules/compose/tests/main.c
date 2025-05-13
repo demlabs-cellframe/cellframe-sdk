@@ -151,7 +151,7 @@ void s_chain_datum_stake_invalidate_test()
 {
     dap_print_module_name("tx_invalidate_compose");
     dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_invalidate_compose(
-        &s_data->hash_1, s_data->value_fee, s_key[rand() % KEY_COUNT], &s_data->config);
+        &s_data->hash_1, s_data->value_fee, &s_data->addr_from, &s_data->config);
     dap_assert(l_datum_1, "tx_invalidate_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
