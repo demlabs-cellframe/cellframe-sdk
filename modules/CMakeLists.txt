@@ -105,9 +105,6 @@ if (CELLFRAME_MODULES MATCHES "srv-bridge")
 endif()
 
 # Service for emission rights delegate to wallets consensus
-if (CELLFRAME_MODULES MATCHES "srv-emit-delegate")
-    add_subdirectory(service/emit-delegate)
-endif()
 
 # compose service
 if (CELLFRAME_MODULES MATCHES "compose")
