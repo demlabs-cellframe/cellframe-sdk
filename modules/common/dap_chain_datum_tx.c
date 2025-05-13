@@ -86,7 +86,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 }
 
 #define dap_chain_datum_tx_add_new_generic(a_tx, type, a_item) \
-    ({ type* item = a_item; item ? ( dap_chain_datum_tx_add_item(a_tx, item), DAP_DELETE(item), 1 ) : -1; })
+    ({ type* item = a_item; int l_ret = -1; item ? ( l_ret = dap_chain_datum_tx_add_item(a_tx, item), DAP_DELETE(item), l_ret ) : l_ret; })
 
 /**
  * Create 'in' item and insert to transaction
