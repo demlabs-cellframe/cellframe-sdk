@@ -261,7 +261,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
     TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
         if (*l_item != TX_ITEM_TYPE_SIG) {
             if (l_sign_item) {
-                log_it(L_ERROR, "Items finded after sign");
+                log_it(L_ERROR, "Items found after sign");
                 return l_ret;
             }
             continue;
