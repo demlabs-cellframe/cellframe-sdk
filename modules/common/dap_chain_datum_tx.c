@@ -73,6 +73,10 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 {
     size_t size = 0;
     dap_return_val_if_pass(!a_tx || !*a_tx || !(size = dap_chain_datum_item_tx_get_size(a_item, 0)), -1 );
+    if (dap_chain_datum_tx_item_get_nth(*a_tx, TX_ITEM_TYPE_SIG, 0)) {
+        log_it(L_ERROR, "Can't add item, datum already signed");
+        return -1;
+    }
     size_t new_size = dap_chain_datum_tx_get_size(*a_tx) + size;
     dap_chain_datum_tx_t *tx_new = DAP_REALLOC_RET_VAL_IF_FAIL( *a_tx, new_size, -2 );
     memcpy((uint8_t*) tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
@@ -249,23 +253,34 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
 {
     dap_return_val_if_pass(!a_tx, -1);
     int l_ret = -4, l_sign_num = 0;
-    byte_t *l_item = NULL, *l_first_item = NULL; size_t l_item_size;
+    byte_t *l_item = NULL, *l_first_item = NULL;
+    size_t
+        l_item_size = 0,
+        l_sign_item_size = 0;
+    dap_chain_tx_sig_t *l_sign_item = NULL;
     TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
-        if (*l_item != TX_ITEM_TYPE_SIG)
+        if (*l_item != TX_ITEM_TYPE_SIG) {
+            if (l_sign_item) {
+                log_it(L_ERROR, "Items finded after sign");
+                return l_ret;
+            }
             continue;
+        }
         if (!l_first_item)
             l_first_item = l_item;
-        if (l_sign_num++ == a_sign_num)
-            break;
+        if (l_sign_num++ == a_sign_num) {
+            l_sign_item = (dap_chain_tx_sig_t*)l_item;
+            l_sign_item_size = l_item_size;
+        }
     }
-    if (!l_item || !l_item_size)
+    if (!l_sign_item || !l_sign_item_size)
         return log_it(L_ERROR, "Sign not found in TX"), l_ret;
-    
-    dap_chain_tx_sig_t *l_sign_item = (dap_chain_tx_sig_t*)l_item;
     dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sign_item);
-    size_t l_tx_items_size = a_tx->header.tx_items_size, l_data_size;
-    dap_chain_datum_tx_t *l_tx;
-    byte_t *l_tx_data;
+    size_t
+        l_tx_items_size = a_tx->header.tx_items_size,
+        l_data_size = 0;
+    dap_chain_datum_tx_t *l_tx = NULL;
+    byte_t *l_tx_data = NULL;
     if ( l_sign_item->header.version ) {
         l_data_size = (size_t)( l_first_item - (byte_t *)a_tx );
         l_tx = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true)
@@ -275,9 +290,9 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
     } else {
         l_tx = a_tx;
         l_tx_data = a_tx->tx_items;
-        l_data_size = (size_t)( l_item - l_tx_data );
+        l_data_size = (size_t)( (byte_t *)l_sign_item - l_tx_data );
     }
-    l_ret = dap_sign_verify_all(l_sign, l_item_size, l_tx_data, l_data_size);
+    l_ret = dap_sign_verify_all(l_sign, l_sign_item_size, l_tx_data, l_data_size);
     if (l_sign_item->header.version) {
         if ( dap_config_get_item_bool_default(g_config, "ledger", "mapped", true) )
             DAP_DELETE(l_tx);
