@@ -3858,7 +3858,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 }
 
                 int l_verificator_error = l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner);
-                if (l_verificator_error != DAP_LEDGER_CHECK_OK) { // TODO add string representation for verificator return codes
+                if ( !s_check_hal(a_ledger, a_tx_hash) && l_verificator_error != DAP_LEDGER_CHECK_OK ) { // TODO add string representation for verificator return codes
                     debug_if(s_debug_more, L_WARNING, "Verificator check error %d for conditional output %s",
                                                                     l_verificator_error, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
                     // Retranslate NO_SIGNS code to upper level
