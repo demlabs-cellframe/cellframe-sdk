@@ -121,6 +121,9 @@ uint16_t dap_compose_get_net_port(const char* name) {
 }
 
 static const char* s_get_native_ticker(const char* name) {
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    return "BUZ";
+#endif
     if (!name) {
         return NULL;
     }
@@ -578,12 +581,11 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     *l_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
     randombytes(*l_addr_fee, sizeof(dap_chain_addr_t));
-    randombytes(a_net_fee, sizeof(uint256_t));
+    a_net_fee->_lo.b = rand() % 500;
 #else
     if (!a_net_fee || !l_addr_fee || !a_config || !a_config->net_name) {
         return false;
     }
-    
     *l_addr_fee = NULL;
 
     json_object *l_json_get_fee = dap_request_command_to_rpc_with_params(a_config, "net", "get;fee;-net;%s", a_config->net_name);
@@ -879,10 +881,9 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
             return NULL;
         }
     }
-    const char * l_native_ticker = s_get_native_ticker(a_config->net_name);
-#else
-    const char * l_native_ticker = "BUZ";
 #endif
+    const char * l_native_ticker = s_get_native_ticker(a_config->net_name);
+
     bool l_single_channel = !dap_strcmp(a_token_ticker, l_native_ticker);
 
     uint256_t l_value_transfer = {}; // how many coins to transfer
@@ -957,7 +958,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
         for (size_t i = 0; i < a_tx_num; ++i) {
             if (a_addr_to) {
-                if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to[i], a_value[i]) != 1) {
+                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_value[i], l_native_ticker) != 1) {
                     dap_chain_datum_tx_delete(l_tx);
                     dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_OUT_ERROR, "Can't add 'out' item");
                     return NULL;
@@ -973,7 +974,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         }
         // Network fee
         if (l_net_fee_used) {
-            if (dap_chain_datum_tx_add_out_item(&l_tx, l_addr_fee, l_net_fee) == 1)
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_fee, l_net_fee, l_native_ticker) == 1)
                 SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
             else {
                 dap_chain_datum_tx_delete(l_tx);
@@ -995,7 +996,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         uint256_t l_value_back;
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
         if(!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
+            if(dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back, l_native_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_OUT_ERROR, "Can't add 'coin back' item");
                 return NULL;
@@ -1062,7 +1063,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer)
 {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    size_t l_out_count = rand() % 10 + 1;
+    size_t l_out_count = 1;
     dap_list_t *l_ret = NULL;
     for (size_t i = 0; i < l_out_count; ++i) {
         dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
@@ -1315,7 +1316,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
     if (!a_config) {
         return NULL;
     }
-    if ( !a_token_buy || !a_token_sell || !a_wallet) {
+    if ( !a_token_buy || !a_token_sell || !a_wallet_addr) {
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_INVALID_ARGUMENT, "Invalid parameter");
         return NULL;
     }
@@ -1346,7 +1347,6 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
     json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "info;-addr;%s;-net;%s", 
                                                                       dap_chain_addr_to_str(a_wallet_addr), a_config->net_name);
     uint256_t l_value = get_balance_from_json(l_json_outs, a_token_sell);
-
     uint256_t l_value_sell = a_datoshi_sell;
     if (!dap_strcmp(s_get_native_ticker(a_config->net_name), a_token_sell)) {
         if (SUM_256_256(l_value_sell, a_fee, &l_value_sell)) {
@@ -1375,19 +1375,20 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
     l_price->datoshi_sell = a_datoshi_sell;
     l_price->rate = a_rate;
     l_price->fee = a_fee;
-    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_create_request_compose(l_price, a_wallet, s_get_native_ticker(a_config->net_name), a_config);
+    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_create_request_compose(l_price, a_wallet_addr, s_get_native_ticker(a_config->net_name), a_config);
+    DAP_DEL_Z(l_price);
     return l_tx;
 }
 
 
 
-dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet,
+dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_addr_t *a_seller_addr,
                                                                  const char *a_native_ticker, compose_config_t *a_config)
 {
     if (!a_config) {
         return NULL;
     }
-    if (!a_price || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
+    if (!a_price || !*a_price->token_sell || !*a_price->token_buy || !a_seller_addr) {
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_INVALID_ARGUMENT, "Invalid parameter");
         return NULL;
     }
@@ -1405,10 +1406,8 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
     bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_net_fee, a_config);
     if (l_net_fee_used)
         SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
-
-    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, dap_get_net_id(a_config->net_name));
-    dap_chain_addr_t l_seller_addr = *l_wallet_addr;
-    json_object *l_outs_native = dap_get_remote_tx_outs(a_native_ticker, l_wallet_addr, a_config);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST    
+    json_object *l_outs_native = dap_get_remote_tx_outs(a_native_ticker, a_seller_addr, a_config);
     if (!l_outs_native) {
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Can't get tx outs");
         return NULL;
@@ -1418,11 +1417,16 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
     if (!dap_strcmp(a_price->token_sell, a_native_ticker)) {
         l_outs = l_outs_native;
     } else {
-        l_outs = dap_get_remote_tx_outs(a_price->token_sell, l_wallet_addr, a_config);
+        l_outs = dap_get_remote_tx_outs(a_price->token_sell, a_seller_addr, a_config);
     }
-    DAP_DELETE(l_wallet_addr);
     int l_out_native_count = json_object_array_length(l_outs_native);
     int l_out_count = json_object_array_length(l_outs);
+#else
+    json_object *l_outs = NULL;
+    json_object *l_outs_native = NULL;
+    int l_out_count = 0;
+    int l_out_native_count = 0;
+#endif
 
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
@@ -1433,7 +1437,8 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
         if (!l_list_fee_out) {
             dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_NOT_ENOUGH_FUNDS_TO_PAY_FEE, "Not enough funds to pay fee");
             json_object_put(l_outs_native);
-            json_object_put(l_outs);
+            if (dap_strcmp(a_price->token_sell, a_native_ticker))
+                json_object_put(l_outs);
             return NULL;
         }
     }
@@ -1441,10 +1446,12 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
     l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_out_count,
                                                             l_value_need,
                                                             &l_value_transfer);
+    
+    if (dap_strcmp(a_price->token_sell, a_native_ticker))
+        json_object_put(l_outs);
+    json_object_put(l_outs_native);
     if (!l_list_used_out) {
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_NOT_ENOUGH_FUNDS_TO_TRANSFER, "Not enough funds to transfer");
-        json_object_put(l_outs_native);
-        json_object_put(l_outs);
         return NULL;
     }
 
@@ -1453,11 +1460,13 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
     // add 'in' items to sell
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST   
     if (!EQUAL_256(l_value_to_items, l_value_transfer) != 0) {
         dap_chain_datum_tx_delete(l_tx);
         dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_COMPOSE_THE_TRANSACTION_INPUT, "Can't compose the transaction input");
         return NULL;
     }
+#endif
     if (!l_single_channel) {
         // add 'in' items to fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
@@ -1474,7 +1483,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
         dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
         dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_uid, dap_get_net_id(a_config->net_name), a_price->datoshi_sell,
                                                                                                 dap_get_net_id(a_config->net_name), a_price->token_buy, a_price->rate,
-                                                                                                &l_seller_addr, NULL, 0);
+                                                                                                a_seller_addr, NULL, 0);
         if (!l_tx_out) {
             dap_chain_datum_tx_delete(l_tx);
             dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_COMPOSE_THE_TRANSACTION_CONDITIONAL_OUTPUT, "Can't compose the transaction conditional output");
@@ -1484,10 +1493,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
         DAP_DELETE(l_tx_out);
         // Network fee
         if (l_net_fee_used) {
-            if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, l_addr_net_fee, l_net_fee) != 1) ||
-                    (!l_single_channel &&
-                        dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_net_fee, l_net_fee, l_native_ticker) != 1)) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_net_fee, l_net_fee, l_native_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_ADD_NETWORK_FEE_OUTPUT, "Can't add network fee output");
                 return NULL;
@@ -1506,10 +1512,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
         uint256_t l_value_back = {};
         SUBTRACT_256_256(l_value_transfer, l_value_need, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if ((l_single_channel &&
-                        dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_value_back) != 1) ||
-                    (!l_single_channel &&
-                        dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_value_back, a_price->token_sell) != 1)) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_seller_addr, l_value_back, a_price->token_sell) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_ADD_COIN_BACK_OUTPUT, "Can't add coin back output");
                 return NULL;
@@ -1520,7 +1523,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
             uint256_t l_fee_coinback = {};
             SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_fee_coinback);
             if (!IS_ZERO_256(l_fee_coinback)) {
-                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_fee_coinback, l_native_ticker) != 1) {
+                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_seller_addr, l_fee_coinback, l_native_ticker) != 1) {
                     dap_chain_datum_tx_delete(l_tx);
                     dap_json_compose_error_add(a_config->response_handler, DAP_XCHANGE_COMPOSE_ERROR_CAN_NOT_ADD_FEE_BACK_OUTPUT, "Can't add fee back output");
                     return NULL;
@@ -1545,8 +1548,9 @@ typedef enum dap_tx_cond_create_compose_error {
     TX_COND_CREATE_COMPOSE_ERROR_COND_OUTPUT_FAILED,
     TX_COND_CREATE_COMPOSE_ERROR_COIN_BACK_FAILED
 } dap_tx_cond_create_compose_error_t;
-json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_token_ticker, const char *a_wallet_str, const char *a_wallet_path, const char *a_wallet_pass,
-                                        const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, 
+json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr,
+                                        const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str,
+                                        const char *a_unit_str, const char *a_value_per_unit_max_str,
                                         const char *a_srv_uid_str, const char *a_url_str, uint16_t a_port) {    
     compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
     if (!l_config) {
@@ -1557,6 +1561,7 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
     
     uint256_t l_value_datoshi = {};    
     uint256_t l_value_fee = {};
+    uint256_t l_value_per_unit_max = {};
     dap_chain_net_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(a_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
@@ -1582,45 +1587,34 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
         dap_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_VALUE, "Can't recognize value '%s' as a number\n", a_value_fee_str);
         return s_compose_config_return_response_handler(l_config);
     }
-
-    dap_chain_wallet_t *l_wallet = dap_wallet_open_with_pass(a_wallet_str, a_wallet_path, a_wallet_pass, l_config);
-    if(!l_wallet) {
-        dap_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_WALLET_OPEN_FAILED, "Can't open wallet '%s'\n", a_wallet_str);
-        return s_compose_config_return_response_handler(l_config);
-    }
+    if (a_value_per_unit_max_str)
+        l_value_per_unit_max = dap_chain_balance_scan(a_value_per_unit_max_str);
 
     dap_cert_t *l_cert_cond = dap_cert_find_by_name(a_cert_str);
     if(!l_cert_cond) {
-        dap_chain_wallet_close(l_wallet);
         dap_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_CERT_NOT_FOUND, "Can't find cert '%s'\n", a_cert_str);
         return s_compose_config_return_response_handler(l_config);
     }
 
-    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
     dap_pkey_t *l_key_cond = dap_pkey_from_enc_key(l_cert_cond->enc_key);
     if (!l_key_cond) {
-        dap_chain_wallet_close(l_wallet);
-        dap_enc_key_delete(l_key_from);
         dap_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_CERT_KEY, "Cert '%s' doesn't contain a valid public key\n", a_cert_str);
         return s_compose_config_return_response_handler(l_config);
     }
 
-    uint256_t l_value_per_unit_max = {};
-    dap_chain_datum_tx_t *l_tx = dap_chain_mempool_tx_create_cond_compose(l_key_from, l_key_cond, a_token_ticker,
+    dap_chain_datum_tx_t *l_tx = dap_chain_mempool_tx_create_cond_compose(a_wallet_addr, l_key_cond, a_token_ticker,
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
         dap_chain_datum_tx_delete(l_tx);
     }
-    dap_chain_wallet_close(l_wallet);
-    dap_enc_key_delete(l_key_from);
     DAP_DELETE(l_key_cond);
     return s_compose_config_return_response_handler(l_config);
 }
 
 
-dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
+dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max,
         dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
@@ -1628,16 +1622,13 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
         size_t a_cond_size, compose_config_t *a_config)
 {
     // check valid param
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
-    if (!a_config->net_name || !*a_config->net_name || !a_key_from || !a_key_cond ||
-            !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || IS_ZERO_256(a_value) || !a_config->url_str || !*a_config->url_str || a_config->port == 0)
+    if (!a_config->net_name || !*a_config->net_name || !a_key_cond || IS_ZERO_256(a_value) || !a_config->url_str || !*a_config->url_str || a_config->port == 0 || !a_wallet_addr)
         return NULL;
 
     if (dap_strcmp(s_get_native_ticker(a_config->net_name), a_token_ticker)) {
         dap_json_compose_error_add(a_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_NATIVE_TOKEN_REQUIRED, "Pay for service should be only in native token ticker\n");
         return NULL;
     }
-#endif
     uint256_t l_net_fee = {};
     dap_chain_addr_t* l_addr_fee = NULL;
     dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
@@ -1650,14 +1641,11 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
     if (l_net_fee_used) {
         SUM_256_256(l_value_need, l_net_fee, &l_value_need);
     }
-    // where to take coins for service
-    dap_chain_addr_t l_addr_from;
-    dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, dap_get_net_id(a_config->net_name));
     // list of transaction with 'out' items
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
-    if (!dap_get_remote_wallet_outs_and_count(&l_addr_from, a_token_ticker, &l_outs, &l_outputs_count, a_config)) {
+    if (!dap_get_remote_wallet_outs_and_count(a_wallet_addr, a_token_ticker, &l_outs, &l_outputs_count, a_config)) {
         return NULL;
     }
 #endif
@@ -1693,7 +1681,7 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
         }
         // Network fee
         if (l_net_fee_used) {
-            if (dap_chain_datum_tx_add_out_item(&l_tx, l_addr_fee, l_net_fee) == 1)
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_fee, l_net_fee, a_token_ticker) == 1)
                 SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
             else {
                 dap_chain_datum_tx_delete(l_tx);
@@ -1713,7 +1701,7 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_enc_key_t *a_
         uint256_t l_value_back = {};
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_from, l_value_back) != 1) {
+            if(dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_back, a_token_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_COIN_BACK_FAILED, "Cant add coin back output\n");
                 return NULL;
@@ -1739,7 +1727,7 @@ enum cli_hold_compose_error {
     CLI_HOLD_COMPOSE_ERROR_INSUFFICIENT_FUNDS = -12
 };
 
-json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_ticker_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_wallet_pass, const char *a_coins_str, const char *a_time_staking_str,
+json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_ticker_str, dap_chain_addr_t *a_wallet_addr, const char *a_coins_str, const char *a_time_staking_str,
                                     const char *a_cert_str, const char *a_value_fee_str, const char *a_reinvest_percent_str, const char *a_url_str, uint16_t a_port) {
     
     compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
@@ -1751,7 +1739,6 @@ json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_i
     
     char 	l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
     dap_enc_key_t						*l_key_from;
-    dap_chain_wallet_t					*l_wallet;
     dap_chain_addr_t					*l_addr_holder;
     dap_time_t              			l_time_staking		=	0;
     uint256_t						    l_reinvest_percent	=	{};
@@ -1848,40 +1835,23 @@ json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_i
             MULT_256_256(l_reinvest_percent, GET_256_FROM_64(1000000000000000000ULL), &l_reinvest_percent);
         }
     }
-
-    if(NULL == (l_wallet = dap_wallet_open_with_pass(a_wallet_str, a_wallet_path, a_wallet_pass, l_config))) {
-        dap_json_compose_error_add(l_config->response_handler, CLI_HOLD_COMPOSE_ERROR_UNABLE_TO_OPEN_WALLET, "Unable to open wallet '%s'\n", a_wallet_str);
-        return s_compose_config_return_response_handler(l_config);
-    }
-
-
-    if (NULL == (l_addr_holder = dap_chain_wallet_get_addr(l_wallet, dap_get_net_id(a_net_name)))) {
-        dap_chain_wallet_close(l_wallet);
-        dap_json_compose_error_add(l_config->response_handler, CLI_HOLD_COMPOSE_ERROR_UNABLE_TO_GET_WALLET_ADDRESS, "Unable to get wallet address for '%s'\n", a_wallet_str);
-        return s_compose_config_return_response_handler(l_config);
-    }
     
     json_object *l_json_outs = dap_request_command_to_rpc_with_params(l_config, "wallet", "info;-addr;%s;-net;%s", 
-                                                                      dap_chain_addr_to_str(l_addr_holder), l_config->net_name);
-    DAP_DEL_Z(l_addr_holder);
+                                                                      dap_chain_addr_to_str(a_wallet_addr), l_config->net_name);
 
     uint256_t l_value_balance = get_balance_from_json(l_json_outs, a_ticker_str);
     json_object_put(l_json_outs);
     if (compare256(l_value_balance, l_value) == -1) {
-        dap_chain_wallet_close(l_wallet);
         dap_json_compose_error_add(l_config->response_handler, CLI_HOLD_COMPOSE_ERROR_INSUFFICIENT_FUNDS, "Insufficient funds in wallet\n");
         return s_compose_config_return_response_handler(l_config);
     }
 
-    l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
-
     // Make transfer transaction
-    dap_chain_datum_tx_t *l_tx = dap_stake_lock_datum_create_compose(l_key_from,
+    dap_chain_datum_tx_t *l_tx = dap_stake_lock_datum_create_compose(a_wallet_addr,
                                                            a_ticker_str, l_value, l_value_fee,
                                                            l_time_staking, l_reinvest_percent,
                                                            l_delegated_ticker_str, l_value_delegated, a_chain_id_str, l_config);
 
-    dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_key_from);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
@@ -1903,7 +1873,7 @@ typedef enum {
     STAKE_LOCK_DATUM_CREATE_ERROR_CANT_ADD_SIGN_OUTPUT = -9
 } stake_lock_datum_create_error_t;
 
-dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_from,
+dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_chain_addr_t *a_wallet_addr,
                                                     const char *a_main_ticker,
                                                     uint256_t a_value, uint256_t a_value_fee,
                                                     dap_time_t a_time_unlock, uint256_t a_reinvest_percent,
@@ -1912,22 +1882,15 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
 {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // check valid param
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
-    if (!a_config->net_name || !a_key_from ||
-        !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || IS_ZERO_256(a_value))
+    if (!a_config->net_name || !a_wallet_addr || IS_ZERO_256(a_value))
         return NULL;
 
     const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
-#else
-    const char *l_native_ticker = "BUZ";
-#endif
     bool l_main_native = !dap_strcmp(a_main_ticker, l_native_ticker);
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need = a_value, l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
     dap_chain_addr_t * l_addr_fee = NULL;
-    dap_chain_addr_t l_addr = {};
-    dap_chain_addr_fill_from_key(&l_addr, a_key_from, dap_get_net_id(a_config->net_name));
     bool l_net_fee_used = dap_get_remote_net_fee_and_address( &l_net_fee, &l_addr_fee, a_config);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     dap_list_t *l_list_fee_out = NULL;
@@ -1935,14 +1898,14 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
     json_object *l_outs_main = NULL;
     int l_out_main_count = 0;
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
-    l_outs_native = dap_get_remote_tx_outs(l_native_ticker, &l_addr, a_config);
+    l_outs_native = dap_get_remote_tx_outs(l_native_ticker, a_wallet_addr, a_config);
     if (!l_outs_native) {
         return NULL;
     }
     if (!dap_strcmp(a_main_ticker, l_native_ticker)) {
         l_outs_main = l_outs_native;
     } else {
-        l_outs_main = dap_get_remote_tx_outs(a_main_ticker, &l_addr, a_config);
+        l_outs_main = dap_get_remote_tx_outs(a_main_ticker, a_wallet_addr, a_config);
     }
     int l_out_native_count = json_object_array_length(l_outs_native);
     l_out_main_count = json_object_array_length(l_outs_main);
@@ -2041,7 +2004,7 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
         // coin back
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, a_main_ticker) != 1) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_back, a_main_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, STAKE_LOCK_DATUM_CREATE_ERROR_CANT_ADD_COIN_BACK_OUTPUT_FOR_MAIN_TICKER, "Cant add coin back output for main ticker\n");
                 return NULL;
@@ -2051,7 +2014,7 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
         if (!IS_ZERO_256(l_fee_transfer)) {
             SUBTRACT_256_256(l_fee_transfer, l_native_pack, &l_value_back);
             if (!IS_ZERO_256(l_value_back)) {
-                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, l_native_ticker) != 1) {
+                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_back, l_native_ticker) != 1) {
                     dap_chain_datum_tx_delete(l_tx);
                     dap_json_compose_error_add(a_config->response_handler, STAKE_LOCK_DATUM_CREATE_ERROR_CANT_ADD_COIN_BACK_OUTPUT_FOR_NATIVE_TICKER, "Cant add coin back output for native ticker\n");
                     return NULL;
@@ -2061,16 +2024,9 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_enc_key_t *a_key_
     }
 
     // add delegated token emission 'out_ext'
-    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, a_delegated_value, a_delegated_ticker_str) != 1) {
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, a_delegated_value, a_delegated_ticker_str) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         dap_json_compose_error_add(a_config->response_handler, STAKE_LOCK_DATUM_CREATE_ERROR_CANT_ADD_DELEGATED_TOKEN_EMISSION_OUTPUT, "Cant add delegated token emission output\n");
-        return NULL;
-    }
-
-    // add 'sign' item
-    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
-        dap_chain_datum_tx_delete(l_tx);
-        dap_json_compose_error_add(a_config->response_handler, STAKE_LOCK_DATUM_CREATE_ERROR_CANT_ADD_SIGN_OUTPUT, "Can't add sign output\n");
         return NULL;
     }
 
@@ -2095,7 +2051,7 @@ typedef enum {
     CLI_TAKE_COMPOSE_ERROR_NOT_ENOUGH_TIME_PASSED = -13
 } cli_take_compose_error_t;
 
-json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_wallet_str, const char *a_wallet_path, const char *a_wallet_pass, const char *a_tx_str,
+json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_str, dap_chain_addr_t *a_wallet_addr, const char *a_tx_str,
                                     const char *a_value_fee_str, const char *a_url_str, uint16_t a_port){
 
     compose_config_t * l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
@@ -2109,7 +2065,6 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
     int									l_prev_cond_idx		=	0;
     uint256_t							l_value_delegated	= 	{};
     uint256_t                           l_value_fee     	=	{};
-    dap_chain_wallet_t					*l_wallet;
     dap_hash_fast_t						l_tx_hash;
     dap_chain_tx_out_cond_t				*l_cond_tx = NULL;
     dap_enc_key_t						*l_owner_key;
@@ -2204,24 +2159,11 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
     }
     json_object_put(response);
 
-    if (NULL == (l_wallet = dap_wallet_open_with_pass(a_wallet_str, a_wallet_path, a_wallet_pass, l_config))) {
-        dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_UNABLE_TO_OPEN_WALLET, "Unable to open wallet\n");
-        return s_compose_config_return_response_handler(l_config);
-    }
-
-    if (NULL == (l_owner_key = dap_chain_wallet_get_key(l_wallet, 0))) {
-        dap_chain_wallet_close(l_wallet);
-        dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_OWNER_KEY_NOT_FOUND, "Owner key not found\n");
-        return s_compose_config_return_response_handler(l_config);
-    }
-
     if (l_cond_tx->subtype.srv_stake_lock.time_unlock > dap_time_now()) {
-        dap_chain_wallet_close(l_wallet);
-        dap_enc_key_delete(l_owner_key);
         dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NOT_ENOUGH_TIME_PASSED, "Not enough time has passed for unlocking\n");
         return s_compose_config_return_response_handler(l_config);
     }
-    dap_chain_datum_tx_t *l_tx = dap_stake_unlock_datum_create_compose(l_owner_key, &l_tx_hash, l_prev_cond_idx,
+    dap_chain_datum_tx_t *l_tx = dap_stake_unlock_datum_create_compose(a_wallet_addr, &l_tx_hash, l_prev_cond_idx,
                                           l_ticker_str, l_cond_tx->header.value, l_value_fee,
                                           l_delegated_ticker_str, l_value_delegated, l_config);
 
@@ -2229,8 +2171,6 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
         dap_chain_datum_tx_delete(l_tx);
     }
-
-    dap_enc_key_delete(l_owner_key);
 
     return s_compose_config_return_response_handler(l_config);
 }
@@ -2250,7 +2190,7 @@ typedef enum {
     TX_STAKE_UNLOCK_COMPOSE_CANT_ADD_COIN_BACK_DELEGATED = -10
 } tx_stake_unlock_compose_error_t;
 
-dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key_from,
+dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_chain_addr_t *a_wallet_addr,
                                                dap_hash_fast_t *a_stake_tx_hash, uint32_t a_prev_cond_idx,
                                                const char *a_main_ticker, uint256_t a_value,
                                                uint256_t a_value_fee,
@@ -2258,7 +2198,7 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
                                                compose_config_t *a_config)
 {
     // check valid param
-    if (!a_config || !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || dap_hash_fast_is_blank(a_stake_tx_hash)) {
+    if (!a_config || !a_wallet_addr || dap_hash_fast_is_blank(a_stake_tx_hash)) {
         dap_json_compose_error_add(a_config->response_handler, TX_STAKE_UNLOCK_COMPOSE_INVALID_PARAMS, "Invalid parameters\n");
         return NULL;
     }
@@ -2269,25 +2209,30 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
     uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
     dap_chain_addr_t* l_addr_fee = NULL;
-    dap_chain_addr_t l_addr = {};
 
-    dap_chain_addr_fill_from_key(&l_addr, a_key_from, dap_get_net_id(a_config->net_name));
     dap_list_t *l_list_fee_out = NULL, *l_list_used_out = NULL;
 
     bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
 
-    json_object *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, &l_addr, a_config);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST    
+    json_object *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, a_wallet_addr, a_config);
     if (!l_outs_native) {
         return NULL;
     }
 
-    json_object *l_outs_delegated = dap_get_remote_tx_outs(a_delegated_ticker_str, &l_addr, a_config);
+    json_object *l_outs_delegated = dap_get_remote_tx_outs(a_delegated_ticker_str, a_wallet_addr, a_config);
     if (!l_outs_delegated) {
         return NULL;
     }
-
     int l_out_native_count = json_object_array_length(l_outs_native);
     int l_out_delegated_count = json_object_array_length(l_outs_delegated);
+#else
+    json_object *l_outs_native = NULL;
+    json_object *l_outs_delegated = NULL;
+    int l_out_native_count = 0;
+    int l_out_delegated_count = 0;
+#endif
+
 
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     if (!IS_ZERO_256(l_total_fee)) {
@@ -2301,12 +2246,15 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
                 json_object_put(l_outs_delegated);
                 return NULL;
             }
-        } else if (compare256(a_value, l_total_fee) == -1) {
+        }
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST  
+        else if (compare256(a_value, l_total_fee) == -1) {
             dap_json_compose_error_add(a_config->response_handler, TX_STAKE_UNLOCK_COMPOSE_TOTAL_FEE_MORE_THAN_STAKE, "Total fee more than stake\n");
             json_object_put(l_outs_native);
             json_object_put(l_outs_delegated);
             return NULL;
         }
+#endif
     }
     if (!IS_ZERO_256(a_delegated_value)) {
         l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_delegated, l_out_delegated_count,
@@ -2328,7 +2276,9 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
         dap_chain_datum_tx_add_in_cond_item(&l_tx, a_stake_tx_hash, a_prev_cond_idx, 0);
         if (l_list_used_out) {
             uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST  
             assert(EQUAL_256(l_value_to_items, l_value_transfer));
+#endif
             dap_list_free_full(l_list_used_out, NULL);
         }
         if (l_list_fee_out) {
@@ -2366,13 +2316,13 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
         // coin back
         //SUBTRACT_256_256(l_fee_transfer, l_value_pack, &l_value_back);
         if(l_main_native){
-            if (SUBTRACT_256_256(a_value, l_value_pack, &l_value_back)) {
+             if (SUBTRACT_256_256(a_value, l_value_pack, &l_value_back)) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, TX_STAKE_UNLOCK_COMPOSE_CANT_SUBTRACT_VALUE_PACK, "Can't subtract value pack from value\n");
                 return NULL;
             }
             if(!IS_ZERO_256(l_value_back)) {
-                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, a_main_ticker)!=1) {
+                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_back, a_main_ticker)!=1) {
                     dap_chain_datum_tx_delete(l_tx);
                     dap_json_compose_error_add(a_config->response_handler, TX_STAKE_UNLOCK_COMPOSE_CANT_ADD_COIN_BACK_MAIN, "Can't add coin back output for main ticker\n");
                     return NULL;
@@ -2380,14 +2330,14 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
             }
         } else {
             SUBTRACT_256_256(l_fee_transfer, l_value_pack, &l_value_back);
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, a_value, a_main_ticker)!=1) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, a_value, a_main_ticker)!=1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, TX_STAKE_UNLOCK_COMPOSE_CANT_ADD_COIN_BACK_MAIN, "Can't add coin back output for main ticker\n");
                 return NULL;
             }
             else
             {
-                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, l_native_ticker)!=1) {
+                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_back, l_native_ticker)!=1) {
                     dap_chain_datum_tx_delete(l_tx);
                     dap_json_compose_error_add(a_config->response_handler, TX_STAKE_UNLOCK_COMPOSE_CANT_ADD_COIN_BACK_NATIVE, "Can't add coin back output for native ticker\n");
                     return NULL;
@@ -2407,7 +2357,7 @@ dap_chain_datum_tx_t *dap_stake_unlock_datum_create_compose(dap_enc_key_t *a_key
         // delegated token coin back
         SUBTRACT_256_256(l_value_transfer, a_delegated_value, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, a_delegated_ticker_str) != 1) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_back, a_delegated_ticker_str) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, TX_STAKE_UNLOCK_COMPOSE_CANT_ADD_COIN_BACK_DELEGATED, "Can't add coin back output for delegated ticker\n");
                 return NULL;
@@ -2474,8 +2424,8 @@ uint256_t s_get_key_delegating_min_value(compose_config_t *a_config){
 
 json_object* dap_cli_voting_compose(const char *a_net_name, const char *a_question_str, const char *a_options_list_str, 
                                     const char *a_voting_expire_str, const char *a_max_votes_count_str, const char *a_fee_str, 
-                                    bool a_is_delegated_key, bool a_is_vote_changing_allowed, const char *a_wallet_str, const char *a_wallet_path, 
-                                    const char *a_wallet_pass, const char *a_token_str, const char *a_url_str, uint16_t a_port) {
+                                    bool a_is_delegated_key, bool a_is_vote_changing_allowed, dap_chain_addr_t *a_wallet_addr, const char *a_token_str, 
+                                    const char *a_url_str, uint16_t a_port) {
     
     compose_config_t * l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
     if (!l_config) {
@@ -2514,13 +2464,6 @@ json_object* dap_cli_voting_compose(const char *a_net_name, const char *a_questi
     uint64_t l_max_count = 0;
     if (a_max_votes_count_str)
         l_max_count = strtoul(a_max_votes_count_str, NULL, 10);
-
-    dap_chain_wallet_t *l_wallet_fee = dap_wallet_open_with_pass(a_wallet_str, a_wallet_path, a_wallet_pass, l_config);
-    if (!l_wallet_fee) {
-        dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_WALLET_DOES_NOT_EXIST, "Wallet %s does not exist\n", a_wallet_str);
-        return s_compose_config_return_response_handler(l_config);
-    }
-
         
     json_object *l_json_coins = dap_request_command_to_rpc_with_params(l_config, "ledger", "list;coins;-net;%s", l_config->net_name);
     if (!l_json_coins) {
@@ -2536,9 +2479,8 @@ json_object* dap_cli_voting_compose(const char *a_net_name, const char *a_questi
 
     dap_chain_datum_tx_t* l_tx = dap_chain_net_vote_create_compose(a_question_str, l_options_list, l_time_expire, l_max_count,
                                                                 l_value_fee, a_is_delegated_key, a_is_vote_changing_allowed, 
-                                                                l_wallet_fee, a_token_str, l_config);
+                                                                a_wallet_addr, a_token_str, l_config);
     dap_list_free(l_options_list);
-    dap_chain_wallet_close(l_wallet_fee);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
         dap_chain_datum_tx_delete(l_tx);
@@ -2568,7 +2510,7 @@ typedef enum {
 
 dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
                               uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
-                              bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
+                              bool a_vote_changing_allowed, dap_chain_addr_t *a_wallet_addr,
                               const char *a_token_ticker, compose_config_t *a_config) {
     if (!a_config) {
         return NULL;
@@ -2591,23 +2533,30 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
         return NULL;
     }
 
-    dap_chain_addr_t *l_addr_from =  dap_chain_wallet_get_addr(a_wallet, dap_get_net_id(a_config->net_name));
-    if(!l_addr_from) {
-        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_COMPOSE_ERR_WALLET_NOT_FOUND, "Wallet does not exist\n");
-        return NULL;
-    }
-
     const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
     uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer;
     dap_chain_addr_t *l_addr_fee = NULL;
     bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
     SUM_256_256(l_net_fee, a_fee, &l_total_fee);
 
+
+    dap_chain_addr_t *l_addr_from = NULL;
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST   
+    l_addr_from = a_wallet_addr;
+    if(!l_addr_from) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_COMPOSE_ERR_WALLET_NOT_FOUND, "Wallet does not exist\n");
+        return NULL;
+    }
     if (!dap_get_remote_wallet_outs_and_count(l_addr_from, l_native_ticker, &l_outs, &l_outputs_count, a_config)) {
         return NULL;
     }
+#else
+    l_addr_from = DAP_NEW_Z(dap_chain_addr_t);
+    randombytes(*l_addr_from, sizeof(dap_chain_addr_t));
+#endif
+
 
     dap_list_t *l_list_used_out = NULL;
     l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
@@ -2719,7 +2668,9 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
 
     // add 'in' items
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST 
     assert(EQUAL_256(l_value_to_items, l_value_transfer));
+#endif
     dap_list_free_full(l_list_used_out, NULL);
     uint256_t l_value_pack = {};
     // Network fee
@@ -2751,7 +2702,9 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
             return NULL;
         }
     }
-
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    DAP_DELETE(l_addr_from);
+#endif
     return l_tx;
 }
 
@@ -2817,14 +2770,13 @@ static bool s_datum_tx_voting_coin_check_spent_compose(json_object *a_votes_list
         return false;
 
     int l_votes_count = json_object_array_length(a_votes_list);
-    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(&a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
 
     for (int i = 0; i < l_votes_count; i++) {
         json_object *l_vote = json_object_array_get_idx(a_votes_list, i);
-        const char *l_vote_hash = json_object_get_string(json_object_object_get(l_vote, "vote_hash"));
-        if (!dap_strcmp(l_vote_hash, l_tx_hash_str) && a_out_idx == json_object_get_int(json_object_object_get(l_vote, "answer_idx"))) {
-            return a_pkey_hash ? !dap_hash_fast_compare(a_pkey_hash, json_object_object_get(l_vote, "pkey_hash")) : 1;
+        const char *l_vote_hash = json_object_get_string(json_object_object_get(l_vote, "vote_hash")),
+                *l_pkey_hash = json_object_get_string(json_object_object_get(l_vote, "pkey_hash"));
+        if (!dap_strcmp(l_vote_hash, dap_chain_hash_fast_to_str_static(&a_tx_hash)) && a_out_idx == json_object_get_int(json_object_object_get(l_vote, "answer_idx"))) {
+            return a_pkey_hash ? !dap_strcmp(l_pkey_hash, dap_chain_hash_fast_to_str_static(a_pkey_hash)) : true;
         }
     }
     return false;
@@ -3262,8 +3214,8 @@ typedef enum {
     DAP_STAKE_TX_INVALIDATE_COMPOSE_FEE_BACK_ERROR = -28,
     DAP_CLI_STAKE_INVALIDATE_FEE_ERROR = -29
 } dap_cli_stake_invalidate_error_t;
-json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const char *a_tx_hash_str, const char *a_wallet_str, 
-                        const char *a_wallet_path, const char *a_wallet_pass, const char *a_cert_str, const char *a_fee_str, const char *a_url_str, uint16_t a_port)
+json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const char *a_tx_hash_str, dap_chain_addr_t *a_wallet_addr, 
+                                                  const char *a_cert_str, const char *a_fee_str, const char *a_url_str, uint16_t a_port)
 {
     compose_config_t* l_config = s_compose_config_init(a_net_str, a_url_str, a_port);
     dap_hash_fast_t l_tx_hash = {};
@@ -3405,26 +3357,19 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
     }
 
 
-    dap_chain_wallet_t *l_wallet = dap_wallet_open_with_pass(a_wallet_str, a_wallet_path, a_wallet_pass, l_config);
-    if (!l_wallet) {
-        dap_json_compose_error_add(l_config->response_handler, DAP_CLI_STAKE_INVALIDATE_WALLET_NOT_FOUND, "Specified wallet not found");
-        return s_compose_config_return_response_handler(l_config);
-    }
-    dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-    dap_chain_datum_tx_t *l_tx = dap_stake_tx_invalidate_compose(&l_tx_hash, l_fee, l_enc_key, l_config);
+    dap_chain_datum_tx_t *l_tx = dap_stake_tx_invalidate_compose(&l_tx_hash, l_fee, a_wallet_addr, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
         DAP_DELETE(l_tx);
     }
 
-    dap_chain_wallet_close(l_wallet);
-    dap_enc_key_delete(l_enc_key);
     return s_compose_config_return_response_handler(l_config);
 }
 
-dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key, compose_config_t *a_config)
+dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, compose_config_t *a_config)
 {
-    if(!a_config || !a_config->net_name || !*a_config->net_name || !a_tx_hash || !a_key || !a_config->url_str || !*a_config->url_str || a_config->port == 0)
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST   
+    if(!a_config || !a_config->net_name || !*a_config->net_name || !a_tx_hash || !a_wallet_addr || !a_config->url_str || !*a_config->url_str || a_config->port == 0)
         return NULL;
 
     json_object *response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-need_sign;-hash;%s;-net;%s", 
@@ -3530,9 +3475,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, dap_get_net_id(a_config->net_name));
-    dap_chain_addr_t l_wallet_addr;
-    dap_chain_addr_fill_from_key(&l_wallet_addr, a_key, dap_get_net_id(a_config->net_name));
-    if (!dap_chain_addr_compare(&l_owner_addr, &l_wallet_addr)) {
+    if (!dap_chain_addr_compare(&l_owner_addr, a_wallet_addr)) {
         json_object_put(response);
         DAP_DELETE(l_tx_out_cond);
         DAP_DELETE(l_tx_sig);
@@ -3566,6 +3509,21 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     }
 
     int l_out_native_count = json_object_array_length(l_outs_native);
+#else
+    const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
+    const char *l_delegated_ticker = "mBUZ";
+    json_object *l_outs_native = NULL;
+    json_object *response = NULL;
+    int l_out_native_count = 0;
+    int l_prev_cond_idx = 0;
+    dap_chain_addr_t l_owner_addr;
+    dap_chain_addr_fill_from_key(&l_owner_addr, a_key, dap_get_net_id(a_config->net_name));
+    dap_chain_tx_out_cond_t *l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+    l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
+    dap_chain_tx_sig_t *l_tx_sig = NULL;
+    l_tx_out_cond->header.value._lo.b = rand() % 500;
+    l_tx_out_cond->header.value._hi.b = rand() % 100;
+#endif
     uint256_t l_fee_transfer = {}; // how many coins to transfer
     // list of transaction with 'out' items to sell
     uint256_t l_net_fee, l_fee_total = a_fee;
@@ -3595,6 +3553,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     // add 'in' items to pay fee
     uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
     dap_list_free_full(l_list_fee_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST 
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
         dap_chain_datum_tx_delete(l_tx);
         json_object_put(l_outs_native);
@@ -3604,7 +3563,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_IN_ERROR, "Error adding input items");
         return NULL;
     }
-
+#endif
     // add 'out_ext' item
     if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_tx_out_cond->header.value, l_delegated_ticker) == -1) {
         dap_chain_datum_tx_delete(l_tx);
@@ -3826,23 +3785,15 @@ typedef enum {
     DAP_STAKE_TX_CREATE_COMPOSE_VALIDATOR_FEE_ERROR = -35,
     DAP_STAKE_TX_CREATE_COMPOSE_FEE_BACK_ERROR = -36
 } stake_delegate_error_t;
-json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const char* a_wallet_str, const char* a_cert_str, 
+json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain_addr_t *a_wallet_addr, const char* a_cert_str, 
                                         const char* a_pkey_full_str, const char* a_sign_type_str, const char* a_value_str, const char* a_node_addr_str, 
-                                        const char* a_order_hash_str, const char* a_url_str, uint16_t a_port, const char* a_sovereign_addr_str, const char* a_fee_str, 
-                                        const char* a_wallets_path, const char* a_wallet_pass) {
+                                        const char* a_order_hash_str, const char* a_url_str, uint16_t a_port, const char* a_sovereign_addr_str, const char* a_fee_str) {
     compose_config_t *l_config = s_compose_config_init(a_net_str, a_url_str, a_port);
     if (!l_config) {
         json_object* l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, STAKE_DELEGATE_COMPOSE_ERR_RPC_RESPONSE, "Can't create compose config");
         return l_json_obj_ret;
     }
-    dap_chain_wallet_t *l_wallet = dap_wallet_open_with_pass(a_wallet_str, a_wallets_path, a_wallet_pass, l_config);
-    if (!l_wallet) {
-        dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_WALLET_NOT_FOUND, "Specified wallet not found");
-        return l_config->response_handler;
-    }
-    dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-    dap_chain_wallet_close(l_wallet);
     dap_chain_addr_t l_signing_addr, l_sovereign_addr = {};
     uint256_t l_sovereign_tax = uint256_0;
     uint256_t l_value = uint256_0;
@@ -3850,7 +3801,6 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
         l_value = dap_chain_balance_scan(a_value_str);
         if (IS_ZERO_256(l_value)) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_VALUE, "Unrecognized number in '-value' param");
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
     }
@@ -3860,12 +3810,10 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
         dap_cert_t *l_signing_cert = dap_cert_find_by_name(a_cert_str);
         if (!l_signing_cert) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_CERT_NOT_FOUND, "Specified certificate not found");
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
         if (dap_chain_addr_fill_from_key(&l_signing_addr, l_signing_cert->enc_key, dap_get_net_id(a_net_str))) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_CERT_WRONG, "Specified certificate is wrong");
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
         l_pkey = dap_pkey_from_enc_key(l_signing_cert->enc_key);
@@ -3873,24 +3821,20 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
         dap_sign_type_t l_type = dap_sign_type_from_str(a_sign_type_str);
         if (l_type.type == SIG_TYPE_NULL) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_WRONG_SIGN_TYPE, "Wrong sign type");
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
         l_pkey = dap_pkey_get_from_str(a_pkey_full_str);
         if (!l_pkey) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_PKEY, "Invalid pkey string format, can't get pkey_full");
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
         if (l_pkey->header.type.type != dap_pkey_type_from_sign_type(l_type).type) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_PKEY, "pkey and sign types is different");
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
         dap_chain_hash_fast_t l_hash_public_key = {0};
         if (!dap_pkey_get_hash(l_pkey, &l_hash_public_key)) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_PKEY, "Invalid pkey hash format");
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
         dap_chain_addr_fill(&l_signing_addr, l_type, &l_hash_public_key, dap_get_net_id(a_net_str));
@@ -3900,7 +3844,6 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
     if (a_node_addr_str) {
         if (dap_chain_node_addr_from_str(&l_node_addr, a_node_addr_str)) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_NODE_ADDR, "Unrecognized node addr %s", a_node_addr_str);
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
     }
@@ -3911,7 +3854,6 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
         dap_chain_net_srv_order_t* l_order = dap_get_remote_srv_order(a_order_hash_str, &l_tax, &l_value_max, &l_sovereign_addr, &l_sovereign_tax, l_config);
         if (!l_order) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_ORDER_NOT_FOUND, "Error: Failed to get order from remote node");
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
         l_sovereign_tax = l_tax;
@@ -3919,12 +3861,10 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
         if (l_order->direction == SERV_DIR_BUY) { // Staker order
             if (!a_cert_str) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_CERT_REQUIRED, "Command 'delegate' requires parameter -cert with this order type");
-                dap_enc_key_delete(l_enc_key);
                 return s_compose_config_return_response_handler(l_config);
             }
             if (l_order->ext_size != 0) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_ORDER_SIZE, "Specified order has invalid size");
-                dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
                 return s_compose_config_return_response_handler(l_config);
             }
@@ -3995,20 +3935,17 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
             }
             if (l_cond_tx->tsd_size != dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, 0)) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_COND_TX_FORMAT, "The order's conditional transaction has invalid format");
-                dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
                 return s_compose_config_return_response_handler(l_config);
             }
             if (compare256(l_cond_tx->header.value, l_order->price)) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_COND_TX_VALUE, "The order's conditional transaction has different value");
-                dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
                 return s_compose_config_return_response_handler(l_config);
             }
             if (!dap_chain_addr_is_blank(&l_cond_tx->subtype.srv_stake_pos_delegate.signing_addr) ||
                     l_cond_tx->subtype.srv_stake_pos_delegate.signer_node_addr.uint64) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_COND_TX_ADDR, "The order's conditional transaction gas not blank address or key");
-                dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
                 return s_compose_config_return_response_handler(l_config);
             }
@@ -4016,7 +3953,6 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
         } else {
             if (!a_value_str) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_VALUE_REQUIRED, "Command 'delegate' requires parameter -value with this order type");
-                dap_enc_key_delete(l_enc_key);
                 return s_compose_config_return_response_handler(l_config);
             }
             if (a_sovereign_addr_str) {
@@ -4028,14 +3964,13 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
                 l_sovereign_addr = *l_spec_addr;
                 DAP_DELETE(l_spec_addr);
             } else
-                dap_chain_addr_fill_from_key(&l_sovereign_addr, l_enc_key, dap_get_net_id(a_net_str));
+                l_sovereign_addr = *a_wallet_addr;
 
             if (a_order_hash_str && compare256(l_value, l_order->price) == -1) {
                 const char *l_coin_min_str, *l_value_min_str =
                     dap_uint256_to_char(l_order->price, &l_coin_min_str);
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_VALUE_TOO_LOW, "Number in '-value' param %s is lower than order minimum allowed value %s(%s)",
                                                   a_value_str, l_coin_min_str, l_value_min_str);
-                dap_enc_key_delete(l_enc_key);
                 return s_compose_config_return_response_handler(l_config);
             }
             if (a_order_hash_str && compare256(l_value, l_value_max) == 1) {
@@ -4043,14 +3978,12 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
                     dap_uint256_to_char(l_value_max, &l_coin_max_str);
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_VALUE_TOO_HIGH, "Number in '-value' param %s is higher than order minimum allowed value %s(%s)",
                                                   a_value_str, l_coin_max_str, l_value_max_str);
-                dap_enc_key_delete(l_enc_key);
                 return s_compose_config_return_response_handler(l_config);
             }
             size_t l_sign_size = 0;
             dap_sign_t *l_sign = dap_get_remote_srv_order_sign(a_order_hash_str, l_config);
             if (!l_sign) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_UNSIGNED_ORDER, "Specified order is unsigned");
-                dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
                 return s_compose_config_return_response_handler(l_config);
             }
@@ -4060,7 +3993,6 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
             dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, s_get_native_ticker(a_net_str));
             if (dap_strcmp(l_order->price_ticker, l_delegated_ticker_str)) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_ORDER, "Specified order is invalid");
-                dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
                 return s_compose_config_return_response_handler(l_config);
             }
@@ -4070,14 +4002,12 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
         if (compare256(l_sovereign_tax, dap_chain_coins_to_balance("100.0")) == 1 ||
                 compare256(l_sovereign_tax, GET_256_FROM_64(100)) == -1) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_TAX, "Tax must be lower or equal than 100%% and higher or equal than 1.0e-16%%");
-            dap_enc_key_delete(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
         DIV_256(l_sovereign_tax, GET_256_FROM_64(100), &l_sovereign_tax);
     }
     if (!l_pkey) {
         dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_PKEY_UNDEFINED, "pkey not defined");
-        dap_enc_key_delete(l_enc_key);
         return s_compose_config_return_response_handler(l_config);
     }
 
@@ -4095,20 +4025,17 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
         const char *l_coin_min_str, *l_value_min_str = dap_uint256_to_char(l_allowed_min, &l_coin_min_str);
         dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_VALUE_BELOW_MIN, "Number in '-value' param %s is lower than minimum allowed value %s(%s)",
                                           a_value_str, l_coin_min_str, l_value_min_str);
-        dap_enc_key_delete(l_enc_key);
         return s_compose_config_return_response_handler(l_config);
     }
 
     uint256_t l_fee = dap_chain_balance_scan(a_fee_str);
     if (IS_ZERO_256(l_fee)) {
         dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_VALUE, "Unrecognized number in '-fee' param");
-        dap_enc_key_delete(l_enc_key);
         return s_compose_config_return_response_handler(l_config);
     }
-    dap_chain_datum_tx_t *l_tx = dap_stake_tx_create_compose(l_enc_key, l_value, l_fee, &l_signing_addr, &l_node_addr,
+    dap_chain_datum_tx_t *l_tx = dap_stake_tx_create_compose(a_wallet_addr, l_value, l_fee, &l_signing_addr, &l_node_addr,
                                                    a_order_hash_str ? &l_sovereign_addr : NULL, l_sovereign_tax, l_prev_tx, l_pkey, l_config);
     
-    dap_enc_key_delete(l_enc_key);
     DAP_DELETE(l_pkey);
 
     if (l_tx) {
@@ -4120,13 +4047,13 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, const cha
 
 }
 
-dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
+dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_chain_addr_t *a_wallet_addr,
                                                uint256_t a_value, uint256_t a_fee,
                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
                                                dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax,
                                                dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey, compose_config_t *a_config)
 {
-    if  (!a_key || IS_ZERO_256(a_value) || !a_signing_addr || !a_node_addr) {
+    if  (!a_wallet_addr || IS_ZERO_256(a_value) || !a_signing_addr || !a_node_addr) {
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_INVALID_PARAMS, "Invalid parameters for transaction creation");
         return NULL;
     }
@@ -4134,9 +4061,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_native_ticker);
     uint256_t l_value_transfer = {}, l_fee_transfer = {}; 
-    // list of transaction with 'out' items to sell
-    dap_chain_addr_t l_owner_addr;
-    dap_chain_addr_fill_from_key(&l_owner_addr, a_key, dap_get_net_id(a_config->net_name));
+
     uint256_t l_net_fee, l_fee_total = a_fee;
     dap_chain_addr_t * l_net_fee_addr = NULL;
     bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_net_fee_addr, a_config);
@@ -4145,20 +4070,27 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
 
     dap_list_t *l_list_fee_out = NULL;
 
-    json_object *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, &l_owner_addr, a_config);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST   
+    json_object *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, a_wallet_addr, a_config);
     if (!l_outs_native) {
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_NOT_ENOUGH_FUNDS_FEE, "Not enough funds to pay fee");
         return NULL;
     }
 
-    json_object *l_outs_delegated = dap_get_remote_tx_outs(l_delegated_ticker, &l_owner_addr, a_config);
+    json_object *l_outs_delegated = dap_get_remote_tx_outs(l_delegated_ticker, a_wallet_addr, a_config);
     if (!l_outs_delegated) {
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_NOT_ENOUGH_FUNDS_VALUE, "Not enough funds for value");
         return NULL;
     }
 
     int l_out_native_count = json_object_array_length(l_outs_native);
-    int l_out_delegated_count = json_object_array_length(l_outs_delegated);
+    int l_out_delegated_count = json_object_array_length(l_outs_delegated); 
+#else
+    json_object *l_outs_native = NULL;
+    json_object *l_outs_delegated = NULL;
+    int l_out_native_count = 0;
+    int l_out_delegated_count = 0;
+#endif
 
     l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
                                                     l_fee_total, 
@@ -4186,10 +4118,12 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
         // add 'in' items to pay for delegate
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
         dap_list_free_full(l_list_used_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST 
         if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
             dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_TX_IN_ERROR, "Error creating transaction input");
             goto tx_fail;
         }
+#endif
     } else {
         dap_hash_fast_t l_prev_tx_hash;
         dap_hash_fast(a_prev_tx, dap_chain_datum_tx_get_size(a_prev_tx), &l_prev_tx_hash);
@@ -4204,11 +4138,12 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
     // add 'in' items to pay fee
     uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
     dap_list_free_full(l_list_fee_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST 
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_TX_IN_ERROR, "Error creating transaction input");
         goto tx_fail;
     }
-
+#endif
     // add 'out_cond' & 'out_ext' items
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_uid, a_value, a_signing_addr, a_node_addr,
@@ -4225,7 +4160,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
         uint256_t l_value_back = {};
         SUBTRACT_256_256(l_value_transfer, a_value, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_value_back, l_delegated_ticker) != 1) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_back, l_delegated_ticker) != 1) {
                 dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_TX_OUT_ERROR, "Error creating transaction output");
                 goto tx_fail;
             }
@@ -4249,7 +4184,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_enc_key_t *a_key,
     // fee coin back
     SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
     if (!IS_ZERO_256(l_fee_back)) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_fee_back, l_native_ticker) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_fee_back, l_native_ticker) != 1) {
             dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_FEE_BACK_ERROR, "Error with fee back");
             goto tx_fail;
         }
@@ -4262,13 +4197,13 @@ tx_fail:
     return NULL;
 }
 
-static dap_chain_datum_tx_t *dap_order_tx_create_compose(dap_enc_key_t *a_key,
+static dap_chain_datum_tx_t *dap_order_tx_create_compose(dap_chain_addr_t *a_wallet_addr,
                                                uint256_t a_value, uint256_t a_fee,
                                                 uint256_t a_sovereign_tax, dap_chain_addr_t *a_sovereign_addr,
                                                 compose_config_t *a_config)
 {
     dap_chain_node_addr_t l_node_addr = {};
-    return dap_stake_tx_create_compose(a_key, a_value, a_fee,
+    return dap_stake_tx_create_compose(a_wallet_addr, a_value, a_fee,
                              (dap_chain_addr_t *)&c_dap_chain_addr_blank, &l_node_addr,
                              a_sovereign_addr, a_sovereign_tax, NULL, NULL, a_config);
 }
@@ -4286,9 +4221,9 @@ typedef enum {
     STAKE_ORDER_CREATE_STAKER_ERR_TX_CREATE_FAILED = -8,
     STAKE_ORDER_CREATE_STAKER_ERR_JSON_FAILED = -9
 } dap_cli_srv_stake_order_create_staker_error_t;
-json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str, const char *l_value_str, const char *l_fee_str, const char *l_tax_str, 
-                                                          const char *l_addr_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, 
-                                                          uint16_t l_port, const char* l_wallet_pass) {
+json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str, const char *l_value_str, const char *l_fee_str, 
+                                                          const char *l_tax_str, const char *l_addr_str, dap_chain_addr_t *a_wallet_addr, 
+                                                          const char *l_url_str, uint16_t l_port) {
     compose_config_t *l_config = s_compose_config_init(l_net_str, l_url_str, l_port);
     if (!l_config) {
         json_object *l_json_obj_ret = json_object_new_object();
@@ -4312,36 +4247,19 @@ json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str
         return s_compose_config_return_response_handler(l_config);
     }
 
-    dap_chain_wallet_t *l_wallet = dap_wallet_open_with_pass(l_wallet_str, l_wallet_path, l_wallet_pass, l_config);
-    if (!l_wallet) {
-        dap_json_compose_error_add(l_config->response_handler, STAKE_ORDER_CREATE_STAKER_ERR_WALLET_NOT_FOUND, "Specified wallet not found");
-        return s_compose_config_return_response_handler(l_config);
-    }
-
-    const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
-    dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-    dap_chain_wallet_close(l_wallet);
-
-    if (!l_enc_key) {
-        dap_json_compose_error_add(l_config->response_handler, STAKE_ORDER_CREATE_STAKER_ERR_KEY_NOT_FOUND, "Failed to retrieve encryption key");
-        return s_compose_config_return_response_handler(l_config);
-    }
-
     dap_chain_addr_t l_addr = {};
     if (l_addr_str) {
         dap_chain_addr_t *l_spec_addr = dap_chain_addr_from_str(l_addr_str);
         if (!l_spec_addr) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_ORDER_CREATE_STAKER_ERR_INVALID_ADDR, "Specified address is invalid");
-            DAP_DELETE(l_enc_key);
             return s_compose_config_return_response_handler(l_config);
         }
         l_addr = *l_spec_addr;
         DAP_DELETE(l_spec_addr);
     } else
-        dap_chain_addr_fill_from_key(&l_addr, l_enc_key, dap_get_net_id(l_net_str));
+        l_addr = *a_wallet_addr;
     DIV_256(l_tax, GET_256_FROM_64(100), &l_tax);
-    dap_chain_datum_tx_t *l_tx = dap_order_tx_create_compose(l_enc_key, l_value, l_fee, l_tax, &l_addr, l_config);
-    DAP_DEL_Z(l_enc_key);
+    dap_chain_datum_tx_t *l_tx = dap_order_tx_create_compose(a_wallet_addr, l_value, l_fee, l_tax, &l_addr, l_config);
 
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
@@ -4386,19 +4304,13 @@ typedef enum {
     SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_TX_ALREADY_USED,
     SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NOT_OWNER
 } srv_stake_order_remove_compose_error_t;
-json_object * dap_cli_srv_stake_order_remove_compose(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, const char *l_wallet_str, const char *l_wallet_path, const char *l_url_str, uint16_t l_port) {
+json_object * dap_cli_srv_stake_order_remove_compose(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, dap_chain_addr_t *a_wallet_addr, const char *l_url_str, uint16_t l_port) {
 
     compose_config_t *l_config = s_compose_config_init(l_net_str, l_url_str, l_port);
     if (!l_config) {
         json_object *l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS, "Invalid arguments");
         return l_json_obj_ret;
-    }
-
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallet_path, NULL);
-    if (!l_wallet) {
-        dap_json_compose_error_add(l_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_WALLET_NOT_FOUND, "Specified wallet not found");
-        return s_compose_config_return_response_handler(l_config);
     }
     uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
     if (IS_ZERO_256(l_fee)) {
@@ -4412,8 +4324,7 @@ json_object * dap_cli_srv_stake_order_remove_compose(const char *l_net_str, cons
         return s_compose_config_return_response_handler(l_config);
     }
     char *l_tx_hash_ret = NULL;
-    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_xchange_remove_compose(&l_tx_hash, l_fee, l_wallet, l_config);
-    dap_chain_wallet_close(l_wallet);
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_xchange_remove_compose(&l_tx_hash, l_fee, a_wallet_addr, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
         DAP_DELETE(l_tx);
@@ -4539,7 +4450,7 @@ dap_chain_net_srv_xchange_price_t *dap_chain_net_srv_xchange_price_from_order_co
 
 
 
-dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet, compose_config_t *a_config)
+dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchange_price_t *a_price, dap_chain_addr_t *a_wallet_addr, compose_config_t *a_config)
 {
     if (!a_config) {
         return NULL;
@@ -4549,15 +4460,13 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
         dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS, "An a_price NULL argument was passed to the s_xchange_tx_invalidate() function.");
         return NULL;
     }
-    if (!a_wallet) {
-        dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS, "An a_wallet NULL argument was passed to the s_xchange_tx_invalidate() function.");
+    if (!a_wallet_addr) {
+        dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS, "An a_wallet_addr NULL argument was passed to the s_xchange_tx_invalidate() function.");
         return NULL;
     }
     const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
 
-    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, dap_get_net_id(a_config->net_name));
-    dap_chain_addr_t l_seller_addr = *l_wallet_addr;
-    DAP_DELETE(l_wallet_addr);
+    dap_chain_addr_t l_seller_addr = *a_wallet_addr;
 
 
     dap_chain_tx_out_cond_t *l_cond_tx = NULL;
@@ -4701,14 +4610,14 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
         }
         SUBTRACT_256_256(l_cond_tx->header.value, l_total_fee, &l_coin_back);
         // return coins to owner
-        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_seller_addr, l_coin_back) == -1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_coin_back, l_native_ticker) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_COIN_RETURN_FAILED, "Cant add returning coins output");
             return NULL;
         }
         // Network fee
         if (l_net_fee_used &&
-                dap_chain_datum_tx_add_out_item(&l_tx, l_addr_fee, l_net_fee) != 1) {
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_fee, l_net_fee, l_native_ticker) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NET_FEE_FAILED, "Cant add network fee output");
             return NULL;
@@ -4728,8 +4637,8 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
 
 
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
-                                     dap_chain_wallet_t *a_wallet, compose_config_t *a_config) {
-    if (!a_hash_tx || !a_wallet || !a_config) {
+                                     dap_chain_addr_t *a_wallet_addr, compose_config_t *a_config) {
+    if (!a_hash_tx || !a_wallet_addr || !a_config) {
         return NULL;
     }
     if(IS_ZERO_256(a_fee)){
@@ -4802,7 +4711,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *
     if (!l_price) {
         return NULL;
     }
-    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_invalidate_compose(l_price, a_wallet, a_config);
+    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_invalidate_compose(l_price, a_wallet_addr, a_config);
 
     DAP_DELETE(l_price);
     return l_tx;
@@ -4816,8 +4725,7 @@ typedef enum dap_tx_create_xchange_purchase_compose_error {
 } dap_tx_create_xchange_purchase_compose_error_t;
 
 json_object *dap_tx_create_xchange_purchase_compose (const char *a_net_name, const char *a_order_hash, const char* a_value, 
-                                                     const char* a_fee, const char *a_wallet_name, const char *a_wallet_path, 
-                                                     const char *a_wallet_pass, const char *a_url_str, uint16_t a_port) {
+                                                     const char* a_fee, dap_chain_addr_t *a_wallet_addr, const char *a_url_str, uint16_t a_port) {
    compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
    if (!l_config) {
         json_object *l_json_obj_ret = json_object_new_object();
@@ -4826,11 +4734,6 @@ json_object *dap_tx_create_xchange_purchase_compose (const char *a_net_name, con
    }
 
     uint256_t l_datoshi_buy = dap_chain_balance_scan(a_value);
-    dap_chain_wallet_t *l_wallet = dap_wallet_open_with_pass(a_wallet_name, a_wallet_path, a_wallet_pass, l_config);
-    if (!l_wallet) {
-        dap_json_compose_error_add(l_config->response_handler, DAP_TX_CREATE_XCHANGE_PURCHASE_COMPOSE_ERR_WALLET_NOT_FOUND, "Specified wallet not found");
-        return s_compose_config_return_response_handler(l_config);
-    }
 
    uint256_t l_datoshi_fee = dap_chain_balance_scan(a_fee);
    if (IS_ZERO_256(l_datoshi_fee)) {
@@ -4845,7 +4748,7 @@ json_object *dap_tx_create_xchange_purchase_compose (const char *a_net_name, con
     }
     char *l_str_ret_hash = NULL;
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_xchange_purchase_compose(&l_tx_hash, l_datoshi_buy, l_datoshi_fee,
-                                                        l_wallet, &l_str_ret_hash, l_config);
+                                                        a_wallet_addr, &l_str_ret_hash, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
         DAP_DELETE(l_tx);
@@ -4867,8 +4770,8 @@ typedef enum dap_chain_net_srv_xchange_purchase_compose_error {
 } dap_chain_net_srv_xchange_purchase_compose_error_t;
 
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t *a_order_hash, uint256_t a_value,
-                                       uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out, compose_config_t *a_config){
-    if (!a_config || !a_order_hash || !a_wallet || !a_hash_out) {
+                                       uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, char **a_hash_out, compose_config_t *a_config){
+    if (!a_config || !a_order_hash || !a_wallet_addr || !a_hash_out) {
         return NULL;
     }
 
@@ -4943,8 +4846,8 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t
         return NULL;
     }
     // Create conditional transaction
-    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_create_exchange_compose(l_price, a_wallet, a_value, a_fee, l_cond_tx, l_prev_cond_idx, a_config);
-    DAP_DELETE(l_cond_tx);
+    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_create_exchange_compose(l_price, a_wallet_addr, a_value, a_fee, l_cond_tx, l_prev_cond_idx, a_config);
+    DAP_DEL_MULTY(l_cond_tx);
     if (!l_tx) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_TX_CREATE, "Failed to create exchange transaction");
         DAP_DELETE(l_price);
@@ -4954,10 +4857,10 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t
 }
 
 
-dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet, uint256_t a_datoshi_buy,
+dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_addr_t *a_buyer_addr, uint256_t a_datoshi_buy,
                                                           uint256_t a_datoshi_fee, dap_chain_tx_out_cond_t* a_cond_tx, uint32_t a_prev_cond_idx, compose_config_t *a_config)
 {
-    if (!a_price || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
+    if (!a_price || !*a_price->token_sell || !*a_price->token_buy || !a_buyer_addr) {
         return NULL;
     }
     const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
@@ -4995,16 +4898,14 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     //     }
     // }
 
-    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, dap_get_net_id(a_config->net_name));
-    dap_chain_addr_t l_buyer_addr = *l_wallet_addr;
-    DAP_DELETE(l_wallet_addr);
-
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
-    if (!dap_get_remote_wallet_outs_and_count(&l_buyer_addr, a_price->token_sell, &l_outs, &l_outputs_count, a_config)) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    if (!dap_get_remote_wallet_outs_and_count(a_buyer_addr, a_price->token_sell, &l_outs, &l_outputs_count, a_config)) {
         dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Not enough funds to transfer");
         return NULL;
     }
+#endif
 
     dap_list_t *l_list_used_out = NULL;
     l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
@@ -5039,21 +4940,25 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     // add 'in' items to sell
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
         dap_list_free_full(l_list_fee_out, NULL);
         dap_chain_datum_tx_delete(l_tx);
         dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Can't compose the transaction input");
         return NULL;
     }
+#endif
     if (!l_pay_with_native && !l_buy_with_native) {
         // add 'in' items to fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
         dap_list_free_full(l_list_fee_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
             dap_chain_datum_tx_delete(l_tx);
             dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FEE_ERROR, "Can't compose the transaction input");
             return NULL;
         }
+#endif
     }
     // add 'in' item to buy from conditional transaction
     if (!a_cond_tx) {
@@ -5100,14 +5005,16 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
         
         uint256_t l_value_sell = l_datoshi_sell;
         if (l_pay_with_native) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
             if (compare256(l_datoshi_sell, l_total_fee) <= 0) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Fee is greater or equal than transfer value");
                 return NULL;
             }
+#endif
             SUBTRACT_256_256(l_datoshi_sell, l_total_fee, &l_value_sell);
         }
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_buyer_addr, l_value_sell, a_price->token_sell) == -1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_buyer_addr, l_value_sell, a_price->token_sell) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Can't add selling coins output");
             return NULL;
@@ -5167,7 +5074,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     // coin back
     SUBTRACT_256_256(l_value_transfer, l_value_need, &l_value_back);
     if (!IS_ZERO_256(l_value_back)) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_buyer_addr, l_value_back, a_price->token_buy) == -1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_buyer_addr, l_value_back, a_price->token_buy) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Can't add buying coins back output");
             return NULL;
@@ -5177,7 +5084,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     if (!l_pay_with_native && !l_buy_with_native) {
         SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_buyer_addr, l_value_back, l_native_ticker) == -1) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_buyer_addr, l_value_back, l_native_ticker) == -1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Can't add buying coins back output");
                 return NULL;
