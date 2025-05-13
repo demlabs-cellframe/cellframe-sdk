@@ -41,7 +41,8 @@ typedef enum s_com_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
     DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS,
     DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR,    
-    DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR
+    DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,
+    DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED
 }s_com_tx_create_json_err_t;
 
 typedef enum s_type_of_tx {
@@ -141,7 +142,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
  * 
  * @return s_com_tx_create_json_err_t status code
  */
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json, const char *a_net_name);
 
 #ifdef __cplusplus
 }
