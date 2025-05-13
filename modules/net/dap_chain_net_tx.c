@@ -1461,6 +1461,18 @@ int s_dap_chain_net_tx_add_in_and_back(dap_tx_creator_tokenizer_t *a_value_need,
     
     l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_ledger, a_value_need->token_ticker,
                                                             a_addr_from, a_value_need->sum, &l_value_transfer);
+    log_it(L_WARNING, "elements from list - %d", dap_list_length(l_list_used_out));
+    log_it(L_WARNING, "tokens - %s", a_value_need->token_ticker);
+    dap_list_t *l_item_out;
+    DL_FOREACH(l_list_used_out, l_item_out) {
+        dap_chain_tx_used_out_item_t *l_item = l_item_out->data;
+        const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_item->value, &l_coins_str);
+        log_it(L_WARNING, "hash out - %s, num - %d, value - %s (%s)", dap_hash_fast_to_str_static(&l_item->tx_hash_fast),l_item->num_idx_out, l_value_str, l_coins_str);
+        
+    }
+
+
+
     if(!l_list_used_out) {
         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
         json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds in previous tx "
