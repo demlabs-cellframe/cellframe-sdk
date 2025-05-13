@@ -1573,12 +1573,19 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     } 
-    const char *l_net_str = json_object_get_string(l_json_net); 
-    dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
-    // if (l_net == NULL) {
-    //     log_it(L_ERROR, "not found net by name '%s'", l_net_str);
-    //     return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;
-    // }  
+    const char *l_net_str = json_object_get_string(l_json_net);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+    if (l_net == NULL) {
+        log_it(L_ERROR, "not found net by name '%s'", l_net_str);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;
+    }
+#else
+    dap_chain_net_t l_net_struct = { };
+    const char *l_native_ticker = "BUZ";
+    l_net_struct.pub.native_ticker = l_native_ticker;
+    dap_chain_net_t *l_net = &l_net_struct;
+#endif
 
     log_it(L_NOTICE, "Json TX: found %lu items", l_items_count);
 
@@ -1606,9 +1613,13 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     dap_chain_addr_t *l_addr_reward = NULL;
 
     dap_chain_t * l_chain = NULL;
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if(l_net){ // if composition is not offline
         l_type_tx = s_dap_chain_net_tx_get_type_tx(l_items_count, l_json_items, a_json_obj_error, l_net, &l_tx, &l_seller_addr, &l_multichanel, l_main_ticker);
     }
+#else
+    l_multichanel = true;
+#endif
     if (l_type_tx == DAP_CHAIN_NET_TX_TYPE_ERR)
         return DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR;
     if (l_type_tx == DAP_CHAIN_NET_TX_REWARD)
