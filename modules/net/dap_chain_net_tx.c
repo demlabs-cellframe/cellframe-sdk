@@ -969,7 +969,7 @@ const uint8_t *s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item_
                         if (NULL != (l_delegated_token = dap_ledger_token_ticker_check(a_net->pub.ledger, l_delegated_ticker_str))){
                             uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(a_net->pub.ledger, l_delegated_ticker_str);
                             MULT_256_COIN(l_tx_out_cond->header.value, l_emission_rate, a_value_delegated);
-                            dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_in(&c_dap_chain_addr_blank_1, *a_value_delegated, l_ticker_str);
+                            dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank_1, *a_value_delegated, l_ticker_str);
                             return (const uint8_t*) l_in_cond;
                         }  
                         if (l_prev_item){
