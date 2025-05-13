@@ -1790,13 +1790,13 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             dap_hash_fast_t l_prev_tx_hash = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->tx_hash;
             uint32_t l_prev_out_idx = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->out_idx;
             dap_ledger_tx_item_t *l_prev_item = NULL;
-            dap_chain_datum_tx_t *l_tx_prev = s_tx_find_by_hash(a_ledger, &l_tx_hash, &l_prev_item, true);
+            dap_chain_datum_tx_t *l_tx_prev = s_tx_find_by_hash(a_ledger, &l_prev_tx_hash, &l_prev_item, true);
             if (!l_prev_item || l_prev_item->cache_data.n_outs <= l_prev_out_idx) {
                 log_it(L_ERROR, "Can't find tx %s in ledger for vote tracking", dap_hash_fast_to_str_static(&l_prev_tx_hash));
                 continue;
             }
             dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev, l_prev_out_idx);
-            l_tx_item->out_metadata[l_prev_out_idx].trackers = s_trackers_update_out(l_tx_item->out_metadata[i].trackers,
+            l_tx_item->out_metadata[l_prev_out_idx].trackers = s_trackers_update_out(l_tx_item->out_metadata[l_prev_out_idx].trackers,
                                                                                      &l_vote_tx_item->voting_hash, &l_vote_pkey_hash, l_prev_out->header.value);
         }
     }

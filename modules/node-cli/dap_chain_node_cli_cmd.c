@@ -369,8 +369,6 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
                 dap_string_free(aliases_string, true);
                 dap_string_free(links_string, true);*/
             }
-            json_object_object_add(json_node_list_obj, "NODES", json_node_list_arr);
-            json_object_array_add(a_json_arr_reply, json_node_list_obj);
         }
         dap_global_db_objs_delete(l_objs, l_nodes_count);
     }

@@ -398,7 +398,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             l_tx_hash = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->tx_hash;
             l_out_idx = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->out_idx;
             dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_unspent_find_by_hash(a_ledger, &l_tx_hash);
-            dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_out_idx);
+            dap_chain_tx_out_cond_t *l_prev_out = l_tx_prev_temp ? (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_out_idx) : NULL;
             if (!l_prev_out || l_prev_out->header.item_type != TX_ITEM_TYPE_OUT_COND ||
                     l_prev_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
                 log_it(L_WARNING, "TX hash %s out #%d subtype %s is restricted", dap_hash_fast_to_str_static(&l_tx_hash), l_out_idx,

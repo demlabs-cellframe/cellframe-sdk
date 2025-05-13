@@ -42,8 +42,6 @@
 
 #define LOG_TAG "dap_chain_ch"
 
-#define DAP_CHAIN_PKT_EXPECT_SIZE   DAP_STREAM_PKT_FRAGMENT_SIZE
-
 enum sync_context_state {
     SYNC_STATE_IDLE,
     SYNC_STATE_READY,
