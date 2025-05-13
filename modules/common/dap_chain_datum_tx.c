@@ -73,7 +73,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 {
     size_t size = 0;
     dap_return_val_if_pass(!a_tx || !*a_tx || !(size = dap_chain_datum_item_tx_get_size(a_item, 0)), -1 );
-    if (dap_chain_datum_tx_item_get_nth(*a_tx, TX_ITEM_TYPE_SIG, 0)) {
+    if (*(byte_t *)(a_item) != TX_ITEM_TYPE_SIG && dap_chain_datum_tx_item_get_nth(*a_tx, TX_ITEM_TYPE_SIG, 0)) {
         log_it(L_ERROR, "Can't add item, datum already signed");
         return -1;
     }
