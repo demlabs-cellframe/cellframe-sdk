@@ -57,7 +57,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     size_t l_tx_size = dap_chain_datum_tx_get_size(*a_datum);
     size_t l_signs_count = rand() % KEY_COUNT + 1;
     for (size_t i = 0; i < l_signs_count; ++i)
-        dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]), "datum_1 sign create");
+        dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
     dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
     assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1);
     DAP_DEL_Z(l_out_count);
