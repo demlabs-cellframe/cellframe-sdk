@@ -962,11 +962,11 @@ const uint8_t * s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
         dap_chain_tx_out_cond_t	*l_tx_out_cond = NULL;
         dap_chain_datum_token_t *l_delegated_token;
         if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
-#ifdef DAP_CHAIN_TX_COMPOSE_TEST
-            uint64_t l_receipt_idx = 0;
-            s_json_get_int64_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx, true);
-            return (const uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
-#endif
+            if (!a_net) {
+                uint64_t l_receipt_idx = 0;
+                s_json_get_int64_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx, true);
+                return (const uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
+            }
             //check out token
             dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
             byte_t *l_item; size_t l_tx_item_size;
@@ -1057,13 +1057,11 @@ const uint8_t * s_dap_chain_net_tx_create_out_item (json_object *a_json_item_obj
                     if ( a_type_tx == DAP_CHAIN_NET_TX_STAKE_LOCK && dap_strcmp(l_token, a_net->pub.native_ticker)){//not native
                         l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
                         return (const uint8_t*) l_out_item;
-                    }
-                    else {
+                    } else {
                         l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
                         s_find_add_token_val(l_token, l_value, SUM_256_256);
                     }                    
-                }
-                else {
+                } else {
                     l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, a_net->pub.native_ticker);
                     s_find_add_token_val(a_net->pub.native_ticker, l_value, SUM_256_256);
                 }                                                    
@@ -1222,7 +1220,8 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             DAP_DELETE(l_params);
             // Save value for using in In item
             if (l_out_cond_item) {
-                s_find_add_token_val(a_net->pub.native_ticker, l_value, SUM_256_256); 
+                if (a_net)
+                    s_find_add_token_val(a_net->pub.native_ticker, l_value, SUM_256_256); 
                 return (const uint8_t*) l_out_cond_item;                      
             } else {
                 char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
@@ -1277,7 +1276,8 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(l_srv_uid, l_value, l_time_staking, l_reinvest_percent);
             // Save value for using in In item
             if(l_out_cond_item) {
-                s_find_add_token_val(a_net->pub.native_ticker, l_value, SUM_256_256);
+                if (a_net)
+                    s_find_add_token_val(a_net->pub.native_ticker, l_value, SUM_256_256);
                 return (const uint8_t*) l_out_cond_item;
             } else {
                 char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
@@ -1354,13 +1354,15 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             if(!IS_ZERO_256(l_value)) {
                 if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK){
                     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_fee(l_value);
-                    s_find_add_token_val(a_net->pub.native_ticker, l_value, SUBTRACT_256_256);
+                    if (a_net)
+                        s_find_add_token_val(a_net->pub.native_ticker, l_value, SUBTRACT_256_256);
                     return (const uint8_t*) l_out_cond_item;
                 }
                 dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_fee(l_value);
                 // Save value for using in In item
                 if(l_out_cond_item) {
-                    s_find_add_token_val(a_net->pub.native_ticker, l_value, SUM_256_256);
+                    if (a_net)
+                        s_find_add_token_val(a_net->pub.native_ticker, l_value, SUM_256_256);
                     return (const uint8_t*) l_out_cond_item;
                 } else {
                     char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
@@ -1585,18 +1587,11 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     } 
     const char *l_net_str = json_object_get_string(l_json_net);
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-    if (l_net == NULL) {
+    if (l_net_str && !l_net) {
         log_it(L_ERROR, "not found net by name '%s'", l_net_str);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;
     }
-#else
-    dap_chain_net_t l_net_struct = { };
-    const char *l_native_ticker = "BUZ";
-    l_net_struct.pub.native_ticker = l_native_ticker;
-    dap_chain_net_t *l_net = &l_net_struct;
-#endif
 
     log_it(L_NOTICE, "Json TX: found %lu items", l_items_count);
 
@@ -1624,13 +1619,9 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     dap_chain_addr_t *l_addr_reward = NULL;
 
     dap_chain_t * l_chain = NULL;
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if(l_net){ // if composition is not offline
         l_type_tx = s_dap_chain_net_tx_get_type_tx(l_items_count, l_json_items, a_json_obj_error, l_net, &l_tx, &l_seller_addr, &l_multichanel, l_main_ticker);
     }
-#else
-    l_multichanel = true;
-#endif
     if (l_type_tx == DAP_CHAIN_NET_TX_TYPE_ERR)
         return DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR;
     if (l_type_tx == DAP_CHAIN_NET_TX_REWARD)
