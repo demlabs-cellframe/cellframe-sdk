@@ -576,22 +576,18 @@ static const char* s_json_get_text(struct json_object *a_json, const char *a_key
     return NULL;
 }
 
-static bool s_json_get_int64(struct json_object *a_json, const char *a_key, int64_t *a_out)
+static bool s_json_get_int64_uint64(struct json_object *a_json, const char *a_key, void *a_out, bool a_is_uint64)
 {
     if(!a_json || !a_key || !a_out)
         return false;
     struct json_object *l_json = json_object_object_get(a_json, a_key);
     if(l_json) {
-        if(json_object_is_type(l_json, json_type_int)) {
-            // Read number
-            *a_out = json_object_get_int64(l_json);
-            return true;
-        } else if (json_object_is_type(l_json, json_type_string)){
-            // Read number
-            const char* l_value_text = json_object_get_string(l_json);
-            *a_out = atol(l_value_text);
-            return true;
+        if(a_is_uint64) {
+            *(uint64_t*)a_out = json_object_get_uint64(l_json);
+        } else {
+            *(int64_t*)a_out = json_object_get_int64(l_json);
         }
+        return true;
     }
     return false;
 }
@@ -715,8 +711,8 @@ static int s_dap_chain_net_tx_get_type_tx(size_t a_items_count, json_object *a_j
                     break;
                 }
                 const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-                int64_t l_out_prev_idx;
-                bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+                uint64_t l_out_prev_idx;
+                bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
                 // If prev_hash and out_prev_idx were read
                 if(l_prev_hash_str && l_is_out_prev_idx){
                     dap_chain_hash_fast_t l_tx_prev_hash = {};
@@ -764,9 +760,9 @@ static int s_dap_chain_net_tx_get_type_tx(size_t a_items_count, json_object *a_j
             }break;
             case TX_ITEM_TYPE_IN_COND: {
                 const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-                int64_t l_out_prev_idx;
+                uint64_t l_out_prev_idx;
                 char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
-                bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+                bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
                 if(l_prev_hash_str && l_is_out_prev_idx){
                     dap_chain_hash_fast_t l_tx_prev_hash = {};
                     dap_chain_tx_out_cond_t	*l_tx_out_cond = NULL;
@@ -865,8 +861,8 @@ const uint8_t * s_dap_chain_net_tx_create_in_item (json_object *a_json_item_obj,
     // Save item obj for in
     // Read prev_hash and out_prev_idx
     const char *l_prev_hash_str = s_json_get_text(a_json_item_obj, "prev_hash");
-    int64_t l_out_prev_idx;
-    bool l_is_out_prev_idx = s_json_get_int64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+    uint64_t l_out_prev_idx;
+    bool l_is_out_prev_idx = s_json_get_int64_uint64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
     // If prev_hash and out_prev_idx were read
     if(l_prev_hash_str && l_is_out_prev_idx) {
         dap_chain_hash_fast_t l_tx_prev_hash;
@@ -900,9 +896,9 @@ const uint8_t * s_dap_chain_net_tx_create_in_item (json_object *a_json_item_obj,
 
 const uint8_t * s_dap_chain_net_tx_create_in_ems_item (json_object *a_json_item_obj, json_object *a_jobj_errors) {
     dap_chain_id_t l_chain_id;
-    int64_t l_chain_id_int;
-    bool l_is_chain_id = s_json_get_int64(a_json_item_obj, "chain_id", &l_chain_id_int);
-    l_chain_id.uint64 = (uint64_t)l_chain_id_int;
+    uint64_t l_chain_id_int;
+    bool l_is_chain_id = s_json_get_int64_uint64(a_json_item_obj, "chain_id", &l_chain_id_int, true);
+    l_chain_id.uint64 = l_chain_id_int;
     const char *l_json_item_token = s_json_get_text(a_json_item_obj, "token");
     if (l_json_item_token && l_is_chain_id){
         dap_hash_fast_t l_blank_hash = {};
@@ -957,9 +953,9 @@ const uint8_t * s_dap_chain_net_tx_create_in_reward_item (json_object *a_json_it
 
 const uint8_t * s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item_obj, json_object *a_jobj_errors, dap_chain_net_t *a_net) {
     const char *l_prev_hash_str = s_json_get_text(a_json_item_obj, "prev_hash");
-    int64_t l_out_prev_idx;
+    uint64_t l_out_prev_idx;
     char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
-    bool l_is_out_prev_idx = s_json_get_int64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+    bool l_is_out_prev_idx = s_json_get_int64_uint64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
     uint256_t l_value_delegated = { };
     if(l_prev_hash_str && l_is_out_prev_idx){
         dap_chain_hash_fast_t l_tx_prev_hash = {};
@@ -967,8 +963,8 @@ const uint8_t * s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
         dap_chain_datum_token_t *l_delegated_token;
         if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-            int64_t l_receipt_idx = 0;
-            s_json_get_int64(a_json_item_obj, "receipt_idx", &l_receipt_idx);
+            uint64_t l_receipt_idx = 0;
+            s_json_get_int64_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx, true);
             return (const uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
 #endif
             //check out token
@@ -1401,8 +1397,8 @@ const uint8_t * s_dap_chain_net_tx_create_receipt_item(json_object *a_json_item_
         log_it(L_ERROR, "Json TX: bad price_unit in TYPE_RECEIPT");
         return NULL;
     }
-    int64_t l_units;
-    if(!s_json_get_int64(a_json_item_obj, "units", &l_units)) {
+    uint64_t l_units;
+    if(!s_json_get_int64_uint64(a_json_item_obj, "units", &l_units, true)) {
         log_it(L_ERROR, "Json TX: bad units in TYPE_RECEIPT");
         return NULL;
     }
@@ -1433,20 +1429,33 @@ const uint8_t * s_dap_chain_net_tx_create_receipt_item(json_object *a_json_item_
 
 const uint8_t * s_dap_chain_net_tx_create_tsd_item(json_object *a_json_item_obj, json_object *a_jobj_errors, dap_chain_datum_tx_t *a_tx, dap_list_t *a_sign_list)
 {
-    int64_t l_tsd_type;
-    if(!s_json_get_int64(a_json_item_obj, "type_tsd", &l_tsd_type)) {
+    int64_t l_tsd_type = 0;
+    uint64_t l_tsd_data_size = 0;
+        
+    if(!s_json_get_int64_uint64(a_json_item_obj, "data_type", &l_tsd_type, false)) {
         log_it(L_ERROR, "Json TX: bad type_tsd in TYPE_TSD");
         return NULL;
     }
-    const char *l_tsd_data = s_json_get_text(a_json_item_obj, "data");
-    if (!l_tsd_data) {
+    if(!s_json_get_int64_uint64(a_json_item_obj, "data_size", &l_tsd_data_size, true) || !l_tsd_data_size) {
+        log_it(L_ERROR, "Json TX: bad data_size in TYPE_TSD");
+        return NULL;
+    }
+    const char *l_tsd_data_str = s_json_get_text(a_json_item_obj, "data");
+    if (!l_tsd_data_str) {
         log_it(L_ERROR, "Json TX: bad data in TYPE_TSD");
         return NULL;
     }
-    size_t l_data_size = dap_strlen(l_tsd_data);
-    dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create((void*)l_tsd_data, (int)l_tsd_type, l_data_size);
-    return (const uint8_t*) l_tsd;
-    // l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+
+    uint8_t *l_tsd_data = DAP_NEW_Z_SIZE(uint8_t, l_tsd_data_size);
+    size_t l_tsd_data_size_decoded = dap_enc_base58_decode(l_tsd_data_str, l_tsd_data);
+    if (l_tsd_data_size_decoded != l_tsd_data_size) {
+        log_it(L_ERROR, "Json TX: data size in tsd section - %zu, expected - %zu", l_tsd_data_size_decoded, l_tsd_data_size);
+        DAP_DELETE(l_tsd_data);
+        return NULL;
+    }
+    dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create((void*)l_tsd_data, (int)l_tsd_type, l_tsd_data_size);
+    DAP_DELETE(l_tsd_data);
+    return (const uint8_t*)l_tsd;
 }
 
 const uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, json_object *a_jobj_errors, dap_chain_datum_tx_t *a_tx, dap_list_t **a_sign_list)
@@ -1462,9 +1471,11 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, 
         log_it(L_ERROR, "Json TX: Can't get base64-encoded sign!");
         return NULL;
     }
-    int64_t l_sign_size = 0, l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
-            l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
-    if ( !s_json_get_int64(a_json_item_obj, "sig_size", &l_sign_size) )
+    uint64_t
+        l_sign_size = 0,
+        l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
+        l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
+    if ( !s_json_get_int64_uint64(a_json_item_obj, "sig_size", &l_sign_size, true) )
         log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
 
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
@@ -1475,7 +1486,7 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, 
         }
     };
 
-    if ( l_tx_sig->header.sig_size  != (uint64_t)l_sign_size || (uint64_t)l_sign_size != dap_sign_get_size((dap_sign_t *)l_tx_sig->sig) ) {
+    if ( l_tx_sig->header.sig_size  != l_sign_size || l_sign_size != dap_sign_get_size((dap_sign_t *)l_tx_sig->sig) ) {
         json_object_array_add(a_jobj_errors, json_object_new_string("Sign size failed!"));
         log_it(L_ERROR, "Json TX: sign verification failed!");
         DAP_DELETE(l_tx_sig);
@@ -1510,7 +1521,7 @@ int s_dap_chain_net_tx_add_in_and_back(dap_tx_creator_tokenizer_t *a_value_need,
     
     l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_ledger, a_value_need->token_ticker,
                                                             a_addr_from, a_value_need->sum, &l_value_transfer);
-    log_it(L_WARNING, "elements from list - %d", dap_list_length(l_list_used_out));
+    log_it(L_WARNING, "elements from list - %"DAP_UINT64_FORMAT_U, dap_list_length(l_list_used_out));
     log_it(L_WARNING, "tokens - %s", a_value_need->token_ticker);
     dap_list_t *l_item_out;
     DL_FOREACH(l_list_used_out, l_item_out) {
@@ -1877,13 +1888,13 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             json_object_object_add(json_obj_item, "sig_b64",    json_object_new_string(l_sign_b64));
         } break;
         case TX_ITEM_TYPE_TSD: {
-            json_object_object_add(json_obj_item,"type", json_object_new_string("TX_ITEM_TYPE_TSD"));
-            json_object_object_add(json_obj_item,"type_tsd", json_object_new_string("data"));
-            json_object_object_add(json_obj_item,"size", json_object_new_uint64(((dap_chain_tx_tsd_t*)item)->header.size));
-            char *l_tsd_str = DAP_NEW_Z_SIZE(char, ((dap_chain_tx_tsd_t*)item)->header.size + 1);
-            memcpy(l_tsd_str, ((dap_chain_tx_tsd_t*)item)->tsd, ((dap_chain_tx_tsd_t*)item)->header.size);
-            json_object_object_add(json_obj_item, "data", json_object_new_string(l_tsd_str));
-            DAP_DEL_Z(l_tsd_str);
+            json_object_object_add(json_obj_item,"type", json_object_new_string("data"));
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)item)->tsd;
+            json_object_object_add(json_obj_item,"data_type", json_object_new_int(l_tsd->type));
+            json_object_object_add(json_obj_item,"data_size", json_object_new_uint64(l_tsd->size));
+            char *l_tsd_str = dap_enc_base58_encode_to_str(l_tsd->data, l_tsd->size);
+            json_object_object_add(json_obj_item,"data", json_object_new_string(l_tsd_str));
+            DAP_DELETE(l_tsd_str);
         } break;
         case TX_ITEM_TYPE_IN_COND:
             json_object_object_add(json_obj_item,"type", json_object_new_string("in_cond"));

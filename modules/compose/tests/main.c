@@ -56,6 +56,13 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 {
     size_t l_tx_size = dap_chain_datum_tx_get_size(*a_datum);
     size_t l_signs_count = rand() % KEY_COUNT + 1;
+    for (size_t i = 0; i < l_signs_count; ++i) {
+        int l_rand_data = rand() % dap_maxval(l_rand_data);
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand() % dap_maxval(l_rand_data), sizeof(l_rand_data));
+        dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
+        DAP_DEL_Z(l_tsd);
+    }
+    l_signs_count = rand() % KEY_COUNT + 1;
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
     dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
@@ -256,6 +263,7 @@ void s_chain_datum_tx_ser_deser_test()
 int main(void){
     dap_log_level_set(L_WARNING);
     dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
+    srand(time(NULL));
     s_chain_datum_tx_ser_deser_test();
     return 0;
 }
