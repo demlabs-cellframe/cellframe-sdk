@@ -48,7 +48,7 @@ static size_t s_sign_type_count = sizeof(s_key_types) / sizeof(s_key_types[0]);
 
 static struct tests_data *s_data = NULL;
 
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json, const char *a_net_name);
 int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
     dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 
@@ -57,13 +57,13 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     size_t l_tx_size = dap_chain_datum_tx_get_size(*a_datum);
     size_t l_signs_count = rand() % KEY_COUNT + 1;
     for (size_t i = 0; i < l_signs_count; ++i)
-        dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]), "datum_1 sign create");
+        dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
     dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
     assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1);
     DAP_DEL_Z(l_out_count);
     json_object *l_datum_1_json = json_object_new_object();
     json_object *l_error_json = json_object_new_array();
-    dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
+    dap_chain_net_tx_to_json(*a_datum, l_datum_1_json, s_net_name);
     dap_assert(json_object_object_length(l_datum_1_json), "dap_chain_net_tx_to_json");
     printf("\n");
     dap_chain_datum_tx_t *l_datum_2 = DAP_NEW_Z(dap_chain_datum_tx_t);
@@ -151,7 +151,7 @@ void s_chain_datum_stake_invalidate_test()
 {
     dap_print_module_name("tx_invalidate_compose");
     dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_invalidate_compose(
-        &s_data->hash_1, s_data->value_fee, s_key[rand() % KEY_COUNT], &s_data->config);
+        &s_data->hash_1, s_data->value_fee, &s_data->addr_from, &s_data->config);
     dap_assert(l_datum_1, "tx_invalidate_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);

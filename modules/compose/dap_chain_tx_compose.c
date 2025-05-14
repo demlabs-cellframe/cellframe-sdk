@@ -3502,7 +3502,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     int l_out_native_count = 0;
     int l_prev_cond_idx = 0;
     dap_chain_addr_t l_owner_addr;
-    dap_chain_addr_fill_from_key(&l_owner_addr, a_key, dap_get_net_id(a_config->net_name));
+    randombytes(&l_owner_addr, sizeof(l_owner_addr));
     dap_chain_tx_out_cond_t *l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
     l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
     dap_chain_tx_sig_t *l_tx_sig = NULL;
