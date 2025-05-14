@@ -2717,8 +2717,8 @@ typedef enum {
     DAP_CLI_VOTE_COMPOSE_WALLET_NOT_FOUND = -5
 } dap_cli_vote_compose_error_t;
 
-json_object* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str, const char *a_cert_name, const char *a_fee_str, const char *a_wallet_str, 
-                                    const char *a_wallet_path, const char *a_wallet_pass, const char *a_option_idx_str, const char *a_url_str, uint16_t a_port) {
+json_object* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str, const char *a_cert_name, const char *a_fee_str, dap_chain_addr_t *a_wallet_addr, 
+                                    const char *a_option_idx_str, const char *a_url_str, uint16_t a_port) {
     compose_config_t *l_config = s_compose_config_init(a_net_str, a_url_str, a_port);
     if (!l_config) {
         json_object* l_json_obj_ret = json_object_new_object();
@@ -2745,18 +2745,9 @@ json_object* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str,
         return s_compose_config_return_response_handler(l_config);
     }
 
-
-    const char *l_wallet_path = dap_chain_wallet_get_path(g_config);
-    dap_chain_wallet_t *l_wallet = dap_wallet_open_with_pass(a_wallet_str, a_wallet_path, a_wallet_pass, l_config);
-    if (!l_wallet) {
-        dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_COMPOSE_WALLET_NOT_FOUND, "Wallet %s does not exist\n", a_wallet_str);
-        return s_compose_config_return_response_handler(l_config);
-    }
-
     uint64_t l_option_idx_count = strtoul(a_option_idx_str, NULL, 10);
 
-    dap_chain_datum_tx_t *l_tx = dap_chain_net_vote_voting_compose(l_cert, l_value_fee, l_wallet, l_voting_hash, l_option_idx_count, l_config);
-    dap_chain_wallet_close(l_wallet);
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_vote_voting_compose(l_cert, l_value_fee, a_wallet_addr, l_voting_hash, l_option_idx_count, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler, l_config->net_name);
         dap_chain_datum_tx_delete(l_tx);
@@ -2808,7 +2799,7 @@ typedef enum {
     DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_GET_REMOTE_WALLET_OUTS = -23
 } dap_chain_net_vote_compose_error_t;
 
-dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_hash,
+dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, dap_hash_fast_t a_hash,
                               uint64_t a_option_idx, compose_config_t *a_config) {
     if (!a_config) {
         return NULL;
@@ -2873,12 +2864,6 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
         }
     }
 
-    dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(a_wallet, dap_get_net_id(a_config->net_name));
-    if (!l_addr_from) {
-        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_SOURCE_ADDRESS_INVALID, "Source address is invalid\n");
-        return NULL;
-    }
-
     dap_hash_fast_t l_pkey_hash = {0};
     if (l_delegated_key_required) {
         if (!a_cert) {
@@ -2924,7 +2909,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
 
 
     } else
-        l_pkey_hash = l_addr_from->data.hash_fast;
+        l_pkey_hash = a_wallet_addr->data.hash_fast;
 
 
     const char *l_token_ticker = json_object_get_string(json_object_object_get(l_voting_info, "token"));
@@ -2938,7 +2923,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
 
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
-    if (!dap_get_remote_wallet_outs_and_count(l_addr_from, l_token_ticker, &l_outs, &l_outputs_count, a_config)) {
+    if (!dap_get_remote_wallet_outs_and_count(a_wallet_addr, l_token_ticker, &l_outs, &l_outputs_count, a_config)) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_GET_REMOTE_WALLET_OUTS, "Failed to get remote wallet outs\n");
         return NULL;
     }
@@ -3055,7 +3040,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
         if (!l_node_addr_str)
             continue;
 
-        if (dap_strcmp(l_node_addr_str, dap_chain_addr_to_str(l_addr_from)) == 0) {
+            if (dap_strcmp(l_node_addr_str, dap_chain_addr_to_str(a_wallet_addr)) == 0) {
             json_object *l_tx_hash_json_str = json_object_object_get(l_stake, "tx_hash");
             if (!l_tx_hash_json_str)
                 return NULL;
@@ -3168,11 +3153,11 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     }
 
     // coin back
-    if (!IS_ZERO_256(l_value_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_token_ticker) != 1) {
+    if (!IS_ZERO_256(l_value_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_back, l_token_ticker) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_fee_back, s_get_native_ticker(a_config->net_name)) != 1) {
+    if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_fee_back, s_get_native_ticker(a_config->net_name)) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
