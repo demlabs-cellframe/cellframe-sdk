@@ -1829,7 +1829,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 }
 
 
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json, const char *a_net_name)
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json)
 {
     if(!a_tx || !a_out_json)
         return log_it(L_ERROR, "Empty transaction"), DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS;
@@ -1847,7 +1847,6 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
     json_object_object_add(json_obj_out, "datum_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "ts_created", json_object_new_int64(a_tx->header.ts_created));
     json_object_object_add(json_obj_out, "datum_type", json_object_new_string("tx"));
-    json_object_object_add(json_obj_out, "net", json_object_new_string(a_net_name));
 
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
         json_object* json_obj_item = json_object_new_object();
