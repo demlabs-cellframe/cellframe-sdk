@@ -418,11 +418,23 @@ static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_ob
     if (a_cmd_request->error_code) {
         ret = -1;
     } else if (a_cmd_request->response) {
-        *a_response_out = json_tokener_parse(a_cmd_request->response);
-        if (!*a_response_out) {
-            ret = -3;
+        if (a_cmd_request->response && a_cmd_request->response_size > 0) {
+            enum json_tokener_error jerr = json_tokener_success;
+            struct json_tokener *tok = json_tokener_new();
+            if (tok) {
+                *a_response_out = json_tokener_parse_ex(tok, a_cmd_request->response, a_cmd_request->response_size);
+                jerr = tok->err;
+                json_tokener_free(tok);
+                if (*a_response_out) {
+                    *a_response_out_size = a_cmd_request->response_size;
+                } else {
+                    ret = -3;
+                }
+            } else {
+                ret = -3;
+            }
         } else {
-            *a_response_out_size = a_cmd_request->response_size;
+            ret = -3;
         }
     } else {
         ret = -2;
@@ -811,7 +823,7 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
         dap_chain_datum_tx_delete(l_tx);
     }
 
-    DAP_DEL_MULTY(l_addr_to, l_value, l_addr_from);
+    DAP_DEL_MULTY(l_addr_to, l_value);
     return s_compose_config_return_response_handler(l_config);
 }
 
@@ -1852,7 +1864,6 @@ json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_i
                                                            l_time_staking, l_reinvest_percent,
                                                            l_delegated_ticker_str, l_value_delegated, a_chain_id_str, l_config);
 
-    dap_enc_key_delete(l_key_from);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
@@ -3721,9 +3732,13 @@ dap_sign_t* dap_get_remote_srv_order_sign(const char* l_order_hash_str, compose_
             .sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE)
         }
     };
+    dap_sign_t *l_sign = NULL;
+    if (l_tx_sig->sig) {
+        l_sign = DAP_NEW_Z_SIZE(dap_sign_t, dap_sign_get_size((dap_sign_t*)l_tx_sig->sig));
+        memcpy(l_sign, l_tx_sig->sig, dap_sign_get_size((dap_sign_t*)l_tx_sig->sig));
+    }
 
-    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-    DAP_DELETE(l_tx_sig);
+    DAP_DEL_Z(l_tx_sig);
     json_object_put(response);
     return l_sign;
 }
@@ -3974,6 +3989,7 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
             }
             dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, dap_get_net_id(a_net_str));
             l_pkey = dap_pkey_get_from_sign(l_sign);
+            DAP_DELETE(l_sign);
             char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX];
             dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, s_get_native_ticker(a_net_str));
             if (dap_strcmp(l_order->price_ticker, l_delegated_ticker_str)) {
@@ -4309,7 +4325,7 @@ json_object * dap_cli_srv_stake_order_remove_compose(const char *l_net_str, cons
         return s_compose_config_return_response_handler(l_config);
     }
     char *l_tx_hash_ret = NULL;
-    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_xchange_remove_compose(&l_tx_hash, l_fee, a_wallet_addr, l_config);
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_order_remove_compose(&l_tx_hash, l_fee, a_wallet_addr, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         DAP_DELETE(l_tx);
@@ -4621,7 +4637,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
 }
 
 
-dap_chain_datum_tx_t* dap_chain_net_srv_xchange_remove_compose(dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+dap_chain_datum_tx_t* dap_chain_net_srv_order_remove_compose(dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
                                      dap_chain_addr_t *a_wallet_addr, compose_config_t *a_config) {
     if (!a_hash_tx || !a_wallet_addr || !a_config) {
         return NULL;
