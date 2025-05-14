@@ -320,7 +320,12 @@ static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
 
 static void s_start_receipt_timeout_timer(dap_chain_net_srv_usage_t *a_usage)
 {
-    a_usage->receipts_timeout_timer = dap_timerfd_start_on_worker(dap_worker_get_current(), 10000,
+    dap_worker_t *l_worker = dap_worker_get_current()
+    if (l_worker)
+        a_usage->receipts_timeout_timer = dap_timerfd_start_on_worker(l_worker, 10000,
+                                                             (dap_timerfd_callback_t)s_receipt_timeout_handler, a_usage);
+    else 
+        a_usage->receipts_timeout_timer = dap_timerfd_start_on_worker(dap_worker_get_auto(), 10000,
                                                              (dap_timerfd_callback_t)s_receipt_timeout_handler, a_usage);
 }
 /**
