@@ -4471,7 +4471,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
 
 
     dap_chain_tx_out_cond_t *l_cond_tx = NULL;
-
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     json_object *response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", 
                                                                   dap_chain_hash_fast_to_str_static(&a_price->tx_hash), a_config->net_name);
     if (!response) {
@@ -4544,6 +4544,24 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
         return NULL;
     }
 
+#else
+    dap_chain_tx_out_cond_t l_cond_tx_obj = { };
+    l_cond_tx = &l_cond_tx_obj;
+    l_cond_tx->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
+    l_cond_tx->header.value = a_price->datoshi_sell;
+    l_cond_tx->header.srv_uid.uint64 = rand() % 100;
+    l_cond_tx->header.ts_expires = 0;
+    strcpy(l_cond_tx->subtype.srv_xchange.buy_token, a_price->token_buy);
+    l_cond_tx->subtype.srv_xchange.buy_net_id.uint64 = rand() % 100;
+    l_cond_tx->subtype.srv_xchange.sell_net_id.uint64 = rand() % 100;
+    l_cond_tx->subtype.srv_xchange.rate = a_price->rate;
+    l_cond_tx->subtype.srv_xchange.seller_addr = *a_wallet_addr;
+    l_cond_tx->tsd_size = 0;
+    
+    const char *l_tx_ticker = a_price->token_sell;
+    bool l_single_channel = true;
+    int l_prev_cond_idx = rand() % 100;
+#endif
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     // add 'in' item to buy from conditional transaction
@@ -4604,11 +4622,13 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
         }
     } else {
         uint256_t l_coin_back = {};
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         if (compare256(l_total_fee, l_cond_tx->header.value) >= 0) {
             dap_chain_datum_tx_delete(l_tx);
             dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_FEE_TOO_HIGH, "Total fee is greater or equal than order liquidity");
             return NULL;
         }
+#endif
         SUBTRACT_256_256(l_cond_tx->header.value, l_total_fee, &l_coin_back);
         // return coins to owner
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller_addr, l_coin_back, l_native_ticker) == -1) {

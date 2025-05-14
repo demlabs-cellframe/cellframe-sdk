@@ -84,7 +84,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     *a_tx = tx_new;
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     char *l_hash = dap_hash_fast_str_new(a_item, size);
-    printf("%s\n", l_hash);
+    printf("Add item to datum%s\n", l_hash);
     DAP_DEL_Z(l_hash);
 #endif
     return 1;
