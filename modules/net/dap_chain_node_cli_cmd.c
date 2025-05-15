@@ -2035,10 +2035,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                 "Can't active unprotected wallet: %s\n", l_wallet_name);
                         break;
                     default: {
-                        char l_buf[512] = { '\0' };
-                        strerror_r(l_rc, l_buf, sizeof(l_buf) - 1);
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ACTIVE_ERR,
-                                "Wallet %s %sactivation error %d : %s\n", l_wallet_name, l_prefix, l_rc, l_buf);
+                                "Wallet %s %sactivation error %d : %s\n", l_wallet_name, l_prefix, l_rc, dap_strerror(l_rc));
                         break;
                     }
                     }
