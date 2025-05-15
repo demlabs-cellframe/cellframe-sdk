@@ -819,7 +819,7 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
 
     dap_chain_datum_tx_t* l_tx = dap_chain_datum_tx_create_compose( l_addr_from, l_addr_to, l_token_ticker, l_value, l_value_fee, l_addr_el_count, l_config);
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
     }
 
@@ -1313,7 +1313,7 @@ json_object* dap_tx_create_xchange_compose(const char *l_net_name, const char *l
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_xchange_create_compose(l_token_buy,
                                      l_token_sell, l_value, l_rate, l_fee, l_wallet_addr, l_config);
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
         return s_compose_config_return_response_handler(l_config);
     }
@@ -1618,7 +1618,7 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_config);
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
     }
     DAP_DELETE(l_key_cond);
@@ -1865,7 +1865,7 @@ json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_i
                                                            l_delegated_ticker_str, l_value_delegated, a_chain_id_str, l_config);
 
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
     }
 
@@ -2125,14 +2125,12 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
         return s_compose_config_return_response_handler(l_config);
     }
 
-    // TODO: check if the transaction output item is already used
-    // json_object *spent_outs = json_object_object_get(response, "all OUTs yet unspent");
-    // const char *spent_outs_value = json_object_get_string(spent_outs);
-    // if (spent_outs_value && dap_strcmp(spent_outs_value, "yes") != 0) {
-    //     json_object_put(response);
-    //     dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_ALREADY_USED, "Transaction output item already used\n");
-    //     return s_compose_config_return_response_handler(l_config);
-    // }
+    json_object *spent_outs = json_object_object_get(response, "all_outs_unspent");
+    if (!spent_outs || json_object_get_boolean(spent_outs)) {
+        json_object_put(response);
+        dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_ALREADY_USED, "Transaction output item already used\n");
+        return s_compose_config_return_response_handler(l_config);
+    }
 
     l_ticker_str = json_object_get_string(json_object_object_get(l_datum_json, "token_ticker"));
     json_object_put(response);
@@ -2171,7 +2169,7 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
 
     dap_chain_datum_tx_delete(l_datum);
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, l_ticker_str, l_config->response_handler);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
     }
 
@@ -2484,7 +2482,7 @@ json_object* dap_cli_voting_compose(const char *a_net_name, const char *a_questi
                                                                 a_wallet_addr, a_token_str, l_config);
     dap_list_free(l_options_list);
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
     }
     return s_compose_config_return_response_handler(l_config);
@@ -2751,7 +2749,7 @@ json_object* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str,
 
     dap_chain_datum_tx_t *l_tx = dap_chain_net_vote_voting_compose(l_cert, l_value_fee, a_wallet_addr, l_voting_hash, l_option_idx_count, l_config);
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
     }
     return s_compose_config_return_response_handler(l_config);
@@ -3347,8 +3345,8 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
 
     dap_chain_datum_tx_t *l_tx = dap_stake_tx_invalidate_compose(&l_tx_hash, l_fee, a_wallet_addr, l_config);
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
-        DAP_DELETE(l_tx);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
+        dap_chain_datum_tx_delete(l_tx);
     }
 
     return s_compose_config_return_response_handler(l_config);
@@ -4032,8 +4030,8 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
     DAP_DELETE(l_pkey);
 
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
-        DAP_DELETE(l_tx);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
+        dap_chain_datum_tx_delete(l_tx);
     } 
 
     return s_compose_config_return_response_handler(l_config);
@@ -4255,8 +4253,8 @@ json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str
     dap_chain_datum_tx_t *l_tx = dap_order_tx_create_compose(a_wallet_addr, l_value, l_fee, l_tax, &l_addr, l_config);
 
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
-        DAP_DELETE(l_tx);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
+        dap_chain_datum_tx_delete(l_tx);
     }
 
     return s_compose_config_return_response_handler(l_config);
@@ -4319,8 +4317,8 @@ json_object * dap_cli_srv_stake_order_remove_compose(const char *l_net_str, cons
     char *l_tx_hash_ret = NULL;
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_order_remove_compose(&l_tx_hash, l_fee, a_wallet_addr, l_config);
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
-        DAP_DELETE(l_tx);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
+        dap_chain_datum_tx_delete(l_tx);
     }
     
     return s_compose_config_return_response_handler(l_config);
@@ -4763,8 +4761,8 @@ json_object *dap_tx_create_xchange_purchase_compose (const char *a_net_name, con
     dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_xchange_purchase_compose(&l_tx_hash, l_datoshi_buy, l_datoshi_fee,
                                                         a_wallet_addr, &l_str_ret_hash, l_config);
     if (l_tx) {
-        dap_chain_net_tx_to_json(l_tx, NULL, l_config->response_handler);
-        DAP_DELETE(l_tx);
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
+        dap_chain_datum_tx_delete(l_tx);
     }
     return s_compose_config_return_response_handler(l_config);
 }

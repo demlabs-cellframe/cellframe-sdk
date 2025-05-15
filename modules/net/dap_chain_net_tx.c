@@ -696,7 +696,7 @@ static int s_dap_chain_net_tx_get_type_tx(size_t a_items_count, json_object *a_j
             continue;
         }
         const char *l_item_type_str = json_object_get_string(l_json_item_type);
-        dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_str_to_type(l_item_type_str);
+        dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
         if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
             log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
             continue;
@@ -1094,7 +1094,7 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
 {
     // Read subtype of item
     const char *l_subtype_str = s_json_get_text(a_json_item_obj, "subtype");
-    dap_chain_tx_out_cond_subtype_t l_subtype = dap_chain_tx_out_cond_subtype_from_str(l_subtype_str);
+    dap_chain_tx_out_cond_subtype_t l_subtype = dap_chain_tx_out_cond_subtype_from_str_short(l_subtype_str);
     switch (l_subtype) {
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
             uint256_t l_value = { };
@@ -1641,7 +1641,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             continue;
         }
         const char *l_item_type_str = json_object_get_string(l_json_item_type);
-        dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_str_to_type(l_item_type_str);
+        dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
         if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
             log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
             continue;
@@ -1831,7 +1831,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 }
 
 
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, const char *a_token_ticker, json_object *a_out_json)
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json)
 {
     if(!a_tx || !a_out_json)
         return log_it(L_ERROR, "Empty transaction"), DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS;
@@ -1849,13 +1849,11 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, const char *a_token_tic
     json_object_object_add(json_obj_out, "datum_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "ts_created", json_object_new_int64(a_tx->header.ts_created));
     json_object_object_add(json_obj_out, "datum_type", json_object_new_string("tx"));
-    if (a_token_ticker) {
-        json_object_object_add(json_obj_out, "token_ticker", json_object_new_string(a_token_ticker));
-    }
+
 
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
         json_object* json_obj_item = json_object_new_object();
-        json_object_object_add(json_obj_item,"type", json_object_new_string(dap_chain_datum_tx_item_type_to_str_json(*item)));
+        json_object_object_add(json_obj_item,"type", json_object_new_string(dap_chain_datum_tx_item_type_to_str_short(*item)));
         switch (*item) {
         case TX_ITEM_TYPE_IN:
             l_hash_tmp = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
@@ -1908,7 +1906,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, const char *a_token_tic
             json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
             sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_x"",((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64);
             json_object_object_add(json_obj_item,"service_id", json_object_new_string(l_tmp_buff));
-            json_object_object_add(json_obj_item,"subtype", json_object_new_string(dap_chain_tx_out_cond_subtype_to_str_json(((dap_chain_tx_out_cond_t*)item)->header.subtype)));
+            json_object_object_add(json_obj_item,"subtype", json_object_new_string(dap_chain_tx_out_cond_subtype_to_str_short(((dap_chain_tx_out_cond_t*)item)->header.subtype)));
             switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE:
                     break;

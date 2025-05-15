@@ -1153,7 +1153,17 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         json_object* json_datum = json_object_new_object();
         if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx_to_json", NULL)) {
             const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, l_tx_hash);
-            dap_chain_net_tx_to_json(l_datum_tx, l_ticker, json_datum);
+            json_object_object_add(json_datum, "token_ticker", json_object_new_string(l_ticker));
+            bool l_all_outs_unspent = true;
+            byte_t *l_item; size_t l_size; int index, l_out_idx = -1;
+            TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, index, l_datum_tx) {
+                ++l_out_idx;
+                if ( dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_out_idx, NULL) ) {
+                    l_all_outs_unspent = false;
+                }
+            }
+            json_object_object_add(json_datum, "all_outs_unspent", json_object_new_boolean(l_all_outs_unspent));
+            dap_chain_net_tx_to_json(l_datum_tx, json_datum);
             if (!json_object_object_length(json_datum)) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_TO_JSON_ERR, "Can't find transaction hash %s in ledger", l_tx_hash_str);
                 json_object_put(json_datum);

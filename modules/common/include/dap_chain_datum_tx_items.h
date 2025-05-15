@@ -110,7 +110,7 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
  *
  * return name, or "UNKNOWN"
  */
-DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_json(dap_chain_tx_item_type_t a_type) {
+DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chain_tx_item_type_t a_type) {
     switch(a_type){
         case TX_ITEM_TYPE_IN: return "in";
         case TX_ITEM_TYPE_IN_EMS: return "in_ems";
@@ -139,14 +139,14 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_gr
  *
  * return type, or TX_ITEM_TYPE_UNKNOWN
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum_name);
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_type_from_str_short(const char *a_datum_name);
 
 /**
  * Get dap_chain_tx_out_cond_subtype_t by name
  *
  * return subtype, or DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED
  */
-dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const char *a_subtype_str);
+dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(const char *a_subtype_str);
 
 /**
  * Get item size
