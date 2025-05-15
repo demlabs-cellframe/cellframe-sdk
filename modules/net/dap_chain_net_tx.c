@@ -784,11 +784,11 @@ static int s_dap_chain_net_tx_get_type_tx(size_t a_items_count, json_object *a_j
                                         if (NULL != (l_delegated_token = dap_ledger_token_ticker_check(a_net->pub.ledger, l_delegated_ticker_str))){
                                             uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(a_net->pub.ledger, l_delegated_ticker_str);
                                             MULT_256_COIN(l_tx_out_cond->header.value, l_emission_rate, &l_value_delegated);
-                                            dap_chain_tx_out_ext_t  * l_out_cond = dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank_1, l_value_delegated, l_delegated_ticker_str);
+                                            //dap_chain_tx_out_ext_t  * l_out_cond = dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank_1, l_value_delegated, l_delegated_ticker_str);
                                             s_find_add_token_val(l_delegated_ticker_str, l_value_delegated, SUM_256_256);
                                             s_find_add_token_val(l_ticker_str, l_tx_out_cond->header.value, SUM_256_256);
-                                            dap_chain_datum_tx_add_item(a_tx, (const uint8_t*) l_out_cond);
-                                            DAP_DELETE(l_out_cond);
+                                            //dap_chain_datum_tx_add_item(a_tx, (const uint8_t*) l_out_cond);
+                                            //DAP_DELETE(l_out_cond);
                                             a_main_tiker = l_ticker_str;
                                             check++;
                                             res = DAP_CHAIN_NET_TX_STAKE_UNLOCK;
@@ -1020,7 +1020,7 @@ const uint8_t * s_dap_chain_net_tx_create_out_item (json_object *a_json_item_obj
             if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK && l_is_value){
                 const uint8_t *l_out_item = NULL;
                 s_find_add_token_val(l_token, l_value, SUBTRACT_256_256);
-                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
+                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank_1, l_value, l_token);
                 return (const uint8_t*) l_out_item;                
             }
             if (a_type_tx == DAP_CHAIN_NET_TX_REWARD && l_is_value) {
@@ -1655,10 +1655,10 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         HASH_FIND_STR(s_values_need, a_net->pub.native_ticker, l_value_cur);
         if(l_value_cur) {
             const uint8_t *l_out_item = NULL;
-            l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr_back, l_value_cur->sum, l_value_cur->token_ticker);
-            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_item);
+            //l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr_back, l_value_cur->sum, l_value_cur->token_ticker);
+            //dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_item);
             l_items_ready++;
-            DAP_DELETE(l_out_item);
+            //DAP_DELETE(l_out_item);
         }
     }
     if (l_type_tx == DAP_CHAIN_NET_TX_REWARD){
