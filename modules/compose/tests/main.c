@@ -48,10 +48,6 @@ static size_t s_sign_type_count = sizeof(s_key_types) / sizeof(s_key_types[0]);
 
 static struct tests_data *s_data = NULL;
 
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
-int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
-    dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
-
 void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 {
     size_t l_signs_count = rand() % KEY_COUNT + 1;
@@ -72,7 +68,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     json_object *l_datum_1_json = json_object_new_object();
     json_object *l_error_json = json_object_new_array();
     dap_test_msg("convert to json");
-    dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
+    dap_chain_net_tx_to_json(*a_datum, s_ticker_native, l_datum_1_json);
     dap_assert(json_object_object_length(l_datum_1_json), "dap_chain_net_tx_to_json");
     printf("\n");
     dap_chain_datum_tx_t *l_datum_2 = dap_chain_datum_tx_create();;
