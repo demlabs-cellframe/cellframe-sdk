@@ -914,10 +914,14 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
 
     bool l_net_fee_used = !IS_ZERO_256(l_net_fee);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
+    json_object *l_native_outs = NULL;
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!dap_get_remote_wallet_outs_and_count(a_addr_from, a_token_ticker, &l_outs, &l_outputs_count, a_config)) {
+        return NULL;
+    }
+    if (!dap_get_remote_wallet_outs_and_count(a_addr_from, l_native_ticker, &l_native_outs, &l_outputs_count, a_config)) {
         return NULL;
     }
 #endif
@@ -925,12 +929,13 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else if (!IS_ZERO_256(l_total_fee)) {
-        l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
+        l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_native_outs, l_outputs_count,
                                                                l_total_fee, 
                                                                &l_fee_transfer);
         if (!l_list_fee_out) {
             dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FEE_ERROR, "Not enough funds to pay fee");
             json_object_put(l_outs);
+            json_object_put(l_native_outs);
             return NULL;
         }
     }
@@ -939,6 +944,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
                                                             l_value_need,
                                                             &l_value_transfer);
     json_object_put(l_outs);
+    json_object_put(l_native_outs);
     if (!l_list_used_out) {
         dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Not enough funds to transfer");
         return NULL;
