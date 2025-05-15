@@ -2103,7 +2103,7 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
     size_t
         l_items_count = 0,
         l_items_ready = 0;
-    if (dap_chain_net_tx_create_by_json(l_datum_json, NULL, NULL, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
+    if (dap_chain_net_tx_create_by_json(l_datum_json, NULL, l_config->response_handler, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
         json_object_put(response);
         dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX, "Failed to create transaction from json\n");
         dap_chain_datum_tx_delete(l_datum);
