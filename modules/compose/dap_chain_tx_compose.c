@@ -2608,8 +2608,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
         return NULL;
     }
 #else
-    l_addr_from = DAP_NEW_Z(dap_chain_addr_t);
-    randombytes(l_addr_from, sizeof(dap_chain_addr_t));
+    l_addr_from = a_wallet_addr;
 #endif
 
 
@@ -2757,9 +2756,6 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
             return NULL;
         }
     }
-#ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    DAP_DELETE(l_addr_from);
-#endif
     return l_tx;
 }
 
