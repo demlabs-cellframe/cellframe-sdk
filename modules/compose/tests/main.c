@@ -82,7 +82,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_size(*a_datum)), "datum_1 == datum_2");
     dap_assert(!dap_chain_datum_tx_verify_sign_all(l_datum_2), "datum_2 sign verify");
     dap_chain_datum_tx_delete(l_datum_2);
-    // json_object_put(l_datum_1_json);
+    json_object_put(l_datum_1_json);
     json_object_put(l_error_json);
 }
 

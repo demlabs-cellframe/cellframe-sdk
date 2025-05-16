@@ -705,11 +705,6 @@ bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const c
     return true;
 }
 
-
-
-
-
-
 typedef enum {
     TX_CREATE_COMPOSE_OK = 0,
     TX_CREATE_COMPOSE_MEMORY_ERROR = -1,
@@ -2075,12 +2070,17 @@ typedef enum {
     CLI_TAKE_COMPOSE_ERROR_UNABLE_TO_OPEN_WALLET = -11,
     CLI_TAKE_COMPOSE_ERROR_OWNER_KEY_NOT_FOUND = -12,
     CLI_TAKE_COMPOSE_ERROR_NOT_ENOUGH_TIME_PASSED = -13,
-    CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX = -14
+    CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX = -14,
+    CLI_TAKE_COMPOSE_ERROR_NO_INFO_TX_OUT_USED = -15,
+    CLI_TAKE_COMPOSE_ERROR_TX_OUT_NOT_USED = -6,
 } cli_take_compose_error_t;
 
-json_object *s_get_datum_info_from_rpc(const char *a_tx_str, compose_config_t *a_config, dap_chain_tx_out_cond_subtype_t a_cond_subtype, dap_chain_datum_tx_t **a_datum, dap_chain_tx_out_cond_t **a_cond_tx)
+dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
+    const char *a_tx_str, compose_config_t *a_config,
+    dap_chain_tx_out_cond_subtype_t a_cond_subtype,
+    dap_chain_tx_out_cond_t **a_cond_tx, int a_all_outs_unspent, 
+    const char **a_token_ticker)
 {
-    dap_chain_tx_out_cond_t *l_cond_tx = NULL;
     json_object *l_response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s;-tx_to_json", 
                                                                       a_tx_str, a_config->net_name);
     if (!l_response) {
@@ -2100,26 +2100,60 @@ json_object *s_get_datum_info_from_rpc(const char *a_tx_str, compose_config_t *a
         l_items_ready = 0;
     if (dap_chain_net_tx_create_by_json(l_datum_json, NULL, a_config->response_handler, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
         json_object_put(l_response);
-        dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX, "Failed to create transaction from json\n");
+        dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX, "Failed to create transaction from json");
         dap_chain_datum_tx_delete(l_datum);
         return NULL;
     }
     
-    size_t
-        l_item_size = 0,
-        l_item_index = 0;
-    TX_ITEM_ITER_TX_TYPE(l_cond_tx, TX_ITEM_TYPE_OUT_COND, l_item_size, l_item_index, l_datum) {
-        if (l_cond_tx->header.subtype == a_cond_subtype) {
-            break;
-        }
-    }
-    if (a_datum) {
-        *a_datum = l_datum;
-    }
     if (a_cond_tx) {
+        dap_chain_tx_out_cond_t *l_cond_tx = NULL;
+        size_t
+            l_item_size = 0,
+            l_item_index = 0;
+        TX_ITEM_ITER_TX_TYPE(l_cond_tx, TX_ITEM_TYPE_OUT_COND, l_item_size, l_item_index, l_datum) {
+            if (l_cond_tx->header.subtype == a_cond_subtype) {
+                break;
+            }
+        }
+        if (!l_cond_tx) {
+            json_object_put(l_response);
+            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NO_ITEMS_FOUND, "No transaction output condition found");
+            dap_chain_datum_tx_delete(l_datum);
+            return NULL;
+        }
         *a_cond_tx = l_cond_tx;
     }
-    return l_response;
+
+    if (a_all_outs_unspent != -1) {
+        json_object *all_outs_unspent = json_object_object_get(l_response, "all_outs_unspent");
+        if (!all_outs_unspent) {
+            json_object_put(l_response);
+            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NO_INFO_TX_OUT_USED, "No transaction output used info found\n");
+            return NULL;
+        }
+        if (a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_object_get(l_response, "all_outs_unspent")) {
+            json_object_put(l_response);
+            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_ALREADY_USED, "Transaction output item already used\n");
+            return NULL;
+        }
+        if (!a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_object_get(l_response, "all_outs_unspent")) {
+            json_object_put(l_response);
+            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_NOT_USED, "Transaction output item not used\n");
+            return NULL;
+        }
+    }
+
+    if (a_token_ticker) {
+        json_object *l_token_ticker = json_object_object_get(l_response, "token_ticker");
+        if (!l_token_ticker) {
+            json_object_put(l_response);
+            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TOKEN_TICKER_NOT_FOUND, "Token ticker not found in response\n");
+            return NULL;
+        }
+        *a_token_ticker = dap_strdup(json_object_get_string(l_token_ticker));
+    }
+    json_object_put(l_response);
+    return l_datum;
 }
 
 json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_str, dap_chain_addr_t *a_wallet_addr, const char *a_tx_str,
@@ -2146,27 +2180,13 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
         return s_compose_config_return_response_handler(l_config);
     }
 
-    json_object *l_response = s_get_datum_info_from_rpc(a_tx_str, l_config, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_datum, &l_cond_tx);
-    if (!l_cond_tx || !l_datum || !l_response) {
-        json_object_put(l_response);
+    l_datum = s_get_datum_info_from_rpc(a_tx_str, l_config, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_cond_tx, true, &l_ticker_str);
+    if (!l_datum) {
         dap_chain_datum_tx_delete(l_datum);
+        DAP_DELETE(l_ticker_str);
         return s_compose_config_return_response_handler(l_config);
     }
 
-    json_object *all_outs_unspent = json_object_object_get(l_response, "all_outs_unspent");
-    if (!all_outs_unspent || json_object_get_boolean(all_outs_unspent)) {
-        json_object_put(l_response);
-        dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_ALREADY_USED, "Transaction output item already used\n");
-        return s_compose_config_return_response_handler(l_config);
-    }
-
-    l_ticker_str = json_object_get_string(json_object_object_get(l_response, "token_ticker"));
-    json_object_put(l_response);
-    if (!l_ticker_str) {
-        dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TOKEN_TICKER_NOT_FOUND, "Token ticker not found in response\n");
-        dap_chain_datum_tx_delete(l_datum);
-        return s_compose_config_return_response_handler(l_config);
-    }
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_ticker_str);
 
 
@@ -2177,18 +2197,21 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
         IS_ZERO_256(l_value_delegated)) {
         dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_INVALID_COINS_FORMAT, "Invalid coins format\n");
         dap_chain_datum_tx_delete(l_datum);
+        DAP_DELETE(l_ticker_str);
         return s_compose_config_return_response_handler(l_config);
     }
 
     if (IS_ZERO_256((l_value_fee = dap_chain_balance_scan(a_value_fee_str)))) {
         dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_INVALID_FEE_FORMAT, "Invalid fee format\n");
         dap_chain_datum_tx_delete(l_datum);
+        DAP_DELETE(l_ticker_str);
         return s_compose_config_return_response_handler(l_config);
     }
 
     if (l_cond_tx->subtype.srv_stake_lock.time_unlock > dap_time_now()) {
         dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NOT_ENOUGH_TIME_PASSED, "Not enough time has passed for unlocking\n");
         dap_chain_datum_tx_delete(l_datum);
+        DAP_DELETE(l_ticker_str);
         return s_compose_config_return_response_handler(l_config);
     }
     dap_chain_datum_tx_t *l_tx = dap_stake_unlock_datum_create_compose(a_wallet_addr, &l_tx_hash, l_prev_cond_idx,
@@ -2196,6 +2219,7 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
                                           l_delegated_ticker_str, l_value_delegated, l_config);
 
     dap_chain_datum_tx_delete(l_datum);
+    DAP_DELETE(l_ticker_str);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
@@ -3877,6 +3901,7 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
         l_sovereign_tax = l_tax;
 
         if (l_order->direction == SERV_DIR_BUY) { // Staker order
+            const char *l_token_ticker = NULL;
             if (!a_cert_str) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_CERT_REQUIRED, "Command 'delegate' requires parameter -cert with this order type");
                 return s_compose_config_return_response_handler(l_config);
@@ -3887,33 +3912,16 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
                 return s_compose_config_return_response_handler(l_config);
             }
 
-            dap_chain_datum_tx_t *l_datum = NULL;
             dap_chain_tx_out_cond_t *l_cond_tx = NULL;
-            json_object *l_response = s_get_datum_info_from_rpc(dap_chain_hash_fast_to_str_static(&l_order->tx_cond_hash), l_config, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_datum, &l_cond_tx);
-            if (!l_cond_tx || !l_datum || !l_response) {
-                json_object_put(l_response);
+            dap_chain_datum_tx_t *l_datum = s_get_datum_info_from_rpc(dap_chain_hash_fast_to_str_static(&l_order->tx_cond_hash), l_config, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_cond_tx, true, &l_token_ticker);
+            if (!l_datum) {
                 dap_chain_datum_tx_delete(l_datum);
-                return s_compose_config_return_response_handler(l_config);
-            }
-            
-            json_object *all_outs_unspent = json_object_object_get(l_response, "all_outs_unspent");
-            if (!all_outs_unspent || json_object_get_boolean(all_outs_unspent)) {
-                json_object_put(l_response);
-                dap_chain_datum_tx_delete(l_datum);
-                dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_ALREADY_USED, "Transaction output item already used\n");
                 return s_compose_config_return_response_handler(l_config);
             }
 
             char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
             dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, s_get_native_ticker(a_net_str));
-            const char *l_token_ticker = json_object_get_string(json_object_object_get(l_response, "token_ticker"));
-            if (!l_token_ticker) {
-                json_object_put(l_response);
-                dap_chain_datum_tx_delete(l_datum);
-                dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_NO_TOKEN_TICKER, "Error: Token ticker not found in response");
-                return s_compose_config_return_response_handler(l_config);
-            }
-            json_object_put(l_response);
+
             if (dap_strcmp(l_token_ticker, l_delegated_ticker)) {
                 dap_chain_datum_tx_delete(l_datum);
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_WRONG_TICKER, "Requested conditional transaction have another ticker (not %s)", l_delegated_ticker);
