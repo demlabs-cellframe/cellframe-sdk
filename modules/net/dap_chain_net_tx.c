@@ -1618,11 +1618,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         log_it(L_DEBUG, "Json TX: process item %s", json_object_get_string(l_json_item_type));
         // Create an item depending on its type
         const uint8_t *l_item = NULL;
-        if (l_item_type != TX_ITEM_TYPE_SIG) {
-            const char *l_json_item_str = json_object_to_json_string(l_json_item_obj);
-            printf("%s\n", l_json_item_str);
-            DAP_DELETE(l_json_item_str);
-        }
         switch (l_item_type) {
             case TX_ITEM_TYPE_IN: {                
                 l_item = s_dap_chain_net_tx_create_in_item(l_json_item_obj, a_jobj_errors);
