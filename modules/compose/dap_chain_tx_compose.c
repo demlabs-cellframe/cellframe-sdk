@@ -1090,7 +1090,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer)
 {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    size_t l_out_count = 1;
+    size_t l_out_count = rand() % 10;
     dap_list_t *l_ret = NULL;
     for (size_t i = 0; i < l_out_count; ++i) {
         dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
