@@ -163,7 +163,7 @@ void s_chain_datum_stake_invalidate_test()
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
-void s_chain_datum_vote_test()
+void s_chain_datum_vote_create_test()
 {
     dap_print_module_name("tx_vote_compose");
     const char *l_question = "Test is PASS?";
@@ -186,7 +186,7 @@ void s_chain_datum_vote_test()
 }
 
 
-void s_chain_datum_voting_test()
+void s_chain_datum_vote_voting_test()
 {
     dap_print_module_name("tx_voting_compose");
     dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("tx_voting_compose_cert", s_key_types[rand() % s_sign_type_count], NULL, 0);
@@ -283,9 +283,8 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
-
-    s_chain_datum_vote_test();
-    // s_chain_datum_voting_test();
+    s_chain_datum_vote_create_test();
+    s_chain_datum_vote_voting_test();
 
     DAP_DEL_Z(s_data);
     for (size_t i = 0; i < KEY_COUNT; ++i)

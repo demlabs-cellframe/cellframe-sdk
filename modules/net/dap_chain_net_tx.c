@@ -1446,7 +1446,7 @@ const uint8_t *s_dap_chain_net_tx_create_vote_item(json_object *a_json_item_obj,
             dap_chain_tx_vote_t *l_vote_item = dap_chain_datum_tx_item_vote_create(&l_voting_hash, &l_value_idx);
             return (const uint8_t*) l_vote_item;
         } else {
-            log_it(L_WARNING, "Invalid 'vote' item, bad voting_hash %s", l_voting_hash_str);
+            log_it(L_WARNING, "Invalid 'vote' item, bad voting_hash %s or answer_idx %"DAP_UINT64_FORMAT_U, l_voting_hash_str, l_value_idx);
             char *l_str_err = dap_strdup_printf("Invalid 'vote' item, bad voting_hash %s", l_voting_hash_str);
             json_object *l_jobj_err = json_object_new_string(l_str_err);
             if (a_jobj_errors) json_object_array_add(a_jobj_errors, l_jobj_err);
@@ -1933,8 +1933,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             dap_chain_tx_vote_t *l_vote_item = (dap_chain_tx_vote_t *)item;
             const char *l_hash_str = dap_chain_hash_fast_to_str_static(&l_vote_item->voting_hash);
             json_object_object_add(json_obj_item,"voting_hash", json_object_new_string(l_hash_str));
-            json_object_object_add(json_obj_item,"vote_answer_idx", json_object_new_uint64(l_vote_item->answer_idx));
-
+            json_object_object_add(json_obj_item,"answer_idx", json_object_new_uint64(l_vote_item->answer_idx));
         } break;
         case TX_ITEM_TYPE_IN_REWARD:{
             const char *l_hash_str = dap_chain_hash_fast_to_str_static(&((dap_chain_tx_in_reward_t *)item)->block_hash);
