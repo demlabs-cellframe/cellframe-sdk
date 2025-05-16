@@ -1561,7 +1561,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
     if (l_net_str && !l_net) {
         char *l_str_err = dap_strdup_printf("not found net by name '%s'", l_net_str);
-        s_make_json_err_out(l_net_str, l_str_err);
+        s_make_json_err_out(a_jobj_errors, l_str_err);
         DAP_DELETE(l_str_err);
         log_it(L_ERROR, "not found net by name '%s'", l_net_str);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;

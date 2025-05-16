@@ -41,6 +41,10 @@
 
 #include <json-c/json.h>
 
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+#include "../../dap-sdk/crypto/src/rand/dap_rand.h"
+#endif
+
 static compose_config_t* s_compose_config_init(const char *a_net_name, const char *a_url_str,
                                  uint16_t a_port) {
     if (!a_net_name) {
@@ -138,7 +142,7 @@ static const char* s_get_native_ticker(const char* name) {
 dap_chain_net_id_t dap_get_net_id(const char* name) {
     dap_chain_net_id_t empty_id = {.uint64 = 0};
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    randombytes(&empty_id, sizeof(dap_chain_net_id_t));
+    randombytes(&empty_id, sizeof(empty_id));
 #else
     if (!name) {
         return empty_id;
@@ -2106,12 +2110,11 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
     }
     
     if (a_cond_tx) {
-        dap_chain_tx_out_cond_t *l_cond_tx = NULL;
-        size_t
-            l_item_size = 0,
-            l_item_index = 0;
+        uint8_t *l_cond_tx = NULL;
+        size_t l_item_size = 0;
+        int l_item_index = 0;
         TX_ITEM_ITER_TX_TYPE(l_cond_tx, TX_ITEM_TYPE_OUT_COND, l_item_size, l_item_index, l_datum) {
-            if (l_cond_tx->header.subtype == a_cond_subtype) {
+            if (((dap_chain_tx_out_cond_t *)l_cond_tx)->header.subtype == a_cond_subtype) {
                 break;
             }
         }
@@ -2121,7 +2124,7 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
             dap_chain_datum_tx_delete(l_datum);
             return NULL;
         }
-        *a_cond_tx = l_cond_tx;
+        *a_cond_tx = (dap_chain_tx_out_cond_t *)l_cond_tx;
     }
 
     if (a_all_outs_unspent != -1) {
@@ -2131,12 +2134,12 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
             dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NO_INFO_TX_OUT_USED, "No transaction output used info found\n");
             return NULL;
         }
-        if (a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_object_get(l_response, "all_outs_unspent")) {
+        if (a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_get_boolean(all_outs_unspent)) {
             json_object_put(l_response);
             dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_ALREADY_USED, "Transaction output item already used\n");
             return NULL;
         }
-        if (!a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_object_get(l_response, "all_outs_unspent")) {
+        if (!a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_get_boolean(all_outs_unspent)) {
             json_object_put(l_response);
             dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_NOT_USED, "Transaction output item not used\n");
             return NULL;
@@ -2606,7 +2609,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
     }
 #else
     l_addr_from = DAP_NEW_Z(dap_chain_addr_t);
-    randombytes(*l_addr_from, sizeof(dap_chain_addr_t));
+    randombytes(l_addr_from, sizeof(dap_chain_addr_t));
 #endif
 
 
@@ -3789,7 +3792,7 @@ dap_sign_t* dap_get_remote_srv_order_sign(const char* l_order_hash_str, compose_
         }
     };
     dap_sign_t *l_sign = NULL;
-    if (l_tx_sig->sig) {
+    if (l_tx_sig->header.sig_size) {
         l_sign = DAP_NEW_Z_SIZE(dap_sign_t, dap_sign_get_size((dap_sign_t*)l_tx_sig->sig));
         memcpy(l_sign, l_tx_sig->sig, dap_sign_get_size((dap_sign_t*)l_tx_sig->sig));
     }

@@ -2,6 +2,8 @@
 #include "dap_rand.h"
 #include "dap_chain_net.h"
 #include "dap_chain_tx_compose.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_items.h"
 #include <json-c/json.h>
 
 #define LOG_TAG "dap_tx_compose_tests"
@@ -80,7 +82,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_assert(!dap_chain_net_tx_create_by_json(l_datum_1_json, NULL, l_error_json, &l_datum_2, &l_items_count, &l_items_ready), "tx_create_by_json");
     dap_assert(l_items_count == l_items_ready, "items_count == items_ready")
     dap_assert((*a_datum)->header.tx_items_size == l_datum_2->header.tx_items_size, "items_size_1 == items_size_2");
-    dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_size(*a_datum)), "datum_1 == datum_2");
+    dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_tx_get_size(*a_datum)), "datum_1 == datum_2");
     dap_assert(!dap_chain_datum_tx_verify_sign_all(l_datum_2), "datum_2 sign verify");
     dap_chain_datum_tx_delete(l_datum_2);
     // json_object_put(l_datum_1_json);
@@ -176,7 +178,7 @@ void s_chain_datum_vote_create_test()
     };
     dap_list_t *l_options_list = NULL;
     for (size_t i = 0; i < sizeof(l_options) / sizeof(const char *); ++i)
-        l_options_list = dap_list_append(l_options_list, l_options[i]);
+        l_options_list = dap_list_append(l_options_list, (void *)l_options[i]);
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_create_compose(
         l_question, l_options_list, s_data->time_staking, rand() % 10, s_data->value_fee, false, false, &s_data->addr_from, 
         s_ticker_native, &s_data->config);
@@ -284,7 +286,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
-    // s_chain_datum_vote_create_test();  // memory error in tsd
+    s_chain_datum_vote_create_test();
     s_chain_datum_vote_voting_test();
 
     DAP_DEL_Z(s_data);
