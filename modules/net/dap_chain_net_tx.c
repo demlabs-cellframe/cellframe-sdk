@@ -1446,7 +1446,7 @@ const uint8_t *s_dap_chain_net_tx_create_vote_item(json_object *a_json_item_obj,
             dap_chain_tx_vote_t *l_vote_item = dap_chain_datum_tx_item_vote_create(&l_voting_hash, &l_value_idx);
             return (const uint8_t*) l_vote_item;
         } else {
-            log_it(L_WARNING, "Invalid 'vote' item, bad voting_hash %s", l_voting_hash_str);
+            log_it(L_WARNING, "Invalid 'vote' item, bad voting_hash %s or answer_idx %"DAP_UINT64_FORMAT_U, l_voting_hash_str, l_value_idx);
             char *l_str_err = dap_strdup_printf("Invalid 'vote' item, bad voting_hash %s", l_voting_hash_str);
             json_object *l_jobj_err = json_object_new_string(l_str_err);
             if (a_jobj_errors) json_object_array_add(a_jobj_errors, l_jobj_err);
@@ -1561,7 +1561,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
     if (l_net_str && !l_net) {
         char *l_str_err = dap_strdup_printf("not found net by name '%s'", l_net_str);
-        s_make_json_err_out(l_net_str, l_str_err);
+        s_make_json_err_out(a_jobj_errors, l_str_err);
         DAP_DELETE(l_str_err);
         log_it(L_ERROR, "not found net by name '%s'", l_net_str);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;
@@ -1913,17 +1913,14 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             }
             json_object_object_add(json_obj_item, "answer_options", l_json_array);
             if (l_voting_params->voting_expire) {
-                dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting_params->voting_expire);
-                json_object_object_add(json_obj_item, "Voting expire", json_object_new_string(l_tmp_buf));
+                snprintf(l_tmp_buf, DAP_TIME_STR_SIZE, "%"DAP_UINT64_FORMAT_U, l_voting_params->voting_expire);
+                json_object_object_add(json_obj_item, "voting_expire", json_object_new_string(l_tmp_buf));
             }
             if (l_voting_params->votes_max_count) {
-                json_object_object_add(json_obj_item, "Votes max count", json_object_new_uint64(l_voting_params->votes_max_count));
+                json_object_object_add(json_obj_item, "votes_max_count", json_object_new_uint64(l_voting_params->votes_max_count));
             }
-            json_object_object_add(json_obj_item,"Changing vote is", l_voting_params->vote_changing_allowed ? json_object_new_string("available") : 
-                                    json_object_new_string("not available"));
-            l_voting_params->delegate_key_required ? 
-                json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("required")):
-                json_object_object_add(json_obj_item,"Delegated key for participating in voting", json_object_new_string("not required"));                 
+            json_object_object_add(json_obj_item,"changing_vote", json_object_new_boolean(l_voting_params->vote_changing_allowed));
+            json_object_object_add(json_obj_item,"delegate_key_required", json_object_new_boolean(l_voting_params->delegate_key_required));               
 
             dap_list_free_full(l_voting_params->answers_list, NULL);
             DAP_DELETE(l_voting_params->voting_question);
@@ -1933,8 +1930,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             dap_chain_tx_vote_t *l_vote_item = (dap_chain_tx_vote_t *)item;
             const char *l_hash_str = dap_chain_hash_fast_to_str_static(&l_vote_item->voting_hash);
             json_object_object_add(json_obj_item,"voting_hash", json_object_new_string(l_hash_str));
-            json_object_object_add(json_obj_item,"vote_answer_idx", json_object_new_uint64(l_vote_item->answer_idx));
-
+            json_object_object_add(json_obj_item,"answer_idx", json_object_new_uint64(l_vote_item->answer_idx));
         } break;
         case TX_ITEM_TYPE_IN_REWARD:{
             const char *l_hash_str = dap_chain_hash_fast_to_str_static(&((dap_chain_tx_in_reward_t *)item)->block_hash);
