@@ -182,7 +182,7 @@ void s_chain_datum_vote_test()
     dap_assert(l_datum_1, "tx_vote_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
-    dap_list_free_full(l_options_list, NULL);
+    dap_list_free(l_options_list);
 }
 
 
@@ -284,7 +284,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
 
-    // s_chain_datum_vote_test();
+    s_chain_datum_vote_test();
     // s_chain_datum_voting_test();
 
     DAP_DEL_Z(s_data);
