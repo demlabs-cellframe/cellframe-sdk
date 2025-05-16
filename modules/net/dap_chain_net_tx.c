@@ -1510,7 +1510,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             case TX_ITEM_TYPE_IN_REWARD: {
                 l_item = s_dap_chain_net_tx_create_in_reward_item(l_json_item_obj, l_jobj_errors);
             }break;
-            case TX_ITEM_TYPE_OUT_EXT: {
+            case TX_ITEM_TYPE_OUT_STD: {
                 l_item = s_dap_chain_net_tx_create_out_item(l_json_item_obj, l_jobj_errors,l_type_tx);
             }break;
             case TX_ITEM_TYPE_OUT_COND: {
