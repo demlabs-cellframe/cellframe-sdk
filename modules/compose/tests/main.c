@@ -82,7 +82,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_size(*a_datum)), "datum_1 == datum_2");
     dap_assert(!dap_chain_datum_tx_verify_sign_all(l_datum_2), "datum_2 sign verify");
     dap_chain_datum_tx_delete(l_datum_2);
-    json_object_put(l_datum_1_json);
+    // json_object_put(l_datum_1_json);
     json_object_put(l_error_json);
 }
 
@@ -177,7 +177,7 @@ void s_chain_datum_vote_create_test()
     for (size_t i = 0; i < sizeof(l_options) / sizeof(const char *); ++i)
         l_options_list = dap_list_append(l_options_list, l_options[i]);
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_create_compose(
-        l_question, l_options_list, s_data->time_staking, rand() % 10, s_data->value_fee, false, false, NULL, 
+        l_question, l_options_list, s_data->time_staking, rand() % 10, s_data->value_fee, false, false, &s_data->addr_from, 
         s_ticker_native, &s_data->config);
     dap_assert(l_datum_1, "tx_vote_create_compose");
     s_datum_sign_and_check(&l_datum_1);
