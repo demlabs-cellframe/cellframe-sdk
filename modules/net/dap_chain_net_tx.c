@@ -1415,6 +1415,40 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, 
     return (const uint8_t*)l_tx_sig;
 }
 
+const uint8_t *s_dap_chain_net_tx_create_voting_item(json_object *a_jobj_errors)
+{
+
+    dap_chain_tx_voting_t* l_voting_item = dap_chain_datum_tx_item_voting_create();
+
+    if (l_voting_item)
+        return (const uint8_t*)l_voting_item;
+    else {
+        json_object_array_add(a_jobj_errors, json_object_new_string("Can't create voiting item"));
+        log_it(L_ERROR, "Can't create voiting item");
+        return NULL;
+    }
+}
+
+const uint8_t *s_dap_chain_net_tx_create_vote_item(json_object *a_json_item_obj, json_object *a_jobj_errors)
+{
+    uint64_t l_value_idx;
+    const char *l_voting_hash_str = s_json_get_text(a_json_item_obj, "voting_hash");
+    bool l_is_value = s_json_get_int64_uint64(a_json_item_obj, "answer_idx", &l_value_idx, true);
+    if(l_voting_hash_str ) {
+        dap_hash_fast_t l_voting_hash;
+        if(l_is_value && !dap_chain_hash_fast_from_str(l_voting_hash_str, &l_voting_hash)) {                             
+            dap_chain_tx_vote_t *l_vote_item = dap_chain_datum_tx_item_vote_create(&l_voting_hash, &l_value_idx);
+            return (const uint8_t*) l_vote_item;
+        } else {
+            log_it(L_WARNING, "Invalid 'vote' item, bad voting_hash %s", l_voting_hash_str);
+            char *l_str_err = dap_strdup_printf("Invalid 'vote' item, bad voting_hash %s", l_voting_hash_str);
+            json_object *l_jobj_err = json_object_new_string(l_str_err);
+            if (a_jobj_errors) json_object_array_add(a_jobj_errors, l_jobj_err);
+        }
+    }
+    return NULL;
+}
+
 int s_find_add_token_val (const char *a_token, uint256_t a_value, int(*operation)(uint256_t, uint256_t, uint256_t *)){
     dap_tx_creator_tokenizer_t *l_value_cur = NULL;
     HASH_FIND_STR(s_values_need, a_token, l_value_cur);
@@ -1548,15 +1582,12 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 
     dap_chain_addr_t l_seller_addr = {};
 
-    dap_chain_t * l_chain = NULL;
     if(l_net){ // if composition is not offline
         l_type_tx = s_dap_chain_net_tx_json_check(l_items_count, l_json_items, a_jobj_errors, l_net);
     }
     if (l_type_tx == DAP_CHAIN_NET_TX_TYPE_ERR){
         return DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR;
     }
-    if (l_type_tx == DAP_CHAIN_NET_TX_REWARD)
-        l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     if (l_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK)
         l_items_ready++;
         
@@ -1612,6 +1643,12 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }break;
             case TX_ITEM_TYPE_TSD: {
                 l_item = s_dap_chain_net_tx_create_tsd_item(l_json_item_obj, a_jobj_errors, l_tx, l_sign_list);
+            }break;
+            case TX_ITEM_TYPE_VOTING: {
+                l_item = s_dap_chain_net_tx_create_voting_item(a_jobj_errors);
+            }break;
+            case TX_ITEM_TYPE_VOTE: {
+                l_item = s_dap_chain_net_tx_create_vote_item(l_json_item_obj, a_jobj_errors);
             }break;
         }
         if (!l_item) {
