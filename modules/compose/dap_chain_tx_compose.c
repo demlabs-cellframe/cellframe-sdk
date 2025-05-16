@@ -1085,7 +1085,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer)
 {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    size_t l_out_count = rand() % 10 + 1;
+    size_t l_out_count = 1;
     dap_list_t *l_ret = NULL;
     for (size_t i = 0; i < l_out_count; ++i) {
         dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
@@ -2072,7 +2072,7 @@ typedef enum {
     CLI_TAKE_COMPOSE_ERROR_NOT_ENOUGH_TIME_PASSED = -13,
     CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX = -14,
     CLI_TAKE_COMPOSE_ERROR_NO_INFO_TX_OUT_USED = -15,
-    CLI_TAKE_COMPOSE_ERROR_TX_OUT_NOT_USED = -6,
+    CLI_TAKE_COMPOSE_ERROR_TX_OUT_NOT_USED = -16,
 } cli_take_compose_error_t;
 
 dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
@@ -2100,7 +2100,7 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
         l_items_ready = 0;
     if (dap_chain_net_tx_create_by_json(l_datum_json, NULL, a_config->response_handler, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
         json_object_put(l_response);
-        dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX, "Failed to create transaction from json");
+        dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX, "Failed to create transaction from json\n");
         dap_chain_datum_tx_delete(l_datum);
         return NULL;
     }
@@ -2117,7 +2117,7 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
         }
         if (!l_cond_tx) {
             json_object_put(l_response);
-            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NO_ITEMS_FOUND, "No transaction output condition found");
+            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NO_ITEMS_FOUND, "No transaction output condition found\n");
             dap_chain_datum_tx_delete(l_datum);
             return NULL;
         }

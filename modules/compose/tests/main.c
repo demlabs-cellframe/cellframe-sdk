@@ -165,7 +165,7 @@ void s_chain_datum_stake_invalidate_test()
 
 void s_chain_datum_vote_create_test()
 {
-    dap_print_module_name("tx_vote_compose");
+    dap_print_module_name("tx_vote_create_compose");
     const char *l_question = "Test is PASS?";
     const char *l_options[] = {
         "YES!!!",
@@ -179,7 +179,7 @@ void s_chain_datum_vote_create_test()
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_create_compose(
         l_question, l_options_list, s_data->time_staking, rand() % 10, s_data->value_fee, false, false, NULL, 
         s_ticker_native, &s_data->config);
-    dap_assert(l_datum_1, "tx_vote_compose");
+    dap_assert(l_datum_1, "tx_vote_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
     dap_list_free(l_options_list);
@@ -188,11 +188,11 @@ void s_chain_datum_vote_create_test()
 
 void s_chain_datum_vote_voting_test()
 {
-    dap_print_module_name("tx_voting_compose");
+    dap_print_module_name("tx_vote_voting_compose");
     dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("tx_voting_compose_cert", s_key_types[rand() % s_sign_type_count], NULL, 0);
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_voting_compose(
         l_cert, s_data->value_fee, &s_data->addr_from, s_data->hash_1, s_data->idx_1, &s_data->config);
-    dap_assert(l_datum_1, "tx_voting_compose");
+    dap_assert(l_datum_1, "tx_vote_voting_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
     dap_cert_delete(l_cert);
