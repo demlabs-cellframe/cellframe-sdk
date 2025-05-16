@@ -48,14 +48,10 @@ static size_t s_sign_type_count = sizeof(s_key_types) / sizeof(s_key_types[0]);
 
 static struct tests_data *s_data = NULL;
 
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json, const char *a_net_name);
-int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
-    dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
-
 void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 {
-    size_t l_tx_size = dap_chain_datum_tx_get_size(*a_datum);
     size_t l_signs_count = rand() % KEY_COUNT + 1;
+    dap_test_msg("add %zu tsd sections", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i) {
         int l_rand_data = rand() % dap_maxval(l_rand_data);
         dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand() % dap_maxval(l_rand_data), sizeof(l_rand_data));
@@ -63,27 +59,30 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         DAP_DEL_Z(l_tsd);
     }
     l_signs_count = rand() % KEY_COUNT + 1;
+    dap_test_msg("add %zu signs", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
     dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
-    assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1);
+    dap_assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1, "Protection to add item after signs");
     DAP_DEL_Z(l_out_count);
     json_object *l_datum_1_json = json_object_new_object();
     json_object *l_error_json = json_object_new_array();
-    dap_chain_net_tx_to_json(*a_datum, l_datum_1_json, s_net_name);
+    dap_test_msg("convert to json");
+    dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
     dap_assert(json_object_object_length(l_datum_1_json), "dap_chain_net_tx_to_json");
     printf("\n");
-    dap_chain_datum_tx_t *l_datum_2 = DAP_NEW_Z(dap_chain_datum_tx_t);
+    dap_chain_datum_tx_t *l_datum_2 = dap_chain_datum_tx_create();;
     size_t
         l_items_count = 0,
         l_items_ready = 0;
+    dap_test_msg("create datum from json");
     dap_assert(!dap_chain_net_tx_create_by_json(l_datum_1_json, NULL, l_error_json, &l_datum_2, &l_items_count, &l_items_ready), "tx_create_by_json");
     dap_assert(l_items_count == l_items_ready, "items_count == items_ready")
     dap_assert((*a_datum)->header.tx_items_size == l_datum_2->header.tx_items_size, "items_size_1 == items_size_2");
     dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_size(*a_datum)), "datum_1 == datum_2");
     dap_assert(!dap_chain_datum_tx_verify_sign_all(l_datum_2), "datum_2 sign verify");
     dap_chain_datum_tx_delete(l_datum_2);
-    // json_object_put(l_datum_1_json);
+    json_object_put(l_datum_1_json);
     json_object_put(l_error_json);
 }
 
