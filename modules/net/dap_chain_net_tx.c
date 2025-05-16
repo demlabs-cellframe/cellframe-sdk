@@ -1544,8 +1544,10 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     
     }
 
+    dap_list_t *l_list;
     // Add signs
     l_list = l_sign_list;
+    
     while(l_list) {
         struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
         dap_enc_key_t * l_enc_key  = NULL;
@@ -1569,7 +1571,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             continue;
         }
 
-        if (l_sign) { /* WTF is this for?... */
+        if (l_sign) { // WTF is this for?... 
             size_t l_chain_sign_size = dap_sign_get_size(l_sign); // sign data
             
             dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t,
@@ -1598,8 +1600,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 
     dap_list_free(l_sign_list);
     json_object_put(l_json);
-
-    s_free_token_hash();
 
     *a_out_tx = l_tx;
 
@@ -1682,7 +1682,7 @@ int dap_chain_net_tx_create_by_json_old(json_object *a_tx_json, dap_chain_net_t 
     dap_chain_t * l_chain = NULL;
     s_free_token_hash();
     if(l_net){ // if composition is not offline
-        l_type_tx = s_dap_chain_net_tx_get_type_tx(l_items_count, l_json_items, l_jobj_errors, l_net, &l_tx, &l_seller_addr, &l_multichanel, l_main_ticker);
+        //l_type_tx = s_dap_chain_net_tx_get_type_tx(l_items_count, l_json_items, l_jobj_errors, l_net, &l_tx, &l_seller_addr, &l_multichanel, l_main_ticker);
     }
     if (l_type_tx == DAP_CHAIN_NET_TX_TYPE_ERR){
         json_object_put(l_json);
@@ -1716,7 +1716,7 @@ int dap_chain_net_tx_create_by_json_old(json_object *a_tx_json, dap_chain_net_t 
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
             case TX_ITEM_TYPE_IN: {
-                l_item = s_dap_chain_net_tx_create_in_item(l_json_item_obj, l_jobj_errors, &l_addr_back, l_type_tx, &l_in_list);
+                //l_item = s_dap_chain_net_tx_create_in_item(l_json_item_obj, l_jobj_errors, &l_addr_back, l_type_tx, &l_in_list);
                 if(l_in_list)continue;
             }break;
             case TX_ITEM_TYPE_IN_COND: {
@@ -1726,10 +1726,10 @@ int dap_chain_net_tx_create_by_json_old(json_object *a_tx_json, dap_chain_net_t 
                 l_item = s_dap_chain_net_tx_create_in_ems_item(l_json_item_obj, l_jobj_errors);
             }break;
             case TX_ITEM_TYPE_IN_REWARD: {
-                l_item = s_dap_chain_net_tx_create_in_reward_item(l_json_item_obj, l_jobj_errors,l_chain, l_net);
+                //l_item = s_dap_chain_net_tx_create_in_reward_item(l_json_item_obj, l_jobj_errors,l_chain, l_net);
             }break;
             case TX_ITEM_TYPE_OUT_EXT: {
-                l_item = s_dap_chain_net_tx_create_out_item(l_json_item_obj, l_jobj_errors, l_net, l_type_tx, l_multichanel);
+                //l_item = s_dap_chain_net_tx_create_out_item(l_json_item_obj, l_jobj_errors, l_net, l_type_tx, l_multichanel);
             }break;
             case TX_ITEM_TYPE_OUT_COND: {
                 l_item = s_dap_chain_net_tx_create_out_cond_item(l_json_item_obj, l_jobj_errors, l_type_tx, &l_value_need, &l_seller_addr, i, l_net);
