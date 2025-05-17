@@ -265,9 +265,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             }
             bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
             bool auto_update = false;
+#ifndef DAP_OS_IOS
             if((system("systemctl status cellframe-updater.service") == 768) && (system("systemctl status cellframe-updater.timer") == 0))
                 auto_update = true;
             else
+#endif
                 auto_update = false;
             flags = auto_online ? flags | A_ONLN : flags & ~A_ONLN;
             flags = auto_update ? flags | A_UPDT : flags & ~A_UPDT;
