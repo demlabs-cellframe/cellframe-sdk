@@ -1561,8 +1561,8 @@ static void s_session_proc_state(void *a_arg)
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
             char ts_buf[DAP_TIME_STR_SIZE], tm_buf[DAP_TIME_STR_SIZE];
-            dap_time_to_str_rfc822(l_session->ts_stage_entry, ts_buf);
-            dap_time_to_str_rfc822(l_time, tm_buf);
+            dap_time_to_str_rfc822(ts_buf, DAP_TIME_STR_SIZE, l_session->ts_stage_entry);
+            dap_time_to_str_rfc822(tm_buf, DAP_TIME_STR_SIZE, l_time);
             debug_if(l_cs_debug, L_MSG, "1: Stage entry ts %s, time %s, timeout %u, listen_ensure %u",
                      ts_buf, tm_buf, PVT(l_session->esbocs)->round_attempt_timeout, l_session->listen_ensure);
             s_session_attempt_new(l_session);
@@ -1571,8 +1571,8 @@ static void s_session_proc_state(void *a_arg)
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS:
         if (l_time - l_session->ts_stage_entry >= PVT(l_session->esbocs)->round_attempt_timeout) {
             char ts_buf[DAP_TIME_STR_SIZE], tm_buf[DAP_TIME_STR_SIZE];
-            dap_time_to_str_rfc822(l_session->ts_stage_entry, ts_buf);
-            dap_time_to_str_rfc822(l_time, tm_buf);
+            dap_time_to_str_rfc822(ts_buf, DAP_TIME_STR_SIZE, l_session->ts_stage_entry);
+            dap_time_to_str_rfc822(tm_buf, DAP_TIME_STR_SIZE, l_time);
             debug_if(l_cs_debug, L_MSG, "2: Stage entry ts %s, time %s, timeout %u, listen_ensure %u",
                      ts_buf, tm_buf, PVT(l_session->esbocs)->round_attempt_timeout, l_session->listen_ensure);
             dap_chain_esbocs_store_t *l_store = NULL;
@@ -1607,8 +1607,8 @@ static void s_session_proc_state(void *a_arg)
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
             char ts_buf[DAP_TIME_STR_SIZE], tm_buf[DAP_TIME_STR_SIZE];
-            dap_time_to_str_rfc822(l_session->ts_stage_entry, ts_buf);
-            dap_time_to_str_rfc822(l_time, tm_buf);
+            dap_time_to_str_rfc822(ts_buf, DAP_TIME_STR_SIZE, l_session->ts_stage_entry);
+            dap_time_to_str_rfc822(tm_buf, DAP_TIME_STR_SIZE, l_time);
             debug_if(l_cs_debug, L_MSG, "3: Stage entry ts %s, time %s, timeout %u, listen_ensure %u",
                      ts_buf, tm_buf, PVT(l_session->esbocs)->round_attempt_timeout, l_session->listen_ensure);
             s_session_attempt_new(l_session);
@@ -1623,8 +1623,8 @@ static void s_session_proc_state(void *a_arg)
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num,
                                                     l_hash_str);
             char ts_buf[DAP_TIME_STR_SIZE], tm_buf[DAP_TIME_STR_SIZE];
-            dap_time_to_str_rfc822(l_session->ts_stage_entry, ts_buf);
-            dap_time_to_str_rfc822(l_time, tm_buf);
+            dap_time_to_str_rfc822(ts_buf, DAP_TIME_STR_SIZE, l_session->ts_stage_entry);
+            dap_time_to_str_rfc822(tm_buf, DAP_TIME_STR_SIZE, l_time);
             debug_if(l_cs_debug, L_MSG, "4: Stage entry ts %s, time %s, timeout %u, listen_ensure %u",
                      ts_buf, tm_buf, PVT(l_session->esbocs)->round_attempt_timeout, l_session->listen_ensure);
             s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS, l_time);
