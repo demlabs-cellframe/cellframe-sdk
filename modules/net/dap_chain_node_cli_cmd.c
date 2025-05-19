@@ -832,7 +832,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         json_object_object_add(json_group_list, "group list", json_arr_group);
         json_object_object_add(json_group_list, "total count", json_object_new_uint64(l_count));
         json_object_array_add(*a_json_arr_reply, json_group_list);
-        dap_list_free(l_group_list);
+        dap_list_free_full(l_group_list, NULL);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     default:
