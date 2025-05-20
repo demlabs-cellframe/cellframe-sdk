@@ -105,6 +105,32 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
     }
 }
 
+/**
+ * Get item name by item type
+ *
+ * return name, or "UNKNOWN"
+ */
+DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chain_tx_item_type_t a_type) {
+    switch(a_type){
+        case TX_ITEM_TYPE_IN: return "in";
+        case TX_ITEM_TYPE_IN_EMS: return "in_ems";
+        case TX_ITEM_TYPE_IN_REWARD: return "in_reward";
+        case TX_ITEM_TYPE_OUT: return "out";
+        case TX_ITEM_TYPE_OUT_EXT: return "out_ext";
+        case TX_ITEM_TYPE_OUT_STD: return "out_std";
+        case TX_ITEM_TYPE_PKEY: return "pkey";
+        case TX_ITEM_TYPE_SIG: return "sign";
+        case TX_ITEM_TYPE_IN_COND: return "in_cond";
+        case TX_ITEM_TYPE_OUT_COND: return "out_cond";
+        case TX_ITEM_TYPE_RECEIPT: return "receipt";
+        case TX_ITEM_TYPE_TSD: return "data";
+        case TX_ITEM_TYPE_VOTING: return "voting";
+        case TX_ITEM_TYPE_VOTE: return "vote";
+        default: return "UNDEFINED";
+    }
+}
+
+
 bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_res_group);
 void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_group);
 
@@ -113,14 +139,14 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_gr
  *
  * return type, or TX_ITEM_TYPE_UNKNOWN
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum_name);
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_type_from_str_short(const char *a_datum_name);
 
 /**
  * Get dap_chain_tx_out_cond_subtype_t by name
  *
  * return subtype, or DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED
  */
-dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const char *a_subtype_str);
+dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(const char *a_subtype_str);
 
 /**
  * Get item size

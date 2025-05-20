@@ -2,6 +2,8 @@
 #include "dap_rand.h"
 #include "dap_chain_net.h"
 #include "dap_chain_tx_compose.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_items.h"
 #include <json-c/json.h>
 
 #define LOG_TAG "dap_tx_compose_tests"
@@ -16,6 +18,7 @@ const char *s_url = "localhost";
 struct tests_data {
     dap_chain_addr_t addr_from;
     dap_chain_addr_t addr_to;
+    dap_chain_addr_t addr_any;
     dap_chain_node_addr_t node_addr;
     uint256_t value;
     uint256_t value_fee;
@@ -48,14 +51,10 @@ static size_t s_sign_type_count = sizeof(s_key_types) / sizeof(s_key_types[0]);
 
 static struct tests_data *s_data = NULL;
 
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json, const char *a_net_name);
-int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
-    dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
-
 void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 {
-    size_t l_tx_size = dap_chain_datum_tx_get_size(*a_datum);
     size_t l_signs_count = rand() % KEY_COUNT + 1;
+    dap_test_msg("add %zu tsd sections", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i) {
         int l_rand_data = rand() % dap_maxval(l_rand_data);
         dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand() % dap_maxval(l_rand_data), sizeof(l_rand_data));
@@ -63,28 +62,31 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         DAP_DEL_Z(l_tsd);
     }
     l_signs_count = rand() % KEY_COUNT + 1;
+    dap_test_msg("add %zu signs", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
     dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
-    assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1);
+    dap_assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1, "Protection to add item after signs");
     DAP_DEL_Z(l_out_count);
     json_object *l_datum_1_json = json_object_new_object();
     json_object *l_error_json = json_object_new_array();
-    dap_chain_net_tx_to_json(*a_datum, l_datum_1_json, s_net_name);
+    dap_test_msg("convert to json");
+    dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
     dap_assert(json_object_object_length(l_datum_1_json), "dap_chain_net_tx_to_json");
     printf("\n");
-    dap_chain_datum_tx_t *l_datum_2 = DAP_NEW_Z(dap_chain_datum_tx_t);
+    dap_chain_datum_tx_t *l_datum_2 = dap_chain_datum_tx_create();;
     size_t
         l_items_count = 0,
         l_items_ready = 0;
+    dap_test_msg("create datum from json");
     dap_assert(!dap_chain_net_tx_create_by_json(l_datum_1_json, NULL, l_error_json, &l_datum_2, &l_items_count, &l_items_ready), "tx_create_by_json");
     dap_assert(l_items_count == l_items_ready, "items_count == items_ready")
     dap_assert((*a_datum)->header.tx_items_size == l_datum_2->header.tx_items_size, "items_size_1 == items_size_2");
-    dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_size(*a_datum)), "datum_1 == datum_2");
+    dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_tx_get_size(*a_datum)), "datum_1 == datum_2");
     dap_assert(!dap_chain_datum_tx_verify_sign_all(l_datum_2), "datum_2 sign verify");
     dap_chain_datum_tx_delete(l_datum_2);
     // json_object_put(l_datum_1_json);
-    json_object_put(l_error_json);
+    // json_object_put(l_error_json);
 }
 
 void s_chain_datum_tx_create_test()
@@ -128,7 +130,7 @@ void s_chain_datum_delegate_test()
     pkey->header.type.type = DAP_PKEY_TYPE_SIGN_BLISS;
     pkey->header.size = l_pkey_size;
     randombytes(pkey->pkey, l_pkey_size);
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_create_compose(s_key[rand() % KEY_COUNT], s_data->value, s_data->value_fee, &s_data->addr_from, &s_data->node_addr, &s_data->addr_to, s_data->reinvest_percent, NULL, pkey, &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_create_compose(&s_data->addr_any, s_data->value, s_data->value_fee, &s_data->addr_from, &s_data->node_addr, &s_data->addr_to, s_data->reinvest_percent, NULL, pkey, &s_data->config);
     dap_assert(l_datum_1, "tx_stake_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -164,9 +166,9 @@ void s_chain_datum_stake_invalidate_test()
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
-void s_chain_datum_vote_test()
+void s_chain_datum_vote_create_test()
 {
-    dap_print_module_name("tx_vote_compose");
+    dap_print_module_name("tx_vote_create_compose");
     const char *l_question = "Test is PASS?";
     const char *l_options[] = {
         "YES!!!",
@@ -176,14 +178,27 @@ void s_chain_datum_vote_test()
     };
     dap_list_t *l_options_list = NULL;
     for (size_t i = 0; i < sizeof(l_options) / sizeof(const char *); ++i)
-        l_options_list = dap_list_append(l_options_list, l_options[i]);
+        l_options_list = dap_list_append(l_options_list, (void *)l_options[i]);
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_create_compose(
-        l_question, l_options_list, s_data->time_staking, rand() % 10, s_data->value_fee, false, false, NULL, 
+        l_question, l_options_list, s_data->time_staking, rand() % 10, s_data->value_fee, false, false, &s_data->addr_from, 
         s_ticker_native, &s_data->config);
-    dap_assert(l_datum_1, "tx_vote_compose");
+    dap_assert(l_datum_1, "tx_vote_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
-    dap_list_free_full(l_options_list, NULL);
+    dap_list_free(l_options_list);
+}
+
+
+void s_chain_datum_vote_voting_test()
+{
+    dap_print_module_name("tx_vote_voting_compose");
+    dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("tx_voting_compose_cert", s_key_types[rand() % s_sign_type_count], NULL, 0);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_voting_compose(
+        l_cert, s_data->value_fee, &s_data->addr_from, s_data->hash_1, s_data->idx_1, &s_data->config);
+    dap_assert(l_datum_1, "tx_vote_voting_compose");
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+    dap_cert_delete(l_cert);
 }
 
 void s_chain_datum_exchange_create_test()
@@ -271,8 +286,8 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
-
-    // s_chain_datum_vote_test();
+    // s_chain_datum_vote_create_test();  // memory error in tsd
+    // s_chain_datum_vote_voting_test();
 
     DAP_DEL_Z(s_data);
     for (size_t i = 0; i < KEY_COUNT; ++i)

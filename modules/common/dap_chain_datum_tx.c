@@ -84,7 +84,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     *a_tx = tx_new;
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     char *l_hash = dap_hash_fast_str_new(a_item, size);
-    printf("Add item to datum%s\n", l_hash);
+    printf("Add \"%s\" item %s\n",  dap_chain_datum_tx_item_type_to_str_short(*(byte_t *)(a_item)), l_hash);
     DAP_DEL_Z(l_hash);
 #endif
     return 1;
@@ -213,7 +213,7 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
 int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    if (rand() % 2)
+    if (false)
         return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, rand() % UINT64_MAX ) );
     else
         return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,  dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
