@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 project (dap_chain_dht C)
   
 set(DAP_CHAIN_DHT_SRC
