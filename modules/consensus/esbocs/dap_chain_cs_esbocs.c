@@ -1114,7 +1114,7 @@ static bool s_session_round_new(void *a_arg)
     a_session->cur_round.round_start_ts = dap_time_now();
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
-    a_session->ts_stage_entry = 0;
+    a_session->ts_stage_entry = a_session->cur_round.round_start_ts;
 
     dap_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(a_session->chain, c_dap_chain_cell_id_null, &l_last_block_hash);
@@ -2424,10 +2424,10 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                 bool l_round_skip = PVT(l_session->esbocs)->emergency_mode ?
                             false : !s_validator_check(&l_session->my_signing_addr, l_session->cur_round.validators_list);
                 debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                            " All validators are synchronized, %s, ",
+                                            " All validators are synchronized, %s",
                                                 l_session->chain->net_name, l_session->chain->name,
                                                     l_session->cur_round.id, l_message->hdr.attempt_num,
-                                                        l_round_skip ? "wait to submit candidate" : "but round is skipped");
+                                                        l_round_skip ? "but round is skipped" : "wait to submit candidate");
                 if (!l_round_skip)
                     s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
             }
