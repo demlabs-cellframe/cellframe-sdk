@@ -445,7 +445,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         switch (res_flush) {
         case 0:
             json_obj_flush = json_object_new_object();
-            json_object_object_add(json_obj_flush, "command status", json_object_new_string("Commit data base and filesystem caches to disk completed.\n\n"));
+            json_object_object_add(json_obj_flush, "command_status", json_object_new_string("Commit data base and filesystem caches to disk completed.\n\n"));
             json_object_array_add(*a_json_arr_reply, json_obj_flush);
             break;
         case -1:
@@ -527,10 +527,10 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     json_object_put(json_obj_rec);
                     return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
                 }
-                json_object_object_add(json_obj_rec, "command status", json_object_new_string("Commit data base and filesystem caches to disk completed."));
+                json_object_object_add(json_obj_rec, "command_status", json_object_new_string("Commit data base and filesystem caches to disk completed."));
 
                 dap_bin2hex(l_value_str, l_value, l_value_len);
-                json_object_object_add(json_obj_rec, "command status", json_object_new_string("Record found"));
+                json_object_object_add(json_obj_rec, "command_status", json_object_new_string("Record found"));
                 json_object_object_add(json_obj_rec, "lenght(byte)", json_object_new_uint64(l_value_len));
                 json_object_object_add(json_obj_rec, "hash", json_object_new_string(dap_get_data_hash_str(l_value, l_value_len).s));
                 json_object_object_add(json_obj_rec, "pinned", l_is_pinned ? json_object_new_string("Yes") : json_object_new_string("No") );
@@ -541,11 +541,11 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             case SUMCMD_PIN: // Pin record
             {
                 if(l_is_pinned){
-                    json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record already pinned"));
+                    json_object_object_add(json_obj_rec, "pinned_status", json_object_new_string("record already pinned"));
                     break;
                 }
                 if(dap_global_db_pin_sync( l_group, l_key) ==0 ){
-                    json_object_object_add(json_obj_rec, "pinned status", json_object_new_string("record successfully pinned"));
+                    json_object_object_add(json_obj_rec, "pinned_status", json_object_new_string("record successfully pinned"));
                 }
                 else{
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_RECORD_NOT_PINED,
@@ -557,11 +557,11 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             case SUMCMD_UNPIN: // Unpin record
             {
                 if(!l_is_pinned) {
-                    json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record already unpinned"));
+                    json_object_object_add(json_obj_rec, "unpinned_status", json_object_new_string("record already unpinned"));
                     break;
                 }
                 if(dap_global_db_unpin_sync(l_group,l_key) == 0 ) {
-                    json_object_object_add(json_obj_rec, "unpinned status", json_object_new_string("record successfully unpinned"));
+                    json_object_object_add(json_obj_rec, "unpinned_status", json_object_new_string("record successfully unpinned"));
                 }
                 else {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_RECORD_NOT_UNPINED,
@@ -608,7 +608,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
         if (!dap_global_db_set_sync(l_group_str, l_key_str, l_value_str, strlen(l_value_str) +1 , false)) {
             json_object* json_obj_write = json_object_new_object();
-            json_object_object_add(json_obj_write, "write status", json_object_new_string("Data has been successfully written to the database"));
+            json_object_object_add(json_obj_write, "write_status", json_object_new_string("Data has been successfully written to the database"));
             json_object_array_add(*a_json_arr_reply, json_obj_write);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
@@ -654,8 +654,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_read, "group", json_object_new_string(l_group_str));
                 json_object_object_add(json_obj_read, "key", json_object_new_string(l_key_str));
                 json_object_object_add(json_obj_read, "time", json_object_new_string(l_ts_str));
-                json_object_object_add(json_obj_read, "value len", json_object_new_uint64(l_out_len));
-                json_object_object_add(json_obj_read, "value hex", json_object_new_string(l_value_hexdump_new));
+                json_object_object_add(json_obj_read, "value_len", json_object_new_uint64(l_out_len));
+                json_object_object_add(json_obj_read, "value_hex", json_object_new_string(l_value_hexdump_new));
                 DAP_DELETE(l_value_hexdump_new);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_TIME_NO_VALUE,
@@ -728,9 +728,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             }
             dap_global_db_objs_delete(l_obj, l_objs_count);
             json_object* json_obj_del = json_object_new_object();
-            json_object_object_add(json_obj_del, "Removed records", json_object_new_uint64(j));
-            json_object_object_add(json_obj_del, "of records", json_object_new_uint64(i));
-            json_object_object_add(json_obj_del, "in table", json_object_new_string(l_group_str));
+            json_object_object_add(json_obj_del, "removed_records", json_object_new_uint64(j));
+            json_object_object_add(json_obj_del, "of_records", json_object_new_uint64(i));
+            json_object_object_add(json_obj_del, "in_table", json_object_new_string(l_group_str));
             json_object_array_add(*a_json_arr_reply, json_obj_del);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         }
@@ -746,8 +746,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
         if (l_del_success) {
             json_object* json_obj_del = json_object_new_object();
-            json_object_object_add(json_obj_del, "Record key", json_object_new_string(l_key_str));
-            json_object_object_add(json_obj_del, "Group name", json_object_new_string(l_group_str));
+            json_object_object_add(json_obj_del, "record_key", json_object_new_string(l_key_str));
+            json_object_object_add(json_obj_del, "group_name", json_object_new_string(l_group_str));
             json_object_object_add(json_obj_del, "status", json_object_new_string("deleted"));
             json_object_array_add(*a_json_arr_reply, json_obj_del);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
@@ -770,7 +770,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         if (!dap_global_db_erase_table_sync(l_group_str))
         {
             json_object* json_obj_drop = json_object_new_object();
-            json_object_object_add(json_obj_drop, "Dropped table", json_object_new_string(l_group_str));
+            json_object_object_add(json_obj_drop, "dropped_table", json_object_new_string(l_group_str));
             json_object_array_add(*a_json_arr_reply, json_obj_drop);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
@@ -812,8 +812,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         dap_store_obj_free(l_objs, l_objs_count);
 
         json_object* json_keys_list = json_object_new_object();
-        json_object_object_add(json_keys_list, "group name", json_object_new_string(l_group_str));
-        json_object_object_add(json_keys_list, "keys list", json_arr_keys);
+        json_object_object_add(json_keys_list, "group_name", json_object_new_string(l_group_str));
+        json_object_object_add(json_keys_list, "keys_list", json_arr_keys);
         json_object_array_add(*a_json_arr_reply, json_keys_list);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
@@ -829,8 +829,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                                    json_object_new_uint64(dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, false)));
             json_object_array_add(json_arr_group, json_obj_list);
         }
-        json_object_object_add(json_group_list, "group list", json_arr_group);
-        json_object_object_add(json_group_list, "total count", json_object_new_uint64(l_count));
+        json_object_object_add(json_group_list, "group_list", json_arr_group);
+        json_object_object_add(json_group_list, "total_count", json_object_new_uint64(l_count));
         json_object_array_add(*a_json_arr_reply, json_group_list);
         dap_list_free(l_group_list);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
@@ -1586,7 +1586,7 @@ void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_c
                     }
                     //l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                     // const char *l_addr_str = dap_chain_addr_to_str_static(l_addr);
-                    json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
+                    json_object_object_add(json_obj_wall, "wallet", json_object_new_string(l_file_name));
                     if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
                         json_object_object_add(json_obj_wall, "status", json_object_new_string("protected-active"));
                     else
@@ -1598,7 +1598,7 @@ void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_c
                     // }
                     dap_chain_wallet_close(l_wallet);
                 } else if (!a_addr){
-                    json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
+                    json_object_object_add(json_obj_wall, "wallet", json_object_new_string(l_file_name));
                     if(res==4)json_object_object_add(json_obj_wall, "status", json_object_new_string("protected-inactive"));
                     else if(res != 0)json_object_object_add(json_obj_wall, "status", json_object_new_string("invalid"));
                 }
@@ -1606,7 +1606,7 @@ void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_c
                 json_object_put(json_obj_wall);
                 continue;
             } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
-                json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
+                json_object_object_add(json_obj_wall, "wallet", json_object_new_string(l_file_name));
                 json_object_object_add(json_obj_wall, "status", json_object_new_string("Backup"));
             }
             if (json_object_object_length(json_obj_wall)) 
@@ -2013,7 +2013,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     switch (l_rc) {
                     case 0:
-                        json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet_name));
+                        json_object_object_add(json_obj_wall, "wallet_name", json_object_new_string(l_wallet_name));
                         json_object_object_add(json_obj_wall, "protection", cmd_num == CMD_WALLET_ACTIVATE ?
                         json_object_new_string("is activated") : json_object_new_string("is deactivated"));
                         // Notify about wallet
@@ -2098,11 +2098,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     json_object * json_obj_wall = json_object_new_object();
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    json_object_object_add(json_obj_wall, "Sign wallet", json_object_new_string(
+                    json_object_object_add(json_obj_wall, "sign_wallet", json_object_new_string(
                                                                               strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
                                                                               dap_chain_wallet_check_sign(l_wallet) : "correct"));
-                    json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet_name));
-                    json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully converted"));
+                    json_object_object_add(json_obj_wall, "wallet_name", json_object_new_string(l_wallet_name));
+                    json_object_object_add(json_obj_wall, "status", json_object_new_string("successfully converted"));
                     dap_chain_wallet_close(l_wallet);
                     json_object_array_add(json_arr_out, json_obj_wall);
 
@@ -2236,22 +2236,22 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
 
                     json_object * json_obj_wall = json_object_new_object();
-                    json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet->name));
+                    json_object_object_add(json_obj_wall, "wallet_name", json_object_new_string(l_wallet->name));
                     if (l_sign_count > 1) {
                         dap_string_t *l_signs_types_str = dap_string_new("sig_multi_chained, ");
                         for (size_t i = 0; i < l_sign_count; i++) {
                             dap_string_append_printf(l_signs_types_str, "%s%s",
                                                      dap_sign_type_to_str(l_sign_types[i]), (i+1) == l_sign_count ? "": ", ");
                         }
-                        json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_signs_types_str->str));
+                        json_object_object_add(json_obj_wall, "sign_type", json_object_new_string(l_signs_types_str->str));
                         dap_string_free(l_signs_types_str, true);
                     } else
-                        json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_sign_type_str));
-                    json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully created"));
+                        json_object_object_add(json_obj_wall, "sign_type", json_object_new_string(l_sign_type_str));
+                    json_object_object_add(json_obj_wall, "status", json_object_new_string("successfully created"));
 
                     const char *l_addr_str = NULL;
                     if ( l_net && (l_addr_str = dap_chain_addr_to_str_static(dap_chain_wallet_get_addr(l_wallet,l_net->pub.id))) ) {
-                        json_object_object_add(json_obj_wall, "new address", json_object_new_string(l_addr_str) );
+                        json_object_object_add(json_obj_wall, "new_address", json_object_new_string(l_addr_str) );
                     }
                     json_object_array_add(json_arr_out, json_obj_wall);
                     dap_chain_wallet_close(l_wallet);
@@ -2608,9 +2608,12 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                     char* l_hash_str = l_datum_hash_hex_str;
                     // Remove old datum from pool
                     if( dap_global_db_del_sync(l_gdb_group_mempool, l_hash_str ) == 0) {
-                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_OK,
-                                       "Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s",
+                        char *l_str_reply_tmp = dap_strdup_printf("Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s",
                                 l_datum_hash_out_str, l_key_out_str);
+                        json_object* json_obj_out = json_object_new_object();
+                        json_object_object_add(json_obj_out, "status", json_object_new_string(l_str_reply_tmp));
+                        json_object_array_add(*a_json_arr_reply, json_obj_out);
+                        DAP_DELETE(l_str_reply_tmp);
                     } else {
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR,
                                        "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
@@ -4966,17 +4969,22 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
                      "No suitable chain for placing token datum found");
         DAP_DELETE(l_datum);
         DAP_DEL_Z(l_params);
-        return -10;
+        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_NO_SUITABLE_CHAIN;
     }
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, false) == 0;
     DAP_DELETE(l_gdb_group_mempool);
-    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK,
-                     "Datum %s with token %s is%s placed in datum pool",
+    char *l_str_reply_tmp = dap_strdup_printf("Datum %s with token %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
+
+    json_object* json_obj_out = json_object_new_object();
+    json_object_object_add(json_obj_out, "status", json_object_new_string(l_str_reply_tmp));
+    json_object_array_add(*a_json_arr_reply, json_obj_out);
+    
+    DAP_DELETE(l_str_reply_tmp);
     DAP_DELETE(l_key_str);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
-    return l_placed ? 0 : -2;
+    return l_placed ? DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK : -2;
 }
 
 /**
@@ -5171,13 +5179,19 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
     }
     bool l_placed = !dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, (uint8_t *)l_datum, l_datum_size, false);
     DAP_DELETE(l_gdb_group_mempool);
-    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_UPDATE_OK,
-                           "Datum %s with token update for ticker %s is%s placed in datum pool",
+
+    char *l_str_reply_tmp = dap_strdup_printf("Datum %s with token update for ticker %s is%s placed in datum pool",
                                                                  l_key_str_out, l_ticker, l_placed ? "" : " not");
+
+    json_object* json_obj_out = json_object_new_object();
+    json_object_object_add(json_obj_out, "status", json_object_new_string(l_str_reply_tmp));
+    json_object_array_add(*a_json_arr_reply, json_obj_out);
+    
+    DAP_DELETE(l_str_reply_tmp);
     DAP_DELETE(l_key_str);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
-    return l_placed ? 0 : -2;
+    return l_placed ? DAP_CHAIN_NODE_CLI_COM_TOKEN_UPDATE_OK : -2;
 }
 
 /**
@@ -7063,7 +7077,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     } else if (l_is_tx_count) {
         json_object * json_count_obj= json_object_new_object();
-        json_object_object_add(json_count_obj, "Number of transaction", json_object_new_uint64(l_chain->callback_count_tx(l_chain)));
+        json_object_object_add(json_count_obj, "number_of_transaction", json_object_new_uint64(l_chain->callback_count_tx(l_chain)));
         json_object_array_add(*a_json_arr_reply, json_count_obj);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     }
@@ -7119,7 +7133,7 @@ int com_stats(int argc, char **a_argv, void **a_str_reply)
         }
         json_object* json_obj_total = json_object_new_object();
         l_str_delimiter = dap_strdup_printf("%f%%", s_cpu_stats.cpu_summary.load);
-        json_object_object_add(json_obj_total, "Total", json_object_new_string(l_str_delimiter));
+        json_object_object_add(json_obj_total, "total", json_object_new_string(l_str_delimiter));
         json_object_array_add(json_arr_cpu_out, json_obj_total);
         DAP_DELETE(l_str_delimiter);
         json_object_array_add(*a_json_arr_reply, json_arr_cpu_out);
