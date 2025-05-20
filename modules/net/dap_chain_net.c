@@ -419,10 +419,9 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     }
     dap_chain_net_ch_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
                                                      .net_id  = l_net->pub.id };
-    if(dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_CHAIN_NET_CH_ID, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
-                                   &l_announce, sizeof(l_announce))) {
-                                   dap_link_manager_accounting_link_in_net(l_net->pub.id.uint64, &a_link->addr, false);
-                                   }
+    if (dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_CHAIN_NET_CH_ID, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
+                                   &l_announce, sizeof(l_announce)))
+        log_it(L_ERROR, "Can't send accounting request for net %s and addr " NODE_ADDR_FP_STR, l_net->pub.name, NODE_ADDR_FP_ARGS_S(a_link->addr));
 }
 
 static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
