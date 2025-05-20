@@ -501,6 +501,23 @@ int s_link_manager_link_request(uint64_t a_net_id)
         return -2;
     if (l_net_pvt->state == NET_STATE_LINKS_PREPARE)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+    size_t l_required_links_count = dap_link_manager_needed_links_count(l_net->pub.id.uint64);
+    for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
+        bool l_is_link_present = dap_link_manager_link_find(&l_net_pvt->permanent_links_addrs[i], a_net_id);
+        if (l_is_link_present)
+            continue;
+        if (i >= l_net_pvt->permanent_links_hosts_count) {
+            log_it(L_ERROR, "Permanent liks misconfiguration in net %s", l_net->pub.name);
+            break;
+        }
+        if (dap_chain_net_link_add(l_net, &l_net_pvt->permanent_links_addrs[i],
+                                   l_net_pvt->permanent_links_hosts[i]->addr, l_net_pvt->permanent_links_hosts[i]->port)) {
+            log_it(L_ERROR, "Can't add permanent link " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_net_pvt->permanent_links_addrs[i]));
+            continue;
+        }
+        if (!--l_required_links_count)
+            return 0;
+    }
     struct request_link_info *l_balancer_link = s_balancer_link_from_cfg(l_net);
     if (!l_balancer_link)
         return log_it(L_ERROR, "Can't process balancer link %s request in net %s", 
