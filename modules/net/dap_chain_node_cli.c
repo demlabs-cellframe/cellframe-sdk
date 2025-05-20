@@ -162,8 +162,45 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet deactivate -w <wallet_name>>\n"
                             "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [{-cond | -value <uint256_value>}]\n"
                             "wallet convert -w <wallet_name> {-password <password> | -remove_password }\n"
-                            "wallet find -addr <addr> {-file <file path>}\n");
-
+                            "wallet find -addr <addr> {-file <file path>}\n"
+                            "wallet shared hold - creates new shared funds transaction\n"
+                                "\t-net <net_name>\n"
+                                "\t-w <wallet_name> - wallet for take funds, pay fee and sign tx\n"
+                                "\t-token <ticker> - token ticker to hold\n"
+                                "\t-value <value> - funds value to hold\n"
+                                "\t-fee <value> - fee value\n"
+                                "\t-signs_minimum <value_int> - number of required valid signatures for funds debit tx\n"
+                                "\t-pkey_hashes <hash1[,hash2,...,hashN]> - owners public key hashes, who can sign a debit tx\n"
+                                "\t[-tag \"<str>\"] - additional info about tx\n"
+                                "\t[-H {hex(default) | base58}] - tx hash return format\n"
+                            "wallet shared refill - refills value on shared funds transaction\n"
+                                "\t-net <net_name>\n"
+                                "\t-w <wallet_name> - wallet for take funds and pay fee\n"
+                                "\t-value <value> - funds value to refill\n"
+                                "\t-fee <value> - fee value\n"
+                                "\t-tx <transaction_hash> - hash of the shared funds tx to refill\n"
+                                "\t[-H {hex(default) | base58}] - tx hash return format\n"
+                            "wallet shared take - creates debit tx to take value from shared funds tx\n"
+                                "\t-net <net_name>\n"
+                                "\t-w <wallet_name> - wallet to pay fee\n"
+                                "\t-tx <transaction_hash> - hash of the shared funds tx to take\n"
+                                "\t-to_addr <addr1[,addr2,...,addrN]> - recipient addresses, their quantity must match the values specified number\n"
+                                "\t-value <value1[,value2,...,valueN]> - value sent to each recipient, must match the addresses number\n"
+                                "\t-fee <value> - fee value\n"
+                                "\t[-H {hex(default) | base58}] - tx hash return format\n"
+                            "wallet shared sign - add wallet signature to  debit tx\n"
+                                "\t-net <net_name>\n"
+                                "\t-w <wallet_name> | -cert <cert_name> - wallet or cert to sign\n"
+                                "\t-tx <transaction_hash> - shared funds tx hash to sign\n"
+                                "\t[-H {hex(default) | base58}] - tx hash return format\n"
+                            "wallet shared info - get info about shared funds tx by hash\n"
+                                "\t-net <net_name>\n"
+                                "\t-tx <transaction_hash> - shared funds tx hash to get info\n"
+                                "\t[-H {hex(default) | base58}] - tx hash format\n"
+                            "Hint:\n"
+                                "\texample value_coins (only natural) 1.0 123.4567\n"
+                                "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
+    );
 
     // Token commands
 
@@ -263,8 +300,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "chain_ca_pub -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n");
 
     // Transaction commands
-    dap_cli_server_cmd_add ("tx_create", com_tx_create, NULL, "Make transaction",
-            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr>"
+
+    dap_cli_server_cmd_add ("tx_create", com_tx_create, NULL "Make transaction",
+            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822>]"
             "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, NULL, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
