@@ -419,11 +419,9 @@ static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_ob
         ret = -1;
     } else if (a_cmd_request->response) {
         if (a_cmd_request->response && a_cmd_request->response_size > 0) {
-            enum json_tokener_error jerr = json_tokener_success;
             struct json_tokener *tok = json_tokener_new();
             if (tok) {
                 *a_response_out = json_tokener_parse_ex(tok, a_cmd_request->response, a_cmd_request->response_size);
-                jerr = tok->err;
                 json_tokener_free(tok);
                 if (*a_response_out) {
                     *a_response_out_size = a_cmd_request->response_size;
@@ -708,7 +706,7 @@ bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const c
 
 
 
-
+#include "dap_chain_net_tx.h"
 
 typedef enum {
     TX_CREATE_COMPOSE_OK = 0,
@@ -3748,9 +3746,10 @@ dap_sign_t* dap_get_remote_srv_order_sign(const char* l_order_hash_str, compose_
         }
     };
     dap_sign_t *l_sign = NULL;
-    if (l_tx_sig->sig) {
-        l_sign = DAP_NEW_Z_SIZE(dap_sign_t, dap_sign_get_size((dap_sign_t*)l_tx_sig->sig));
-        memcpy(l_sign, l_tx_sig->sig, dap_sign_get_size((dap_sign_t*)l_tx_sig->sig));
+    uint64_t l_sign_size = dap_sign_get_size((dap_sign_t*)l_tx_sig->sig);
+    if ( l_sign_size > 0) {
+        l_sign = DAP_NEW_Z_SIZE(dap_sign_t, l_sign_size);
+        memcpy(l_sign, l_tx_sig->sig, l_sign_size);
     }
 
     DAP_DEL_Z(l_tx_sig);
