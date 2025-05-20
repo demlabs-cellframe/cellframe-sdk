@@ -26,7 +26,7 @@ typedef struct {
     int *cnt;
 } notify_arg_t;
 
-void callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size)
+void callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size, dap_time_t a_atom_time)
 {
     notify_arg_t *l_arg = (notify_arg_t*)a_arg; 
     (*l_arg->cnt)++;

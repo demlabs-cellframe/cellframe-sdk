@@ -2447,7 +2447,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
     if(!l_from_wallet_cache){  
         dap_chain_datum_tx_t *l_datum_tx = NULL;
         for (l_tx_total = 0;
-                (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_hash_curr));
+                (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_hash_curr, false));
                     l_tx_total++)
         {
             /* Check time range (if need ) */
@@ -2641,8 +2641,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             json_object* json_obj_order = json_object_new_object();
             json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
-            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list));
-            json_object_object_add(json_obj_order, "PAGINA", json_arr_orders_limit);
+            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
+            json_object_object_add(json_arr_orders_out, "PAGINA", json_arr_orders_limit);
+
             size_t i_tmp = 0;
 
             // Print all txs
@@ -3234,7 +3235,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     json_object* json_arr_bl_cache_out = json_object_new_array();
                     size_t l_arr_start = 0;
                     size_t l_arr_end  = 0;
-                    dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_datum_num);
+                    dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_datum_num, false);
                     
                     size_t i_tmp = 0;
 
@@ -3362,7 +3363,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         size_t l_arr_start = 0;
                         size_t l_arr_end  = 0;
                         json_object* json_arr_bl_cache_out = json_object_new_array();
-                        dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_tickers_count*l_tickers_count); 
+                        dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_tickers_count*l_tickers_count, false); 
 
                         size_t i_tmp = 0;
                         for(size_t i = 0; i< l_tickers_count; i++){

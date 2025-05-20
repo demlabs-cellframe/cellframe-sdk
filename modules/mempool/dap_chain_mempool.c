@@ -139,9 +139,10 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
  * return 0 Ok, -2 not enough funds to transfer, -1 other Error
  */
 char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
-        const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t** a_addr_to,
-        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t *a_value, uint256_t a_value_fee, const char *a_hash_out_type, size_t a_tx_num)
+                                  const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
+                                  const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX], uint256_t *a_value,
+                                  uint256_t a_value_fee, const char *a_hash_out_type,
+                                  size_t a_tx_num, dap_time_t a_time_unlock)
 {
     // check valid param
     dap_return_val_if_pass(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
@@ -205,7 +206,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
 
     uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
     for (size_t i = 0; i < a_tx_num; ++i) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker) != 1) {            
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         } else if (l_single_channel){
@@ -1102,6 +1103,9 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
             return NULL;
         }
     } else { //native ticker
+        //this brunch not only for native ticker
+        // it performs when we use service base tx with zero fee for non-native
+        // have to use emission ticker for tx
         if (!IS_ZERO_256(a_value_fee)) {
             SUBTRACT_256_256(l_emission_value, a_value_fee, &l_emission_value);
             if (!dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee)){
@@ -1116,7 +1120,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
                 return NULL;
             }
         }
-        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_to, l_emission_value, l_native_ticker)) {
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_to, l_emission_value, l_emission_ticker)) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }        
