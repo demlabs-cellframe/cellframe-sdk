@@ -1170,7 +1170,10 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_arra
 }
 
 
-json_object *dap_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_t * a_addr, compose_config_t *a_config) { 
+json_object *dap_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_t * a_addr, compose_config_t *a_config) {
+    if (!a_token_ticker || !a_addr || !a_config) {
+        return NULL;
+    }
     json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s", 
                                                                       dap_chain_addr_to_str(a_addr), a_token_ticker, a_config->net_name);
     if (!l_json_outs) {
@@ -1262,7 +1265,7 @@ bool check_token_in_ledger(json_object *l_json_coins, const char *a_token) {
                 for (size_t j = 0; j < json_object_array_length(token_array); j++) {
                     json_object *token_obj = json_object_array_get_idx(token_array, j);
                     json_object *token_name = NULL;
-                    if (json_object_object_get_ex(token_obj, "-->Token name", &token_name) && json_object_is_type(token_name, json_type_string)) {
+                    if (json_object_object_get_ex(token_obj, "token_name", &token_name) && json_object_is_type(token_name, json_type_string)) {
                         const char *token_name_str = json_object_get_string(token_name);
                         if (strcmp(token_name_str, a_token) == 0) {
                             return true;
@@ -1651,7 +1654,7 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_chain_addr_t 
         return NULL;
 
     if (dap_strcmp(s_get_native_ticker(a_config->net_name), a_token_ticker)) {
-        dap_json_compose_error_add(a_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_NATIVE_TOKEN_REQUIRED, "Pay for service should be only in native token ticker\n");
+        dap_json_compose_error_add(a_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_NATIVE_TOKEN_REQUIRED, "Pay for service should be only in native token_ticker\n");
         return NULL;
     }
     uint256_t l_net_fee = {};
@@ -2118,8 +2121,8 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
     int items_count = json_object_array_length(items);
     for (int i = 0; i < items_count; i++) {
         json_object *item = json_object_array_get_idx(items, i);
-        const char *item_type = json_object_get_string(json_object_object_get(item, "item type"));
-        if (dap_strcmp(item_type, "OUT COND") == 0) {
+        const char *item_type = json_object_get_string(json_object_object_get(item, "type"));
+        if (dap_strcmp(item_type, "out_cond") == 0) {
             const char *subtype = json_object_get_string(json_object_object_get(item, "subtype"));
             if (!dap_strcmp(subtype, "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK")) {
                 l_cond_tx = DAP_NEW_Z(dap_chain_tx_out_cond_t);
@@ -2139,7 +2142,7 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
     }
 
 
-    json_object *spent_outs = json_object_object_get(response, "all OUTs yet unspent");
+    json_object *spent_outs = json_object_object_get(response, "all_OUTs_yet_unspent");
     const char *spent_outs_value = json_object_get_string(spent_outs);
     if (spent_outs_value && dap_strcmp(spent_outs_value, "yes") != 0) {
         json_object_put(response);
@@ -2154,7 +2157,7 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
         return s_compose_config_return_response_handler(l_config);
     }
 
-    json_object *token_ticker_obj = json_object_object_get(response_header_array, "token ticker");
+    json_object *token_ticker_obj = json_object_object_get(response_header_array, "token_ticker");
     if (!token_ticker_obj) {
         json_object_put(response);
         dap_json_compose_error_add(l_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TOKEN_TICKER_NOT_FOUND, "Token ticker not found in response\n");
@@ -2927,7 +2930,8 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
             }
         }
         if (!found) {
-            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_KEY_IS_NOT_DELEGATED, "Specified certificate/pkey hash is not delegated nor this delegating is approved. Try to invalidate with tx hash instead\n");
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_KEY_IS_NOT_DELEGATED, 
+                                            "Specified certificate/pkey hash is not delegated nor this delegating is approved. Try to invalidate with tx hash instead\n");
             return NULL;
         }
 
@@ -3083,7 +3087,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
             }
 
             json_object *l_token_ticker_obj = NULL;
-            if (!json_object_object_get_ex(l_ledger_array, "Token_ticker", &l_token_ticker_obj)) {
+            if (!json_object_object_get_ex(l_ledger_array, "token_ticker", &l_token_ticker_obj)) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
@@ -3300,8 +3304,8 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
         int items_count = json_object_array_length(l_json_items);
         for (int i = 0; i < items_count; i++) {
             json_object *item = json_object_array_get_idx(l_json_items, i);
-            const char *item_type = json_object_get_string(json_object_object_get(item, "item type"));
-            if (item_type && strcmp(item_type, "OUT COND") == 0) {
+            const char *item_type = json_object_get_string(json_object_object_get(item, "type"));
+            if (item_type && strcmp(item_type, "out_cond") == 0) {
                 const char *subtype = json_object_get_string(json_object_object_get(item, "subtype"));
                 if (subtype && strcmp(subtype, "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE") == 0) {
                     has_delegate_out = true;
@@ -3317,12 +3321,12 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
         return s_compose_config_return_response_handler(l_config);
     }
 
-    json_object *l_json_spents = json_object_object_get(l_json_response, "Spent OUTs");
+    json_object *l_json_spents = json_object_object_get(l_json_response, "spent_OUTs");
     if (l_json_spents) {
         int spents_count = json_object_array_length(l_json_spents);
         for (int i = 0; i < spents_count; i++) {
             json_object *spent_item = json_object_array_get_idx(l_json_spents, i);
-            const char *spent_by_tx = json_object_get_string(json_object_object_get(spent_item, "is spent by tx"));
+            const char *spent_by_tx = json_object_get_string(json_object_object_get(spent_item, "is_spent_by_tx"));
             if (spent_by_tx) {
                 if (dap_chain_hash_fast_from_str(spent_by_tx, &l_tx_hash)) {
                     json_object_put(l_json_response);
@@ -3395,7 +3399,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
         return NULL;
     }
 
-    json_object *l_unspent_outs = json_object_object_get(response, "all OUTs yet unspent");
+    json_object *l_unspent_outs = json_object_object_get(response, "all_OUTs_yet_unspent");
     if (l_unspent_outs) {
         const char *all_unspent = json_object_get_string(l_unspent_outs);
         if (all_unspent && strcmp(all_unspent, "yes") == 0) {
@@ -3412,21 +3416,21 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     size_t items_count = json_object_array_length(l_items_array);
     for (size_t i = 0; i < items_count; i++) {
         json_object *l_item = json_object_array_get_idx(l_items_array, i);
-        const char *item_type = json_object_get_string(json_object_object_get(l_item, "item type"));
+        const char *item_type = json_object_get_string(json_object_object_get(l_item, "item_type"));
 
-        if (item_type && strcmp(item_type, "OUT COND") == 0) {
+        if (item_type && strcmp(item_type, "out_cond") == 0) {
             l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
             l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
             l_tx_out_cond->header.value = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(l_item, "value")));
-        } else if (item_type && strcmp(item_type, "IN COND") == 0) {
-            l_tx_prev_hash = json_object_get_string(json_object_object_get(l_item, "Tx_prev_hash"));
+        } else if (item_type && strcmp(item_type, "in_cond") == 0) {
+            l_tx_prev_hash = json_object_get_string(json_object_object_get(l_item, "tx_prev_hash"));
             if (!l_tx_prev_hash) {
                 json_object_put(response);
                 DAP_DELETE(l_tx_out_cond);
                 dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_INVALIDATE_COMPOSE_TX_HASH_NOT_FOUND, "Previous transaction hash not found");
                 return NULL;
             }
-            l_prev_cond_idx = json_object_get_int(json_object_object_get(l_item, "Tx_out_prev_idx"));
+            l_prev_cond_idx = json_object_get_int(json_object_object_get(l_item, "tx_out_prev_idx"));
             json_object *response_cond = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", 
                                                                       l_tx_prev_hash, a_config->net_name);
             if (!response_cond) {
@@ -3449,7 +3453,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     json_object *l_sig_item = NULL;
     for (size_t i = 0; i < items_count; i++) {
         json_object *l_item = json_object_array_get_idx(l_items_array, i);
-        const char *item_type = json_object_get_string(json_object_object_get(l_item, "item type"));
+        const char *item_type = json_object_get_string(json_object_object_get(l_item, "item_type"));
         if (item_type && strcmp(item_type, "SIG") == 0) {
             l_sig_item = l_item;
             break;
@@ -3497,7 +3501,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     json_object *l_json_tiker = json_object_array_get_idx(response, 0);
     json_object *token_ticker_obj = json_object_object_get(l_json_tiker, "Token_ticker");
     if (!token_ticker_obj) {
-        token_ticker_obj = json_object_object_get(l_json_tiker, "token ticker");
+        token_ticker_obj = json_object_object_get(l_json_tiker, "token_ticker");
         if (!token_ticker_obj) {
             json_object_put(response);
             DAP_DELETE(l_tx_out_cond);
@@ -3900,8 +3904,8 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
             int items_count = json_object_array_length(items);
             for (int i = 0; i < items_count; i++) {
                 json_object *item = json_object_array_get_idx(items, i);
-                const char *item_type = json_object_get_string(json_object_object_get(item, "item type"));
-                if (dap_strcmp(item_type, "OUT COND") == 0) {
+                const char *item_type = json_object_get_string(json_object_object_get(item, "item_type"));
+                if (dap_strcmp(item_type, "out_cond") == 0) {
                     const char *subtype = json_object_get_string(json_object_object_get(item, "subtype"));
                     if (!dap_strcmp(subtype, "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE")) {
                         l_cond_tx = DAP_NEW_Z(dap_chain_tx_out_cond_t);
@@ -3919,7 +3923,7 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
                         l_prev_tx_count++;
                         break;
                     }
-                } else if (dap_strcmp(item_type, "OUT") == 0 || dap_strcmp(item_type, "OUT COND") == 0 || dap_strcmp(item_type, "OUT OLD") == 0) {
+                } else if (dap_strcmp(item_type, "OUT") == 0 || dap_strcmp(item_type, "out_cond") == 0 || dap_strcmp(item_type, "OUT OLD") == 0) {
                     l_prev_tx_count++;
                 }
             }
@@ -3928,7 +3932,7 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
                 return s_compose_config_return_response_handler(l_config);
             }
 
-            json_object *spent_outs = json_object_object_get(response, "all OUTs yet unspent");
+            json_object *spent_outs = json_object_object_get(response, "all_OUTs_yet_unspent");
             const char *spent_outs_value = json_object_get_string(spent_outs);
             if (spent_outs_value && dap_strcmp(spent_outs_value, "yes") != 0) {
                 dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_ORDER_SIZE, "Error: Transaction output item already used");
@@ -4377,8 +4381,8 @@ static bool s_process_ledger_response(dap_chain_tx_out_cond_subtype_t a_cond_typ
     int items_count = json_object_array_length(items);
     for (int i = 0; i < items_count; i++) {
         json_object *item = json_object_array_get_idx(items, i);
-        const char *item_type = json_object_get_string(json_object_object_get(item, "item type"));
-        if (dap_strcmp(item_type, "OUT COND") == 0) {
+        const char *item_type = json_object_get_string(json_object_object_get(item, "item_type"));
+        if (dap_strcmp(item_type, "out_cond") == 0) {
             const char *subtype = json_object_get_string(json_object_object_get(item, "subtype"));
             if (!dap_strcmp(subtype, dap_chain_tx_out_cond_subtype_to_str(a_cond_type))) {
                 dap_chain_hash_fast_from_str(json_object_get_string(json_object_object_get(item, "hash")), &l_hash);
@@ -4386,7 +4390,7 @@ static bool s_process_ledger_response(dap_chain_tx_out_cond_subtype_t a_cond_typ
                 l_found = true;
                 break;
             }
-        } else if (dap_strcmp(item_type, "OUT") == 0 || dap_strcmp(item_type, "OUT COND") == 0 || dap_strcmp(item_type, "OUT OLD") == 0) {
+        } else if (dap_strcmp(item_type, "OUT") == 0 || dap_strcmp(item_type, "out_cond") == 0 || dap_strcmp(item_type, "OUT OLD") == 0) {
             l_prev_tx_count++;
         }
     }
@@ -4394,14 +4398,14 @@ static bool s_process_ledger_response(dap_chain_tx_out_cond_subtype_t a_cond_typ
         return false;
     }
     bool l_another_tx = false;
-    json_object *spent_outs = json_object_object_get(l_response_array, "Spent OUTs");
+    json_object *spent_outs = json_object_object_get(l_response_array, "spent_OUTs");
     if (spent_outs) {
         int spent_outs_count = json_object_array_length(spent_outs);
         for (int i = 0; i < spent_outs_count; i++) {
             json_object *spent_out = json_object_array_get_idx(spent_outs, i);
             int out_index = json_object_get_int(json_object_object_get(spent_out, "OUT - "));
             if (out_index == l_prev_tx_count) {
-                dap_chain_hash_fast_from_str(json_object_get_string(json_object_object_get(spent_out, "is spent by tx")), &l_hash);
+                dap_chain_hash_fast_from_str(json_object_get_string(json_object_object_get(spent_out, "is_spent_by_tx")), &l_hash);
                 l_another_tx = true;
                 break;
             }
@@ -4509,8 +4513,8 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
     int items_count = json_object_array_length(items);
     for (int i = 0; i < items_count; i++) {
         json_object *item = json_object_array_get_idx(items, i);
-        const char *item_type = json_object_get_string(json_object_object_get(item, "item type"));
-        if (dap_strcmp(item_type, "OUT COND") == 0) {
+        const char *item_type = json_object_get_string(json_object_object_get(item, "item_type"));
+        if (dap_strcmp(item_type, "out_cond") == 0) {
             const char *subtype = json_object_get_string(json_object_object_get(item, "subtype"));
             if (!dap_strcmp(subtype, "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE")) {
                 l_cond_tx = DAP_NEW_Z(dap_chain_tx_out_cond_t);
@@ -4523,7 +4527,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
                 l_cond_tx->subtype.srv_xchange.buy_token[sizeof(l_cond_tx->subtype.srv_xchange.buy_token) - 1] = '\0';
                 l_cond_tx->subtype.srv_xchange.rate = dap_chain_balance_scan(json_object_get_string(json_object_object_get(item, "rate")));
                 l_cond_tx->tsd_size = json_object_get_int(json_object_object_get(item, "tsd_size"));
-            } else if (dap_strcmp(subtype, "OUT") == 0 || dap_strcmp(subtype, "OUT COND") == 0 || dap_strcmp(subtype, "OUT OLD") == 0) {
+            } else if (dap_strcmp(subtype, "OUT") == 0 || dap_strcmp(subtype, "out_cond") == 0 || dap_strcmp(subtype, "OUT OLD") == 0) {
                 l_prev_cond_idx++;
             }
         } else if (dap_strcmp(item_type, "SIG") == 0) {
@@ -4546,7 +4550,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
 
     bool l_single_channel = !dap_strcmp(l_tx_ticker, l_native_ticker);
 
-    json_object *spent_outs = json_object_object_get(l_response_array, "all OUTs yet unspent");
+    json_object *spent_outs = json_object_object_get(l_response_array, "all_OUTs_yet_unspent");
     const char *spent_outs_value = json_object_get_string(spent_outs);
     if (spent_outs_value && !dap_strcmp(spent_outs_value, "yes")) {
         dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_TX_ALREADY_USED, "Transaction output item already used");
@@ -4706,8 +4710,8 @@ dap_chain_datum_tx_t* dap_chain_net_srv_order_remove_compose(dap_hash_fast_t *a_
     int items_count = json_object_array_length(items);
     for (int i = 0; i < items_count; i++) {
         json_object *item = json_object_array_get_idx(items, i);
-        const char *item_type = json_object_get_string(json_object_object_get(item, "item type"));
-        if (dap_strcmp(item_type, "OUT COND") == 0) {
+        const char *item_type = json_object_get_string(json_object_object_get(item, "item_type"));
+        if (dap_strcmp(item_type, "out_cond") == 0) {
             const char *subtype = json_object_get_string(json_object_object_get(item, "subtype"));
             if (!dap_strcmp(subtype, "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE")) {
                 l_cond_tx = DAP_NEW_Z(dap_chain_tx_out_cond_t);
@@ -4836,8 +4840,8 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t
     int items_count = json_object_array_length(items);
     for (int i = 0; i < items_count; i++) {
         json_object *item = json_object_array_get_idx(items, i);
-        const char *item_type = json_object_get_string(json_object_object_get(item, "item type"));
-        if (dap_strcmp(item_type, "OUT COND") == 0) {
+        const char *item_type = json_object_get_string(json_object_object_get(item, "item_type"));
+        if (dap_strcmp(item_type, "out_cond") == 0) {
             const char *subtype = json_object_get_string(json_object_object_get(item, "subtype"));
             if (!dap_strcmp(subtype, "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE")) {
                 l_cond_tx = DAP_NEW_Z(dap_chain_tx_out_cond_t);
