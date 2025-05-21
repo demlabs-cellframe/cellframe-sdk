@@ -1198,6 +1198,7 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
                 json_object_array_add(l_arr_balance, l_balance_data);
                 DAP_DELETE(l_addr_tokens[i]);
             }
+            DAP_DELETE(l_wallet_addr_in_net);
             json_object_object_add(l_jobj_net, "tokens", l_arr_balance);
             DAP_DELETE(l_addr_tokens);
         }
