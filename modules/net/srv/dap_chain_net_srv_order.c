@@ -92,9 +92,8 @@ int dap_chain_srv_order_pin_init() {
         size_t l_ret_count;
         dap_store_obj_t  * l_ret = dap_global_db_get_all_raw_sync((char*)l_list->data, &l_ret_count);
         if (!l_ret) {
-            dap_store_obj_free(l_ret, l_ret_count);
-            dap_list_free_full(l_group_list, NULL);
-            return -2;
+            log_it(L_WARNING, "Error: group %s is empty", (char*)l_list->data);
+            continue;
         }
         
         for(size_t i = 0; i < l_ret_count; i++) {

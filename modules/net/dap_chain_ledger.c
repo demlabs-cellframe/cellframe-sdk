@@ -4948,6 +4948,9 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_DELETED);
         }
     }
+    if (!PVT(a_ledger)->mapped)
+        DAP_DELETE(l_tx_item->tx);
+    DAP_DELETE(l_tx_item);
     if (l_cross_network) {
         DL_FOREACH(PVT(a_ledger)->bridged_tx_notifiers, l_notifier) {
             dap_ledger_bridged_tx_notifier_t *l_notify = l_notifier->data;
