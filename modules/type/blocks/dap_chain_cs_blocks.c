@@ -3039,7 +3039,7 @@ dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, 
 {
     dap_list_t *l_ret = NULL;
 
-    dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &a_block_hash);
+    dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), a_block_hash);
     if (!l_block_cache) {
         log_it(L_ERROR, "Can't find block %s in cache.", dap_hash_fast_to_str_static(a_block_hash));
         return NULL;
