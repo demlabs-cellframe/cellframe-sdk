@@ -3035,3 +3035,36 @@ dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_has
     return l_ret;
 }
 
+dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash)
+{
+    dap_list_t *l_ret = NULL;
+
+    dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &a_block_hash);
+    if (!l_block_cache) {
+        log_it(L_ERROR, "Can't find block %s in cache.", dap_hash_fast_to_str_static(a_block_hash));
+        return NULL;
+    }
+
+    size_t l_signs_count = dap_chain_block_get_signs_count(l_block_cache->block, l_block_cache->block_size);
+    for (size_t i = 0; i < l_signs_count; i++) {
+        dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+        dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
+        if (!l_pkey) {
+            log_it(L_ERROR, "Can't get pkey from sign");
+            continue;
+        }
+        dap_hash_fast_t l_pkey_hash = {};
+        if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
+            log_it(L_ERROR, "Can't get pkey hash from sign");
+            continue;
+        }
+        uint256_t l_value_reward = s_callback_calc_reward(a_chain, a_block_hash, l_pkey);
+        dap_chain_cs_block_rewards_t *l_reward = DAP_NEW_Z(dap_chain_cs_block_rewards_t);
+        l_reward->pkey_hash = l_pkey_hash;
+        l_reward->reward = l_value_reward;
+        l_reward->node_addr = dap_chain_net_srv_stake_check_pkey_hash(a_chain->net_id, &l_pkey_hash)->node_addr;
+        l_ret = dap_list_append(l_ret, l_reward);
+    }
+
+    return l_ret;
+}
