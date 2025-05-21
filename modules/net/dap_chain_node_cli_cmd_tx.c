@@ -2032,11 +2032,21 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response){
     return 0;
 }
 
-int json_print_for_block_list(dap_json_rpc_response_t* response){
+int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
+    int res = -1;
     if (!response || !response->result_json_object) {
         printf("Response is empty\n");
         return -1;
     }
+    for (int i = 0; i < cmd_cnt; i++)
+    {
+        if (!strcmp(cmd_param[i],"list"))
+        {
+            res = 0;
+            break;            
+        }
+    }
+    if (res) return res;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
