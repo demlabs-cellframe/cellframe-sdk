@@ -1947,10 +1947,27 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
     return 0;
 }
 
+bool s_dap_chain_node_cli_find_subcmd (char ** cmd_param, int cmd_cnt, const char * a_str)
+{
+    for (int i = 0; i < cmd_cnt; i++)
+    {
+        if (!strcmp(cmd_param[i], a_str))
+        {
+            return true;            
+        }
+    }
+    return false;
+}
 
 
 
-int  json_print_for_mempool_list(dap_json_rpc_response_t* response){
+int  json_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
+    if (!response || !response->result_json_object) {
+        printf("Response is empty\n");
+        return -1;
+    }
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
+        return -2;
     json_object * json_obj_response = json_object_array_get_idx(response->result_json_object, 0);
     json_object * j_obj_net_name, * j_arr_chains, * j_obj_chain, *j_obj_removed, *j_arr_datums, *j_arr_total;
     json_object_object_get_ex(json_obj_response, "net", &j_obj_net_name);
@@ -1971,16 +1988,18 @@ int  json_print_for_mempool_list(dap_json_rpc_response_t* response){
     }
     return 0;
 }
-int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response){
+int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
     if (!response || !response->result_json_object) {
         printf("Response is empty\n");
         return -1;
     }
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list")||!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "keys"))
+        return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
-            return -2;
+            return -3;
         }
         printf("__________________________________________________________________________________________________"
             "_______________________________________________________\n");
@@ -2038,20 +2057,13 @@ int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_par
         printf("Response is empty\n");
         return -1;
     }
-    for (int i = 0; i < cmd_cnt; i++)
-    {
-        if (!strcmp(cmd_param[i],"list"))
-        {
-            res = 0;
-            break;            
-        }
-    }
-    if (res) return res;
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
+        return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
-            return -2;
+            return -3;
         }
         printf("_________________________________________________________________________________________________________________\n");
         printf("  Block # | Block hash \t\t\t\t\t\t\t       | Time create \t\t\t | \n");
@@ -2099,21 +2111,23 @@ int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_par
         }
     } else {
         //json_print_object(response->result_json_object, 0);
-        return -3;
+        return -4;
     }
     return 0;
 }
 
-int json_print_for_dag_list(dap_json_rpc_response_t* response){
+int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
     if (!response || !response->result_json_object) {
         printf("Response is empty\n");
         return -1;
     }
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
+        return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
-            return -2;
+            return -3;
         }
         printf("________________________________________________________________________________________________________________\n");
         printf("   # \t| Hash \t\t\t\t\t\t\t\t     | Time create \t\t\t|\n");
@@ -2123,7 +2137,7 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response){
         char *l_offset = NULL;
         if (!json_object_object_get_ex(json_obj_array, "EVENTS", &j_object_events)) {
             printf("EVENTS is empty\n");
-            return -3;
+            return -4;
         }
         result_count = json_object_array_length(j_object_events);
         for (int i = 0; i < result_count; i++) {
@@ -2166,7 +2180,7 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response){
         }           
     } else {
         //json_print_object(response->result_json_object, 0);
-        return -4;
+        return -5;
     }
     return 0;
 
@@ -2239,45 +2253,45 @@ int json_print_for_token_list(dap_json_rpc_response_t* response){
 }
 
 
-int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response){
+int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
     if (!response || !response->result_json_object) {
         printf("Response is empty\n");
         return -1;
     }
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "orders"))
+        return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
-            return -2;
+            return -3;
         }
         //printf("ORDERS is %d\n", result_count);
         printf("______________________________________________________________________________________________________\n");
 
-        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
-        struct json_object *j_object_events = NULL;
         char *l_limit = NULL;
         char *l_offset = NULL;
-        
         for (int i = 0; i < result_count; i++) {
-            struct json_object *json_obj_result = json_object_array_get_idx(json_obj_array, i);
+            struct json_object *json_obj_result = json_object_array_get_idx(response->result_json_object, i);
 
-            json_object *j_obj_event_number, *j_obj_hash, *j_obj_create, *j_obj_lim, *j_obj_off;
-            if (json_object_object_get_ex(json_obj_result, "order_hash", &j_obj_event_number) &&
-                json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_hash) &&
-                json_object_object_get_ex(json_obj_result, "status", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "proposed_coins", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "proposed_datoshi", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "amount_coins", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "amount_datoshi", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "filled_percent", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "token_buy", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "token_sell", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "rate", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "net", &j_obj_create))
+            json_object *j_obj_status, *j_obj_hash, *j_obj_create, *j_obj_prop_coin, *j_obj_lim,
+             *j_obj_amount_coin, *j_obj_filed_perc, *j_obj_token_buy, *j_obj_token_sell, *j_obj_rate, *j_obj_off;
+            if (json_object_object_get_ex(json_obj_result, "order_hash", &j_obj_hash) &&
+                json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_create) &&
+                json_object_object_get_ex(json_obj_result, "status", &j_obj_status) &&
+                json_object_object_get_ex(json_obj_result, "proposed_coins", &j_obj_prop_coin) &&
+                json_object_object_get_ex(json_obj_result, "amount_coins", &j_obj_amount_coin) &&
+                json_object_object_get_ex(json_obj_result, "filled_percent", &j_obj_filed_perc) &&
+                json_object_object_get_ex(json_obj_result, "token_buy", &j_obj_token_buy) &&
+                json_object_object_get_ex(json_obj_result, "token_sell", &j_obj_token_sell) &&
+                json_object_object_get_ex(json_obj_result, "rate", &j_obj_rate))
             {
-                if (j_obj_event_number && j_obj_hash && j_obj_create) {
-                    printf("   %s \t| %s | %s\t|",
-                            json_object_get_string(j_obj_event_number), json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create));
+                if (j_obj_status && j_obj_hash && j_obj_create) {
+                    printf("   %s  | %s | %s | %-20s | %-20s | %3d | %-10s | %-10s | %-20s |",
+                        json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create), json_object_get_string(j_obj_status),
+                        json_object_get_string(j_obj_prop_coin), json_object_get_string(j_obj_amount_coin),json_object_get_uint64(j_obj_filed_perc),
+                        json_object_get_string(j_obj_token_buy), json_object_get_string(j_obj_token_sell),json_object_get_string(j_obj_rate)
+                    );
                 } else {
                     printf("Missing required fields in array element at index %d\n", i);
                 }
@@ -2292,7 +2306,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response){
             }
             printf("\n");
         }
-        printf("________|____________________________________________________________________|__________________________________|\n\n");
+        printf("____________________________________________________________________|_____________________________|__________________________________|\n\n");
         if (l_limit) {
             printf("\tlimit: %s \n", l_limit);
             DAP_DELETE(l_limit);
