@@ -2086,24 +2086,34 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
     dap_chain_tx_out_cond_t **a_cond_tx, int a_all_outs_unspent, 
     const char **a_token_ticker)
 {
-    json_object *l_response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s;-tx_to_json", 
+    json_object *l_raw_response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s;-tx_to_json", 
                                                                       a_tx_str, a_config->net_name);
-    if (!l_response) {
+    if (!l_raw_response) {
         dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_GET_RESPONSE, "Failed to get response from remote node\n");
         return NULL;
     }
-    
-    json_object *l_datum_json = json_object_array_get_idx(l_response, 0);
-    if (!l_datum_json) {
-        json_object_put(l_response);
+
+    json_object *l_response = json_object_array_get_idx(l_raw_response, 0);
+    if (!l_response) {
+        json_object_put(l_raw_response);
         dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NO_ITEMS_FOUND, "No items found in response\n");
         return NULL;
     }
+    json_object_get(l_response);
+    json_object_put(l_raw_response);
+    
+    // json_object *l_datum_json = json_object_array_get_idx(l_response, 0);
+    // if (!l_datum_json) {
+    //     json_object_put(l_response);
+    //     dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NO_ITEMS_FOUND, "No items found in response\n");
+    //     return NULL;
+    // }
     dap_chain_datum_tx_t *l_datum = dap_chain_datum_tx_create();
     size_t
         l_items_count = 0,
         l_items_ready = 0;
-    if (dap_chain_net_tx_create_by_json(l_datum_json, NULL, a_config->response_handler, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
+    json_object * l_json_errors = json_object_new_array();
+    if (dap_chain_net_tx_create_by_json(l_response, NULL, l_json_errors, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
         json_object_put(l_response);
         dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX, "Failed to create transaction from json\n");
         dap_chain_datum_tx_delete(l_datum);
@@ -2128,24 +2138,25 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
         *a_cond_tx = (dap_chain_tx_out_cond_t *)l_cond_tx;
     }
 
-    if (a_all_outs_unspent != -1) {
-        json_object *all_outs_unspent = json_object_object_get(l_response, "all_outs_unspent");
-        if (!all_outs_unspent) {
-            json_object_put(l_response);
-            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NO_INFO_TX_OUT_USED, "No transaction output used info found\n");
-            return NULL;
-        }
-        if (a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_get_boolean(all_outs_unspent)) {
-            json_object_put(l_response);
-            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_ALREADY_USED, "Transaction output item already used\n");
-            return NULL;
-        }
-        if (!a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_get_boolean(all_outs_unspent)) {
-            json_object_put(l_response);
-            dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_NOT_USED, "Transaction output item not used\n");
-            return NULL;
-        }
-    }
+    // if (a_all_outs_unspent != -1) {
+    //     json_object *all_outs_unspent = json_object_object_get(l_response, "all_outs_unspent");
+    //     const char *l_all_outs_unspent_str = json_object_get_string(all_outs_unspent);
+    //     if (!all_outs_unspent) {
+    //         json_object_put(l_response);
+    //         dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_NO_INFO_TX_OUT_USED, "No transaction output used info found\n");
+    //         return NULL;
+    //     }
+    //     if (a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_get_boolean(all_outs_unspent)) {
+    //         json_object_put(l_response);
+    //         dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_ALREADY_USED, "Transaction output item already used\n");
+    //         return NULL;
+    //     }
+    //     if (!a_all_outs_unspent && (bool)a_all_outs_unspent != json_object_get_boolean(all_outs_unspent)) {
+    //         json_object_put(l_response);
+    //         dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_TX_OUT_NOT_USED, "Transaction output item not used\n");
+    //         return NULL;
+    //     }
+    // }
 
     if (a_token_ticker) {
         json_object *l_token_ticker = json_object_object_get(l_response, "token_ticker");
