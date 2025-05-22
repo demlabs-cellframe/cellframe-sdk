@@ -290,7 +290,7 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
     char *l_request = dap_strdup_printf( "%s/%s?version=1,method=%c,addr=%"DAP_UINT64_FORMAT_U",port=%hu,net=%s",
                                          DAP_UPLINK_PATH_NODE_LIST, DAP_NODE_LIST_URI_HASH, a_cmd,
                                          g_node_addr.uint64, a_port, a_net->pub.name );
-    int l_ret = -1;
+    int l_ret = ERR_NO_SERVER;
     size_t l_seeds_count = 0;
     dap_stream_node_addr_t *l_seeds_addrs = dap_chain_net_get_authorized_nodes(a_net, &l_seeds_count);
     for (size_t i = 0; i < l_seeds_count; ++i) {
