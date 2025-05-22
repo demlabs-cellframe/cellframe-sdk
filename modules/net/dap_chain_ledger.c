@@ -3546,7 +3546,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     int l_prev_tx_count = 0;
 
     // 1. Verify signature in current transaction
-    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx, 0))
+    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx, 0) && !s_check_hal(a_ledger, a_tx_hash))
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
 
     // ----------------------------------------------------------------
@@ -5121,6 +5121,9 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_DELETED);
         }
     }
+    if (!PVT(a_ledger)->mapped)
+        DAP_DELETE(l_tx_item->tx);
+    DAP_DELETE(l_tx_item);
     if (l_cross_network) {
         DL_FOREACH(PVT(a_ledger)->bridged_tx_notifiers, l_notifier) {
             dap_ledger_bridged_tx_notifier_t *l_notify = l_notifier->data;
