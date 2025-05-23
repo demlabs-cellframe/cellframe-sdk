@@ -3122,7 +3122,7 @@ static void s_sync_timer_callback(void *a_arg)
         dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time
     ) {
         if (s_restart_sync_chains(l_net)) {
-            log_it(L_INFO, "Can't start sync chains in net %s, wait seccond attempt", l_net->pub.name);
+            log_it(L_INFO, "Can't start sync chains in net %s, wait next attempt", l_net->pub.name);
             return;
         }
     } else if (l_net_pvt->state == NET_STATE_ONLINE && l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_SYNCED) {
