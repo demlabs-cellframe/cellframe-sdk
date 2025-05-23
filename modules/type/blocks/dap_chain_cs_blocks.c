@@ -3062,7 +3062,6 @@ dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, 
         dap_chain_cs_block_rewards_t *l_reward = DAP_NEW_Z(dap_chain_cs_block_rewards_t);
         l_reward->pkey_hash = l_pkey_hash;
         l_reward->reward = l_value_reward;
-        l_reward->node_addr = dap_chain_net_srv_stake_check_pkey_hash(a_chain->net_id, &l_pkey_hash)->node_addr;
         l_ret = dap_list_append(l_ret, l_reward);
     }
 

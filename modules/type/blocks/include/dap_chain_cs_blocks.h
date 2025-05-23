@@ -86,7 +86,6 @@ typedef struct dap_chain_cs_blocks_hardfork_fees {
 typedef struct dap_chain_cs_blocks_reward
 {
     dap_hash_fast_t pkey_hash;
-    dap_chain_node_addr_t node_addr;
     uint256_t reward;
 } dap_chain_cs_block_rewards_t;
 
