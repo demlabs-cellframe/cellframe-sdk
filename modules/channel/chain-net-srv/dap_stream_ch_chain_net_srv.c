@@ -361,6 +361,54 @@ char *dap_stream_ch_chain_net_srv_create_statistic_report()
     return dap_string_free(l_ret, false);
 }
 
+struct dap_grace_exit_args{
+    dap_chain_net_srv_t *net_srv;
+    dap_chain_net_srv_grace_usage_t *grace_item;
+    dap_chain_datum_tx_t* tx;
+};
+
+void dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt(void *a_arg)
+{
+    struct dap_grace_exit_args *l_args = (struct dap_grace_exit_args*)a_arg;
+    pthread_mutex_lock(&l_args->net_srv->grace_mutex);
+    // finish grace
+    HASH_DEL(l_args->net_srv->grace_hash_tab, l_args->grace_item);
+    pthread_mutex_unlock(&l_args->net_srv->grace_mutex);
+
+    log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
+    // Stop timer
+    dap_timerfd_delete_unsafe(l_args->grace_item->grace->timer);
+    l_args->grace_item->grace->usage->tx_cond = l_args->tx;
+
+    dap_chain_datum_tx_receipt_t *l_new_receipt = NULL;
+    if (l_args->grace_item->grace->usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER) {
+        // Send new receipt with new tx
+        if (l_args->grace_item->grace->usage->receipt_next){
+            DAP_DEL_Z(l_args->grace_item->grace->usage->receipt_next);
+            l_args->grace_item->grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(l_args->grace_item->grace->usage->service, l_args->grace_item->grace->usage->price, NULL, 0, &l_args->grace_item->grace->usage->tx_cond_hash);
+            l_new_receipt = l_args->grace_item->grace->usage->receipt_next;
+        } else if (l_args->grace_item->grace->usage->receipt) {
+            DAP_DEL_Z(l_args->grace_item->grace->usage->receipt);
+            l_args->grace_item->grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_args->grace_item->grace->usage->service, l_args->grace_item->grace->usage->price, NULL, 0, &l_args->grace_item->grace->usage->tx_cond_hash);
+            l_new_receipt = l_args->grace_item->grace->usage->receipt;
+        }
+        
+        l_args->grace_item->grace->usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
+
+        //start timeout timer
+        l_args->grace_item->grace->usage->receipt_timeout_timer_start_callback(l_args->grace_item->grace->usage);
+        log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_chain_hash_fast_to_str_static(&l_args->grace_item->grace->usage->tx_cond_hash));
+        dap_stream_ch_pkt_write_unsafe(l_args->grace_item->grace->usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST, l_new_receipt, l_new_receipt->size);
+    } else {
+        s_service_substate_pay_service(l_args->grace_item->grace->usage);
+        s_set_usage_data_to_gdb(l_args->grace_item->grace->usage);
+    }
+    DAP_DELETE(l_args->grace_item->grace);
+    DAP_DELETE(l_args->grace_item);
+    DAP_DELETE(a_arg);
+}
+
+
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED_ARG dap_ledger_t *a_ledger,
                                                     dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode)
 {
@@ -385,41 +433,13 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
     HASH_FIND(hh, l_net_srv->grace_hash_tab, a_tx_hash, sizeof(dap_hash_fast_t), l_item);
     pthread_mutex_unlock(&l_net_srv->grace_mutex);
     if (l_item){
-        pthread_mutex_lock(&l_net_srv->grace_mutex);
-        // finish grace
-        HASH_DEL(l_net_srv->grace_hash_tab, l_item);
-        pthread_mutex_unlock(&l_net_srv->grace_mutex);
+        // send routine to right worker
+        struct dap_grace_exit_args *l_args = DAP_NEW_Z(struct dap_grace_exit_args);
+        l_args->grace_item = l_item;
+        l_args->net_srv = l_net_srv;
+        l_args->tx = a_tx;
 
-        log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
-        // Stop timer
-        dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
-        l_item->grace->usage->tx_cond = a_tx;
-
-        dap_chain_datum_tx_receipt_t *l_new_receipt = NULL;
-        if (l_item->grace->usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER) {
-            // Send new receipt with new tx
-            if (l_item->grace->usage->receipt_next){
-                DAP_DEL_Z(l_item->grace->usage->receipt_next);
-                l_item->grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(l_item->grace->usage->service, l_item->grace->usage->price, NULL, 0, &l_item->grace->usage->tx_cond_hash);
-                l_new_receipt = l_item->grace->usage->receipt_next;
-            } else if (l_item->grace->usage->receipt) {
-                DAP_DEL_Z(l_item->grace->usage->receipt);
-                l_item->grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_item->grace->usage->service, l_item->grace->usage->price, NULL, 0, &l_item->grace->usage->tx_cond_hash);
-                l_new_receipt = l_item->grace->usage->receipt;
-            }
-            
-            l_item->grace->usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
-
-            //start timeout timer
-            l_item->grace->usage->receipt_timeout_timer_start_callback(l_item->grace->usage);
-            log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_chain_hash_fast_to_str_static(&l_item->grace->usage->tx_cond_hash));
-            dap_stream_ch_pkt_write_unsafe(l_item->grace->usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST, l_new_receipt, l_new_receipt->size);
-        } else {
-            s_service_substate_pay_service(l_item->grace->usage);
-            s_set_usage_data_to_gdb(l_item->grace->usage);
-        }
-        DAP_DELETE(l_item->grace);
-        DAP_DELETE(l_item);
+        dap_worker_exec_callback_on(l_item->grace->usage->client->stream_worker->worker, dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt, l_args);
     }
 }
 
