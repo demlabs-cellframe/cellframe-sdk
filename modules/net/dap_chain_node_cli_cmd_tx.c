@@ -2267,7 +2267,14 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
             return -3;
         }
         //printf("ORDERS is %d\n", result_count);
-        printf("______________________________________________________________________________________________________\n");
+        printf("______________________________________________________________________________________________"
+            "_________________________________________________________________________________________________"
+            "_________________________\n");
+        printf("   %-67s | %-31s | %s | %-20s | %-20s | %3s | %-10s | %-10s | %-20s |\n",
+                        "Block hash", "Time create", "Status",
+                        "Proposed coins","Amount coins","%",
+                        "Token buy", "Token sell","Rate"
+                    );
 
         char *l_limit = NULL;
         char *l_offset = NULL;
@@ -2287,7 +2294,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
                 json_object_object_get_ex(json_obj_result, "rate", &j_obj_rate))
             {
                 if (j_obj_status && j_obj_hash && j_obj_create) {
-                    printf("   %s  | %s | %s | %-20s | %-20s | %3d | %-10s | %-10s | %-20s |",
+                    printf("   %s  | %s | %s | %-20s | %-20s | %3d | %-10s | %-10s | %-20s |\n",
                         json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create), json_object_get_string(j_obj_status),
                         json_object_get_string(j_obj_prop_coin), json_object_get_string(j_obj_amount_coin),json_object_get_uint64(j_obj_filed_perc),
                         json_object_get_string(j_obj_token_buy), json_object_get_string(j_obj_token_sell),json_object_get_string(j_obj_rate)
@@ -2295,18 +2302,25 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
                 } else {
                     printf("Missing required fields in array element at index %d\n", i);
                 }
-            } else if (json_object_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
-                json_object_object_get_ex(json_obj_result, "offset", &j_obj_off);
-                l_limit = json_object_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
-                if (j_obj_off)
-                    l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_off));
-                continue;
-            } else {
-                json_print_object(json_obj_result, 0);
+            } //else if (json_object_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
+                //json_object_object_get_ex(json_obj_result, "offset", &j_obj_off);
+                //l_limit = json_object_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
+                //if (j_obj_off)
+                  //  l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_off));
+                //continue;
+             else {
+                json_object  *j_obj_hash;
+                //json_print_object(json_obj_result, 0);
+                //struct json_object *json_obj_result2 = json_object_array_get_idx(json_obj_result, 0);
+                json_object_object_get_ex(json_obj_result, "ORDERS", &j_obj_hash);
+                struct json_object *json_obj_result3 = json_object_array_get_idx(j_obj_hash, 0);
+                json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_create)
+                l_limit = json_object_get_int64(json_obj_result3) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(json_obj_result3)) : dap_strdup_printf("unlimit");
             }
-            printf("\n");
+            
         }
-        printf("____________________________________________________________________|_____________________________|__________________________________|\n\n");
+        printf("_______________________________________________________________________|_________________________________|________|______________________|"
+            "______________________|_____|____________|____________|______________________|\n\n");
         if (l_limit) {
             printf("\tlimit: %s \n", l_limit);
             DAP_DELETE(l_limit);
