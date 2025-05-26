@@ -128,7 +128,7 @@ json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str
 dap_chain_datum_tx_t* dap_chain_net_srv_order_remove_compose(dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
                                                               dap_chain_addr_t *a_wallet_addr, compose_config_t *a_config);
 
-json_object* dap_cli_srv_stake_order_remove_compose(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, 
+json_object* dap_cli_xchange_order_remove_compose(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, 
                                                    dap_chain_addr_t *a_wallet_addr, const char *l_url_str, uint16_t l_port);
 
 json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain_addr_t *a_wallet_addr, const char* a_cert_str, 
