@@ -1660,7 +1660,16 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         if (!l_item) {
             log_it(L_ERROR, "Item %zu can't created, exit from creator!", i);
             char *l_str_err = dap_strdup_printf("Item %zu can't created, exit from creator!", i);
-            s_make_json_err_out(a_jobj_errors, l_str_err);
+
+            // Make json array
+            if(json_object_get_type(a_jobj_errors) != json_type_array){
+                json_object *a_jobj_errors_arr = json_object_new_array();
+                json_object_array_add(a_jobj_errors_arr, a_jobj_errors);
+                s_make_json_err_out(a_jobj_errors_arr, l_str_err);
+            }
+            else
+                s_make_json_err_out(a_jobj_errors, l_str_err);
+
             DAP_DELETE(l_str_err);
             return DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR;
         }            
