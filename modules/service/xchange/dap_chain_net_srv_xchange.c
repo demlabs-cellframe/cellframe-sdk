@@ -2642,7 +2642,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
             dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
-            json_object_object_add(json_arr_orders_out, "PAGINA", json_arr_orders_limit);
+            json_object_object_add(json_obj_order, "PAGINA", json_arr_orders_limit);
 
             size_t i_tmp = 0;
 
@@ -2792,8 +2792,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 l_printed_orders_count++; 
                 if (l_head && (it->prev->next == NULL)) break;              
             }
-            json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
-            json_object_array_add(*json_arr_reply, json_obj_order); 
+             
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 dap_list_free(l_list);
             } else {

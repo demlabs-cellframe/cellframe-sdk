@@ -1114,7 +1114,7 @@ static bool s_session_round_new(void *a_arg)
     a_session->cur_round.round_start_ts = dap_time_now();
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
-    a_session->ts_stage_entry = 0;
+    a_session->ts_stage_entry = a_session->cur_round.round_start_ts;
 
     dap_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(a_session->chain, c_dap_chain_cell_id_null, &l_last_block_hash);
@@ -1193,6 +1193,7 @@ static bool s_session_round_new(void *a_arg)
 
 static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
 {
+    a_session->ts_stage_entry = dap_time_now();
     if (++a_session->cur_round.attempt_num > PVT(a_session->esbocs)->round_attempts_max) {
         a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
         return;
@@ -1517,8 +1518,7 @@ static void s_session_proc_state(void *a_arg)
         bool l_round_skip = PVT(l_session->esbocs)->emergency_mode ?
                     false : !s_validator_check(&l_session->my_signing_addr, l_session->cur_round.validators_list);
         if (l_session->ts_round_sync_start && l_time - l_session->ts_round_sync_start >=
-                (dap_time_t)PVT(l_session->esbocs)->round_start_sync_timeout +
-                    (l_session->sync_failed ? s_get_round_skip_timeout(l_session) : 0)) {
+                (dap_time_t)PVT(l_session->esbocs)->round_start_sync_timeout + (l_round_skip ? s_get_round_skip_timeout(l_session) : 0)) {
             if (l_session->cur_round.attempt_num > PVT(l_session->esbocs)->round_attempts_max ) {
                 debug_if(PVT(l_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
                                                                 " Round finished by reason: attempts is out",
@@ -1545,7 +1545,7 @@ static void s_session_proc_state(void *a_arg)
                                                 l_session->chain->net_name, l_session->chain->name,
                                                     l_session->cur_round.id, l_session->cur_round.attempt_num,
                                                         l_round_skip ? "skipped" : "can't synchronize minimum number of validators");
-                l_session->sync_failed = true;
+                l_session->sync_failed = !l_round_skip;
                 if (!l_session->new_round_enqueued) {
                     l_session->new_round_enqueued = true;
                     dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
@@ -1555,11 +1555,11 @@ static void s_session_proc_state(void *a_arg)
     } break;
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC:
         if (l_time - l_session->ts_stage_entry >= PVT(l_session->esbocs)->round_attempt_timeout * l_session->listen_ensure) {
-            l_session->listen_ensure += 2;
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Attempt finished by reason: haven't cantidate submitted",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
+            l_session->listen_ensure = 2;
             s_session_attempt_new(l_session);
         }
         break;
@@ -1569,6 +1569,7 @@ static void s_session_proc_state(void *a_arg)
             HASH_FIND(hh, l_session->cur_round.store_items, &l_session->cur_round.attempt_candidate_hash, sizeof(dap_hash_fast_t), l_store);
             if (!l_store) {
                 log_it(L_ERROR, "No round candidate found!");
+                l_session->listen_ensure = 4;
                 s_session_attempt_new(l_session);
                 break;
             }
@@ -1587,6 +1588,7 @@ static void s_session_proc_state(void *a_arg)
                                         " Attempt finished by reason: cant't collect minimum number of validator's signs",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
+            l_session->listen_ensure = 2;
             s_session_attempt_new(l_session);
         }
         break;
@@ -1596,6 +1598,7 @@ static void s_session_proc_state(void *a_arg)
                                         " Attempt finished by reason: cant't collect minimum number of validator's precommits with same final hash",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
+            l_session->listen_ensure = 2;
             s_session_attempt_new(l_session);
         }
         break;
@@ -2326,6 +2329,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         // Accept all validators
         l_not_in_list = !dap_chain_net_srv_stake_key_delegated(&l_signing_addr);
         break;
+    case DAP_CHAIN_ESBOCS_MSG_TYPE_DIRECTIVE:
     case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR:
     case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST:
         // Accept all active synced validators
@@ -2417,11 +2421,15 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
             l_validator->is_synced = true;
             if (++l_session->cur_round.validators_synced_count == dap_list_length(l_session->cur_round.validators_list)) {
                 l_session->cur_round.id = s_session_calc_current_round_id(l_session);
+                bool l_round_skip = PVT(l_session->esbocs)->emergency_mode ?
+                            false : !s_validator_check(&l_session->my_signing_addr, l_session->cur_round.validators_list);
                 debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                            " All validators are synchronized, wait to submit candidate",
+                                            " All validators are synchronized, %s",
                                                 l_session->chain->net_name, l_session->chain->name,
-                                                    l_session->cur_round.id, l_message->hdr.attempt_num);
-                s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
+                                                    l_session->cur_round.id, l_message->hdr.attempt_num,
+                                                        l_round_skip ? "but round is skipped" : "wait to submit candidate");
+                if (!l_round_skip)
+                    s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
             }
         }
     } break;

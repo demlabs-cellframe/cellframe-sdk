@@ -71,8 +71,7 @@ struct dap_order_notify {
  */
 int dap_chain_net_srv_order_init()
 {
-    dap_chain_srv_order_pin_init();
-    return 0;
+    return dap_chain_srv_order_pin_init();
 }
 
 /**
@@ -85,18 +84,19 @@ void dap_chain_net_srv_order_deinit()
 
 int dap_chain_srv_order_pin_init() {
     dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*.service.orders");
+    dap_cert_t *l_cert = dap_cert_find_by_name("node-addr");
+    if (!l_cert)
+        return -1;
+    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(dap_stream_node_addr_from_cert(l_cert));
+    
     for (dap_list_t *l_list = l_group_list; l_list && dap_global_db_group_match_mask((char*)l_list->data, "*pinned"); l_list = dap_list_next(l_list)) {
         size_t l_ret_count;
         dap_store_obj_t  * l_ret = dap_global_db_get_all_raw_sync((char*)l_list->data, &l_ret_count);
         if (!l_ret) {
-            dap_store_obj_free(l_ret, l_ret_count);
-            return -2;
+            log_it(L_WARNING, "Error: group %s is empty", (char*)l_list->data);
+            continue;
         }
-        dap_cert_t *l_cert = dap_cert_find_by_name("node-addr");
-        if (!l_cert)
-            return -1;
-        dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_cert(l_cert);
-        const char * l_node_addr_str = dap_stream_node_addr_to_str_static(l_addr);
+        
         for(size_t i = 0; i < l_ret_count; i++) {
             const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_ret[i].key, l_ret[i].value, l_ret[i].value_len);
             if (!l_order)
@@ -110,6 +110,7 @@ int dap_chain_srv_order_pin_init() {
         // DAP_DELETE(l_order); order delete in dap_store_obj_free
         dap_store_obj_free(l_ret, l_ret_count);
     }
+    dap_list_free_full(l_group_list, NULL);
     return 0;
 }
 
