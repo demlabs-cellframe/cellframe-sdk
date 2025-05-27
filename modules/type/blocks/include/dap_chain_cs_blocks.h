@@ -83,6 +83,12 @@ typedef struct dap_chain_cs_blocks_hardfork_fees {
     uint256_t fees_n_rewards_sum;
     struct dap_chain_cs_blocks_hardfork_fees *prev, *next;
 } dap_chain_cs_blocks_hardfork_fees_t;
+typedef struct dap_chain_cs_blocks_reward
+{
+    dap_hash_fast_t pkey_hash;
+    uint256_t reward;
+} dap_chain_cs_block_rewards_t;
+
 
 #define DAP_CHAIN_CS_BLOCKS(a) ((dap_chain_cs_blocks_t *)(a)->_inheritor)
 
@@ -105,3 +111,5 @@ DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_reward_group(const char *a_net_n
 }
 
 dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash);
+
+dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash);
