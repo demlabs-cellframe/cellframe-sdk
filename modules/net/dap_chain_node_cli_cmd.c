@@ -6425,6 +6425,150 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
 }
 
 /**
+ * @brief Create transaction from json file
+ * com_json_datum_mempool_put command
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
+ */
+int com_json_datum_mempool_put(int a_argc, char ** a_argv, void **a_json_arr_reply)
+{
+    int l_arg_index = 1;
+    const char *l_net_name = NULL; // optional parameter
+    const char *l_chain_name = NULL; // optional parameter
+    const char *l_json_file_path = NULL;
+    const char *l_json_str = NULL;
+
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_name); // optional parameter
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-json", &l_json_file_path);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx_obj", &l_json_str);
+
+    if(!l_json_file_path && !l_json_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON,
+                               "Command requires one of parameters '-json <json file path> or -tx_obj <string>'");
+        return DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON;
+    } 
+
+    // Open json file
+    struct json_object *l_json = NULL;
+    if (l_json_file_path){
+        l_json = json_object_from_file(l_json_file_path);
+        if(!l_json) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+                                "Can't open json file: %s", json_util_get_last_err());
+            return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+        }
+    } else if (l_json_str) {
+        l_json = json_tokener_parse(l_json_str);
+        if(!l_json) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+                                "Can't parse input JSON-string", json_util_get_last_err());
+            return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+        }
+    }
+    if(!json_object_is_type(l_json, json_type_object)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT, "Wrong json format");
+        json_object_put(l_json);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT;
+    }
+
+    
+    // Read network from json file
+    if(!l_net_name) {
+        struct json_object *l_json_net = json_object_object_get(l_json, "net");
+        if(l_json_net && json_object_is_type(l_json_net, json_type_string)) {
+            l_net_name = json_object_get_string(l_json_net);
+        }
+        if(!l_net_name) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
+                                   "Command requires parameter '-net' or set net in the json file");
+            json_object_put(l_json);
+            return DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET;
+        }
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if(!l_net) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME, "Not found net by name '%s'", l_net_name);
+        json_object_put(l_json);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME;
+    }
+    
+    // Read chain from json file
+    if(!l_chain_name) {
+        struct json_object *l_json_chain = json_object_object_get(l_json, "chain");
+        if(l_json_chain && json_object_is_type(l_json_chain, json_type_string)) {
+            l_chain_name = json_object_get_string(l_json_chain);
+        }
+    }
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
+    if(!l_chain) {
+        l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+    }
+    if(!l_chain) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
+                               "Chain name '%s' not found, try use parameter '-chain' or set chain in the json file", l_chain_name);
+        json_object_put(l_json);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME;
+    }
+    
+    json_object *l_jobj_arr_errors = json_object_new_array();
+    size_t l_items_ready = 0, l_items_count = 0;
+    dap_chain_datum_tx_t *l_tx = NULL;
+    int l_ret = 0;
+    if((l_ret = dap_chain_tx_datum_from_json(l_json, l_jobj_arr_errors, &l_tx, &l_items_count, &l_items_ready)) != DAP_CHAIN_NET_TX_CREATE_JSON_OK) {
+        dap_json_rpc_error_add(*a_json_arr_reply, l_ret,
+                               "Can't create transaction from json file");
+        //json_object_put(l_json);
+        return l_ret;
+    }
+
+    json_object *l_jobj_ret = json_object_new_object();
+
+    if(l_items_ready < l_items_count) {
+        json_object *l_tx_create = json_object_new_boolean(false);
+        json_object *l_jobj_valid_items = json_object_new_uint64(l_items_ready);
+        json_object *l_jobj_total_items = json_object_new_uint64(l_items_count);
+        json_object_object_add(l_jobj_ret, "tx_create", l_tx_create);
+        json_object_object_add(l_jobj_ret, "valid_items", l_jobj_valid_items);
+        json_object_object_add(l_jobj_ret, "total_items", l_jobj_total_items);
+        json_object_object_add(l_jobj_ret, "errors", l_jobj_arr_errors);
+        json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+        DAP_DELETE(l_tx);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS;
+    }
+    json_object_put(l_jobj_arr_errors);
+
+    // Pack transaction into the datum
+    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
+    size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
+    DAP_DELETE(l_tx);
+
+    // Add transaction to mempool
+    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
+    char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
+
+    DAP_DEL_Z(l_datum_tx);
+    DAP_DELETE(l_gdb_group_mempool_base_tx);
+    if(!l_placed) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
+                               "Can't add transaction to mempool");
+        return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL;
+    }
+    // Completed successfully
+    json_object *l_jobj_tx_create = json_object_new_boolean(true);
+    json_object *l_jobj_hash = json_object_new_string(l_tx_hash_str);
+    json_object *l_jobj_total_items = json_object_new_uint64(l_items_ready);
+    json_object_object_add(l_jobj_ret, "tx_create", l_jobj_tx_create);
+    json_object_object_add(l_jobj_ret, "hash", l_jobj_hash);
+    json_object_object_add(l_jobj_ret, "total_items", l_jobj_total_items);
+    json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+    return DAP_CHAIN_NET_TX_CREATE_JSON_OK;
+}
+
+/**
  * @brief Create transaction
  * com_tx_create command
  * @param argc
