@@ -390,7 +390,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
     return l_item;
 }
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                    uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
                                                                                    size_t a_pkey_hashes_count, const char *a_tag_str)
 {

@@ -190,12 +190,6 @@ if (CELLFRAME_MODULES MATCHES "srv-voting")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
 endif()
 
-# Enable service TX multisign with consensus
-if (CELLFRAME_MODULES MATCHES "srv-emit-delegate")
-    message("[+] Module 'srv-voting'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_emit_delegate)
-endif()
-
 # Enable service for dynamic modules
 if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     message("[+] Module 'dap_modules_dynamic_cdb'")

@@ -52,7 +52,7 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_wallet_shared"
 
-static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner)
+static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner)
 {
     size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];
@@ -69,7 +69,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         case TX_ITEM_TYPE_OUT_COND:
             if (a_cond->header.subtype == ((dap_chain_tx_out_cond_t *)l_item)->header.subtype) {
                 if (l_cond_out) {
-                    log_it(L_ERROR, "Only the condional output allowed for target subtype");
+                    log_it(L_ERROR, "Tx %s verificator error: Only the condional output allowed for target subtype", dap_hash_fast_to_str_static(a_tx_in_hash));
                     return -3;
                 }
                 l_cond_out = (dap_chain_tx_out_cond_t *)l_item;
@@ -80,11 +80,11 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
             if (l_tsd->type != DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && l_tsd->type != DAP_CHAIN_WALLET_SHARED_TSD_REFILL)
                 break; // Skip it
             if (l_tsd->size != sizeof(uint256_t)) {
-                log_it(L_ERROR, "TSD section size control error");
+                log_it(L_ERROR, "Tx %s verificator error: TSD section size control error", dap_hash_fast_to_str_static(a_tx_in_hash));
                 return -4;
             }
             if (!IS_ZERO_256(l_writeoff_value)) {
-                log_it(L_ERROR, "More than one TSD section is forbidden");
+                log_it(L_ERROR, "Tx %s verificator error: More than one TSD section is forbidden", dap_hash_fast_to_str_static(a_tx_in_hash));
                 return -5;
             }
             l_writeoff_value = dap_tsd_get_scalar(l_tsd, uint256_t);
@@ -104,7 +104,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
                 continue;
             l_signs[l_signs_counter] = l_sign;
             if (l_signs_counter >= l_tsd_hashes_count * 2) {
-                log_it(L_WARNING, "Too many signs in tx %s, can't process more than %zu", dap_hash_fast_to_str_static(a_tx_in_hash), l_tsd_hashes_count * 2);
+                log_it(L_WARNING, "Tx %s verificator error: Too many signs, can't process more than %zu", dap_hash_fast_to_str_static(a_tx_in_hash), l_tsd_hashes_count * 2);
                 return -1;
             }
             dap_hash_fast_t l_pkey_hash;
@@ -122,7 +122,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         }
     }
     if (IS_ZERO_256(l_writeoff_value)) {
-        log_it(L_ERROR, "Write-off value not found, can't process");
+        log_it(L_ERROR, "Tx %s verificator error: Write-off value not found, can't process", dap_hash_fast_to_str_static(a_tx_in_hash));
         return -6;
     }
 
@@ -131,7 +131,8 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
         const char *l_writeoff = NULL;
         dap_uint256_to_char(l_change_value, &l_writeoff);
-        log_it(L_ERROR, "Write-off value %s is greater than account balance %s", l_writeoff, l_balance);
+        log_it(L_ERROR, "Tx %s verificator error: Write-off value %s is greater than account balance %s",
+                        dap_hash_fast_to_str_static(a_tx_in_hash), l_writeoff, l_balance);
         DAP_DELETE(l_balance);
         return -7;
     }
@@ -139,31 +140,35 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
         const char *l_refill = NULL;
         dap_uint256_to_char(l_change_value, &l_refill);
-        log_it(L_ERROR, "Sum of re-fill value %s and account balance %s is owerflow 256 bit num", l_refill, l_balance);
+        log_it(L_ERROR, "Tx %s verificator error: Sum of re-fill value %s and account balance %s is owerflow 256 bit num",
+                        dap_hash_fast_to_str_static(a_tx_in_hash), l_refill, l_balance);
         DAP_DELETE(l_balance);
         return -9;
     }
     if (!IS_ZERO_256(l_change_value)) {
         if (!l_cond_out) {
-            log_it(L_ERROR, "Changeback on conditional output is need but not found");
+            log_it(L_ERROR, "Tx %s verificator error: Changeback on conditional output is need but not found",
+                            dap_hash_fast_to_str_static(a_tx_in_hash));
             return -8;
         }
         if (compare256(l_change_value, l_cond_out->header.value) != 0) {
             char *l_change = dap_uint256_decimal_to_char(l_change_value);
             const char *l_cond_out_value; dap_uint256_to_char(l_cond_out->header.value, &l_cond_out_value);
-            log_it(L_ERROR, "Changeback on conditional output is %s but not is expected %s", l_cond_out_value, l_change);
+            log_it(L_ERROR, "Tx %s verificator error: Changeback on conditional output is %s but not is expected %s",
+                            dap_hash_fast_to_str_static(a_tx_in_hash), l_cond_out_value, l_change);
             return -9;
         }
         if (a_cond->tsd_size != l_cond_out->tsd_size ||
                 memcmp(l_cond_out->tsd, a_cond->tsd, a_cond->tsd_size)) {
-            log_it(L_ERROR, "Condtional output in current TX have different TSD sections vs previous TX's one");
+            log_it(L_ERROR, "Tx %s verificator error: Condtional output in current TX have different TSD sections vs previous TX's one",
+                            dap_hash_fast_to_str_static(a_tx_in_hash));
             return -11;
         }
     }
 
     if (l_change_type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && l_signs_verified < a_cond->subtype.wallet_shared.signers_minimum) {
-        log_it(L_WARNING, "Not enough valid signs (%u from %u) for shared funds tx",
-                                    l_signs_verified, a_cond->subtype.wallet_shared.signers_minimum);
+        log_it(L_WARNING, "Tx %s verificator error: Not enough valid signs (%u from %u) for shared funds tx",
+                            dap_hash_fast_to_str_static(a_tx_in_hash), l_signs_verified, a_cond->subtype.wallet_shared.signers_minimum);
         return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS;
     }
     return 0;
@@ -237,7 +242,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction input");
 
     if (!l_share_native) {
-        dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                           &l_owner_addr, l_fee_total, &l_fee_transfer);
         if (!l_list_fee_out)
             m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
@@ -249,7 +254,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     }
 
     // add 'out_cond' & 'out_ext' items
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
     dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_wallet_shared(
                                                 l_uid, a_value, a_signs_min, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
     if (!l_tx_out)
@@ -291,7 +296,7 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
 
 
 dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
-    uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
+    uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* a_tsd_items)
 {
     dap_return_val_if_pass(!a_net || IS_ZERO_256(a_value) || IS_ZERO_256(a_fee), NULL);
     dap_ledger_t *l_ledger = a_net->pub.ledger;
@@ -380,7 +385,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(json_object *a
     DAP_DELETE(l_refill_tsd);
 
     //add other tsd if available
-    for ( dap_list_t *l_tsd = tsd_items; l_tsd; l_tsd = l_tsd->next ) {
+    for ( dap_list_t *l_tsd = a_tsd_items; l_tsd; l_tsd = l_tsd->next ) {
         if ( dap_chain_datum_tx_add_item(&l_tx, l_tsd->data) != 1 )
         m_tx_fail(ERROR_COMPOSE, "Can't add custom TSD section item ");
     }
@@ -434,7 +439,7 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
 }
 
 dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
-    dap_chain_addr_t *a_to_addr, uint256_t *a_value, uint32_t a_addr_count /*!not change type!*/, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* tsd_items)
+    dap_chain_addr_t *a_to_addr, uint256_t *a_value, uint32_t a_addr_count /*!not change type!*/, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* a_tsd_items)
 {
     dap_return_val_if_pass(!a_to_addr, NULL);
     dap_return_val_if_pass(!a_value, NULL);
@@ -1135,8 +1140,8 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply)
 
 int dap_chain_wallet_shared_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL);
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL, NULL, NULL, NULL);
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
     dap_ledger_service_add(l_uid, "wallet shared", s_tag_check);
     return 0;
 }
