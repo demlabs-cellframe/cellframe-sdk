@@ -641,14 +641,16 @@ void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out)
     json_object_object_add(a_json_out, "name", json_object_new_string((const char *) a_net->pub.name));
     json_object_object_add(a_json_out, "networkState",
                            json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
-    json_object_object_add(a_json_out, "targetState",
-                           json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
-    json_object_object_add(a_json_out, "linksCount", json_object_new_int(0));
-    json_object_object_add(a_json_out, "activeLinksCount",
-                           json_object_new_int(dap_link_manager_links_count(a_net->pub.id.uint64)));
+    if (PVT(a_net)->state != NET_STATE_LOADING) {
+        json_object_object_add(a_json_out, "targetState",
+                               json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
+        json_object_object_add(a_json_out, "linksCount", json_object_new_int(0));
+        json_object_object_add(a_json_out, "activeLinksCount",
+                               json_object_new_int(dap_link_manager_links_count(a_net->pub.id.uint64)));
+    }
     char l_node_addr_str[24] = {'\0'};
     int l_tmp = snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(g_node_addr));
-    json_object_object_add(a_json_out, "nodeAddress"     , json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
+    json_object_object_add(a_json_out, "nodeAddress", json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
     if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
         json_object *l_json_sync_status = s_net_sync_status(a_net);
         json_object_object_add(a_json_out, "processed", l_json_sync_status);
@@ -881,7 +883,7 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_objec
         return ;
     }
     json_object_object_add(a_json_out, "current_addr", l_jobj_cur_node_addr);
-    if (PVT(a_net)->state != NET_STATE_OFFLINE) {
+    if (PVT(a_net)->state != NET_STATE_OFFLINE && PVT(a_net)->state != NET_STATE_LOADING) {
         json_object *l_jobj_links = json_object_new_object();
         json_object *l_jobj_active_links = json_object_new_uint64(dap_link_manager_links_count(a_net->pub.id.uint64));
         json_object *l_jobj_required_links = json_object_new_uint64(dap_link_manager_required_links_count(a_net->pub.id.uint64));
@@ -2706,13 +2708,14 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     if ( dap_ledger_datum_is_enforced(l_ledger, a_datum_hash, false) )
-        return log_it(L_ERROR, "Datum is blacklisted"), -100;
+        return log_it(L_ERROR, "Datum %s is blacklisted", dap_hash_fast_to_str_static(a_datum_hash)), -100;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
             size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
             if (l_decree_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted decree, datum size %zd is not equal to size of decree %zd", l_datum_data_size, l_decree_size);
+                log_it(L_WARNING, "Corrupted decree %s, datum size %zd is not equal to size of decree %zd",
+                                            dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_decree_size);
                 return -102;
             }
             return dap_ledger_decree_load(l_decree, a_chain, a_datum_hash);
@@ -2721,7 +2724,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
             size_t l_anchor_size = dap_chain_datum_anchor_get_size(l_anchor);
             if (l_anchor_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
+                log_it(L_WARNING, "Corrupted anchor %s, datum size %zd is not equal to size of anchor %zd",
+                                            dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_anchor_size);
                 return -102;
             }
             return dap_ledger_anchor_load(l_anchor, a_chain, a_datum_hash);
@@ -2736,7 +2740,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
             if (l_tx_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted transaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
+                log_it(L_WARNING, "Corrupted transaction %s, datum size %zd is not equal to size of TX %zd",
+                                            dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_tx_size);
                 return -102;
             }
             return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
