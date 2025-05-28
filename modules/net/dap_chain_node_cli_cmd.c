@@ -6517,16 +6517,11 @@ int com_json_datum_mempool_put(int a_argc, char ** a_argv, void **a_json_arr_rep
     size_t l_items_ready = 0, l_items_count = 0;
     dap_chain_datum_tx_t *l_tx = NULL;
     int l_ret = 0;
-    if((l_ret = dap_chain_tx_datum_from_json(l_json, l_jobj_arr_errors, &l_tx, &l_items_count, &l_items_ready)) != DAP_CHAIN_NET_TX_CREATE_JSON_OK) {
-        dap_json_rpc_error_add(*a_json_arr_reply, l_ret,
-                               "Can't create transaction from json file");
-        //json_object_put(l_json);
-        return l_ret;
-    }
+    l_ret = dap_chain_tx_datum_from_json(l_json, l_jobj_arr_errors, &l_tx, &l_items_count, &l_items_ready);
 
     json_object *l_jobj_ret = json_object_new_object();
 
-    if(l_items_ready < l_items_count) {
+    if(l_items_ready < l_items_count || l_ret) {
         json_object *l_tx_create = json_object_new_boolean(false);
         json_object *l_jobj_valid_items = json_object_new_uint64(l_items_ready);
         json_object *l_jobj_total_items = json_object_new_uint64(l_items_count);
@@ -6534,8 +6529,12 @@ int com_json_datum_mempool_put(int a_argc, char ** a_argv, void **a_json_arr_rep
         json_object_object_add(l_jobj_ret, "valid_items", l_jobj_valid_items);
         json_object_object_add(l_jobj_ret, "total_items", l_jobj_total_items);
         json_object_object_add(l_jobj_ret, "errors", l_jobj_arr_errors);
-        json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+
         DAP_DELETE(l_tx);
+        if (l_ret)
+            dap_json_rpc_error_add(*a_json_arr_reply, l_ret,
+                                   "Can't create transaction from json file");
+        json_object_array_add(*a_json_arr_reply, l_jobj_ret);
         return DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS;
     }
     json_object_put(l_jobj_arr_errors);

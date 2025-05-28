@@ -627,7 +627,7 @@ static bool s_json_get_srv_uid(struct json_object *a_json, const char *a_key_ser
     // Read service id
     const char *l_id = s_json_get_text(a_json, a_key_service_id);
     
-    if(sscanf(l_id,"0x%016"DAP_UINT64_FORMAT_x, &l_srv_id) == 1) {
+    if(l_id && sscanf(l_id,"0x%016"DAP_UINT64_FORMAT_x, &l_srv_id) == 1) {
         *a_out = l_srv_id;
         return true;
     }
