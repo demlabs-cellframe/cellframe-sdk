@@ -269,7 +269,7 @@ int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id, dap_config_t *a_net_cf
  */
 int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_net_id)
 {
-    dap_return_val_if_pass(!a_policy || !a_policy->data_size || !a_policy->data, -1);
+    dap_return_val_if_pass(!a_policy || !a_policy->data_size, -1);
 
     struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     if (!l_net_item) {

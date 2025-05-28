@@ -1773,6 +1773,7 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             s_add_atom_datums(l_blocks, l_curr_atom);
             dap_chain_atom_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size, l_curr_atom->block->hdr.ts_created);
             HASH_DEL(new_main_branch, l_item);
+            DAP_DELETE(l_item);
             l_main_blocks_cnt++;
         }
         // Notify about branch switching
