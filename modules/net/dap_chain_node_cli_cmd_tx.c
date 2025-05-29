@@ -115,14 +115,14 @@ bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
             dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
             json_object * l_json_obj_datum = json_object_new_object();
-            json_object_object_add(l_json_obj_datum, "OUT - ", json_object_new_int(l_out_idx));
+            json_object_object_add(l_json_obj_datum, "out", json_object_new_int(l_out_idx));
             json_object_object_add(l_json_obj_datum, "is_spent_by_tx", json_object_new_string(l_hash_str));
             json_object_array_add(json_arr_items, l_json_obj_datum);
             l_spent = true;
         }
     }
-    json_object_object_add(json_obj_out, "spent_OUTs", json_arr_items);
-    json_object_object_add(json_obj_out, "all_OUTs_yet_unspent", l_spent ? json_object_new_string("no") : json_object_new_string("yes"));
+    json_object_object_add(json_obj_out, "spent_outs", json_arr_items);
+    json_object_object_add(json_obj_out, "all_outs_yet_unspent", l_spent ? json_object_new_string("no") : json_object_new_string("yes"));
     return true;
 }
 
@@ -1006,7 +1006,7 @@ static size_t dap_db_net_history_token_list(json_object* a_json_arr_reply, dap_c
             json_object_array_add(json_arr_obj_tx, json_obj_tx);
         l_token_num_total += l_token_num;
     }
-    json_object_object_add(a_obj_out, "TOKENS", json_arr_obj_tx);
+    json_object_object_add(a_obj_out, "tokens", json_arr_obj_tx);
     return l_token_num_total;
 }
 

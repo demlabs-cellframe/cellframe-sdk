@@ -1806,7 +1806,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         }
                     }
                     
-                    json_object_object_add(json_obj_event_list, "EVENTS", json_arr_obj_event);
+                    json_object_object_add(json_obj_event_list, "events", json_arr_obj_event);
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
 
@@ -1862,7 +1862,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             }
                         }
                     }
-                    json_object_object_add(json_obj_event_list, "TRESHOLD", json_arr_obj_event);
+                    json_object_object_add(json_obj_event_list, "treshold", json_arr_obj_event);
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events_treshold);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                     json_object_object_add(json_obj_event_list,"net_name", json_object_new_string(l_net->pub.name));
@@ -2099,7 +2099,7 @@ static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, d
     // Header
     snprintf(l_buf, sizeof(l_buf), "%hu",l_event->header.version);
     json_object_object_add(l_jobj,"version", json_object_new_string(l_buf));
-    json_object_object_add(l_jobj,"round ID", json_object_new_uint64(l_event->header.round_id));
+    json_object_object_add(l_jobj,"round_id", json_object_new_uint64(l_event->header.round_id));
     snprintf(l_buf, sizeof(l_buf), "0x%016"DAP_UINT64_FORMAT_x"",l_event->header.cell_id.uint64);
     json_object_object_add(l_jobj,"cell_id", json_object_new_string(l_buf));
     snprintf(l_buf, sizeof(l_buf), "0x%016"DAP_UINT64_FORMAT_x"",l_event->header.chain_id.uint64);

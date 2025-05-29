@@ -531,7 +531,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
                 dap_bin2hex(l_value_str, l_value, l_value_len);
                 json_object_object_add(json_obj_rec, "command_status", json_object_new_string("Record found"));
-                json_object_object_add(json_obj_rec, "lenght(byte)", json_object_new_uint64(l_value_len));
+                json_object_object_add(json_obj_rec, "lenght_byte", json_object_new_uint64(l_value_len));
                 json_object_object_add(json_obj_rec, "hash", json_object_new_string(dap_get_data_hash_str(l_value, l_value_len).s));
                 json_object_object_add(json_obj_rec, "pinned", l_is_pinned ? json_object_new_string("Yes") : json_object_new_string("No") );
                 json_object_object_add(json_obj_rec, "value", json_object_new_string(l_value_str));
@@ -3279,7 +3279,7 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
     json_object_object_add(l_jobj_ret, "hash", l_jobj_datum_hash);
     json_object_object_add(l_jobj_ret, "action", json_object_new_string("delete"));
     json_object *l_jobj_ret_code = json_object_new_int(res);
-    json_object_object_add(l_jobj_ret, "retCode", l_jobj_ret_code);
+    json_object_object_add(l_jobj_ret, "ret_code", l_jobj_ret_code);
     json_object *l_jobj_status = NULL;
     if (!res) {
         l_jobj_status = json_object_new_string("deleted");
@@ -3602,7 +3602,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
             dap_json_rpc_allocation_error(*a_json_arr_reply);
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
         }
-        json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
+        json_object_object_add(l_jobj_verify, "is_processed", l_jobj_verify_status);
         json_object_object_add(l_jobj_verify, "error", l_jobj_verify_err);
         ret = DAP_COM_MEMPOOL_PROC_LIST_ERROR_FALSE_VERIFY;
     } else {
@@ -3616,7 +3616,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
                     dap_json_rpc_allocation_error(*a_json_arr_reply);
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-                json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
+                json_object_object_add(l_jobj_verify, "is_processed", l_jobj_verify_status);
                 ret = DAP_COM_MEMPOOL_PROC_LIST_ERROR_FALSE_VERIFY;
             } else {
                 json_object *l_jobj_verify_status = json_object_new_boolean(TRUE);
@@ -3626,7 +3626,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
                     dap_json_rpc_allocation_error(*a_json_arr_reply);
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-                json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
+                json_object_object_add(l_jobj_verify, "is_processed", l_jobj_verify_status);
                 if (false) { //dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash)){
                     json_object *l_jobj_wrn_text = json_object_new_string("Can't delete datum from mempool!");
                     if (!l_jobj_wrn_text) {
@@ -8665,8 +8665,8 @@ int com_policy(int argc, char **argv, void **reply) {
         }
         char l_time[DAP_TIME_STR_SIZE] = {};
         dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, dap_time_now());
-        json_object_object_add(l_answer, "Current time", json_object_new_string(l_time));
-        json_object_object_add(l_answer, "Notification", json_object_new_string("It's policy draft, check and use 'execute' command to apply"));
+        json_object_object_add(l_answer, "current_time", json_object_new_string(l_time));
+        json_object_object_add(l_answer, "notification", json_object_new_string("It's policy draft, check and use 'execute' command to apply"));
         if (l_answer) {
             json_object_array_add(*a_json_arr_reply, l_answer);
         } else {
