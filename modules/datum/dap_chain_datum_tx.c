@@ -72,10 +72,8 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 {
     size_t size = 0;
     dap_return_val_if_pass(!a_tx || !*a_tx || !(size = dap_chain_datum_item_tx_get_size(a_item, 0)), -1 );
-    if (*(byte_t *)(a_item) != TX_ITEM_TYPE_SIG && dap_chain_datum_tx_item_get(*a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL)) {
-        log_it(L_ERROR, "Can't add item, datum already signed");
-        return -1;
-    }
+    if ( *(byte_t*)a_item != TX_ITEM_TYPE_SIG && dap_chain_datum_tx_item_get(*a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL) )
+        return log_it(L_ERROR, "Can't add item, datum already signed"), -1;
     dap_chain_datum_tx_t *tx_new = DAP_REALLOC_RET_VAL_IF_FAIL( *a_tx, dap_chain_datum_tx_get_size(*a_tx) + size, -2 );
     memcpy((uint8_t*)tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
@@ -84,7 +82,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 }
 
 #define dap_chain_datum_tx_add_new_generic(a_tx, type, a_item) \
-    ({ type* item = a_item; int l_ret = -1; item ? ( l_ret = dap_chain_datum_tx_add_item(a_tx, item), DAP_DELETE(item), l_ret ) : l_ret; })
+    ({ type* item = a_item; int ret = dap_chain_datum_tx_add_item(a_tx, item); DAP_DELETE(item); ret; })
 
 /**
  * Create 'in' item and insert to transaction
@@ -250,49 +248,43 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
 int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
 {
     dap_return_val_if_pass(!a_tx, -1);
-    int l_ret = -4, l_sign_num = 0;
-    byte_t
-        *l_item = NULL,
-        *l_first_item = NULL;
-    size_t
-        l_item_size = 0,
-        l_sign_item_size = 0;
+    int l_ret = -4;
+    size_t l_item_size = 0, l_data_size = 0;
+    byte_t *l_item = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, &l_item_size), *l_data_end = l_item;
+    if ( !l_item )
+        return log_it(L_ERROR, "No signs in TX"), l_ret;
     dap_chain_tx_sig_t *l_sign_item = NULL;
-    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
-        if (*l_item != TX_ITEM_TYPE_SIG) {
-            if (l_sign_item) {
-                log_it(L_ERROR, "Items found after sign");
-                return l_ret;
+    l_data_size = (size_t)(l_item - a_tx->tx_items);
+    if ( a_sign_num ) {
+        TX_ITEM_ITER( l_item, l_item_size, l_data_end, a_tx->header.tx_items_size - l_data_size ) {
+            if ( *l_item != TX_ITEM_TYPE_SIG )
+                return log_it(L_ERROR, "Item 0x%x found beyond data end", *l_item), -1;
+            if ( !--a_sign_num ) {
+                l_sign_item = (dap_chain_tx_sig_t*)l_item;
+                break;
             }
-            continue;
         }
-        if (!l_first_item)
-            l_first_item = l_item;
-        if (l_sign_num++ == a_sign_num) {
-            l_sign_item = (dap_chain_tx_sig_t*)l_item;
-            l_sign_item_size = l_item_size;
-        }
-    }
-    if (!l_sign_item || !l_sign_item_size)
-        return log_it(L_ERROR, "Sign not found in TX"), l_ret;
+        if ( !l_sign_item )
+            return log_it(L_ERROR, "Sign not found in TX"), l_ret;
+    } else
+        l_sign_item = (dap_chain_tx_sig_t*)l_item;
+    
     dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_sign_item);
-    size_t
-        l_tx_items_size = a_tx->header.tx_items_size,
-        l_data_size = 0;
-    dap_chain_datum_tx_t *l_tx = NULL;
-    byte_t *l_tx_data = NULL;
+    if ( !l_sign )
+        return log_it(L_ERROR, "Can't extract sign from item"), -1;
+    size_t l_tx_items_size = a_tx->header.tx_items_size;
+    dap_chain_datum_tx_t *l_tx;
+    byte_t *l_data;
     if ( l_sign_item->header.version ) {
-        l_data_size = (size_t)( l_first_item - (byte_t *)a_tx );
-        l_tx = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true)
-            ? DAP_DUP_SIZE(a_tx, l_data_size) : a_tx;
-        l_tx_data = (byte_t*)l_tx;
+        l_data_size = l_data_end - (byte_t*)a_tx;
+        l_tx = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true) ? DAP_DUP_SIZE(a_tx, l_data_size) : a_tx;
         l_tx->header.tx_items_size = 0;
+        l_data = (byte_t*)l_tx;
     } else {
         l_tx = a_tx;
-        l_tx_data = a_tx->tx_items;
-        l_data_size = (size_t)( (byte_t *)l_sign_item - l_tx_data );
+        l_data = a_tx->tx_items;
     }
-    l_ret = dap_sign_verify_all(l_sign, l_sign_item_size, l_tx_data, l_data_size);
+    l_ret = dap_sign_verify_all(l_sign, l_item_size, l_data, l_data_size);
     if (l_sign_item->header.version) {
         if ( dap_config_get_item_bool_default(g_config, "ledger", "mapped", true) )
             DAP_DELETE(l_tx);
@@ -432,7 +424,7 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_out_cond_srv_xchange);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_pos_delegate);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_lock);
-    dap_list_free(a_items_groups->items_out_cond_srv_emit_delegate);
+    dap_list_free(a_items_groups->items_out_cond_wallet_shared);
     dap_list_free(a_items_groups->items_in_ems);
     dap_list_free(a_items_groups->items_vote);
     dap_list_free(a_items_groups->items_voting);
@@ -516,8 +508,8 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_lock, l_item);
                 break;
-            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_EMIT_DELEGATE:
-                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_emit_delegate, l_item);
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_wallet_shared, l_item);
                 break;
             default:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_unknonwn, l_item);

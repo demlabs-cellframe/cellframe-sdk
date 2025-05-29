@@ -1046,7 +1046,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         } break;      
 
         case TX_ITEM_TYPE_OUT:
-        case TX_ITEM_TYPE_OUT_EXT: {
+        case TX_ITEM_TYPE_OUT_EXT:
+        case TX_ITEM_TYPE_OUT_STD: {
             // Read address and value
             uint256_t l_value = { };
             const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr");
@@ -1073,7 +1074,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                     break;
                                 }
                                 else
-                                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token ? l_token : (l_main_token ? l_main_token : l_native_token), 0);
+                                    l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token ? l_token : (l_main_token ? l_main_token : l_native_token), 0);
                             }
                             else
                                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_native_token);
@@ -1097,7 +1098,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                             }
                         }
                         l_item = (const uint8_t*) l_out_item;
-                    } else if(l_item_type == TX_ITEM_TYPE_OUT_EXT) {
+                    } else if ( l_item_type == TX_ITEM_TYPE_OUT_EXT || l_item_type == TX_ITEM_TYPE_OUT_STD ) {
                         // Read address and value
                         if (l_unstake && l_is_value && !dap_strcmp(l_json_item_addr_to_str, "NULL")){
                             const uint8_t *l_out_item = NULL;
@@ -1154,13 +1155,9 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         }
                     }
                 } else {
-                    if(l_item_type == TX_ITEM_TYPE_OUT) {
-                        log_it(L_WARNING, "Invalid 'out' item %zu", i);
-                    }
-                    else if(l_item_type == TX_ITEM_TYPE_OUT_EXT) {
-                        log_it(L_WARNING, "Invalid 'out_ext' item %zu", i);
-                    }
-                    char *l_str_err = dap_strdup_printf("For item %zu of type 'out' or 'out_ext' the "
+                    log_it(L_WARNING, "Invalid 'out%s' item %zu",
+                                      l_item_type == TX_ITEM_TYPE_OUT_STD ? "_std" : (l_item_type == TX_ITEM_TYPE_OUT_EXT ? "_ext" : ""), i);
+                    char *l_str_err = dap_strdup_printf("For item %zu of type 'out', 'out_ext' or 'out_std' the "
                                                         "string representation of the address could not be converted, "
                                                         "or the size of the output sum is 0.", i);
                     json_object *l_jobj_err = json_object_new_string(l_str_err);
@@ -1914,7 +1911,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
 
         case TX_ITEM_TYPE_OUT_STD: {
             const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_std_t *)item)->value, &l_coins_str );
-            json_object_object_add(json_obj_item, "item_type", json_object_new_string("OUT STD"));
+            json_object_object_add(json_obj_item, "type", json_object_new_string("out_std"));
             json_object_object_add(json_obj_item, "addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_std_t *)item)->addr)));
             json_object_object_add(json_obj_item, "token", json_object_new_string(((dap_chain_tx_out_std_t *)item)->token));
             json_object_object_add(json_obj_item, "coins", json_object_new_string(l_coins_str));

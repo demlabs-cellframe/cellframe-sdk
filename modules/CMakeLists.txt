@@ -105,8 +105,3 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-bridge")
     add_subdirectory(service/bridge)
 endif()
-
-# Service for emission rights delegate to wallets consensus
-if (CELLFRAME_MODULES MATCHES "srv-emit-delegate")
-    add_subdirectory(service/emit-delegate)
-endif()
