@@ -305,7 +305,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     int l_prev_tx_count = 0;
 
     // 1. Verify signature in current transaction
-    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx, 0))
+    if (!a_from_threshold && !dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true) && dap_chain_datum_tx_verify_sign(a_tx, 0))
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
 
     // ----------------------------------------------------------------
@@ -788,16 +788,17 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
                     break;
                 }
-
-                int l_verificator_error = l_verificator->callback_in_verify(a_ledger, a_tx, a_tx_hash, l_tx_prev_out_cond, l_owner);
-                if (l_verificator_error != DAP_LEDGER_CHECK_OK) { // TODO add string representation for verificator return codes
-                    debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional input %s",
-                                                                    l_verificator_error, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
-
-                    // Retranslate NO_SIGNS code to upper level
-                    l_err_num = l_verificator_error == DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS ? l_verificator_error : DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
-                    break;
+                if ( !dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true) ) {
+                    l_err_num = l_verificator->callback_in_verify(a_ledger, a_tx, a_tx_hash, l_tx_prev_out_cond, l_owner);
+                    if ( l_err_num != DAP_LEDGER_CHECK_OK ) {
+                        debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional input %s",
+                                                            l_err_num, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
+                        if ( l_err_num != DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS )
+                            l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+                        break;
+                    }
                 }
+                
                 l_bound_item->cond = l_tx_prev_out_cond;
                 l_value = l_tx_prev_out_cond->header.value;
                 if (l_tx_prev_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
@@ -2124,6 +2125,8 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     // Clear & destroy item
     for (uint32_t i = 0; i < l_tx_item->cache_data.n_outs; i++)
         dap_list_free_full(l_tx_item->out_metadata[i].trackers, dap_ledger_colour_clear_callback);
+    if ( !is_ledger_mapped(l_ledger_pvt) )
+        DAP_DELETE(l_tx_item->tx);
     DAP_DELETE(l_tx_item);
 
     if ( is_ledger_cached(l_ledger_pvt) ) {

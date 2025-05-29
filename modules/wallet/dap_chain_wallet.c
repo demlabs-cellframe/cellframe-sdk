@@ -56,6 +56,7 @@
 #include "dap_cert_file.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
+#include "dap_chain_wallet_shared.h"
 #include "dap_chain_wallet_cache.h"
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
@@ -396,7 +397,8 @@ int dap_chain_wallet_init()
     }
 
     closedir(l_dir);
-    return 0;
+
+    return dap_chain_wallet_shared_init();
 }
 
 /**
