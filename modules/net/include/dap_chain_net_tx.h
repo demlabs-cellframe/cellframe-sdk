@@ -143,6 +143,8 @@ bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, da
  */
 int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
                                         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
+int dap_chain_tx_datum_from_json(json_object *a_tx_json, json_object *a_jobj_errors, 
+                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 
 /**
  * @brief Convert binary transaction to json
