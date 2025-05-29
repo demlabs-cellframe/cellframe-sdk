@@ -71,6 +71,7 @@ uint16_t dap_compose_get_net_port(const char* name);
 dap_chain_net_id_t dap_get_net_id(const char* name);
 
 int dap_tx_json_tsd_add(json_object * json_tx, json_object * json_add);
+json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * a_url, const char * a_port);
 
 json_object* dap_request_command_to_rpc(const char *request, compose_config_t *a_config);
 json_object* dap_request_command_to_rpc_with_params(compose_config_t *a_config, const char *a_method, const char *msg, ...);
