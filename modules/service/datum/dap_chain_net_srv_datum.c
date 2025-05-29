@@ -33,6 +33,8 @@
 
 #define LOG_TAG "chain_net_srv_datum"
 
+#define DAP_DATUM_MIN_FREE_SPACE_MB 20  // Minimum 20MB free space for datum operations
+
 static dap_chain_net_srv_t *s_srv_datum = NULL;
 static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply);
 
@@ -136,6 +138,12 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
             size_t l_path_length = strlen(l_system_datum_folder)+8+strlen(l_datum_hash_str);
             char l_path[l_path_length];
             snprintf(l_path, l_path_length, "%s/%s.datum", l_system_datum_folder, l_datum_hash_str);
+            
+            // Check disk space before creating datum file
+            if (!dap_disk_space_check(l_path, DAP_DATUM_MIN_FREE_SPACE_MB)) {
+                log_it(L_ERROR, "Datum save blocked due to insufficient disk space for file %s", l_path);
+                return -6; // Insufficient space error
+            }
             
             char * l_file_dir = dap_path_get_dirname(l_path);
             dap_mkdir_with_parents(l_file_dir);

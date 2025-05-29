@@ -61,6 +61,10 @@
 #include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
 #include "dap_notify_srv.h"
+#include "dap_string.h"
+#include "dap_list.h"
+#include "dap_hash.h"
+#include "dap_file_utils.h"
 
 //#define __USE_GNU
 
@@ -71,6 +75,8 @@
 #endif
 
 #define LOG_TAG "dap_chain_wallet"
+
+#define DAP_WALLET_MIN_FREE_SPACE_MB 10  // Minimum 10MB free space for wallet operations
 
 typedef struct dap_chain_wallet_notificator {
     dap_chain_wallet_opened_callback_t callback;
@@ -641,6 +647,12 @@ enum {
 
 if ( !a_wallet )
     return  log_it(L_ERROR, "Wallet is null, can't save it to file!"), -EINVAL;
+
+// Check disk space before saving wallet
+if (!dap_disk_space_check(l_wallet_internal->file_name, DAP_WALLET_MIN_FREE_SPACE_MB)) {
+    log_it(L_ERROR, "Wallet save blocked due to insufficient disk space for file %s", l_wallet_internal->file_name);
+    return -ENOSPC; // No space left on device
+}
 
 if ( a_pass )
     if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, a_pass, strlen(a_pass), 0)) )
