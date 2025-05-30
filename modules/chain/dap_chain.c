@@ -26,7 +26,6 @@
 #if defined(DAP_OS_LINUX) && !defined(DAP_OS_ANDROID)
 #include <stdc-predef.h>
 #endif
-#include <unistd.h>
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_srv.h"

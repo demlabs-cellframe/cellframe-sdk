@@ -22,7 +22,6 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
 #include <stddef.h>
 
 #include "dap_client_http.h"

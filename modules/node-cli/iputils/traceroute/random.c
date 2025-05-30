@@ -6,7 +6,6 @@
     See COPYING for the status of this software.
 */
 
-#include <stdlib.h>
 #include <unistd.h>
 #include <sys/times.h>
 

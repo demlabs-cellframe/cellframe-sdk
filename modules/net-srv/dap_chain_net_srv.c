@@ -23,7 +23,6 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
-#include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stddef.h>

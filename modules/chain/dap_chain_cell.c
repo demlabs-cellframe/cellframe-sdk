@@ -22,7 +22,6 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "uthash.h"
-#include <unistd.h>
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"

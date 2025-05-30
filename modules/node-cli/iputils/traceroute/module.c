@@ -6,10 +6,6 @@
  See COPYING for the status of this software.
  */
 
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdio.h>
 
 #include "traceroute.h"
 

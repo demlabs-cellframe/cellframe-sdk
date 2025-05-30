@@ -21,10 +21,7 @@
  */
 
 #include "dap_time.h"
-#include <stdlib.h>
-#include <stdio.h>
 #include <time.h>
-#include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <errno.h>

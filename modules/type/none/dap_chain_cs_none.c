@@ -22,7 +22,6 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
 #include "utlist.h"

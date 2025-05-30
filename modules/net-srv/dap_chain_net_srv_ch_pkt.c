@@ -22,10 +22,7 @@ You should have received a copy of the GNU General Public License
 along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <time.h>
-#include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>

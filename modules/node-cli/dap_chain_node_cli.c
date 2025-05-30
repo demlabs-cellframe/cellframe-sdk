@@ -23,12 +23,9 @@
  along with any Cellframe SDK based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <string.h>
 #include <errno.h>
 #include <assert.h>
 //#include <glib.h>
-#include <unistd.h>
 #include <pthread.h>
 #include "iputils/iputils.h"
 

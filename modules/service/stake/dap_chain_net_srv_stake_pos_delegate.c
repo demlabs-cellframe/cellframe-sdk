@@ -24,7 +24,6 @@
 
 #include <math.h>
 #include "dap_chain_wallet.h"
-#include "dap_chain_wallet_cache.h"
 #include "dap_config.h"
 #include "dap_list.h"
 #include "dap_enc_base58.h"
@@ -43,7 +42,6 @@
 #include "dap_cli_server.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_tsd.h"
-#include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake_pos_delegate"

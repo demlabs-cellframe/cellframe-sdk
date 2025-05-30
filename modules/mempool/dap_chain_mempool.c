@@ -23,9 +23,6 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stddef.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdio.h>
 #include <assert.h>
 #include <memory.h>
 
