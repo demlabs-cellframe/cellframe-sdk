@@ -1859,7 +1859,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                             l_notifier->callback(l_notifier->arg, a_chain, c_dap_chain_cell_id_null, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
 #ifndef DAP_CHAIN_BLOCKS_TEST
                             for (size_t i = 0; i < l_tmp->datum_count; i++)
-                                dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
+                                if (l_tmp->datum[i]->header.type_id == DAP_CHAIN_DATUM_TX)
+                                    dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
 #endif
                         }
                     }    

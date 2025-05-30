@@ -2502,12 +2502,18 @@ void dap_ledger_colour_clear_callback(void *a_list_data)
 void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
 {
     dap_return_if_fail(a_ledger && a_tx_hash);
-    dap_ledger_tx_item_t *l_item_out = NULL;
-    dap_chain_datum_tx_t *l_tx = s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
-    if (!l_item_out) {
-        log_it(L_ERROR, "Cna't find ledger tx item for hash %s", dap_hash_fast_to_str_static(a_tx_hash));
+    
+    // Check if hash is valid
+    if (dap_hash_fast_is_blank(a_tx_hash)) {
+        log_it(L_WARNING, "Trying to clear colour for blank transaction hash");
         return;
     }
+    
+    dap_ledger_tx_item_t *l_item_out = NULL;
+    dap_chain_datum_tx_t *l_tx = s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
+    if (!l_item_out)    // TX is not in ledger, it's OK
+        return;
+    
     l_item_out->cache_data.flags |= LEDGER_PVT_TX_META_FLAG_IMMUTABLE;
     for (uint32_t i = 0; i < l_item_out->cache_data.n_outs; i++) {
         if (!dap_hash_fast_is_blank(&l_item_out->out_metadata[i].tx_spent_hash_fast)) {
