@@ -212,6 +212,8 @@ int dap_chain_net_srv_stake_pos_delegate_init()
         " return m-tokens to specified wallet (if any)\n"
     "srv_stake approve -net <net_name> -tx <transaction_hash> -poa_cert <priv_cert_name>\n"
         "\tApprove stake transaction by root node certificate within specified net name\n"
+    "srv_stake pkey_update -net <net_name> -pkey <pkey_hash_str> -cert <priv_cert_name>\n"
+        "\tUpdate public key from hash to full one within specified net name (legacy compliance)\n"
     "srv_stake list keys -net <net_name> [-cert <delegated_cert> | -pkey <pkey_hash_str>]\n"
         "\tShow the list of active stake keys (optional delegated with specified cert).\n"
     "srv_stake list tx -net <net_name> \n"
@@ -3028,8 +3030,10 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
 static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t a_total_weight, json_object *a_json_arr)
 {
     json_object * l_json_obj_stake = json_object_new_object();
-    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE], l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(&a_stake->tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE + 1], l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE + 1];
+    dap_chain_hash_fast_to_str(&a_stake->tx_hash, &l_tx_hash_str[a_stake->pkey ? 1 : 0], sizeof(l_tx_hash_str));
+    if (a_stake->pkey)
+        l_tx_hash_str[0] = '.';
     dap_chain_hash_fast_to_str(&a_stake->signing_addr.data.hash_fast, l_pkey_hash_str, sizeof(l_pkey_hash_str));
     char *l_balance = dap_chain_balance_coins_print(a_stake->locked_value);
     char *l_effective_weight = dap_chain_balance_coins_print(a_stake->value);

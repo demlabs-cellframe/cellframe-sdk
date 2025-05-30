@@ -4464,7 +4464,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 if (!l_tsd) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     dap_list_free_full(l_tsd_list, NULL);
-                    return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_TSD_MEM_ALLOC_ERR;
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR, c_error_memory_alloc);
+                    return -DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
                 }
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
                 DAP_DELETE(l_addr);
@@ -4475,22 +4476,28 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
-                return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_TSD_MEM_ALLOC_ERR;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR, c_error_memory_alloc);
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_from", &l_param_value_str)) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK;
 
             uint64_t l_param_value = strtoll(l_param_value_str, NULL, 10);
             if (!l_param_value && dap_strcmp(l_param_value_str, "0")) {
                 log_it(L_ERROR, "Can't converts %s to atom number", l_param_value_str);
-                return -100;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR,
+                                                                "Can't converts %s to atom number", l_param_value_str);
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR;
             }
             l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM, &l_param_value, sizeof(l_param_value));
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
-                return -1;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR,
+                                                                "Can't allocate memory for hardfork decree");
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
             uint16_t l_generation = dap_chain_generation_next(l_decree_chain);
@@ -4498,7 +4505,9 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
-                return -1;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR,
+                                                                "Can't allocate memory for hardfork decree");
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
 
@@ -4508,7 +4517,9 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 if (!l_addrs) {
                     dap_list_free_full(l_tsd_list, NULL);
                     log_it(L_ERROR, "Argument -addr_pairs require string <\"old_addr:new_addr\",\"old_addr1:new_addr1\"...>");
-                    return -200;
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR,
+                                            "Argument -addr_pairs require string <\"old_addr:new_addr\",\"old_addr1:new_addr1\"...>");
+                    return -DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR;
                 }
                 json_object* l_json_arr_addrs = json_object_new_object();
                 for (uint16_t i = 0; l_addrs[i]; i++) {
@@ -4521,6 +4532,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS, l_addr_array_str, strlen(l_addr_array_str) + 1);
                 if (!l_tsd) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_TSD_MEM_ALLOC_ERR,
+                                            "Can't allocate memory for hardfork decree");
                     dap_list_free_full(l_tsd_list, NULL);
                     return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_TSD_MEM_ALLOC_ERR;
                 }
@@ -4535,54 +4548,85 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                         log_it(L_ERROR, "Can't convert %s to node addr", l_addrs[i]);
                         dap_list_free_full(l_tsd_list, NULL);
                         dap_strfreev(l_addrs);
-                        return -5;
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR,
+                                                "Can't convert %s to node addr", l_addrs[i]);
+                        return -DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR;
                     }
                     l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, &l_addr_cur, sizeof(l_addr_cur));
                     if (!l_tsd) {
                         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                         dap_list_free_full(l_tsd_list, NULL);
                         dap_strfreev(l_addrs);
-                        return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_TSD_MEM_ALLOC_ERR;
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR,
+                                                "Can't allocate memory for hardfork decree");
+                        return -DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
                     }
                     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
                 }
                 dap_strfreev(l_addrs);
             }
-
-            if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)) {
-                log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
+            int l_ret = dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list);
+            if (l_ret) {
                 dap_list_free_full(l_tsd_list, NULL);
-                return -300;
+                switch (l_ret) {
+                    case -1:
+                    case -3:
+                    default:
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR, "Internal error");
+                        return -DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR;
+                    case -2:
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_KEYS_ERR,
+                                                 "Network have validators with no full public key delegation, can't proceed");
+                        return -DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_KEYS_ERR;
+                }
             }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_retry", &l_param_value_str)) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY;
             if (!dap_chain_esbocs_hardfork_engaged(l_decree_chain)) {
                 log_it(L_WARNING, "Hardfork is not engaged, can't retry");
-                return -116;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_ENGAGED_ERR,
+                                        "Hardfork is not engaged, can't retry");
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_ENGAGED_ERR;
             }
-            if (dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list)) {
-                log_it(L_ERROR, "Can't add stake delegate data to hardfork decree");
+            int l_ret = dap_chain_net_srv_stake_hardfork_data_export(l_net, &l_tsd_list);
+            if (l_ret) {
                 dap_list_free_full(l_tsd_list, NULL);
-                return -300;
+                switch (l_ret) {
+                    case -1:
+                    case -3:
+                    default:
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR, "Internal error");
+                        return -DAP_CHAIN_NODE_CLI_COM_DECREE_INVALID_PARAM_ERR;
+                    case -2:
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_KEYS_ERR,
+                                                 "Network have validators with no full public key delegation, can't proceed");
+                        return -DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_KEYS_ERR;
+                }
             }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_complete", &l_param_value_str)) {
             if (!l_decree_chain->hardfork_data) {
                 log_it(L_ERROR, "Hardfork isn't started, can't complete");
-                return -300;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_STARTED_ERR,
+                                                                                    "Hardfork isn't started, can't complete");
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_STARTED_ERR;
             }
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE;
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_cancel", &l_param_value_str)) {
             uint16_t l_generation = l_decree_chain->generation;
             if (!l_generation) {
                 log_it(L_ERROR, "Can't cancel base chain generation");
-                return -300;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_GENERATION_ERR,
+                                                                    "Can't cancel base chain generation");
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_GENERATION_ERR;
             }
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL;
             l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION, &l_generation, sizeof(l_chain->generation));
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
-                return -1;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR,
+                                                                                    "Can't allocate memory for hardfork decree");
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
             uint64_t l_banned_chain_id = l_decree_chain->id.uint64;
@@ -4590,7 +4634,9 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
-                return -1;
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR,
+                                                                                    "Can't allocate memory for hardfork decree");
+                return -DAP_CHAIN_NODE_CLI_COM_DECREE_MEMORY_ALLOC_ERR;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
@@ -4601,6 +4647,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             uint16_t l_min_signs = dap_ledger_decree_get_min_num_of_signers(l_net->pub.ledger);
             if (l_new_certs_count < l_min_signs) {
                 log_it(L_WARNING,"Number of new certificates is less than minimum owner number.");
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_CERT_NUMBER_ERR,
+                                                                                    "Number of new certificates is less than minimum owner number.");
                 return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_CERT_NUMBER_ERR;
             }
 
@@ -4619,6 +4667,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if(l_failed_certs)
             {
                 dap_list_free_full(l_tsd_list, NULL);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_CERT_NO_PUB_KEY_ERR,
+                                                                                    "New cert have no public key.");
                 return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_CERT_NO_PUB_KEY_ERR;
             }
         }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-signs_verify", &l_param_value_str)) {
@@ -4627,6 +4677,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if (IS_ZERO_256(l_new_num_of_owners)) {
                 log_it(L_WARNING, "The minimum number of owners can't be zero");
                 dap_list_free_full(l_tsd_list, NULL);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NO_OWNERS_ERR,
+                                                                                    "The minimum number of owners can't be zero");
                 return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NO_OWNERS_ERR;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -4634,6 +4686,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if (compare256(l_new_num_of_owners, l_owners) > 0) {
                 log_it(L_WARNING, "The minimum number of owners is greater than the total number of owners.");
                 dap_list_free_full(l_tsd_list, NULL);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_TO_MANY_OWNERS_ERR,
+                                                                                    "The minimum number of owners is greater than the total number of owners.");
                 return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_TO_MANY_OWNERS_ERR;
             }
 
@@ -4641,6 +4695,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
             if (!l_tsd) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 dap_list_free_full(l_tsd_list, NULL);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_MEM_ALOC_ERR,
+                                                                                    "Can't allocate memory for hardfork decree");
                 return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_MEM_ALOC_ERR;
             }
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
