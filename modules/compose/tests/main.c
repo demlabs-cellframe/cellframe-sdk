@@ -79,7 +79,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         l_items_count = 0,
         l_items_ready = 0;
     dap_test_msg("create datum from json");
-    dap_assert(!dap_chain_tx_datum_from_json(l_datum_1_json, l_error_json, &l_datum_2, &l_items_count, &l_items_ready), "tx_create_by_json");
+    dap_assert(!dap_chain_tx_datum_from_json(l_datum_1_json, NULL l_error_json, &l_datum_2, &l_items_count, &l_items_ready), "tx_create_by_json");
     dap_assert(l_items_count == l_items_ready, "items_count == items_ready")
     dap_assert((*a_datum)->header.tx_items_size == l_datum_2->header.tx_items_size, "items_size_1 == items_size_2");
     dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_tx_get_size(*a_datum)), "datum_1 == datum_2");

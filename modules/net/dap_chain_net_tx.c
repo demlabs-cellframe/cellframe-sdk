@@ -2351,7 +2351,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 }
 
 
-int dap_chain_tx_datum_from_json(json_object *a_tx_json, json_object *a_jobj_arr_errors, 
+int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_arr_errors, 
         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
 
@@ -2376,12 +2376,12 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, json_object *a_jobj_arr
     } 
     const char *l_net_str = json_object_get_string(l_json_net); 
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
-    if (l_net_str && !l_net) {
+    if (l_net_str && !l_net && !a_net) {
         dap_json_rpc_error_add(a_jobj_arr_errors,DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON,"not found net by name '%s'", l_net_str);
         log_it(L_ERROR, "not found net by name '%s'", l_net_str);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;
     }
-
+    l_net = l_net ? l_net : a_net;
     log_it(L_NOTICE, "Json TX: found %lu items", l_items_count);
 
     // Create transaction

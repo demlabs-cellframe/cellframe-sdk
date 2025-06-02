@@ -6441,6 +6441,7 @@ int com_json_datum_mempool_put(int a_argc, char ** a_argv, void **a_json_arr_rep
     const char *l_json_file_path = NULL;
     const char *l_json_str = NULL;
 
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name); // optional parameter
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_name); // optional parameter
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-json", &l_json_file_path);
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx_obj", &l_json_str);
@@ -6517,7 +6518,7 @@ int com_json_datum_mempool_put(int a_argc, char ** a_argv, void **a_json_arr_rep
     size_t l_items_ready = 0, l_items_count = 0;
     dap_chain_datum_tx_t *l_tx = NULL;
     int l_ret = 0;
-    l_ret = dap_chain_tx_datum_from_json(l_json, l_jobj_arr_errors, &l_tx, &l_items_count, &l_items_ready);
+    l_ret = dap_chain_tx_datum_from_json(l_json, l_net, l_jobj_arr_errors, &l_tx, &l_items_count, &l_items_ready);
 
     json_object *l_jobj_ret = json_object_new_object();
 
