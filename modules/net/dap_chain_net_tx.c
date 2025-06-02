@@ -981,7 +981,7 @@ const uint8_t *s_dap_chain_net_tx_create_out_std_item (json_object *a_json_item_
     const char *l_token = s_json_get_text(a_json_item_obj, "token");
     dap_time_t l_time_unlock = 0;
     const char* l_time_unlock_str = s_json_get_text(a_json_item_obj, "time_unlock");
-    if (sscanf(l_time_unlock_str, "%"DAP_UINT64_FORMAT_U, &l_time_unlock) != 1){
+    if (l_time_unlock_str && sscanf(l_time_unlock_str, "%"DAP_UINT64_FORMAT_U, &l_time_unlock) != 1){
         log_it(L_ERROR, "Json TX: bad time_unlock");
         return NULL;
     }
@@ -1510,7 +1510,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
 
-    json_object *l_json = a_tx_json;
+        json_object *l_json = a_tx_json;
     json_object *l_jobj_errors = a_json_obj_error ? a_json_obj_error : NULL;
     
     if (!a_tx_json)
@@ -1583,7 +1583,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     }
                     const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
                     int64_t l_out_prev_idx;
-                    bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, false);
+                    bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx,false);
                     // If prev_hash and out_prev_idx were read
                     if(l_prev_hash_str && l_is_out_prev_idx){
                         dap_chain_hash_fast_t l_tx_prev_hash = {};
@@ -1789,7 +1789,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         case TX_ITEM_TYPE_OUT_COND: {
             // Read subtype of item
             const char *l_subtype_str = s_json_get_text(l_json_item_obj, "subtype");
-            dap_chain_tx_out_cond_subtype_t l_subtype = dap_chain_datum_tx_item_type_from_str_short(l_subtype_str);
+            dap_chain_tx_out_cond_subtype_t l_subtype = dap_chain_tx_out_cond_subtype_from_str_short(l_subtype_str);
             switch (l_subtype) {
 
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
@@ -2048,7 +2048,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
             int64_t l_sign_size = 0, l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
                     l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
-            if ( !s_json_get_int64_uint64(l_json_item_obj, "sig_size", &l_sign_size, false) )
+            if ( !s_json_get_int64_uint64(l_json_item_obj, "sig_size", &l_sign_size,false) )
                 log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
 
             dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
@@ -2086,7 +2086,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 break;
             }
             int64_t l_units;
-            if(!s_json_get_int64_uint64(l_json_item_obj, "units", &l_units, false)) {
+            if(!s_json_get_int64_uint64(l_json_item_obj, "units", &l_units, false)){
                 log_it(L_ERROR, "Json TX: bad units in TYPE_RECEIPT");
                 break;
             }
