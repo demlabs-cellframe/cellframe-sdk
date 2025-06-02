@@ -2971,8 +2971,8 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     json_object * l_json_obj_stake = json_object_new_object();
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE], l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE + 1];
     dap_chain_hash_fast_to_str(&a_stake->tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
-    dap_chain_hash_fast_to_str(&a_stake->signing_addr.data.hash_fast, &l_pkey_hash_str[!a_stake->pkey ? 1 : 0], sizeof(l_pkey_hash_str));
-    if (a_stake->pkey)
+    dap_chain_hash_fast_to_str(&a_stake->signing_addr.data.hash_fast, &l_pkey_hash_str[a_stake->pkey ? 0 : 1], sizeof(l_pkey_hash_str));
+    if (!a_stake->pkey)
         l_pkey_hash_str[0] = '.';
     char *l_balance = dap_chain_balance_coins_print(a_stake->locked_value);
     char *l_effective_weight = dap_chain_balance_coins_print(a_stake->value);
