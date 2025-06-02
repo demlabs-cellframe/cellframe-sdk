@@ -111,7 +111,7 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
 #define m_tx_item_size(t) ( !a_max_size || sizeof(t) <= a_max_size ? sizeof(t) : 0 )
 #define m_tx_item_size_ext(t, size_field)                                                                                       \
     ( !a_max_size ||                                                                                                            \
-    ( sizeof(t) < a_max_size && a_max_size > ((t*)a_item)->size_field && sizeof(t) <= a_max_size - ((t*)a_item)->size_field )   \
+    ( sizeof(t) <= a_max_size && a_max_size > ((t*)a_item)->size_field && sizeof(t) <= a_max_size - ((t*)a_item)->size_field )  \
         ? sizeof(t) + ((t*)a_item)->size_field : 0 );
 
     switch (*a_item) {
