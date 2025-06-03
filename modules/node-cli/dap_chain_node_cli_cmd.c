@@ -2090,8 +2090,9 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
             }
             json_object * json_obj_wall = json_object_new_object();
-            const char *l_value_str = NULL;
+            const char *l_value_str = NULL, *l_cond_type_str = NULL;
             uint256_t l_value_datoshi = uint256_0, l_value_sum = uint256_0;
+            dap_chain_tx_out_cond_subtype_t l_cond_type = DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL;
             bool l_cond_outs = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cond") != -1;
             if (!l_cond_outs) {
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
@@ -2104,11 +2105,23 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
                             return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
                     }
                 }
+            } else {
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-type", &l_cond_type_str);
+                if (l_cond_type_str) {
+                    l_cond_type = dap_chain_tx_out_cond_subtype_from_str(l_cond_type_str);
+                    if (l_cond_type == DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED) {
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
+                                               "Invalid conditional output type '%s'. Available types: srv_pay, srv_xchange, srv_stake_pos_delegate, srv_stake_lock, fee", 
+                                                l_cond_type_str);
+                        json_object_put(json_arr_out);
+                        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
+                    }
+                }
             }
 
             dap_list_t *l_outs_list = NULL;
             if (l_cond_outs)
-                l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL, l_token_tiker, l_addr);
+                l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, l_cond_type, l_token_tiker, l_addr);
             else if (l_value_str) {
                 if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum))
                     l_outs_list = dap_chain_wallet_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum); 

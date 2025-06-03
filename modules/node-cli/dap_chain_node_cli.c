@@ -232,7 +232,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet deactivate -w <wallet_name> -password <password>\n"
                             "wallet convert -w <wallet_name> -password <password>\n"
                             "wallet find -addr <addr> {-file <file path>}\n"
-                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [{-cond | -value <uint256_value>}]\n");
+                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [{-cond [-type <cond_type>] | -value <uint256_value>}]\n"
+                            "\t Available conditional output types for -type parameter:\n"
+                            "\t   srv_pay, srv_xchange, srv_stake_pos_delegate, srv_stake_lock, fee\n");
 
     dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool", dap_chain_node_cli_cmd_id_from_str("mempool"),
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
