@@ -44,34 +44,25 @@
 #include "dap_stream_ch_pkt.h"
 #include "dap_client.h"
 
-#include <arpa/inet.h>
-#include <fcntl.h>
+// Убраны дублирующиеся включения <arpa/inet.h> и <fcntl.h>
+
 #ifdef DAP_OS_LINUX
 #include <linux/ip.h>
 #include <netpacket/packet.h>
 #include <linux/if_tun.h>
 #include <linux/if.h>
-#include <sys/ioctl.h>
-#include <netpacket/packet.h>
-#elif defined (DAP_OS_DARWIN)
+#elif defined(DAP_OS_DARWIN)
 #include <net/if.h>
+#include <netinet/ip.h>
+#if !defined(DAP_OS_IOS)
 #include <net/if_utun.h>
 #include <sys/kern_control.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
 #include <sys/sys_domain.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#elif defined (DAP_OS_BSD)
+#endif
+#elif defined(DAP_OS_BSD)
 #include <net/if.h>
-#include <sys/kern_control.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/sys_domain.h>
-#include <netinet/in.h>
 #include <netinet/ip.h>
+#include <net/if_tun.h>
 #endif
 
 #include "dap_chain_net_srv_vpn.h"
@@ -131,7 +122,7 @@ int tun_device_create(char *dev)
         strcpy(dev, ifr.ifr_name);
     log_it(L_INFO, "Created %s network interface", ifr.ifr_name);
     return fd;
-#elif defined DAP_OS_DARWIN
+#elif defined DAP_OS_DARWIN && !defined(DAP_OS_IOS)
     // Prepare structs
     struct ctl_info l_ctl_info = {0};
     int l_errno = 0;

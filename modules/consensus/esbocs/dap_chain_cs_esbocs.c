@@ -3275,9 +3275,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             json_object_array_add(l_json_arr_banlist, l_ban_validator);
         }
         if (!json_object_array_length(l_json_arr_banlist)) {
-            json_object_object_add(l_json_obj_banlist, "BANLIST", json_object_new_string("empty"));
+            json_object_object_add(l_json_obj_banlist, "banlist", json_object_new_string("empty"));
         } else {
-            json_object_object_add(l_json_obj_banlist, "BANLIST", l_json_arr_banlist);
+            json_object_object_add(l_json_obj_banlist, "banlist", l_json_arr_banlist);
         }
         json_object_array_add(*a_json_arr_reply, l_json_obj_banlist);   
 

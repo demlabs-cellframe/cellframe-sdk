@@ -1586,7 +1586,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                         } else {
                             dap_chain_net_srv_xchange_order_status_t l_rc = s_tx_check_for_open_close(l_net,l_tx);
                             if(l_rc == XCHANGE_ORDER_STATUS_UNKNOWN){
-                                json_object_object_add(l_json_obj_order, "wrong_TX", json_object_new_string(l_tx_hash));
+                                json_object_object_add(l_json_obj_order, "wrong_tx", json_object_new_string(l_tx_hash));
                             }else{
                                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
                                 dap_list_t *l_tx_list_temp = l_tx_list;
@@ -2642,7 +2642,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
             dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
-            json_object_object_add(json_obj_order, "PAGINA", json_arr_orders_limit);
+            json_object_object_add(json_obj_order, "pagina", json_arr_orders_limit);
 
             size_t i_tmp = 0;
 
@@ -2799,7 +2799,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 dap_list_free_full(l_list, NULL);
             }
             
-            json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
+            json_object_object_add(json_obj_order, "orders", json_arr_orders_out);
             json_object_object_add(json_obj_order, "total", json_object_new_uint64(i_tmp));
             json_object_array_add(*json_arr_reply, json_obj_order);
 
@@ -3383,7 +3383,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                             }
 
                         }
-                        json_object_object_add(json_obj_out, "TICKERS_PAIR", json_arr_bl_cache_out);
+                        json_object_object_add(json_obj_out, "tickers_pair", json_arr_bl_cache_out);
 
                         // Free tickers array
                         for(size_t i = 0; i< l_tickers_count; i++){
