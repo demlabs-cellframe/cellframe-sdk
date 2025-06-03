@@ -1116,8 +1116,13 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
         json_object_object_add(json_vote_out, "total_sum", json_object_new_string(l_tw_coins));
         json_object_object_add(json_vote_out, "total_sum_datoshi", json_object_new_string(l_tw_datoshi));
-        if (l_json_arr_vote_list && json_object_array_length(l_json_arr_vote_list) > 0)
-            json_object_object_add(json_vote_out, "votes_list", l_json_arr_vote_list);
+        if (l_need_vote_list) {
+            if (json_object_array_length(l_json_arr_vote_list) > 0 ) {
+                json_object_object_add(json_vote_out, "votes_list", l_json_arr_vote_list);
+            } else {
+                json_object_object_add(json_vote_out, "votes_list", json_object_new_string("empty"));
+            }
+        }
         json_object_array_add(*json_arr_reply, json_vote_out);
     } break;
     default:
@@ -1612,6 +1617,10 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
         dap_chain_datum_tx_delete(l_tx);
         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_SIGN_TX;
     }
+    json_object * l_retj = json_object_new_object();
+    dap_chain_net_tx_to_json(l_tx, l_retj);
+    const char * l_str = json_object_to_json_string(l_retj);
+    log_it(L_ATT, "/n %s", l_str);
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     dap_hash_fast_t l_tx_hash;
