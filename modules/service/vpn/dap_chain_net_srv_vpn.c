@@ -34,6 +34,7 @@
 
 #ifdef DAP_OS_DARWIN
 #include <net/if.h>
+#ifndef DAP_OS_IOS
 #include <net/if_utun.h>
 #include <sys/kern_control.h>
 #include <sys/types.h>
@@ -41,7 +42,7 @@
 #include <sys/socket.h>
 #include <sys/sys_domain.h>
 #include <netinet/in.h>
-
+#endif
 #elif defined(DAP_OS_BSD)
 #include <netinet/in.h>
 #include <net/if.h>
@@ -691,7 +692,8 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
 
     int l_err = 0;
-#if defined (DAP_OS_DARWIN)
+    int l_tun_fd;
+#if defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
     // Prepare structs
     struct ctl_info l_ctl_info = {0};
 
@@ -704,7 +706,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     }
 
     // Create utun socket
-    int l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
+    l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
     if( l_tun_fd < 0){
         log_it(L_ERROR, "Opening utun device control (SYSPROTO_CONTROL) error %d: \"%s\"",
                         errno, dap_strerror(errno));
@@ -766,7 +768,6 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
 #if !defined(DAP_OS_DARWIN) &&( defined (DAP_OS_LINUX) || defined (DAP_OS_BSD))
-        int l_tun_fd;
         if( (l_tun_fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK)) < 0 ) {
             log_it(L_ERROR, "Opening /dev/net/tun error %d: \"%s\"",
                             errno, dap_strerror(errno));
@@ -820,12 +821,14 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ", 
         l_str_ipv4_gw, l_str_ipv4_netmask, s_raw_server->tun_device_name);
     system(buf);
-#elif defined (DAP_OS_DARWIN)
+#elif defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
     snprintf(buf,sizeof(buf),"ifconfig %s %s %s up",s_raw_server->tun_device_name,
              inet_ntoa(s_raw_server->ipv4_gw),inet_ntoa(s_raw_server->ipv4_gw));
     system(buf);
     snprintf(buf,sizeof(buf),"route add -net %s -netmask %s -interface %s", inet_ntoa(s_raw_server->ipv4_gw),c_mask,s_raw_server->tun_device_name );
     system(buf);
+#elif defined(DAP_OS_IOS)
+
 #else
 #error "Not defined for your platform"
 #endif
@@ -2228,22 +2231,22 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
         json_object *l_json_response = json_object_new_object();
 
         json_object *l_new_data = json_object_new_uint64(l_net_id.uint64);
-        json_object_object_add(l_json_response, "netId", l_new_data);
+        json_object_object_add(l_json_response, "net_id", l_new_data);
 
         l_new_data = json_object_new_uint64((uint64_t)DAP_CHAIN_NET_SRV_VPN_ID);
-        json_object_object_add(l_json_response, "srvUid", l_new_data);
+        json_object_object_add(l_json_response, "srv_uid", l_new_data);
 
         l_new_data = json_object_new_string(l_user_pkey_hash_str ? l_user_pkey_hash_str : "");
-        json_object_object_add(l_json_response, "userPkeyHash", l_new_data);
+        json_object_object_add(l_json_response, "user_pkey_hash", l_new_data);
 
         l_new_data = json_object_new_string(l_server_pkey_hash ? l_server_pkey_hash : "");
-        json_object_object_add(l_json_response, "serverPkeyHash", l_new_data);
+        json_object_object_add(l_json_response, "server_pkey_hash", l_new_data);
 
         l_new_data = json_object_new_uint64(l_remain_service ? l_remain_service->limits_bytes : 0);
-        json_object_object_add(l_json_response, "limitsBytes", l_new_data);
+        json_object_object_add(l_json_response, "limits_bytes", l_new_data);
 
         l_new_data = json_object_new_uint64(l_remain_service ? l_remain_service->limits_ts : 0);
-        json_object_object_add(l_json_response, "limitsSec", l_new_data);
+        json_object_object_add(l_json_response, "limits_sec", l_new_data);
 
         const char *output_string = json_object_to_json_string(l_json_response);
         dap_http_simple_reply(a_http_simple, (void*)output_string, strlen(output_string));

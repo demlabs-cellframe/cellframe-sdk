@@ -338,8 +338,8 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                     : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
             json_object_object_add(json_obj_item,"type", json_object_new_string("PKey"));
             json_object_object_add(json_obj_item,"pkey", json_object_new_string(""));
-            json_object_object_add(json_obj_item,"SIG_type", json_object_new_string(dap_sign_type_to_str(((dap_chain_tx_pkey_t*)item)->header.sig_type)));
-            json_object_object_add(json_obj_item,"SIG_size", json_object_new_uint64(((dap_chain_tx_pkey_t*)item)->header.sig_size));
+            json_object_object_add(json_obj_item,"sig_type", json_object_new_string(dap_sign_type_to_str(((dap_chain_tx_pkey_t*)item)->header.sig_type)));
+            json_object_object_add(json_obj_item,"sig_size", json_object_new_uint64(((dap_chain_tx_pkey_t*)item)->header.sig_size));
             json_object_object_add(json_obj_item,"sequence_number", json_object_new_uint64(((dap_chain_tx_pkey_t*)item)->seq_no));
             json_object_object_add(json_obj_item,"key", json_object_new_string(""));
             json_object_object_add(json_obj_item,"type", json_object_new_string(dap_pkey_type_to_str(l_pkey->header.type)));
@@ -488,7 +488,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
         }
         json_object_array_add(json_arr_items, json_obj_item);
     }
-    json_object_object_add(json_obj_out, "ITEMS", json_arr_items);
+    json_object_object_add(json_obj_out, "items", json_arr_items);
     return true;
 }
 
