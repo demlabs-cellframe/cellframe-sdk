@@ -1,0 +1,57 @@
+{
+  "module_name": "cellframe-sdk",
+  "structure": {
+    "chain": {
+      "description": "Blockchain core functionality",
+      "key_files": [
+        "modules/chain/include/"
+      ],
+      "purpose": "Block validation, chain management, consensus"
+    },
+    "consensus": {
+      "description": "Consensus algorithms",
+      "components": {
+        "dag-poa": "DAG with Proof of Authority",
+        "block-pow": "Block-based Proof of Work",
+        "esbocs": "ESBOCS consensus"
+      }
+    },
+    "mempool": {
+      "description": "Transaction pool management",
+      "key_files": [
+        "modules/mempool/include/"
+      ]
+    },
+    "wallet": {
+      "description": "Wallet functionality",
+      "key_files": [
+        "modules/wallet/include/"
+      ]
+    },
+    "services": {
+      "description": "Network services",
+      "components": {
+        "stake": "Staking service",
+        "voting": "Voting service", 
+        "xchange": "Exchange service",
+        "bridge": "Cross-chain bridge"
+      }
+    },
+    "net": {
+      "description": "Network layer for blockchain",
+      "key_files": [
+        "modules/net/include/",
+        "modules/net/srv/include/"
+      ]
+    }
+  },
+  "dependencies": {
+    "internal": ["dap-sdk"],
+    "external": ["json-c"]
+  },
+  "patterns": {
+    "blockchain_structures": "Block, transaction, chain data structures",
+    "consensus_patterns": "Validator, witness, consensus state",
+    "service_patterns": "Service registration and management"
+  }
+} 
