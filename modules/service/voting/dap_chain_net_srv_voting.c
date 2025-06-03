@@ -1662,10 +1662,18 @@ dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_ne
 }
 
 void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info){
+    if (!a_info)
+        return;
     size_t l_count_options = a_info->options.count_option;
     for (size_t i = 0; i < l_count_options; i++) {
         dap_chain_net_vote_info_option_t *l_option = a_info->options.options[i];
-        DAP_DELETE(l_option);
+        if (l_option) {
+            // Free the vote hashes list (but not the hash data itself since it's referenced)
+            if (l_option->hashes_tx_votes) {
+                dap_list_free(l_option->hashes_tx_votes);
+            }
+            DAP_DELETE(l_option);
+        }
     }
     DAP_DELETE(a_info->options.options);
     DAP_DELETE(a_info);
