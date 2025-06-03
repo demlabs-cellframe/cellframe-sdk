@@ -1173,7 +1173,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
 
     if (DAP_SIGN_GET_PKEY_HASHING_FLAG(l_tx_out_cond->subtype.srv_stake_pos_delegate.flags)) {
-        dap_tsd_t *l_tsd = dap_tsd_find(l_tx_out_cond->tsd, l_tx_out_cond->tsd_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD);
+        dap_tsd_t *l_tsd = dap_tsd_find(l_tx_out_cond->tsd, l_tx_out_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_PKEY);
         if (!l_tsd) {
             log_it(L_WARNING, "NULL tsd pkey in tx_out_cond with active PKEY_HASHING_FLAG");
         } else {
@@ -2035,7 +2035,6 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_PARAM_ERR, "Command 'order list' requires parameter -net");
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_PARAM_ERR;
         }
-        const char * l_list_type = NULL;
         int l_list_filter = 0;
         if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "staker") >= 0)
             l_list_filter = CMD_LIST_STAKER;
@@ -2133,7 +2132,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                             if (l_cond) {
                                 dap_pkey_t *l_pkey = NULL;
                                 if (DAP_SIGN_GET_PKEY_HASHING_FLAG(l_cond->subtype.srv_stake_pos_delegate.flags)) {
-                                    dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD);
+                                    dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_PKEY);
                                     if (!l_tsd) {
                                         log_it(L_WARNING, "NULL tsd pkey in tx_out_cond with active PKEY_HASHING_FLAG");
                                     } else {
