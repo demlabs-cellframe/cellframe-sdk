@@ -2090,46 +2090,59 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
             }
             json_object * json_obj_wall = json_object_new_object();
-            const char* l_value_str = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
+            const char *l_value_str = NULL;
+            uint256_t l_value_datoshi = uint256_0, l_value_sum = uint256_0;
+            bool l_cond_outs = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cond") != -1;
+            if (!l_cond_outs) {
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
+                if (l_value_str) {
+                    l_value_datoshi = dap_chain_balance_scan(l_value_str);
+                    if (IS_ZERO_256(l_value_datoshi)) {
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
+                                                   "Can't convert -value param to 256bit integer");
+                            json_object_put(json_arr_out);
+                            return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
+                    }
+                }
+            }
 
             dap_list_t *l_outs_list = NULL;
-
-            uint256_t l_value_sum = uint256_0;
-            if (l_value_str){
-                uint256_t l_value_datoshi = dap_chain_balance_scan(l_value_str);
-                l_outs_list = dap_chain_wallet_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
+            if (l_cond_outs)
+                l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL, l_token_tiker, l_addr);
+            else if (l_value_str) {
+                if (dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum))
+                    l_outs_list = dap_chain_wallet_get_list_tx_outs_with_val(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum); 
             } else {
                 if (dap_chain_wallet_cache_tx_find_outs(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum))
                     l_outs_list = dap_chain_wallet_get_list_tx_outs(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum);
             }
-
             json_object_object_add(json_obj_wall, "wallet_addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
-            const char *l_out_total_value_str = dap_chain_balance_datoshi_print(l_value_sum);
-            const char *l_out_total_value_coins_str = dap_chain_balance_coins_print(l_value_sum);
-            json_object_object_add(json_obj_wall, "total_value_coins", json_object_new_string(l_out_total_value_coins_str));
-            json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
-            DAP_DEL_Z(l_out_total_value_str);
-            DAP_DEL_Z(l_out_total_value_coins_str);
             struct json_object *l_json_outs_arr = json_object_new_array();
-            for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next){
+            if (!l_json_outs_arr)
+                return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+            for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next) {
+                json_object *json_obj_item = json_object_new_object();
+                if (!json_obj_item)
+                    return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
                 dap_chain_tx_used_out_item_t *l_item = l_temp->data;
-                json_object* json_obj_item = json_object_new_object();
-                const char *l_out_value_str = dap_chain_balance_datoshi_print(l_item->value);
-                const char *l_out_value_coins_str = dap_chain_balance_coins_print(l_item->value);
-                json_object_object_add(json_obj_item,"item_type", json_object_new_string("unspent_out"));
+                const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
+                json_object_object_add(json_obj_item,"item_type", json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
                 json_object_object_add(json_obj_item,"value_coins", json_object_new_string(l_out_value_coins_str));
                 json_object_object_add(json_obj_item,"value_datosi", json_object_new_string(l_out_value_str));
-                json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));  
-                json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_int64(l_item->num_idx_out));   
+                json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));
+                json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_int64(l_item->num_idx_out));
                 json_object_array_add(l_json_outs_arr, json_obj_item);
-                DAP_DEL_Z(l_out_value_str);
-                DAP_DEL_Z(l_out_value_coins_str);
+                if (l_cond_outs)
+                    SUM_256_256(l_value_sum, l_item->value, &l_value_sum);
             }
             dap_list_free_full(l_outs_list, NULL);
+            const char * l_out_total_value_coins_str, *l_out_total_value_str = dap_uint256_to_char(l_value_sum, &l_out_total_value_coins_str);
+            json_object_object_add(json_obj_wall, "total_value_coins", json_object_new_string(l_out_total_value_coins_str));
+            json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
             json_object_object_add(json_obj_wall, "outs", l_json_outs_arr);
             json_object_array_add(json_arr_out, json_obj_wall);
         } break;
+
         case CMD_WALLET_FIND: {
             if (l_addr_str) {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
