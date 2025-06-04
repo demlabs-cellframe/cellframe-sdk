@@ -79,6 +79,7 @@ static compose_config_t* s_compose_config_init(const char *a_net_name, const cha
 
     return l_config;
 }
+
 static json_object* s_compose_config_return_response_handler(compose_config_t *a_config) {
     if (!a_config || !a_config->response_handler) {
         return NULL;
@@ -422,12 +423,11 @@ static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_ob
 
     if (a_cmd_request->error_code) {
         ret = -1;
-    } else if (a_cmd_request->response) {
-        if (a_cmd_request->response && a_cmd_request->response_size > 0) {
-            struct json_tokener *tok = json_tokener_new();
-            if (tok) {
-                *a_response_out = json_tokener_parse_ex(tok, a_cmd_request->response, a_cmd_request->response_size);
-                json_tokener_free(tok);
+    } else if (a_cmd_request->response && a_cmd_request->response_size > 0) {
+            struct json_tokener *l_tok = json_tokener_new();
+            if (l_tok) {
+                *a_response_out = json_tokener_parse_ex(l_tok, a_cmd_request->response, a_cmd_request->response_size);
+                json_tokener_free(l_tok);
                 if (*a_response_out) {
                     *a_response_out_size = a_cmd_request->response_size;
                 } else {
@@ -436,9 +436,6 @@ static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_ob
             } else {
                 ret = -3;
             }
-        } else {
-            ret = -3;
-        }
     } else {
         ret = -2;
     }
@@ -479,6 +476,7 @@ json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * 
         return NULL;
     }
     strcpy(node_info->ext_host, a_url);
+    
     node_info->ext_port = atoi(a_port);
     node_info->ext_host_len = strlen(a_url);
     dap_json_rpc_params_t * params = dap_json_rpc_params_create();
@@ -491,6 +489,9 @@ json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * 
     uint64_t l_id_response = dap_json_rpc_response_get_new_id();
     char ** l_cmd_arr_str = dap_strsplit(l_cmd_str, ";", -1);
     dap_json_rpc_request_t *l_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response);
+    dap_json_rpc_params_remove_all(params);
+    dap_strfreev(l_cmd_arr_str);
+    DAP_DEL_Z(l_cmd_str);
 
     int timeout_ms = 5000; //5 sec = 5000 ms
     dap_chain_node_client_t * l_node_client = dap_chain_node_client_create(NULL, node_info, NULL, NULL);
@@ -845,12 +846,13 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
     for (size_t i = 0; i < l_value_el_count; ++i) {
         l_value[i] = dap_chain_balance_scan(l_value_array[i]);
         if(IS_ZERO_256(l_value[i])) {
-            DAP_DEL_MULTY(l_value_array, l_value);
+            DAP_DEL_MULTY(l_value);
+            dap_strfreev(l_value_array);
             dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_VALUE_ERROR, "tx_create requires parameter '-value' to be valid uint256 value");
             return s_compose_config_return_response_handler(l_config);
         }
     }
-    DAP_DELETE(l_value_array);
+    dap_strfreev(l_value_array);
 
     if (addr_base58_to) {
         l_addr_to = DAP_NEW_Z_COUNT(dap_chain_addr_t *, l_addr_el_count);
@@ -871,12 +873,13 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
                 for (size_t j = 0; j < i; ++j) {
                     DAP_DELETE(l_addr_to[j]);
                 }
-                DAP_DEL_MULTY(l_addr_to, l_addr_base58_to_array, l_value);
+                DAP_DEL_MULTY(l_addr_to, l_value);
+                dap_strfreev(l_addr_base58_to_array);
                 dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "destination address is invalid");
                 return s_compose_config_return_response_handler(l_config);
             }
         }
-        DAP_DELETE(l_addr_base58_to_array);
+        dap_strfreev(l_addr_base58_to_array);
     }
 
     for (size_t i = 0; l_addr_to && i < l_addr_el_count; ++i) {
@@ -2189,7 +2192,7 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
         l_items_count = 0,
         l_items_ready = 0;
     json_object * l_json_errors = json_object_new_array();
-    if (dap_chain_net_tx_create_by_json(l_response, NULL, l_json_errors, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
+    if (dap_chain_tx_datum_from_json(l_response, NULL, l_json_errors, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
         json_object_put(l_response);
         dap_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX, "Failed to create transaction from json\n");
         dap_chain_datum_tx_delete(l_datum);
