@@ -1578,6 +1578,8 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
 
     int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     assert(!err);
+    PVT(l_blocks)->blocks_count = 0;
+    HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
@@ -1585,8 +1587,6 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
             DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
     }
-    PVT(l_blocks)->blocks_count = 0;
-    HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     
     dap_chain_block_datum_index_t *l_datum_index = NULL, *l_datum_index_tmp = NULL;
@@ -1594,7 +1594,6 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     HASH_ITER(hh, PVT(l_blocks)->datum_index, l_datum_index, l_datum_index_tmp) {
         HASH_DEL(PVT(l_blocks)->datum_index, l_datum_index);
         DAP_DELETE(l_datum_index);
-        l_datum_index = NULL;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
     return 0;
@@ -1929,9 +1928,13 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         log_it(L_ERROR, "Can't accept hardfork genesis block %s: removing cell error", dap_hash_fast_to_str_static(a_atom_hash));
                         return ATOM_REJECT;
                     }
+                    // Make a block copy to avoid unmapping block pointer destruction
+                    dap_chain_block_t *l_block_copy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_block, a_atom_size, ATOM_REJECT);
+                    l_block = l_block_copy;
                     dap_chain_purge(a_chain);
                     dap_chain_cell_create(a_chain, c_dap_chain_cell_id_null);
                     int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
+                    DAP_DELETE(l_block_copy);
                     if (l_err) {
                         log_it(L_ERROR, "Can't save atom to file, code %d", l_err);
                         return ATOM_REJECT;
