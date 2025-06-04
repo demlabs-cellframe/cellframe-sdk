@@ -965,8 +965,10 @@ const uint8_t *s_dap_chain_net_tx_create_out_ext_item (json_object *a_json_item_
             } else {
                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
             }
+            if (l_addr) DAP_DELETE(l_addr);
             return l_out_item;      
         }
+        if (l_addr) DAP_DELETE(l_addr);
     }
     return NULL;
 }
@@ -1009,8 +1011,10 @@ const uint8_t *s_dap_chain_net_tx_create_out_std_item (json_object *a_json_item_
             } else {
                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, l_time_unlock);
             }
+            if (l_addr) DAP_DELETE(l_addr);
             return l_out_item;      
         }
+        if (l_addr) DAP_DELETE(l_addr);
     }
     return NULL;
 }
@@ -2475,6 +2479,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
         if (!l_item) {
             log_it(L_ERROR, "Item %zu can't created, exit from creator!", i);
             dap_json_rpc_error_add(a_jobj_arr_errors,DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,"Item %zu can't created, exit from creator!", i);
+            DAP_DELETE(l_tx);
             return DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR;
         } else {        
             // Add item to transaction
@@ -2545,6 +2550,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
         log_it(L_ERROR, "Json TX: Sign verification failed!");
         if (a_jobj_arr_errors)
             dap_json_rpc_error_add(a_jobj_arr_errors,-1,"Sign verification failed!");
+        DAP_DELETE(l_tx);
         return DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED;
     }
 

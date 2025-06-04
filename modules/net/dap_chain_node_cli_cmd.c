@@ -6531,7 +6531,7 @@ int com_json_datum_mempool_put(int a_argc, char ** a_argv, void **a_json_arr_rep
         json_object_object_add(l_jobj_ret, "total_items", l_jobj_total_items);
         json_object_object_add(l_jobj_ret, "errors", l_jobj_arr_errors);
 
-        DAP_DELETE(l_tx);
+        if (l_tx) DAP_DELETE(l_tx);
         if (l_ret)
             dap_json_rpc_error_add(*a_json_arr_reply, l_ret,
                                    "Can't create transaction from json file");
@@ -6543,7 +6543,7 @@ int com_json_datum_mempool_put(int a_argc, char ** a_argv, void **a_json_arr_rep
     // Pack transaction into the datum
     dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
     size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
-    DAP_DELETE(l_tx);
+    if (l_tx) DAP_DELETE(l_tx);
 
     // Add transaction to mempool
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
