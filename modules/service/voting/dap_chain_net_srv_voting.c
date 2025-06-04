@@ -382,8 +382,10 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_tx_in->header.tx_prev_hash);
         dap_chain_tx_out_ext_t *l_prev_out_union = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_out_get_by_out_idx(
                                                     l_tx_prev_temp, l_tx_in->header.tx_out_prev_idx);
-        if (!l_prev_out_union)
+        if (!l_prev_out_union) {
+            dap_list_free(l_ins_list);
             return -18;
+        }
         const char *l_ticker_in = NULL;
         switch (l_prev_out_union->header.type) {
         case TX_ITEM_TYPE_OUT:
@@ -394,6 +396,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             break;
         default:
             log_it(L_WARNING, "Unexpected tx item %d in vote tx %s", l_prev_out_union->header.type, dap_hash_fast_to_str_static(a_tx_hash));
+            dap_list_free(l_ins_list);
             return -19;
         }
         if (dap_strcmp(l_ticker_in, l_voting->voting_params.token_ticker))
@@ -403,10 +406,12 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
                                                l_old_vote ? &l_pkey_hash : NULL)) {
             log_it(L_WARNING, "Coin with out number %u for tx %s is spent for poll %s", l_tx_in->header.tx_out_prev_idx,
                                         dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
+            dap_list_free(l_ins_list);
             return -20;
         }
         if (SUM_256_256(l_weight, l_prev_out_union->header.value, &l_weight)) {
             log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
+            dap_list_free(l_ins_list);
             return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
         }
     }
@@ -1091,17 +1096,18 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_voting_hash,
                          dap_hash_fast_t *a_pkey_hash, dap_chain_net_votings_t *a_voting, dap_time_t a_voting_ts)
 {
+    if (!a_ledger || !a_tx_hash || !a_voting_hash || !a_voting) {
+        log_it(L_ERROR, "Invalid input parameters");
+        return -1;
+    }
+    
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, a_tx_hash);
     if (!l_tx) {
-        log_it(L_ERROR, "Can't find tx %s", dap_hash_fast_to_str_static(a_tx_hash));
-        return -3;
+        log_it(L_WARNING, "Can't find tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
+        return 0;
     }
 
-    if (l_tx->header.ts_created < a_voting_ts)
-        return 0;
-
-    dap_chain_tx_vote_t *l_vote = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
-    if (l_vote && dap_hash_fast_compare(&l_vote->voting_hash, &a_voting->voting_hash)) {
+    if (a_voting) { // It can happen that previous vote with the same key has been already counted
         for (dap_list_t *it = a_voting->votes; it; it = it->next) {
             dap_chain_net_vote_t *l_vote = (dap_chain_net_vote_t *)it->data;
             if (dap_hash_fast_compare(&l_vote->vote_hash, a_tx_hash)) {
@@ -1116,9 +1122,11 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
 
     dap_list_t *l_ins_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN, NULL);
     l_ins_list = dap_list_concat(l_ins_list, dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_COND, NULL));
-    if (!l_ins_list) // it's emisssion or reward TX, not marked yet
+    if (!l_ins_list) { // it's emisssion or reward TX, not marked yet
         return 0;
+    }
 
+    int l_result = 0;
     dap_hash_fast_t l_prev_hash = {};
     for (dap_list_t *it = l_ins_list; it; it = it->next) {
         uint32_t l_prev_idx = -1;
@@ -1132,9 +1140,16 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
             l_prev_idx = in->header.tx_out_prev_idx;
         }
         dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, &l_prev_hash);
+        if (!l_tx_prev) {
+            continue;
+        }
 
         const char* l_tx_token = NULL;
         byte_t *l_prev_out_union = dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev, l_prev_idx);
+        if (!l_prev_out_union) {
+            continue;
+        }
+        
         switch (*l_prev_out_union) {
         case TX_ITEM_TYPE_OUT:{
             dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_prev_out_union;
@@ -1151,19 +1166,23 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
                 break;
             }
             if (s_datum_tx_voting_coin_check_cond_out(a_ledger->net, *a_voting_hash, l_prev_hash, l_prev_idx, a_pkey_hash) != 0) {
-                dap_list_free(l_ins_list);
-                return 1;
+                l_result = 1;
+                goto cleanup;
             }
             l_tx_token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_prev_hash);
-        }
+        }break;
         default:
             break;
         }
         if (dap_strcmp(l_tx_token, a_voting->voting_params.token_ticker))
             continue;
     }
+    
+    l_result = s_tx_is_spent(a_ledger, &l_prev_hash, a_voting_hash, a_pkey_hash, a_voting, a_voting_ts);
+    
+cleanup:
     dap_list_free(l_ins_list);
-    return s_tx_is_spent(a_ledger, &l_prev_hash, a_voting_hash, a_pkey_hash, a_voting, a_voting_ts);
+    return l_result;
 }
 
 
