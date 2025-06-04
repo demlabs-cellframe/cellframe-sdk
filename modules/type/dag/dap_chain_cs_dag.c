@@ -598,7 +598,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         }
         HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
-        dap_chain_atom_notify(l_dag->chain, l_event->header.cell_id, &l_event_item->hash, (const byte_t*)l_event, l_event_item->event_size, l_event->header.ts_created);
+        dap_chain_atom_notify(l_dag->chain, l_event->header.cell_id, &l_event_item->hash, (const byte_t*)l_event_item->event, l_event_item->event_size, l_event->header.ts_created);
         dap_chain_atom_add_from_threshold(a_chain);
     } break;
     default:
