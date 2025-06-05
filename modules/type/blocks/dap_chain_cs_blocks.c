@@ -2111,9 +2111,13 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             if (s_seed_mode)
                 log_it(L_NOTICE, "Accepting new genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
             else if (dap_hash_fast_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
-                    && !dap_hash_fast_is_blank(&l_block_hash))
+                    && !dap_hash_fast_is_blank(&l_block_hash)) {
+                if (PVT(l_blocks)->blocks_count) {
+                    log_it(L_WARNING, "Can't accept static genesis block %s: blocks count is not zero", dap_hash_fast_to_str_static(a_atom_hash));
+                    return ATOM_REJECT;
+                }
                 log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
-            else {
+            } else {
                 char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
                 log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration",
