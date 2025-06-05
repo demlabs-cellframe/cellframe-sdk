@@ -466,19 +466,19 @@ static void s_stage_connected_error_callback(dap_client_t* a_client, void * a_ar
 }
 
 
-json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * a_url, const char * a_port) {
+json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * a_url, const char * a_port, const char * a_cert_path) {
     if (!a_request || !a_url || !a_port) {
         return NULL;
     }
 
-    dap_chain_node_info_t *node_info = DAP_NEW_Z(dap_chain_node_info_t);
+    size_t url_len = strlen(a_url);
+    dap_chain_node_info_t *node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + url_len + 1);
     if (!node_info) {
         return NULL;
     }
-    strcpy(node_info->ext_host, a_url);
     
     node_info->ext_port = atoi(a_port);
-    node_info->ext_host_len = strlen(a_url);
+    node_info->ext_host_len = dap_strncpy(node_info->ext_host, a_url, url_len + 1) - node_info->ext_host;
     dap_json_rpc_params_t * params = dap_json_rpc_params_create();
     char *l_cmd_str = dap_strdup(a_request);
     for(int i = 0; l_cmd_str[i] != '\0'; i++) {
@@ -489,11 +489,10 @@ json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * 
     uint64_t l_id_response = dap_json_rpc_response_get_new_id();
     char ** l_cmd_arr_str = dap_strsplit(l_cmd_str, ";", -1);
     dap_json_rpc_request_t *l_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response);
-    dap_json_rpc_params_remove_all(params);
     dap_strfreev(l_cmd_arr_str);
     DAP_DEL_Z(l_cmd_str);
 
-    int timeout_ms = 5000; //5 sec = 5000 ms
+    int timeout_ms = 50000; //5 sec = 5000 ms
     dap_chain_node_client_t * l_node_client = dap_chain_node_client_create(NULL, node_info, NULL, NULL);
     //handshake
     l_node_client->client = dap_client_new(s_stage_connected_error_callback, l_node_client);
@@ -512,7 +511,7 @@ json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * 
 
     //send request
     json_object * l_response = NULL;
-    dap_json_rpc_request_send(l_client_internal, l_request, &l_response);
+    dap_json_rpc_request_send(l_client_internal, l_request, &l_response, a_cert_path);
 
     dap_json_rpc_request_free(l_request);
     dap_chain_node_client_close_unsafe(l_node_client);
@@ -2902,9 +2901,9 @@ static bool s_datum_tx_voting_coin_check_spent_compose(json_object *a_votes_list
     if (!a_votes_list)
         return false;
 
-    int l_votes_count = json_object_array_length(a_votes_list);
+    size_t l_votes_count = json_object_array_length(a_votes_list);
 
-    for (int i = 0; i < l_votes_count; i++) {
+    for (size_t i = 0; i < l_votes_count; i++) {
         json_object *l_vote = json_object_array_get_idx(a_votes_list, i);
         const char *l_vote_hash = json_object_get_string(json_object_object_get(l_vote, "vote_hash")),
                 *l_pkey_hash = json_object_get_string(json_object_object_get(l_vote, "pkey_hash"));
