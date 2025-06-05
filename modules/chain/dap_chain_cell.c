@@ -489,8 +489,11 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
             m_ret_err(errno, "fwrite() error %d", errno);
         fflush(l_cell->file_storage);
         l_cell->file_storage = freopen(a_filepath, "a+b", l_cell->file_storage);
-        if ( a_chain->is_mapped && s_cell_map_new_volume(l_cell, 0, false) )
-            m_ret_err(EINVAL, "Error on mapping the first volume");
+        if (a_chain->is_mapped) {
+            if (s_cell_map_new_volume(l_cell, 0, false))
+                m_ret_err(EINVAL, "Error on mapping the first volume");
+            l_cell->mapping->cursor += sizeof(l_hdr);
+        }
     }
     default:
         break;

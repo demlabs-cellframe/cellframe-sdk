@@ -1078,6 +1078,7 @@ static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
 static void s_session_send_startsync(void *a_arg)
 {
     dap_chain_esbocs_session_t *a_session = (dap_chain_esbocs_session_t*)a_arg;
+    a_session->new_round_enqueued = false;
     if (a_session->cur_round.sync_sent)
         return;     // Sync message already was sent
     dap_chain_hash_fast_t l_last_block_hash;
@@ -1243,9 +1244,9 @@ static bool s_session_round_new(void *a_arg)
                                           l_sync_send_delay * 1000, true, DAP_QUEUE_MSG_PRIORITY_NORMAL);
         else
             s_session_send_startsync(a_session);
-    }
+    } else
+        a_session->new_round_enqueued = false;
     a_session->round_fast_forward = false;
-    a_session->new_round_enqueued = false;
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
     uint64_t l_cur_atom_count = a_session->chain->callback_count_atom(a_session->chain);
