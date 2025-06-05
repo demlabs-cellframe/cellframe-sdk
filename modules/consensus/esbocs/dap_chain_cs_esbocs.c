@@ -1252,7 +1252,7 @@ static bool s_session_round_new(void *a_arg)
     uint64_t l_cur_atom_count = a_session->chain->callback_count_atom(a_session->chain);
     if (!a_session->is_hardfork) {
         a_session->is_hardfork = a_session->esbocs->hardfork_generation > a_session->chain->generation &&
-                                    a_session->esbocs->hardfork_from && l_cur_atom_count == a_session->esbocs->hardfork_from;
+                                    a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
         if (a_session->is_hardfork) {
             dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
             int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
