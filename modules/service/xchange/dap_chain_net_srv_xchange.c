@@ -1538,7 +1538,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NO_HISTORY_ERR, "No history");
                     else {
                         char *l_orders = dap_strdup_printf("Found %"DAP_UINT64_FORMAT_U, l_total);
-                        json_object_object_add(l_json_obj_order, "number of orders", json_object_new_string(l_orders));                        
+                        json_object_object_add(l_json_obj_order, "number_of_orders", json_object_new_string(l_orders));                        
                         DAP_DELETE(l_orders);
                     }
                     json_object_array_add(*a_json_arr_reply, l_json_obj_order);
@@ -1560,7 +1560,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                         dap_list_free(l_tx_list);
                         
                         char *l_orders = dap_strdup_printf("Found %"DAP_UINT64_FORMAT_U, l_total);
-                        json_object_object_add(l_json_obj_order, "number of orders", json_object_new_string(l_orders));
+                        json_object_object_add(l_json_obj_order, "number_of_orders", json_object_new_string(l_orders));
                         json_object_array_add(*a_json_arr_reply, l_json_obj_order);
                         DAP_DELETE(l_orders);
                     }else{
@@ -1581,12 +1581,12 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                         xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(l_net->pub.ledger, l_tx, NULL, NULL, NULL);
                         char *l_tx_hash = dap_chain_hash_fast_to_str_new(&l_order_tx_hash);
                         if(l_tx_type != TX_TYPE_ORDER){
-                            json_object_object_add(l_json_obj_order, "datum status", json_object_new_string("is not order"));
-                            json_object_object_add(l_json_obj_order, "datum hash", json_object_new_string(l_tx_hash));
+                            json_object_object_add(l_json_obj_order, "datum_status", json_object_new_string("is not order"));
+                            json_object_object_add(l_json_obj_order, "datum_hash", json_object_new_string(l_tx_hash));
                         } else {
                             dap_chain_net_srv_xchange_order_status_t l_rc = s_tx_check_for_open_close(l_net,l_tx);
                             if(l_rc == XCHANGE_ORDER_STATUS_UNKNOWN){
-                                json_object_object_add(l_json_obj_order, "WRONG TX", json_object_new_string(l_tx_hash));
+                                json_object_object_add(l_json_obj_order, "wrong_tx", json_object_new_string(l_tx_hash));
                             }else{
                                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
                                 dap_list_t *l_tx_list_temp = l_tx_list;
@@ -1600,7 +1600,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                                     json_object_array_add(l_json_obj_tx_arr, l_json_obj_cur_tx);
                                     l_tx_list_temp = l_tx_list_temp->next;
                                 }
-                                json_object_object_add(l_json_obj_order, "history for order", l_json_obj_tx_arr);
+                                json_object_object_add(l_json_obj_order, "history_for_order", l_json_obj_tx_arr);
                                 dap_list_free(l_tx_list);
                             }
                         }
@@ -1643,7 +1643,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                             break;
                         HASH_FIND(hh, l_cache->cache, &l_cur_hash, sizeof(dap_hash_fast_t), l_item);
                     }
-                    json_object_object_add(l_json_obj_order, "history for order", l_json_obj_tx_arr);
+                    json_object_object_add(l_json_obj_order, "history_for_order", l_json_obj_tx_arr);
                 }
             }
             json_object_array_add(*a_json_arr_reply, l_json_obj_order);
@@ -1705,7 +1705,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                 case XCHANGE_REMOVE_ERROR_OK:
                     json_obj_order = json_object_new_object();
                     json_object_object_add(json_obj_order, "status", json_object_new_string("Order successfully removed"));
-                    json_object_object_add(json_obj_order, "Created inactivate tx with hash", json_object_new_string(l_tx_hash_ret));
+                    json_object_object_add(json_obj_order, "created_inactivate_tx_with_hash", json_object_new_string(l_tx_hash_ret));
                     json_object_array_add(*a_json_arr_reply, json_obj_order);
                     DAP_DELETE(l_tx_hash_ret);
                     break;
@@ -2417,7 +2417,7 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
             json_object_object_add(a_json_out, "ticker", json_object_new_string(l_tx_input_ticker));
             json_object_object_add(a_json_out, "order_hash", json_object_new_string( dap_hash_fast_to_str_static(&l_order_hash) ));
             if(a_print_prev_hash)
-                json_object_object_add(a_json_out, "prev cond hash", json_object_new_string(l_tx_prev_cond_hash_str));
+                json_object_object_add(a_json_out, "prev_cond_hash", json_object_new_string(l_tx_prev_cond_hash_str));
             dap_chain_addr_t l_owner_addr = a_owner_addr ? *a_owner_addr :
                 l_out_cond_item ? l_out_cond_item->subtype.srv_xchange.seller_addr :
                     l_out_prev_cond_item ? l_out_prev_cond_item->subtype.srv_xchange.seller_addr : (dap_chain_addr_t){ };
@@ -2492,7 +2492,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
 
     json_object_object_add(json_obj_out, "transactions", json_arr_datum_out);
     char *l_transactions = dap_strdup_printf("\nFound %"DAP_UINT64_FORMAT_U" transactions", l_tx_count);
-    json_object_object_add(json_obj_out, "number of transactions", json_object_new_string(l_transactions));
+    json_object_object_add(json_obj_out, "number_of_transactions", json_object_new_string(l_transactions));
     DAP_DELETE(l_transactions);                    /* Free string descriptor, but keep ASCIZ buffer itself */
     return  0;
 }
@@ -2640,9 +2640,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             size_t l_arr_end = 0;
             size_t l_total = dap_list_length(l_list);
             json_object* json_obj_order = json_object_new_object();
+            json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
-            dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, l_total,true);
-            size_t i_tmp = 0, l_orders_count = 0;
+            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
+            json_object_object_add(json_obj_order, "pagina", json_arr_orders_limit);
+
+            size_t i_tmp = 0;
 
             // Print all txs
             for (dap_list_t *it = l_head ? dap_list_last(l_list) : dap_list_first(l_list);
@@ -2764,42 +2767,44 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_tx->header.ts_created);
 
-                json_object* json_obj_order = json_object_new_object();
-                json_object_object_add(json_obj_order, "order_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_tx_hash)));
-                json_object_object_add(json_obj_order, "ts_created", json_object_new_string(l_tmp_buf));
-                json_object_object_add(json_obj_order, "status", json_object_new_string(l_status_order_str));
+                json_object* l_json_obj_order = json_object_new_object();
+                json_object_object_add(l_json_obj_order, "order_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_tx_hash)));
+                json_object_object_add(l_json_obj_order, "ts_created", json_object_new_string(l_tmp_buf));
+                json_object_object_add(l_json_obj_order, "status", json_object_new_string(l_status_order_str));
 
                 l_proposed_datoshi_str = dap_uint256_to_char(l_proposed, &l_proposed_coins_str);
-                json_object_object_add(json_obj_order, "proposed_coins", json_object_new_string(*l_proposed_coins_str ? l_proposed_coins_str : "0.0"));
-                json_object_object_add(json_obj_order, "proposed_datoshi", json_object_new_string(*l_proposed_datoshi_str ? l_proposed_datoshi_str : "0"));
+                json_object_object_add(l_json_obj_order, "proposed_coins", json_object_new_string(*l_proposed_coins_str ? l_proposed_coins_str : "0.0"));
+                json_object_object_add(l_json_obj_order, "proposed_datoshi", json_object_new_string(*l_proposed_datoshi_str ? l_proposed_datoshi_str : "0"));
                 
                 l_amount_datoshi_str = dap_uint256_to_char(l_amount, &l_amount_coins_str);
-                json_object_object_add(json_obj_order, "amount_coins", json_object_new_string(*l_amount_coins_str ? l_amount_coins_str : "0.0")); 
-                json_object_object_add(json_obj_order, "amount_datoshi", json_object_new_string(*l_amount_datoshi_str ? l_amount_datoshi_str : "0")); 
-                json_object_object_add(json_obj_order, "filled_percent", json_object_new_uint64(l_percent_completed));
-                json_object_object_add(json_obj_order, "token_buy", json_object_new_string(l_buy_token));
-                json_object_object_add(json_obj_order, "token_sell", json_object_new_string(l_sell_token));
+                json_object_object_add(l_json_obj_order, "amount_coins", json_object_new_string(*l_amount_coins_str ? l_amount_coins_str : "0.0")); 
+                json_object_object_add(l_json_obj_order, "amount_datoshi", json_object_new_string(*l_amount_datoshi_str ? l_amount_datoshi_str : "0")); 
+                json_object_object_add(l_json_obj_order, "filled_percent", json_object_new_uint64(l_percent_completed));
+                json_object_object_add(l_json_obj_order, "token_buy", json_object_new_string(l_buy_token));
+                json_object_object_add(l_json_obj_order, "token_sell", json_object_new_string(l_sell_token));
 
                 const char *l_cp_rate;
                 dap_uint256_to_char(l_rate, &l_cp_rate);
-                json_object_object_add(json_obj_order, "rate", json_object_new_string(l_cp_rate));
+                json_object_object_add(l_json_obj_order, "rate", json_object_new_string(l_cp_rate));
 
-                json_object_object_add(json_obj_order, "net", json_object_new_string(l_net->pub.name));
-                json_object_object_add(json_obj_order, "owner_addr", json_object_new_string(l_owner_addr));
-                json_object_array_add(*json_arr_reply, json_obj_order);
+                json_object_object_add(l_json_obj_order, "net", json_object_new_string(l_net->pub.name));
+                json_object_object_add(l_json_obj_order, "owner_addr", json_object_new_string(l_owner_addr));
+                json_object_array_add(json_arr_orders_out, l_json_obj_order);
                 DAP_DELETE(l_owner_addr);
                 l_printed_orders_count++; 
                 if (l_head && (it->prev->next == NULL)) break;              
             }
-            json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
-            json_object_array_add(*json_arr_reply, json_obj_order); 
+             
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 dap_list_free(l_list);
             } else {
                 dap_list_free_full(l_list, NULL);
             }
-            json_object_object_add(json_obj_order, "Filtered orders", json_object_new_uint64(l_orders_count));
-            json_object_object_add(json_obj_order, "Total orders", json_object_new_uint64(l_total));
+            
+            json_object_object_add(json_obj_order, "orders", json_arr_orders_out);
+            json_object_object_add(json_obj_order, "filtered_orders", json_object_new_uint64(l_orders_count));
+            json_object_object_add(json_obj_order, "total", json_object_new_uint64(l_total));
+            json_object_array_add(*json_arr_reply, json_obj_order);
 
             if (!json_object_array_length(json_arr_orders_out)) {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_UNREC_STATUS_ERR, "No orders found");
@@ -3014,9 +3019,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             json_object* json_obj_orders = json_object_new_object();
 
             if(l_show_tx_nr)
-                json_object_object_add(json_obj_orders, "number of transactions", json_object_new_int(l_show_tx_nr));
+                json_object_object_add(json_obj_orders, "number_of_transactions", json_object_new_int(l_show_tx_nr));
             else
-                json_object_object_add(json_obj_orders, "number of transactions", json_object_new_string("Transactions not found"));
+                json_object_object_add(json_obj_orders, "number_of_transactions", json_object_new_string("Transactions not found"));
             json_object_array_add(*json_arr_reply, json_obj_orders);
         } break;
         // Token pair control
@@ -3182,10 +3187,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_last_rate_time);
                         const char *l_rate_average_str; dap_uint256_to_char(l_rate_average, &l_rate_average_str);
                         json_object* json_obj_order = json_object_new_object();
-                        json_object_object_add(json_obj_order, "Average rate", json_object_new_string(l_rate_average_str));
+                        json_object_object_add(json_obj_order, "average_rate", json_object_new_string(l_rate_average_str));
                         const char *l_last_rate_str; dap_uint256_to_char(l_rate, &l_last_rate_str);
-                        json_object_object_add(json_obj_order, "Last rate", json_object_new_string(l_last_rate_str));
-                        json_object_object_add(json_obj_order, "Last rate time", json_object_new_string(l_tmp_buf));
+                        json_object_object_add(json_obj_order, "last_rate", json_object_new_string(l_last_rate_str));
+                        json_object_object_add(json_obj_order, "last_rate_time", json_object_new_string(l_tmp_buf));
                         json_object_array_add(*json_arr_reply, json_obj_order);
                     }
                     break;
@@ -3381,7 +3386,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                             }
 
                         }
-                        json_object_object_add(json_obj_out, "TICKERS PAIR", json_arr_bl_cache_out);
+                        json_object_object_add(json_obj_out, "tickers_pair", json_arr_bl_cache_out);
 
                         // Free tickers array
                         for(size_t i = 0; i< l_tickers_count; i++){
@@ -3389,7 +3394,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                         }
                         DAP_DELETE(l_tickers);
                     }
-                    json_object_object_add(json_obj_out, "pair count", json_object_new_uint64(l_pairs_count));
+                    json_object_object_add(json_obj_out, "pair_count", json_object_new_uint64(l_pairs_count));
                     json_object_array_add(*json_arr_reply, json_obj_out);
                     break;
                 }
@@ -3397,7 +3402,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
             // No subcommand selected
             json_object* json_obj_out = json_object_new_object();
-            json_object_object_add(json_obj_out, "token pair status", json_object_new_string("Command 'token pair' requires proper subcommand," 
+            json_object_object_add(json_obj_out, "token_pair_status", json_object_new_string("Command 'token pair' requires proper subcommand," 
                                                                                         "please read its manual with command 'help srv_xchange'"));
             json_object_array_add(*json_arr_reply, json_obj_out);
 

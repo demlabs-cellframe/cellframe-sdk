@@ -42,7 +42,7 @@
  *
  * return type, or TX_ITEM_TYPE_UNKNOWN
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum_name) {
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_type_from_str_short(const char *a_datum_name) {
     if(!a_datum_name)
         return TX_ITEM_TYPE_UNKNOWN;
     if(!dap_strcmp(a_datum_name, "in"))
@@ -83,7 +83,7 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
  *
  * return subtype, or DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED
  */
-dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const char *a_subtype_str) {
+dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(const char *a_subtype_str) {
     if(!a_subtype_str)
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
     if(!dap_strcmp(a_subtype_str, "srv_pay"))
@@ -111,7 +111,7 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
 #define m_tx_item_size(t) ( !a_max_size || sizeof(t) <= a_max_size ? sizeof(t) : 0 )
 #define m_tx_item_size_ext(t, size_field)                                                                                       \
     ( !a_max_size ||                                                                                                            \
-    ( sizeof(t) < a_max_size && a_max_size > ((t*)a_item)->size_field && sizeof(t) <= a_max_size - ((t*)a_item)->size_field )   \
+    ( sizeof(t) <= a_max_size && a_max_size > ((t*)a_item)->size_field && sizeof(t) <= a_max_size - ((t*)a_item)->size_field )  \
         ? sizeof(t) + ((t*)a_item)->size_field : 0 );
 
     switch (*a_item) {
@@ -294,6 +294,33 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
     return l_item;
 }
 
+/**
+ * Create item dap_chain_tx_out_cond_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_net_srv_uid_t a_srv_uid,
+                                                                             uint256_t a_value, uint256_t a_value_max_per_unit,
+                                                                             dap_chain_net_srv_price_unit_uid_t a_unit,
+                                                                             const void *a_params, size_t a_params_size)
+{
+    if (!a_key_hash || IS_ZERO_256(a_value))
+        return NULL;
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_pay.unit = a_unit;
+    l_item->subtype.srv_pay.unit_price_max_datoshi = a_value_max_per_unit;
+    memcpy( &l_item->subtype.srv_pay.pkey_hash, a_key_hash, sizeof(l_item->subtype.srv_pay.pkey_hash));
+    if (a_params && a_params_size) {
+        l_item->tsd_size = (uint32_t)a_params_size;
+        memcpy(l_item->tsd, a_params, a_params_size);
+    }
+    return l_item;
+}
+
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
                                                                              uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
                                                                              const char *a_token, uint256_t a_value_rate,
@@ -354,6 +381,27 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     return l_item;
 }
 
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                           dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                           uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size)
+{
+    if (IS_ZERO_256(a_value))
+        return NULL;
+    
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
+    l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
+    l_item->tsd_size = a_params_size;
+    if (l_item->tsd_size) {
+        memcpy(l_item->tsd, a_params, l_item->tsd_size);
+    }
+    return l_item;
+}
+
 /**
  * @brief dap_chain_net_srv_stake_lock_create_cond_out
  * @param a_key
@@ -364,7 +412,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
  * @return
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_net_srv_uid_t a_srv_uid,
-                                                                                uint256_t a_value, uint64_t a_time_staking,
+                                                                                uint256_t a_value, uint64_t a_time_unlock,
                                                                                 uint256_t a_reinvest_percent)
 {
     if (IS_ZERO_256(a_value))
@@ -376,7 +424,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_lock.flags = DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME | DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT;
     l_item->subtype.srv_stake_lock.reinvest_percent = a_reinvest_percent;
-    l_item->subtype.srv_stake_lock.time_unlock = dap_time_now() + a_time_staking;
+    l_item->subtype.srv_stake_lock.time_unlock = a_time_unlock;
     return l_item;
 }
 
