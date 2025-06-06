@@ -798,6 +798,9 @@ typedef enum {
 
 json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_fee_str, const char *addr_base58_to, 
                                     dap_chain_addr_t *l_addr_from, const char *l_url_str, uint16_t l_port) {
+    if (!l_net_str || !l_token_ticker || !l_value_str || !l_addr_from || !l_url_str) {
+        return NULL;
+    }
     
     compose_config_t *l_config = s_compose_config_init(l_net_str, l_url_str, l_port);
     if (!l_config) {
@@ -814,7 +817,7 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
 
 
     l_value_fee = dap_chain_balance_scan(l_fee_str);
-    if (IS_ZERO_256(l_value_fee) && (l_fee_str && strcmp(l_fee_str, "0"))) {
+    if (IS_ZERO_256(l_value_fee) && (l_fee_str && !dap_strcmp(l_fee_str, "0"))) {
         dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_FEE_ERROR, "tx_create requires parameter '-fee' to be valid uint256");
         return s_compose_config_return_response_handler(l_config);
     }
