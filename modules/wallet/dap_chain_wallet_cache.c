@@ -692,6 +692,7 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
         HASH_FIND(hh, s_wallets_cache, l_addr, sizeof(dap_chain_addr_t), l_wallet_item);
         if (l_wallet_item){
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+            DAP_DELETE(l_addr);
             continue;
         }
 
@@ -711,7 +712,7 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
         pthread_create(&l_tid, &attr, s_wallet_load, l_args);
-        
+        DAP_DELETE(l_addr);
         // s_save_cache_for_addr_in_net(l_net, l_addr); 
     }
 }
