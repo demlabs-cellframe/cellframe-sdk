@@ -2645,7 +2645,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
             json_object_object_add(json_obj_order, "pagina", json_arr_orders_limit);
 
-            size_t i_tmp = 0;
+            size_t i_tmp = 0, l_orders_count = 0;
 
             // Print all txs
             for (dap_list_t *it = l_head ? dap_list_last(l_list) : dap_list_first(l_list);
