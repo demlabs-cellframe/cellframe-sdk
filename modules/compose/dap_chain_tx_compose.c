@@ -3368,7 +3368,7 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
     }
 
     json_object *l_json_items = json_object_array_get_idx(l_json_response, 0);
-    l_json_items = json_object_object_get(l_json_items, "ITEMS");
+    l_json_items = json_object_object_get(l_json_items, "items");
     bool has_delegate_out = false;
     if (l_json_items) {
         int items_count = json_object_array_length(l_json_items);
@@ -3462,7 +3462,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
         return NULL;
     }
     json_object *l_items_array = json_object_array_get_idx(response, 0);
-    l_items_array = json_object_object_get(l_items_array, "ITEMS");
+    l_items_array = json_object_object_get(l_items_array, "items");
     if (!l_items_array) {
         json_object_put(response);
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_INVALIDATE_COMPOSE_ITEMS_NOT_FOUND, "Items not found in ledger response");
@@ -3726,10 +3726,10 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
             l_order->direction = dap_chain_net_srv_order_direction_from_str(json_object_get_string(json_object_object_get(order_obj, "direction")));
             l_order->ts_created = dap_time_from_str_rfc822(json_object_get_string(json_object_object_get(order_obj, "created")));
             l_order->srv_uid.uint64 = dap_chain_net_srv_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "srv_uid"))).uint64;
-            l_order->price = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(order_obj, "price datoshi")));
-            strncpy(l_order->price_ticker, json_object_get_string(json_object_object_get(order_obj, "price token")), DAP_CHAIN_TICKER_SIZE_MAX);
+            l_order->price = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(order_obj, "price_datoshi")));
+            strncpy(l_order->price_ticker, json_object_get_string(json_object_object_get(order_obj, "price_token")), DAP_CHAIN_TICKER_SIZE_MAX);
             l_order->units = json_object_get_int(json_object_object_get(order_obj, "units"));
-            l_order->price_unit = dap_chain_net_srv_price_unit_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "price unit")));
+            l_order->price_unit = dap_chain_net_srv_price_unit_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "price_unit")));
             dap_chain_node_addr_from_str(&l_order->node_addr, json_object_get_string(json_object_object_get(order_obj, "node_addr")));
             const char *tx_cond_hash_str = json_object_get_string(json_object_object_get(order_obj, "tx_cond_hash"));
             if (tx_cond_hash_str) {
@@ -4398,7 +4398,7 @@ static bool s_process_ledger_response(dap_chain_tx_out_cond_subtype_t a_cond_typ
         return false;
     }
 
-    json_object *items = json_object_object_get(l_response_array, "ITEMS");
+    json_object *items = json_object_object_get(l_response_array, "items");
     if (!items) {
         // dap_json_compose_error_add(a_config->response_handler, DAP_PROCESS_LEDGER_RESPONSE_RPC_RESPONSE, "Error: No items found in response");
         return false;
@@ -4531,7 +4531,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
         return NULL;
     }
 
-    json_object *items = json_object_object_get(l_response_array, "ITEMS");
+    json_object *items = json_object_object_get(l_response_array, "items");
     if (!items) {
         dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NO_ITEMS_FOUND, "No items found in response");
         return NULL;
@@ -4583,7 +4583,12 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
     //     dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_TX_ALREADY_USED, "Transaction output item already used");
     //     return NULL;
     // }
-
+    const char * l_seller_addr_str = dap_chain_addr_to_str_static(&l_cond_tx->subtype.srv_xchange.seller_addr);
+    const char * l_wallet_addr_str = dap_chain_addr_to_str_static(a_wallet_addr);
+    if (dap_strcmp(l_seller_addr_str, l_wallet_addr_str) != 0) {
+        dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NOT_OWNER, "Only owner can invalidate exchange transaction");
+        return NULL;
+    }
     if (!dap_chain_addr_compare(&l_seller_addr, &l_cond_tx->subtype.srv_xchange.seller_addr)) {
         dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NOT_OWNER, "Only owner can invalidate exchange transaction");
         return NULL;
@@ -4757,7 +4762,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_order_remove_compose(dap_hash_fast_t *a_
         json_object_put(response);
         return NULL;
     }
-    json_object *items = json_object_object_get(l_response_array, "ITEMS");
+    json_object *items = json_object_object_get(l_response_array, "items");
     if (!items) {
         dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NO_ITEMS_FOUND, "No items found in response");
         return NULL;
@@ -4904,7 +4909,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t
         return NULL;
     }
 
-    json_object *items = json_object_object_get(l_response_array, "ITEMS");
+    json_object *items = json_object_object_get(l_response_array, "items");
     if (!items) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_ITEMS_FOUND, "No items found in response");
         json_object_put(response);
