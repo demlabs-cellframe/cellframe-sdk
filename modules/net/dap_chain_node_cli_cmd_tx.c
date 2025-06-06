@@ -1202,13 +1202,13 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
                     size_t l_sign_size = dap_sign_get_size(l_sign);
                     dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
                     
-                    json_object *json_items = json_object_object_get(json_datum, "ITEMS");
+                    json_object *json_items = json_object_object_get(json_datum, "items");
                     if (json_items && json_object_is_type(json_items, json_type_array)) {
                         int array_len = json_object_array_length(json_items);
                         for (int i = 0; i < array_len; i++) {
                             json_object *item = json_object_array_get_idx(json_items, i);
-                            const char *item_type = json_object_get_string(json_object_object_get(item, "item type"));
-                            if (item_type && strcmp(item_type, "SIG") == 0) {
+                            const char *item_type = json_object_get_string(json_object_object_get(item, "type"));
+                            if (item_type && strcmp(item_type, "sig_dil") == 0) {
                                 json_object_object_add(item, "sig_b64", json_object_new_string(l_sign_b64));
                                 json_object_object_add(item, "sig_b64_size", json_object_new_uint64(l_sign_size));
                             }
