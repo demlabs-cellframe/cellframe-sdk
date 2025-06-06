@@ -1035,10 +1035,11 @@ const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             }
             uint256_t l_value_max_per_unit = { };
             l_is_value = s_json_get_uint256(a_json_item_obj, "value_max_per_unit", &l_value_max_per_unit);
-            if(!l_is_value && !IS_ZERO_256(l_value_max_per_unit)) {
-                log_it(L_ERROR, "Json TX: bad value_max_per_unit in OUT_COND_SUBTYPE_SRV_PAY");
-                return NULL;
-            }
+            // always value_max_per_unit ==  0
+            // if(!l_is_value) {
+            //     log_it(L_ERROR, "Json TX: bad value_max_per_unit in OUT_COND_SUBTYPE_SRV_PAY");
+            //     return NULL;
+            // }
             dap_chain_net_srv_price_unit_uid_t l_price_unit;
             if(!s_json_get_unit(a_json_item_obj, "price_unit", &l_price_unit)) {
                 log_it(L_ERROR, "Json TX: bad price_unit in OUT_COND_SUBTYPE_SRV_PAY");
