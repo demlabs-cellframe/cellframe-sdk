@@ -2314,7 +2314,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
                 //struct json_object *json_obj_result2 = json_object_array_get_idx(json_obj_result, 0);
                 json_object_object_get_ex(json_obj_result, "ORDERS", &j_obj_hash);
                 struct json_object *json_obj_result3 = json_object_array_get_idx(j_obj_hash, 0);
-                json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_create)
+                json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_create);
                 l_limit = json_object_get_int64(json_obj_result3) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(json_obj_result3)) : dap_strdup_printf("unlimit");
             }
             
