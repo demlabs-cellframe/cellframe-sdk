@@ -2475,12 +2475,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                        l_attempts_miss);
                     break;
-                } else if (l_session->round_fast_forward) {
-                    debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
-                                                " SYNC message is rejected - round already in fast-forward state",
-                                                   l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id);
-                    break;
-                } else {
+                } else if (!l_session->round_fast_forward) {
                     debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
                                                 " SYNC message sync attempt %"DAP_UINT64_FORMAT_U" is greater than"
                                                 " current round sync attempt %"DAP_UINT64_FORMAT_U" so fast-forward this round",
@@ -2495,6 +2490,11 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                         l_session->new_round_enqueued = true;
                         dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
                     }
+                } else if (l_session->cur_round.sync_attempt != l_sync_attempt - 1) {
+                    debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                                " SYNC message is rejected - round already in fast-forward state",
+                                                   l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id);
+                    break;
                 }
             }
         } else // Send it immediatly, if was not sent yet

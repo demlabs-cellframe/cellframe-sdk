@@ -1913,11 +1913,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             uint16_t l_generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
             if (l_generation && a_chain->generation < l_generation) {
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-                dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
-                if (!l_hardfork_decree_hash) {
+                dap_hash_fast_t *l_hardfork_decree_hash_ptr = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
+                if (!l_hardfork_decree_hash_ptr) {
                     log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                     return ATOM_REJECT;
                 }
+                dap_hash_fast_t l_hardfork_decree_hash = *l_hardfork_decree_hash_ptr;
                 if (!dap_chain_net_get_load_mode(l_net)) {
                     // Make a block copy to avoid unmapping block pointer destruction
                     dap_chain_block_t *l_block_copy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_block, a_atom_size, ATOM_REJECT);
@@ -1947,7 +1948,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 }
                 l_net->pub.ledger->is_hardfork_state = true;
                 a_chain->generation = l_generation;
-                if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // True import
+                if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, &l_hardfork_decree_hash)) { // True import
                     log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
                 }
