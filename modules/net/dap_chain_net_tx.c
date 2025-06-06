@@ -938,10 +938,9 @@ const uint8_t *s_dap_chain_net_tx_create_out_ext_item (json_object *a_json_item_
     // Read address and value
     uint256_t l_value = { };
     const char *l_json_item_addr_str = s_json_get_text(a_json_item_obj, "addr");
-    const char *l_json_item_addr_to_str = s_json_get_text(a_json_item_obj, "addr_to");
     bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
     const char *l_token = s_json_get_text(a_json_item_obj, "token");
-    if (l_is_value && (l_json_item_addr_str || l_json_item_addr_to_str)) {
+    if (l_is_value && l_json_item_addr_str) {
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
 #else
@@ -956,11 +955,11 @@ const uint8_t *s_dap_chain_net_tx_create_out_ext_item (json_object *a_json_item_
             }
         }
 #endif
-        if((l_json_item_addr_to_str || l_addr) && !IS_ZERO_256(l_value)) {            
+        if((!dap_strcmp(l_json_item_addr_str,"null") || l_addr) && !IS_ZERO_256(l_value)) {            
             // Create OUT item
             const uint8_t *l_out_item = NULL;
             
-            if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK && l_is_value && !l_json_item_addr_to_str) {
+            if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK && l_is_value && !dap_strcmp(l_json_item_addr_str,"null")) {
                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank_1, l_value, l_token);            
             } else {
                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
@@ -978,7 +977,6 @@ const uint8_t *s_dap_chain_net_tx_create_out_std_item (json_object *a_json_item_
     // Read address and value
     uint256_t l_value = { };
     const char *l_json_item_addr_str = s_json_get_text(a_json_item_obj, "addr");
-    const char *l_json_item_addr_to_str = s_json_get_text(a_json_item_obj, "addr_to");
     bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
     const char *l_token = s_json_get_text(a_json_item_obj, "token");
     dap_time_t l_time_unlock = 0;
@@ -987,7 +985,7 @@ const uint8_t *s_dap_chain_net_tx_create_out_std_item (json_object *a_json_item_
         log_it(L_ERROR, "Json TX: bad time_unlock");
         return NULL;
     }
-    if (l_is_value && (l_json_item_addr_str || l_json_item_addr_to_str)) {
+    if (l_is_value && (l_json_item_addr_str)) {
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
 #else
@@ -1002,11 +1000,11 @@ const uint8_t *s_dap_chain_net_tx_create_out_std_item (json_object *a_json_item_
             }
         }
 #endif
-        if((l_json_item_addr_to_str || l_addr) && !IS_ZERO_256(l_value)) {            
+        if((!dap_strcmp(l_json_item_addr_str,"null") || l_addr) && !IS_ZERO_256(l_value)) {            
             // Create OUT item
             const uint8_t *l_out_item = NULL;
             
-            if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK && l_is_value && !l_json_item_addr_to_str) {
+            if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK && l_is_value && !dap_strcmp(l_json_item_addr_str,"null")) {
                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(&c_dap_chain_addr_blank_1, l_value, l_token, l_time_unlock);            
             } else {
                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, l_time_unlock);
