@@ -1282,7 +1282,7 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply)
         size_t l_total_all_token = dap_db_net_history_token_list(*a_json_arr_reply, l_net, NULL, l_hash_out_type, json_obj_tx);
 
         json_object_object_length(json_obj_tx);
-        json_object_object_add(json_obj_tx, "tokens", json_object_new_uint64(l_total_all_token));
+        json_object_object_add(json_obj_tx, "tokens_count", json_object_new_uint64(l_total_all_token));
         json_object_array_add(*a_json_arr_reply, json_obj_tx);
         return 0;
     }
@@ -2138,7 +2138,7 @@ int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_par
             }
 
             json_object *j_obj_block_number, *j_obj_hash, *j_obj_create, *j_obj_lim, *j_obj_off;
-            if (json_object_object_get_ex(json_obj_result, "block number", &j_obj_block_number) &&
+            if (json_object_object_get_ex(json_obj_result, "block_number", &j_obj_block_number) &&
                 json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
                 json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
             {
@@ -2194,7 +2194,7 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
         struct json_object *j_object_events = NULL;
         char *l_limit = NULL;
         char *l_offset = NULL;
-        if (!json_object_object_get_ex(json_obj_array, "EVENTS", &j_object_events)) {
+        if (!json_object_object_get_ex(json_obj_array, "events", &j_object_events)) {
             printf("EVENTS is empty\n");
             return -4;
         }
@@ -2207,7 +2207,7 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
             }
 
             json_object *j_obj_event_number, *j_obj_hash, *j_obj_create, *j_obj_lim, *j_obj_off;
-            if (json_object_object_get_ex(json_obj_result, "event number", &j_obj_event_number) &&
+            if (json_object_object_get_ex(json_obj_result, "event_number", &j_obj_event_number) &&
                 json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
                 json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
             {
@@ -2258,11 +2258,11 @@ int json_print_for_token_list(dap_json_rpc_response_t* response){
         }
         printf("TOKENS is %d\n", result_count);
         printf("______________________________________________________________________________________________________\n");
-        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        //struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         struct json_object *j_object_tokens = NULL;
         struct json_object *j_object_tKEL = NULL;
         char *l_limit = NULL;
-        if (!json_object_object_get_ex(json_obj_array, "TOKENS", &j_object_tokens)) {
+        if (!json_object_object_get_ex(response->result_json_object, "tokens", &j_object_tokens)) {
             printf("TOKENS is empty\n");
             return -3;
         }
@@ -2283,7 +2283,7 @@ int json_print_for_token_list(dap_json_rpc_response_t* response){
             }
 
             json_object *j_obj_event_number, *j_obj_hash, *j_obj_create, *j_obj_lim;
-            if (json_object_object_get_ex(json_obj_result, "event number", &j_obj_event_number) &&
+            if (json_object_object_get_ex(json_obj_result, "event_number", &j_obj_event_number) &&
                 json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
                 json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
             {
@@ -2317,6 +2317,21 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
         printf("Response is empty\n");
         return -1;
     }
+    char *l_limit = NULL;
+    char *l_offset = NULL;
+    struct json_object *j_obj_pagina_arr, *limit_obj;
+    json_object_object_get_ex(response->result_json_object, "pagina", &j_obj_pagina_arr);
+    struct json_object *limit_obj = json_object_array_get_idx(j_obj_pagina_arr, 0);
+    l_limit = json_object_get_int64(limit_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(limit_obj)) : dap_strdup_printf("unlimit");
+     if (l_limit) {
+            printf("\tlimit: %s \n", l_limit);
+            DAP_DELETE(l_limit);
+        }
+        if (l_offset) {
+            printf("\toffset: %s \n", l_offset);
+            DAP_DELETE(l_offset);
+        }           
+                
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "orders"))
         return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
@@ -2330,13 +2345,12 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
             "_________________________________________________________________________________________________"
             "_________________________\n");
         printf("   %-67s | %-31s | %s | %-20s | %-20s | %3s | %-10s | %-10s | %-20s |\n",
-                        "Block hash", "Time create", "Status",
+                        "Order hash", "Time create", "Status",
                         "Proposed coins","Amount coins","%",
                         "Token buy", "Token sell","Rate"
                     );
 
-        char *l_limit = NULL;
-        char *l_offset = NULL;
+        
         for (int i = 0; i < result_count; i++) {
             struct json_object *json_obj_result = json_object_array_get_idx(response->result_json_object, i);
 
