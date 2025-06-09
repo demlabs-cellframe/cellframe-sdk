@@ -2976,10 +2976,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     bool l_delegated_key_required = json_object_get_boolean(json_object_object_get(l_voting_info, "delegated_key_required"));
     char l_token_ticker[10] = {0};
     dap_stpcpy(l_token_ticker, json_object_get_string(json_object_object_get(l_voting_info, "token")));
-    #else
-        dap_hash_fast_t l_pkey_hash = a_wallet_addr->data.hash_fast;
-        char l_token_ticker[10] = "vBUZ"; // todo: remove this
-    #endif
+
     json_object *l_options = json_object_object_get(l_voting_info, "results");
     if (!l_options) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get options from JSON\n");
@@ -3016,8 +3013,12 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
             return NULL;
         }
     }
-
     dap_hash_fast_t l_pkey_hash = {0};
+#else
+    dap_hash_fast_t l_pkey_hash = a_wallet_addr->data.hash_fast;
+    char l_token_ticker[10] = "vBUZ"; // todo: remove this
+    bool l_delegated_key_required = false;
+#endif
     if (l_delegated_key_required) {
         if (!a_cert) {
             dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_CERT_REQUIRED, "Certificate is required for delegated key voting\n");
@@ -3140,10 +3141,10 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
         if (IS_ZERO_256(l_value_transfer_new) || (l_native_tx && compare256(l_value_transfer_new, l_total_fee) <= 0))
             return NULL;
         l_value_transfer = l_value_transfer_new;
-    #else
-        randombytes(&l_value_transfer_new, sizeof(l_value_transfer_new));
-    #endif
     }
+#else
+    randombytes(&l_value_transfer_new, sizeof(l_value_transfer_new));
+#endif
 
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
