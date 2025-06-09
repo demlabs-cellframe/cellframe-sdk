@@ -3856,6 +3856,27 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
     return 0;
 }
 
+int s_sum_value_reward (dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, uint256_t * a_value)
+{
+    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, a_type, NULL);
+    for(dap_list_t *it = l_list_out_items; it; it = it->next) {
+        if (a_type == TX_ITEM_TYPE_OUT) {
+            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it->data;
+            SUM_256_256(*a_value, l_tx_out->header.value, a_value);
+        }
+        if (a_type == TX_ITEM_TYPE_OUT_EXT) {
+            dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)it->data;
+            SUM_256_256(*a_value, l_tx_out->header.value, a_value);
+        }
+        if (a_type == TX_ITEM_TYPE_OUT_STD) {
+            dap_chain_tx_out_std_t *l_tx_out = (dap_chain_tx_out_std_t *)it->data;
+            SUM_256_256(*a_value, l_tx_out->value, a_value);
+        }
+    }
+    dap_list_free(l_list_out_items);
+    return 0;
+}
+
 static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_node_info_t *a_node_info, dap_chain_t *a_chain,
                                  dap_chain_net_t *a_net, dap_time_t a_time_from, dap_time_t a_time_to,
                                  size_t a_limit, size_t a_offset, bool a_brief, bool a_head)
@@ -3984,12 +4005,10 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         json_object* json_block_hash = NULL;
         uint256_t l_value_reward = uint256_0, l_value_out = uint256_0;
         l_value_total_calc = uint256_0;
-        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT, NULL);
-        for(dap_list_t *it = l_list_out_items; it; it = it->next) {
-            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it->data;
-            SUM_256_256(l_value_out, l_tx_out->header.value, &l_value_out);
-        }
-        dap_list_free(l_list_out_items);
+        s_sum_value_reward(l_tx, TX_ITEM_TYPE_OUT, &l_value_out);
+        s_sum_value_reward(l_tx, TX_ITEM_TYPE_OUT_EXT, &l_value_out);
+        s_sum_value_reward(l_tx, TX_ITEM_TYPE_OUT_STD, &l_value_out);
+
         if (!a_brief) {
             for(dap_list_t *it = l_list_in_items; it; it = it->next)
             {
