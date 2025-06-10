@@ -1240,7 +1240,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_arra
             continue;
         }
 
-        if (!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_item->tx_hash_fast)) {
+        if (dap_chain_hash_fast_from_str(l_prev_hash_str, &l_item->tx_hash_fast)) {
             DAP_DELETE(l_item);
             continue;
         }
@@ -3225,9 +3225,11 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
                                                             &l_value_transfer);
     for (dap_list_t *it = l_cond_outs; it; it = it->next) {
         dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)it->data;
-        if (s_datum_tx_voting_coin_check_spent_compose(l_votes_list, l_out_item->tx_hash_fast, l_out_item->num_idx_out,
-                                                  l_vote_changed ? &l_pkey_hash : NULL) != 0)
-            continue;
+        if (l_votes_count > 0) { 
+            if (s_datum_tx_voting_coin_check_spent_compose(l_votes_list, l_out_item->tx_hash_fast, l_out_item->num_idx_out,
+                                                    l_vote_changed ? &l_pkey_hash : NULL) != 0)
+                continue;
+        }
         dap_chain_tx_tsd_t *l_item = dap_chain_datum_voting_vote_tx_cond_tsd_create(l_out_item->tx_hash_fast, l_out_item->num_idx_out);
         if(!l_item){
             dap_chain_datum_tx_delete(l_tx);
@@ -4742,26 +4744,13 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
         }
 
         // Validator's fee
-        // if (!IS_ZERO_256(a_price->fee)) {
+        if (!IS_ZERO_256(a_price->fee)) {
             uint256_t l_fee_value = a_price->fee;
             if (dap_chain_datum_tx_add_fee_item(&l_tx, l_fee_value) == -1) {
                 dap_chain_datum_tx_delete(l_tx);
                 dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_VALIDATOR_FEE_FAILED, "Cant add validator's fee output");
                 return NULL;
             }
-
-            if (dap_chain_datum_tx_add_fee_item(&l_tx, l_fee_value) == -1) {
-                dap_chain_datum_tx_delete(l_tx);
-                dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_VALIDATOR_FEE_FAILED, "Cant add validator's fee output");
-                return NULL;
-            }
-        // }
-        // Network fee
-        if (l_net_fee_used &&
-            dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_fee, l_net_fee, l_native_ticker) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NET_FEE_FAILED, "Cant add network fee output");
-            return NULL;
         }
 
     }
@@ -5078,7 +5067,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     if (l_net_fee_used)
         SUM_256_256(l_net_fee, a_price->fee, &l_total_fee);
     uint16_t l_service_fee_type  = 0;
-    
+
     // Doesn't implement service fee for now
     // bool l_service_fee_used = dap_chain_net_srv_xchange_get_fee(a_price->net->pub.id, &l_service_fee, &l_service_fee_addr, &l_service_fee_type);
     // if (l_service_fee_used) {
