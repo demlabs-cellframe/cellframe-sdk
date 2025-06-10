@@ -798,8 +798,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             if (l_hash_str)
                 l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_block_hash);
             else {
-                uint16_t num = 0;
-                dap_digit_from_string(l_num_str, &num, sizeof(uint16_t));
+                uint64_t num = 0;
+                dap_digit_from_string(l_num_str, &num, sizeof(uint64_t));
                 if (!num && dap_strcmp(l_num_str, "0")) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, "Invalid block number %s", l_num_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
@@ -1763,6 +1763,7 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             s_add_atom_datums(l_blocks, l_curr_atom);
             dap_chain_atom_notify(a_cell, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size, l_curr_atom->block->hdr.ts_created);
             HASH_DEL(new_main_branch, l_item);
+            DAP_DELETE(l_item);
             l_main_blocks_cnt++;
         }
         // Notify about branch switching
