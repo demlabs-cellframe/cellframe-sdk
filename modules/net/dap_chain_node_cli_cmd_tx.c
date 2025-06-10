@@ -2319,7 +2319,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
     }
     char *l_limit = NULL;
     char *l_offset = NULL;
-    struct json_object *j_obj_pagina_arr, *limit_obj;
+    struct json_object *j_obj_pagina_arr = NULL;
     json_object_object_get_ex(response->result_json_object, "pagina", &j_obj_pagina_arr);
     struct json_object *limit_obj = json_object_array_get_idx(j_obj_pagina_arr, 0);
     l_limit = json_object_get_int64(limit_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(limit_obj)) : dap_strdup_printf("unlimit");
