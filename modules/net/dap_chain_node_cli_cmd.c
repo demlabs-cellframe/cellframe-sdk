@@ -6433,7 +6433,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply)
  * @param str_reply
  * @return int
  */
-int com_json_datum_mempool_put(int a_argc, char ** a_argv, void **a_json_arr_reply)
+int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply)
 {
     int l_arg_index = 1;
     const char *l_net_name = NULL; // optional parameter

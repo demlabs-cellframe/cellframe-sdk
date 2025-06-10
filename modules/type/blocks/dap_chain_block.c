@@ -442,11 +442,11 @@ size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block
         return 0;
     }
     if(l_block->hdr.meta_count == UINT16_MAX){
-        log_it(L_ERROR,"Meta add: Can't add more, maximum meta count %hu is achieved", UINT16_MAX);
+        log_it(L_ERROR,"Meta add: Can't add more, maximum meta count %hu is achieved", (uint16_t)UINT16_MAX);
         return 0;
     }
     if( UINT32_MAX - l_block->hdr.meta_n_datum_n_signs_size < a_data_size + sizeof (l_meta->hdr) ){
-        log_it(L_ERROR,"Meta add: Can't add more, maximum block data section size %u achieved", UINT32_MAX);
+        log_it(L_ERROR,"Meta add: Can't add more, maximum block data section size %u achieved", (uint32_t)UINT32_MAX);
         return 0;
     }
 
