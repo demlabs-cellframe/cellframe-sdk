@@ -51,6 +51,10 @@ static size_t s_sign_type_count = sizeof(s_key_types) / sizeof(s_key_types[0]);
 
 static struct tests_data *s_data = NULL;
 
+int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_arr_errors, 
+        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
+
 void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 {
     size_t l_signs_count = rand() % KEY_COUNT + 1;
@@ -85,8 +89,8 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_tx_get_size(*a_datum)), "datum_1 == datum_2");
     dap_assert(!dap_chain_datum_tx_verify_sign_all(l_datum_2), "datum_2 sign verify");
     dap_chain_datum_tx_delete(l_datum_2);
-    // json_object_put(l_datum_1_json);
-    // json_object_put(l_error_json);
+    json_object_put(l_datum_1_json);
+    json_object_put(l_error_json);
 }
 
 void s_chain_datum_tx_create_test()
@@ -286,8 +290,8 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
-    // s_chain_datum_vote_create_test();  // memory error in tsd
-    // s_chain_datum_vote_voting_test();
+    s_chain_datum_vote_create_test();
+    s_chain_datum_vote_voting_test();
 
     DAP_DEL_Z(s_data);
     for (size_t i = 0; i < KEY_COUNT; ++i)
