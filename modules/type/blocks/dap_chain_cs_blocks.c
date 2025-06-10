@@ -858,6 +858,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 case DAP_CHAIN_BLOCK_META_NONCE2:
                     s_cli_meta_hex_print(json_obj_meta, "NONCE2", l_meta);
                     break;
+                case DAP_CHAIN_BLOCK_META_EVM_DATA:
+                    s_cli_meta_hex_print(json_obj_meta, "EVM_DATA", l_meta);
+                    break;
                 default: {
                     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
                     json_object_object_add(json_obj_meta, "#", json_object_new_string(l_hexbuf));
@@ -2388,6 +2391,9 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
                 break;
             case DAP_CHAIN_BLOCK_META_NONCE2:
                 s_cli_meta_hex_print(json_obj_meta, "NONCE2", l_meta);
+                break;
+            case DAP_CHAIN_BLOCK_META_EVM_DATA:
+                s_cli_meta_hex_print(json_obj_meta, "EVM_DATA", l_meta);
                 break;
             default: {
                 snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);

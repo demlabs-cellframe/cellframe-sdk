@@ -476,6 +476,7 @@ static const char *s_meta_type_to_string(uint8_t a_meta_type)
     case DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT: return "SYNC_ATTEMPT";
     case DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT: return "ROUND_ATTEMPT";
     case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS: return "EXCLUDED_KEYS";
+    case DAP_CHAIN_BLOCK_META_EVM_DATA: return "EVM_DATA";
     default: return "UNNOWN";
     }
 }
@@ -527,6 +528,13 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
                 return a_meta->data;
         }
         log_it(L_WARNING, "Meta %s has wrong size %hu", s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size);
+    break;
+    case DAP_CHAIN_BLOCK_META_EVM_DATA:
+        // Custom data can have any size, just return the data pointer
+        if (a_meta->hdr.data_size > 0)
+            return a_meta->data;
+        log_it(L_WARNING, "Meta %s has zero size", s_meta_type_to_string(a_meta->hdr.type));
+    break;
     default:
         log_it(L_WARNING, "Unknown meta type 0x%02x (size %u), possible corrupted block or you need to upgrade your software",
                           a_meta->hdr.type, a_meta->hdr.type);

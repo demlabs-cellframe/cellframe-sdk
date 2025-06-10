@@ -59,6 +59,24 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 typedef struct dap_chain_esbocs_session dap_chain_esbocs_session_t;
 
+
+/**
+ * @brief Set custom metadata for block
+ * @details This function sets custom binary data to be added to block metadata.
+ * @param a_block Block
+ * @param a_meta_type Metadata type
+ * @param a_data_size Output parameter for data size
+ * @return Pointer to binary data or NULL if no data available
+ */
+typedef uint8_t *(*dap_chain_esbocs_callback_set_custom_metadata_t)(dap_chain_block_t *a_block, uint8_t *a_meta_type, size_t *a_data_size);
+/**
+ * @brief Additional check metadata for block
+ * @details This function checks custom binary data to be added to block metadata.
+ * @param a_block Block
+ * @return True if metadata is valid, false otherwise
+ */
+typedef bool (*dap_chain_esbocs_callback_presign_t)(dap_chain_block_t *a_block);
+
 /* consensus messages
 • Sync(round, last block, sync attempt) - try to synchronize validators before first round attempt start
 • Submit(round, candidate, body) — suggest a new block candidate *** candiate body in data section
@@ -70,6 +88,7 @@ typedef struct dap_chain_esbocs_session dap_chain_esbocs_session_t;
 • VoteFor(round, directive) — a vote for a directive in this round
 • VoteAgainst(round, directive) — a vote against a directive in this round
 */
+
 typedef struct dap_chain_esbocs_message_hdr {
     uint16_t version;
     uint8_t type;
@@ -129,6 +148,8 @@ typedef struct dap_chain_esbocs {
     dap_list_t *hardfork_trusted_addrs;
     dap_time_t last_directive_vote_timestamp, last_directive_accept_timestamp,
                last_submitted_candidate_timestamp, last_accepted_block_timestamp;
+    dap_chain_esbocs_callback_set_custom_metadata_t callback_set_custom_metadata;
+    dap_chain_esbocs_callback_presign_t callback_presign;
     void *_pvt;
 } dap_chain_esbocs_t;
 
@@ -273,3 +294,36 @@ int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
 int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object* a_changed_addrs);
 int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain);
 bool dap_chain_esbocs_hardfork_engaged(dap_chain_t *a_chain);
+
+/**
+ * @brief Get custom metadata for block
+ * @details This function returns custom binary data to be added to block metadata.
+ *          Implementation should be provided by user as a black box function.
+ * @param a_session ESBOCS session
+ * @param a_data_size Output parameter for data size
+ * @return Pointer to binary data or NULL if no data available
+ */
+uint8_t *dap_chain_esbocs_get_custom_metadata(dap_chain_esbocs_session_t *a_session, size_t *a_data_size);
+
+/**
+ * @brief Set custom metadata callback for ESBOCS consensus
+ * @details This function sets a callback that will be called to get custom metadata
+ *          for each block before SUBMIT message is sent
+ * @param a_net_id Network ID
+ * @param a_callback Callback function pointer or NULL to disable
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_esbocs_set_custom_metadata_callback(dap_chain_net_id_t a_net_id, 
+                                                  dap_chain_esbocs_callback_set_custom_metadata_t a_callback);
+
+/**
+ * @brief Set presign callback for ESBOCS consensus
+ * @details This function sets a callback that will be called to validate custom metadata
+ *          in blocks during verification process
+ * @param a_net_id Network ID
+ * @param a_callback Callback function pointer or NULL to disable
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
+                                          dap_chain_esbocs_callback_presign_t a_callback);
+
