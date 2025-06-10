@@ -1176,18 +1176,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
 
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer)
 {
-#ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    size_t l_out_count = rand() % 10 + 1;
-    dap_list_t *l_ret = NULL;
-    for (size_t i = 0; i < l_out_count; ++i) {
-        dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
-        randombytes(l_item, sizeof(dap_chain_tx_used_out_item_t));
-        l_ret = dap_list_append(l_ret, l_item);
-    }
-    return l_ret;
-#else
     return dap_ledger_get_list_tx_outs_from_jso_ex(a_outputs_array, a_outputs_count, a_value_need, a_value_transfer, false);
-#endif
 }
 
 dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer)
@@ -1197,6 +1186,16 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(json_object * a_outputs_ar
 
 
 dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer, bool a_need_all_outputs) {
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    size_t l_out_count = rand() % 10 + 1;
+    dap_list_t *l_ret = NULL;
+    for (size_t i = 0; i < l_out_count; ++i) {
+        dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+        randombytes(l_item, sizeof(dap_chain_tx_used_out_item_t));
+        l_ret = dap_list_append(l_ret, l_item);
+    }
+    return l_ret;
+#endif
     if (!a_outputs_array || a_outputs_count <= 0) {
         return NULL;
     }
