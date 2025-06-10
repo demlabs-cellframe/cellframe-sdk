@@ -127,7 +127,7 @@ int json_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_p
 int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
-int json_print_for_token_list(dap_json_rpc_response_t* response);
+int json_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 
 #ifdef __cplusplus

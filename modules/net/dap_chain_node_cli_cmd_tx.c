@@ -2245,7 +2245,7 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
 
 }
 
-int json_print_for_token_list(dap_json_rpc_response_t* response){
+int json_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
     if (!response || !response->result_json_object) {
         printf("Response is empty\n");
         return -1;
@@ -2317,11 +2317,31 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
         printf("Response is empty\n");
         return -1;
     }
+    struct json_object *j_obj_headr, *limit_obj, *l_obj_pagina;
+
     char *l_limit = NULL;
     char *l_offset = NULL;
-    struct json_object *j_obj_pagina_arr, *limit_obj;
-    json_object_object_get_ex(response->result_json_object, "pagina", &j_obj_pagina_arr);
-    struct json_object *limit_obj = json_object_array_get_idx(j_obj_pagina_arr, 0);
+
+
+    j_obj_headr = json_object_array_get_idx(response->result_json_object, 0);
+    json_object_object_get_ex(j_obj_headr, "pagina", &l_obj_pagina);
+    limit_obj = json_object_array_get_idx(l_obj_pagina, 0);
+    l_limit = json_object_get_int64(limit_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(limit_obj)) : dap_strdup_printf("unlimit");
+    if (l_limit) {
+           printf("\tlimit: %s \n", l_limit);
+           DAP_DELETE(l_limit);
+       }
+
+
+
+    printf("type - %d",json_object_get_type(limit_obj));
+    if (json_object_object_get_ex(limit_obj, "pagina", &j_obj_headr))
+        printf("trurej");
+    else
+        printf("FALSE");/*
+    int result_count = json_object_array_length(j_obj_pagina_arr);
+    printf("count - %d",result_count);
+    limit_obj = json_object_array_get_idx(j_obj_pagina_arr, 0);
     l_limit = json_object_get_int64(limit_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(limit_obj)) : dap_strdup_printf("unlimit");
      if (l_limit) {
             printf("\tlimit: %s \n", l_limit);
@@ -2406,6 +2426,6 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
         //json_print_object(response->result_json_object, 0);
         return -4;
     }
-    return 0;
+    return 0;*/
 
 }
