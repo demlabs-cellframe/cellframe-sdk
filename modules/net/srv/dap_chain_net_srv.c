@@ -651,8 +651,8 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
             }
             json_obj_net_srv = json_object_new_object();
 
-            json_object_object_add(json_obj_net_srv, "provider", json_object_new_string(l_provider_pkey_hash_str));
-            json_object_object_add(json_obj_net_srv, "client", json_object_new_string(l_client_pkey_hash_str));
+            json_object_object_add(json_obj_net_srv, "sig_inf_provider", json_object_new_string(l_provider_pkey_hash_str));
+            json_object_object_add(json_obj_net_srv, "sig_inf_client", json_object_new_string(l_client_pkey_hash_str));
             json_object_object_add(json_obj_net_srv, "sec", json_object_new_uint64((uint64_t)l_remain_service->limits_ts));
             json_object_object_add(json_obj_net_srv, "bytes", json_object_new_uint64((uint64_t)l_remain_service->limits_bytes));
             DAP_DELETE(l_remain_service);

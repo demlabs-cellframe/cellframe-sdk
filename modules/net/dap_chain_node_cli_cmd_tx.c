@@ -328,7 +328,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
 
     // add address
     json_object * json_obj_addr = json_object_new_object();
-    json_object_object_add(json_obj_addr, "address", json_object_new_string(l_addr_str));
+    json_object_object_add(json_obj_addr, "addr", json_object_new_string(l_addr_str));
     json_object_array_add(json_obj_datum, json_obj_addr);
 
     dap_chain_tx_hash_processed_ht_t *l_tx_data_ht = NULL;

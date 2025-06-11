@@ -340,20 +340,20 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE:
             if (l_tsd->size != sizeof(uint32_t)) {
-                json_object_object_add(a_json_out, "signature_type", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "sig_type", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint32_t l_type = 0;
             _dap_tsd_get_scalar(l_tsd, &l_type);
             dap_sign_type_t l_sign_type = { .type = l_type };
-            json_object_object_add(a_json_out, "signature_type", json_object_new_string(dap_sign_type_to_str(l_sign_type)));
+            json_object_object_add(a_json_out, "sig_type", json_object_new_string(dap_sign_type_to_str(l_sign_type)));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY:
             if (l_tsd->size != dap_pkey_get_size((dap_pkey_t *)(l_tsd->data))) {
-                json_object_object_add(a_json_out, "pkey type", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "pkey_type", json_object_new_string("WRONG SIZE"));
                 break;
             }
-            json_object_object_add(a_json_out, "pkey type", json_object_new_string( dap_pkey_type_to_str(((dap_pkey_t *)(l_tsd->data))->header.type) ));
+            json_object_object_add(a_json_out, "pkey_type", json_object_new_string( dap_pkey_type_to_str(((dap_pkey_t *)(l_tsd->data))->header.type) ));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE:
             if (l_tsd->size != dap_chain_policy_get_size((dap_chain_policy_t *)(l_tsd->data))) {
@@ -384,14 +384,14 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
         dap_sign_t *l_sign = (dap_sign_t *) (a_signs + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {
-            json_object_object_add(json_obj_sign, "sign_status", json_object_new_string("CORRUPTED - 0 size signature"));
+            json_object_object_add(json_obj_sign, "sig_status", json_object_new_string("CORRUPTED - 0 size signature"));
             json_object_array_add(json_arr_certs_out, json_obj_sign);
             continue;
         }
 
         dap_chain_hash_fast_t l_pkey_hash = {0};
         if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
-            json_object_object_add(json_obj_sign, "sign_status", json_object_new_string("CORRUPTED - can't calc hash"));
+            json_object_object_add(json_obj_sign, "sig_status", json_object_new_string("CORRUPTED - can't calc hash"));
             json_object_array_add(json_arr_certs_out, json_obj_sign);
             continue;
         }
@@ -399,10 +399,10 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
         const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                 : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
-        json_object_object_add(json_obj_sign, "sign_#", json_object_new_uint64(i));
+        json_object_object_add(json_obj_sign, "sig_#", json_object_new_uint64(i));
         json_object_object_add(json_obj_sign, "hash", json_object_new_string(l_hash_str));
         json_object_object_add(json_obj_sign, "type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
-        json_object_object_add(json_obj_sign, "sign_size", json_object_new_uint64(l_sign->header.sign_size));
+        json_object_object_add(json_obj_sign, "sig_size", json_object_new_uint64(l_sign->header.sign_size));
         json_object_array_add(json_arr_certs_out, json_obj_sign);        
     }
     json_object_object_add(a_json_out,"SIGNS", json_arr_certs_out);
