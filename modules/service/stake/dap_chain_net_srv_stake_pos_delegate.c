@@ -3748,6 +3748,27 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
     return 0;
 }
 
+int s_sum_value_reward (dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, uint256_t * a_value)
+{
+    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, a_type, NULL);
+    for(dap_list_t *it = l_list_out_items; it; it = it->next) {
+        if (a_type == TX_ITEM_TYPE_OUT) {
+            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it->data;
+            SUM_256_256(*a_value, l_tx_out->header.value, a_value);
+        }
+        if (a_type == TX_ITEM_TYPE_OUT_EXT) {
+            dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)it->data;
+            SUM_256_256(*a_value, l_tx_out->header.value, a_value);
+        }
+        if (a_type == TX_ITEM_TYPE_OUT_STD) {
+            dap_chain_tx_out_std_t *l_tx_out = (dap_chain_tx_out_std_t *)it->data;
+            SUM_256_256(*a_value, l_tx_out->value, a_value);
+        }
+    }
+    dap_list_free(l_list_out_items);
+    return 0;
+}
+
 
 static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_node_info_t *a_node_info, dap_chain_t *a_chain,
                                  dap_chain_net_t *a_net, dap_time_t a_time_form, dap_time_t a_time_to,
@@ -3759,7 +3780,6 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         dap_json_rpc_error_add(a_json_arr_reply, -44, "Memory allocation error");
         return NULL;
     }
-    const char *l_native_ticker = a_net->pub.native_ticker;
     if (!a_chain->callback_datum_iter_create) {
         log_it(L_WARNING, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
@@ -3800,7 +3820,6 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                             l_datum = iter_direc(l_datum_iter))
     {
         dap_hash_fast_t l_ttx_hash = {0};
-        dap_chain_hash_fast_t l_datum_hash;
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_hash_fast(l_tx, l_datum->header.data_size, &l_ttx_hash);
         const char *l_tx_token_ticker = NULL;        
@@ -3867,12 +3886,10 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
         json_object* json_block_hash = NULL;
         uint256_t l_value_reward = uint256_0, l_value_out = uint256_0;
         l_value_total_calc = uint256_0;
-        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT, NULL);
-        for(dap_list_t *it = l_list_out_items; it; it = it->next) {
-             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it->data;
-             SUM_256_256(l_value_out, l_tx_out->header.value, &l_value_out);
-        }        
-        dap_list_free(l_list_out_items);
+        s_sum_value_reward(l_tx, TX_ITEM_TYPE_OUT, &l_value_out);
+        s_sum_value_reward(l_tx, TX_ITEM_TYPE_OUT_EXT, &l_value_out);
+        s_sum_value_reward(l_tx, TX_ITEM_TYPE_OUT_STD, &l_value_out);
+
         if (!a_brief) {
             for(dap_list_t *it = l_list_in_items; it; it = it->next)
             {
@@ -3882,7 +3899,6 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                 json_block_hash = json_object_new_object();
                 json_object_object_add(json_block_hash, "block hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_in_reward->block_hash))); 
                 dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-                size_t l_sign_size = dap_sign_get_size(l_sign);
                 dap_chain_hash_fast_t l_pkey_hash;
                 dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
                 char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
