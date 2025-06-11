@@ -459,6 +459,11 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     else {
         l_found = true;
         HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
+        // Free existing pkey before assigning new one to prevent memory leak
+        if (l_stake->pkey) {
+            DAP_DELETE(l_stake->pkey);
+            l_stake->pkey = NULL;
+        }
     }
     l_stake->net = a_net;
     l_stake->node_addr = *a_node_addr;
@@ -538,25 +543,48 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
 }
 
 /**
- * @brief add pkey to dap_chain_net_srv_stake_item_t
- * @param a_net to add
- * @param a_pkey
+ * @brief Update pkey in dap_chain_net_srv_stake_item_t
+ * @param a_net Network to update in
+ * @param a_pkey Public key to set/update
  */
 void dap_chain_net_srv_stake_pkey_update(dap_chain_net_t *a_net, dap_pkey_t *a_pkey)
 {
-    dap_return_if_pass(!a_net || !a_pkey);
+    if (!a_net || !a_pkey) {
+        log_it(L_ERROR, "Invalid input parameters");
+        return;
+    }
+    
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
-    if (!l_srv_stake)
-        return log_it(L_ERROR, "Can't update pkey: no stake service found by net id %"DAP_UINT64_FORMAT_U, a_net->pub.id.uint64);
+    if (!l_srv_stake) {
+        log_it(L_ERROR, "Can't update pkey: no stake service found by net id %"DAP_UINT64_FORMAT_U, a_net->pub.id.uint64);
+        return;
+    }
+    
     dap_hash_fast_t l_pkey_hash = {};
     dap_pkey_get_hash(a_pkey, &l_pkey_hash);
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
-    if (!l_stake)
-        return log_it(L_WARNING, "No delegated found to update pkey %s", dap_hash_fast_to_str_static(&l_pkey_hash));
-    if (l_stake->pkey)
-        return log_it(L_INFO, "pkey %s to update already exist", dap_hash_fast_to_str_static(&l_pkey_hash));
-    l_stake->pkey = DAP_DUP_SIZE(a_pkey, dap_pkey_get_size(a_pkey));
+    if (!l_stake) {
+        log_it(L_WARNING, "No delegated found to update pkey %s", dap_hash_fast_to_str_static(&l_pkey_hash));
+        return;
+    }
+    
+    // If pkey already exists, free the old one before replacing
+    if (l_stake->pkey) {
+        //log_it(L_DEBUG, "Replacing existing pkey %s", dap_hash_fast_to_str_static(&l_pkey_hash));
+        DAP_DELETE(l_stake->pkey);
+        l_stake->pkey = NULL;
+    }
+    
+    // Allocate new pkey copy
+    size_t l_pkey_size = dap_pkey_get_size(a_pkey);
+    l_stake->pkey = DAP_DUP_SIZE(a_pkey, l_pkey_size);
+    if (!l_stake->pkey) {
+        log_it(L_ERROR, "Failed to allocate memory for pkey %s", dap_hash_fast_to_str_static(&l_pkey_hash));
+        return;
+    }
+    
+    log_it(L_INFO, "Successfully updated pkey %s", dap_hash_fast_to_str_static(&l_pkey_hash));
 }
 
 void dap_chain_net_srv_stake_set_allowed_min_value(dap_chain_net_id_t a_net_id, uint256_t a_value)
