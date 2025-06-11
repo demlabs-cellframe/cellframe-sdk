@@ -80,6 +80,13 @@ typedef enum s_com_blocks_err{
     DAP_CHAIN_NODE_CLI_COM_BLOCK_UNKNOWN /* MAX */
 } s_com_blocks_err_t;
 
+typedef struct dap_chain_cs_blocks_reward
+{
+    dap_hash_fast_t pkey_hash;
+    uint256_t reward;
+} dap_chain_cs_block_rewards_t;
+
+
 #define DAP_CHAIN_CS_BLOCKS(a) ((dap_chain_cs_blocks_t *)(a)->_inheritor)
 typedef int (*dap_chain_blocks_block_callback_ptr_t)(dap_chain_cs_blocks_t *, dap_chain_block_t *);
 
@@ -100,3 +107,5 @@ DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_reward_group(const char *a_net_n
 }
 
 dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash);
+
+dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash);
