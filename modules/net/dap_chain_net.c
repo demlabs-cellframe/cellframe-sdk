@@ -3011,7 +3011,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                       ? l_net_pvt->sync_context.cur_cell->id
                                       : c_dap_chain_cell_id_null,
                                       &l_request,
-                                      sizeof(l_request),
+                                      l_request.generation ? sizeof(l_request) : sizeof(dap_chain_ch_sync_request_old_t),
                                       DAP_CHAIN_CH_PKT_VERSION_CURRENT);
         l_net_pvt->sync_context.requested_atom_hash = l_request.hash_from;
         l_net_pvt->sync_context.requested_atom_num = l_request.num_from;
@@ -3171,7 +3171,8 @@ static void s_sync_timer_callback(void *a_arg)
 
     dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_net->pub.id, l_net_pvt->sync_context.cur_chain->id,
                                                             l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id : c_dap_chain_cell_id_null,
-                                                            &l_request, sizeof(l_request), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
+                                                            &l_request, l_request.generation ? sizeof(l_request) : sizeof(dap_chain_ch_sync_request_old_t),
+                                                            DAP_CHAIN_CH_PKT_VERSION_CURRENT);
     if (!l_chain_pkt) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;

@@ -390,8 +390,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             return false;
         }
         bool l_is_legacy = l_chain_pkt_data_size == sizeof(dap_chain_ch_sync_request_old_t);
-        // CAUTION: Unsafe cast, must check 'l_is_legacy' variable before access 'generation' field
         dap_chain_ch_sync_request_t *l_request = (dap_chain_ch_sync_request_t *)l_chain_pkt->data;
+        uint16_t l_request_generation = l_is_legacy ? 0 : l_request->generation;
         if (s_debug_more)
             log_it(L_INFO, "In: CHAIN_REQ pkt: net 0x%016" DAP_UINT64_FORMAT_x " chain 0x%016" DAP_UINT64_FORMAT_x
                             " cell 0x%016" DAP_UINT64_FORMAT_x ", hash from %s, num from %" DAP_UINT64_FORMAT_U,
@@ -420,7 +420,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE);
             break;
         }
-        bool l_sync_from_begin = dap_hash_fast_is_blank(&l_request->hash_from) || (!l_is_legacy && l_request->generation < l_chain->generation);
+        bool l_sync_from_begin = dap_hash_fast_is_blank(&l_request->hash_from) || l_request_generation < l_chain->generation;
         dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, l_sync_from_begin
                                                                            ? NULL : &l_request->hash_from);
         if (!l_iter) {
