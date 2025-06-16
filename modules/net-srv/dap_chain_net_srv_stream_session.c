@@ -88,7 +88,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
         l_ret->service = a_srv;
         pthread_rwlock_init(&l_ret->rwlock,NULL);
         a_srv_session->usage_active = l_ret;
-        log_it( L_NOTICE, "Added service %s:0x%016"DAP_UINT64_FORMAT_X" , usage id: %d", l_ret->net->pub.name, a_srv->uid.uint64, l_ret->id);
+        log_it( L_NOTICE, "Added service %s:0x%016"DAP_UINT64_FORMAT_X" , usage id: %u", l_ret->net->pub.name, a_srv->uid.uint64, l_ret->id);
         return l_ret;
     }else{
         log_it( L_ERROR, "Some NULLs was in input");
@@ -106,6 +106,20 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
 {
     if (!a_srv_session || !a_srv_session->usage_active)
         return;
+
+    dap_chain_net_srv_grace_usage_t *l_item = NULL;
+    pthread_mutex_lock(&a_srv_session->usage_active->service->grace_mutex);
+    HASH_FIND(hh, a_srv_session->usage_active->service->grace_hash_tab, &a_srv_session->usage_active->tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+    if (l_item){
+        log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
+        // Stop timer
+        dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
+        // finish grace
+        HASH_DEL(a_srv_session->usage_active->service->grace_hash_tab, l_item);
+        DAP_DELETE(l_item->grace);
+        DAP_DELETE(l_item);
+    }
+    pthread_mutex_unlock(&a_srv_session->usage_active->service->grace_mutex);
 
     if ( a_srv_session->usage_active->receipt )
         DAP_DEL_Z( a_srv_session->usage_active->receipt );

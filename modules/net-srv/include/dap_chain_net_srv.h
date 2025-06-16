@@ -79,8 +79,6 @@ typedef struct dap_chain_net_srv_grace {
     dap_stream_ch_uuid_t ch_uuid;
     dap_chain_net_srv_usage_t *usage;
     dap_timerfd_t *timer;
-    dap_chain_net_srv_ch_pkt_request_t *request;
-    size_t request_size;
 } dap_chain_net_srv_grace_t;
 
 typedef struct dap_chain_net_srv_client_remote {
@@ -96,9 +94,7 @@ typedef struct dap_chain_net_srv_client_remote {
 
 typedef struct dap_chain_net_srv_banlist_item {
     dap_chain_hash_fast_t client_pkey_hash;
-    pthread_mutex_t *ht_mutex;
-    struct dap_chain_net_srv_banlist_item **ht_head;
-    UT_hash_handle hh;
+    dap_time_t end_of_ban_timestamp;
 } dap_chain_net_srv_banlist_item_t;
 
 
@@ -137,11 +133,7 @@ typedef struct dap_chain_net_srv {
     dap_chain_net_id_t net_id;
 
     bool allow_free_srv;
-    dap_chain_addr_t wallet_addr;
-    dap_cert_t *receipt_sign_cert;
-
-    pthread_mutex_t banlist_mutex;
-    dap_chain_net_srv_banlist_item_t *ban_list;
+    uint32_t grace_period;
 
     dap_chain_net_srv_callbacks_t callbacks;
 
@@ -167,7 +159,7 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv);
 
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
-                                                               const void * a_ext, size_t a_ext_size);
+                                                               const void * a_ext, size_t a_ext_size, dap_hash_fast_t *a_prev_tx_hash);
 
 int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section);
 
