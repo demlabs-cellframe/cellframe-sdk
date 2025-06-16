@@ -1103,11 +1103,15 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
     
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, a_tx_hash);
     if (!l_tx) {
-        log_it(L_WARNING, "Can't find tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
-        return 0;
+        log_it(L_ERROR, "Can't find tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
+        return -3;
     }
 
-    if (a_voting) { // It can happen that previous vote with the same key has been already counted
+    if (l_tx->header.ts_created < a_voting_ts)
+        return 0;
+
+    dap_chain_tx_vote_t *l_vote = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
+    if (l_vote && dap_hash_fast_compare(&l_vote->voting_hash, &a_voting->voting_hash)) {
         for (dap_list_t *it = a_voting->votes; it; it = it->next) {
             dap_chain_net_vote_t *l_vote = (dap_chain_net_vote_t *)it->data;
             if (dap_hash_fast_compare(&l_vote->vote_hash, a_tx_hash)) {
@@ -1126,7 +1130,6 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
         return 0;
     }
 
-    int l_result = 0;
     dap_hash_fast_t l_prev_hash = {};
     for (dap_list_t *it = l_ins_list; it; it = it->next) {
         uint32_t l_prev_idx = -1;
@@ -1166,8 +1169,8 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
                 break;
             }
             if (s_datum_tx_voting_coin_check_cond_out(a_ledger->net, *a_voting_hash, l_prev_hash, l_prev_idx, a_pkey_hash) != 0) {
-                l_result = 1;
-                goto cleanup;
+                dap_list_free(l_ins_list);
+                return 1;
             }
             l_tx_token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_prev_hash);
         }break;
@@ -1178,11 +1181,7 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
             continue;
     }
     
-    l_result = s_tx_is_spent(a_ledger, &l_prev_hash, a_voting_hash, a_pkey_hash, a_voting, a_voting_ts);
-    
-cleanup:
-    dap_list_free(l_ins_list);
-    return l_result;
+    return s_tx_is_spent(a_ledger, &l_prev_hash, a_voting_hash, a_pkey_hash, a_voting, a_voting_ts);
 }
 
 

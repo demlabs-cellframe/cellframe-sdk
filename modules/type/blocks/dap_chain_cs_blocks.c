@@ -2843,17 +2843,19 @@ dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, 
     size_t l_signs_count = dap_chain_block_get_signs_count(l_block_cache->block, l_block_cache->block_size);
     for (size_t i = 0; i < l_signs_count; i++) {
         dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
-        dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
-        if (!l_pkey) {
-            log_it(L_ERROR, "Can't get pkey from sign");
-            continue;
-        }
+
         dap_hash_fast_t l_pkey_hash = {};
         if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
             log_it(L_ERROR, "Can't get pkey hash from sign");
             continue;
         }
+        dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
+        if (!l_pkey) {
+            log_it(L_ERROR, "Can't get pkey from sign");
+            continue;
+        }
         uint256_t l_value_reward = s_callback_calc_reward(a_chain, a_block_hash, l_pkey);
+        DAP_DELETE(l_pkey);
         dap_chain_cs_block_rewards_t *l_reward = DAP_NEW_Z(dap_chain_cs_block_rewards_t);
         l_reward->pkey_hash = l_pkey_hash;
         l_reward->reward = l_value_reward;
