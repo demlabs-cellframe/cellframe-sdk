@@ -29,7 +29,7 @@
 
 
 typedef struct dap_chain_receipt_info_old {
-    dap_chain_net_srv_uid_t srv_uid; // Service UID
+    dap_chain_srv_uid_t srv_uid; // Service UID
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     uint64_t addition;
 #endif

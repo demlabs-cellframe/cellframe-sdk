@@ -63,11 +63,20 @@ typedef struct dap_chain_net_srv_abstract {
     } proposal_params;
 } dap_chain_net_srv_abstract_t;
 
-typedef struct dap_chain_net_srv_price {
+
+typedef struct dap_chain_net_srv_price
+{
+//    dap_chain_wallet_t *wallet;
+    dap_chain_addr_t *wallet_addr;
+    dap_cert_t *receipt_sign_cert;
+    char *net_name;
+    dap_chain_net_t *net;
     uint256_t value_datoshi;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
     uint64_t units;
     dap_chain_net_srv_price_unit_uid_t units_uid;
+    struct dap_chain_net_srv_price *next;
+    struct dap_chain_net_srv_price *prev;
 } dap_chain_net_srv_price_t;
 
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
@@ -133,7 +142,6 @@ typedef struct dap_chain_net_srv {
     dap_chain_net_id_t net_id;
 
     bool allow_free_srv;
-    uint32_t grace_period;
 
     dap_chain_net_srv_callbacks_t callbacks;
 
@@ -156,6 +164,10 @@ void dap_chain_net_srv_deinit(void);
 
 dap_chain_net_srv_t *dap_chain_net_srv_create(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, dap_config_t *a_config, dap_chain_net_srv_callbacks_t *a_network_callbacks);
 void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv);
+
+dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_srv_uid_t a_uid);
+dap_chain_net_srv_t* dap_chain_net_srv_get_by_name(const char *a_name);
+
 
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,

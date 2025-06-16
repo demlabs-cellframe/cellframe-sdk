@@ -911,18 +911,11 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
 // grace table clean
     dap_chain_net_srv_grace_usage_t *l_gdata, *l_gdata_tmp;
     pthread_mutex_lock(&a_srv->grace_mutex);
-    pthread_mutex_lock(&a_srv->banlist_mutex);
     HASH_ITER(hh, a_srv->grace_hash_tab, l_gdata, l_gdata_tmp) {
         HASH_DEL(a_srv->grace_hash_tab, l_gdata);
         DAP_DELETE(l_gdata);
     }
-    dap_chain_net_srv_banlist_item_t *it, *tmp;
-    HASH_ITER(hh, a_srv->ban_list, it, tmp) {
-        HASH_DEL(a_srv->ban_list, it);
-        DAP_DELETE(it);
-    }
     pthread_mutex_unlock(&a_srv->grace_mutex);
-    pthread_mutex_unlock(&a_srv->banlist_mutex);
     DAP_DELETE(a_srv);
 }
 
