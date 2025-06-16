@@ -733,7 +733,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 
     bool l_signed = false;
 
-    for(size_t i = 0; i < l_items_count && !l_signed; ++i) {
+    for(int i = l_items_count - 1; i >= 0  && !l_signed; --i) {
         struct json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
         if(!l_json_item_obj || !json_object_is_type(l_json_item_obj, json_type_object)) {
             continue;
