@@ -298,7 +298,7 @@ void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_
 
         json_object_object_add(l_json_obj_out, "line", json_object_new_int(i));
         json_object_object_add(l_json_obj_out, "hash", json_object_new_string(l_hash_str));
-        json_object_object_add(l_json_obj_out, "sign_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
+        json_object_object_add(l_json_obj_out, "sig_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
         json_object_object_add(l_json_obj_out, "bytes", json_object_new_int(l_sign->header.sign_size));
         json_object_array_add(json_arr_seg, l_json_obj_out);
         DAP_DEL_Z(l_hash_str);

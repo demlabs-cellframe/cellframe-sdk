@@ -1943,7 +1943,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
                 json_object_object_add(json_obj_item,"item_type", json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
                 json_object_object_add(json_obj_item,"value_coins", json_object_new_string(l_out_value_coins_str));
-                json_object_object_add(json_obj_item,"value_datosi", json_object_new_string(l_out_value_str));
+                json_object_object_add(json_obj_item,"value_datoshi", json_object_new_string(l_out_value_str));
                 json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));
                 json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_int64(l_item->num_idx_out));
                 json_object_array_add(l_json_outs_arr, json_obj_item);
@@ -2098,7 +2098,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     json_object * json_obj_wall = json_object_new_object();
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    json_object_object_add(json_obj_wall, "sign_wallet", json_object_new_string(
+                    json_object_object_add(json_obj_wall, "sig_wallet", json_object_new_string(
                                                                               strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
                                                                               dap_chain_wallet_check_sign(l_wallet) : "correct"));
                     json_object_object_add(json_obj_wall, "wallet_name", json_object_new_string(l_wallet_name));
@@ -2243,10 +2243,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             dap_string_append_printf(l_signs_types_str, "%s%s",
                                                      dap_sign_type_to_str(l_sign_types[i]), (i+1) == l_sign_count ? "": ", ");
                         }
-                        json_object_object_add(json_obj_wall, "sign_type", json_object_new_string(l_signs_types_str->str));
+                        json_object_object_add(json_obj_wall, "sig_type", json_object_new_string(l_signs_types_str->str));
                         dap_string_free(l_signs_types_str, true);
                     } else
-                        json_object_object_add(json_obj_wall, "sign_type", json_object_new_string(l_sign_type_str));
+                        json_object_object_add(json_obj_wall, "sig_type", json_object_new_string(l_sign_type_str));
                     json_object_object_add(json_obj_wall, "status", json_object_new_string("successfully created"));
 
                     const char *l_addr_str = NULL;
@@ -7076,7 +7076,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     } else if (l_is_tx_count) {
         json_object * json_count_obj= json_object_new_object();
-        json_object_object_add(json_count_obj, "number_of_transaction", json_object_new_uint64(l_chain->callback_count_tx(l_chain)));
+        json_object_object_add(json_count_obj, "total_tx_count", json_object_new_uint64(l_chain->callback_count_tx(l_chain)));
         json_object_array_add(*a_json_arr_reply, json_count_obj);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     }

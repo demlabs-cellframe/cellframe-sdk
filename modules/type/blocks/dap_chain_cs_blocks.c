@@ -583,8 +583,8 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_jso
                                  l_total_str, a_net->pub.native_ticker, l_profit_str, l_tax_str, l_fee_str);
         DAP_DEL_MULTY(l_total_str, l_profit_str, l_tax_str, l_fee_str);
     }
-    char *l_key = dap_strdup_printf("%s status", a_table_name);
-    json_object_object_add(a_json_obj_out, l_key, json_object_new_string(l_val ? l_val : "Empty"));
+    char *l_key = dap_strdup_printf("%s_status", a_table_name);
+    json_object_object_add(a_json_obj_out, l_key, json_object_new_string(l_val ? l_val : "empty"));
     DAP_DEL_MULTY(l_key, l_val);
 }
 
@@ -905,7 +905,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             json_object_array_add(*a_json_arr_reply, json_arr_datum_out);
             // Signatures
             json_object* json_obj_sig = json_object_new_object();
-            json_object_object_add(json_obj_sig, "signatures_count", json_object_new_uint64(l_block_cache->sign_count));
+            json_object_object_add(json_obj_sig, "sig_count", json_object_new_uint64(l_block_cache->sign_count));
             json_object_array_add(*a_json_arr_reply, json_obj_sig);
             json_object* json_arr_sign_out = json_object_new_array();
             for (uint32_t i=0; i < l_block_cache->sign_count ; i++) {
@@ -1460,8 +1460,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 DAP_DELETE(l_val);
                 if (!l_status)
                     break;
-                s_print_autocollect_table(l_net, json_obj_out, "Fees");
-                s_print_autocollect_table(l_net, json_obj_out, "Rewards");
+                s_print_autocollect_table(l_net, json_obj_out, "fees");
+                s_print_autocollect_table(l_net, json_obj_out, "rewards");
             }            
         } break;
 
@@ -2297,7 +2297,7 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
                 break;
             default: {
                 snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
-                json_object_object_add(json_obj_meta, "# -", json_object_new_string(l_hexbuf));
+                json_object_object_add(json_obj_meta, "number", json_object_new_string(l_hexbuf));
                 int l_len = l_meta->hdr.data_size * 2 + 5;
                 char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
                 snprintf(l_data_hex, 3, "%s", "0x");

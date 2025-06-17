@@ -1581,12 +1581,12 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                         xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(l_net->pub.ledger, l_tx, NULL, NULL, NULL);
                         char *l_tx_hash = dap_chain_hash_fast_to_str_new(&l_order_tx_hash);
                         if(l_tx_type != TX_TYPE_ORDER){
-                            json_object_object_add(l_json_obj_order, "datum_status", json_object_new_string("is not order"));
+                            json_object_object_add(l_json_obj_order, "datum_status", json_object_new_string("is_not_order"));
                             json_object_object_add(l_json_obj_order, "datum_hash", json_object_new_string(l_tx_hash));
                         } else {
                             dap_chain_net_srv_xchange_order_status_t l_rc = s_tx_check_for_open_close(l_net,l_tx);
                             if(l_rc == XCHANGE_ORDER_STATUS_UNKNOWN){
-                                json_object_object_add(l_json_obj_order, "wrong_TX", json_object_new_string(l_tx_hash));
+                                json_object_object_add(l_json_obj_order, "wrong_tx", json_object_new_string(l_tx_hash));
                             }else{
                                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
                                 dap_list_t *l_tx_list_temp = l_tx_list;
@@ -1704,8 +1704,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             switch (l_ret_code) {
                 case XCHANGE_REMOVE_ERROR_OK:
                     json_obj_order = json_object_new_object();
-                    json_object_object_add(json_obj_order, "status", json_object_new_string("Order successfully removed"));
-                    json_object_object_add(json_obj_order, "created_inactivate_tx_with_hash", json_object_new_string(l_tx_hash_ret));
+                    json_object_object_add(json_obj_order, "status", json_object_new_string("success"));
+                    json_object_object_add(json_obj_order, "tx_hash", json_object_new_string(l_tx_hash_ret));
                     json_object_array_add(*a_json_arr_reply, json_obj_order);
                     DAP_DELETE(l_tx_hash_ret);
                     break;
@@ -2491,9 +2491,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
     }
 
     json_object_object_add(json_obj_out, "transactions", json_arr_datum_out);
-    char *l_transactions = dap_strdup_printf("\nFound %"DAP_UINT64_FORMAT_U" transactions", l_tx_count);
-    json_object_object_add(json_obj_out, "number_of_transactions", json_object_new_string(l_transactions));
-    DAP_DELETE(l_transactions);                    /* Free string descriptor, but keep ASCIZ buffer itself */
+    json_object_object_add(json_obj_out, "total_tx_count", json_object_new_uint64(l_tx_count));                 /* Free string descriptor, but keep ASCIZ buffer itself */
     return  0;
 }
 
@@ -3016,10 +3014,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
             }
             json_object* json_obj_orders = json_object_new_object();
 
-            if(l_show_tx_nr)
-                json_object_object_add(json_obj_orders, "number_of_transactions", json_object_new_int(l_show_tx_nr));
-            else
-                json_object_object_add(json_obj_orders, "number_of_transactions", json_object_new_string("Transactions not found"));
+            json_object_object_add(json_obj_orders, "total_tx_count", json_object_new_int(l_show_tx_nr));
             json_object_array_add(*json_arr_reply, json_obj_orders);
         } break;
         // Token pair control

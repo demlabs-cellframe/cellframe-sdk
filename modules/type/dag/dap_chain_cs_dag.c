@@ -1385,11 +1385,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             log_it(L_NOTICE,"Round complete command accepted, forming new events");
 
             size_t l_objs_size = 0;
-            dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_dag->gdb_group_events_round_new,&l_objs_size);
-            if (l_objs_size)
-                json_object_object_add(json_obj_round,"round_status", json_object_new_string("Completing round"));
-            else
-                json_object_object_add(json_obj_round,"round_status", json_object_new_string("Completing round: no data"));
+            dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_dag->gdb_group_events_round_new, &l_objs_size);
+
+            json_object_object_add(json_obj_round,"round_status", l_objs_size ? json_object_new_string("Completing round") : json_object_new_string("Completing round: no data"));
             // list for verifed and added events
             dap_list_t *l_list_to_del = NULL;
 
@@ -1748,7 +1746,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         else
                             for (size_t i = l_objs_count - l_arr_start; i > l_objs_count - l_arr_end; i--)
                                 s_json_dag_pack_round(json_arr_obj_event, l_objs, i);
-                        json_object_object_add(json_obj_event_list, "OBJ", json_arr_obj_event);
+                        json_object_object_add(json_obj_event_list, "obj", json_arr_obj_event);
                         if (l_objs && l_objs_count )
                             dap_global_db_objs_delete(l_objs, l_objs_count);
                         ret = 0;
@@ -2099,7 +2097,7 @@ static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, d
     // Header
     snprintf(l_buf, sizeof(l_buf), "%hu",l_event->header.version);
     json_object_object_add(l_jobj,"version", json_object_new_string(l_buf));
-    json_object_object_add(l_jobj,"round ID", json_object_new_uint64(l_event->header.round_id));
+    json_object_object_add(l_jobj,"round_id", json_object_new_uint64(l_event->header.round_id));
     snprintf(l_buf, sizeof(l_buf), "0x%016"DAP_UINT64_FORMAT_x"",l_event->header.cell_id.uint64);
     json_object_object_add(l_jobj,"cell_id", json_object_new_string(l_buf));
     snprintf(l_buf, sizeof(l_buf), "0x%016"DAP_UINT64_FORMAT_x"",l_event->header.chain_id.uint64);
