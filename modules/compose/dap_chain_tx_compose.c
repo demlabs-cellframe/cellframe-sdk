@@ -47,7 +47,7 @@
 #endif
 
 static compose_config_t* s_compose_config_init(const char *a_net_name, const char *a_url_str,
-                                 uint16_t a_port) {
+                                 uint16_t a_port, const char *a_cert_path) {
     if (!a_net_name) {
         return NULL;
     }
@@ -70,6 +70,13 @@ static compose_config_t* s_compose_config_init(const char *a_net_name, const cha
         return NULL;
     }
     l_config->port = l_port;
+    if (a_cert_path) {
+        l_config->enc = true;
+        l_config->cert_path = a_cert_path;
+    } else {
+        l_config->enc = false;
+        l_config->cert_path = NULL;
+    }
 
     l_config->response_handler = json_object_new_object();
     if (!l_config->response_handler) {
@@ -466,7 +473,7 @@ static void s_stage_connected_error_callback(dap_client_t* a_client, void * a_ar
 }
 
 
-json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * a_url, const char * a_port, const char * a_cert_path) {
+json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * a_url, uint16_t a_port, const char * a_cert_path) {
     if (!a_request || !a_url || !a_port) {
         return NULL;
     }
@@ -477,7 +484,7 @@ json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * 
         return NULL;
     }
     
-    node_info->ext_port = atoi(a_port);
+    node_info->ext_port = a_port;
     node_info->ext_host_len = dap_strncpy(node_info->ext_host, a_url, url_len + 1) - node_info->ext_host;
     dap_json_rpc_params_t * params = dap_json_rpc_params_create();
     char *l_cmd_str = dap_strdup(a_request);
@@ -623,7 +630,10 @@ json_object* dap_request_command_to_rpc(const char *request, compose_config_t *a
         return NULL;
     }
 
-    json_object *l_response = s_request_command_to_rpc(request, a_config);
+
+    json_object *l_response = a_config->enc ? 
+                            dap_enc_request_command_to_rpc(request, a_config->url_str, a_config->port, a_config->cert_path) 
+                            : s_request_command_to_rpc(request, a_config) ;
     if (!l_response) {
         return NULL;
     }
@@ -653,9 +663,16 @@ json_object* dap_request_command_to_rpc_with_params(compose_config_t *a_config, 
         return NULL;
     }
     char data[512] = {0};
-    int l_ret = snprintf(data, sizeof(data),
-                        "{\"method\": \"%s\",\"params\": [\"%s;%s\"],\"id\": \"1\"}",
-                        a_method, a_method, l_msg);
+    int l_ret = 0;
+    if (a_config->enc) {
+        l_ret = snprintf(data, sizeof(data),
+                        "%s;%s",
+                        a_method, l_msg);
+    } else {
+        l_ret = snprintf(data, sizeof(data),
+                            "{\"method\": \"%s\",\"params\": [\"%s;%s\"],\"id\": \"1\"}",
+                            a_method, a_method, l_msg);
+    }
 
     DAP_FREE(l_msg);
 
@@ -797,12 +814,12 @@ typedef enum {
 } tx_create_compose_error_t;
 
 json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_fee_str, const char *addr_base58_to, 
-                                    dap_chain_addr_t *l_addr_from, const char *l_url_str, uint16_t l_port) {
+                                    dap_chain_addr_t *l_addr_from, const char *l_url_str, uint16_t l_port, const char *l_cert_path) {
     if (!l_net_str || !l_token_ticker || !l_value_str || !l_addr_from || !l_url_str) {
         return NULL;
     }
     
-    compose_config_t *l_config = s_compose_config_init(l_net_str, l_url_str, l_port);
+    compose_config_t *l_config = s_compose_config_init(l_net_str, l_url_str, l_port, l_cert_path);
     if (!l_config) {
         json_object* l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, TX_CREATE_COMPOSE_INVALID_CONFIG, "Can't create compose config");
@@ -1405,8 +1422,8 @@ typedef enum dap_xchange_compose_error {
     DAP_XCHANGE_COMPOSE_ERROR_INVALID_FEE
 } dap_xchange_compose_error_t;
 
-json_object* dap_tx_create_xchange_compose(const char *l_net_name, const char *l_token_buy, const char *l_token_sell, dap_chain_addr_t *l_wallet_addr, const char *l_value_str, const char *l_rate_str, const char *l_fee_str, const char *l_url_str, uint16_t l_port){
-    compose_config_t *l_config = s_compose_config_init(l_net_name, l_url_str, l_port);
+json_object* dap_tx_create_xchange_compose(const char *l_net_name, const char *l_token_buy, const char *l_token_sell, dap_chain_addr_t *l_wallet_addr, const char *l_value_str, const char *l_rate_str, const char *l_fee_str, const char *l_url_str, uint16_t l_port, const char *l_cert_path){
+    compose_config_t *l_config = s_compose_config_init(l_net_name, l_url_str, l_port, l_cert_path);
     if (!l_config) {
         json_object* l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, DAP_XCHANGE_COMPOSE_ERROR_INVALID_FEE, "Can't create compose config");
@@ -1686,8 +1703,8 @@ typedef enum dap_tx_cond_create_compose_error {
 json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr,
                                         const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str,
                                         const char *a_unit_str, const char *a_value_per_unit_max_str,
-                                        const char *a_srv_uid_str, const char *a_url_str, uint16_t a_port) {    
-    compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
+                                        const char *a_srv_uid_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path) {    
+    compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port, a_cert_path);
     if (!l_config) {
         json_object* l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, TX_COND_CREATE_COMPOSE_ERROR_INVALID_FEE, "Can't create compose config");
@@ -1863,9 +1880,9 @@ enum cli_hold_compose_error {
 };
 
 json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_ticker_str, dap_chain_addr_t *a_wallet_addr, const char *a_coins_str, const char *a_time_staking_str,
-                                    const char *a_cert_str, const char *a_value_fee_str, const char *a_reinvest_percent_str, const char *a_url_str, uint16_t a_port) {
+                                    const char *a_cert_str, const char *a_value_fee_str, const char *a_reinvest_percent_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path) {
     
-    compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
+    compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port, a_cert_path);
     if (!l_config) {
         json_object* l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, CLI_HOLD_COMPOSE_ERROR_INVALID_CONFIG, "Can't create compose config");
@@ -2254,9 +2271,9 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
 }
 
 json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_str, dap_chain_addr_t *a_wallet_addr, const char *a_tx_str,
-                                    const char *a_value_fee_str, const char *a_url_str, uint16_t a_port){
+                                    const char *a_value_fee_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path){
 
-    compose_config_t * l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
+    compose_config_t * l_config = s_compose_config_init(a_net_name, a_url_str, a_port, a_cert_path);
     if (!l_config) {
         json_object * l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, CLI_TAKE_COMPOSE_ERROR_UNABLE_TO_INIT_CONFIG, "Unable to init config\n");
@@ -2574,9 +2591,9 @@ uint256_t s_get_key_delegating_min_value(compose_config_t *a_config){
 json_object* dap_cli_voting_compose(const char *a_net_name, const char *a_question_str, const char *a_options_list_str, 
                                     const char *a_voting_expire_str, const char *a_max_votes_count_str, const char *a_fee_str, 
                                     bool a_is_delegated_key, bool a_is_vote_changing_allowed, dap_chain_addr_t *a_wallet_addr, const char *a_token_str, 
-                                    const char *a_url_str, uint16_t a_port) {
+                                    const char *a_url_str, uint16_t a_port, const char *a_cert_path) {
     
-    compose_config_t * l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
+    compose_config_t * l_config = s_compose_config_init(a_net_name, a_url_str, a_port, a_cert_path);
     if (!l_config) {
         json_object * l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, CLI_TAKE_COMPOSE_ERROR_UNABLE_TO_INIT_CONFIG, "Unable to init config\n");
@@ -2863,8 +2880,8 @@ typedef enum {
 } dap_cli_vote_compose_error_t;
 
 json_object* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str, const char *a_cert_name, const char *a_fee_str, dap_chain_addr_t *a_wallet_addr, 
-                                    const char *a_option_idx_str, const char *a_url_str, uint16_t a_port) {
-    compose_config_t *l_config = s_compose_config_init(a_net_str, a_url_str, a_port);
+                                    const char *a_option_idx_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path) {
+    compose_config_t *l_config = s_compose_config_init(a_net_str, a_url_str, a_port, a_cert_path);
     if (!l_config) {
         json_object* l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, DAP_CLI_VOTE_COMPOSE_INVALID_CONFIG, "Can't create compose config");
@@ -3302,9 +3319,9 @@ typedef enum {
     DAP_CLI_STAKE_INVALIDATE_FEE_ERROR = -29
 } dap_cli_stake_invalidate_error_t;
 json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const char *a_tx_hash_str, dap_chain_addr_t *a_wallet_addr, 
-                                                  const char *a_cert_str, const char *a_fee_str, const char *a_url_str, uint16_t a_port)
+                                                  const char *a_cert_str, const char *a_fee_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path)
 {
-    compose_config_t* l_config = s_compose_config_init(a_net_str, a_url_str, a_port);
+    compose_config_t* l_config = s_compose_config_init(a_net_str, a_url_str, a_port, a_cert_path);
     dap_hash_fast_t l_tx_hash = {};
 
     uint256_t l_fee = dap_chain_balance_scan(a_fee_str);
@@ -3910,8 +3927,8 @@ typedef enum {
 } stake_delegate_error_t;
 json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain_addr_t *a_wallet_addr, const char* a_cert_str, 
                                         const char* a_pkey_full_str, const char* a_sign_type_str, const char* a_value_str, const char* a_node_addr_str, 
-                                        const char* a_order_hash_str, const char* a_url_str, uint16_t a_port, const char* a_sovereign_addr_str, const char* a_fee_str) {
-    compose_config_t *l_config = s_compose_config_init(a_net_str, a_url_str, a_port);
+                                        const char* a_order_hash_str, const char* a_url_str, uint16_t a_port, const char* a_cert_path, const char* a_sovereign_addr_str, const char* a_fee_str) {
+    compose_config_t *l_config = s_compose_config_init(a_net_str, a_url_str, a_port, a_cert_path);
     if (!l_config) {
         json_object* l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, STAKE_DELEGATE_COMPOSE_ERR_RPC_RESPONSE, "Can't create compose config");
@@ -4303,8 +4320,8 @@ typedef enum {
 } dap_cli_srv_stake_order_create_staker_error_t;
 json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str, const char *l_value_str, const char *l_fee_str, 
                                                           const char *l_tax_str, const char *l_addr_str, dap_chain_addr_t *a_wallet_addr, 
-                                                          const char *l_url_str, uint16_t l_port) {
-    compose_config_t *l_config = s_compose_config_init(l_net_str, l_url_str, l_port);
+                                                          const char *l_url_str, uint16_t l_port, const char *l_cert_path) {
+    compose_config_t *l_config = s_compose_config_init(l_net_str, l_url_str, l_port, l_cert_path);
     if (!l_config) {
         json_object *l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, STAKE_ORDER_CREATE_STAKER_ERR_INVALID_PARAMS, "Invalid arguments");
@@ -4384,9 +4401,9 @@ typedef enum {
     SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_TX_ALREADY_USED,
     SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NOT_OWNER
 } srv_stake_order_remove_compose_error_t;
-json_object * dap_cli_xchange_order_remove_compose(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, dap_chain_addr_t *a_wallet_addr, const char *l_url_str, uint16_t l_port) {
+json_object * dap_cli_xchange_order_remove_compose(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, dap_chain_addr_t *a_wallet_addr, const char *l_url_str, uint16_t l_port, const char *l_cert_path) {
 
-    compose_config_t *l_config = s_compose_config_init(l_net_str, l_url_str, l_port);
+    compose_config_t *l_config = s_compose_config_init(l_net_str, l_url_str, l_port, l_cert_path);
     if (!l_config) {
         json_object *l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS, "Invalid arguments");
@@ -4724,7 +4741,7 @@ typedef enum dap_tx_create_xchange_purchase_compose_error {
     DAP_TX_CREATE_XCHANGE_PURCHASE_COMPOSE_ERR_ORDER_NOT_FOUND
 } dap_tx_create_xchange_purchase_compose_error_t;
 json_object *dap_tx_create_xchange_purchase_compose (const char *a_net_name, const char *a_order_hash, const char* a_value,
-                                                     const char* a_fee, dap_chain_addr_t *a_wallet_addr, const char *a_url_str, uint16_t a_port) {
+                                                     const char* a_fee, dap_chain_addr_t *a_wallet_addr, const char *a_url_str, uint16_t a_port, const char *a_cert_path) {
     // Input validation
     if (!a_net_name || !a_order_hash || !a_value || !a_fee || !a_wallet_addr || !a_url_str) {
         json_object *l_json_obj_ret = json_object_new_object();
@@ -4732,7 +4749,7 @@ json_object *dap_tx_create_xchange_purchase_compose (const char *a_net_name, con
         return l_json_obj_ret;
     }
 
-    compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port);
+    compose_config_t *l_config = s_compose_config_init(a_net_name, a_url_str, a_port, a_cert_path);
     if (!l_config) {
         json_object *l_json_obj_ret = json_object_new_object();
         dap_json_compose_error_add(l_json_obj_ret, DAP_TX_CREATE_XCHANGE_PURCHASE_COMPOSE_ERR_CONFIG_CREATE, "Can't create compose config");
