@@ -102,6 +102,6 @@ void dap_chain_datum_anchor_certs_dump_json(json_object * a_json_out, byte_t * a
         json_object_object_add(json_obj_sign, "sig_size", json_object_new_uint64(l_sign->header.sign_size));
         json_object_array_add(json_arr_certs_out, json_obj_sign); 
     }
-    json_object_object_add(a_json_out,"SIGNS",json_arr_certs_out);
+    json_object_object_add(a_json_out, "SIGNS",json_arr_certs_out);
 }
 

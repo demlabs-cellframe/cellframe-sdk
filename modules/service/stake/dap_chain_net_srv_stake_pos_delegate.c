@@ -3227,13 +3227,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 
             json_object* json_obj_order = json_object_new_object();
             json_object_object_add(json_obj_order, "VERSION", json_object_new_string((char*)l_out.header.version));
-            json_object_object_add(json_obj_order, "AUTO_PROC", json_object_new_string((l_out.header.flags & A_PROC)?"true":"false"));
-            json_object_object_add(json_obj_order, "ORDER", json_object_new_string((l_out.header.flags & F_ORDR)?"true":"false"));
-            json_object_object_add(json_obj_order, "AUTO_ONLINE", json_object_new_string((l_out.header.flags & A_ONLN)?"true":"false"));
-            json_object_object_add(json_obj_order, "AUTO_UPDATE", json_object_new_string((l_out.header.flags & A_UPDT)?"true":"false"));
-            json_object_object_add(json_obj_order, "DATA_SIGNED", json_object_new_string((l_out.header.flags & D_SIGN)?"true":"false"));
-            json_object_object_add(json_obj_order, "FOUND_CERT", json_object_new_string((l_out.header.flags & F_CERT)?"true":"false"));
-            json_object_object_add(json_obj_order, "SIGN_CORRECT", json_object_new_string(l_out.header.sign_correct ?  "true":"false"));
+            json_object_object_add(json_obj_order, "AUTO_PROC", json_object_new_boolean(l_out.header.flags & A_PROC));
+            json_object_object_add(json_obj_order, "ORDER", json_object_new_boolean(l_out.header.flags & F_ORDR));
+            json_object_object_add(json_obj_order, "AUTO_ONLINE", json_object_new_boolean(l_out.header.flags & A_ONLN));
+            json_object_object_add(json_obj_order, "AUTO_UPDATE", json_object_new_boolean(l_out.header.flags & A_UPDT));
+            json_object_object_add(json_obj_order, "DATA_SIGNED", json_object_new_boolean(l_out.header.flags & D_SIGN));
+            json_object_object_add(json_obj_order, "FOUND_CERT", json_object_new_boolean(l_out.header.flags & F_CERT));
+            json_object_object_add(json_obj_order, "SIGN_CORRECT", json_object_new_boolean(l_out.header.sign_correct));
             json_object_object_add(json_obj_order, "SUMMARY", json_object_new_string(l_out.header.overall_correct ? "Validator ready" : "There are unresolved issues"));
             json_object_array_add(*a_json_arr_reply, json_obj_order);
         }

@@ -114,14 +114,14 @@ bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
             dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
             json_object * l_json_obj_datum = json_object_new_object();
-            json_object_object_add(l_json_obj_datum, "OUT - ", json_object_new_int(l_out_idx));
-            json_object_object_add(l_json_obj_datum, "is_spent_by_tx", json_object_new_string(l_hash_str));
+            json_object_object_add(l_json_obj_datum, "out", json_object_new_int(l_out_idx));
+            json_object_object_add(l_json_obj_datum, "spent_by_tx", json_object_new_string(l_hash_str));
             json_object_array_add(json_arr_items, l_json_obj_datum);
             l_spent = true;
         }
     }
-    json_object_object_add(json_obj_out, "spent_OUTs", json_arr_items);
-    json_object_object_add(json_obj_out, "all_OUTs_yet_unspent", l_spent ? json_object_new_string("no") : json_object_new_string("yes"));
+    json_object_object_add(json_obj_out, "spent_out", json_arr_items);
+    json_object_object_add(json_obj_out, "all_outs_yet_unspent", l_spent ? json_object_new_string("no") : json_object_new_string("yes"));
     return true;
 }
 
@@ -958,7 +958,7 @@ static json_object* dap_db_chain_history_token_list(json_object* a_json_arr_repl
         int l_ret_code = l_datum_iter->ret_code;
         json_object* json_history_token = json_object_new_object();
         json_object_object_add(json_history_token, "status", json_object_new_string(l_ret_code ? "DECLINED" : "ACCEPTED"));
-        json_object_object_add(json_history_token, "ledger_return_code", json_object_new_int(l_ret_code));
+        json_object_object_add(json_history_token, "ledger_ret_code", json_object_new_int(l_ret_code));
         switch (l_token->type) {
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC:
