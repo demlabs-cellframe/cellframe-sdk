@@ -113,7 +113,7 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
     if (l_item){
         log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
         // Stop timer
-        dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
+        dap_timerfd_delete(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
         // finish grace
         HASH_DEL(a_srv_session->usage_active->service->grace_hash_tab, l_item);
         DAP_DELETE(l_item->grace);

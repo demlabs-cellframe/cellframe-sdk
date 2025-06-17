@@ -199,10 +199,10 @@ static char *s_get_ban_group(dap_chain_net_srv_usage_t *a_usage)
 
     dap_hash_fast_t price_pkey_hash = {};
     size_t l_key_size = 0;
-    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_price->receipt_sign_cert->enc_key, &l_key_size);
+    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_usage->service->receipt_sign_cert->enc_key, &l_key_size);
     if (!l_pub_key || !l_key_size)
     {
-        log_it(L_ERROR, "Can't get pkey from cert %s.", l_price->receipt_sign_cert->name);
+        log_it(L_ERROR, "Can't get pkey from cert %s.", a_usage->service->receipt_sign_cert->name);
         return NULL;
     }
 
@@ -416,7 +416,7 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
         // log_it(L_ERROR, "Can't find dap_chain_tx_out_cond_t in dap_chain_datum_tx_t");
         return;
     }
-    dap_chain_net_srv_t *l_net_srv = dap_chain_net_srv_get(l_out_cond->header.srv_uid);
+    dap_chain_net_srv_t *l_net_srv = dap_chain_srv_get_internal(a_ledger->net->pub.id, l_out_cond->header.srv_uid);
     if (!l_net_srv) {
         log_it(L_ERROR, "Can't find dap_chain_net_srv_t uid 0x%016"DAP_UINT64_FORMAT_X"", l_out_cond->header.srv_uid.uint64);
         return;
@@ -546,7 +546,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
 
     dap_chain_net_srv_price_t * l_price = NULL;
     bool l_specific_order_free = false;
-    l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
+
+    l_price = dap_chain_net_srv_get_price_from_order(l_srv, l_order);
     if (!l_price){
         log_it(L_ERROR, "Can't get price from order!");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_ERROR;
@@ -714,7 +715,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 {
     dap_return_val_if_pass(!a_grace_item || !a_grace_item->grace, false);
 
-    dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(a_grace_item->grace->usage->service->uid);
+    dap_chain_net_srv_t *l_srv = dap_chain_srv_get_internal(a_grace_item->grace->usage->net->pub.id, a_grace_item->grace->usage->service->uid);
     pthread_mutex_lock(&l_srv->grace_mutex);
     HASH_DEL(l_srv->grace_hash_tab, a_grace_item);
     pthread_mutex_unlock(&l_srv->grace_mutex);
@@ -975,7 +976,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                 l_hash_str = dap_chain_hash_fast_to_str_new(&l_usage->tx_cond_hash);
                 l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
                 log_it(L_NOTICE, "Receipt is OK, but tx %s have no enough funds. New tx cond requested. Start the grace period for %d seconds for user %s", l_hash_str,
-                                                                                    l_srv->grace_period, l_user_key);
+                                                                                    l_usage->service->grace_period, l_user_key);
                 DAP_DELETE(l_hash_str);
                 DAP_DELETE(l_user_key);
             break;
@@ -983,7 +984,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                 l_hash_str = dap_chain_hash_fast_to_str_new(&l_usage->tx_cond_hash);
                 l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
                 log_it(L_NOTICE, "Receipt is OK, but tx %s can't be found. Start the grace period for %d seconds for user %s", l_hash_str,
-                                                                                    l_srv->grace_period, l_user_key);
+                                                                                    l_usage->service->grace_period, l_user_key);
                 DAP_DELETE(l_hash_str);
                 DAP_DELETE(l_user_key);
             break;
@@ -1070,7 +1071,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
 
         if (l_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT){
             dap_chain_net_srv_ch_pkt_error_t l_err = { };
-            dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(l_responce->hdr.srv_uid);
+            dap_chain_net_srv_t *l_srv = dap_chain_srv_get_internal(l_usage->net->pub.id, l_responce->hdr.srv_uid);
             dap_chain_net_srv_grace_usage_t *l_curr_grace_item = NULL;
             pthread_mutex_lock(&l_srv->grace_mutex);
             HASH_FIND(hh, l_srv->grace_hash_tab, &l_usage->tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
@@ -1079,7 +1080,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             if (l_curr_grace_item){
                 if (dap_hash_fast_is_blank(&l_responce->hdr.tx_cond)){ //if new tx cond creation failed tx_cond in responce will be blank
                         HASH_DEL(l_srv->grace_hash_tab, l_curr_grace_item);
-                        dap_timerfd_delete_mt(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
+                        dap_timerfd_delete(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
                         l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_NEW_COND;
                         s_service_substate_go_to_error(l_usage);
                         DAP_DEL_Z(l_curr_grace_item);
@@ -1178,8 +1179,8 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
     log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
     DAP_DEL_Z(l_hash_str);
     int ret_status = 0;   
-    char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(a_usage->net, &a_usage->tx_cond_hash, a_usage->price->wallet_addr,
-                                                                        a_usage->price->receipt_sign_cert->enc_key, a_receipt, "hex", &ret_status);
+    char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(a_usage->net, &a_usage->tx_cond_hash, (const dap_chain_addr_t*)&a_usage->service->wallet_addr,
+                                                                        a_usage->service->receipt_sign_cert->enc_key, a_receipt, "hex", &ret_status);
     switch (ret_status){
         case DAP_CHAIN_MEMPOOL_RET_STATUS_SUCCESS:
             dap_chain_hash_fast_from_str(l_tx_in_hash_str, &a_usage->tx_cond_hash);
@@ -1398,7 +1399,7 @@ static int s_check_tx_params(dap_chain_net_srv_usage_t *a_usage)
 
     log_it(L_MSG, "Using price from order %s.", dap_chain_hash_fast_to_str_static(&a_usage->static_order_hash));
     if ((l_price = a_usage->price)){
-        if (l_price->net->pub.id.uint64  != a_usage->net->pub.id.uint64){
+        if (a_usage->net->pub.id.uint64  != a_usage->service->net_id.uint64){
             log_it( L_WARNING, "Pricelist is not for net %s.", a_usage->net->pub.name);
             return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
         }

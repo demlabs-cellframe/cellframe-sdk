@@ -855,7 +855,6 @@ dap_chain_net_srv_t *dap_chain_net_srv_create(dap_chain_net_id_t a_net_id, dap_c
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
-    pthread_mutex_init(&l_srv->banlist_mutex, NULL);
     pthread_mutex_init(&l_srv->grace_mutex, NULL);
     if (a_network_callbacks)
         l_srv->callbacks = *a_network_callbacks;
