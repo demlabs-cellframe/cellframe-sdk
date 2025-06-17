@@ -85,6 +85,8 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object * a_outputs_array,
 dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer);
 dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_array, int a_outputs_count, uint256_t a_value_need, 
                                                     uint256_t *a_value_transfer, bool a_need_all_outputs);
+dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  compose_config_t * a_config, 
+                                                  const char **a_ts_created_str, const char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
 
 json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, 
                                   const char *l_fee_str, const char *addr_base58_to, dap_chain_addr_t *l_addr_from, 
@@ -137,8 +139,9 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
                                                const char* a_node_addr_str, const char* a_order_hash_str, const char* a_url_str, 
                                                uint16_t a_port, const char* a_sovereign_addr_str, const char* a_fee_str);
 
-dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_addr_t *a_wallet_addr, 
-                                                        compose_config_t *a_config);
+dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchange_price_t *a_price, dap_chain_tx_out_cond_t *a_cond_tx, 
+                                                        dap_chain_addr_t *a_wallet_addr, dap_chain_addr_t *a_seller_addr, const char *a_tx_ticker, 
+                                                        uint32_t a_prev_cond_idx, compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, 
                                                      compose_config_t *a_config);
