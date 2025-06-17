@@ -1,0 +1,73 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 10,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default Config",
+      "description": "Default build configuration",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_STANDARD": "11",
+        "DAP_INT128_SUPPORT": "ON",
+        "BUILD_CELLFRAME_SDK_TESTS": "ON",
+        "BUILD_WITH_ZIP": "OFF",
+        "ENABLE_CPPCHECK_ANALYSIS": "OFF"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "description": "Debug build with all debug symbols",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_CELLFRAME_SDK_TESTS": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "Release build with optimizations",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_CELLFRAME_SDK_TESTS": "ON"
+      }
+    },
+    {
+      "name": "release-with-tests",
+      "displayName": "Release with Tests",
+      "description": "Release build with tests enabled",
+      "inherits": "release",
+      "cacheVariables": {
+        "BUILD_CELLFRAME_SDK_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "displayName": "Debug Build",
+      "description": "Build with debug configuration"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "displayName": "Release Build",
+      "description": "Build with release configuration"
+    },
+    {
+      "name": "release-with-tests",
+      "configurePreset": "release-with-tests",
+      "displayName": "Release Build with Tests",
+      "description": "Build with release configuration and tests enabled"
+    }
+  ]
+} 

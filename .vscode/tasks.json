@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-bigint-tests",
+            "type": "shell",
+            "command": "cd ${workspaceFolder}/dap-sdk/core/test/bigint && rm -rf CMakeCache.txt CMakeFiles && cmake . && make VERBOSE=1",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ]
+} 
