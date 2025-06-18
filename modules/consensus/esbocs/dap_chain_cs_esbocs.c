@@ -224,6 +224,58 @@ void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
     l_esbocs_pvt->debug = a_enable;
 }
 
+/**
+ * @brief Set custom metadata callback for ESBOCS consensus
+ * @details This function sets a callback that will be called to get custom metadata
+ *          for each block before SUBMIT message is sent
+ * @param a_net_id Network ID
+ * @param a_callback Callback function pointer or NULL to disable
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_esbocs_set_custom_metadata_callback(dap_chain_net_id_t a_net_id, 
+                                                  dap_chain_esbocs_callback_set_custom_metadata_t a_callback)
+{
+    dap_chain_esbocs_t *l_esbocs = NULL;
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session)
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
+            l_esbocs = l_session->esbocs;
+    if (!l_esbocs) {
+         log_it(L_ERROR, "ESBOCS consensus not initialized for net 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
+        return -1;
+    }
+    l_esbocs->callback_set_custom_metadata = a_callback;  
+    log_it(L_INFO, "Custom metadata callback %s for network %s", 
+           a_callback ? "set" : "removed", l_esbocs->chain->net_name);
+    return 0;
+}
+
+/**
+ * @brief Set presign callback for ESBOCS consensus
+ * @details This function sets a callback that will be called to validate custom metadata
+ *          in blocks during verification process
+ * @param a_net_id Network ID
+ * @param a_callback Callback function pointer or NULL to disable
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
+                                          dap_chain_esbocs_callback_presign_t a_callback)
+{
+    dap_chain_esbocs_t *l_esbocs = NULL;
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session)
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
+            l_esbocs = l_session->esbocs;
+    if (!l_esbocs) {
+         log_it(L_ERROR, "ESBOCS consensus not initialized for net 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
+        return -1;
+    }
+    l_esbocs->callback_presign = a_callback;
+    log_it(L_INFO, "Presign callback %s for network %s", 
+           a_callback ? "set" : "removed", l_esbocs->chain->net_name);
+    return 0;
+}
+
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
@@ -1662,6 +1714,22 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                  l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
         }
+        
+        // Add custom metadata if available
+        if (l_candidate_size && a_session->esbocs->callback_set_custom_metadata) {
+            size_t l_custom_data_size = 0;
+            uint8_t l_meta_type = DAP_CHAIN_BLOCK_META_EVM_DATA;
+            uint8_t *l_custom_data = a_session->esbocs->callback_set_custom_metadata(l_candidate, &l_meta_type, &l_custom_data_size);
+            if (l_custom_data && l_custom_data_size) {
+                l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, l_meta_type, l_custom_data, l_custom_data_size);
+                if (PVT(a_session->esbocs)->debug) {
+                    log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu. Added custom metadata, size: %zu",
+                            a_session->chain->net_name, a_session->chain->name,
+                                a_session->cur_round.id, a_session->cur_round.attempt_num, l_custom_data_size);
+                }
+            }
+        }
+        
         if (l_candidate_size) {
             dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);
             if (PVT(a_session->esbocs)->debug) {
@@ -2847,9 +2915,17 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block)
+    if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block) {
         // It's a block candidate, don't check signs
-        return a_block->hdr.version > 1 ? 0 : -3;
+        if (a_block->hdr.version <= 1) {
+            log_it(L_ERROR, "Block %s has version %d, which is not supported", dap_hash_fast_to_str_static(a_block_hash), a_block->hdr.version);
+            return -3;
+        }
+        if (l_esbocs->callback_presign && !l_esbocs->callback_presign(a_block)) {
+            log_it(L_WARNING, "Block %s has invalid custom metadata", dap_hash_fast_to_str_static(a_block_hash));
+            return -5;
+        }
+    }
 
     size_t l_block_size = a_block_size; // /* Can't calc it for many old bugged blocks */ dap_chain_block_get_size(a_block);
     size_t l_signs_count = 0;
