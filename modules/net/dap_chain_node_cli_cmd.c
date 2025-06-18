@@ -8294,7 +8294,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
     dap_json_rpc_params_add_data(params, l_cmd_str, TYPE_PARAM_STRING);
     uint64_t l_id_response = dap_json_rpc_response_get_new_id();
     char ** l_cmd_arr_str = dap_strsplit(l_cmd_str, ";", -1);
-    dap_json_rpc_request_t *l_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response);
+    dap_json_rpc_request_t *l_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response, a_version);
     dap_strfreev(l_cmd_arr_str);
     dap_chain_node_addr_t l_node_addr;
     dap_chain_node_addr_from_str(&l_node_addr, l_addr_str);
