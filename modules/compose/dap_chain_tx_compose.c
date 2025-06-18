@@ -3510,9 +3510,12 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
         const char *item_type = json_object_get_string(json_object_object_get(l_item, "type"));
 
         if (item_type && strcmp(item_type, "out_cond") == 0) {
-            l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
-            l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
-            l_tx_out_cond->header.value = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(l_item, "value")));
+            const char *subtype = json_object_get_string(json_object_object_get(l_item, "subtype"));
+            if (!l_tx_out_cond && strcmp(subtype, "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE") == 0) {
+                l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+                l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
+                l_tx_out_cond->header.value = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(l_item, "value")));
+            }
         } else if (item_type && strcmp(item_type, "in_cond") == 0) {
             l_tx_prev_hash = json_object_get_string(json_object_object_get(l_item, "tx_prev_hash"));
             if (!l_tx_prev_hash) {
