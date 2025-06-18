@@ -902,6 +902,13 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
             *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_NOT_NATIVE_TOKEN;
         return NULL;
     }
+    if (!dap_hash_fast_compare(&l_tx_final_hash, &a_receipt->receipt_info.prev_tx_cond_hash)){
+        log_it(L_WARNING, "Tx hash in receipt doesn't match with hash of last tx cond.");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_NOT_NATIVE_TOKEN;
+        return NULL;
+    }
+
     dap_chain_datum_tx_t *l_tx_cond = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_final_hash);
     int l_out_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_cond_idx);

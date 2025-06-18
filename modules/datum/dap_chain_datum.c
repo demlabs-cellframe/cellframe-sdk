@@ -306,27 +306,59 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
             dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign, a_net_id);
             json_object_object_add(json_obj_item,"sender_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_sender_addr)));            
         } break;
-        case TX_ITEM_TYPE_RECEIPT: {
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi, &l_coins_str);
-            json_object_object_add(json_obj_item,"item_type", json_object_new_string("RECEIPT"));
-            json_object_object_add(json_obj_item,"size", json_object_new_uint64(((dap_chain_datum_tx_receipt_t*)item)->size));
-            json_object_object_add(json_obj_item,"ext_size", json_object_new_uint64(((dap_chain_datum_tx_receipt_t*)item)->exts_size));
+        case TX_ITEM_TYPE_RECEIPT_OLD:{
+            dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)item;
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_receipt_old->receipt_info.value_datoshi, &l_coins_str);
+            json_object_object_add(json_obj_item,"item type", json_object_new_string("RECEIPT"));
+            json_object_object_add(json_obj_item,"size", json_object_new_uint64(l_receipt_old->size));
+            json_object_object_add(json_obj_item,"ext size", json_object_new_uint64(l_receipt_old->exts_size));
             json_object_object_add(json_obj_item,"INFO", json_object_new_string(""));
-            json_object_object_add(json_obj_item,"units", json_object_new_uint64(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units));
-            json_object_object_add(json_obj_item,"uid", json_object_new_uint64(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.srv_uid.uint64));
-            json_object_object_add(json_obj_item,"units_type", json_object_new_string(dap_chain_srv_unit_enum_to_str(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm)));
+            json_object_object_add(json_obj_item,"units", json_object_new_uint64(l_receipt_old->receipt_info.units));
+            json_object_object_add(json_obj_item,"uid", json_object_new_uint64(l_receipt_old->receipt_info.srv_uid.uint64));
+            json_object_object_add(json_obj_item,"units type", json_object_new_string(dap_chain_srv_unit_enum_to_str(l_receipt_old->receipt_info.units_type.enm)));
             json_object_object_add(json_obj_item,"coins", json_object_new_string(l_coins_str));
             json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
 
-            switch ( ((dap_chain_datum_tx_receipt_t*)item)->exts_size ) {
+            json_object_object_add(json_obj_item,"Exts",json_object_new_string(""));                         
+            switch (l_receipt_old->exts_size) {
             case (sizeof(dap_sign_t) * 2): {
-                dap_sign_t *l_client = (dap_sign_t*)( ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs + sizeof(dap_sign_t) );
-                json_object_object_add(json_obj_item,"sign_inf", json_object_new_string("client"));
+                dap_sign_t *l_client = (dap_sign_t*)(l_receipt_old->exts_n_signs  + sizeof(dap_sign_t));
+                json_object_object_add(json_obj_item,"Client", json_object_new_string(""));
                 dap_sign_get_information_json(a_json_arr_reply, l_client, json_obj_item, a_hash_out_type);                
             }
             case (sizeof(dap_sign_t)): {
-                dap_sign_t *l_provider = (dap_sign_t*)( ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs );
-                json_object_object_add(json_obj_item,"sign_inf", json_object_new_string("provider"));
+                dap_sign_t *l_provider = (dap_sign_t*)(l_receipt_old->exts_n_signs);
+                json_object_object_add(json_obj_item,"Provider", json_object_new_string(""));
+                dap_sign_get_information_json(a_json_arr_reply, l_provider,json_obj_item, a_hash_out_type);
+                break;
+            }
+            }
+        } break;
+        case TX_ITEM_TYPE_RECEIPT: {
+            dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t*)item;
+
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_receipt->receipt_info.value_datoshi, &l_coins_str);
+            json_object_object_add(json_obj_item,"item type", json_object_new_string("RECEIPT"));
+            json_object_object_add(json_obj_item,"size", json_object_new_uint64(l_receipt->size));
+            json_object_object_add(json_obj_item,"ext size", json_object_new_uint64(l_receipt->exts_size));
+            json_object_object_add(json_obj_item,"INFO", json_object_new_string(""));
+            json_object_object_add(json_obj_item,"units", json_object_new_uint64(l_receipt->receipt_info.units));
+            json_object_object_add(json_obj_item,"uid", json_object_new_uint64(l_receipt->receipt_info.srv_uid.uint64));
+            json_object_object_add(json_obj_item,"units type", json_object_new_string(dap_chain_srv_unit_enum_to_str(l_receipt->receipt_info.units_type.enm)));
+            json_object_object_add(json_obj_item,"coins", json_object_new_string(l_coins_str));
+            json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
+            json_object_object_add(json_obj_item,"tx hash", json_object_new_string(dap_hash_fast_to_str_static(&l_receipt->receipt_info.prev_tx_cond_hash)));
+
+            json_object_object_add(json_obj_item,"Exts",json_object_new_string(""));                         
+            switch (l_receipt->exts_size) {
+            case (sizeof(dap_sign_t) * 2): {
+                dap_sign_t *l_client = (dap_sign_t*)((l_receipt->exts_n_signs) + sizeof(dap_sign_t));
+                json_object_object_add(json_obj_item,"Client", json_object_new_string(""));
+                dap_sign_get_information_json(a_json_arr_reply, l_client, json_obj_item, a_hash_out_type);                
+            }
+            case (sizeof(dap_sign_t)): {
+                dap_sign_t *l_provider = (dap_sign_t*)(l_receipt->exts_n_signs);
+                json_object_object_add(json_obj_item,"Provider", json_object_new_string(""));
                 dap_sign_get_information_json(a_json_arr_reply, l_provider,json_obj_item, a_hash_out_type);
                 break;
             }
