@@ -569,7 +569,7 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     return DAP_DELETE(l_node_info), 0;
 }
 
-json_object *s_net_sync_status(dap_chain_net_t *a_net)
+json_object *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
 {
     // sanity check
     dap_return_val_if_pass(!a_net, NULL);
@@ -614,7 +614,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net)
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
         json_object_object_add(l_jobj_chain, "current", l_jobj_current);
-        json_object_object_add(l_jobj_chain, "in_network", l_jobj_total);
+        json_object_object_add(l_jobj_chain, a_version == 1 ? "in network" : "in_network", l_jobj_total);
         json_object_object_add(l_jobj_chain, "percent", l_jobj_percent);
         json_object_object_add(l_jobj_chains_array, l_chain->name, l_jobj_chain);
 
