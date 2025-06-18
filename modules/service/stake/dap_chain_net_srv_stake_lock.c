@@ -1043,12 +1043,6 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         size_t l_receipt_size = 0;
         l_receipt = (dap_chain_datum_tx_receipt_old_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
         if (l_receipt) {
-            // Checking politics
-            if (dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
-                (!l_receipt || l_receipt->receipt_info.version < 2)){
-                log_it(L_ERROR, "Receipt version must be >= 2.");
-                return -17;
-            }
 
             if (dap_chain_datum_tx_receipt_check_size((dap_chain_datum_tx_receipt_t*)l_receipt, l_receipt_size))
                 return -13;
