@@ -365,7 +365,7 @@ struct dap_grace_exit_args{
     dap_chain_datum_tx_t* tx;
 };
 
-void dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt(void *a_arg)
+void dap_chain_net_srv_ch_grace_control_mt(void *a_arg)
 {
     struct dap_grace_exit_args *l_args = (struct dap_grace_exit_args*)a_arg;
     pthread_mutex_lock(&l_args->net_srv->grace_mutex);
@@ -440,7 +440,7 @@ int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_
         l_args->net_srv = l_net_srv;
         l_args->tx = l_tx;
 
-        dap_worker_exec_callback_on(l_item->grace->usage->client->stream_worker->worker, dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt, l_args);
+        dap_worker_exec_callback_on(l_item->grace->usage->client->stream_worker->worker, dap_chain_net_srv_ch_grace_control_mt, l_args);
     }
     log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
     // Stop timer
