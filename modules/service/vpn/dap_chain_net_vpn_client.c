@@ -170,8 +170,8 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         return -3;
     }
     l_srv_ch_vpn->usage_id = l_usage->id;
-    l_usage->is_active = true;
-    l_usage->is_free = true;
+    l_usage->is_active = 1;
+    // l_usage->is_free = 1;
 
     dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
 

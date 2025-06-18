@@ -527,6 +527,7 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
             DAP_LIST_SAPPEND(a_res_group->items_sig, l_item);
             break;
         case TX_ITEM_TYPE_RECEIPT:
+        case TX_ITEM_TYPE_RECEIPT_OLD:
             DAP_LIST_SAPPEND(a_res_group->items_receipt, l_item);
             break;
         case TX_ITEM_TYPE_TSD:

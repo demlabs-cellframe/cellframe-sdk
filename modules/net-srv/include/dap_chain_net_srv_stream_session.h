@@ -35,6 +35,27 @@ typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 typedef struct dap_chain_net_srv_client_remote dap_chain_net_srv_client_remote_t;
 typedef struct dap_chain_net_srv_price dap_chain_net_srv_price_t;
 
+typedef enum dap_chain_net_srv_usage_service_state{
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE = 0, //Initial state.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE, // Start of service when tx for paying is not in the leger yet.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL, // Normal state after first receipt paid.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_ERROR, // Error state, stop of service providing.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE, // The only state in free mode.
+} dap_chain_net_srv_usage_service_state_t;
+
+typedef enum dap_chain_net_srv_usage_service_substate{
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE=0, // Initial substate.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN, // Waiting responce from client with first receipt sign.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN, // Waiting responce from client with next receipt sign in normal state.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING, // Waiting previous transaction validation to pay next receipt.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT, // Waiting new tx from client for receipt paying, because previous tx has not enough funds.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT, // Waiting new receipt with new tx from client.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER, // Waiting new tx validation.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL, // Substate for normal work. Current service is paid, nothing waiting.
+    DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR, // Error sustate. Wait current service is over and go to error state.
+} dap_chain_net_srv_usage_service_substate_t;
+
+
 typedef struct dap_chain_net_srv_usage{
     uint32_t id; // Usage id
     pthread_rwlock_t rwlock;
@@ -54,28 +75,26 @@ typedef struct dap_chain_net_srv_usage{
     dap_timerfd_t *receipts_timeout_timer;
     void (*receipt_timeout_timer_start_callback)(struct dap_chain_net_srv_usage *a_usage);
     int receipt_sign_req_cnt;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
     bool is_active;
-    bool is_free;
-    bool is_grace;
-    bool is_waiting_new_tx_cond;
-    bool is_waiting_new_tx_cond_in_ledger;
-    bool is_waiting_first_receipt_sign;
-    bool is_waiting_next_receipt_sign;
     bool is_limits_changed;
-//    UT_hash_handle hh; //
+
+    dap_chain_net_srv_usage_service_state_t service_state;
+    dap_chain_net_srv_usage_service_substate_t service_substate;
+    uint32_t last_err_code;
 } dap_chain_net_srv_usage_t;
 
 typedef struct dap_net_stats{
-        uintmax_t bytes_sent;
-        uintmax_t bytes_recv;
-        uintmax_t bytes_sent_lost;
-        uintmax_t bytes_recv_lost;
+    uintmax_t bytes_sent;
+    uintmax_t bytes_recv;
+    uintmax_t bytes_sent_lost;
+    uintmax_t bytes_recv_lost;
 
-        uintmax_t packets_sent;
-        uintmax_t packets_recv;
-        uintmax_t packets_sent_lost;
-        intmax_t packets_recv_lost;
+    uintmax_t packets_sent;
+    uintmax_t packets_recv;
+    uintmax_t packets_sent_lost;
+    intmax_t packets_recv_lost;
 } dap_net_stats_t;
 
 typedef struct dap_chain_net_srv_stream_session {

@@ -201,7 +201,8 @@ enum dap_chain_tx_item_type {
     /// @brief Transaction: misc
     TX_ITEM_TYPE_PKEY = 0x20,
     TX_ITEM_TYPE_SIG = 0x30,
-    TX_ITEM_TYPE_RECEIPT = 0x70,
+    TX_ITEM_TYPE_RECEIPT_OLD = 0x70,
+    TX_ITEM_TYPE_RECEIPT = 0x71,
     TX_ITEM_TYPE_TSD = 0x80,
 
     /// @brief Transaction: voting and vote
