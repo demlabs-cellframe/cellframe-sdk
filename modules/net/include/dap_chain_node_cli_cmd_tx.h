@@ -107,20 +107,20 @@ bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
  * ledger command
  *
  */
-int com_ledger(int a_argc, char ** a_argv, void **a_str_reply);
+int com_ledger(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
 
 
 /**
  * token command
  *
  */
-int com_token(int a_argc, char ** a_argv, void **a_str_reply);
+int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
 
 /**
  * decree command
  *
  */
-int cmd_decree(int a_argc, char **a_argv, void **a_str_reply);
+int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 #ifdef __cplusplus
 }

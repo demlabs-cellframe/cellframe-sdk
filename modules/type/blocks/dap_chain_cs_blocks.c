@@ -113,7 +113,7 @@ typedef struct dap_chain_block_fork_resolved_notificator{
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, void **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
 static void s_cli_meta_hash_print(  json_object* a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta, const char *a_hash_out_type);
-static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply);
+static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
 
 // Setup BFT consensus and select the longest chunk
 static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks);
@@ -626,7 +626,7 @@ static int block_list_sort_by_date_back(const void *a, const void *b)
  * @param a_str_reply
  * @return
  */
-static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
+static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
 

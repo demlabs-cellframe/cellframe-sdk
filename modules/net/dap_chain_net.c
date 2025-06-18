@@ -231,7 +231,7 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx);
 static void *s_net_load(void *a_arg);
 static int s_net_try_online(dap_chain_net_t *a_net);
-static int s_cli_net(int argc, char ** argv, void **a_str_reply);
+static int s_cli_net(int argc, char ** argv, void **a_str_reply, int a_version);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_sync_timer_callback(void *a_arg);
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_object *a_json_out);
@@ -1042,7 +1042,7 @@ static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
  * @param str_reply
  * @return
  */
-static int s_cli_net(int argc, char **argv, void **reply)
+static int s_cli_net(int argc, char **argv, void **reply, int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) reply;
     json_object *l_jobj_return = json_object_new_object();

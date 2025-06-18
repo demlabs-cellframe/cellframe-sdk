@@ -114,7 +114,7 @@ static int s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid = {.uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID};
 
 
-static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply);
+static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static int s_callback_requested(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
@@ -2509,7 +2509,7 @@ void s_tx_is_order_check(UNUSED_ARG dap_chain_net_t* a_net, dap_chain_datum_tx_t
        
 }
 
-static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
+static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **json_arr_reply = (json_object **)a_str_reply;
 

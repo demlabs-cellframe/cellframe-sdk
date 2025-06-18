@@ -91,7 +91,7 @@ typedef enum s_cli_srv_stake_err{
 
     //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_cli_srv_stake_err_t;
-static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply);
+static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
@@ -3086,7 +3086,7 @@ uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id, 
     return l_total_weight;
 }
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
+static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {

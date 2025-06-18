@@ -1019,7 +1019,7 @@ static size_t dap_db_net_history_token_list(json_object* a_json_arr_reply, dap_c
  * @param a_str_reply
  * @return int
  */
-int com_ledger(int a_argc, char ** a_argv, void **reply)
+int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) reply;
     enum { CMD_NONE, CMD_LIST, CMD_TX_INFO };
@@ -1180,7 +1180,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
  * @param a_str_reply
  * @return int
  */
-int com_token(int a_argc, char ** a_argv, void **a_str_reply)
+int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum { CMD_NONE, CMD_LIST, CMD_INFO, CMD_TX };
@@ -1433,7 +1433,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 }
 
 // Decree commands handlers
-int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
+int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND, CMD_INFO };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};

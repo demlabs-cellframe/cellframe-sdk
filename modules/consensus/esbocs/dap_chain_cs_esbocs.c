@@ -84,7 +84,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size);
 static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
 static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr);
-static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply);
+static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
 {
@@ -3046,7 +3046,7 @@ static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *
  * @param str_reply
  * @return
  */
-static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
+static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     int l_arg_index = 1;
     dap_chain_net_t *l_chain_net = NULL;
