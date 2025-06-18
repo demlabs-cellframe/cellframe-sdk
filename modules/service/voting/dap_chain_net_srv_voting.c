@@ -419,7 +419,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         if (IS_ZERO_256(l_uncoloured_value)) {
             log_it(L_ERROR, "Coin with OUT number %d of tx %s is voted before in poll %s", l_out_idx, dap_chain_hash_fast_to_str_static(&l_tx_hash),
                                                                             dap_chain_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
-            return -13;
+            return -20;
         }
         if (SUM_256_256(l_weight, l_uncoloured_value, &l_weight)) {
             log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));

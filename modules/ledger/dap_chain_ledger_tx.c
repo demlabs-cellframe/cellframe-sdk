@@ -24,6 +24,7 @@
     You should have received a copy of the GNU General Public License
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "dap_chain_ledger.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_wallet.h"
@@ -788,15 +789,13 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
                     break;
                 }
-                if ( !dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true) ) {
-                    l_err_num = l_verificator->callback_in_verify(a_ledger, a_tx, a_tx_hash, l_tx_prev_out_cond, l_owner);
-                    if ( l_err_num != DAP_LEDGER_CHECK_OK ) {
-                        debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional input %s",
-                                                            l_err_num, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
-                        if ( l_err_num != DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS )
-                            l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
-                        break;
-                    }
+                l_err_num = l_verificator->callback_in_verify(a_ledger, a_tx, a_tx_hash, l_tx_prev_out_cond, l_owner);
+                if (l_err_num != DAP_LEDGER_CHECK_OK && !dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true)) {
+                    debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional input %s",
+                                                        l_err_num, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
+                    if ( l_err_num != DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS )
+                        l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+                    break;
                 }
                 
                 l_bound_item->cond = l_tx_prev_out_cond;
@@ -950,7 +949,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (l_verificator && l_verificator->callback_out_verify) {
                 int l_verificator_error = l_verificator->callback_out_verify(a_ledger, a_tx, a_tx_hash, l_tx_out);
-                if (l_verificator_error != DAP_LEDGER_CHECK_OK) {
+                if (l_verificator_error != DAP_LEDGER_CHECK_OK && !dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true)) {
                     debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional output %s",
                                                                 l_verificator_error, dap_chain_tx_out_cond_subtype_to_str(l_subtype));
                     l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
@@ -1017,7 +1016,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     }
 
     // Check for transaction consistency (sum(ins) == sum(outs))
-    if ( !l_err_num && !dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true) ) {
+    if ( !l_err_num ) {
         if ( s_tokenizer_count(l_values_from_prev_tx) != s_tokenizer_count(l_values_from_cur_tx) ) {
             log_it(L_ERROR, "Token tickers IN and OUT mismatch: %zu != %zu",
                             s_tokenizer_count(l_values_from_prev_tx), s_tokenizer_count(l_values_from_cur_tx));
@@ -1038,6 +1037,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 }
             }
         }
+        if (l_err_num && dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true))
+            l_err_num = 0;
     }
 
     // 7. Check the network fee
@@ -1238,7 +1239,7 @@ dap_list_t *s_trackers_aggregate(dap_ledger_t *a_ledger, dap_list_t *a_trackers,
     DL_FOREACH_SAFE(*a_added, it, tmp) {
         dap_ledger_tracker_t *l_new_tracker = it->data;
         dap_time_t l_exp_time = s_voting_callbacks.voting_expire_callback(a_ledger, &l_new_tracker->voting_hash);
-        if (a_ts_creation_time > l_exp_time) {
+        if (l_exp_time && a_ts_creation_time > l_exp_time) {
             DL_DELETE(*a_added, it);
             dap_ledger_colour_clear_callback(it->data);
             DAP_DELETE(it);

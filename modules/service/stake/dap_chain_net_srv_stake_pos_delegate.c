@@ -358,7 +358,8 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_
 static int s_stake_out_check_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond)
 {
     if (compare256(a_cond->header.value, dap_chain_net_srv_stake_get_allowed_min_value(a_ledger->net->pub.id)) == -1) {
-        log_it(L_WARNING, "Conditional out have value %s lower than minimum service required", dap_uint256_to_char(a_cond->header.value, NULL));
+        log_it(L_WARNING, "Conditional out of tx %s have value %s lower than minimum service required",
+                    dap_hash_fast_to_str_static(a_tx_out_hash), dap_uint256_to_char(a_cond->header.value, NULL));
         return -17;
     }
     return 0;
