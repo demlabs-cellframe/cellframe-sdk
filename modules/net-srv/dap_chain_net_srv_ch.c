@@ -407,19 +407,28 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt(void *a_arg)
 }
 
 
-void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED_ARG dap_ledger_t *a_ledger,
-                                                    dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode)
+int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_fast_t *a_tx_hash)
 {
     dap_chain_net_srv_grace_usage_t *l_item = NULL;
-    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
+    dap_chain_net_srv_t *l_net_srv = a_net_srv;
+    if (!l_net_srv ) {
+        log_it(L_ERROR, "a_net_srv is NULL");
+        return -100;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_srv->net_id);
+    if(!l_net)
+        return -101;
+
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, a_tx_hash);
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
     if (!l_out_cond) {
         // log_it(L_ERROR, "Can't find dap_chain_tx_out_cond_t in dap_chain_datum_tx_t");
-        return;
+        return -102;
     }
-    dap_chain_net_srv_t *l_net_srv = dap_chain_srv_get_internal(a_ledger->net->pub.id, l_out_cond->header.srv_uid);
-    if (!l_net_srv) {
-        log_it(L_ERROR, "Can't find dap_chain_net_srv_t uid 0x%016"DAP_UINT64_FORMAT_X"", l_out_cond->header.srv_uid.uint64);
-        return;
+    
+    if (l_net_srv->uid.uint64 != l_out_cond->header.srv_uid.uint64) {
+        log_it(L_ERROR, "out_cond uid doesn't match with net_srv uid.");
+        return -103;
     }
     pthread_mutex_lock(&l_net_srv->grace_mutex);
     HASH_FIND(hh, l_net_srv->grace_hash_tab, a_tx_hash, sizeof(dap_hash_fast_t), l_item);
@@ -429,7 +438,7 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
         struct dap_grace_exit_args *l_args = DAP_NEW_Z(struct dap_grace_exit_args);
         l_args->grace_item = l_item;
         l_args->net_srv = l_net_srv;
-        l_args->tx = a_tx;
+        l_args->tx = l_tx;
 
         dap_worker_exec_callback_on(l_item->grace->usage->client->stream_worker->worker, dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt, l_args);
     }
@@ -440,6 +449,7 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
     if(!l_item->grace->usage->service)
         HASH_DEL(l_net_srv->grace_hash_tab, l_item);
     s_grace_period_finish(l_item);
+    return 0;
 }
 
 static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_request_t *a_request, size_t a_request_size)
@@ -1154,8 +1164,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
 static bool s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
 {
     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
-    // Callback should note that after write action it should restore write flag if it has more data to send on next iteration
-    dap_chain_net_srv_call_write_all( a_ch);
     return false;
 }
 
