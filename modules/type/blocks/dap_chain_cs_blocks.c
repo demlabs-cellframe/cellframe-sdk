@@ -821,7 +821,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             char l_time_buf[DAP_TIME_STR_SIZE], l_hexbuf[32] = { '\0' };
             // Header
             json_object* json_obj_inf = json_object_new_object();
-            json_object_object_add(json_obj_inf, a_version == 1 ? "Block number" : "block_number", json_object_new_uint64(l_block_cache->block_number));
+            json_object_object_add(json_obj_inf, a_version == 1 ? "Block number" : "block_num", json_object_new_uint64(l_block_cache->block_number));
             json_object_object_add(json_obj_inf, "hash", json_object_new_string(l_block_cache->block_hash_str));
             snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%04X",l_block->hdr.version);
             
@@ -865,7 +865,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     break;
                 default: {
                     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
-                    json_object_object_add(json_obj_meta, a_version == 1 ? "# -" : "number", json_object_new_string(l_hexbuf));
+                    json_object_object_add(json_obj_meta, a_version == 1 ? "# -" : "num", json_object_new_string(l_hexbuf));
                     int l_len = l_meta->hdr.data_size * 2 + 5;
                     char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
                     strcpy(l_data_hex, "0x");
@@ -1097,7 +1097,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 char l_buf[DAP_TIME_STR_SIZE];
                 json_object* json_obj_bl_cache = json_object_new_object();
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
-                json_object_object_add(json_obj_bl_cache, a_version == 1 ? "block number" : "block_number",json_object_new_uint64(l_block_cache->block_number));
+                json_object_object_add(json_obj_bl_cache, a_version == 1 ? "block number" : "block_num",json_object_new_uint64(l_block_cache->block_number));
                 json_object_object_add(json_obj_bl_cache, "hash",json_object_new_string(l_block_cache->block_hash_str));
                 json_object_object_add(json_obj_bl_cache, "timestamp", json_object_new_uint64(l_ts));
                 json_object_object_add(json_obj_bl_cache, "ts_create",json_object_new_string(l_buf));
@@ -2309,7 +2309,7 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
                 break;
             default: {
                 snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
-                json_object_object_add(json_obj_meta, a_version == 1 ? "# -" : "number", json_object_new_string(l_hexbuf));
+                json_object_object_add(json_obj_meta, a_version == 1 ? "# -" : "num", json_object_new_string(l_hexbuf));
                 int l_len = l_meta->hdr.data_size * 2 + 5;
                 char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
                 snprintf(l_data_hex, 3, "%s", "0x");

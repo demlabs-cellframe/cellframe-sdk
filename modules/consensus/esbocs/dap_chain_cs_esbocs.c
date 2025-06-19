@@ -3106,7 +3106,7 @@ static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *
     for (dap_list_t *it = a_validator_addrs; it; it = it->next, i++) {
         json_object *json_obj_validator = json_object_new_object();
         dap_chain_addr_t *l_addr = it->data;
-        json_object_object_add(json_obj_validator, a_version == 1 ? "#" : "number", json_object_new_uint64(i));
+        json_object_object_add(json_obj_validator, a_version == 1 ? "#" : "num", json_object_new_uint64(i));
         json_object_object_add(json_obj_validator, a_version == 1 ? "addr hash" : "addr_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_addr->data.hash_fast)));
         json_object_array_add(json_arr_validators, json_obj_validator);
     }

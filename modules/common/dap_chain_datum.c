@@ -322,12 +322,12 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
             switch ( ((dap_chain_datum_tx_receipt_t*)item)->exts_size ) {
             case (sizeof(dap_sign_t) * 2): {
                 dap_sign_t *l_client = (dap_sign_t*)( ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs + sizeof(dap_sign_t) );
-                json_object_object_add(json_obj_item, a_version == 1 ? "Client" : "sign_inf", json_object_new_string(a_version == 1 ? "" : "client"));
+                json_object_object_add(json_obj_item, a_version == 1 ? "Client" : "sig_inf", json_object_new_string(a_version == 1 ? "" : "client"));
                 dap_sign_get_information_json(a_json_arr_reply, l_client, json_obj_item, a_hash_out_type);                
             }
             case (sizeof(dap_sign_t)): {
                 dap_sign_t *l_provider = (dap_sign_t*)( ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs );
-                json_object_object_add(json_obj_item, a_version == 1 ? "Provider" : "sign_inf", json_object_new_string(a_version == 1 ? "" : "provider"));
+                json_object_object_add(json_obj_item, a_version == 1 ? "Provider" : "sig_inf", json_object_new_string(a_version == 1 ? "" : "provider"));
                 dap_sign_get_information_json(a_json_arr_reply, l_provider,json_obj_item, a_hash_out_type);
                 break;
             }
@@ -344,7 +344,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
             json_object_object_add(json_obj_item, a_version == 1 ? "PKey" : "pkey", json_object_new_string(""));
             json_object_object_add(json_obj_item, a_version == 1 ? "SIG type" : "sig_type", json_object_new_string(dap_sign_type_to_str(((dap_chain_tx_pkey_t*)item)->header.sig_type)));
             json_object_object_add(json_obj_item, a_version == 1 ? "SIG size" : "sig_size", json_object_new_uint64(((dap_chain_tx_pkey_t*)item)->header.sig_size));
-            json_object_object_add(json_obj_item, a_version == 1 ? "Sequence number" : "sequence_number", json_object_new_uint64(((dap_chain_tx_pkey_t*)item)->seq_no));
+            json_object_object_add(json_obj_item, a_version == 1 ? "Sequence number" : "seq_num", json_object_new_uint64(((dap_chain_tx_pkey_t*)item)->seq_no));
             json_object_object_add(json_obj_item, a_version == 1 ? "Key" : "key", json_object_new_string(""));
             json_object_object_add(json_obj_item, a_version == 1 ? "Type" : "type", json_object_new_string(dap_pkey_type_to_str(l_pkey->header.type)));
             json_object_object_add(json_obj_item, a_version == 1 ? "Size" : "size", json_object_new_uint64(l_pkey->header.size));
