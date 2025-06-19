@@ -124,6 +124,8 @@ void s_chain_datum_cond_create_test()
     dap_assert(l_datum_1, "tx_cond_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
+    DAP_DELETE(l_rand_data);
+    DAP_DELETE(pkey);
 }
 
 void s_chain_datum_delegate_test()
@@ -138,6 +140,7 @@ void s_chain_datum_delegate_test()
     dap_assert(l_datum_1, "tx_stake_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
+    DAP_DELETE(pkey);
 }
 
 void s_chain_datum_stake_lock_test()
