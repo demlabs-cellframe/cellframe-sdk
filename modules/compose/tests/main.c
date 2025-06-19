@@ -270,8 +270,13 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->reinvest_percent = dap_chain_coins_to_balance("12.3456789");
     for (size_t i = 0; i < KEY_COUNT; ++i)
         s_key[i] = dap_enc_key_new_generate(s_key_types[rand() % s_sign_type_count], NULL, 0, NULL, 0, 0);
+    memset(&s_data->config, 0, sizeof(compose_config_t));
     s_data->config.net_name = s_net_name;
     s_data->config.url_str = s_url;
+    s_data->config.port = 8081;
+    s_data->config.enc = false;
+    s_data->config.cert_path = NULL;
+    s_data->config.response_handler = json_object_new_object();
     s_data->value_fee._hi.a = 0;
     s_data->value_fee._hi.b = 0;
     s_data->value_fee._lo.a = 0;
@@ -293,6 +298,9 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_vote_create_test();
     s_chain_datum_vote_voting_test();
 
+    if (s_data->config.response_handler) {
+        json_object_put(s_data->config.response_handler);
+    }
     DAP_DEL_Z(s_data);
     for (size_t i = 0; i < KEY_COUNT; ++i)
         dap_enc_key_delete(s_key[i]);
