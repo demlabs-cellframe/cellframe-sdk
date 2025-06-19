@@ -4577,17 +4577,17 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
 
 #else
     dap_chain_tx_out_cond_t l_cond_tx_obj = { };
-    l_cond_tx = &l_cond_tx_obj;
-    l_cond_tx->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
-    l_cond_tx->header.value = a_price->datoshi_sell;
-    l_cond_tx->header.srv_uid.uint64 = rand() % 100;
-    l_cond_tx->header.ts_expires = 0;
-    strcpy(l_cond_tx->subtype.srv_xchange.buy_token, a_price->token_buy);
-    l_cond_tx->subtype.srv_xchange.buy_net_id.uint64 = rand() % 100;
-    l_cond_tx->subtype.srv_xchange.sell_net_id.uint64 = rand() % 100;
-    l_cond_tx->subtype.srv_xchange.rate = a_price->rate;
-    l_cond_tx->subtype.srv_xchange.seller_addr = *a_wallet_addr;
-    l_cond_tx->tsd_size = 0;
+    a_cond_tx = &l_cond_tx_obj;
+    a_cond_tx->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
+    a_cond_tx->header.value = a_price->datoshi_sell;
+    a_cond_tx->header.srv_uid.uint64 = rand() % 100;
+    a_cond_tx->header.ts_expires = 0;
+    strcpy(a_cond_tx->subtype.srv_xchange.buy_token, a_price->token_buy);
+    a_cond_tx->subtype.srv_xchange.buy_net_id.uint64 = rand() % 100;
+    a_cond_tx->subtype.srv_xchange.sell_net_id.uint64 = rand() % 100;
+    a_cond_tx->subtype.srv_xchange.rate = a_price->rate;
+    a_cond_tx->subtype.srv_xchange.seller_addr = *a_wallet_addr;
+    a_cond_tx->tsd_size = 0;
     
     const char *l_tx_ticker = a_price->token_sell;
     bool l_single_channel = true;
