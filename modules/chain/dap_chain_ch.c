@@ -668,7 +668,7 @@ void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t 
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_if_fail(l_ch_chain);
     const char *l_err_str = a_error < DAP_CHAIN_CH_ERROR_LAST ? s_error_type_to_string[a_error] : "UNDEFINED ERROR";
-    dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_err_str, strlen(l_err_str) + 1, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
+    dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_err_str, strlen(l_err_str) + 1, DAP_CHAIN_CH_PKT_VERSION_CURRENT);
     s_ch_chain_go_idle(l_ch_chain);
 }
 

@@ -798,8 +798,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
             if (l_hash_str)
                 l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_block_hash);
             else {
-                uint16_t num = 0;
-                dap_digit_from_string(l_num_str, &num, sizeof(uint16_t));
+                uint64_t num = 0;
+                dap_digit_from_string(l_num_str, &num, sizeof(uint64_t));
                 if (!num && dap_strcmp(l_num_str, "0")) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, "Invalid block number %s", l_num_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
@@ -853,6 +853,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     break;
                 case DAP_CHAIN_BLOCK_META_NONCE2:
                     s_cli_meta_hex_print(json_obj_meta, "nonce2", l_meta);
+                    break;
+                case DAP_CHAIN_BLOCK_META_EVM_DATA:
+                    s_cli_meta_hex_print(json_obj_meta, "EVM_DATA", l_meta);
                     break;
                 default: {
                     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
@@ -2295,6 +2298,9 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
             case DAP_CHAIN_BLOCK_META_NONCE2:
                 s_cli_meta_hex_print(json_obj_meta, "nonce2", l_meta);
                 break;
+            case DAP_CHAIN_BLOCK_META_EVM_DATA:
+                s_cli_meta_hex_print(json_obj_meta, "EVM_DATA", l_meta);
+                break;
             default: {
                 snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
                 json_object_object_add(json_obj_meta, "# -", json_object_new_string(l_hexbuf));
@@ -2824,3 +2830,37 @@ dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_has
     return l_ret;
 }
 
+dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash)
+{
+    dap_list_t *l_ret = NULL;
+
+    dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), a_block_hash);
+    if (!l_block_cache) {
+        log_it(L_ERROR, "Can't find block %s in cache.", dap_hash_fast_to_str_static(a_block_hash));
+        return NULL;
+    }
+
+    size_t l_signs_count = dap_chain_block_get_signs_count(l_block_cache->block, l_block_cache->block_size);
+    for (size_t i = 0; i < l_signs_count; i++) {
+        dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+
+        dap_hash_fast_t l_pkey_hash = {};
+        if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
+            log_it(L_ERROR, "Can't get pkey hash from sign");
+            continue;
+        }
+        dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
+        if (!l_pkey) {
+            log_it(L_ERROR, "Can't get pkey from sign");
+            continue;
+        }
+        uint256_t l_value_reward = s_callback_calc_reward(a_chain, a_block_hash, l_pkey);
+        DAP_DELETE(l_pkey);
+        dap_chain_cs_block_rewards_t *l_reward = DAP_NEW_Z(dap_chain_cs_block_rewards_t);
+        l_reward->pkey_hash = l_pkey_hash;
+        l_reward->reward = l_value_reward;
+        l_ret = dap_list_append(l_ret, l_reward);
+    }
+
+    return l_ret;
+}
