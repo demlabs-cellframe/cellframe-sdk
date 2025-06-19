@@ -404,7 +404,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                     for (dap_list_t *l_temp = l_orders; l_temp; l_temp = l_temp->next){
                         json_object* json_obj_order = json_object_new_object();
                         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*)l_temp->data;
-                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker);
+                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, a_version);
                         json_object_array_add(json_arr_out, json_obj_order);
                     }
                     json_object_object_add(json_obj_net_srv, "orders", json_arr_out);
@@ -420,7 +420,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                     dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
                     json_obj_net_srv = json_object_new_object();                    
                     if (l_order) {
-                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_net_srv, l_hash_out_type, l_net->pub.native_ticker);
+                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_net_srv, l_hash_out_type, l_net->pub.native_ticker, a_version);
                         l_ret = 0;
                     }else{                        
                         if(!dap_strcmp(l_hash_out_type,"hex"))
@@ -447,7 +447,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                         for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
                             json_object* json_obj_order = json_object_new_object();
                             dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
-                            dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker);
+                            dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, a_version);
                             json_object_array_add(json_arr_out, json_obj_order);
                         }
                         json_object_object_add(json_obj_net_srv, "orders", json_arr_out);

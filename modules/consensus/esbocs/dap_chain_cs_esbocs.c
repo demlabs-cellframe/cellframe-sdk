@@ -3294,7 +3294,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             }
         } else {
             json_object * json_obj_out = json_object_new_object();
-            s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs);
+            s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs, a_version);
             json_object_array_add(*a_json_arr_reply, json_obj_out);
             }            
     } break;

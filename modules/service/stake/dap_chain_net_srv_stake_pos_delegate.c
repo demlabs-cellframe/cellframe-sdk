@@ -106,7 +106,7 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
 static void s_uncache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr_reply, dap_chain_node_info_t *a_node_info, dap_chain_t *a_chain,
                                  dap_chain_net_t *a_net, dap_time_t a_time_form, dap_time_t a_time_to,
-                                 size_t a_limit, size_t a_offset, bool a_brief, bool a_head);
+                                 size_t a_limit, size_t a_offset, bool a_brief, bool a_head, int a_version);
 
 static dap_list_t *s_srv_stake_list = NULL;
 
@@ -1650,7 +1650,7 @@ typedef enum s_cli_srv_stake_order_err{
 
     //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_cli_srv_stake_order_err_t;
-static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply, const char *a_hash_out_type)
+static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply, const char *a_hash_out_type, int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
@@ -2005,7 +2005,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                 }
                 // TODO add filters to list (token, address, etc.)
                 json_object* l_json_obj_order = json_object_new_object();
-                dap_chain_net_srv_order_dump_to_json(l_order, l_json_obj_order, a_hash_out_type, l_net->pub.native_ticker);
+                dap_chain_net_srv_order_dump_to_json(l_order, l_json_obj_order, a_hash_out_type, l_net->pub.native_ticker, a_version);
                 if (l_order->srv_uid.uint64 == DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS) {
                     if (l_order->direction == SERV_DIR_SELL) {
                         json_object_object_add(l_json_obj_order, "message", 
@@ -3121,7 +3121,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
     switch (l_cmd_num) {
 
         case CMD_ORDER:
-            return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
+            return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type, a_version);
 
         case CMD_DELEGATE:
             return s_cli_srv_stake_delegate(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
@@ -3736,7 +3736,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_CHAIN_PARAM_ERR;
             }
             json_object* l_json_arr_reply = s_dap_chain_net_srv_stake_reward_all(*a_json_arr_reply, l_node_info, l_chain,
-                                 l_net, l_from_time, l_to_time, l_limit, l_offset, l_brief, l_head);
+                                 l_net, l_from_time, l_to_time, l_limit, l_offset, l_brief, l_head, a_version);
             json_object_array_add(*a_json_arr_reply, l_json_arr_reply);                                    
         } break;
 

@@ -123,7 +123,7 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t 
 static dap_chain_net_srv_xchange_order_status_t s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chain_net_t *a_net, dap_chain_addr_t *a_owner_addr, dap_chain_addr_t *a_buyer_addr,
                                               dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, tx_opt_status_t a_filter_by_status,
-                                              bool a_append_prev_hash, bool a_print_status, bool a_print_ts);
+                                              bool a_append_prev_hash, bool a_print_status, bool a_print_ts, int a_version);
 
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, dap_hash_fast_t *a_order_hash, uint256_t *a_fee, bool a_ret_is_invalid);
 static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
@@ -1524,11 +1524,11 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
 
                             if (s_string_append_tx_cond_info_json(l_json_obj_order, l_net, &l_item->seller_addr, 
                                 l_item->tx_type == TX_TYPE_EXCHANGE ?  &l_item->tx_info.exchange_info.buyer_addr : NULL, 
-                                l_datum_tx, l_iter->cur_hash, TX_STATUS_ALL, true, true, false))
+                                l_datum_tx, l_iter->cur_hash, TX_STATUS_ALL, true, true, false, a_version))
                                 
                                 l_total++;
                         } else {
-                            if (s_string_append_tx_cond_info_json(l_json_obj_order, l_net, NULL, NULL, l_datum_tx, l_iter->cur_hash, TX_STATUS_ALL, true, true, false))
+                            if (s_string_append_tx_cond_info_json(l_json_obj_order, l_net, NULL, NULL, l_datum_tx, l_iter->cur_hash, TX_STATUS_ALL, true, true, false, a_version))
                                 l_total++;
                         }
                     }
@@ -1557,7 +1557,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                             dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
                             dap_hash_fast_t l_hash = {};
                             dap_hash_fast(l_tx_cur, dap_chain_datum_tx_get_size(l_tx_cur), &l_hash);
-                            if ( s_string_append_tx_cond_info_json(l_json_obj_order, l_net, NULL, NULL, l_tx_cur, &l_hash, TX_STATUS_ALL, true, true, false) )
+                            if ( s_string_append_tx_cond_info_json(l_json_obj_order, l_net, NULL, NULL, l_tx_cur, &l_hash, TX_STATUS_ALL, true, true, false, a_version) )
                                 l_total++;
                             l_tx_list_temp = l_tx_list_temp->next;
                         }
@@ -1604,7 +1604,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
                                     dap_hash_fast_t l_hash = {};
                                     dap_hash_fast(l_tx_cur, dap_chain_datum_tx_get_size(l_tx_cur), &l_hash);
-                                    s_string_append_tx_cond_info_json(l_json_obj_cur_tx, l_net, NULL, NULL, l_tx_cur, &l_hash, TX_STATUS_ALL, true, true, false);
+                                    s_string_append_tx_cond_info_json(l_json_obj_cur_tx, l_net, NULL, NULL, l_tx_cur, &l_hash, TX_STATUS_ALL, true, true, false, a_version);
                                     json_object_array_add(l_json_obj_tx_arr, l_json_obj_cur_tx);
                                     l_tx_list_temp = l_tx_list_temp->next;
                                 }
@@ -1633,7 +1633,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                         json_object* l_json_obj_cur_tx = json_object_new_object();
                         s_string_append_tx_cond_info_json(l_json_obj_cur_tx, l_net, &l_item->seller_addr, 
                                 l_item->tx_type == TX_TYPE_EXCHANGE ?  &l_item->tx_info.exchange_info.buyer_addr : NULL, 
-                                l_item->tx, &l_item->hash, TX_STATUS_ALL, true, true, false);
+                                l_item->tx, &l_item->hash, TX_STATUS_ALL, true, true, false, a_version);
                         json_object_array_add(l_json_obj_tx_arr, l_json_obj_cur_tx);
                         switch(l_item->tx_type){
                             case TX_TYPE_ORDER:{
@@ -2471,7 +2471,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
                 continue;
 
             json_object* json_obj_tx = json_object_new_object();
-            if (s_string_append_tx_cond_info_json(json_obj_tx, a_net, NULL, NULL, l_datum_tx, &l_hash_curr, a_opt_status, false, true, true)) {
+            if (s_string_append_tx_cond_info_json(json_obj_tx, a_net, NULL, NULL, l_datum_tx, &l_hash_curr, a_opt_status, false, true, true, a_version)) {
                 json_object_array_add(json_arr_datum_out, json_obj_tx);
                 l_tx_count++;
             }
@@ -2495,7 +2495,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
             if ( a_before && (l_datum_tx->header.ts_created > a_before) )
                 continue;
             json_object* json_obj_tx = json_object_new_object();
-            if (s_string_append_tx_cond_info_json(json_obj_tx, a_net, NULL, NULL, l_datum_tx, l_iter->cur_hash, a_opt_status, false, true, true)) {
+            if (s_string_append_tx_cond_info_json(json_obj_tx, a_net, NULL, NULL, l_datum_tx, l_iter->cur_hash, a_opt_status, false, true, true, a_version)) {
                 json_object_array_add(json_arr_datum_out, json_obj_tx);
                 l_tx_count++;
             }
@@ -2560,7 +2560,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
 
     switch (l_cmd_num) {
         case CMD_ORDER: {
-            int res = s_cli_srv_xchange_order(a_argc, a_argv, l_arg_index + 1, json_arr_reply);
+            int res = s_cli_srv_xchange_order(a_argc, a_argv, l_arg_index + 1, json_arr_reply, a_version);
             return res;
         }
         case CMD_ORDERS: {
@@ -2985,7 +2985,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                     return -EINVAL;
                 }
                 json_object* json_obj_order = json_object_new_object();
-                s_cli_srv_xchange_tx_list_addr_json(l_net, l_time[0], l_time[1], l_addr, l_opt_status, json_obj_order);
+                s_cli_srv_xchange_tx_list_addr_json(l_net, l_time[0], l_time[1], l_addr, l_opt_status, json_obj_order, a_version);
                 json_object_array_add(*json_arr_reply, json_obj_order);
                 return 0;
             }
@@ -3006,7 +3006,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                     json_object* json_obj_order = json_object_new_object();
                     if (s_string_append_tx_cond_info_json(json_obj_order, l_net,  &l_item->seller_addr, 
                             l_item->tx_type == TX_TYPE_EXCHANGE ?  &l_item->tx_info.exchange_info.buyer_addr : NULL,
-                            l_item->tx, &l_item->hash, l_opt_status, false, true, true)){
+                            l_item->tx, &l_item->hash, l_opt_status, false, true, true, a_version)){
 
                         json_object_array_add(json_arr_bl_out, json_obj_order);
                         l_show_tx_nr++;
@@ -3029,7 +3029,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                         json_object* json_obj_order = json_object_new_object();
                         dap_hash_fast_t l_hash = {};
                         dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_hash);
-                        if (s_string_append_tx_cond_info_json(json_obj_order, l_net, NULL, NULL, l_datum_tx, &l_hash, l_opt_status, false, true, true)) {
+                        if (s_string_append_tx_cond_info_json(json_obj_order, l_net, NULL, NULL, l_datum_tx, &l_hash, l_opt_status, false, true, true, a_version)) {
                             json_object_array_add(json_arr_bl_out, json_obj_order);
                             l_show_tx_nr++;
                         }
@@ -3340,7 +3340,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                         i_tmp++;  
 
                         json_object* json_obj_out = json_object_new_object();
-                        if(s_string_append_tx_cond_info_json(json_obj_out, l_net, NULL, NULL, l_tx, &l_tx_hash, TX_STATUS_ALL, false, false, true)){
+                        if(s_string_append_tx_cond_info_json(json_obj_out, l_net, NULL, NULL, l_tx, &l_tx_hash, TX_STATUS_ALL, false, false, true, a_version)){
                             l_total++;
                             SUM_256_256(l_token_to_value, l_token_curr_to_value, &l_token_to_value);
                             SUM_256_256(l_token_from_value, l_token_curr_from_value, &l_token_from_value);
@@ -3428,7 +3428,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
 
             // No subcommand selected
             json_object* json_obj_out = json_object_new_object();
-            json_object_object_add(json_obj_out, "token_pair_status", json_object_new_string("Command 'token pair' requires proper subcommand," 
+            json_object_object_add(json_obj_out, a_version == 1 ? "token pair status" : "token_pair_status", json_object_new_string("Command 'token pair' requires proper subcommand," 
                                                                                         "please read its manual with command 'help srv_xchange'"));
             json_object_array_add(*json_arr_reply, json_obj_out);
 

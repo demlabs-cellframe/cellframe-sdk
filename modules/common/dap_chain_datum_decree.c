@@ -368,7 +368,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
         }
     }
     dap_chain_datum_decree_certs_dump_json(a_json_out, a_decree->data_n_signs + a_decree->header.data_size,
-                                      a_decree->header.signs_size, a_hash_out_type);
+                                      a_decree->header.signs_size, a_hash_out_type, a_version);
 }
 
 void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
