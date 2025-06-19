@@ -506,7 +506,7 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
             !l_session->new_round_enqueued) {
         l_session->new_round_enqueued = true;
         s_session_round_new(l_session);
-        if (l_session->is_hardfork) {
+        if (l_session->esbocs->hardfork_state) {
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_atom, a_atom_size, &l_datums_count);
             for (size_t i = 0; i < l_datums_count; i++)
@@ -674,7 +674,6 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         return -5;
     }
     dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session->proc_thread, l_session);
-    //s_session_round_new(l_session);
     dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
 
     l_session->cs_timer = !dap_proc_thread_timer_add(l_session->proc_thread, s_session_proc_state, l_session, 1000);
@@ -804,13 +803,24 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
 
 bool dap_chain_esbocs_hardfork_engaged(dap_chain_t *a_chain)
 {
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     return l_esbocs->hardfork_generation;
 }
 
+int dap_chain_esbocs_set_hardfork_state(dap_chain_t *a_chain, bool a_state)
+{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    l_esbocs->hardfork_state = a_state;
+    return 0;
+}
+
 int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object *a_changed_addrs)
 {
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     uint64_t l_last_num = a_chain->callback_count_atom(a_chain);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
@@ -828,6 +838,7 @@ int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_gener
 
 int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
 {
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
@@ -836,8 +847,7 @@ int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
     json_object_put(l_esbocs->hardfork_changed_addrs);
     l_esbocs->hardfork_changed_addrs = NULL;
     l_esbocs->hardfork_generation = l_esbocs->hardfork_from = 0;
-    if (l_esbocs->session)
-        l_esbocs->session->is_hardfork = false;
+    l_esbocs->hardfork_state = false;
     l_net->pub.ledger->is_hardfork_state = false;
     dap_chain_net_srv_stake_hardfork_tx_update(l_net);
     return 0;
@@ -1302,17 +1312,17 @@ static bool s_session_round_new(void *a_arg)
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
     uint64_t l_cur_atom_count = a_session->chain->callback_count_atom(a_session->chain);
-    if (!a_session->is_hardfork) {
-        a_session->is_hardfork = a_session->esbocs->hardfork_generation > a_session->chain->generation &&
+    if (!a_session->esbocs->hardfork_state) {
+        a_session->esbocs->hardfork_state = a_session->esbocs->hardfork_generation > a_session->chain->generation &&
                                     a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
-        if (a_session->is_hardfork) {
+        if (a_session->esbocs->hardfork_state) {
             dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
             int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
                                                      a_session->esbocs->hardfork_trusted_addrs,
                                                      a_session->esbocs->hardfork_changed_addrs);
             if (rc) {
                 log_it(L_ERROR, "Can't start hardfork process with code %d, see log for more details", rc);
-                a_session->is_hardfork = false;
+                a_session->esbocs->hardfork_state = false;
             } else
                 a_session->cur_round.last_block_hash = (dap_hash_fast_t) { };
         }
@@ -1776,7 +1786,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     size_t l_candidate_size = 0;
     dap_hash_fast_t l_candidate_hash = {0};
-    if (a_session->is_hardfork)
+    if (a_session->esbocs->hardfork_state)
         dap_chain_node_hardfork_process(a_session->chain);
     else
         dap_chain_node_mempool_process_all(a_session->chain, false);
@@ -1794,7 +1804,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
         }
-        if (a_session->is_hardfork && l_candidate_size) {
+        if (a_session->esbocs->hardfork_state && l_candidate_size) {
             if (dap_chain_block_meta_get(l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_GENESIS) && l_candidate_size)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_LINK,
                                                         &l_chain->hardfork_decree_hash, sizeof(l_chain->hardfork_decree_hash));
@@ -3016,7 +3026,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             log_it(L_WARNING, "Block %s has invalid custom metadata", dap_hash_fast_to_str_static(a_block_hash));
             return -5;
         }
-        if (l_esbocs->session->is_hardfork) {
+        if (l_esbocs->hardfork_state) {
             bool l_genesis_corr = false;
             // compare hardfork decree hashes
             if (dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_GENESIS)) {

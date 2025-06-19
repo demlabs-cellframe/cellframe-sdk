@@ -142,6 +142,7 @@ typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
     dap_chain_cs_blocks_t *blocks;
     dap_chain_esbocs_session_t *session;
+    bool hardfork_state;
     uint16_t hardfork_generation;
     uint64_t hardfork_from;
     json_object *hardfork_changed_addrs;
@@ -222,7 +223,7 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_node_addr_t my_addr;
     uint8_t state, old_state;
     bool cs_timer, round_fast_forward, sync_failed,
-         new_round_enqueued, is_actual_hash, is_hardfork;
+         new_round_enqueued, is_actual_hash;
     dap_global_db_driver_hash_t db_hash;
     dap_chain_addr_t my_signing_addr;
 } dap_chain_esbocs_session_t;
@@ -294,6 +295,7 @@ int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
 int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object* a_changed_addrs);
 int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain);
 bool dap_chain_esbocs_hardfork_engaged(dap_chain_t *a_chain);
+int dap_chain_esbocs_set_hardfork_state(dap_chain_t *a_chain, bool a_state);
 
 /**
  * @brief Get custom metadata for block

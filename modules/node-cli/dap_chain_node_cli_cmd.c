@@ -4630,7 +4630,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply)
                 }
             }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_complete", &l_param_value_str)) {
-            if (!l_decree_chain->hardfork_data) {
+            if (!l_net->pub.ledger->is_hardfork_state) {
                 log_it(L_ERROR, "Hardfork isn't started, can't complete");
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_STARTED_ERR,
                                                                                     "Hardfork isn't started, can't complete");

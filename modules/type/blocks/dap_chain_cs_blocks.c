@@ -1951,6 +1951,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 }
                 l_net->pub.ledger->is_hardfork_state = true;
                 a_chain->generation = l_generation;
+                dap_chain_esbocs_set_hardfork_state(a_chain, true);
                 if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, &l_hardfork_decree_hash)) { // True import
                     log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
