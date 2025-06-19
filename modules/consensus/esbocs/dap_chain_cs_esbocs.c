@@ -815,6 +815,8 @@ int dap_chain_esbocs_set_hardfork_state(dap_chain_t *a_chain, bool a_state)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     l_esbocs->hardfork_state = a_state;
+    if (a_state)
+        l_esbocs->hardfork_generation = a_chain->hardfork_generation;
     return 0;
 }
 
@@ -3046,7 +3048,8 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             uint8_t *l_generation = dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_GENERATION);
             uint16_t l_generation_expected = l_genesis_corr ? dap_chain_generation_next(a_blocks->chain) : a_blocks->chain->generation;
             if (!l_generation || *(uint16_t *)l_generation != l_generation_expected) {
-                log_it(L_WARNING, "Can't process hardfork block %s with incorrect generation meta", dap_hash_fast_to_str_static(a_block_hash));
+                log_it(L_WARNING, "Can't process hardfork block %s with incorrect generation meta %d, expected %d",
+                                            dap_hash_fast_to_str_static(a_block_hash), l_generation ? *(uint16_t *)l_generation : -1, l_generation_expected);
                 return -302;
             }
             // Addtionally verify datums vs internal states
