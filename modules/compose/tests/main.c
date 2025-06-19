@@ -255,7 +255,7 @@ void s_chain_datum_xchange_invalidate_test(const char *a_token_sell, const char 
     l_price->datoshi_sell = s_data->value;
     l_price->rate = s_data->reinvest_percent;
     l_price->fee = s_data->value_fee;
-    dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_invalidate_compose(l_price, &s_data->addr_from, &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_invalidate_compose(l_price, &s_data->cond_out, &s_data->addr_from, &s_data->addr_to, a_token_buy, 0, &s_data->config);
     dap_assert(l_datum_1, "tx_exchange_invalidate_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
