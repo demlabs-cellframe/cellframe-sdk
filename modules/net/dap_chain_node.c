@@ -487,7 +487,7 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
         ((dap_chain_datum_service_state_t *)l_datum->data)->srv_uid = a_state->uid;
         ((dap_chain_datum_service_state_t *)l_datum->data)->state_size = a_state->size;
         ((dap_chain_datum_service_state_t *)l_datum->data)->states_count = i;
-        ret = DAP_REALLOC_RET_VAL_IF_FAIL(ret, sizeof(dap_chain_datum_t *) * (++l_datums_count), NULL, NULL);
+        ret = DAP_REALLOC_RET_VAL_IF_FAIL(ret, ++l_datums_count * sizeof(dap_chain_datum_t *), NULL);
         ret[l_datums_count - 1] = l_datum;
         l_ptr = l_offset;
     }
@@ -508,7 +508,7 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         return -3;
     }
     log_it(L_ATT, "Starting data prepare for hardfork of chain '%s' for net '%s'", a_chain->name, l_net->pub.name);
-    struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1, NULL);
+    struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1);
     l_states->balances = dap_ledger_states_aggregate(l_net->pub.ledger, a_last_block_timestamp, &l_states->condouts, a_changed_addrs);
     l_states->anchors = dap_ledger_anchors_aggregate(l_net->pub.ledger, a_chain->id);
     l_states->fees = dap_chain_cs_blocks_fees_aggregate(a_chain);
@@ -638,7 +638,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
     if (!l_net->pub.mempool_autoproc)
         return -12;
     if (!a_chain->hardfork_data)
-        return log_it(L_ERROR, "Can't process chain with no harfork data. Use dap_chain_node_hardfork_prepare() for collect it first"), -2;
+        a_chain->hardfork_data = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -2);
     struct hardfork_states *l_states = a_chain->hardfork_data;
     switch (l_states->state_current) {
     case STATE_ANCHORS:
