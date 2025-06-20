@@ -293,8 +293,6 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
 
     if (!*l_item->voting_params.token_ticker)
         strcpy(l_item->voting_params.token_ticker, a_ledger->net->pub.native_ticker);
-    if (!*l_item->voting_params.token_ticker)
-        strcpy(l_item->voting_params.token_ticker, a_ledger->net->pub.native_ticker);
     pthread_rwlock_wrlock(&s_votings_rwlock);
     HASH_ADD(hh, s_votings, voting_hash, sizeof(dap_hash_fast_t), l_item);
     pthread_rwlock_unlock(&s_votings_rwlock);
@@ -1635,10 +1633,6 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
         dap_chain_datum_tx_delete(l_tx);
         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_SIGN_TX;
     }
-    json_object * l_retj = json_object_new_object();
-    dap_chain_net_tx_to_json(l_tx, l_retj);
-    const char * l_str = json_object_to_json_string(l_retj);
-    log_it(L_ATT, "/n %s", l_str);
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     dap_hash_fast_t l_tx_hash;
