@@ -728,9 +728,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             }
             dap_global_db_objs_delete(l_obj, l_objs_count);
             json_object* json_obj_del = json_object_new_object();
-            json_object_object_add(json_obj_del, a_version == 1 ? "Removed records" : "removed_records",json_object_new_uint64(j));
-            json_object_object_add(json_obj_del, a_version == 1 ? "of records" : "of_records",json_object_new_uint64(i));
-            json_object_object_add(json_obj_del, a_version == 1 ? "in table" : "in_table",json_object_new_string(l_group_str));
+            json_object_object_add(json_obj_del, a_version == 1 ? "Removed records" : "records_removed",json_object_new_uint64(j));
+            json_object_object_add(json_obj_del, a_version == 1 ? "of records" : "records_total",json_object_new_uint64(i));
+            json_object_object_add(json_obj_del, a_version == 1 ? "in table" : "table",json_object_new_string(l_group_str));
             json_object_array_add(*a_json_arr_reply, json_obj_del);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         }
@@ -770,7 +770,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         if (!dap_global_db_erase_table_sync(l_group_str))
         {
             json_object* json_obj_drop = json_object_new_object();
-            json_object_object_add(json_obj_drop, a_version == 1 ? "Dropped table" : "dropped_table",json_object_new_string(l_group_str));
+            json_object_object_add(json_obj_drop, a_version == 1 ? "Dropped table" : "table_dropped",json_object_new_string(l_group_str));
             json_object_array_add(*a_json_arr_reply, json_obj_drop);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
@@ -812,7 +812,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         dap_store_obj_free(l_objs, l_objs_count);
 
         json_object* json_keys_list = json_object_new_object();
-        json_object_object_add(json_keys_list, a_version == 1 ? "dropped_table" : "group_name",json_object_new_string(l_group_str));
+        json_object_object_add(json_keys_list, a_version == 1 ? "group name" : "group_name",json_object_new_string(l_group_str));
         json_object_object_add(json_keys_list, a_version == 1 ? "keys list" : "keys_list", json_arr_keys);
         json_object_array_add(*a_json_arr_reply, json_keys_list);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
