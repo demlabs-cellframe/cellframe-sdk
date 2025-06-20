@@ -247,7 +247,7 @@ json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, d
         DAP_DELETE(l_answer_text_str);
     }
     json_object_object_add(l_object, a_version == 1 ? "votingHash" : "voting_hash", l_voting_hash);
-    json_object_object_add(l_object, a_version == 1 ? "answer_idx" : "answer_idx", l_answer_idx);
-    json_object_object_add(l_object, a_version == 1 ? "answer_text" : "answer_text", l_answer_text);
+    json_object_object_add(l_object, "answer_idx", l_answer_idx);
+    json_object_object_add(l_object, "answer_text", l_answer_text);
     return l_object;
 }

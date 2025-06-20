@@ -442,7 +442,7 @@ json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version)
         }
     }
     json_object_object_add(l_ret, a_version == 1 ? "conditional active" : "conditional_active", json_object_new_string(l_active_str->str));
-    json_object_object_add(l_ret, a_version == 1 ? "conditional inactive" : "conditional_active", json_object_new_string(l_inactive_str->str));
+    json_object_object_add(l_ret, a_version == 1 ? "conditional inactive" : "conditional_inactive", json_object_new_string(l_inactive_str->str));
     
     dap_string_free(l_active_str, true);
     dap_string_erase(l_inactive_str, 0, -1);
