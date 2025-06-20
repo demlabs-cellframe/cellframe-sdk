@@ -294,6 +294,22 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
     return debug_if(l_ret, L_ERROR, "Sign verification error %d", l_ret), l_ret;
 }
 
+int dap_chain_datum_tx_verify_sign_all(dap_chain_datum_tx_t *a_tx)
+{
+    int l_sign_num = 0;
+    int l_ret = 0;
+    byte_t *l_item = NULL;
+    size_t l_item_size = 0;
+    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+        if (*l_item != TX_ITEM_TYPE_SIG)
+            continue;
+        if ((l_ret = dap_chain_datum_tx_verify_sign(a_tx, l_sign_num++)))
+            return l_ret;
+    }
+    return l_ret;
+}
+
+
 /**
  * Get item from transaction
  *

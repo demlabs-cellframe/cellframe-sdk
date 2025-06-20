@@ -83,6 +83,8 @@ enum DAP_CHAIN_NET_SRV_VOTING_CLI_ERRORS {
     DAP_CHAIN_NET_VOTE_CREATE_WRONG_TIME_FORMAT,
     DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN,
     DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_TOKEN,
+    DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR,
+    DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS,
 
     DAP_CHAIN_NET_VOTE_VOTING_OK,
     DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE,
@@ -123,6 +125,10 @@ enum DAP_CHAIN_NET_SRV_VOTING_CLI_ERRORS {
     DAP_CHAIN_NET_SRV_VOTING_UNKNOWN_ERR
 };
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 int dap_chain_net_srv_voting_init();
 void dap_chain_net_srv_voting_deinit();
 
@@ -141,3 +147,7 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
 dap_list_t *dap_chain_net_voting_list(dap_chain_net_t *a_net);
 dap_chain_net_voting_info_t *dap_chain_net_voting_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash);
 void dap_chain_net_voting_info_free(dap_chain_net_voting_info_t *a_info);
+
+#if defined(__cplusplus)
+}
+#endif

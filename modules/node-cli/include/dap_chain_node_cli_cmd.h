@@ -419,6 +419,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply);
 int com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
 void json_rpc_tx_create(json_object *a_param, json_object *a_reply);
 int com_tx_create_json(int a_argc, char **a_argv, void **reply);
+int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply);
 
 int com_tx_cond_create(int a_argc, char **a_argv, void **reply);
 

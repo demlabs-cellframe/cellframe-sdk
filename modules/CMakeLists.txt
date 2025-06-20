@@ -105,3 +105,8 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-bridge")
     add_subdirectory(service/bridge)
 endif()
+
+# compose service
+if (CELLFRAME_MODULES MATCHES "compose")
+    add_subdirectory(compose)
+endif()
