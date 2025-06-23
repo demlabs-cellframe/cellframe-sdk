@@ -46,6 +46,8 @@
 #include "../../dap-sdk/crypto/src/rand/dap_rand.h"
 #endif
 
+#define LOG_TAG "dap_chain_tx_compose"
+
 static compose_config_t* s_compose_config_init(const char *a_net_name, const char *a_url_str,
                                  uint16_t a_port, const char *a_cert_path) {
     if (!a_net_name) {
@@ -3581,7 +3583,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
         }
     };
 
-    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+    dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, dap_get_net_id(a_config->net_name));
     if (!dap_chain_addr_compare(&l_owner_addr, a_wallet_addr)) {

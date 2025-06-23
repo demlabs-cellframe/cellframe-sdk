@@ -5,7 +5,7 @@ if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(chain)
 endif()
 
-# Ledger
+# Ledger - must be built before mempool and services that depend on it
 if (CELLFRAME_MODULES MATCHES "ledger")
     add_subdirectory(ledger)
 endif()

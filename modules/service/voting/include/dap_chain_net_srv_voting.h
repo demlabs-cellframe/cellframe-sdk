@@ -148,6 +148,7 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
 dap_list_t *dap_chain_net_voting_list(dap_chain_net_t *a_net);
 dap_chain_net_voting_info_t *dap_chain_net_voting_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash);
 void dap_chain_net_voting_info_free(dap_chain_net_voting_info_t *a_info);
+dap_list_t* dap_get_options_list_from_str(const char* a_str);
 
 #if defined(__cplusplus)
 }
