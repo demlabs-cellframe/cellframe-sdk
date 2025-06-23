@@ -1660,7 +1660,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                             : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
 
                         json_object_object_add(json_obj_event, a_version ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
-                        json_object_object_add(json_obj_event,"pkey_hash", json_object_new_string(l_hash_str));
+                        json_object_object_add(json_obj_event,"sig_pkey_hash", json_object_new_string(l_hash_str));
 
                         l_offset += l_sign_size;
                     }

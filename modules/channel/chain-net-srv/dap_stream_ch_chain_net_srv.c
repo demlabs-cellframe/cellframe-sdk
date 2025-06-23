@@ -866,7 +866,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
  */
 uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_prev)
 {
-    uint256_t l_ret = {0}, l_prev = {0}, l_datosi_used = {0};
+    uint256_t l_ret = {0}, l_prev = {0}, l_datoshi_used = {0};
     uint64_t l_used = 0;
     if (a_prev)
         l_prev = *a_prev;
@@ -880,8 +880,8 @@ uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_
             break;
     }
     MULT_256_256(a_usage->price->value_datoshi, GET_256_FROM_64(l_used), &l_ret);
-    DIV_256(l_ret, GET_256_FROM_64(a_usage->price->units), &l_datosi_used);
-    SUM_256_256(l_prev, l_datosi_used, &l_ret);
+    DIV_256(l_ret, GET_256_FROM_64(a_usage->price->units), &l_datoshi_used);
+    SUM_256_256(l_prev, l_datoshi_used, &l_ret);
     return l_ret;
 }
 
