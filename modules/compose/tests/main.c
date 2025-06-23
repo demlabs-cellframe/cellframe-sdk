@@ -28,7 +28,7 @@ struct tests_data {
     uint32_t idx_1;
     uint32_t idx_2;
     dap_hash_fast_t hash_1;
-    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_srv_uid_t srv_uid;
     dap_chain_tx_out_cond_t cond_out;
     compose_config_t config;
     time_t time_staking;
@@ -274,7 +274,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
     randombytes(s_data, sizeof(struct tests_data));
     s_data->time_staking = dap_time_now() + 10000;
-    s_data->reinvest_percent = dap_chain_coins_to_balance("12.3456789");
+    s_data->reinvest_percent = dap_chain_balance_coins_scan("12.3456789");
     for (size_t i = 0; i < KEY_COUNT; ++i)
         s_key[i] = dap_enc_key_new_generate(s_key_types[rand() % s_sign_type_count], NULL, 0, NULL, 0, 0);
     memset(&s_data->config, 0, sizeof(compose_config_t));

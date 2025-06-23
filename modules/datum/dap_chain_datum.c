@@ -40,6 +40,8 @@
 #include "dap_sign.h"
 #include "dap_tsd.h"
 #include "dap_json_rpc_errors.h"
+#include "dap_chain_net.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_datum"
 

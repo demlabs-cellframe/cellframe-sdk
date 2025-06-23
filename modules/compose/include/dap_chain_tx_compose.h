@@ -167,7 +167,7 @@ dap_chain_datum_tx_t* dap_chain_mempool_tx_create_cond_compose(dap_chain_addr_t 
                                                               const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                                               uint256_t a_value, uint256_t a_value_per_unit_max,
                                                               dap_chain_net_srv_price_unit_uid_t a_unit, 
-                                                              dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, 
+                                                              dap_chain_srv_uid_t a_srv_uid, uint256_t a_value_fee, 
                                                               const void *a_cond, size_t a_cond_size, compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_stake_lock_datum_create_compose(dap_chain_addr_t *a_wallet_addr, const char *a_main_ticker,

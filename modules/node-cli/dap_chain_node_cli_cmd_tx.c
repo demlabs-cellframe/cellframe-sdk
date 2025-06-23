@@ -1227,7 +1227,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
             byte_t *item; size_t l_size;
             TX_ITEM_ITER_TX(item, l_size, l_datum_tx) {
                 if (*item == TX_ITEM_TYPE_SIG) {
-                    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)item);
+                    dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t*)item);
                     char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1);
                     size_t l_sign_size = dap_sign_get_size(l_sign);
                     dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
@@ -2137,7 +2137,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply)
     if (l_tx) DAP_DELETE(l_tx);
 
     // Add transaction to mempool
-    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
+    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_nochain_new(l_chain);// get group name for mempool
     char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 

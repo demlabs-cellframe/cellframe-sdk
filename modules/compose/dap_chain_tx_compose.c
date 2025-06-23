@@ -1632,7 +1632,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
     // add 'out_cond' & 'out' items
 
     {
-        dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
+        dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
         dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_uid, dap_get_net_id(a_config->net_name), a_price->datoshi_sell,
                                                                                                 dap_get_net_id(a_config->net_name), a_price->token_buy, a_price->rate,
                                                                                                 a_seller_addr, NULL, 0);
@@ -1714,7 +1714,7 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
     uint256_t l_value_datoshi = {};    
     uint256_t l_value_fee = {};
     uint256_t l_value_per_unit_max = {};
-    dap_chain_net_srv_uid_t l_srv_uid = {};
+    dap_chain_srv_uid_t l_srv_uid = {};
     l_srv_uid.uint64 = strtoll(a_srv_uid_str, NULL, 10);
     if (!l_srv_uid.uint64) {
         dap_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_SERVICE_UID, "Can't find service UID %s", a_srv_uid_str);
@@ -1769,7 +1769,7 @@ json_object* dap_tx_cond_create_compose(const char *a_net_name, const char *a_to
 dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max,
-        dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
+        dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_srv_uid_t a_srv_uid,
         uint256_t a_value_fee, const void *a_cond,
         size_t a_cond_size, compose_config_t *a_config)
 {
@@ -1924,7 +1924,7 @@ json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_i
     }
     json_object_put(l_json_coins);
 
-    uint256_t l_emission_rate = dap_chain_coins_to_balance("0.001");  // TODO 16126
+    uint256_t l_emission_rate = dap_chain_balance_coins_scan("0.001");  // TODO 16126
     // uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(l_ledger, l_delegated_ticker_str);
     // if (IS_ZERO_256(l_emission_rate)) {
     //     printf("Error: Invalid token emission rate\n");
@@ -1972,8 +1972,8 @@ json_object * dap_cli_hold_compose(const char *a_net_name, const char *a_chain_i
     }
 
     if ( NULL != a_reinvest_percent_str) {
-        l_reinvest_percent = dap_chain_coins_to_balance(a_reinvest_percent_str);
-        if (compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1) {
+        l_reinvest_percent = dap_chain_balance_coins_scan(a_reinvest_percent_str);
+        if (compare256(l_reinvest_percent, dap_chain_balance_coins_scan("100.0")) == 1) {
             dap_json_compose_error_add(l_config->response_handler, CLI_HOLD_COMPOSE_ERROR_INVALID_REINVEST_PERCENTAGE, "Invalid reinvest percentage\n");
             return s_compose_config_return_response_handler(l_config);
         }
@@ -2031,7 +2031,7 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_chain_addr_t *a_w
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value,
                                                     const char * a_chain_id_str, compose_config_t *a_config)
 {
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // check valid param
     if (!a_config->net_name || !a_wallet_addr || IS_ZERO_256(a_value))
         return NULL;
@@ -2304,7 +2304,7 @@ json_object* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_ticker_str);
 
 
-    uint256_t l_emission_rate = dap_chain_coins_to_balance("0.001");
+    uint256_t l_emission_rate = dap_chain_balance_coins_scan("0.001");
 
     if (IS_ZERO_256(l_emission_rate) ||
         MULT_256_COIN(l_cond_tx->header.value, l_emission_rate, &l_value_delegated) ||
@@ -4099,7 +4099,7 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
             l_node_addr = l_order->node_addr;
         }
         DAP_DELETE(l_order);
-        if (compare256(l_sovereign_tax, dap_chain_coins_to_balance("100.0")) == 1 ||
+        if (compare256(l_sovereign_tax, dap_chain_balance_coins_scan("100.0")) == 1 ||
                 compare256(l_sovereign_tax, GET_256_FROM_64(100)) == -1) {
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_TAX, "Tax must be lower or equal than 100%% and higher or equal than 1.0e-16%%");
             return s_compose_config_return_response_handler(l_config);
@@ -4245,7 +4245,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_chain_addr_t *a_wallet_add
     }
 #endif
     // add 'out_cond' & 'out_ext' items
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_uid, a_value, a_signing_addr, a_node_addr,
                                                                                           a_sovereign_addr, a_sovereign_tax, a_pkey);
 
@@ -4340,8 +4340,8 @@ json_object* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str
         dap_json_compose_error_add(l_config->response_handler, STAKE_ORDER_CREATE_STAKER_ERR_INVALID_FEE, "Format -fee <256 bit integer>");
         return s_compose_config_return_response_handler(l_config);
     }
-    uint256_t l_tax = dap_chain_coins_to_balance(l_tax_str);
-    if (compare256(l_tax, dap_chain_coins_to_balance("100.0")) == 1 ||
+    uint256_t l_tax = dap_chain_balance_coins_scan(l_tax_str);
+    if (compare256(l_tax, dap_chain_balance_coins_scan("100.0")) == 1 ||
             compare256(l_tax, GET_256_FROM_64(100)) == -1) {
         dap_json_compose_error_add(l_config->response_handler, STAKE_ORDER_CREATE_STAKER_ERR_INVALID_TAX, "Tax must be lower or equal than 100%% and higher or equal than 1.0e-16%%");
         return s_compose_config_return_response_handler(l_config);
