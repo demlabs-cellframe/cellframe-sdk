@@ -2116,7 +2116,9 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_chain_addr_t *a_w
     {
         uint256_t l_value_pack = {}, l_native_pack = {}; // how much coin add to 'out_ext' items
         dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-                                                        l_uid, a_value, a_time_unlock, a_reinvest_percent);
+                                                        l_uid, a_value, a_time_unlock, a_reinvest_percent, 
+                                                        DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME |
+                                                        DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT);
         if (l_tx_out_cond) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
             dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out_cond);
