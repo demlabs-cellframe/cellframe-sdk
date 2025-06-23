@@ -115,7 +115,7 @@ void s_chain_datum_cond_create_test()
     randombytes(l_rand_data, l_rand_data_size);
     size_t l_pkey_size = rand() % 1024;
     dap_pkey_t *pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, l_pkey_size + sizeof(dap_pkey_t));
-    pkey->header.type.type = DAP_PKEY_TYPE_SIGN_BLISS;
+    pkey->header.type.type = DAP_PKEY_TYPE_SIG_BLISS;
     pkey->header.size = l_pkey_size;
     randombytes(pkey->pkey, l_pkey_size);
     dap_chain_net_srv_price_unit_uid_t price_unit;
@@ -137,7 +137,7 @@ void s_chain_datum_delegate_test()
     dap_print_module_name("tx_stake_compose");
     size_t l_pkey_size = rand() % 1024;
     dap_pkey_t *pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, l_pkey_size + sizeof(dap_pkey_t));
-    pkey->header.type.type = DAP_PKEY_TYPE_SIGN_BLISS;
+    pkey->header.type.type = DAP_PKEY_TYPE_SIG_BLISS;
     pkey->header.size = l_pkey_size;
     randombytes(pkey->pkey, l_pkey_size);
     dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_create_compose(&s_data->addr_any, s_data->value, s_data->value_fee, &s_data->addr_from, &s_data->node_addr, &s_data->addr_to, s_data->reinvest_percent, NULL, pkey, &s_data->config);
