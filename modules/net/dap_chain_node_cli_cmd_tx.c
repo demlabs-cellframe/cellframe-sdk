@@ -886,7 +886,7 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
                 json_object_put(json_arr_out);
                 return NULL;
             }
-            json_object_object_add(json_tx_history, a_version == 1 ? "tx number" : "tx_number", json_object_new_uint64(l_count+1));                     
+            json_object_object_add(json_tx_history, a_version == 1 ? "tx number" : "tx_num", json_object_new_uint64(l_count+1));                     
             json_object_array_add(json_arr_out, json_tx_history);
             ++i_tmp;
             l_count++;            

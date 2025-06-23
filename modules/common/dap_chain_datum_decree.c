@@ -202,7 +202,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
         default:
             l_type_str = "DECREE_TYPE_UNKNOWN";
     }
-    json_object_object_add(a_json_out, "type", json_object_new_string(l_type_str));
+    json_object_object_add(a_json_out, a_version == 1 ? "type" : "decree_type", json_object_new_string(l_type_str));
     const char *l_subtype_str = dap_chain_datum_decree_subtype_to_str(a_decree->header.sub_type);
     json_object_object_add(a_json_out, "subtype", json_object_new_string(l_subtype_str));
     json_object_object_add(a_json_out, a_version == 1 ? "TSD" : "tsd", json_object_new_string(""));
@@ -282,12 +282,12 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             break;
        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
             if (l_tsd->size > sizeof(dap_chain_addr_t)) {
-                json_object_object_add(a_json_out, a_version == 1 ? "Signing addr" : "signing_addr", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, a_version == 1 ? "Signing addr" : "sig_addr", json_object_new_string("WRONG SIZE"));
                 break;
             }
             dap_chain_addr_t *l_stake_addr_signing = /*{ };
             _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-            json_object_object_add(a_json_out, a_version == 1 ? "Signing addr" : "signing_addr", json_object_new_string(dap_chain_addr_to_str_static(l_stake_addr_signing)));
+            json_object_object_add(a_json_out, a_version == 1 ? "Signing addr" : "sig_addr", json_object_new_string(dap_chain_addr_to_str_static(l_stake_addr_signing)));
             dap_chain_hash_fast_t l_pkey_signing = l_stake_addr_signing->data.hash_fast;
             const char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
@@ -316,13 +316,13 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
             if (l_tsd->size > sizeof(uint256_t)) {
-                json_object_object_add(a_json_out, a_version == 1 ? "Min signers count" : "min_signs_count", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, a_version == 1 ? "Min signers count" : "min_sig_count", json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint256_t l_min_signers_count = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_min_signers_count);
             const char *l_min_signers_count_str = dap_uint256_to_char(l_min_signers_count, NULL);
-            json_object_object_add(a_json_out, a_version == 1 ? "Min signers count" : "min_signs_count", json_object_new_string(l_min_signers_count_str));
+            json_object_object_add(a_json_out, a_version == 1 ? "Min signers count" : "min_sig_count", json_object_new_string(l_min_signers_count_str));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING:
@@ -402,8 +402,8 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                 : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
         json_object_object_add(json_obj_sign, a_version == 1 ? "sign #" : "sig_num", json_object_new_uint64(i));
-        json_object_object_add(json_obj_sign, "hash", json_object_new_string(l_hash_str));
-        json_object_object_add(json_obj_sign, "type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
+        json_object_object_add(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", json_object_new_string(l_hash_str));
+        json_object_object_add(json_obj_sign, a_version == 1 ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
         json_object_object_add(json_obj_sign, a_version == 1 ? "sign size" : "sig_size", json_object_new_uint64(l_sign->header.sign_size));
         json_object_array_add(json_arr_certs_out, json_obj_sign);        
     }

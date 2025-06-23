@@ -3244,7 +3244,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_signs_check(l_chain_net, l_chain, l_subcommand_add, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
-                json_object_object_add(json_obj_out, a_version == 1 ? "Checking signs structure has been" : "signs_check_status", l_subcommand_add ? json_object_new_string("enabled") : json_object_new_string("disabled"));
+                json_object_object_add(json_obj_out, a_version == 1 ? "Checking signs structure has been" : "sig_check_status", l_subcommand_add ? json_object_new_string("enabled") : json_object_new_string("disabled"));
                 json_object_object_add(json_obj_out, a_version == 1 ? "Decree hash" : "decree_hash", json_object_new_string(l_decree_hash_str));
                 json_object_array_add(*a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
@@ -3255,7 +3255,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
         } else{
-            json_object_object_add(json_obj_out, a_version == 1 ? "Checking signs structure is" : "signs_check_status", l_esbocs_pvt->check_signs_structure ? json_object_new_string("enabled") : json_object_new_string("disabled"));
+            json_object_object_add(json_obj_out, a_version == 1 ? "Checking signs structure is" : "sig_check_status", l_esbocs_pvt->check_signs_structure ? json_object_new_string("enabled") : json_object_new_string("disabled"));
             json_object_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;

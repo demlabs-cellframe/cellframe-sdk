@@ -99,8 +99,8 @@ void dap_chain_datum_anchor_certs_dump_json(json_object * a_json_out, byte_t * a
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                 : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
         json_object_object_add(json_obj_sign, a_version == 1 ? "sign #" : "sig_num", json_object_new_uint64(i));
-        json_object_object_add(json_obj_sign, "hash", json_object_new_string(l_hash_str));
-        json_object_object_add(json_obj_sign, "type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
+        json_object_object_add(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", json_object_new_string(l_hash_str));
+        json_object_object_add(json_obj_sign, a_version == 1 ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
         json_object_object_add(json_obj_sign, a_version == 1 ? "sign size" : "sig_size", json_object_new_uint64(l_sign->header.sign_size));
         json_object_array_add(json_arr_certs_out, json_obj_sign); 
     }

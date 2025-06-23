@@ -1378,8 +1378,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             switch (ret_code) {
                 case XCHANGE_CREATE_ERROR_OK: {
                     json_object* json_obj_order = json_object_new_object();
-                    json_object_object_add(json_obj_order, "status", json_object_new_string("Successfully created"));
-                    json_object_object_add(json_obj_order, "sign", json_object_new_string(l_sign_str));
+                    json_object_object_add(json_obj_order, "status", json_object_new_string(a_version == 1 ? "Successfully created" : "success"));
+                    json_object_object_add(json_obj_order, a_version == 1 ? "sign" : "sig", json_object_new_string(l_sign_str));
                     json_object_object_add(json_obj_order, "hash", json_object_new_string(l_hash_ret));
                     json_object_array_add(*a_json_arr_reply, json_obj_order);
                     DAP_DELETE(l_hash_ret);

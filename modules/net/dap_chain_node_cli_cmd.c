@@ -531,9 +531,13 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 
                 dap_bin2hex(l_value_str, l_value, l_value_len);
                 json_object_object_add(json_obj_rec, a_version == 1 ? "command status" : "command_status",json_object_new_string("Record found"));
-                json_object_object_add(json_obj_rec, "lenght(byte)", json_object_new_uint64(l_value_len));
-                json_object_object_add(json_obj_rec, "hash", json_object_new_string(dap_get_data_hash_str(l_value, l_value_len).s));
-                json_object_object_add(json_obj_rec, "pinned", l_is_pinned ? json_object_new_string("Yes") : json_object_new_string("No") );
+                json_object_object_add(json_obj_rec, a_version == 1 ? "lenght(byte)" : "lenght_byte", json_object_new_uint64(l_value_len));
+                json_object_object_add(json_obj_rec, a_version == 1 ? "hash" : "hash_value", json_object_new_string(dap_get_data_hash_str(l_value, l_value_len).s));
+                if (a_version == 1) {
+                    json_object_object_add(json_obj_rec, "pinned", l_is_pinned ? json_object_new_string("Yes") : json_object_new_string("No") );
+                } else {
+                    json_object_object_add(json_obj_rec, "pinned", json_object_new_boolean(l_is_pinned));
+                }
                 json_object_object_add(json_obj_rec, "value", json_object_new_string(l_value_str));
                 DAP_DELETE(l_value_str);
                 break;
@@ -2824,8 +2828,8 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 json_object_array_add(l_jobj_datums, l_jobj_datum);
                 continue;
             }
-            json_object_object_add(l_jobj_datum, "hash", l_jobj_hash);
-            json_object_object_add(l_jobj_datum, "type", l_jobj_type);
+            json_object_object_add(l_jobj_datum, a_version == 1 ? "hash" : "datum_hash", l_jobj_hash);
+            json_object_object_add(l_jobj_datum, a_version == 1 ? "type" : "datum_type", l_jobj_type);
             json_object_object_add(l_jobj_datum, "created", l_jobj_ts_created);
             bool datum_is_accepted_addr = false;
             if (!a_fast) {
@@ -3295,7 +3299,7 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
     }
     json_object_object_add(l_jobj_ret, "net", l_jobj_net);
     json_object_object_add(l_jobj_ret, "chain", l_jobj_chain);
-    json_object_object_add(l_jobj_ret, "hash", l_jobj_datum_hash);
+    json_object_object_add(l_jobj_ret, a_version == 1 ? "hash" : "datum_hash", l_jobj_datum_hash);
     json_object_object_add(l_jobj_ret, "action", json_object_new_string("delete"));
     json_object *l_jobj_ret_code = json_object_new_int(res);
     json_object_object_add(l_jobj_ret, a_version == 1 ? "retCode" : "ret_code", l_jobj_ret_code);
@@ -3424,7 +3428,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         }
     } else
         l_chain_obj = json_object_new_null();
-    json_object_object_add(l_jobj_datum, "hash", l_datum_hash);
+    json_object_object_add(l_jobj_datum, a_version == 1 ? "hash" : "datum_hash", l_datum_hash);
     json_object_object_add(l_jobj_datum, "net", l_net_obj);
     json_object_object_add(l_jobj_datum, "chain", l_chain_obj);
     json_object *l_find_bool;
@@ -3454,7 +3458,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
                 dap_json_rpc_allocation_error(*a_json_arr_reply);
                 return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
             }
-            json_object_object_add(l_obj_atom, "hash", l_jobj_atom_hash);
+            json_object_object_add(l_obj_atom, a_version == 1 ? "hash" : "atom_hash", l_jobj_atom_hash);
             json_object_object_add(l_obj_atom, "ledger_response_code", l_jobj_atom_err);
             json_object_object_add(l_jobj_datum, "atom", l_obj_atom);
         }        
@@ -3596,8 +3600,8 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         dap_json_rpc_allocation_error(*a_json_arr_reply);
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
-    json_object_object_add(l_jobj_datum, "hash", l_jobj_hash);
-    json_object_object_add(l_jobj_datum, "type", l_jobj_type);
+    json_object_object_add(l_jobj_datum, a_version == 1 ? "hash" : "datum_hash", l_jobj_hash);
+    json_object_object_add(l_jobj_datum, a_version == 1 ? "type" : "datum_type", l_jobj_type);
     json_object_object_add(l_jobj_ts_created, "time_stamp", l_jobj_ts_created_time_stamp);
     json_object_object_add(l_jobj_ts_created, "str", l_jobj_ts_created_str);
     json_object_object_add(l_jobj_datum, "ts_created", l_jobj_ts_created);
@@ -4047,7 +4051,7 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
                                 !dap_strcmp(a_hash_out_type, "base58") ?
                                 dap_enc_base58_encode_hash_to_str_static(l_atom_iter->cur_hash) :
                                 dap_hash_fast_to_str_static(l_atom_iter->cur_hash));
-                        json_object_object_add(l_jobj_atom, "hash", l_jobj_atom_hash);
+                        json_object_object_add(l_jobj_atom, a_version == 1 ? "hash" : "atom_hash", l_jobj_atom_hash);
                         json_object_object_add(l_jobj_atom, "created", l_jobj_atom_create);
                         json_object *l_jobj_decree = json_object_new_object();
                         size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
@@ -4143,7 +4147,7 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply, int a_version) {
             }
             json_object *l_obj_atom = json_object_new_object();
             json_object *l_obj_atom_hash = json_object_new_string(l_atom_hash_str);
-            json_object_object_add(l_obj_atom, "hash", l_obj_atom_hash);
+            json_object_object_add(l_obj_atom, a_version == 1 ? "hash" : "atom_hash", l_obj_atom_hash);
             dap_chain_atom_ptr_t l_atom_ptr = NULL;
             size_t l_atom_size = 0;
             if (l_chain) {
@@ -4202,7 +4206,7 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply, int a_version) {
                 }
             }
             json_object *l_obj = json_object_new_object();
-            json_object_object_add(l_obj, "type", json_object_new_string(l_type_decre_str));
+            json_object_object_add(l_obj, a_version == 1 ? "type" : "decree_type", json_object_new_string(l_type_decre_str));
             json_object *l_jobj_chains = json_object_new_object();
             if (l_chain) {
                 json_object *l_jobj_data = json_object_new_object();

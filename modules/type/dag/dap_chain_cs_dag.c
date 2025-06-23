@@ -1300,7 +1300,7 @@ static void s_json_dag_pack_event(json_object * a_json_out, dap_chain_cs_dag_eve
     dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, a_event_item->event->header.ts_created);
     json_object_object_add(json_obj_event_i, "#", json_object_new_string(dap_itoa(i)));
     json_object_object_add(json_obj_event_i, a_version == 1 ? "event number" : "event_num", json_object_new_uint64(a_event_item->event_number));
-    json_object_object_add(json_obj_event_i, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&a_event_item->hash)));
+    json_object_object_add(json_obj_event_i, a_version == 1 ? "hash" : "event_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&a_event_item->hash)));
     json_object_object_add(json_obj_event_i, "ts_create", json_object_new_string(buf));
     json_object_array_add(a_json_out, json_obj_event_i);
 }
@@ -1602,7 +1602,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                     if ((l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) && l_round_item) {
                         json_object_object_add(json_obj_event,a_version == 1 ? "Round info" : "round_info", json_object_new_string(" "));
                         if (l_round_item->round_info.reject_count)
-                            json_object_object_add(json_obj_event,a_version == 1 ? "signs rejects" : "signs_rejects", json_object_new_uint64(l_round_item->round_info.reject_count));
+                            json_object_object_add(json_obj_event,a_version == 1 ? "signs rejects" : "sig_reject_count", json_object_new_uint64(l_round_item->round_info.reject_count));
                         dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
                         json_object_object_add(json_obj_event,"datum_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_round_item->round_info.datum_hash)));
                         json_object_object_add(json_obj_event,"ts_update", json_object_new_string(buf));
@@ -1625,7 +1625,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                     for (uint16_t i=0; i < l_event->header.hash_count; i++){
                         dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs +
                                 i*sizeof (dap_chain_hash_fast_t));
-                        json_object_object_add(json_obj_event,"hash", json_object_new_string(dap_chain_hash_fast_to_str_static(l_hash)));
+                        json_object_object_add(json_obj_event, a_version == 1 ? "hash" : "event_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(l_hash)));
                     }
                     size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
@@ -1644,7 +1644,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                     json_object_object_add(json_obj_event,"data_size", json_object_new_uint64(l_datum->header.data_size));
 
                     // Signatures
-                    json_object_object_add(json_obj_event,a_version == 1 ? "signs count" : "signs_count", json_object_new_uint64(l_event->header.signs_count));
+                    json_object_object_add(json_obj_event,a_version == 1 ? "signs count" : "sig_count", json_object_new_uint64(l_event->header.signs_count));
                     l_offset += l_datum_size;
                     while (l_offset + sizeof (l_event->header) < l_event_size ){
                         dap_sign_t * l_sign =(dap_sign_t *) (l_event->hashes_n_datum_n_signs +l_offset);
@@ -1659,7 +1659,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                             ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                             : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
 
-                        json_object_object_add(json_obj_event,"type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
+                        json_object_object_add(json_obj_event, a_version ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
                         json_object_object_add(json_obj_event,"pkey_hash", json_object_new_string(l_hash_str));
 
                         l_offset += l_sign_size;
@@ -2137,7 +2137,7 @@ static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, d
         const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                 : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
-        json_object_object_add(l_jobj_signature,"type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
+        json_object_object_add(l_jobj_signature, a_version == 1 ? "type" : "pkey_type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
         json_object_object_add(l_jobj_signature,"pkey_hash", json_object_new_string(l_hash_str));
         json_object_array_add(l_jobj_signatures, l_jobj_signature);
         l_offset += l_sign_size;
