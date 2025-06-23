@@ -320,7 +320,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
             json_object_object_add(json_obj_item, "size", json_object_new_uint64(((dap_chain_datum_tx_receipt_t*)item)->size));
             json_object_object_add(json_obj_item, a_version == 1 ? "ext size" : "ext_size", json_object_new_uint64(((dap_chain_datum_tx_receipt_t*)item)->exts_size));
             if (a_version == 1)
-                json_object_object_add(json_obj_item, "INFO", json_object_new_string(""));
+                json_object_object_add(json_obj_item, a_version == 1 ? "INFO" : "info", json_object_new_string(""));
             json_object_object_add(json_obj_item,"units", json_object_new_uint64(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units));
             json_object_object_add(json_obj_item,"uid", json_object_new_uint64(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.srv_uid.uint64));
             json_object_object_add(json_obj_item, a_version == 1 ? "units type" : "units_type", json_object_new_string(dap_chain_srv_unit_enum_to_str(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm)));
@@ -515,7 +515,7 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
         }
         json_object_array_add(json_arr_items, json_obj_item);
     }
-    json_object_object_add(json_obj_out, "ITEMS", json_arr_items);
+    json_object_object_add(json_obj_out, a_version == 1 ? "ITEMS" : "items", json_arr_items);
     return true;
 }
 

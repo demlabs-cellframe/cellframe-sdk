@@ -1009,7 +1009,7 @@ static size_t dap_db_net_history_token_list(json_object* a_json_arr_reply, dap_c
             json_object_array_add(json_arr_obj_tx, json_obj_tx);
         l_token_num_total += l_token_num;
     }
-    json_object_object_add(a_obj_out, "TOKENS", json_arr_obj_tx);
+    json_object_object_add(a_obj_out, a_version == 1 ? "TOKENS" : "tokens", json_arr_obj_tx);
     return l_token_num_total;
 }
 

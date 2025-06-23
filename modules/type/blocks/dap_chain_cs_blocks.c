@@ -2287,25 +2287,25 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
         dap_chain_block_meta_t *l_meta = (dap_chain_block_meta_t *) (l_block->meta_n_datum_n_sign + l_offset);
         switch (l_meta->hdr.type) {
             case DAP_CHAIN_BLOCK_META_GENESIS:
-                json_object_object_add(json_obj_meta, "GENESIS", json_object_new_string("GENESIS"));
+                json_object_object_add(json_obj_meta, a_version == 1 ? "GENESIS" : "genesis", json_object_new_string("GENESIS"));
                 break;
             case DAP_CHAIN_BLOCK_META_PREV:
-                s_cli_meta_hash_print(json_obj_meta, "PREV", l_meta, a_hash_out_type);
+                s_cli_meta_hash_print(json_obj_meta, a_version == 1 ? "PREV" : "prev", l_meta, a_hash_out_type);
                 break;
             case DAP_CHAIN_BLOCK_META_ANCHOR:
-                s_cli_meta_hash_print(json_obj_meta, "ANCHOR", l_meta, a_hash_out_type);
+                s_cli_meta_hash_print(json_obj_meta, a_version == 1 ? "ANCHOR" : "anchor", l_meta, a_hash_out_type);
                 break;
             case DAP_CHAIN_BLOCK_META_LINK:
-                s_cli_meta_hash_print(json_obj_meta, "LINK", l_meta, a_hash_out_type);
+                s_cli_meta_hash_print(json_obj_meta, a_version == 1 ? "LINK" : "link", l_meta, a_hash_out_type);
                 break;
             case DAP_CHAIN_BLOCK_META_NONCE:
-                s_cli_meta_hex_print(json_obj_meta, "NONCE", l_meta);
+                s_cli_meta_hex_print(json_obj_meta, a_version == 1 ? "NONCE" : "nonce", l_meta);
                 break;
             case DAP_CHAIN_BLOCK_META_NONCE2:
-                s_cli_meta_hex_print(json_obj_meta, "NONCE2", l_meta);
+                s_cli_meta_hex_print(json_obj_meta, a_version == 1 ? "NONCE2" : "nonce2", l_meta);
                 break;
             case DAP_CHAIN_BLOCK_META_EVM_DATA:
-                s_cli_meta_hex_print(json_obj_meta, "EVM_DATA", l_meta);
+                s_cli_meta_hex_print(json_obj_meta, a_version == 1 ? "EVM_DATA" : "evm_data", l_meta);
                 break;
             default: {
                 snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);

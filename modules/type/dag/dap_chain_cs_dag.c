@@ -1746,7 +1746,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         else
                             for (size_t i = l_objs_count - l_arr_start; i > l_objs_count - l_arr_end; i--)
                                 s_json_dag_pack_round(json_arr_obj_event, l_objs, i, a_version);
-                        json_object_object_add(json_obj_event_list, "OBJ", json_arr_obj_event);
+                        json_object_object_add(json_obj_event_list, a_version == 1 ? "OBJ" : "obj", json_arr_obj_event);
                         if (l_objs && l_objs_count )
                             dap_global_db_objs_delete(l_objs, l_objs_count);
                         ret = 0;
@@ -1804,7 +1804,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         }
                     }
                     
-                    json_object_object_add(json_obj_event_list, "EVENTS", json_arr_obj_event);
+                    json_object_object_add(json_obj_event_list, a_version == 1 ? "EVENTS" : "events", json_arr_obj_event);
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
 
@@ -1860,7 +1860,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                             }
                         }
                     }
-                    json_object_object_add(json_obj_event_list, "TRESHOLD", json_arr_obj_event);
+                    json_object_object_add(json_obj_event_list, a_version == 1 ? "TRESHOLD" : "threshold", json_arr_obj_event);
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events_treshold);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                     json_object_object_add(json_obj_event_list,a_version == 1 ? "net name" : "net_name", json_object_new_string(l_net->pub.name));

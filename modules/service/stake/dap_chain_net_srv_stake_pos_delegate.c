@@ -3197,15 +3197,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
             }
 
             json_object* json_obj_order = json_object_new_object();
-            json_object_object_add(json_obj_order, "VERSION", json_object_new_string((char*)l_out.header.version));
-            json_object_object_add(json_obj_order, "AUTO_PROC", json_object_new_string((l_out.header.flags & A_PROC)?"true":"false"));
-            json_object_object_add(json_obj_order, "ORDER", json_object_new_string((l_out.header.flags & F_ORDR)?"true":"false"));
-            json_object_object_add(json_obj_order, "AUTO_ONLINE", json_object_new_string((l_out.header.flags & A_ONLN)?"true":"false"));
-            json_object_object_add(json_obj_order, "AUTO_UPDATE", json_object_new_string((l_out.header.flags & A_UPDT)?"true":"false"));
-            json_object_object_add(json_obj_order, "DATA_SIGNED", json_object_new_string((l_out.header.flags & D_SIGN)?"true":"false"));
-            json_object_object_add(json_obj_order, "FOUND_CERT", json_object_new_string((l_out.header.flags & F_CERT)?"true":"false"));
-            json_object_object_add(json_obj_order, "SIGN_CORRECT", json_object_new_string(l_out.header.sign_correct ?  "true":"false"));
-            json_object_object_add(json_obj_order, "SUMMARY", json_object_new_string(l_out.header.overall_correct ? "Validator ready" : "There are unresolved issues"));
+            json_object_object_add(json_obj_order, a_version == 1 ? "VERSION" : "version", json_object_new_string((char*)l_out.header.version));
+            json_object_object_add(json_obj_order, a_version == 1 ? "AUTO_PROC" : "auto_proc", json_object_new_string((l_out.header.flags & A_PROC)?"true":"false"));
+            json_object_object_add(json_obj_order, a_version == 1 ? "ORDER" : "order", json_object_new_string((l_out.header.flags & F_ORDR)?"true":"false"));
+            json_object_object_add(json_obj_order, a_version == 1 ? "AUTO_ONLINE" : "auto_online", json_object_new_string((l_out.header.flags & A_ONLN)?"true":"false"));
+            json_object_object_add(json_obj_order, a_version == 1 ? "AUTO_UPDATE" : "auto_update", json_object_new_string((l_out.header.flags & A_UPDT)?"true":"false"));
+            json_object_object_add(json_obj_order, a_version == 1 ? "DATA_SIGNED" : "data_signed", json_object_new_string((l_out.header.flags & D_SIGN)?"true":"false"));
+            json_object_object_add(json_obj_order, a_version == 1 ? "FOUND_CERT" : "found_cert", json_object_new_string((l_out.header.flags & F_CERT)?"true":"false"));
+            json_object_object_add(json_obj_order, a_version == 1 ? "SIGN_CORRECT" : "sign_correct", json_object_new_string(l_out.header.sign_correct ?  "true":"false"));
+            json_object_object_add(json_obj_order, a_version == 1 ? "SUMMARY" : "summary", json_object_new_string(l_out.header.overall_correct ? "Validator ready" : "There are unresolved issues"));
             json_object_array_add(*a_json_arr_reply, json_obj_order);
         }
         break;
