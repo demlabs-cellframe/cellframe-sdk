@@ -208,6 +208,8 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
     json_object_object_add(a_json_out, a_version == 1 ? "TSD" : "tsd", json_object_new_string(""));
     dap_tsd_t *l_tsd; size_t l_tsd_size;
     dap_tsd_iter(l_tsd, l_tsd_size, a_decree->data_n_signs, a_decree->header.data_size) {
+        if (a_version != 1)
+            json_object_object_add(a_json_out, "tsd_type", json_object_new_string(dap_chain_datum_decree_tsd_type_to_str(l_tsd->type)));
         switch(l_tsd->type) {
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE:
             if (l_tsd->size > sizeof(uint256_t)){
@@ -363,7 +365,8 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             json_object_object_add(a_json_out, "policy_type", json_object_new_string( dap_chain_policy_to_str((dap_chain_policy_t *)(l_tsd->data))));
             break;
         default:
-            json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));
+            if (a_version == 1)
+                json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));
             break;
         }
     }

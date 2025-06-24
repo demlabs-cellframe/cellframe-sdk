@@ -1978,7 +1978,7 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
         json_object_object_add(l_json_obj_out, "line", json_object_new_int(i));
         json_object_object_add(l_json_obj_out, a_version == 1 ? "hash" : "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(a_token_item->auth_pkey_hashes + i)));
         json_object_object_add(l_json_obj_out, "pkey_type", json_object_new_string(dap_pkey_type_to_str(a_token_item->auth_pkeys[i]->header.type)));
-        json_object_object_add(l_json_obj_out, "bytes", json_object_new_int(a_token_item->auth_pkeys[i]->header.size));
+        json_object_object_add(l_json_obj_out, a_version == 1 ? "bytes" : "pkey_size", json_object_new_int(a_token_item->auth_pkeys[i]->header.size));
         json_object_array_add(l_json_arr_pkeys, l_json_obj_out);
     }
     json_object *l_json_arr_tx_recv_allow = json_object_new_array();
