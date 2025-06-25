@@ -2440,9 +2440,9 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
                         json_object_object_add(json_obj_wall, "sign_type", json_object_new_string(l_sign_type_str));
                     json_object_object_add(json_obj_wall, "status", json_object_new_string("successfully created"));
 
-                    dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-                    if (l_net && l_addr)
-                        json_object_object_add(json_obj_wall, "new_address", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                    dap_chain_addr_t *l_addr = NULL;
+                    if (l_net) l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+                    if (l_addr) json_object_object_add(json_obj_wall, "new_address", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
                     DAP_DEL_Z(l_addr);
                     json_object_array_add(json_arr_out, json_obj_wall);
                     dap_chain_wallet_close(l_wallet);
