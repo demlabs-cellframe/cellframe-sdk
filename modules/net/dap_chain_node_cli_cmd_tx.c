@@ -2317,48 +2317,29 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
         printf("Response is empty\n");
         return -1;
     }
-    struct json_object *j_obj_headr, *limit_obj, *l_obj_pagina;
+    struct json_object *j_obj_headr, *limit_obj, *l_arr_pagina, *l_obj_pagina, *offset_obj, *l_arr_orders;
 
     char *l_limit = NULL;
     char *l_offset = NULL;
+    size_t l_print_count = 0;
 
 
     j_obj_headr = json_object_array_get_idx(response->result_json_object, 0);
-    json_object_object_get_ex(j_obj_headr, "pagina", &l_obj_pagina);
-    limit_obj = json_object_array_get_idx(l_obj_pagina, 0);
+    json_object_object_get_ex(j_obj_headr, "pagina", &l_arr_pagina);
+    l_obj_pagina = json_object_array_get_idx(l_arr_pagina, 0);    
+    json_object_object_get_ex(l_obj_pagina, "limit", &limit_obj);
+    json_object_object_get_ex(l_obj_pagina, "offset", &offset_obj);
+    
     l_limit = json_object_get_int64(limit_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(limit_obj)) : dap_strdup_printf("unlimit");
-    if (l_limit) {
-           printf("\tlimit: %s \n", l_limit);
-           DAP_DELETE(l_limit);
-       }
+    l_offset = json_object_get_int64(offset_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(offset_obj)) : NULL;
+    
+    json_object_object_get_ex(j_obj_headr, "orders", &l_arr_orders);
 
-
-
-    printf("type - %d",json_object_get_type(limit_obj));
-    if (json_object_object_get_ex(limit_obj, "pagina", &j_obj_headr))
-        printf("trurej");
-    else
-        printf("FALSE");/*
-    int result_count = json_object_array_length(j_obj_pagina_arr);
-    printf("count - %d",result_count);
-    limit_obj = json_object_array_get_idx(j_obj_pagina_arr, 0);
-    struct json_object *j_obj_pagina_arr = NULL;
-    json_object_object_get_ex(response->result_json_object, "pagina", &j_obj_pagina_arr);
-    struct json_object *limit_obj = json_object_array_get_idx(j_obj_pagina_arr, 0);
-    l_limit = json_object_get_int64(limit_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(limit_obj)) : dap_strdup_printf("unlimit");
-     if (l_limit) {
-            printf("\tlimit: %s \n", l_limit);
-            DAP_DELETE(l_limit);
-        }
-        if (l_offset) {
-            printf("\toffset: %s \n", l_offset);
-            DAP_DELETE(l_offset);
-        }           
-                
+             
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "orders"))
         return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
-        int result_count = json_object_array_length(response->result_json_object);
+        int result_count = json_object_array_length(l_arr_orders);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
@@ -2375,7 +2356,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 
         
         for (int i = 0; i < result_count; i++) {
-            struct json_object *json_obj_result = json_object_array_get_idx(response->result_json_object, i);
+            struct json_object *json_obj_result = json_object_array_get_idx(l_arr_orders, i);
 
             json_object *j_obj_status, *j_obj_hash, *j_obj_create, *j_obj_prop_coin, *j_obj_lim,
              *j_obj_amount_coin, *j_obj_filed_perc, *j_obj_token_buy, *j_obj_token_sell, *j_obj_rate, *j_obj_off;
@@ -2395,25 +2376,11 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
                         json_object_get_string(j_obj_prop_coin), json_object_get_string(j_obj_amount_coin),json_object_get_uint64(j_obj_filed_perc),
                         json_object_get_string(j_obj_token_buy), json_object_get_string(j_obj_token_sell),json_object_get_string(j_obj_rate)
                     );
+                    l_print_count++;
                 } else {
                     printf("Missing required fields in array element at index %d\n", i);
                 }
-            } //else if (json_object_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
-                //json_object_object_get_ex(json_obj_result, "offset", &j_obj_off);
-                //l_limit = json_object_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
-                //if (j_obj_off)
-                  //  l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_off));
-                //continue;
-             else {
-                json_object  *j_obj_hash;
-                //json_print_object(json_obj_result, 0);
-                //struct json_object *json_obj_result2 = json_object_array_get_idx(json_obj_result, 0);
-                json_object_object_get_ex(json_obj_result, "ORDERS", &j_obj_hash);
-                struct json_object *json_obj_result3 = json_object_array_get_idx(j_obj_hash, 0);
-                json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_create);
-                l_limit = json_object_get_int64(json_obj_result3) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(json_obj_result3)) : dap_strdup_printf("unlimit");
-            }
-            
+            }             
         }
         printf("_______________________________________________________________________|_________________________________|________|______________________|"
             "______________________|_____|____________|____________|______________________|\n\n");
@@ -2425,10 +2392,11 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
             printf("\toffset: %s \n", l_offset);
             DAP_DELETE(l_offset);
         }
+        printf("\torders printed: %d\n", l_print_count);
     } else {
         //json_print_object(response->result_json_object, 0);
         return -4;
     }
-    return 0;*/
+    return 0;
 
 }

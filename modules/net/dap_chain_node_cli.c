@@ -426,8 +426,6 @@ int dap_chain_node_cli_parser_init(void) {
     dap_cli_server_cmd_add("srv_stake", NULL, json_print_for_srv_stake_list_keys, "---","---");
     dap_cli_server_cmd_add("dag", NULL, json_print_for_dag_list, "---","---");
     dap_cli_server_cmd_add("srv_xchange", NULL, json_print_for_srv_xchange_list, "---","---");
-
-
     return 0;
 }
 
