@@ -404,12 +404,13 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
 
     while (l_datum || l_cur_tx_cache){
 
-        if (i_tmp >= l_arr_end)
-            break;
-
         if (l_datum && l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
             // go to next datum
-            goto next_step;        
+            goto next_step;    
+        if (i_tmp >= l_arr_end) {
+            ++i_tmp;
+            goto next_step;
+        }
         // it's a transaction     
         l_tx = l_from_cache ? l_cur_tx_cache : (dap_chain_datum_tx_t *)l_datum->data;
 
@@ -779,9 +780,10 @@ next_step:
     }    
     json_object_object_add(json_obj_summary, "network", json_object_new_string(l_net->pub.name));
     json_object_object_add(json_obj_summary, "chain", json_object_new_string(a_chain->name));
-    json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(l_count));
-    json_object_object_add(json_obj_summary, "accepted_tx", json_object_new_int(l_tx_ledger_accepted));
-    json_object_object_add(json_obj_summary, "rejected_tx", json_object_new_int(l_tx_ledger_rejected));    
+    json_object_object_add(json_obj_summary, a_version == 1 ? "accepted_tx" : "tx_accept_count", json_object_new_int(l_tx_ledger_accepted));
+    json_object_object_add(json_obj_summary, a_version == 1 ? "rejected_tx" : "tx_reject_count", json_object_new_int(l_tx_ledger_rejected));
+    json_object_object_add(json_obj_summary, a_version == 1 ? "tx_sum" : "tx_count", json_object_new_int(l_count));   
+    json_object_object_add(json_obj_summary, "total_tx_count", json_object_new_int(i_tmp));
     return json_obj_datum;
 }
 
