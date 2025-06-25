@@ -996,6 +996,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
 {
     dap_chain_datum_tx_t									*l_burning_tx       = NULL;
     dap_chain_datum_tx_receipt_t							*l_receipt          = NULL;
+    dap_chain_datum_tx_receipt_old_t						*l_receipt_old          = NULL;
     uint256_t												l_value_delegated   = {};
     dap_hash_fast_t											l_burning_tx_hash;
     dap_chain_tx_in_cond_t									*l_tx_in_cond;
@@ -1034,14 +1035,22 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
             return -6;
         size_t l_receipt_size = 0;
         l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, &l_receipt_size);
-        if (l_receipt) {
-            if (dap_chain_datum_tx_receipt_check_size(l_receipt, l_receipt_size))
+        if (!l_receipt) l_receipt_old = (dap_chain_datum_tx_receipt_old_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
+        if (l_receipt || l_receipt_old) {
+            // Checking politics
+            if (dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
+                (!l_receipt || l_receipt->receipt_info.version < 2)){
+                log_it(L_ERROR, "Receipt version must be >= 2.");
+                return -17;
+            }
+
+            if (dap_chain_datum_tx_receipt_check_size(l_receipt ? l_receipt : (dap_chain_datum_tx_receipt_t*)l_receipt_old, l_receipt_size))
                 return -13;
-            if (!dap_chain_net_srv_uid_compare_scalar(l_receipt->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
+            if (!dap_chain_net_srv_uid_compare_scalar((l_receipt ? l_receipt->receipt_info.srv_uid : l_receipt_old->receipt_info.srv_uid), DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
                 return -7;
-            if (l_receipt->exts_size < sizeof(dap_hash_fast_t))
+            if ((l_receipt ? l_receipt->exts_size : l_receipt_old->exts_size) < sizeof(dap_hash_fast_t))
                 return -8;
-            l_burning_tx_hash = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
+            l_burning_tx_hash = *(dap_hash_fast_t*)(l_receipt ? l_receipt->exts_n_signs : l_receipt_old->exts_n_signs);
             if (dap_hash_fast_is_blank(&l_burning_tx_hash))
                 return -9;
             l_burning_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_burning_tx_hash);

@@ -58,6 +58,8 @@ typedef byte_t dap_chain_tx_out_cond_subtype_t;
 #define DAP_CHAIN_TX_OUT_COND_TSD_HASH                      0xf002
 // Custom str
 #define DAP_CHAIN_TX_OUT_COND_TSD_STR                       0xf003
+// Custom str
+#define DAP_CHAIN_TX_OUT_COND_TSD_PKEY                      0xf004
 
 /**
  * @struct dap_chain_tx_out

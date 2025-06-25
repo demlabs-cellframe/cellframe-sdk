@@ -107,7 +107,6 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(con
 
 size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size) {
     dap_return_val_if_fail(a_item, 0);
-    size_t l_ret = 0;
 #define m_tx_item_size(t) ( !a_max_size || sizeof(t) <= a_max_size ? sizeof(t) : 0 )
 #define m_tx_item_size_ext(t, size_field)                                                                                       \
     ( !a_max_size ||                                                                                                            \
@@ -131,9 +130,17 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_PKEY:         return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.sig_size);
     case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
     // Receipt size calculation is non-trivial...
-    case TX_ITEM_TYPE_RECEIPT: {
-        typedef dap_chain_datum_tx_receipt_t t;
-        return !a_max_size || ( sizeof(t) < a_max_size && ((t*)a_item)->size < a_max_size ) ? ((t*)a_item)->size : 0;
+    case TX_ITEM_TYPE_RECEIPT_OLD:{
+        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
+            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_old_t) < a_max_size && 
+                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size < a_max_size ) ? 
+                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size : 0;
+    }
+    case TX_ITEM_TYPE_RECEIPT:{
+        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version == 2) 
+            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_t) < a_max_size && 
+                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size < a_max_size ) ? 
+                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size : 0;
     }
     default: return 0;
     }
@@ -356,8 +363,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     if (IS_ZERO_256(a_value))
         return NULL;
     bool l_tsd_sovereign_addr = a_sovereign_addr && !dap_chain_addr_is_blank(a_sovereign_addr);
-    // size_t l_pkey_size = dap_pkey_get_size(a_pkey); commited only for release 5.3 and less
-    size_t l_pkey_size = 0;
+    size_t l_pkey_size = a_pkey ? dap_pkey_get_size(a_pkey) : 0;
     size_t l_tsd_total_size =  dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(l_tsd_sovereign_addr, l_pkey_size);
     
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + l_tsd_total_size, NULL);
@@ -375,7 +381,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
             l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_VALUE, &a_sovereign_tax, sizeof(a_sovereign_tax));
         }
         if (l_pkey_size) {
-            dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, a_pkey, l_pkey_size);
+            dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_PKEY, a_pkey, l_pkey_size);
             l_item->subtype.srv_stake_pos_delegate.flags = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_item->subtype.srv_stake_pos_delegate.flags);
         }
     }
@@ -753,6 +759,7 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
         case TX_ITEM_TYPE_SIG:
             DAP_LIST_SAPPEND(a_res_group->items_sig, l_item);
             break;
+        case TX_ITEM_TYPE_RECEIPT_OLD:
         case TX_ITEM_TYPE_RECEIPT:
             DAP_LIST_SAPPEND(a_res_group->items_receipt, l_item);
             break;
@@ -772,7 +779,6 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
         }
     }
     return true;
-
 }
 
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type)
