@@ -556,6 +556,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
             l_request->time_connect_ms = l_dtime_connect_ms;
             l_request->send_time1 = dap_nanotime_now();
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
+            log_it(L_DEBUG, "Sending CHECK_REQUEST to server %s:%d, service ID 0x%016"DAP_UINT64_FORMAT_X, a_host, a_port, l_request->srv_uid.uint64);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST, l_request, l_request_size);
             dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
         }
@@ -566,6 +567,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
     // timeout not less then 5 sec
     if(a_timeout_test_ms<5000)
         a_timeout_test_ms = 5000;
+    log_it(L_DEBUG, "Waiting for CHECK_RESPONSE with timeout %d ms", a_timeout_test_ms);
     l_res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_CHECKED, a_timeout_test_ms);
     log_it(L_INFO, "%s response from VPN server %s : %d", l_res ? "No" : "Got", a_host, a_port);
     // clean client struct

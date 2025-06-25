@@ -208,6 +208,7 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
     switch (a_pkt_type) {
     // get new generated current node address
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
+            log_it(L_DEBUG, "Received CHECK_RESPONSE from server");
             dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_test_t *) a_pkt->data;
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
             if(a_pkt->hdr.data_size != l_request_size) {
@@ -217,6 +218,7 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
             //s_save_stat_to_database(l_request, l_node_client);
             pthread_mutex_lock(&l_node_client->wait_mutex);
             l_node_client->state = NODE_CLIENT_STATE_CHECKED;
+            log_it(L_DEBUG, "Setting client state to CHECKED and signaling wait_cond");
             pthread_cond_signal(&l_node_client->wait_cond);
             pthread_mutex_unlock(&l_node_client->wait_mutex);
             break;
@@ -405,7 +407,11 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     while (a_client->state != a_waited_state) {
         // prepare for signal waiting
         struct timespec l_cond_timeout;
-        clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);  // Используем CLOCK_MONOTONIC
+#ifdef DAP_OS_DARWIN
+        clock_gettime(CLOCK_REALTIME, &l_cond_timeout);  // На macOS используем CLOCK_REALTIME
+#else
+        clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);  // На других платформах CLOCK_MONOTONIC
+#endif
         l_cond_timeout.tv_sec += a_timeout_ms / 1000;
         l_cond_timeout.tv_nsec += (a_timeout_ms % 1000) * 1000000;
         if (l_cond_timeout.tv_nsec >= 1000000000) {

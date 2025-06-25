@@ -773,12 +773,16 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             return false;
         }
         pkt_test_t *l_request = (pkt_test_t*)l_ch_pkt->data;
+        log_it(L_DEBUG, "Received CHECK_REQUEST for service ID 0x%016"DAP_UINT64_FORMAT_X, l_request->srv_uid.uint64);
+        
         if (dap_chain_net_srv_get(l_request->srv_uid) == NULL){
             log_it(L_WARNING, "Can't find service with id %"DAP_UINT64_FORMAT_U, l_request->srv_uid.uint64);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;
         }
+        
+        log_it(L_DEBUG, "Service found, processing CHECK_REQUEST");
 
         if (l_request->data_size_recv > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX || l_request->data_size > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX) {
             log_it(L_WARNING, "Too large payload %"DAP_UINT64_FORMAT_U" [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
