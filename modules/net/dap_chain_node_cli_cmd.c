@@ -8471,7 +8471,7 @@ int com_exec_cmd(int argc, char **argv, void **reply) {
 
     //send request
     json_object * l_response = NULL;
-    dap_json_rpc_request_send(l_client_internal, l_request, &l_response, NULL);
+    dap_json_rpc_request_send(l_client_internal, l_request, &l_response);
 
     if (l_response) {
         json_object_array_add(*a_json_arr_reply, l_response);
