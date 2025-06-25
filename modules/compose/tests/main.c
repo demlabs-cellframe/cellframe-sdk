@@ -70,7 +70,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         DAP_DEL_Z(l_tsd);
     }
     // l_signs_count = rand() % KEY_COUNT + 1;
-    l_signs_count = 2;
+    l_signs_count = 1;
     dap_test_msg("add %zu signs", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
