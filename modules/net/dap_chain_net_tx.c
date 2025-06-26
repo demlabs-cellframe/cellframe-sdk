@@ -1567,7 +1567,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             continue;
         }
         const char *l_item_type_str = json_object_get_string(l_json_item_type);
-        l_signed |= TX_ITEM_TYPE_SIG == dap_chain_datum_tx_item_str_to_type(l_item_type_str);
+        //l_signed |= TX_ITEM_TYPE_SIG == dap_chain_datum_tx_item_str_to_type(l_item_type_str);
     }
 
     if(a_net){ // if composition is not offline

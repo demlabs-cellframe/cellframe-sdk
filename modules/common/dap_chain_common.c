@@ -286,4 +286,20 @@ void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_sta
         json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
     json_object_array_add(a_json_obj_out, json_obj_lim);
 }
+/*
+int dap_chain_iteration_check (size_t a_arr_start, size_t a_arr_end, size_t *a_limit, bool a_last)
+{
+
+
+    if (a_limit < l_arr_start) {
+        i_tmp++;
+        continue;
+    }
+
+    if (i_tmp >= l_arr_end) {
+        break;
+    }
+
+    a_last ? a_limit++ : a_limit--;
+}*/
 
