@@ -523,23 +523,6 @@ bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a
     return true;
 }
 
-static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_xchange_price_t *a_price, uint256_t a_datoshi_buy)
-{
-    byte_t l_ext[sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX];
-    uint32_t l_ext_size = sizeof(l_ext);
-    memcpy( dap_mempcpy(l_ext, &a_datoshi_buy, sizeof(uint256_t)), a_price->token_buy, strlen(a_price->token_buy) );
-    dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
-    uint256_t l_datoshi_sell = {};
-    if (!IS_ZERO_256(a_price->rate)){
-        DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
-        dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, l_datoshi_sell,
-                                                                                 l_ext, l_ext_size);
-        return l_receipt;
-    }
-    return NULL;
-}
-
 static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet)
 {
     if (!a_price || !a_price->net || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
