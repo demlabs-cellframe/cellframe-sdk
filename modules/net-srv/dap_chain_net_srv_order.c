@@ -587,7 +587,7 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
 
 
 void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, json_object *a_json_obj_out,
-                                            const char *a_hash_out_type, const char *a_native_ticker)
+                                            const char *a_hash_out_type, const char *a_native_ticker, int a_version)
 {
     if (a_order && a_json_obj_out ){
         dap_chain_hash_fast_t l_hash;
@@ -615,16 +615,17 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         
         const char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
         json_object_object_add(a_json_obj_out, "created", json_object_new_string(buf_time));
-        json_object_object_add(a_json_obj_out, "price_coins", json_object_new_string(l_balance_coins));
-        json_object_object_add(a_json_obj_out, "price_datoshi", json_object_new_string(l_balance));
-        json_object_object_add(a_json_obj_out, "price_token", (*a_order->price_ticker) ?
+
+        json_object_object_add(a_json_obj_out, a_version == 1 ? "price coins" : "price_coins", json_object_new_string(l_balance_coins));
+        json_object_object_add(a_json_obj_out, a_version == 1 ? "price datoshi" : "price_datoshi", json_object_new_string(l_balance));
+        json_object_object_add(a_json_obj_out, a_version == 1 ? "price token" : "price_token", (*a_order->price_ticker) ?
                                                               json_object_new_string(a_order->price_ticker) :
                                                               json_object_new_string(a_native_ticker));
                                                               
         json_object_object_add(a_json_obj_out, "units", json_object_new_string(dap_utoa(a_order->units)));
 
-        if( a_order->price_unit.uint32)
-            json_object_object_add(a_json_obj_out, "price_unit", json_object_new_string(dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit)));
+        if ( a_order->price_unit.uint32 )
+            json_object_object_add(a_json_obj_out, a_version == 1 ? "price unit" : "price_unit", json_object_new_string(dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit)));
         if ( a_order->node_addr.uint64) {
             char *node_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_order->node_addr));
             json_object_object_add(a_json_obj_out, "node_addr", json_object_new_string(node_addr));

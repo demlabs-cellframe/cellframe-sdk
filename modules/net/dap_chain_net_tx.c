@@ -740,7 +740,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         }   
         struct json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
         if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
-            log_it(L_WARNING, "Item %zu without type", i);
+            log_it(L_WARNING, "Item %du without type", i);
             continue;
         }
         const char *l_item_type_str = json_object_get_string(l_json_item_type);
