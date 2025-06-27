@@ -138,6 +138,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
  */
 int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
 
+int dap_chain_tx_items_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_items_array);
+
 #ifdef __cplusplus
 }
 #endif
