@@ -54,6 +54,24 @@
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
+static bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
+                                   dap_chain_datum_tx_t *a_datum,
+                                   dap_ledger_t *a_ledger,
+                                   json_object * json_obj_out,
+                                   const char *a_hash_out_type,
+                                   dap_chain_hash_fast_t *a_tx_hash);
+
+static json_object *s_tx_history_to_json(json_object* a_json_arr_reply,
+                                  dap_chain_hash_fast_t* a_tx_hash,
+                                  dap_hash_fast_t * l_atom_hash,
+                                  dap_chain_datum_tx_t * l_tx,
+                                  dap_chain_t * a_chain, 
+                                  const char *a_hash_out_type, 
+                                  dap_chain_datum_iter_t *a_datum_iter,
+                                  int l_ret_code,
+                                  bool out_brief);
+
+
 /**
  * @brief s_chain_tx_hash_processed_ht_free
  * free l_current_hash->hash, l_current_hash, l_hash_processed
@@ -82,7 +100,7 @@ void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_
  * @param l_tx_num
  */
 
-bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
+static bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
                                           dap_chain_datum_tx_t *a_datum,
                                           dap_ledger_t *a_ledger,
                                           json_object * json_obj_out,
@@ -155,18 +173,16 @@ bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
     return true;
 }
 
-json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
-                                        dap_chain_hash_fast_t* a_tx_hash,
-                                        dap_hash_fast_t * l_atom_hash,
-                                        dap_chain_datum_tx_t * l_tx,
-                                        dap_chain_t * a_chain, 
-                                        const char *a_hash_out_type, 
-                                        dap_chain_datum_iter_t *a_datum_iter,
-                                        int l_ret_code,
-                                        bool *accepted_tx,
-                                        bool brief_out)
+static json_object *s_tx_history_to_json(json_object* a_json_arr_reply,
+                                         dap_chain_hash_fast_t* a_tx_hash,
+                                         dap_hash_fast_t * l_atom_hash,
+                                         dap_chain_datum_tx_t * l_tx,
+                                         dap_chain_t * a_chain, 
+                                         const char *a_hash_out_type, 
+                                         dap_chain_datum_iter_t *a_datum_iter,
+                                         int l_ret_code,
+                                         bool brief_out)
 {
-    const char *l_tx_token_ticker = NULL;
     const char *l_tx_token_description = NULL;
     json_object* json_obj_datum = json_object_new_object();
     if (!json_obj_datum) {
@@ -174,15 +190,13 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
     }
 
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
-    l_tx_token_ticker = a_datum_iter ? a_datum_iter->token_ticker
-                                     : dap_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
-    if (l_tx_token_ticker) {
+    const char *l_tx_token_ticker = a_datum_iter ?
+                      a_datum_iter->token_ticker : dap_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
+    if (!l_ret_code) {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("ACCEPTED"));
         l_tx_token_description = dap_ledger_get_description_by_ticker(l_ledger, l_tx_token_ticker);
-        *accepted_tx = true;
     } else {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("DECLINED"));
-        *accepted_tx = false;
     }
 
     if (l_atom_hash) {
@@ -205,6 +219,7 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
                         : dap_chain_hash_fast_to_str_static(a_tx_hash);
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_hash_str));
     
+    json_object_object_add(json_obj_datum, "token_ticker", json_object_new_string(l_tx_token_ticker ? l_tx_token_ticker : "UNKNOWN"));
     if (l_tx_token_description) 
         json_object_object_add(json_obj_datum, "token_description", json_object_new_string(l_tx_token_description));
 
@@ -251,7 +266,6 @@ json_object * dap_db_history_tx(json_object* a_json_arr_reply,
     }
 
     int l_ret_code = 0;
-    bool accepted_tx;
     dap_hash_fast_t l_atom_hash = {0};
     //search tx
     dap_chain_datum_t *l_datum = a_chain->callback_datum_find_by_hash(a_chain, a_tx_hash, &l_atom_hash, &l_ret_code);
@@ -259,7 +273,7 @@ json_object * dap_db_history_tx(json_object* a_json_arr_reply,
                                  (dap_chain_datum_tx_t *)l_datum->data : NULL;
 
     if (l_tx) {
-        return dap_db_tx_history_to_json(a_json_arr_reply, a_tx_hash, &l_atom_hash,l_tx, a_chain, a_hash_out_type, NULL, l_ret_code, &accepted_tx, false);
+        return s_tx_history_to_json(a_json_arr_reply, a_tx_hash, &l_atom_hash, l_tx, a_chain, a_hash_out_type, NULL, l_ret_code, false);
     } else {
         const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
@@ -842,13 +856,12 @@ static int s_json_tx_history_pack(json_object* a_json_arr_reply, json_object** a
         }
     }
 
-    bool accepted_tx;
-    *a_json_obj_datum = dap_db_tx_history_to_json(a_json_arr_reply, &l_ttx_hash, NULL, l_tx, a_chain, a_hash_out_type, a_datum_iter, 0, &accepted_tx, a_out_brief);
+    *a_json_obj_datum = s_tx_history_to_json(a_json_arr_reply, &l_ttx_hash, NULL, l_tx, a_chain, a_hash_out_type, a_datum_iter, a_datum_iter->ret_code, a_out_brief);
     if (!*a_json_obj_datum) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return 2;
     }
-    if (accepted_tx) {
+    if (a_datum_iter->ret_code == 0) {
         ++*a_accepted;
     } else {
         ++*a_rejected;
