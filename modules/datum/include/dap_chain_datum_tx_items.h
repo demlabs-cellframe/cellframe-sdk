@@ -247,6 +247,9 @@ dap_chain_tx_sig_t *dap_chain_tx_sig_create(const dap_sign_t *a_sign);
 
 dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx);
 
+
+dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create_from_sign(const dap_sign_t *a_sign);
+
 /**
  * Get sign from sign item
  *

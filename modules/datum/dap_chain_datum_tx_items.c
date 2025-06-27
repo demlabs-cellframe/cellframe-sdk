@@ -482,6 +482,19 @@ dap_chain_tx_sig_t *dap_chain_tx_sig_create(const dap_sign_t *a_sign)
     return l_tx_sig;
 }
 
+dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create_from_sign(const dap_sign_t *a_sign)
+{
+    dap_return_val_if_fail(a_sign, NULL);
+    size_t l_chain_sign_size = dap_sign_get_size((dap_sign_t *)a_sign); // sign data
+    dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_sig_t,
+                                                                  sizeof(dap_chain_tx_sig_t) + l_chain_sign_size, NULL);
+    l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
+    l_tx_sig->header.version = 1;
+    l_tx_sig->header.sig_size = (uint32_t)l_chain_sign_size;
+    memcpy(l_tx_sig->sig, a_sign, l_chain_sign_size);
+    return l_tx_sig;
+}
+
 dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx)
 {
     dap_return_val_if_fail(a_key && a_tx, NULL);
@@ -504,19 +517,12 @@ dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain
 dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx)
 {
     dap_return_val_if_fail(a_key && a_tx, NULL);
-    size_t l_tx_size = a_tx->header.tx_items_size + sizeof(dap_chain_datum_tx_t);
-    dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE_RET_VAL_IF_FAIL((dap_chain_datum_tx_t *)a_tx, l_tx_size, NULL);
-
-    l_tx->header.tx_items_size = 0;
-    dap_sign_t *l_chain_sign = dap_sign_create(a_key, l_tx, l_tx_size);
-    DAP_DELETE(l_tx);
+    dap_sign_t *l_chain_sign = dap_chain_datum_tx_sign_create(a_key, a_tx);
     if (!l_chain_sign)
         return NULL;
-    dap_chain_tx_sig_t *l_tx_sig = dap_chain_tx_sig_create(l_chain_sign);
-    if (!l_tx_sig)
-        return NULL;
+    dap_chain_tx_sig_t *ret = dap_chain_datum_tx_item_sign_create_from_sign(l_chain_sign);
     DAP_DELETE(l_chain_sign);
-    return l_tx_sig;
+    return ret;
 }
 
 /**

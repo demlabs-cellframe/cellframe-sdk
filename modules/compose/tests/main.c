@@ -69,8 +69,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
         DAP_DEL_Z(l_tsd);
     }
-    // l_signs_count = rand() % KEY_COUNT + 1;
-    l_signs_count = 1;
+    l_signs_count = rand() % KEY_COUNT + 1;
     dap_test_msg("add %zu signs", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
@@ -293,7 +292,7 @@ void s_chain_datum_xchange_invalidate_test(const char *a_token_sell, const char 
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
-    
+
     // Generate keys first before any tests
     for (size_t i = 0; i < KEY_COUNT; ++i)
         s_key[i] = dap_enc_key_new_generate(s_key_types[rand() % s_sign_type_count], NULL, 0, NULL, 0, 0);
