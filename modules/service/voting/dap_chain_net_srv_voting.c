@@ -932,31 +932,48 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                                json_object_new_boolean(l_voting->params->vote_changing_allowed));
         json_object_object_add(json_vote_out, "delegated_key_required",
                                json_object_new_boolean(l_voting->params->delegate_key_required));
-        json_object* json_arr_vote_out = json_object_new_array();
         
+        json_object *json_arr_options_out = json_object_new_array();
         for (dap_list_t *l_option = l_voting->params->options; l_option; l_option = l_option->next, ++i) {
-            json_object* json_vote_obj = json_object_new_object();
-            json_object_object_add(json_vote_obj, "option_id", json_object_new_int(i));
-            json_object_object_add( json_vote_obj, "option_text", json_object_new_string(l_option->data) );
-            json_object_object_add(json_vote_obj, "votes_count", json_object_new_uint64( l_results[i].num_of_votes) );
+            json_object *json_option_obj = json_object_new_object();
+            json_object_object_add(json_option_obj, "option_id", json_object_new_int(i));
+            json_object_object_add( json_option_obj, "option_text", json_object_new_string(l_option->data) );
+            json_object_object_add(json_option_obj, "votes_count", json_object_new_uint64( l_results[i].num_of_votes) );
             int l_percentage = l_votes_count ? ((double)(l_results[i].num_of_votes * 100))/l_votes_count + 0.5 : 0;
-            json_object_object_add(json_vote_obj, "votes_percent", json_object_new_int(l_percentage) );
+            json_object_object_add(json_option_obj, "votes_percent", json_object_new_int(l_percentage) );
             uint256_t l_weight_percentage = { };
 
             DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
             MULT_256_COIN(l_weight_percentage, dap_chain_balance_coins_scan("100.0"), &l_weight_percentage);
             const char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true),
                        *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
-            json_object_object_add(json_vote_obj, "votes_sum", json_object_new_string(l_w_coins));
-            json_object_object_add(json_vote_obj, "votes_sum_datoshi", json_object_new_string(l_w_datoshi));
-            json_object_object_add(json_vote_obj, "votes_sum_weight", json_object_new_string(l_weight_percentage_str));
-            json_object_array_add(json_arr_vote_out, json_vote_obj);
+            json_object_object_add(json_option_obj, "votes_sum", json_object_new_string(l_w_coins));
+            json_object_object_add(json_option_obj, "votes_sum_datoshi", json_object_new_string(l_w_datoshi));
+            json_object_object_add(json_option_obj, "votes_sum_weight", json_object_new_string(l_weight_percentage_str));
+            json_object_array_add(json_arr_options_out, json_option_obj);
         }
-        json_object_object_add(json_vote_out, "results", json_arr_vote_out);
+        json_object_object_add(json_vote_out, "results", json_arr_options_out);
         json_object_object_add(json_vote_out, "votes_count", json_object_new_uint64(l_votes_count));
         const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
         json_object_object_add(json_vote_out, "total_sum", json_object_new_string(l_tw_coins));
         json_object_object_add(json_vote_out, "total_sum_datoshi", json_object_new_string(l_tw_datoshi));
+
+        // Votes
+        i = 0;
+        json_object *json_arr_votes_out = json_object_new_array();
+        for (dap_list_t *l_vote_item = l_voting->votes; l_vote_item; l_vote_item = l_vote_item->next) {
+            json_object *json_vote_obj = json_object_new_object();
+            json_object_object_add(json_vote_obj, "vote_id", json_object_new_int(i++));
+            const char *l_vote_hash_str = dap_hash_fast_to_str_static(&((struct vote *)l_vote_item->data)->vote_hash);
+            json_object_object_add(json_vote_obj, "vote_hash", json_object_new_string(l_vote_hash_str));
+            const char *l_pkey_hash_str = dap_hash_fast_to_str_static(&((struct vote *)l_vote_item->data)->pkey_hash);
+            json_object_object_add(json_vote_obj, "pkey_hash", json_object_new_string(l_pkey_hash_str));
+            json_object_object_add(json_vote_obj, "answer_idx", json_object_new_int(((struct vote *)l_vote_item->data)->answer_idx));
+            const char *l_weight_str; dap_uint256_to_char(((struct vote *)l_vote_item->data)->weight, &l_weight_str);
+            json_object_object_add(json_vote_obj, "weight", json_object_new_string(l_weight_str));
+            json_object_array_add(json_arr_votes_out, json_vote_obj);
+        }
+        json_object_object_add(json_vote_out, "votes", json_arr_votes_out);
         json_object_array_add(*json_arr_reply, json_vote_out);
     } break;
     default:
