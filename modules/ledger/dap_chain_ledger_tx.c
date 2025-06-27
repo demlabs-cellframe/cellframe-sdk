@@ -1607,7 +1607,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             if (l_verificator && l_verificator->callback_in_add)
                 l_verificator->callback_in_add(a_ledger, a_tx, &l_tx_hash, l_bound_item->cond);
             l_cur_token_ticker = l_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE ?
-                                                        l_main_token_ticker : a_ledger->net->pub.native_ticker;
+                                           a_ledger->net->pub.native_ticker : l_main_token_ticker;
         } break;
 
         default:
@@ -1726,7 +1726,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                 l_verificator->callback_out_add(a_ledger, a_tx, &l_tx_hash, l_cond);
             l_value = l_cond->header.value;
             l_cur_token_ticker = l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE ?
-                                                                         l_main_token_ticker : a_ledger->net->pub.native_ticker;
+                                                            a_ledger->net->pub.native_ticker : l_main_token_ticker;
             l_balance_update = false;
         } break;
         default:
@@ -2517,7 +2517,6 @@ void dap_ledger_colour_clear_callback(void *a_list_data)
 
 void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
 {
-    return; // UNDO it after debug
     dap_return_if_fail(a_ledger && a_tx_hash);
     // Check if hash is valid
     if (dap_hash_fast_is_blank(a_tx_hash)) {
