@@ -193,7 +193,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\n"
                             "==Params==\n"
                             "General:\n"
-                            "\t -total_supply_change <value>:\t\t Sets the maximum amount of token supply. Specify “INF” to set unlimited total supply.\n"
+                            "\t -total_supply_change <value>:\t\t Sets the maximum amount of token supply. Specify 'INF' to set unlimited total supply.\n"
                             "\t -certs <name_certs>:\t\t\t Here use the very certificates which were used to sign the token being updated.\n"
                             "Additional:\n"
                             "\t -description <token_description>:\t Shows updated description for this token.\n"
@@ -344,7 +344,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list coins -net <net_name> [-limit] [-offset]\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
-            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n");
+            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
+            "ledger trace -net <net_name> -from <hash1> -to <hash2> [-H {hex|base58}]\n"
+            "\t Build transaction chain from hash2 to hash1 using backward traversal\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info", dap_chain_node_cli_cmd_id_from_str("token"),

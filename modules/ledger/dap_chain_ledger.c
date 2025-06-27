@@ -1336,8 +1336,6 @@ bool dap_ledger_check_condition_owner(dap_ledger_t *a_ledger, dap_hash_fast_t *a
     return dap_sign_compare_pkeys(a_owner_sign, l_sign);
 }
 
-
-
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger)
 {
     return is_ledger_cached(PVT(a_ledger));

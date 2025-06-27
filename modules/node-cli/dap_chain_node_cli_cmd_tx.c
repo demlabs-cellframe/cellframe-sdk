@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <pthread.h>
+#include "dap_chain_datum_tx.h"
 #include "uthash.h"
 #include "dap_cli_server.h"
 #include "dap_common.h"
@@ -1036,6 +1037,184 @@ static size_t dap_db_net_history_token_list(json_object* a_json_arr_reply, dap_c
     return l_token_num_total;
 }
 
+/**
+ * @brief Recursively search for transaction chain path (simplified version)
+ * @param a_ledger Ledger instance
+ * @param a_current_hash Current transaction hash
+ * @param a_target_hash Target hash to find
+ * @param a_path_depth Current recursion depth
+ * @param a_max_depth Maximum recursion depth
+ * @param a_visited_hashes Set of visited hashes to prevent cycles
+ * @param a_visited_count Number of visited hashes
+ * @param a_json_chain JSON array to store the path
+ * @param a_hash_out_type Output hash format
+ * @return true if target found in this branch
+ */
+static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger, 
+                                    dap_chain_hash_fast_t *a_current_hash,
+                                    dap_chain_hash_fast_t *a_target_hash,
+                                    size_t a_path_depth,
+                                    size_t a_max_depth,
+                                    json_object *a_json_chain,
+                                    const char *a_hash_out_type)
+{
+    static size_t l_target_depth = 0;
+    // Check depth limit
+    if (a_path_depth >= a_max_depth) {
+        return false;
+    }
+
+    // Check if we found the target
+    if (dap_hash_fast_compare(a_current_hash, a_target_hash)) {
+        // Found target! Add it to chain
+        json_object *l_json_tx = json_object_new_object();
+        
+        if (dap_strcmp(a_hash_out_type, "base58") == 0) {
+            const char *l_hash_base58 = dap_enc_base58_encode_hash_to_str_static(a_current_hash);
+            json_object_object_add(l_json_tx, "hash", json_object_new_string(l_hash_base58 ? l_hash_base58 : ""));
+        } else {
+            const char *l_hash_hex = dap_chain_hash_fast_to_str_static(a_current_hash);
+            json_object_object_add(l_json_tx, "hash", json_object_new_string(l_hash_hex));
+        }
+        // Add previous output index information
+        json_object_object_add(l_json_tx, "prev_out_idx", json_object_new_string("unavailable"));
+        l_target_depth = a_path_depth;
+        json_object_object_add(l_json_tx, "position", json_object_new_int(1));
+        json_object_object_add(l_json_tx, "type", json_object_new_string("start"));
+               
+        json_object_array_add(a_json_chain, l_json_tx);
+        
+        return true;
+    }
+        
+    // Get current transaction
+    dap_chain_datum_tx_t *l_current_tx = dap_ledger_tx_find_by_hash(a_ledger, a_current_hash);
+    if (!l_current_tx) {
+        return false;
+    }
+           
+    // Try each input until we find a path to target
+    byte_t *l_item = NULL;
+    size_t l_item_size = 0;
+    int l_item_index = 0;
+    TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_IN_ALL, l_item_size, l_item_index, l_current_tx) {
+
+        dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
+        int l_tx_out_prev_idx = -1;
+        
+        switch (*l_item) {
+            case TX_ITEM_TYPE_IN: {
+                dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)l_item;
+                l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;
+                l_tx_out_prev_idx = l_tx_in->header.tx_out_prev_idx;
+            } break;
+            case TX_ITEM_TYPE_IN_COND: {
+                dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)l_item;
+                l_tx_prev_hash = &l_tx_in_cond->header.tx_prev_hash;
+                l_tx_out_prev_idx = l_tx_in_cond->header.tx_out_prev_idx;
+            } break;
+            default:
+                continue;
+        }
+        
+        // Recursively search this branch
+        bool l_found_in_branch = s_ledger_trace_recursive(a_ledger, l_tx_prev_hash, a_target_hash,
+                                                            a_path_depth + 1, a_max_depth,
+                                                            a_json_chain, a_hash_out_type);
+        if (l_found_in_branch) {
+            // Add current transaction to chain
+            json_object *l_json_tx = json_object_new_object();
+            if (dap_strcmp(a_hash_out_type, "base58") == 0) {
+                const char *l_hash_base58 = dap_enc_base58_encode_hash_to_str_static(a_current_hash);
+                json_object_object_add(l_json_tx, "hash", json_object_new_string(l_hash_base58 ? l_hash_base58 : ""));
+            } else {
+                const char *l_hash_hex = dap_chain_hash_fast_to_str_static(a_current_hash);
+                json_object_object_add(l_json_tx, "hash", json_object_new_string(l_hash_hex));
+            }
+            // Add previous output index information
+            json_object_object_add(l_json_tx, "prev_out_idx", json_object_new_int(l_tx_out_prev_idx));
+            json_object_object_add(l_json_tx, "position", json_object_new_int(l_target_depth - a_path_depth + 1));
+            if (a_path_depth == 0)
+                json_object_object_add(l_json_tx, "type", json_object_new_string("target"));
+            else
+                json_object_object_add(l_json_tx, "type", json_object_new_string("intermediate"));
+            
+            // Found target in this branch - add current tx to chain and return success
+            json_object_array_add(a_json_chain, l_json_tx);
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * @brief Build transaction chain from a_hash_to to a_hash_from using simplified recursive traversal
+ * @param a_ledger Ledger instance
+ * @param a_hash_from Target hash
+ * @param a_hash_to Starting hash
+ * @param a_hash_out_type Output hash format
+ * @param a_json_arr_reply JSON array for reply
+ * @return 0 on success, error code on failure
+ */
+static int s_ledger_trace_chain(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_hash_from, dap_chain_hash_fast_t *a_hash_to, 
+                               const char *a_hash_out_type, size_t a_max_depth, json_object **a_json_arr_reply)
+{
+    // Validate input parameters
+    if (!a_ledger || !a_hash_from || !a_hash_to || !a_json_arr_reply) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Invalid input parameters");
+        return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+    }
+
+    // Check if starting transaction exists
+    dap_chain_datum_tx_t *l_start_tx = dap_ledger_tx_find_by_hash(a_ledger, a_hash_to);
+    if (!l_start_tx) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR, 
+                              "Starting transaction %s not found in ledger", dap_hash_fast_to_str_static(a_hash_to));
+        return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
+    }
+
+    // Check if target transaction exists
+    dap_chain_datum_tx_t *l_target_tx = dap_ledger_tx_find_by_hash(a_ledger, a_hash_from);
+    if (!l_target_tx) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR, 
+                              "Target transaction %s not found in ledger", dap_hash_fast_to_str_static(a_hash_from));
+        return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
+    }
+
+    // Create result JSON object
+    json_object *l_json_result = json_object_new_object();
+    json_object *l_json_info = json_object_new_object();
+    json_object *l_json_chain = json_object_new_array();
+
+    // Add info about the trace
+    json_object_object_add(l_json_info, "start_hash", json_object_new_string(dap_hash_fast_to_str_static(a_hash_from)));
+    json_object_object_add(l_json_info, "target_hash", json_object_new_string(dap_hash_fast_to_str_static(a_hash_to)));
+    json_object_object_add(l_json_info, "direction", json_object_new_string("backward"));
+    json_object_object_add(l_json_info, "max_depth", json_object_new_int(a_max_depth));
+    json_object_object_add(l_json_result, "trace_info", l_json_info);
+
+    // Start recursive search
+    bool l_found = s_ledger_trace_recursive(a_ledger, a_hash_to, a_hash_from,
+                                           0, a_max_depth,
+                                           l_json_chain, a_hash_out_type);
+
+    // Add results to main JSON
+    json_object_object_add(l_json_result, "chain", l_json_chain);
+    json_object_object_add(l_json_result, "chain_length", json_object_new_int(json_object_array_length(l_json_chain)));
+    json_object_object_add(l_json_result, "target_found", json_object_new_boolean(l_found));
+    
+    if (!l_found) {
+        json_object_object_add(l_json_result, "status", 
+                              json_object_new_string("No path found from start to target transaction"));
+    } else {
+        json_object_object_add(l_json_result, "status", 
+                              json_object_new_string("Path found from start to target transaction"));
+    }
+
+    json_object_array_add(*a_json_arr_reply, l_json_result);
+    return 0;
+}
 
 /**
  * @brief com_ledger
@@ -1049,7 +1228,7 @@ static size_t dap_db_net_history_token_list(json_object* a_json_arr_reply, dap_c
 int com_ledger(int a_argc, char ** a_argv, void **reply)
 {
     json_object ** a_json_arr_reply = (json_object **) reply;
-    enum { CMD_NONE, CMD_LIST, CMD_TX_INFO };
+    enum { CMD_NONE, CMD_LIST, CMD_TX_INFO, CMD_TRACE };
     int arg_index = 1;
     const char *l_net_str = NULL;
     const char *l_tx_hash_str = NULL;
@@ -1063,18 +1242,87 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
     }
 
-    //switch ledger params list | tx | info
+    //switch ledger params list | tx | info | trace
     int l_cmd = CMD_NONE;
     if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "list", NULL)){
         l_cmd = CMD_LIST;
     } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "info", NULL))
         l_cmd = CMD_TX_INFO;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "trace", NULL))
+        l_cmd = CMD_TRACE;
 
     bool l_is_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
 
     arg_index++;
 
-    if(l_cmd == CMD_LIST){
+    if(l_cmd == CMD_TRACE){
+        // Handle trace command
+        const char *l_hash_from_str = NULL; // starting hash
+        const char *l_hash_to_str = NULL;   // target hash
+        const char *l_depth_str = NULL;     // recursion depth
+        
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from", &l_hash_from_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to", &l_hash_to_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-depth", &l_depth_str);
+        
+        // Parse recursion depth (default: 30)
+        size_t l_max_depth = 30;
+        if (l_depth_str) {
+            char *l_endptr = NULL;
+            unsigned long l_parsed_depth = strtoul(l_depth_str, &l_endptr, 10);
+            if (*l_endptr != '\0' || l_parsed_depth == 0 || l_parsed_depth > 10000) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, 
+                                      "Invalid depth parameter. Must be a number between 1 and 10000");
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+            }
+            l_max_depth = (size_t)l_parsed_depth;
+        }
+        
+        // Validate required parameters
+        if (!l_hash_from_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, 
+                                  "Command 'trace' requires parameter -from");
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+        }
+        if (!l_hash_to_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, 
+                                  "Command 'trace' requires parameter -to");
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+        }
+        
+        // Parse target hash (hash1)
+        dap_chain_hash_fast_t l_hash_from = {};
+        if (dap_chain_hash_fast_from_str(l_hash_from_str, &l_hash_from)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR, 
+                                "Can't parse target hash %s", l_hash_from_str);
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR;
+        }
+
+        // Parse starting hash (hash2)
+        dap_chain_hash_fast_t l_hash_to = {};
+        if (dap_chain_hash_fast_from_str(l_hash_to_str, &l_hash_to)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR, 
+                                "Can't parse starting hash %s", l_hash_to_str);
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR;
+        }
+        if (!l_net_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR, 
+                                  "Command 'trace' requires parameter -net");
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR;
+        }
+        // Get ledger
+        dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
+        if (!l_ledger) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR, 
+                                  "Can't get ledger for net %s", l_net_str);
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR;
+        }
+
+        // Execute trace
+        return s_ledger_trace_chain(l_ledger, &l_hash_from, &l_hash_to, l_hash_out_type, l_max_depth, a_json_arr_reply);
+        
+    } else if(l_cmd == CMD_LIST){
         enum {SUBCMD_NONE, SUBCMD_LIST_COIN, SUB_CMD_LIST_LEDGER_THRESHOLD, SUB_CMD_LIST_LEDGER_BALANCE, SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH};
         int l_sub_cmd = SUBCMD_NONE;
         dap_chain_hash_fast_t l_tx_threshold_hash = {};
@@ -1191,7 +1439,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         }        
     }
     else{
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'ledger' requires parameter 'list' or 'info'", l_tx_hash_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'ledger' requires parameter 'list', 'info', or 'trace'");
         return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
     }
     return 0;
