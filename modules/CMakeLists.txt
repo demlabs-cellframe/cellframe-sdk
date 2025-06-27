@@ -5,7 +5,7 @@ if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(chain)
 endif()
 
-# Ledger
+# Ledger - must be built before mempool and services that depend on it
 if (CELLFRAME_MODULES MATCHES "ledger")
     add_subdirectory(ledger)
 endif()
@@ -104,4 +104,9 @@ endif()
 # Service for bridge
 if (CELLFRAME_MODULES MATCHES "srv-bridge")
     add_subdirectory(service/bridge)
+endif()
+
+# compose service
+if (CELLFRAME_MODULES MATCHES "compose")
+    add_subdirectory(compose)
 endif()

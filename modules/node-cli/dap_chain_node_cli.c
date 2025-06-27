@@ -315,6 +315,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction", dap_chain_node_cli_cmd_id_from_str("tx_create_json"),
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
+    dap_cli_server_cmd_add ("mempool_add", com_mempool_add, "Make transaction and put that to mempool", dap_chain_node_cli_cmd_id_from_str("mempool_add"),
+                "json_datum_mempool_put  -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction", dap_chain_node_cli_cmd_id_from_str("tx_cond_create"),
                 "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                 " -cert <pub_cert_name> -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 

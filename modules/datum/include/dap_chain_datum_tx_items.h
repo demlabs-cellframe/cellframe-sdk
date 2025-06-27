@@ -78,18 +78,43 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
 }
 
 /**
+ * Get item name by item type
+ *
+ * return name, or "UNKNOWN"
+ */
+DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chain_tx_item_type_t a_type) {
+    switch(a_type){
+        case TX_ITEM_TYPE_IN: return "in";
+        case TX_ITEM_TYPE_IN_EMS: return "in_ems";
+        case TX_ITEM_TYPE_IN_REWARD: return "in_reward";
+        case TX_ITEM_TYPE_OUT: return "out";
+        case TX_ITEM_TYPE_OUT_EXT: return "out_ext";
+        case TX_ITEM_TYPE_OUT_STD: return "out_std";
+        case TX_ITEM_TYPE_PKEY: return "pkey";
+        case TX_ITEM_TYPE_SIG: return "sign";
+        case TX_ITEM_TYPE_IN_COND: return "in_cond";
+        case TX_ITEM_TYPE_OUT_COND: return "out_cond";
+        case TX_ITEM_TYPE_RECEIPT: return "receipt";
+        case TX_ITEM_TYPE_TSD: return "data";
+        case TX_ITEM_TYPE_VOTING: return "voting";
+        case TX_ITEM_TYPE_VOTE: return "vote";
+        default: return "UNDEFINED";
+    }
+}
+
+/**
  * Get item type by item name
  *
  * return type, or TX_ITEM_TYPE_UNKNOWN
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum_name);
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_type_from_str_short(const char *a_datum_name);
 
 /**
  * Get dap_chain_tx_out_cond_subtype_t by name
  *
  * return subtype, or DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED
  */
-dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const char *a_subtype_str);
+dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(const char *a_subtype_str);
 
 /**
  * Get item size
@@ -164,6 +189,11 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size);
 
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
+                                                                                uint256_t a_value, uint256_t a_value_max_per_unit,
+                                                                                dap_chain_net_srv_price_unit_uid_t a_unit,
+                                                                                const void *a_params, size_t a_params_size);
+
 /**
  * Create item dap_chain_tx_out_cond_t for eXchange service
  *
@@ -186,6 +216,10 @@ DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
                                                                            dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax, dap_pkey_t *a_pkey);
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                            uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size);
 
 // Create cond out
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_srv_uid_t a_srv_uid,
@@ -212,6 +246,9 @@ dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
 dap_chain_tx_sig_t *dap_chain_tx_sig_create(const dap_sign_t *a_sign);
 
 dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx);
+
+
+dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create_from_sign(const dap_sign_t *a_sign);
 
 /**
  * Get sign from sign item
