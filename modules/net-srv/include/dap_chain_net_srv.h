@@ -172,9 +172,9 @@ dap_chain_net_srv_price_t *dap_chain_net_srv_get_price_from_order(dap_chain_net_
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
     switch ( a_uid.enm) {
-        case SERV_UNIT_B: return "BYTE";
-        case SERV_UNIT_SEC: return "SECOND";
-        case SERV_UNIT_PCS: return "PIECES";
+        case SERV_UNIT_B: return "bytes";
+        case SERV_UNIT_SEC: return "sec";
+        case SERV_UNIT_PCS: return "pieces";
         default: return "UNKNOWN";
     }
 }

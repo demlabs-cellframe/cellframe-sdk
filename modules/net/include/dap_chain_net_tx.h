@@ -37,11 +37,33 @@ typedef enum s_net_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
     DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME,
     DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
+    DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON,
     DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS,
     DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS,
     DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
     DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS,
+    DAP_CHAIN_NET_TX_CREATE_JSON_ENOUGH_MEMORY,
+    DAP_CHAIN_NET_TX_CREATE_JSON_INTEGER_OVERFLOW,
+    DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR,    
+    DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,
+    DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED
 }s_net_tx_create_json_err_t;
+
+typedef enum s_type_of_tx {
+    DAP_CHAIN_NET_TX_NORMAL = 0,
+    DAP_CHAIN_NET_TX_STAKE_LOCK,
+    DAP_CHAIN_NET_TX_STAKE_UNLOCK,
+    DAP_CHAIN_NET_TX_REWARD,
+
+    DAP_CHAIN_NET_TX_TYPE_ERR
+}s_type_of_tx_t;
+
+typedef struct dap_tx_creator_tokenizer {
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t sum;
+    UT_hash_handle hh;
+} dap_tx_creator_tokenizer_t;
+
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
     TX_SEARCH_TYPE_LOCAL,
@@ -101,9 +123,6 @@ dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap
 
 dap_list_t * dap_chain_net_get_tx_all_from_tx(dap_chain_net_t * a_net, dap_hash_fast_t * l_tx_hash);
 
-
-
-
 dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type);
@@ -127,7 +146,10 @@ bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, da
  * @return s_com_tx_create_json_err_t status code
  */
 int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
-                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
+    dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
+
+int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_errors, 
+    dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 
 /**
  * @brief Convert binary transaction to json

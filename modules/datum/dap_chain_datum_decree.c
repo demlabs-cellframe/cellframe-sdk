@@ -222,7 +222,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
     json_object_object_add(a_json_out, "type", json_object_new_string(l_type_str));
     const char *l_subtype_str = dap_chain_datum_decree_subtype_to_str(a_decree->header.sub_type);
     json_object_object_add(a_json_out, "subtype", json_object_new_string(l_subtype_str));
-    json_object_object_add(a_json_out, "TSD", json_object_new_string(""));
+    json_object_object_add(a_json_out, "tsd", json_object_new_string(""));
     dap_tsd_t *l_tsd; size_t l_tsd_size;
     dap_tsd_iter(l_tsd, l_tsd_size, a_decree->data_n_signs, a_decree->header.data_size) {
         switch(l_tsd->type) {
@@ -269,7 +269,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET:
             if (l_tsd->size > sizeof(dap_chain_addr_t)) {
-                json_object_object_add(a_json_out, "Wallet for fee", json_object_new_string("WRONG SIZE"));
+                json_object_object_add(a_json_out, "wallet_for_fee", json_object_new_string("WRONG SIZE"));
                 break;
             }
             dap_chain_addr_t *l_addr_fee_wallet = /*{ };
@@ -446,7 +446,7 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
         json_object_object_add(json_obj_sign, "sign_size", json_object_new_uint64(l_sign->header.sign_size));
         json_object_array_add(json_arr_certs_out, json_obj_sign);        
     }
-    json_object_object_add(a_json_out,"SIGNS", json_arr_certs_out);
+    json_object_object_add(a_json_out,"signs", json_arr_certs_out);
 }
 
 dap_chain_datum_decree_t *dap_chain_datum_decree_new(dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id,

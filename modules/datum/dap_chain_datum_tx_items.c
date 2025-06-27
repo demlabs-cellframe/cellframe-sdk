@@ -42,7 +42,7 @@
  *
  * return type, or TX_ITEM_TYPE_UNKNOWN
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum_name) {
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_type_from_str_short(const char *a_datum_name) {
     if(!a_datum_name)
         return TX_ITEM_TYPE_UNKNOWN;
     if(!dap_strcmp(a_datum_name, "in"))
@@ -83,7 +83,7 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
  *
  * return subtype, or DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED
  */
-dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const char *a_subtype_str) {
+dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(const char *a_subtype_str) {
     if(!a_subtype_str)
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
     if(!dap_strcmp(a_subtype_str, "srv_pay"))
@@ -198,7 +198,8 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(const void *a_data, int a
 {
     dap_return_val_if_fail(a_data && a_size, NULL);
     dap_chain_tx_tsd_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_tsd_t, sizeof(dap_chain_tx_tsd_t) + sizeof(dap_tsd_t) + a_size, NULL);
-    *l_item = (dap_chain_tx_tsd_t){ .header = { .type = TX_ITEM_TYPE_TSD, .size = sizeof(dap_tsd_t) + a_size }};
+    l_item->header.type = TX_ITEM_TYPE_TSD;
+    l_item->header.size = sizeof(dap_tsd_t) + a_size;
     dap_tsd_write(l_item->tsd, (uint16_t)a_type, a_data, a_size);
     return l_item;
 }
@@ -312,6 +313,33 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
     return l_item;
 }
 
+/**
+ * Create item dap_chain_tx_out_cond_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
+    uint256_t a_value, uint256_t a_value_max_per_unit,
+    dap_chain_net_srv_price_unit_uid_t a_unit,
+    const void *a_params, size_t a_params_size)
+{
+    if (!a_key_hash || IS_ZERO_256(a_value))
+        return NULL;
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_pay.unit = a_unit;
+    l_item->subtype.srv_pay.unit_price_max_datoshi = a_value_max_per_unit;
+    memcpy( &l_item->subtype.srv_pay.pkey_hash, a_key_hash, sizeof(l_item->subtype.srv_pay.pkey_hash));
+    if (a_params && a_params_size) {
+        l_item->tsd_size = (uint32_t)a_params_size;
+        memcpy(l_item->tsd, a_params, a_params_size);
+    }
+    return l_item;
+}
+
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
                                                                              uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
                                                                              const char *a_token, uint256_t a_value_rate,
@@ -332,8 +360,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
     strncpy(l_item->subtype.srv_xchange.buy_token, a_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     l_item->subtype.srv_xchange.rate = a_value_rate;
     l_item->subtype.srv_xchange.seller_addr = *a_seller_addr;
-    l_item->tsd_size = a_params_size;
-    if (a_params_size) {
+    if (a_params && a_params_size) {
+        l_item->tsd_size = (uint32_t)a_params_size;
         memcpy(l_item->tsd, a_params, a_params_size);
     }
     return l_item;
@@ -367,6 +395,27 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
             dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_PKEY, a_pkey, l_pkey_size);
             l_item->subtype.srv_stake_pos_delegate.flags = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_item->subtype.srv_stake_pos_delegate.flags);
         }
+    }
+    return l_item;
+}
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                                  dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                                  uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size)
+{
+    if (IS_ZERO_256(a_value))
+        return NULL;
+
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
+    l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
+    if (a_params && a_params_size) {
+        l_item->tsd_size = (uint32_t)a_params_size;
+        memcpy(l_item->tsd, a_params, a_params_size);
     }
     return l_item;
 }
@@ -433,6 +482,19 @@ dap_chain_tx_sig_t *dap_chain_tx_sig_create(const dap_sign_t *a_sign)
     return l_tx_sig;
 }
 
+dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create_from_sign(const dap_sign_t *a_sign)
+{
+    dap_return_val_if_fail(a_sign, NULL);
+    size_t l_chain_sign_size = dap_sign_get_size((dap_sign_t *)a_sign); // sign data
+    dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_sig_t,
+                                                                  sizeof(dap_chain_tx_sig_t) + l_chain_sign_size, NULL);
+    l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
+    l_tx_sig->header.version = 1;
+    l_tx_sig->header.sig_size = (uint32_t)l_chain_sign_size;
+    memcpy(l_tx_sig->sig, a_sign, l_chain_sign_size);
+    return l_tx_sig;
+}
+
 dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx)
 {
     dap_return_val_if_fail(a_key && a_tx, NULL);
@@ -455,19 +517,12 @@ dap_sign_t *dap_chain_datum_tx_sign_create(dap_enc_key_t *a_key, const dap_chain
 dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, const dap_chain_datum_tx_t *a_tx)
 {
     dap_return_val_if_fail(a_key && a_tx, NULL);
-    size_t l_tx_size = a_tx->header.tx_items_size + sizeof(dap_chain_datum_tx_t);
-    dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE_RET_VAL_IF_FAIL((dap_chain_datum_tx_t *)a_tx, l_tx_size, NULL);
-
-    l_tx->header.tx_items_size = 0;
-    dap_sign_t *l_chain_sign = dap_sign_create(a_key, l_tx, l_tx_size);
-    DAP_DELETE(l_tx);
+    dap_sign_t *l_chain_sign = dap_chain_datum_tx_sign_create(a_key, a_tx);
     if (!l_chain_sign)
         return NULL;
-    dap_chain_tx_sig_t *l_tx_sig = dap_chain_tx_sig_create(l_chain_sign);
-    if (!l_tx_sig)
-        return NULL;
+    dap_chain_tx_sig_t *ret = dap_chain_datum_tx_item_sign_create_from_sign(l_chain_sign);
     DAP_DELETE(l_chain_sign);
-    return l_tx_sig;
+    return ret;
 }
 
 /**

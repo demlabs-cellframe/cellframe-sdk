@@ -291,7 +291,7 @@ int dap_chain_net_srv_xchange_init()
 
 #ifdef DAP_XCHANGE_TEST
     /*int l_fee_type = dap_config_get_item_int64_default(g_config, "srv_xchange", "fee_type", (int)SERIVCE_FEE_NATIVE_PERCENT);
-    uint256_t l_fee_value = dap_chain_coins_to_balance(dap_config_get_item_str_default(g_config, "srv_xchange", "fee_value", "0.02"));
+    uint256_t l_fee_value = dap_chain_balance_coins_scan(dap_config_get_item_str_default(g_config, "srv_xchange", "fee_value", "0.02"));
     const char *l_wallet_addr = dap_config_get_item_str_default(g_config, "srv_xchange", "wallet_addr", NULL);
     if(!l_wallet_addr){
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
