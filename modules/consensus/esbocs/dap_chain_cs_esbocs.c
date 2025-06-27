@@ -3058,7 +3058,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             for (size_t i = 0; i < l_datums_count; i++) {
                 int ret = dap_chain_node_hardfork_check(a_blocks->chain, l_datums[i]);
                 if (ret) {
-                    log_it(L_WARNING, "Can't process hardfork block %s with datums verification error", dap_hash_fast_to_str_static(a_block_hash));
+                    log_it(L_WARNING, "Can't process hardfork block %s with datum #%zu verification error", dap_hash_fast_to_str_static(a_block_hash), i);
                     return ret;
                 }
             }

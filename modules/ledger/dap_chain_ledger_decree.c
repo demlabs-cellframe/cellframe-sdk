@@ -819,25 +819,32 @@ dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledg
     dap_ledger_hardfork_anchors_t *ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
-    for (dap_ledger_decree_item_t *it = l_ledger_pvt->decrees; it; it = it->hh.next)
-        if (it->is_applied &&
-                it->decree->header.common_decree_params.chain_id.uint64 == a_chain_id.uint64 &&
-                !dap_hash_fast_is_blank(&it->anchor_hash)) {
-            dap_chain_datum_anchor_t *l_anchor = dap_ledger_anchor_find(a_ledger, &it->anchor_hash);
-            if (!l_anchor) {
-                char l_anchor_hash_str[DAP_HASH_FAST_STR_SIZE];
-                dap_hash_fast_to_str(&it->anchor_hash, l_anchor_hash_str, DAP_HASH_FAST_STR_SIZE);
-                log_it(L_ERROR, "Can't find anchor %s for decree %s, skip it",
-                                            l_anchor_hash_str, dap_hash_fast_to_str_static(&it->decree_hash));
-                continue;
-            }
-            dap_hash_fast_t l_decree_hash;
-            if (dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash)) {
-                log_it(L_ERROR, "Corrupted datum anchor %s, can't get decree hash from it", dap_hash_fast_to_str_static(&it->anchor_hash));
-                continue;
-            }
-            s_aggregate_anchor(a_ledger, &ret, it->decree->header.sub_type, l_anchor);
+    for (dap_ledger_decree_item_t *it = l_ledger_pvt->decrees; it; it = it->hh.next) {
+        if (!it->is_applied)
+            continue;
+        if (it->decree->header.common_decree_params.chain_id.uint64 != a_chain_id.uint64)
+            continue;
+        if (dap_hash_fast_is_blank(&it->anchor_hash))
+            continue;
+        if (it->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK ||
+                it->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE ||
+                it->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY)
+            continue;
+        dap_chain_datum_anchor_t *l_anchor = dap_ledger_anchor_find(a_ledger, &it->anchor_hash);
+        if (!l_anchor) {
+            char l_anchor_hash_str[DAP_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&it->anchor_hash, l_anchor_hash_str, DAP_HASH_FAST_STR_SIZE);
+            log_it(L_ERROR, "Can't find anchor %s for decree %s, skip it",
+                                        l_anchor_hash_str, dap_hash_fast_to_str_static(&it->decree_hash));
+            continue;
         }
+        dap_hash_fast_t l_decree_hash;
+        if (dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash)) {
+            log_it(L_ERROR, "Corrupted datum anchor %s, can't get decree hash from it", dap_hash_fast_to_str_static(&it->anchor_hash));
+            continue;
+        }
+        s_aggregate_anchor(a_ledger, &ret, it->decree->header.sub_type, l_anchor);
+    }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     return ret;
 }
