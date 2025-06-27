@@ -69,11 +69,13 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
         DAP_DEL_Z(l_tsd);
     }
-    // l_signs_count = rand() % KEY_COUNT + 1;
-    l_signs_count = 1;
+    l_signs_count = rand() % KEY_COUNT + 3;
     dap_test_msg("add %zu signs", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
+
+    dap_assert(dap_chain_datum_tx_verify_sign_all(*a_datum) == 0, "datum sign verify");
+
     dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
     dap_assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1, "Protection to add item after signs");
     DAP_DEL_Z(l_out_count);

@@ -397,6 +397,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_param
     l_item->tsd_size = a_params_size;
     if (l_item->tsd_size) {
         memcpy(l_item->tsd, a_params, l_item->tsd_size);
+        if (dap_tsd_find((byte_t *)a_params, a_params_size, DAP_CHAIN_TX_OUT_COND_TSD_PKEY)) {
+            l_item->subtype.srv_stake_pos_delegate.flags = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_item->subtype.srv_stake_pos_delegate.flags);
+        }
     }
     return l_item;
 }
