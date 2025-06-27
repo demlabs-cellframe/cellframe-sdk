@@ -878,10 +878,19 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 json_object_array_add(json_arr_meta_out, json_obj_meta);
                 l_offset += sizeof(l_meta->hdr) + l_meta->hdr.data_size;
             }
-            json_object_array_add(*a_json_arr_reply, json_arr_meta_out);
-            json_object* json_obj_datum = json_object_new_object();
-            json_object_object_add(json_obj_datum, a_version == 1 ? "Datums: count" : "datums_count", json_object_new_uint64(l_block_cache->datum_count));
-            json_object_array_add(*a_json_arr_reply, json_obj_datum);
+            if (a_version == 1)
+                json_object_array_add(*a_json_arr_reply, json_arr_meta_out); 
+            else
+                json_object_object_add(json_obj_inf, "metadata", json_arr_meta_out);
+            
+            if (a_version == 1) {
+                json_object* json_obj_datum = json_object_new_object();
+                json_object_array_add(*a_json_arr_reply, json_obj_datum);
+                json_object_object_add(json_obj_datum, "Datums: count", json_object_new_uint64(l_block_cache->datum_count));
+            } else {
+                json_object_object_add(json_obj_inf, "datums_count", json_object_new_uint64(l_block_cache->datum_count));
+            }
+
             json_object* json_arr_datum_out = json_object_new_array();
             for (uint32_t i=0; i < l_block_cache->datum_count ; i++){
                 json_object* json_obj_tx = json_object_new_object();
@@ -910,15 +919,22 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     json_object_object_add(json_obj_tx, "ts_create",json_object_new_string(l_time_buf));
                     json_object_object_add(json_obj_tx, "data_size",json_object_new_int(l_datum->header.data_size));
                     dap_chain_datum_dump_json(*a_json_arr_reply, json_obj_tx,l_datum,l_hash_out_type,l_net->pub.id, true, a_version);
-                }                
+                }            
                 json_object_array_add(json_arr_datum_out, json_obj_tx);
             }
+            // Datums
+            if (a_version == 1)
+                json_object_array_add(*a_json_arr_reply, json_arr_datum_out);
+            else
+                json_object_object_add(json_obj_inf, "datums", json_arr_datum_out);
             // Signatures
-            json_object_array_add(*a_json_arr_reply, json_arr_datum_out);
-            // Signatures
-            json_object* json_obj_sig = json_object_new_object();
-            json_object_object_add(json_obj_sig, a_version == 1 ? "signatures count" : "sig_count", json_object_new_uint64(l_block_cache->sign_count));
-            json_object_array_add(*a_json_arr_reply, json_obj_sig);
+            if (a_version == 1) {
+                json_object* json_obj_sig = json_object_new_object();
+                json_object_object_add(json_obj_sig, "signatures count", json_object_new_uint64(l_block_cache->sign_count));
+                json_object_array_add(*a_json_arr_reply, json_obj_sig);
+            } else {
+                json_object_object_add(json_obj_inf, "sig_count", json_object_new_uint64(l_block_cache->sign_count));
+            }
             json_object* json_arr_sign_out = json_object_new_array();
             for (uint32_t i=0; i < l_block_cache->sign_count ; i++) {
                 json_object* json_obj_sign = json_object_new_object();
@@ -934,7 +950,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 json_object_object_add(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",json_object_new_string(l_hash_str));
                 json_object_array_add(json_arr_sign_out, json_obj_sign);
             }
-            json_object_array_add(*a_json_arr_reply, json_arr_sign_out);
+            if (a_version == 1)
+                json_object_array_add(*a_json_arr_reply, json_arr_sign_out);
+            else
+                json_object_object_add(json_obj_inf, "signs", json_arr_sign_out);
         } break;
 
         case SUBCMD_LIST:{
