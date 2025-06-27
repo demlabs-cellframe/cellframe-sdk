@@ -532,7 +532,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 dap_bin2hex(l_value_str, l_value, l_value_len);
                 json_object_object_add(json_obj_rec, a_version == 1 ? "command status" : "command_status",json_object_new_string("Record found"));
                 json_object_object_add(json_obj_rec, a_version == 1 ? "lenght(byte)" : "lenght_byte", json_object_new_uint64(l_value_len));
-                json_object_object_add(json_obj_rec, a_version == 1 ? "hash" : "hash_value", json_object_new_string(dap_get_data_hash_str(l_value, l_value_len).s));
+                json_object_object_add(json_obj_rec, "hash", json_object_new_string(dap_get_data_hash_str(l_value, l_value_len).s));
                 if (a_version == 1) {
                     json_object_object_add(json_obj_rec, "pinned", l_is_pinned ? json_object_new_string("Yes") : json_object_new_string("No") );
                 } else {
