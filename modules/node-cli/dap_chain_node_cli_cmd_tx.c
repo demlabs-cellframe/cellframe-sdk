@@ -2294,7 +2294,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
  * @param str_reply
  * @return int
  */
-int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply)
+int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version)
 {
     int l_arg_index = 1;
     const char *l_net_name = NULL; // optional parameter
