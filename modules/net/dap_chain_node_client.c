@@ -399,7 +399,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     while (a_client->state != a_waited_state) {
         // prepare for signal waiting
         struct timespec l_cond_timeout;
-        clock_gettime(CLOCK_REALTIME, &l_cond_timeout);
+        clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
         l_cond_timeout.tv_sec += a_timeout_ms/1000;
         int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
         if (l_ret_wait == 0) {
