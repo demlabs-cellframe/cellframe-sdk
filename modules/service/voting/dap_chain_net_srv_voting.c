@@ -91,7 +91,7 @@ int dap_chain_net_srv_voting_init()
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>] [-max_votes_count <votes_count>]"
                                         " [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll vote -net <net_name> -hash <poll_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value> -w <fee_wallet_name>\n"
-                            "poll list -net <net_name>\n"
+                            "poll list -net <net_name> [-token <ticker>]\n"
                             "poll dump -net <net_name> -hash <poll_hash>\n"
                             "Hint:\n"
                             "\texample value_coins (only natural) 1.0 123.4567\n"
@@ -855,8 +855,12 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         json_object* json_vote_out = json_object_new_object();
         json_object_object_add(json_vote_out, "list_of_polls", json_object_new_string(l_net->pub.name));
         json_object* json_arr_voting_out = json_object_new_array();
+        const char *l_token_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_str);
         struct voting *votings_ht = s_votings_ht_get(l_net->pub.id);
         for (struct voting *it = votings_ht; it; it = it->hh.next) {
+            if (l_token_str && strcmp(l_token_str, it->params->token_ticker) != 0)
+                continue;
             json_object* json_obj_vote = json_object_new_object();
             json_object_object_add( json_obj_vote, "poll_tx",
                                     json_object_new_string_len(dap_chain_hash_fast_to_str_static(&it->hash), sizeof(dap_hash_str_t)) );            
@@ -865,7 +869,17 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             json_object_object_add(json_obj_vote, "token", json_object_new_string(it->params->token_ticker));
             json_object_array_add(json_arr_voting_out, json_obj_vote);
         }
-        json_object_array_add(*json_arr_reply, json_arr_voting_out);
+        json_object_array_add(*json_arr_reply, json_vote_out);
+        if (json_object_array_length(json_arr_voting_out) == 0) {
+            json_object* json_obj_no_polls = json_object_new_object();
+            if (l_token_str) {
+                json_object_object_add(json_obj_no_polls, "token", json_object_new_string(l_token_str));
+            json_object_object_add(json_obj_no_polls, "error", json_object_new_string("No polls found"));
+            json_object_array_add(*json_arr_reply, json_obj_no_polls);
+            json_object_put(json_arr_voting_out);
+        } else {
+            json_object_array_add(*json_arr_reply, json_arr_voting_out);
+        }
     } break;
 
     case CMD_DUMP: {
