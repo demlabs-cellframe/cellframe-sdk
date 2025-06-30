@@ -121,7 +121,7 @@ int dap_chain_net_srv_voting_init()
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>]"
                                            " [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll vote -net <net_name> -hash <poll_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
-                            "poll list -net <net_name>\n"
+                            "poll list -net <net_name> [-token <ticker>]\n"
                             "poll dump -net <net_name> -hash <poll_hash>\n"
                             "Hint:\n"
                             "\texample value_coins (only natural) 1.0 123.4567\n"
