@@ -2112,7 +2112,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             } else {
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-type", &l_cond_type_str);
                 if (l_cond_type_str) {
-                    l_cond_type = dap_chain_tx_out_cond_subtype_from_str(l_cond_type_str);
+                    l_cond_type = dap_chain_tx_out_cond_subtype_from_str_short(l_cond_type_str);
                     if (l_cond_type == DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED) {
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
                                                "Invalid conditional output type '%s'. Available types: srv_pay, srv_xchange, srv_stake_pos_delegate, srv_stake_lock, fee", 

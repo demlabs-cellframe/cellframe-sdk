@@ -193,7 +193,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\n"
                             "==Params==\n"
                             "General:\n"
-                            "\t -total_supply_change <value>:\t\t Sets the maximum amount of token supply. Specify “INF” to set unlimited total supply.\n"
+                            "\t -total_supply_change <value>:\t\t Sets the maximum amount of token supply. Specify 'INF' to set unlimited total supply.\n"
                             "\t -certs <name_certs>:\t\t\t Here use the very certificates which were used to sign the token being updated.\n"
                             "Additional:\n"
                             "\t -description <token_description>:\t Shows updated description for this token.\n"
@@ -315,6 +315,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction", dap_chain_node_cli_cmd_id_from_str("tx_create_json"),
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
+    dap_cli_server_cmd_add ("mempool_add", com_mempool_add, "Make transaction and put that to mempool", dap_chain_node_cli_cmd_id_from_str("mempool_add"),
+                "json_datum_mempool_put  -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction", dap_chain_node_cli_cmd_id_from_str("tx_cond_create"),
                 "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                 " -cert <pub_cert_name> -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
@@ -344,7 +346,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list coins -net <net_name> [-limit] [-offset]\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
-            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n");
+            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
+            "ledger trace -net <net_name> -from <hash1> -to <hash2> [-H {hex|base58}]\n"
+            "\t Build transaction chain from hash2 to hash1 using backward traversal\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info", dap_chain_node_cli_cmd_id_from_str("token"),

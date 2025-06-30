@@ -34,6 +34,7 @@
 
 #ifdef DAP_OS_DARWIN
 #include <net/if.h>
+#ifndef DAP_OS_IOS
 #include <net/if_utun.h>
 #include <sys/kern_control.h>
 #include <sys/types.h>
@@ -41,7 +42,7 @@
 #include <sys/socket.h>
 #include <sys/sys_domain.h>
 #include <netinet/in.h>
-
+#endif
 #elif defined(DAP_OS_BSD)
 #include <netinet/in.h>
 #include <net/if.h>
@@ -690,7 +691,8 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_tun_sockets = DAP_NEW_Z_SIZE(dap_chain_net_srv_vpn_tun_socket_t*,s_tun_sockets_count*sizeof(dap_chain_net_srv_vpn_tun_socket_t*));
 
     int l_err = 0;
-#if defined (DAP_OS_DARWIN)
+    int l_tun_fd;
+    #if defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
     // Prepare structs
     struct ctl_info l_ctl_info = {0};
 
@@ -703,7 +705,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     }
 
     // Create utun socket
-    int l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
+    l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
     if( l_tun_fd < 0){
         log_it(L_ERROR, "Opening utun device control (SYSPROTO_CONTROL) error %d: \"%s\"",
                         errno, dap_strerror(errno));
@@ -765,7 +767,6 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
 #if !defined(DAP_OS_DARWIN) &&( defined (DAP_OS_LINUX) || defined (DAP_OS_BSD))
-        int l_tun_fd;
         if( (l_tun_fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK)) < 0 ) {
             log_it(L_ERROR, "Opening /dev/net/tun error %d: \"%s\"",
                             errno, dap_strerror(errno));
@@ -807,12 +808,13 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ", 
         l_str_ipv4_gw, l_str_ipv4_netmask, s_raw_server->tun_device_name);
     system(buf);
-#elif defined (DAP_OS_DARWIN)
+#elif defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
     snprintf(buf,sizeof(buf),"ifconfig %s %s %s up",s_raw_server->tun_device_name,
              inet_ntoa(s_raw_server->ipv4_gw),inet_ntoa(s_raw_server->ipv4_gw));
     system(buf);
     snprintf(buf,sizeof(buf),"route add -net %s -netmask %s -interface %s", inet_ntoa(s_raw_server->ipv4_gw),c_mask,s_raw_server->tun_device_name );
     system(buf);
+#elif defined(DAP_OS_IOS)
 #else
 #error "Not defined for your platform"
 #endif

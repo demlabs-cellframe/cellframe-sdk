@@ -40,6 +40,8 @@
 #include "dap_sign.h"
 #include "dap_tsd.h"
 #include "dap_json_rpc_errors.h"
+#include "dap_chain_net.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_datum"
 
@@ -727,8 +729,10 @@ void dap_chain_datum_dump_json(json_object* a_json_arr_reply, json_object  *a_ob
             DAP_DELETE(l_emission);
         } break;
         case DAP_CHAIN_DATUM_TX: {
+            dap_ledger_t *l_ledger = dap_chain_net_by_id(a_net_id)->pub.ledger;
+            const char *l_tx_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_datum_hash);
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
-            dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx, NULL, json_obj_datum, a_hash_out_type, &l_datum_hash, a_net_id, a_version);
+            dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx, l_tx_token_ticker, json_obj_datum, a_hash_out_type, &l_datum_hash, a_net_id, a_version);
         } break;
         case DAP_CHAIN_DATUM_DECREE:{
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;

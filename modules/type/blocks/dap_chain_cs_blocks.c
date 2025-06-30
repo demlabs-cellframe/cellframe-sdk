@@ -1654,7 +1654,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             break;
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
-        dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
+        dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "UNKNOWN", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
         bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->chain->generation;
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) { // If this is any datum other than a already cached transaction
@@ -1872,27 +1872,26 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
                 dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                 // Send it to notificator listeners
+
+                dap_list_t *l_iter;
+                DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
+                    dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
+                    dap_chain_block_cache_t *l_tmp = l_bcache_last;
+                    int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
+                    for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
+                    if (l_checked_atoms_cnt == 0 && l_tmp) {
 #ifndef DAP_CHAIN_BLOCKS_TEST
-                if (!dap_chain_net_get_load_mode(l_net)) {
+                        if (!dap_chain_net_get_load_mode(l_net))
 #endif
-                    dap_list_t *l_iter;
-                    DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
-                        dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
-                        dap_chain_block_cache_t *l_tmp = l_bcache_last;
-                        int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
-                        for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
-                        if (l_checked_atoms_cnt == 0 && l_tmp) {
-                            l_notifier->callback(l_notifier->arg, a_chain, c_dap_chain_cell_id_null, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
+                            l_notifier->callback(l_notifier->arg, a_chain, c_dap_chain_cell_id_null, &l_tmp->block_hash,
+                                                 (void *)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
 #ifndef DAP_CHAIN_BLOCKS_TEST
-                            for (size_t i = 0; i < l_tmp->datum_count; i++)
-                                if (l_tmp->datum[i]->header.type_id == DAP_CHAIN_DATUM_TX)
-                                    dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
+                        for (size_t i = 0; i < l_tmp->datum_count; i++)
+                            if (l_tmp->datum[i]->header.type_id == DAP_CHAIN_DATUM_TX)
+                                dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
 #endif
-                        }
-                    }    
-#ifndef DAP_CHAIN_BLOCKS_TEST
-                }
-#endif
+                    }
+                }    
                 return ATOM_ACCEPT;
             }
             for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){

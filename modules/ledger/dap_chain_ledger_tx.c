@@ -1219,9 +1219,15 @@ struct tracker_mover {
     struct tracker_mover_item *items;
 };
 
+/**
+ * @brief Compare tracker items by pkey_hash for proper aggregation
+ * @param a_item1 First tracker item
+ * @param a_item2 Second tracker item
+ * @return Comparison result
+ */
 int s_compare_tracker_items(struct tracker_mover_item *a_item1, struct tracker_mover_item *a_item2)
 {
-    return memcmp(&a_item1->pkey_hash, &a_item1->pkey_hash, sizeof(dap_hash_fast_t));
+    return memcmp(&a_item1->pkey_hash, &a_item2->pkey_hash, sizeof(dap_hash_fast_t));
 }
 
 int s_compare_trackers(dap_list_t *a_tracker1, dap_list_t *a_tracker2)
@@ -1284,9 +1290,15 @@ void s_trackers_clear(void *a_list_elm)
     DAP_DELETE(a_list_elm);
 }
 
+/**
+ * @brief Compare tracker items by pkey_hash for output tracking
+ * @param a_item1 First tracker item
+ * @param a_item2 Second tracker item
+ * @return Comparison result
+ */
 int s_compare_tracker_items_out(dap_ledger_tracker_item_t *a_item1, dap_ledger_tracker_item_t *a_item2)
 {
-    return memcmp(&a_item1->pkey_hash, &a_item1->pkey_hash, sizeof(dap_hash_fast_t));
+    return memcmp(&a_item1->pkey_hash, &a_item2->pkey_hash, sizeof(dap_hash_fast_t));
 }
 
 int s_compare_trackers_out(dap_list_t *a_tracker1, dap_list_t *a_tracker2)
@@ -1594,11 +1606,13 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (l_verificator && l_verificator->callback_in_add)
                 l_verificator->callback_in_add(a_ledger, a_tx, &l_tx_hash, l_bound_item->cond);
+            l_cur_token_ticker = l_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE ?
+                                           a_ledger->net->pub.native_ticker : l_main_token_ticker;
         } break;
 
         default:
             log_it(L_ERROR, "Unknown item type %d in ledger TX bound for IN part", l_type);
-            break;
+            continue;
         }
 
         // add a used output
@@ -1629,7 +1643,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         }
 
         // Gather colour information from previous outputs
-        l_trackers_mover = s_trackers_aggregate(a_ledger, l_trackers_mover, l_bound_item->in.token_ticker,
+        l_trackers_mover = s_trackers_aggregate(a_ledger, l_trackers_mover, l_cur_token_ticker,
                                                 l_vote_tx_item ? &l_vote_tx_item->voting_hash : NULL, &l_vote_pkey_hash,
                                                 &l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, a_tx->header.ts_created);
         // Clear trackers info for immutable tx's
@@ -1711,7 +1725,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             if (l_verificator && l_verificator->callback_out_add)
                 l_verificator->callback_out_add(a_ledger, a_tx, &l_tx_hash, l_cond);
             l_value = l_cond->header.value;
-            l_cur_token_ticker = l_main_token_ticker;
+            l_cur_token_ticker = l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE ?
+                                                            a_ledger->net->pub.native_ticker : l_main_token_ticker;
             l_balance_update = false;
         } break;
         default:
@@ -2503,7 +2518,6 @@ void dap_ledger_colour_clear_callback(void *a_list_data)
 void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
 {
     dap_return_if_fail(a_ledger && a_tx_hash);
-    
     // Check if hash is valid
     if (dap_hash_fast_is_blank(a_tx_hash)) {
         log_it(L_WARNING, "Trying to clear colour for blank transaction hash");
@@ -2514,7 +2528,6 @@ void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
     dap_chain_datum_tx_t *l_tx = s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
     if (!l_item_out)    // TX is not in ledger, it's OK
         return;
-    
     l_item_out->cache_data.flags |= LEDGER_PVT_TX_META_FLAG_IMMUTABLE;
     for (uint32_t i = 0; i < l_item_out->cache_data.n_outs; i++) {
         if (!dap_hash_fast_is_blank(&l_item_out->out_metadata[i].tx_spent_hash_fast)) {
