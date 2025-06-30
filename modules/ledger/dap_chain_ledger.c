@@ -450,7 +450,7 @@ json_object *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_ad
 }
 
 
-static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_ledger_tx_item_t *a_tx_item)
+static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_ledger_tx_item_t *a_tx_item, int a_version)
 {
     json_object *json_obj_tx = json_object_new_object();
     if (!json_obj_tx) 

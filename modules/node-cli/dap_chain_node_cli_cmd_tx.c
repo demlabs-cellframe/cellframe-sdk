@@ -59,7 +59,8 @@ static bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
                                    dap_ledger_t *a_ledger,
                                    json_object * json_obj_out,
                                    const char *a_hash_out_type,
-                                   dap_chain_hash_fast_t *a_tx_hash);
+                                   dap_chain_hash_fast_t *a_tx_hash,
+                                   int a_version);
 
 static json_object *s_tx_history_to_json(json_object* a_json_arr_reply,
                                   dap_chain_hash_fast_t* a_tx_hash,
@@ -69,7 +70,8 @@ static json_object *s_tx_history_to_json(json_object* a_json_arr_reply,
                                   const char *a_hash_out_type, 
                                   dap_chain_datum_iter_t *a_datum_iter,
                                   int l_ret_code,
-                                  bool out_brief);
+                                  bool out_brief,
+                                  int a_version);
 
 
 /**
@@ -183,7 +185,7 @@ static json_object *s_tx_history_to_json(json_object* a_json_arr_reply,
                                          dap_chain_datum_iter_t *a_datum_iter,
                                          int l_ret_code,
                                          bool brief_out,
-                                        int a_version)
+                                         int a_version)
 {
     const char *l_tx_token_description = NULL;
     json_object* json_obj_datum = json_object_new_object();
@@ -1485,7 +1487,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             return 0;
         }
 
-        if (!s_dap_chain_datum_tx_out_data(*a_json_arr_reply,l_datum_tx, l_net->pub.ledger, json_datum, l_hash_out_type, l_tx_hash)){
+        if (!s_dap_chain_datum_tx_out_data(*a_json_arr_reply,l_datum_tx, l_net->pub.ledger, json_datum, l_hash_out_type, l_tx_hash, a_version)){
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR, "Can't find transaction hash %s in ledger", l_tx_hash_str);
             json_object_put(json_datum);
             DAP_DEL_Z(l_tx_hash);
