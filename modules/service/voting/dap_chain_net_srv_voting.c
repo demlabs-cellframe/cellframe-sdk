@@ -969,6 +969,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         return res;
     }break;
     case CMD_LIST:{
+        json_object* json_vote_out = json_object_new_object();
+        json_object_object_add(json_vote_out, "list_of_polls", json_object_new_string(l_net->pub.name));
         json_object* json_arr_voting_out = json_object_new_array();
         dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
         const char *l_token_str = NULL;
@@ -989,8 +991,12 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             json_object_array_add(json_arr_voting_out, json_obj_vote);
         }
         pthread_rwlock_unlock(&s_votings_rwlock);
+        json_object_array_add(*json_arr_reply, json_vote_out);
         if (json_object_array_length(json_arr_voting_out) == 0) {
             json_object* json_obj_no_polls = json_object_new_object();
+            if (l_token_str) {
+                json_object_object_add(json_obj_no_polls, "token", json_object_new_string(l_token_str));
+            }
             json_object_object_add(json_obj_no_polls, "error", json_object_new_string("No polls found"));
             json_object_array_add(*json_arr_reply, json_obj_no_polls);
             json_object_put(json_arr_voting_out);
