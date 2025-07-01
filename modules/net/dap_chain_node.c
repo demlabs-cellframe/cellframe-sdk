@@ -256,7 +256,7 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
     }
 
     // check is node active for last two hours
-    if (l_info_state_timestamp > (dap_nanotime_now() - dap_nanotime_from_sec(7200)) 
+    if (l_info_state_timestamp > (dap_nanotime_now() - dap_nanotime_from_sec(240)) 
         && l_node_info_states && l_node_info_states->info_v1.downlinks_count > 0) {
             l_state_active = true;
             log_it(L_DEBUG, "Node %s [ %s : %u ] is active in nodes.states, rewrite to node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
