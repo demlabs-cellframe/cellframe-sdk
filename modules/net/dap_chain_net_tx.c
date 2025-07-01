@@ -1196,7 +1196,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 s_json_get_uint256(l_json_item_obj, "value", &l_value);
                 uint256_t l_min = { };
                 dap_chain_net_srv_stake_get_fee_validators(a_net, NULL, NULL, &l_min, NULL);
-                if(!IS_ZERO_256(l_value) || compare256(l_value, l_min) == -1) {
+                if(!IS_ZERO_256(l_value) && compare256(l_value, l_min) >= 0) {
                     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_fee(l_value);
                     l_item = (const uint8_t*) l_out_cond_item;
                     // Save value for using in In item

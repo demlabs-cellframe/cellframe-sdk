@@ -5447,12 +5447,9 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, int a_ver
     const char * l_wallet_str = NULL;
     const char * l_cert_str = NULL;
     const char * l_value_datoshi_str = NULL;
-    const char * l_value_fee_str = NULL;
-    const char * l_net_name = NULL;
     const char * l_unit_str = NULL;
     const char * l_srv_uid_str = NULL;
     uint256_t l_value_datoshi = {};    
-    uint256_t l_value_fee = {};
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
@@ -5471,10 +5468,6 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, int a_ver
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_str);
     // value datoshi
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_datoshi_str);
-    // fee
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_value_fee_str);
-    // net
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
     // unit
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unit", &l_unit_str);
     // service
@@ -5496,14 +5489,16 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, int a_ver
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_VALUE, "tx_cond_create requires parameter '-value'");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_VALUE;
     }
-    if(!l_value_fee_str){
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_FEE, "tx_cond_create requires parameter '-fee'");
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_FEE;
+    size_t l_args_size = 0;
+    byte_t *l_args = dap_chain_node_cli_check(a_argc, a_argv, a_json_arr_reply, DAP_CHAIN_NODE_CLI_CHECK_NET | DAP_CHAIN_NODE_CLI_CHECK_FEE_LOW | DAP_CHAIN_NODE_CLI_CHECK_FEE_ZERO, &l_args_size);
+    if (!l_args || !l_args_size) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_ARGUMENT_INVALID, "Invalid cmd %s arguments", a_argv[0]);
+        return DAP_CHAIN_NODE_CLI_ARGUMENT_INVALID;
     }
-    if(!l_net_name) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_NET, "tx_cond_create requires parameter '-net'");
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_NET;
-    }
+    dap_chain_net_t *l_net = *((dap_chain_net_t **)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_TSD_NET)->data);
+    uint256_t l_value_fee = *((uint256_t *)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_TSD_FEE)->data);
+    DAP_DELETE(l_args);
+
     if(!l_unit_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_UNIT, "tx_cond_create requires parameter '-unit'");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_UNIT;
@@ -5535,18 +5530,6 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, int a_ver
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_RECOGNIZE_VALUE;
     }
 
-    l_value_fee = dap_chain_balance_scan(l_value_fee_str);
-    if(IS_ZERO_256(l_value_fee)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_RECOGNIZE_VALUE_FEE,
-                               "Can't recognize value '%s' as a number", l_value_fee_str);
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_RECOGNIZE_VALUE_FEE;
-    }
-
-    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
-    if(!l_net) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET, "Can't find net '%s'", l_net_name);
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET;
-    }
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
 //    const char* l_sign_str = "";
     if(!l_wallet) {
@@ -5630,12 +5613,9 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, int 
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char * l_wallet_str = NULL;
-    const char * l_value_fee_str = NULL;
-    const char * l_net_name = NULL;
     const char * l_hashes_str = NULL;
     const char * l_srv_uid_str = NULL;
     uint256_t l_value_datoshi = {};    
-    uint256_t l_value_fee = {};
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
@@ -5648,10 +5628,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, int 
 
     // Wallet name 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
-    // fee
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_value_fee_str);
-    // net
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+
     // tx cond hahses 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hashes", &l_hashes_str);
     // srv_uid
@@ -5661,14 +5638,16 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, int 
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_W, "com_txs_cond_remove requires parameter '-w'");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_W;
     }
-    if(!l_value_fee_str){
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_FEE, "com_txs_cond_remove requires parameter '-fee'");
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_FEE;
+    size_t l_args_size = 0;
+    byte_t *l_args = dap_chain_node_cli_check(a_argc, a_argv, a_json_arr_reply, DAP_CHAIN_NODE_CLI_CHECK_NET | DAP_CHAIN_NODE_CLI_CHECK_FEE_LOW | DAP_CHAIN_NODE_CLI_CHECK_FEE_ZERO, &l_args_size);
+    if (!l_args || !l_args_size) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_ARGUMENT_INVALID, "Invalid cmd %s arguments", a_argv[0]);
+        return DAP_CHAIN_NODE_CLI_ARGUMENT_INVALID;
     }
-    if(!l_net_name) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_NET, "com_txs_cond_remove requires parameter '-net'");
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_NET;
-    }
+    dap_chain_net_t *l_net = *((dap_chain_net_t **)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_TSD_NET)->data);
+    uint256_t l_value_fee = *((uint256_t *)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_TSD_FEE)->data);
+    DAP_DELETE(l_args);
+
     if(!l_hashes_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_HASHES, "com_txs_cond_remove requires parameter '-hashes'");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_REQUIRES_PARAMETER_HASHES;
@@ -5685,11 +5664,6 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, int 
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_SERVICE_UID;
     }
 
-    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
-    if(!l_net) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NET, "Can't find net '%s'", l_net_name);
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NET;
-    }
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
 //    const char* l_sign_str = "";
     if(!l_wallet) {
@@ -5699,12 +5673,6 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, int 
 
     dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
     dap_pkey_t *l_wallet_pkey = dap_pkey_from_enc_key(l_key_from);
-
-    l_value_fee = dap_chain_balance_scan(l_value_fee_str);
-    if(IS_ZERO_256(l_value_fee)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_RECOGNIZE_VALUE_FEE, "Can't recognize value '%s' as a number", l_value_fee_str);
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_RECOGNIZE_VALUE_FEE;
-    }
 
     const char *l_native_ticker = l_net->pub.native_ticker;
     if (!l_native_ticker){
@@ -6468,12 +6436,10 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
 //    int cmd_num = 1;
 //    const char *value_str = NULL;
     const char *addr_base58_to = NULL;
-    const char * l_fee_str = NULL;
     const char * l_value_str = NULL;
     const char * l_from_wallet_name = NULL;
     const char * l_wallet_fee_name = NULL;
     const char * l_token_ticker = NULL;
-    const char * l_net_name = NULL;
     const char * l_chain_name = NULL;
     const char * l_emission_chain_name = NULL;
     const char * l_tx_num_str = NULL;
@@ -6496,16 +6462,16 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
     }
 
     size_t l_args_size = 0;
-    byte_t *l_args = dap_chain_node_cli_check(a_argc, a_argv, a_json_arr_reply, DAP_CHAIN_NODE_CLI_CHECK_NET | DAP_CHAIN_NODE_CLI_CHECK_FEE, &l_args_size);
+    byte_t *l_args = dap_chain_node_cli_check(a_argc, a_argv, (json_object **)a_json_arr_reply, DAP_CHAIN_NODE_CLI_CHECK_NET | DAP_CHAIN_NODE_CLI_CHECK_FEE_LOW, &l_args_size);
     if (!l_args || !l_args_size) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND, "Invalid cmd args");
-        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_ARGUMENT_INVALID, "Invalid cmd %s arguments", a_argv[0]);
+        return DAP_CHAIN_NODE_CLI_ARGUMENT_INVALID;
     }
-    dap_chain_net_t *l_net = *((dap_chain_net_t **)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_NET)->data);
-    uint256_t *l_value_fee_p = (uint256_t *)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_FEE)->data;
+    dap_chain_net_t *l_net = *((dap_chain_net_t **)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_TSD_NET)->data);
+    uint256_t l_value_fee = *((uint256_t *)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_TSD_FEE)->data);
+    DAP_DELETE(l_args);
 
     uint256_t *l_value = NULL;
-    uint256_t l_value_fee = {};
     dap_chain_addr_t **l_addr_to = NULL;
     size_t l_addr_el_count = 0;
     size_t l_value_el_count = 0;
@@ -6522,15 +6488,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
     if(l_tx_num_str)
         l_tx_num = strtoul(l_tx_num_str, NULL, 10);
 
-    // Validator's fee
-    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str)) {
-        if (!l_fee_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE, "tx_create requires parameter '-fee'");
-            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE;
-        }
-        l_value_fee = dap_chain_balance_scan(l_fee_str);
-    }
-    if (IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (l_fee_str && strcmp(l_fee_str, "0")))) {
+    if (IS_ZERO_256(l_value_fee) && !l_emission_hash_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256, "tx_create requires parameter '-fee' to be valid uint256");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256;
     }
@@ -6604,7 +6562,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
         }
         if (!dap_ledger_token_ticker_check(l_net->pub.ledger, l_token_ticker)) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_TOKEN_NOT_DECLARATED_IN_NET,
-                                   "Ticker '%s' is not declared on network '%s'.", l_token_ticker, l_net_name);
+                                   "Ticker '%s' is not declared on network '%s'.", l_token_ticker, l_net->pub.name);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_TOKEN_NOT_DECLARATED_IN_NET;
         }
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &addr_base58_to);
@@ -8599,7 +8557,7 @@ byte_t *dap_chain_node_cli_check(int argc, char **argv, json_object **a_json_arr
     }
     int l_arg_index = 1;
     size_t l_ret_size = (a_flags & DAP_CHAIN_NODE_CLI_CHECK_NET) * (sizeof(dap_tsd_t) + sizeof(dap_chain_net_t *)) +
-                        (a_flags & DAP_CHAIN_NODE_CLI_CHECK_FEE) * (sizeof(dap_tsd_t) + sizeof(uint256_t));
+                        (a_flags & (DAP_CHAIN_NODE_CLI_CHECK_FEE_LOW | DAP_CHAIN_NODE_CLI_CHECK_FEE_ZERO)) * (sizeof(dap_tsd_t) + sizeof(uint256_t));
     byte_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(byte_t, l_ret_size, NULL);
     byte_t *l_ptr = l_ret;
     if (a_flags & DAP_CHAIN_NODE_CLI_CHECK_NET) {
@@ -8607,31 +8565,37 @@ byte_t *dap_chain_node_cli_check(int argc, char **argv, json_object **a_json_arr
         dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-net", &l_net_str);
 
         if (!l_net_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -3, "Command policy require args -net");
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_NET_NOT_FOUND, "Command %s require args -net", argv[0]);
             goto clean_and_return;
         }
         dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net){
-            dap_json_rpc_error_add(*a_json_arr_reply, -3, "Can't find net %s", l_net_str);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_NET_NOT_FOUND, "Can't find net %s", l_net_str);
             goto clean_and_return;
         }
-        l_ptr = dap_tsd_write(l_ptr, DAP_CHAIN_NODE_CLI_CHECK_NET, &l_net, sizeof(dap_chain_net_t *));
+        l_ptr = dap_tsd_write(l_ptr, DAP_CHAIN_NODE_CLI_CHECK_TSD_NET, &l_net, sizeof(dap_chain_net_t *));
     }
-    if (a_flags & DAP_CHAIN_NODE_CLI_CHECK_FEE) {
+    if (a_flags & (DAP_CHAIN_NODE_CLI_CHECK_FEE_LOW | DAP_CHAIN_NODE_CLI_CHECK_FEE_ZERO)) {
         const char *l_fee_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-fee", &l_fee_str);
         if (!l_fee_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -3, "Command check require args -fee");
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_REQUIRE_FEE, "Command %s require args -fee", argv[0]);
             goto clean_and_return;
         }
         uint256_t l_value_fee = dap_chain_balance_scan(l_fee_str);
         uint256_t l_min = { };
-        dap_chain_net_srv_stake_get_fee_validators(*((dap_chain_net_t **)dap_tsd_find(l_ret, l_ret_size, DAP_CHAIN_NODE_CLI_CHECK_NET)->data), NULL, NULL, &l_min, NULL);
-        if(IS_ZERO_256(l_value_fee) || compare256(l_value_fee, l_min) < 0) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256, "tx_create requires parameter '-fee' to be valid uint256");
+        dap_chain_net_srv_stake_get_fee_validators(*((dap_chain_net_t **)dap_tsd_find(l_ret, l_ret_size, DAP_CHAIN_NODE_CLI_CHECK_TSD_NET)->data), NULL, NULL, &l_min, NULL);
+        if((a_flags & DAP_CHAIN_NODE_CLI_CHECK_FEE_ZERO) && IS_ZERO_256(l_value_fee)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_FEE_IS_ZERO, "Command %s requires parameter '-fee' to be greater than 0", argv[0]);
             goto clean_and_return;
         }
-        l_ptr = dap_tsd_write(l_ptr, DAP_CHAIN_NODE_CLI_CHECK_FEE, &l_value_fee, sizeof(uint256_t));
+        if ((a_flags & DAP_CHAIN_NODE_CLI_CHECK_FEE_LOW) && (compare256(l_value_fee, l_min) < 0)) {
+            const char *l_min_str = dap_chain_balance_print(l_min);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_FEE_IS_LOW, "Command %s requires parameter '-fee' %s to be greater than min fee %s", argv[0], l_fee_str, l_min_str);
+            DAP_DELETE(l_min_str);
+            goto clean_and_return;
+        }
+        l_ptr = dap_tsd_write(l_ptr, DAP_CHAIN_NODE_CLI_CHECK_TSD_FEE, &l_value_fee, sizeof(uint256_t));
     }
     if (a_ret_size) {
         *a_ret_size = l_ret_size;
