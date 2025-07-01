@@ -254,7 +254,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     if (!l_new_decree) {
         l_new_decree = DAP_NEW_Z(decree_table_t);
         if (!l_new_decree) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -1;
         }
         l_new_decree->key = *a_decree_hash;

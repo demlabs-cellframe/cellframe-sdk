@@ -485,7 +485,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             }
             dap_chain_atom_ptr_t l_element = DAP_NEW_SIZE(dap_chain_atom_ptr_t, l_el_size);
             if (!l_element) {
-                log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 l_ret = -5;
                 break;
             }

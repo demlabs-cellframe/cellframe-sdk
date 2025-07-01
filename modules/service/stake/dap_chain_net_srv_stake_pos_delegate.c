@@ -3782,7 +3782,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
     json_object* json_obj_reward = json_object_new_array();
     if (!json_obj_reward){
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        dap_json_rpc_error_add(a_json_arr_reply, -44, "Memory allocation error");
+        dap_json_rpc_error_add(a_json_arr_reply, -44, c_error_memory_alloc);
         return NULL;
     }
     if (!a_chain->callback_datum_iter_create) {

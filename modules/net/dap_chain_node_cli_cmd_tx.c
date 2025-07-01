@@ -326,7 +326,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     json_object* json_obj_datum = json_object_new_array();
     if (!json_obj_datum){
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        dap_json_rpc_error_add(a_json_arr_reply, -44, "Memory allocation error");
+        dap_json_rpc_error_add(a_json_arr_reply, -44, c_error_memory_alloc);
         return NULL;
     }
 

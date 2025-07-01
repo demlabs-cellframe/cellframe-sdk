@@ -447,7 +447,7 @@ int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_led
 
     l_new_sinfo = DAP_NEW(dap_ledger_service_info_t);
     if (!l_new_sinfo) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return -1;
     }
     l_new_sinfo->service_uid = a_uid;
@@ -4746,7 +4746,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     if (PVT(a_ledger)->cached) {
         l_cache_used_outs = DAP_NEW_Z_COUNT(dap_store_obj_t, l_outs_used);
         if ( !l_cache_used_outs ) {
-            log_it(L_CRITICAL, "Memory allocation error");
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             l_ret = -1;
             goto FIN;
         }

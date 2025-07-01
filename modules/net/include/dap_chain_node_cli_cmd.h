@@ -243,6 +243,14 @@ typedef enum cmd_mempool_list_err{
 } cmd_mempool_list_err_t;
 
 
+typedef enum cmd_check_flag {
+    DAP_CHAIN_NODE_CLI_CHECK_NET = 1,
+    DAP_CHAIN_NODE_CLI_CHECK_FEE,
+    DAP_CHAIN_NODE_CLI_CHECK_CERT,
+    DAP_CHAIN_NODE_CLI_CHECK_WALLET,
+} cmd_check_flag_t;
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -479,6 +487,8 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version);
  * Policy management
  */
 int com_policy(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+
+byte_t *dap_chain_node_cli_check(int argc, char **argv, json_object **a_json_arr_reply, uint64_t a_flags, size_t *a_ret_size);
 
 #ifdef __cplusplus
 }

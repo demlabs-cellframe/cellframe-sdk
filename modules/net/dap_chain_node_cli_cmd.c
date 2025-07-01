@@ -6495,12 +6495,14 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID;
     }
 
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
-    dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_name);
-    if (l_net == NULL) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND, "not found net by name '%s'", l_net_name);
+    size_t l_args_size = 0;
+    byte_t *l_args = dap_chain_node_cli_check(a_argc, a_argv, a_json_arr_reply, DAP_CHAIN_NODE_CLI_CHECK_NET | DAP_CHAIN_NODE_CLI_CHECK_FEE, &l_args_size);
+    if (!l_args || !l_args_size) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND, "Invalid cmd args");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND;
     }
+    dap_chain_net_t *l_net = *((dap_chain_net_t **)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_NET)->data);
+    uint256_t *l_value_fee_p = (uint256_t *)dap_tsd_find(l_args, l_args_size, DAP_CHAIN_NODE_CLI_CHECK_FEE)->data;
 
     uint256_t *l_value = NULL;
     uint256_t l_value_fee = {};
@@ -8588,4 +8590,54 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
     DAP_DELETE(l_decree_hash_str);
 
     return 0;
+}
+
+byte_t *dap_chain_node_cli_check(int argc, char **argv, json_object **a_json_arr_reply, uint64_t a_flags, size_t *a_ret_size) {
+    if (argc < 2) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -1, "Command check require args");
+        return NULL;
+    }
+    int l_arg_index = 1;
+    size_t l_ret_size = (a_flags & DAP_CHAIN_NODE_CLI_CHECK_NET) * (sizeof(dap_tsd_t) + sizeof(dap_chain_net_t *)) +
+                        (a_flags & DAP_CHAIN_NODE_CLI_CHECK_FEE) * (sizeof(dap_tsd_t) + sizeof(uint256_t));
+    byte_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(byte_t, l_ret_size, NULL);
+    byte_t *l_ptr = l_ret;
+    if (a_flags & DAP_CHAIN_NODE_CLI_CHECK_NET) {
+        const char *l_net_str = NULL;
+        dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-net", &l_net_str);
+
+        if (!l_net_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -3, "Command policy require args -net");
+            goto clean_and_return;
+        }
+        dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+        if (!l_net){
+            dap_json_rpc_error_add(*a_json_arr_reply, -3, "Can't find net %s", l_net_str);
+            goto clean_and_return;
+        }
+        l_ptr = dap_tsd_write(l_ptr, DAP_CHAIN_NODE_CLI_CHECK_NET, &l_net, sizeof(dap_chain_net_t *));
+    }
+    if (a_flags & DAP_CHAIN_NODE_CLI_CHECK_FEE) {
+        const char *l_fee_str = NULL;
+        dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "-fee", &l_fee_str);
+        if (!l_fee_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -3, "Command check require args -fee");
+            goto clean_and_return;
+        }
+        uint256_t l_value_fee = dap_chain_balance_scan(l_fee_str);
+        uint256_t l_min = { };
+        dap_chain_net_srv_stake_get_fee_validators(*((dap_chain_net_t **)dap_tsd_find(l_ret, l_ret_size, DAP_CHAIN_NODE_CLI_CHECK_NET)->data), NULL, NULL, &l_min, NULL);
+        if(IS_ZERO_256(l_value_fee) || compare256(l_value_fee, l_min) < 0) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256, "tx_create requires parameter '-fee' to be valid uint256");
+            goto clean_and_return;
+        }
+        l_ptr = dap_tsd_write(l_ptr, DAP_CHAIN_NODE_CLI_CHECK_FEE, &l_value_fee, sizeof(uint256_t));
+    }
+    if (a_ret_size) {
+        *a_ret_size = l_ret_size;
+    }
+    return l_ret;
+clean_and_return:
+    DAP_DELETE(l_ret);
+    return NULL;
 }
