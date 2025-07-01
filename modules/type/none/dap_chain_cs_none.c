@@ -71,7 +71,7 @@ static void s_nonconsensus_callback_atom_iter_delete(dap_chain_atom_iter_t * a_a
 static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter,
         dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 
-static json_object *s_nonconsensus_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type);
+static json_object *s_nonconsensus_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type, int a_version);
 
 // Get event(s) from gdb
 static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
@@ -445,11 +445,11 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_c
  * @param a_hash_out_type
  * @return
  */
-static json_object *s_nonconsensus_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type)
+static json_object *s_nonconsensus_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type, int a_version)
 {
     json_object *obj_ret = json_object_new_object();
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*)a_atom;
-    dap_chain_datum_dump_json(*a_arr_out, obj_ret, l_datum, a_hash_out_type, a_chain->net_id, true);
+    dap_chain_datum_dump_json(*a_arr_out, obj_ret, l_datum, a_hash_out_type, a_chain->net_id, true, a_version);
     return obj_ret;
 }
 
