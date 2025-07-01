@@ -1647,8 +1647,10 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                                                 l_vote_tx_item ? &l_vote_tx_item->voting_hash : NULL, &l_vote_pkey_hash,
                                                 &l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, a_tx->header.ts_created);
         // Clear trackers info for immutable tx's
-        if (l_prev_item_out->cache_data.flags & LEDGER_PVT_TX_META_FLAG_IMMUTABLE)
+        if (l_prev_item_out->cache_data.flags & LEDGER_PVT_TX_META_FLAG_IMMUTABLE) {
             dap_list_free_full(l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers, dap_ledger_colour_clear_callback);
+            l_prev_item_out->out_metadata[l_bound_item->prev_out_idx].trackers = NULL;
+        }
     }
 
     uint32_t l_outs_count = dap_list_length(l_list_tx_out);
