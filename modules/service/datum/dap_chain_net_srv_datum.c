@@ -40,7 +40,7 @@ typedef enum s_com_srv_datum_err{
 }s_com_srv_datum_err_t;
 
 static dap_chain_net_srv_t *s_srv_datum = NULL;
-static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply);
+static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, int a_version);
 
 void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg);
 
@@ -86,7 +86,7 @@ uint8_t * dap_chain_net_srv_file_datum_data_read(char * a_path, size_t *a_data_s
         rewind(l_file);
         l_datum_data = DAP_NEW_SIZE(uint8_t, l_datum_data_size);
         if ( fread(l_datum_data, 1, l_datum_data_size, l_file ) != l_datum_data_size ){
-            log_it(L_ERROR, "Can't read %"DAP_UINT64_FORMAT_U" bytes from the disk!", l_datum_data_size);
+            log_it(L_ERROR, "Can't read %zu bytes from the disk!", l_datum_data_size);
             DAP_DELETE(l_datum_data);
             fclose(l_file);
             return NULL;
@@ -110,7 +110,7 @@ char* dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, const uint8_t *a
     return l_hash_str;
 }
 
-static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
+static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;

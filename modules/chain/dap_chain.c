@@ -322,35 +322,6 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     return CHAIN_TYPE_INVALID;
 }
 
-/**
- * @brief s_datum_type_from_str
- * get datum type (DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX) by str value
- * @param a_type_str datum type in string value (token,emission,transaction)
- * @return uint16_t 
- */
-static uint16_t s_datum_type_from_str(const char *a_type_str)
-{
-    if(!dap_strcmp(a_type_str, "token")) {
-        return DAP_CHAIN_DATUM_TOKEN;
-    }
-    if(!dap_strcmp(a_type_str, "emission")) {
-        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
-    }
-    if(!dap_strcmp(a_type_str, "transaction")) {
-        return DAP_CHAIN_DATUM_TX;
-    }
-    if(!dap_strcmp(a_type_str, "ca")) {
-        return DAP_CHAIN_DATUM_CA;
-    }
-    if (!dap_strcmp(a_type_str, "signer")) {
-        return DAP_CHAIN_DATUM_SIGNER;
-    }
-    if (!dap_strcmp(a_type_str, "decree"))
-        return DAP_CHAIN_DATUM_DECREE;
-    if (!dap_strcmp(a_type_str, "anchor"))
-        return DAP_CHAIN_DATUM_ANCHOR;
-    return DAP_CHAIN_DATUM_CUSTOM;
-}
 
 /**
  * @brief s_chain_type_convert
@@ -377,6 +348,45 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
         return DAP_CHAIN_DATUM_ANCHOR;
     default:
         return DAP_CHAIN_DATUM_CUSTOM;
+    }
+}
+
+/**
+ * @brief s_datum_type_from_str
+ * get datum type (DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX) by str value
+ * @param a_type_str datum type in string value (token,emission,transaction)
+ * @return uint16_t 
+ */
+static uint16_t s_datum_type_from_str(const char *a_type_str)
+{
+    return s_chain_type_convert(s_chain_type_from_str(a_type_str));
+}
+/**
+ * @brief s_datum_type_convert
+ * convert uint16_t to  dap_chain_type_t
+ * @param a_type - uint16_t a_type [DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX]
+ * @return dap_chain_type_t 
+ */
+
+static dap_chain_type_t s_datum_type_convert(uint16_t a_type)
+{
+    switch (a_type) {
+    case DAP_CHAIN_DATUM_TOKEN: 
+        return CHAIN_TYPE_TOKEN;
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+        return CHAIN_TYPE_EMISSION;
+    case DAP_CHAIN_DATUM_TX:
+        return CHAIN_TYPE_TX;
+    case DAP_CHAIN_DATUM_CA:
+        return CHAIN_TYPE_CA;
+	case DAP_CHAIN_DATUM_SIGNER:
+		return CHAIN_TYPE_SIGNER;
+    case DAP_CHAIN_DATUM_DECREE:
+        return CHAIN_TYPE_DECREE;
+    case DAP_CHAIN_DATUM_ANCHOR:
+        return CHAIN_TYPE_ANCHOR;
+    default:
+        return CHAIN_TYPE_INVALID;
     }
 }
 
@@ -1085,6 +1095,11 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type)
         case CHAIN_TYPE_ANCHOR:
             return "anchor";
         default:
-            return "unknown";
+            return "custom";
     }
+}
+
+const char *dap_datum_type_to_str(uint16_t a_datum_type)
+{
+    return dap_chain_type_to_str(s_datum_type_convert(a_datum_type));
 }
