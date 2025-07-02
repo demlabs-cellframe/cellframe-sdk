@@ -34,6 +34,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_policy.h"
+#include "dap_chain_srv.h"
 
 #define LOG_TAG "dap_ledger_decree"
 
@@ -666,6 +667,9 @@ const char *l_ban_addr;
             }
             if (!a_apply)
                 break;
+            // Call hardfork complete callback for all registered services
+            dap_chain_srv_hardfork_complete_all(a_net->pub.id);
+            // Call hardfork complete for chain
             return dap_chain_esbocs_set_hardfork_complete(l_chain);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL: {

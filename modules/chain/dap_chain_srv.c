@@ -238,6 +238,25 @@ int dap_chain_srv_load_state(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_
         return l_service->callbacks.hardfork_load(a_net_id, a_state, a_state_size, a_state_count);
     return -404;
 }
+
+/**
+ * @brief dap_chain_srv_hardfork_complete_all
+ * @param a_net_id
+ */
+void dap_chain_srv_hardfork_complete_all(dap_chain_net_id_t a_net_id)
+{
+    int err = pthread_rwlock_rdlock(&s_srv_list_lock);
+    assert(!err);
+    for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
+        if (!it->callbacks.hardfork_complete)
+            continue;
+        struct network_service *l_service = s_net_service_find(it, a_net_id);
+        if (!l_service)
+            continue;
+        it->callbacks.hardfork_complete(a_net_id);
+    }
+    pthread_rwlock_unlock(&s_srv_list_lock);
+}
 /**
  * @brief dap_chain_srv_get_fees
  * @param a_net_id

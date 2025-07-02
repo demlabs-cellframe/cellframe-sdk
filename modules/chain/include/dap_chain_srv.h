@@ -45,6 +45,8 @@ typedef json_object * (*dap_chain_srv_callback_get_fee)(dap_chain_net_id_t a_net
 typedef byte_t * (*dap_chain_srv_callback_hardfork_prepare_t)(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal);
 // Hardfork data load service callback
 typedef int (*dap_chain_srv_callback_hardfork_data_t)(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_state_count);
+// Hardfork complete service callback
+typedef void (*dap_chain_srv_callback_hardfork_complete_t)(dap_chain_net_id_t a_net_id);
 
 typedef struct dap_chain_static_srv_callbacks {
     // Init
@@ -59,6 +61,8 @@ typedef struct dap_chain_static_srv_callbacks {
     dap_chain_srv_callback_hardfork_prepare_t hardfork_prepare;
     // Hardfork data load
     dap_chain_srv_callback_hardfork_data_t hardfork_load;
+    // Hardfork complete
+    dap_chain_srv_callback_hardfork_complete_t hardfork_complete;
     // And no more =)
 } dap_chain_static_srv_callbacks_t;
 
@@ -117,4 +121,5 @@ int dap_chain_srv_purge(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_u
 int dap_chain_srv_purge_all(dap_chain_net_id_t a_net_id);
 dap_chain_srv_hardfork_state_t *dap_chain_srv_hardfork_all(dap_chain_net_id_t a_net_id);
 int dap_chain_srv_load_state(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, byte_t *a_state, uint64_t a_state_size, uint32_t a_state_count);
+void dap_chain_srv_hardfork_complete_all(dap_chain_net_id_t a_net_id);
 json_object *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id);
