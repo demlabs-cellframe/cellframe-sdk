@@ -935,6 +935,21 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
         json_object* json_vote_out = json_object_new_object();
         json_object_object_add(json_vote_out, "poll_tx", json_object_new_string_len(l_hash_str, sizeof(dap_hash_str_t)));
+
+        // get creator address from voting tx
+        dap_ledger_t *l_ledger = l_net->pub.ledger;
+        dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash);
+        dap_chain_datum_tx_t *l_voting_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_voting_hash);
+        if (!l_voting_tx) {
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE, "Can't find poll with hash %s", l_hash_str);
+            return -DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE;
+        }
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_voting_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
+        dap_chain_addr_t l_creator_addr = {0};
+        dap_chain_addr_fill_from_sign(&l_creator_addr, l_sign, l_net->pub.id);
+        json_object_object_add(json_vote_out,"creator_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_creator_addr))); 
+
         json_object_object_add(json_vote_out, "question", json_object_new_string(l_voting->params->question));
         json_object_object_add(json_vote_out, "token", json_object_new_string(l_voting->params->token_ticker));
         if (l_voting->params->voting_expire) {
