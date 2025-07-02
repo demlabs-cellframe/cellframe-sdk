@@ -251,3 +251,28 @@ json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, d
     json_object_object_add(l_object, "answer_text", l_answer_text);
     return l_object;
 }
+
+// Cancellation TSD creation functions
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_chain_hash_fast_t *a_voting_hash)
+{
+    if (!a_voting_hash)
+        return NULL;
+
+    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(a_voting_hash, VOTING_TSD_TYPE_CANCEL_HASH, sizeof(dap_chain_hash_fast_t));
+
+    return l_tsd;
+}
+
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_reason_tsd_create(const char* a_reason)
+{
+    if (!a_reason || !strlen(a_reason))
+        return NULL;
+
+    size_t l_reason_len = strlen(a_reason);
+    if (l_reason_len > 255) // Limit reason length
+        l_reason_len = 255;
+
+    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create((void*)a_reason, VOTING_TSD_TYPE_CANCEL_REASON, l_reason_len);
+
+    return l_tsd;
+}

@@ -44,7 +44,10 @@ typedef enum dap_chain_datum_voting_tsd_type {
     VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED,
     VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED,
     VOTING_TSD_TYPE_VOTE_TX_COND,
-    VOTING_TSD_TYPE_TOKEN
+    VOTING_TSD_TYPE_TOKEN,
+    // Cancellation TSD types
+    VOTING_TSD_TYPE_CANCEL_HASH = 0x10,     // Hash of poll to cancel
+    VOTING_TSD_TYPE_CANCEL_REASON = 0x11    // Optional cancellation reason
 } dap_chain_datum_voting_tsd_type_t;
 
 typedef struct dap_chain_tx_voting {
@@ -89,6 +92,10 @@ dap_chain_tx_tsd_t *dap_chain_datum_voting_delegated_key_required_tsd_create(boo
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool a_vote_changing_allowed);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_chain_hash_fast_t a_tx_hash, int a_out_idx);
 dap_chain_tx_tsd_t *dap_chain_datum_voting_token_tsd_create(const char *a_token_ticker);
+
+// Cancellation TSD creation functions
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_chain_hash_fast_t *a_voting_hash);
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_reason_tsd_create(const char* a_reason);
 
 dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void);
 json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_tx);

@@ -41,6 +41,18 @@
 
 #define LOG_TAG "chain_net_voting"
 
+// TSD types for voting cancellation
+#define VOTING_TSD_TYPE_CANCEL_HASH     0x0010  // Hash of poll to cancel
+#define VOTING_TSD_TYPE_CANCEL_REASON   0x0011  // Optional cancellation reason
+
+// Voting status enumeration
+typedef enum {
+    DAP_CHAIN_NET_VOTING_STATUS_ACTIVE = 0,
+    DAP_CHAIN_NET_VOTING_STATUS_EXPIRED,
+    DAP_CHAIN_NET_VOTING_STATUS_CANCELLED,
+    DAP_CHAIN_NET_VOTING_STATUS_COMPLETED
+} dap_chain_net_voting_status_t;
+
 typedef struct dap_chain_net_voting_params_offsets{
     dap_chain_datum_tx_t* voting_tx;
     size_t voting_question_offset;
@@ -51,6 +63,10 @@ typedef struct dap_chain_net_voting_params_offsets{
     bool delegate_key_required;
     bool vote_changing_allowed;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    // Cancellation fields
+    dap_chain_net_voting_status_t status;           // Current voting status
+    dap_hash_fast_t cancelled_by_tx_hash;           // Hash of cancellation transaction
+    char cancel_reason[256];                        // Reason for cancellation
 } dap_chain_net_voting_params_offsets_t;
 
 typedef struct dap_chain_net_vote_option {
@@ -94,6 +110,10 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
 static int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
 static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in);
 static int s_cli_voting(int argc, char **argv, void **a_str_reply);
+
+// Cancellation verification functions
+static bool s_verify_cancel_rights(dap_ledger_t *a_ledger, dap_chain_net_votings_t *a_voting, dap_chain_datum_tx_t *a_cancel_tx);
+static int s_voting_cancel_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
 
 static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
@@ -220,6 +240,11 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
     l_item->voting_params.voting_tx = a_tx_in;
     l_item->net_id = a_ledger->net->pub.id;
     pthread_rwlock_init(&l_item->s_tx_outs_rwlock, NULL);
+    
+    // Initialize cancellation fields
+    l_item->voting_params.status = DAP_CHAIN_NET_VOTING_STATUS_ACTIVE;
+    memset(&l_item->voting_params.cancelled_by_tx_hash, 0, sizeof(dap_hash_fast_t));
+    memset(l_item->voting_params.cancel_reason, 0, sizeof(l_item->voting_params.cancel_reason));
 
     dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
     for (dap_list_t *it = l_tsd_list; it; it = it->next) {
@@ -503,6 +528,18 @@ int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx
         return s_voting_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
     if (a_type == TX_ITEM_TYPE_VOTE)
         return s_vote_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
+    
+    // Check if this is a cancellation transaction (has cancel TSD)
+    dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
+    for (dap_list_t *it = l_tsd_list; it; it = it->next) {
+        dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)it->data)->tsd;
+        if (l_tsd->type == VOTING_TSD_TYPE_CANCEL_HASH) {
+            dap_list_free(l_tsd_list);
+            return s_voting_cancel_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
+        }
+    }
+    dap_list_free(l_tsd_list);
+    
     log_it(L_ERROR, "Item %d is not supported in polls", a_type);
     return -3;
 }
@@ -616,10 +653,12 @@ static dap_list_t* s_get_options_list_from_str(const char* a_str)
     return l_ret;
 }
 
+
+
 static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
 {
     json_object **json_arr_reply = (json_object **)a_str_reply;
-    enum {CMD_NONE=0, CMD_CREATE, CMD_VOTE, CMD_LIST, CMD_DUMP};
+    enum {CMD_NONE=0, CMD_CREATE, CMD_VOTE, CMD_LIST, CMD_DUMP, CMD_CANCEL};
 
     const char* l_net_str = NULL;
     int arg_index = 1;
@@ -654,6 +693,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         l_cmd = CMD_LIST;
     else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "dump", NULL))
         l_cmd = CMD_DUMP;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "cancel", NULL))
+        l_cmd = CMD_CANCEL;
 
 
     switch(l_cmd){
@@ -984,6 +1025,31 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             json_object_object_add( json_obj_vote, "question", 
                                     json_object_new_string_len(l_voting_question, l_voting->voting_params.voting_question_length) );
             json_object_object_add(json_obj_vote, "token", json_object_new_string(l_voting->voting_params.token_ticker));
+            
+            // Add status information
+            const char *l_status_str = "active";
+            switch (l_voting->voting_params.status) {
+                case DAP_CHAIN_NET_VOTING_STATUS_ACTIVE:
+                    if (l_voting->voting_params.voting_expire && l_voting->voting_params.voting_expire < dap_time_now())
+                        l_status_str = "expired";
+                    else
+                        l_status_str = "active";
+                    break;
+                case DAP_CHAIN_NET_VOTING_STATUS_EXPIRED:
+                    l_status_str = "expired";
+                    break;
+                case DAP_CHAIN_NET_VOTING_STATUS_CANCELLED:
+                    l_status_str = "cancelled";
+                    break;
+                case DAP_CHAIN_NET_VOTING_STATUS_COMPLETED:
+                    l_status_str = "completed";
+                    break;
+                default:
+                    l_status_str = "unknown";
+                    break;
+            }
+            json_object_object_add(json_obj_vote, "status", json_object_new_string(l_status_str));
+            
             json_object_array_add(json_arr_voting_out, json_obj_vote);
         }
         pthread_rwlock_unlock(&s_votings_rwlock);
@@ -1044,8 +1110,42 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting->voting_params.voting_expire);
             json_object_object_add(json_vote_out, "expiration", 
                                     json_object_new_string(l_tmp_buf));
-            json_object_object_add(json_vote_out, "status",
-                                   json_object_new_string( l_voting->voting_params.voting_expire >= dap_time_now() ? "active" : "expired" ));
+        }
+        
+        // Add comprehensive status information
+        const char *l_status_str = "active";
+        switch (l_voting->voting_params.status) {
+            case DAP_CHAIN_NET_VOTING_STATUS_ACTIVE:
+                if (l_voting->voting_params.voting_expire && l_voting->voting_params.voting_expire < dap_time_now())
+                    l_status_str = "expired";
+                else
+                    l_status_str = "active";
+                break;
+            case DAP_CHAIN_NET_VOTING_STATUS_EXPIRED:
+                l_status_str = "expired";
+                break;
+            case DAP_CHAIN_NET_VOTING_STATUS_CANCELLED:
+                l_status_str = "cancelled";
+                break;
+            case DAP_CHAIN_NET_VOTING_STATUS_COMPLETED:
+                l_status_str = "completed";
+                break;
+            default:
+                l_status_str = "unknown";
+                break;
+        }
+        json_object_object_add(json_vote_out, "status", json_object_new_string(l_status_str));
+        
+        // Add cancellation details if cancelled
+        if (l_voting->voting_params.status == DAP_CHAIN_NET_VOTING_STATUS_CANCELLED) {
+            if (!dap_hash_fast_is_blank(&l_voting->voting_params.cancelled_by_tx_hash)) {
+                json_object_object_add(json_vote_out, "cancelled_by_tx", 
+                                       json_object_new_string(dap_hash_fast_to_str_static(&l_voting->voting_params.cancelled_by_tx_hash)));
+            }
+            if (strlen(l_voting->voting_params.cancel_reason) > 0) {
+                json_object_object_add(json_vote_out, "cancel_reason", 
+                                       json_object_new_string(l_voting->voting_params.cancel_reason));
+            }
         }
         if (l_voting->voting_params.votes_max_count){
             json_object_object_add(json_vote_out, "votes_max",
@@ -1086,6 +1186,93 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         json_object_object_add(json_vote_out, "total_sum", json_object_new_string(l_tw_coins));
         json_object_object_add(json_vote_out, "total_sum_datoshi", json_object_new_string(l_tw_datoshi));
         json_object_array_add(*json_arr_reply, json_vote_out);
+    } break;
+    case CMD_CANCEL:{
+        const char* l_hash_str = NULL;
+        const char* l_reason_str = NULL;
+        const char* l_fee_str = NULL;
+        const char* l_wallet_str = NULL;
+
+        // Get poll hash to cancel
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
+        if(!l_hash_str){
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_HASH_NOT_FOUND, "Command 'cancel' requires parameter -hash");
+            return -DAP_CHAIN_NET_VOTE_CANCEL_HASH_NOT_FOUND;
+        }
+
+        dap_hash_fast_t l_voting_hash = {};
+        if (dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash)) {
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_HASH_INVALID, "Hash string is not recognized as hex or base58 hash");
+            return -DAP_CHAIN_NET_VOTE_CANCEL_HASH_INVALID;
+        }
+
+        // Get optional cancellation reason
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-reason", &l_reason_str);
+
+        // Get fee
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str);
+        if (!l_fee_str){
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_NOT_VALID, "Command 'cancel' requires parameter -fee to be valid");
+            return -DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_NOT_VALID;
+        }
+        uint256_t l_value_fee = dap_chain_balance_scan(l_fee_str);
+        if (IS_ZERO_256(l_value_fee)) {
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_BAD_TYPE, "Command requires parameter '-fee' to be valid uint256");            
+            return -DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_BAD_TYPE;
+        }
+
+        // Get wallet
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
+        if (!l_wallet_str){
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_WALLET_PARAM_NOT_VALID, "Command 'cancel' requires parameter -w to be valid");
+            return -DAP_CHAIN_NET_VOTE_CANCEL_WALLET_PARAM_NOT_VALID;
+        }
+
+        const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
+        if (!l_wallet) {
+            dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_WALLET_DOES_NOT_EXIST, "Wallet %s does not exist", l_wallet_str);
+            return -DAP_CHAIN_NET_VOTE_CANCEL_WALLET_DOES_NOT_EXIST;
+        }
+
+        char *l_hash_tx_out = NULL;
+        dap_chain_net_vote_cancel_result_t res = dap_chain_net_vote_cancel(&l_voting_hash, l_reason_str, l_value_fee, l_wallet, l_net, l_hash_out_type, &l_hash_tx_out);
+        dap_chain_wallet_close(l_wallet);
+
+        switch (res) {
+            case DAP_CHAIN_NET_VOTE_CANCEL_OK: {
+                json_object* json_obj_inf = json_object_new_object();
+                json_object_object_add(json_obj_inf, "Poll cancelled successfully", json_object_new_string(l_hash_tx_out));
+                json_object_array_add(*json_arr_reply, json_obj_inf);
+                DAP_DELETE(l_hash_tx_out);
+                return DAP_CHAIN_NET_VOTE_CANCEL_OK;
+            } break;
+            case DAP_CHAIN_NET_VOTE_CANCEL_VOTING_NOT_FOUND: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_VOTING_NOT_FOUND, "Can't find poll with hash %s", l_hash_str);
+            } break;
+            case DAP_CHAIN_NET_VOTE_CANCEL_ALREADY_CANCELLED: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_ALREADY_CANCELLED, "Poll is already cancelled");
+            } break;
+            case DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS, "You don't have rights to cancel this poll");
+            } break;
+            case DAP_CHAIN_NET_VOTE_CANCEL_SOURCE_ADDRESS_INVALID: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_SOURCE_ADDRESS_INVALID, "Source address is invalid");
+            } break;
+            case DAP_CHAIN_NET_VOTE_CANCEL_NOT_ENOUGH_FUNDS: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_NOT_ENOUGH_FUNDS, "Not enough funds to transfer");
+            } break;
+            case DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX, "Can't sign transaction");
+            } break;
+            case DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_POOL_IN_MEMPOOL: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_POOL_IN_MEMPOOL, "Can't add transaction to mempool");
+            } break;
+            default: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_UNKNOWN_ERR, "Unknown error. Code: %d", res);
+            } break;
+        }
+        return res;
     } break;
     default:
         break;
@@ -1211,6 +1398,162 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
 
     return s_tx_is_spent(l_ledger, &a_tx_prev_hash, &a_voting_hash, a_pkey_hash, l_voting, l_voting_tx->header.ts_created);
 
+}
+
+// Verification function for cancel rights - checks if canceller is poll creator
+static bool s_verify_cancel_rights(dap_ledger_t *a_ledger, dap_chain_net_votings_t *a_voting, dap_chain_datum_tx_t *a_cancel_tx)
+{
+    if (!a_ledger || !a_voting || !a_cancel_tx) {
+        log_it(L_ERROR, "Invalid input parameters for cancel rights verification");
+        return false;
+    }
+
+    // Get signatures from original voting transaction
+    dap_list_t *l_original_signs = dap_chain_datum_tx_items_get(a_voting->voting_params.voting_tx, TX_ITEM_TYPE_SIG, NULL);
+    if (!l_original_signs) {
+        log_it(L_WARNING, "No signatures found in original voting transaction");
+        return false;
+    }
+
+    // Get signatures from cancellation transaction
+    dap_list_t *l_cancel_signs = dap_chain_datum_tx_items_get(a_cancel_tx, TX_ITEM_TYPE_SIG, NULL);
+    if (!l_cancel_signs) {
+        log_it(L_WARNING, "No signatures found in cancellation transaction");
+        dap_list_free(l_original_signs);
+        return false;
+    }
+
+    // Check if any signature from original voting matches cancellation signatures
+    bool l_rights_verified = false;
+    for (dap_list_t *orig = l_original_signs; orig && !l_rights_verified; orig = orig->next) {
+        dap_sign_t *l_orig_sign = dap_chain_datum_tx_item_sign_get_sig(orig->data);
+        if (!l_orig_sign) continue;
+        
+        dap_hash_fast_t l_orig_pkey_hash;
+        if (dap_sign_get_pkey_hash(l_orig_sign, &l_orig_pkey_hash) != 0) continue;
+
+        for (dap_list_t *cancel = l_cancel_signs; cancel; cancel = cancel->next) {
+            dap_sign_t *l_cancel_sign = dap_chain_datum_tx_item_sign_get_sig(cancel->data);
+            if (!l_cancel_sign) continue;
+            
+            dap_hash_fast_t l_cancel_pkey_hash;
+            if (dap_sign_get_pkey_hash(l_cancel_sign, &l_cancel_pkey_hash) != 0) continue;
+
+            if (dap_hash_fast_compare(&l_orig_pkey_hash, &l_cancel_pkey_hash)) {
+                l_rights_verified = true;
+                break;
+            }
+        }
+    }
+
+    dap_list_free(l_original_signs);
+    dap_list_free(l_cancel_signs);
+
+    if (!l_rights_verified) {
+        log_it(L_WARNING, "Cancellation transaction signature doesn't match original voting creator");
+    }
+
+    return l_rights_verified;
+}
+
+// Cancellation verificator function
+static int s_voting_cancel_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, 
+                                      dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
+{
+    if (!a_ledger || !a_tx_in || !a_tx_hash) {
+        log_it(L_ERROR, "Invalid parameters for cancellation verification");
+        return -1;
+    }
+
+    // Extract target voting hash from TSD
+    dap_hash_fast_t l_target_voting_hash = {};
+    char l_cancel_reason[256] = {0};
+    bool l_target_hash_found = false;
+
+    dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
+    for (dap_list_t *it = l_tsd_list; it; it = it->next) {
+        dap_chain_tx_tsd_t *l_tx_tsd = it->data;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)l_tx_tsd->tsd;
+        
+        if (l_tx_tsd->header.size < sizeof(dap_tsd_t) || l_tx_tsd->header.size != dap_tsd_size(l_tsd)) {
+            log_it(L_WARNING, "Incorrect size %" DAP_UINT64_FORMAT_U " of TX_TSD item for cancel tx %s",
+                   l_tx_tsd->header.size, dap_hash_fast_to_str_static(a_tx_hash));
+            dap_list_free(l_tsd_list);
+            return -2;
+        }
+
+        switch(l_tsd->type) {
+        case VOTING_TSD_TYPE_CANCEL_HASH:
+            if (l_tsd->size != sizeof(dap_hash_fast_t)) {
+                log_it(L_WARNING, "Incorrect size %u of TSD section CANCEL_HASH for cancel tx %s", 
+                       l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
+                dap_list_free(l_tsd_list);
+                return -3;
+            }
+            l_target_voting_hash = *(dap_hash_fast_t *)l_tsd->data;
+            l_target_hash_found = true;
+            break;
+        case VOTING_TSD_TYPE_CANCEL_REASON:
+            if (l_tsd->size > 0 && l_tsd->size < 256) {
+                memcpy(l_cancel_reason, l_tsd->data, l_tsd->size);
+                l_cancel_reason[l_tsd->size] = '\0';
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    dap_list_free(l_tsd_list);
+
+    if (!l_target_hash_found) {
+        log_it(L_WARNING, "No target voting hash found in cancellation transaction %s", 
+               dap_hash_fast_to_str_static(a_tx_hash));
+        return -4;
+    }
+
+    // Find target voting
+    dap_chain_net_votings_t *l_voting = NULL;
+    pthread_rwlock_wrlock(&s_votings_rwlock);
+    HASH_FIND(hh, s_votings, &l_target_voting_hash, sizeof(dap_hash_fast_t), l_voting);
+
+    if (!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        log_it(L_WARNING, "Target voting %s not found in net %s", 
+               dap_hash_fast_to_str_static(&l_target_voting_hash), a_ledger->net->pub.name);
+        return -5;
+    }
+
+    // Check if voting is already cancelled
+    if (l_voting->voting_params.status == DAP_CHAIN_NET_VOTING_STATUS_CANCELLED) {
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        log_it(L_WARNING, "Voting %s is already cancelled", 
+               dap_hash_fast_to_str_static(&l_target_voting_hash));
+        return -6;
+    }
+
+    // Verify cancellation rights
+    if (!s_verify_cancel_rights(a_ledger, l_voting, a_tx_in)) {
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        log_it(L_WARNING, "No rights to cancel voting %s", 
+               dap_hash_fast_to_str_static(&l_target_voting_hash));
+        return -7;
+    }
+
+    // Apply cancellation if requested
+    if (a_apply) {
+        l_voting->voting_params.status = DAP_CHAIN_NET_VOTING_STATUS_CANCELLED;
+        l_voting->voting_params.cancelled_by_tx_hash = *a_tx_hash;
+        if (strlen(l_cancel_reason) > 0) {
+            strncpy(l_voting->voting_params.cancel_reason, l_cancel_reason, 
+                   sizeof(l_voting->voting_params.cancel_reason) - 1);
+        }
+        log_it(L_NOTICE, "Voting %s successfully cancelled by tx %s", 
+               dap_hash_fast_to_str_static(&l_target_voting_hash),
+               dap_hash_fast_to_str_static(a_tx_hash));
+    }
+
+    pthread_rwlock_unlock(&s_votings_rwlock);
+    return DAP_LEDGER_CHECK_OK;
 }
 
 static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash,
@@ -1695,4 +2038,141 @@ void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info){
     }
     DAP_DELETE(a_info->options.options);
     DAP_DELETE(a_info);
+}
+
+// Main cancellation function implementation
+dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(dap_hash_fast_t *a_voting_hash, const char *a_reason, uint256_t a_fee, 
+                                                                    dap_chain_wallet_t *a_wallet, dap_chain_net_t *a_net, 
+                                                                    const char *a_hash_out_type, char **a_hash_tx_out)
+{
+    if (!a_voting_hash || !a_wallet || !a_net || !a_hash_tx_out) {
+        log_it(L_ERROR, "Invalid input parameters for vote cancellation");
+        return DAP_CHAIN_NET_VOTE_CANCEL_SOURCE_ADDRESS_INVALID;
+    }
+
+    // Check if voting exists
+    dap_chain_net_votings_t *l_voting = NULL;
+    pthread_rwlock_rdlock(&s_votings_rwlock);
+    HASH_FIND(hh, s_votings, a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
+    
+    if (!l_voting || l_voting->net_id.uint64 != a_net->pub.id.uint64) {
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        return DAP_CHAIN_NET_VOTE_CANCEL_VOTING_NOT_FOUND;
+    }
+
+    // Check if voting is already cancelled
+    if (l_voting->voting_params.status == DAP_CHAIN_NET_VOTING_STATUS_CANCELLED) {
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        return DAP_CHAIN_NET_VOTE_CANCEL_ALREADY_CANCELLED;
+    }
+    pthread_rwlock_unlock(&s_votings_rwlock);
+
+    // Get wallet address
+    const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
+    if (!l_addr_from) {
+        return DAP_CHAIN_NET_VOTE_CANCEL_SOURCE_ADDRESS_INVALID;
+    }
+
+    // Calculate fees
+    const char *l_native_ticker = a_net->pub.native_ticker;
+    uint256_t l_net_fee = {}, l_total_fee = {};
+    dap_chain_addr_t l_addr_fee = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
+    SUM_256_256(l_net_fee, a_fee, &l_total_fee);
+
+    // Get funds for fees
+    dap_ledger_t *l_ledger = a_net->pub.ledger;
+    dap_list_t *l_list_used_out = NULL;
+    uint256_t l_value_transfer;
+    
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, l_addr_from, &l_list_used_out, l_total_fee, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker, l_addr_from, l_total_fee, &l_value_transfer);
+    
+    if (!l_list_used_out) {
+        return DAP_CHAIN_NET_VOTE_CANCEL_NOT_ENOUGH_FUNDS;
+    }
+
+    // Create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+    // Add TSD with voting hash to cancel
+    dap_chain_tx_tsd_t *l_cancel_tsd = dap_chain_datum_voting_cancel_tsd_create(a_voting_hash);
+    if (!l_cancel_tsd) {
+        dap_chain_datum_tx_delete(l_tx);
+        dap_list_free_full(l_list_used_out, NULL);
+        return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX;
+    }
+    dap_chain_datum_tx_add_item(&l_tx, l_cancel_tsd);
+    DAP_DEL_Z(l_cancel_tsd);
+
+    // Add optional reason TSD
+    if (a_reason && strlen(a_reason) > 0) {
+        dap_chain_tx_tsd_t *l_reason_tsd = dap_chain_datum_voting_cancel_reason_tsd_create(a_reason);
+        if (l_reason_tsd) {
+            dap_chain_datum_tx_add_item(&l_tx, l_reason_tsd);
+            DAP_DEL_Z(l_reason_tsd);
+        }
+    }
+
+    // Add 'in' items
+    uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+    assert(EQUAL_256(l_value_to_items, l_value_transfer));
+    dap_list_free_full(l_list_used_out, NULL);
+
+    uint256_t l_value_pack = {};
+    
+    // Network fee
+    if (l_net_fee_used) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) == 1)
+            SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+        else {
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_POOL_IN_MEMPOOL;
+        }
+    }
+
+    // Validator's fee
+    if (!IS_ZERO_256(a_fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) == 1)
+            SUM_256_256(l_value_pack, a_fee, &l_value_pack);
+        else {
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_POOL_IN_MEMPOOL;
+        }
+    }
+
+    // Coin back
+    uint256_t l_value_back;
+    SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+    if (!IS_ZERO_256(l_value_back)) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_native_ticker) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_POOL_IN_MEMPOOL;
+        }
+    }
+
+    // Add signature
+    dap_enc_key_t *l_priv_key = dap_chain_wallet_get_key(a_wallet, 0);
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, l_priv_key) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX;
+    }
+
+    // Create datum and add to mempool
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_hash_fast_t l_tx_hash;
+    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    DAP_DELETE(l_tx);
+    
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    DAP_DELETE(l_datum);
+
+    if (l_ret) {
+        *a_hash_tx_out = l_ret;
+        return DAP_CHAIN_NET_VOTE_CANCEL_OK;
+    } else {
+        return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_POOL_IN_MEMPOOL;
+    }
 }

@@ -103,6 +103,27 @@ int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap
                              bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                              dap_chain_net_t *a_net, const char *a_token_ticker, const char *a_hash_out_type, char **a_hash_output);
 
+typedef enum {
+    DAP_CHAIN_NET_VOTE_CANCEL_OK = 0,
+    DAP_CHAIN_NET_VOTE_CANCEL_HASH_NOT_FOUND,
+    DAP_CHAIN_NET_VOTE_CANCEL_HASH_INVALID,
+    DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_NOT_VALID,
+    DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_BAD_TYPE,
+    DAP_CHAIN_NET_VOTE_CANCEL_WALLET_PARAM_NOT_VALID,
+    DAP_CHAIN_NET_VOTE_CANCEL_WALLET_DOES_NOT_EXIST,
+    DAP_CHAIN_NET_VOTE_CANCEL_VOTING_NOT_FOUND,
+    DAP_CHAIN_NET_VOTE_CANCEL_ALREADY_CANCELLED,
+    DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS,
+    DAP_CHAIN_NET_VOTE_CANCEL_SOURCE_ADDRESS_INVALID,
+    DAP_CHAIN_NET_VOTE_CANCEL_NOT_ENOUGH_FUNDS,
+    DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX,
+    DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_POOL_IN_MEMPOOL,
+    DAP_CHAIN_NET_VOTE_CANCEL_UNKNOWN_ERR = 99
+} dap_chain_net_vote_cancel_result_t;
+dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(dap_hash_fast_t *a_voting_hash, const char *a_reason, uint256_t a_fee, 
+                                                                    dap_chain_wallet_t *a_wallet, dap_chain_net_t *a_net, 
+                                                                    const char *a_hash_out_type, char **a_hash_tx_out);
+
 enum DAP_CHAIN_NET_VOTE_VOTING_ERROR{
     DAP_CHAIN_NET_VOTE_VOTING_OK,
     DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE,
