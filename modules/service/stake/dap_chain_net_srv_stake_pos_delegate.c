@@ -1220,7 +1220,8 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     l_decree->header.data_size = l_total_tsd_size;
     l_decree->header.signs_size = 0;
 
-    assert(dap_tsd_fill_from_list(l_decree->data_n_signs, l_tsd_list) == l_total_tsd_size);
+    size_t l_control_size = dap_tsd_fill_from_list(l_decree->data_n_signs, l_tsd_list);
+    assert(l_control_size == l_total_tsd_size);
     dap_list_free_full(l_tsd_list, NULL);
 
     size_t l_cur_sign_offset = l_decree->header.data_size + l_decree->header.signs_size;

@@ -477,6 +477,8 @@ static const char *s_meta_type_to_string(uint8_t a_meta_type)
     case DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT: return "ROUND_ATTEMPT";
     case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS: return "EXCLUDED_KEYS";
     case DAP_CHAIN_BLOCK_META_EVM_DATA: return "EVM_DATA";
+    case DAP_CHAIN_BLOCK_META_GENERATION: return "GENERATION";
+    
     default: return "UNNOWN";
     }
 }
