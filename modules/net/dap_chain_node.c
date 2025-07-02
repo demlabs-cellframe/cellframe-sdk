@@ -280,7 +280,7 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
             dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
             if (l_client) {
                 l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
-                dap_chain_node_client_close_mt(l_client);
+                // dap_chain_node_client_close_mt(l_client);
             }
         }
         if (l_ret == 0) {
