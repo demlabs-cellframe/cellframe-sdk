@@ -34,16 +34,13 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_datum_tx_voting.h"
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_cli_server.h"
 #include "dap_chain_wallet_cache.h"
 
 #define LOG_TAG "chain_net_voting"
-
-// TSD types for voting cancellation
-#define VOTING_TSD_TYPE_CANCEL_HASH     0x0010  // Hash of poll to cancel
-#define VOTING_TSD_TYPE_CANCEL_REASON   0x0011  // Optional cancellation reason
 
 // Voting status enumeration
 typedef enum {
@@ -141,6 +138,7 @@ int dap_chain_net_srv_voting_init()
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>]"
                                            " [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll vote -net <net_name> -hash <poll_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
+                            "poll cancel -net <net_name> -hash <poll_hash> [-reason <\"Cancellation reason\">] -fee <value_datoshi> -w <fee_wallet_name>\n"
                             "poll list -net <net_name>\n"
                             "poll dump -net <net_name> -hash <poll_hash>\n"
                             "Hint:\n"
@@ -533,7 +531,12 @@ int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx
     dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
     for (dap_list_t *it = l_tsd_list; it; it = it->next) {
         dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)it->data)->tsd;
+        log_it(L_DEBUG, "Found TSD type %u (expected cancel hash: %u, cancel reason: %u) in tx %s", 
+               l_tsd->type, VOTING_TSD_TYPE_CANCEL_HASH, VOTING_TSD_TYPE_CANCEL_REASON,
+               dap_hash_fast_to_str_static(a_tx_hash));
         if (l_tsd->type == VOTING_TSD_TYPE_CANCEL_HASH) {
+            log_it(L_NOTICE, "Found cancellation transaction %s, calling cancel verificator", 
+                   dap_hash_fast_to_str_static(a_tx_hash));
             dap_list_free(l_tsd_list);
             return s_voting_cancel_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
         }
@@ -2102,6 +2105,8 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(dap_hash_fast_t *a_
         dap_list_free_full(l_list_used_out, NULL);
         return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX;
     }
+    log_it(L_NOTICE, "Created cancel TSD with type %u (expected: %u)", 
+           ((dap_tsd_t *)l_cancel_tsd->tsd)->type, VOTING_TSD_TYPE_CANCEL_HASH);
     dap_chain_datum_tx_add_item(&l_tx, l_cancel_tsd);
     DAP_DEL_Z(l_cancel_tsd);
 
@@ -2109,6 +2114,8 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(dap_hash_fast_t *a_
     if (a_reason && strlen(a_reason) > 0) {
         dap_chain_tx_tsd_t *l_reason_tsd = dap_chain_datum_voting_cancel_reason_tsd_create(a_reason);
         if (l_reason_tsd) {
+            log_it(L_NOTICE, "Created cancel reason TSD with type %u (expected: %u)", 
+                   ((dap_tsd_t *)l_reason_tsd->tsd)->type, VOTING_TSD_TYPE_CANCEL_REASON);
             dap_chain_datum_tx_add_item(&l_tx, l_reason_tsd);
             DAP_DEL_Z(l_reason_tsd);
         }
