@@ -4163,6 +4163,25 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
            }
            if (a_action) 
                *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTE;
+        } else {
+            // Check for poll cancellation TSD items
+            dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_TSD, NULL);
+            for (dap_list_t *it = l_tsd_list; it; it = it->next) {
+                dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)it->data)->tsd;
+                if (l_tsd->type == 0x10) { // VOTING_TSD_TYPE_CANCEL_HASH
+                    if (s_voting_callbacks.voting_callback) {
+                        l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_TSD, a_tx, a_tx_hash, false);
+                        if (l_err_num) {
+                            debug_if(s_debug_more, L_WARNING, "Verificator check error %d for poll cancellation", l_err_num);
+                            l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+                        }
+                    }
+                    if (a_action)
+                        *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTE; // Use vote action for cancellation
+                    break;
+                }
+            }
+            dap_list_free(l_tsd_list);
         }
     }
 

@@ -522,32 +522,26 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
 
 int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
-    log_it(L_ERROR, "VOTING VERIFICATION CALLBACK: type=%d, tx_hash=%s", a_type, a_tx_hash ? dap_hash_fast_to_str_static(a_tx_hash) : "NULL");
-    
     if (a_type == TX_ITEM_TYPE_VOTING)
         return s_voting_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
     if (a_type == TX_ITEM_TYPE_VOTE)
         return s_vote_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
-    
-    // Check if this is a cancellation transaction (has cancel TSD)
-    log_it(L_ERROR, "Checking for cancellation TSD items...");
-    dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
-    for (dap_list_t *it = l_tsd_list; it; it = it->next) {
-        dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)it->data)->tsd;
-        log_it(L_ERROR, "Found TSD type %u (expected cancel hash: %u, cancel reason: %u) in tx %s", 
-               l_tsd->type, VOTING_TSD_TYPE_CANCEL_HASH, VOTING_TSD_TYPE_CANCEL_REASON,
-               dap_hash_fast_to_str_static(a_tx_hash));
-        if (l_tsd->type == VOTING_TSD_TYPE_CANCEL_HASH) {
-            log_it(L_ERROR, "Found cancellation transaction %s, calling cancel verificator", 
-                   dap_hash_fast_to_str_static(a_tx_hash));
-            dap_list_free(l_tsd_list);
-            return s_voting_cancel_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
+    if (a_type == TX_ITEM_TYPE_TSD) {
+        // This is called for cancellation transactions  
+        dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
+        for (dap_list_t *it = l_tsd_list; it; it = it->next) {
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)it->data)->tsd;
+            if (l_tsd->type == VOTING_TSD_TYPE_CANCEL_HASH) {
+                log_it(L_INFO, "Processing poll cancellation transaction %s, apply=%s", 
+                       dap_hash_fast_to_str_static(a_tx_hash), a_apply ? "true" : "false");
+                dap_list_free(l_tsd_list);
+                return s_voting_cancel_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
+            }
         }
+        dap_list_free(l_tsd_list);
     }
-    dap_list_free(l_tsd_list);
     
-    log_it(L_ERROR, "Item %d is not supported in polls", a_type);
-    return -3;
+    return 0; // Return success for unknown types
 }
 
 static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in)
@@ -1466,7 +1460,7 @@ static bool s_verify_cancel_rights(dap_ledger_t *a_ledger, dap_chain_net_votings
 static int s_voting_cancel_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, 
                                       dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
-    log_it(L_ERROR, "CANCEL VERIFICATOR CALLED: tx_hash=%s, apply=%s", 
+    log_it(L_DEBUG, "Poll cancellation verificator called: tx_hash=%s, apply=%s", 
            a_tx_hash ? dap_hash_fast_to_str_static(a_tx_hash) : "NULL", a_apply ? "true" : "false");
     
     if (!a_ledger || !a_tx_in || !a_tx_hash) {
@@ -1550,19 +1544,15 @@ static int s_voting_cancel_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item
 
     // Apply cancellation if requested
     if (a_apply) {
-        log_it(L_ERROR, "APPLYING CANCELLATION: changing status from %d to %d", 
-               l_voting->voting_params.status, DAP_CHAIN_NET_VOTING_STATUS_CANCELLED);
         l_voting->voting_params.status = DAP_CHAIN_NET_VOTING_STATUS_CANCELLED;
         l_voting->voting_params.cancelled_by_tx_hash = *a_tx_hash;
         if (strlen(l_cancel_reason) > 0) {
             strncpy(l_voting->voting_params.cancel_reason, l_cancel_reason, 
                    sizeof(l_voting->voting_params.cancel_reason) - 1);
         }
-        log_it(L_ERROR, "Voting %s successfully cancelled by tx %s", 
+        log_it(L_NOTICE, "Poll %s successfully cancelled by tx %s", 
                dap_hash_fast_to_str_static(&l_target_voting_hash),
                dap_hash_fast_to_str_static(a_tx_hash));
-    } else {
-        log_it(L_ERROR, "VALIDATION ONLY: cancellation transaction is valid but not applied");
     }
 
     pthread_rwlock_unlock(&s_votings_rwlock);
@@ -2115,8 +2105,6 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(dap_hash_fast_t *a_
         dap_list_free_full(l_list_used_out, NULL);
         return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX;
     }
-    log_it(L_ERROR, "Created cancel TSD with type %u (expected: %u)", 
-           ((dap_tsd_t *)l_cancel_tsd->tsd)->type, VOTING_TSD_TYPE_CANCEL_HASH);
     dap_chain_datum_tx_add_item(&l_tx, l_cancel_tsd);
     DAP_DEL_Z(l_cancel_tsd);
 
@@ -2124,8 +2112,6 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(dap_hash_fast_t *a_
     if (a_reason && strlen(a_reason) > 0) {
         dap_chain_tx_tsd_t *l_reason_tsd = dap_chain_datum_voting_cancel_reason_tsd_create(a_reason);
         if (l_reason_tsd) {
-            log_it(L_ERROR, "Created cancel reason TSD with type %u (expected: %u)", 
-                   ((dap_tsd_t *)l_reason_tsd->tsd)->type, VOTING_TSD_TYPE_CANCEL_REASON);
             dap_chain_datum_tx_add_item(&l_tx, l_reason_tsd);
             DAP_DEL_Z(l_reason_tsd);
         }
