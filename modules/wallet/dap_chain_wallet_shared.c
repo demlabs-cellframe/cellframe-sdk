@@ -1020,7 +1020,7 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
     return DAP_NO_ERROR;
 }
 
-static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type, int a_version)
 {
     const char *l_tx_hash_str = NULL, *l_wallet_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_hash_str);
@@ -1060,9 +1060,9 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_jobj_token, "description", l_jobj_description);
     // balance block
     json_object_object_add(l_jobj_balance, "coins", json_object_new_string(l_balance_coins));
-    json_object_object_add(l_jobj_balance, "datoshi", json_object_new_string(l_balance_datoshi));
+    json_object_object_add(l_jobj_balance, a_version == 1 ? "datoshi" : "value", json_object_new_string(l_balance_datoshi));
     // verify block
-    json_object_object_add(l_jobj_take_verify, "signs_minimum", json_object_new_uint64(l_cond->subtype.wallet_shared.signers_minimum));
+    json_object_object_add(l_jobj_take_verify, a_version == 1 ? "signs_minimum" : "min_sig_count", json_object_new_uint64(l_cond->subtype.wallet_shared.signers_minimum));
     dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
@@ -1072,7 +1072,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
             json_object_array_add(l_jobj_tags, json_object_new_string((char*)(l_tsd->data)));
         }
     }
-    json_object_object_add(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
+    json_object_object_add(l_jobj_take_verify, a_version == 1 ? "owner_hashes" : "owner_pkey_hashes", l_jobj_pkey_hashes);
     // result block
     json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_tx_hash) : dap_hash_fast_to_str_static(&l_tx_hash)));
     json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) : dap_hash_fast_to_str_static(&l_final_tx_hash)));
@@ -1124,7 +1124,7 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, i
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "sign", NULL))
         return s_cli_sign(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "info", NULL))
-        return s_cli_info(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
+        return s_cli_info(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type, a_version);
     else {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_SUBCOMMAND, "Subcommand %s not recognized", a_argv[l_arg_index]);
         return ERROR_SUBCOMMAND;

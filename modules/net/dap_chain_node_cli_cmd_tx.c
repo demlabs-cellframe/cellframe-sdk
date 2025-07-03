@@ -208,6 +208,7 @@ json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
         dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx, l_tx_token_ticker ? l_tx_token_ticker : NULL,
                                      json_obj_datum, a_hash_out_type, a_tx_hash, a_chain->net_id, a_version);
     }
+    struct json_object *obj = json_object_new_object();
 
     return json_obj_datum;
 }
