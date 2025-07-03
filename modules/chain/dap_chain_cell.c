@@ -24,11 +24,12 @@
 #include "uthash.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
-#include "dap_chain_cs.h"
+#include "dap_global_db.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
+#include <stdint.h>
 #ifdef DAP_OS_WINDOWS
 #include <winternl.h>
 #else
@@ -41,6 +42,7 @@
 #define DAP_CHAIN_CELL_FILE_TYPE_RAW 0
 #define DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED 1
 #define DAP_MAPPED_VOLUME_LIMIT ( 1 << 28 ) // 256 MB for now, may be should be configurable?
+#define DAP_LOCAL_STAT_GROUP_NAME "local.stat"
 
 /**
   * @struct dap_chain_cell_file_header
@@ -304,6 +306,11 @@ void dap_chain_cell_close_all(dap_chain_t *a_chain) {
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
 }
 
+static char *s_cell_get_key_count_name(dap_chain_cell_t *a_cell)
+{
+    return dap_strdup_printf("%s.%s.atom_count", a_cell->chain->net_name, a_cell->chain->name);
+}
+
 /**
  * @brief dap_chain_cell_load
  * load cell file, which is pointed in a_cell_file_path variable, for example "0.dchaincell"
@@ -341,6 +348,18 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             return 0;
     }
 
+    char *l_key_name = s_cell_get_key_count_name(a_cell);
+    size_t l_value_len = 0;
+    uint64_t l_atom_count = 0;
+    byte_t *l_atom_count_str = dap_global_db_get_sync(DAP_LOCAL_STAT_GROUP_NAME, l_key_name, &l_value_len, NULL, NULL);
+    if (l_atom_count_str) {
+        l_atom_count = strtoull((char *)l_atom_count_str, NULL, 10);
+        DAP_FREE(l_atom_count_str);
+    }
+    DAP_DELETE(l_key_name);
+    if (!l_atom_count)
+        log_it(L_WARNING, "Can't get atom count from global DB, will use file size to calculate progress");
+    
     /* Load atoms */
     int l_ret = 0;    
     off_t l_el_size = 0, q = 0;
@@ -365,8 +384,13 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 break;
             }
             a_cell->mapping->cursor += sizeof(uint64_t) + l_el_size;
-            if ( !a_cell->chain->callback_atom_prefetch )
-                a_cell->chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
+            if ( !a_cell->chain->callback_atom_prefetch ) {
+                if (l_atom_count) {
+                    uint64_t l_cur_count = a_cell->chain->callback_count_atom(a_cell->chain);
+                    a_cell->chain->load_progress = (int)((float)l_cur_count/l_atom_count * 100 + 0.5);
+                } else
+                    a_cell->chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
+            }
         }
 #ifndef DAP_OS_WINDOWS
         /* Reclaim the last volume */
@@ -406,8 +430,13 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             }
             ++q;
             l_pos += sizeof(uint64_t) + l_read;
-            if ( !a_cell->chain->callback_atom_prefetch )
-                a_cell->chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
+            if ( !a_cell->chain->callback_atom_prefetch ) {
+                if (l_atom_count) {
+                    uint64_t l_cur_count = a_cell->chain->callback_count_atom(a_cell->chain);
+                    a_cell->chain->load_progress = (int)((float)l_cur_count/l_atom_count * 100 + 0.5);
+                } else
+                    a_cell->chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
+            }
         }
     }
     if ( l_pos < l_full_size && l_ret > 0 ) {
@@ -553,6 +582,12 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
             *a_atom_map = a_cell->mapping->cursor + sizeof(uint64_t);
         a_cell->mapping->cursor += sizeof(uint64_t) + a_atom_size;
     }
+    /* Update local stat */
+    char *l_key_name = s_cell_get_key_count_name(a_cell);
+    char l_value[64];
+    snprintf(l_value, sizeof(l_value), "%"DAP_UINT64_FORMAT_U, a_cell->chain->callback_count_atom(a_cell->chain));
+    dap_global_db_set(DAP_LOCAL_STAT_GROUP_NAME, l_key_name, l_value, strlen(l_value), false, NULL, NULL);
+    DAP_DELETE(l_key_name);
     return 0;
 }
 

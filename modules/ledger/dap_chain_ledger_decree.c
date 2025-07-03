@@ -223,14 +223,14 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
 
-    if (!a_decree) {    // Processing anchor for decree
+    if (a_anchor_hash) {    // Processing anchor for decree
         if (!l_new_decree->decree) {
             log_it(L_WARNING, "Decree with hash %s is not found", dap_hash_fast_to_str_static(a_decree_hash));
             l_new_decree->wait_for_apply = true;
             return -110;
         }
         if (l_new_decree->is_applied) {
-            debug_if(g_debug_ledger, L_WARNING, "Decree already applied");
+            debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s already applied", dap_hash_fast_to_str_static(a_decree_hash));
             return -111;
         }
     } else {            // Process decree itself
@@ -285,7 +285,7 @@ int dap_ledger_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_c
         return ret_val;
     }
 
-    return dap_ledger_decree_apply(a_decree_hash, a_decree, a_chain, false);
+    return dap_ledger_decree_apply(a_decree_hash, a_decree, a_chain, NULL);
 }
 
 int dap_ledger_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_decree_hash)
