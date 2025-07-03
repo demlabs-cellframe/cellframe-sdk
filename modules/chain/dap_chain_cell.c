@@ -435,7 +435,7 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
     char mode[] = { a_mode, '+', 'b', '\0' }, *const a_filename = strrchr(a_filepath, '/') + 1;
     dap_chain_cell_t *l_cell = NULL;
 
-#define m_ret_err(err, ...) return ({ if (l_cell->file_storage) fclose(l_cell->file_storage); \
+#define m_ret_err(err, ...) return ({ if (l_cell && l_cell->file_storage) fclose(l_cell->file_storage); \
                                       DAP_DELETE(l_cell); log_it(L_ERROR, ##__VA_ARGS__), err; })
 
     HASH_FIND(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
