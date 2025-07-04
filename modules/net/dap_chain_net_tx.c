@@ -1725,7 +1725,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         if (*l_item != TX_ITEM_TYPE_SIG)
             continue;
         if (dap_chain_datum_tx_verify_sign(l_tx, l_sign_num++)) {
-            dap_json_rpc_error_add(l_json, -1, "Sign %zu verification failed", l_sign_num);
+            dap_json_rpc_error_add(l_jobj_errors, -1, "Sign %zu verification failed", l_sign_num);
             return -1;
         }
         log_it(L_DEBUG, "Sign %zu verified", l_sign_num);
