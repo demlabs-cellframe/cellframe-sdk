@@ -110,6 +110,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_policy.h"
 #include "dap_time.h"
+#include "dap_chain_cs_blocks.h"
 
 
 #include "dap_chain_net_tx.h"
@@ -8559,17 +8560,16 @@ int com_policy(int argc, char **argv, void **reply) {
 }
 
 /**
- * @brief com_certs
- * Temporary certificate management command
+ * @brief com_hashes
+ * Temporary command to display wallet shared filter hashes
  * @param a_argc
  * @param a_argv
  * @param a_str_reply
  * @return int
  */
-int com_certs(int a_argc, char **a_argv, void **a_str_reply)
+int com_hashes(int a_argc, char **a_argv, void **a_str_reply)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
-    json_object * json_arr_out = json_object_new_array();
     
     int l_arg_index = 1;
     
@@ -8578,25 +8578,42 @@ int com_certs(int a_argc, char **a_argv, void **a_str_reply)
         dap_json_rpc_error_add(*a_json_arr_reply, -1, "Unknown subcommand. Available: list");
         return -1;
     }
-
-    // Execute 'certs list' command
-    dap_list_t *l_certs = dap_cert_get_all_mem();
-
-    for(dap_list_t *l_cert = l_certs; l_cert; l_cert = l_cert->next) {
-        dap_cert_t *l_cert_obj = (dap_cert_t *)l_cert->data;
-        dap_hash_fast_t l_hash;
-        if (dap_cert_get_pkey_hash(l_cert_obj, &l_hash)) {
-            dap_json_rpc_error_add(*a_json_arr_reply, -135, "Can't serialize cert %s", l_cert_obj->name);
-            return -135;
+    
+    // Get wallet shared filter hashes
+    dap_hash_fast_t *l_hashes = NULL;
+    size_t l_count = 0;
+    int l_ret = dap_chain_cs_blocks_get_wallet_shared_hashes(&l_hashes, &l_count);
+    
+    json_object *l_json_obj = json_object_new_object();
+    
+    if (l_ret == 0 && l_hashes && l_count > 0) {
+        // Successfully got hashes
+        json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
+        json_object_object_add(l_json_obj, "count", json_object_new_uint64(l_count));
+        
+        // Create array of hashes
+        json_object *l_hashes_array = json_object_new_array();
+        for (size_t i = 0; i < l_count; i++) {
+            json_object *l_hash_obj = json_object_new_object();
+            char *l_hash_str = dap_hash_fast_to_str_static(&l_hashes[i]);
+            json_object_object_add(l_hash_obj, "index", json_object_new_uint64(i));
+            json_object_object_add(l_hash_obj, "hash", json_object_new_string(l_hash_str));
+            json_object_array_add(l_hashes_array, l_hash_obj);
         }
-        char l_hash_str[DAP_HASH_FAST_STR_SIZE] = {};
-        dap_hash_fast_to_str(&l_hash, l_hash_str, sizeof(l_hash_str));
-        json_object *l_json_obj = json_object_new_object();
-        json_object_object_add(l_json_obj, "name", json_object_new_string(l_cert_obj->name));
-        json_object_object_add(l_json_obj, "hash", json_object_new_string(l_hash_str));
-        json_object_array_add(json_arr_out, l_json_obj);
+        json_object_object_add(l_json_obj, "hashes", l_hashes_array);
+        json_object_object_add(l_json_obj, "message", json_object_new_string("Wallet shared filter public key hashes"));
+    } else {
+        // No hashes available or error
+        json_object_object_add(l_json_obj, "status", json_object_new_string("info"));
+        json_object_object_add(l_json_obj, "count", json_object_new_uint64(0));
+        if (l_ret == -2) {
+            json_object_object_add(l_json_obj, "message", json_object_new_string("Wallet shared filter is not enabled or no hashes are configured"));
+        } else {
+            json_object_object_add(l_json_obj, "message", json_object_new_string("Error retrieving wallet shared filter hashes"));
+        }
     }
-    json_object_array_add(*a_json_arr_reply, json_arr_out);
+    
+    json_object_array_add(*a_json_arr_reply, l_json_obj);
     
     return 0;
 }

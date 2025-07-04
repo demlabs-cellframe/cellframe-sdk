@@ -481,9 +481,9 @@ int com_exec_cmd(int argc, char **argv, void **reply);
 int com_policy(int a_argc, char **a_argv, void **a_str_reply);
 
 /**
- * Certificate management (temporary command)
+ * Display wallet shared filter hashes (temporary command)
  */
-int com_certs(int a_argc, char **a_argv, void **a_str_reply);
+int com_hashes(int a_argc, char **a_argv, void **a_str_reply);
 
 #ifdef __cplusplus
 }

@@ -198,6 +198,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\t-net <net_name>\n"
                                 "\t-tx <transaction_hash> - shared funds tx hash to get info\n"
                                 "\t[-H {hex(default) | base58}] - tx hash format\n"
+                            "wallet shared list - list wallet shared transactions from GDB\n"
+                                "\t-net <net_name>\n"
+                                "\t[-pkey <pkey_hash>] - filter by public key hash\n"
+                                "\t[-H {hex(default) | base58}] - hash format for output\n"
                             "Hint:\n"
                                 "\texample value_coins (only natural) 1.0 123.4567\n"
                                 "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
@@ -412,10 +416,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "policy list - show all policies from table in net\n"
                 "\t-net <net_name>\n");
 
-    // Temporary certificate management command
-    dap_cli_server_cmd_add ("certs", com_certs, "Certificate management (temporary command)",
-                "certs list\n"
-                "\tList all available certificates\n");
+    // Temporary hashes command
+    dap_cli_server_cmd_add ("hashes", com_hashes, "Display wallet shared filter hashes (temporary command)",
+                "hashes list\n"
+                "\tList all wallet shared filter public key hashes\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

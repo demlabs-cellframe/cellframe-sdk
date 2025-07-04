@@ -36,6 +36,12 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_common.h"
 #include "dap_enc_base58.h"
+#include "dap_cert.h"
+#include "dap_chain_wallet.h"
+#include "dap_config.h"
+#include "dap_file_utils.h"
+#include <dirent.h>
+#include <errno.h>
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
@@ -179,28 +185,440 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
-// Wallet shared filter variables
+// Wallet shared filter variables - now supporting multiple hashes
 static bool s_wallet_shared_filter_enabled = false;
-static dap_hash_fast_t s_wallet_shared_filter_pkey_hash = {0};
-static char s_wallet_shared_gdb_group[256] = "filtered.wallet_shared";
+static dap_hash_fast_t *s_wallet_shared_filter_pkey_hashes = NULL;
+static size_t s_wallet_shared_filter_pkey_hashes_count = 0;
+static char s_wallet_shared_gdb_group[256] = "local.wallet_shared";
 
 static dap_list_t *s_fork_resolved_notificators = NULL;
 
 /**
- * @brief Set wallet shared filter configuration
- * @param a_pkey_hash - public key hash to filter by
- * @param a_gdb_group - GDB group name to write filtered datums to
+ * @brief Collect public key hashes from certificates in memory
+ * @param a_hashes_out - output array of hashes (will be allocated)
+ * @param a_count_out - output count of hashes
+ * @return 0 on success, negative value on error
  */
-static void s_chain_cs_blocks_set_wallet_shared_filter(const dap_hash_fast_t *a_pkey_hash, const char *a_gdb_group)
+static int s_collect_cert_pkey_hashes(dap_hash_fast_t **a_hashes_out, size_t *a_count_out)
 {
-    if (a_pkey_hash && a_gdb_group) {
-        s_wallet_shared_filter_pkey_hash = *a_pkey_hash;
-        dap_strncpy(s_wallet_shared_gdb_group, a_gdb_group, sizeof(s_wallet_shared_gdb_group) - 1);
-        s_wallet_shared_filter_enabled = true;
-        log_it(L_INFO, "Wallet shared filter enabled with GDB group: %s", a_gdb_group);
+    dap_return_val_if_fail(a_hashes_out && a_count_out, -1);
+    
+    *a_hashes_out = NULL;
+    *a_count_out = 0;
+    
+    // Get all certificates from memory
+    dap_list_t *l_certs_list = dap_cert_get_all_mem();
+    if (!l_certs_list) {
+        log_it(L_DEBUG, "No certificates found in memory");
+        return 0;
+    }
+    
+    // Count certificates
+    size_t l_certs_count = dap_list_length(l_certs_list);
+    if (l_certs_count == 0) {
+        dap_list_free(l_certs_list);
+        return 0;
+    }
+    
+    // Allocate memory for hashes
+    dap_hash_fast_t *l_hashes = DAP_NEW_Z_COUNT(dap_hash_fast_t, l_certs_count);
+    if (!l_hashes) {
+        log_it(L_ERROR, "Failed to allocate memory for certificate hashes");
+        dap_list_free(l_certs_list);
+        return -2;
+    }
+    
+    size_t l_valid_hashes = 0;
+    
+    // Extract hashes from certificates
+    for (dap_list_t *l_item = l_certs_list; l_item; l_item = l_item->next) {
+        dap_cert_t *l_cert = (dap_cert_t *)l_item->data;
+        if (!l_cert || !l_cert->enc_key) {
+            log_it(L_WARNING, "Invalid certificate or encryption key");
+            continue;
+        }
+        
+        // Get public key hash from certificate
+        dap_hash_fast_t l_pkey_hash;
+        if (dap_enc_key_get_pkey_hash(l_cert->enc_key, &l_pkey_hash) == 0) {
+            l_hashes[l_valid_hashes] = l_pkey_hash;
+            l_valid_hashes++;
+            log_it(L_DEBUG, "Added certificate '%s' hash: %s", 
+                l_cert->name, dap_hash_fast_to_str_static(&l_pkey_hash));
+        } else {
+            log_it(L_WARNING, "Failed to get public key hash from certificate '%s'", l_cert->name);
+        }
+    }
+    
+    dap_list_free(l_certs_list);
+    
+    if (l_valid_hashes == 0) {
+        DAP_DELETE(l_hashes);
+        return 0;
+    }
+    
+    // Resize array if needed
+    if (l_valid_hashes < l_certs_count) {
+        dap_hash_fast_t *l_new_hashes = DAP_NEW_Z_COUNT(dap_hash_fast_t, l_valid_hashes);
+        if (!l_new_hashes) {
+            DAP_DELETE(l_hashes);
+            return -3;
+        }
+        memcpy(l_new_hashes, l_hashes, l_valid_hashes * sizeof(dap_hash_fast_t));
+        DAP_DELETE(l_hashes);
+        l_hashes = l_new_hashes;
+    }
+    
+    *a_hashes_out = l_hashes;
+    *a_count_out = l_valid_hashes;
+    
+    log_it(L_INFO, "Collected %zu public key hashes from certificates", l_valid_hashes);
+    return 0;
+}
+
+/**
+ * @brief Collect public key hashes from local wallet files
+ * @param a_hashes_out - output array of hashes (will be allocated)
+ * @param a_count_out - output count of hashes
+ * @return 0 on success, negative value on error
+ */
+static int s_collect_wallet_pkey_hashes(dap_hash_fast_t **a_hashes_out, size_t *a_count_out)
+{
+    dap_return_val_if_fail(a_hashes_out && a_count_out, -1);
+    
+    *a_hashes_out = NULL;
+    *a_count_out = 0;
+    
+    // Get wallet path from config
+    const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
+    if (!l_wallets_path) {
+        log_it(L_WARNING, "Wallet path not configured");
+        return -2;
+    }
+    
+    // Open wallet directory
+    DIR *l_dir = opendir(l_wallets_path);
+    if (!l_dir) {
+        log_it(L_DEBUG, "Cannot open wallet directory: %s", l_wallets_path);
+        return 0; // Not an error, just no wallets
+    }
+    
+    // Count wallet files first
+    size_t l_wallet_count = 0;
+    struct dirent *l_dir_entry;
+    while ((l_dir_entry = readdir(l_dir)) != NULL) {
+        if (strstr(l_dir_entry->d_name, ".dwallet")) {
+            l_wallet_count++;
+        }
+    }
+    
+    if (l_wallet_count == 0) {
+        closedir(l_dir);
+        log_it(L_DEBUG, "No wallet files found in directory: %s", l_wallets_path);
+        return 0;
+    }
+    
+    // Allocate memory for hashes
+    dap_hash_fast_t *l_hashes = DAP_NEW_Z_COUNT(dap_hash_fast_t, l_wallet_count);
+    if (!l_hashes) {
+        log_it(L_ERROR, "Failed to allocate memory for wallet hashes");
+        closedir(l_dir);
+        return -3;
+    }
+    
+    // Reset directory position
+    rewinddir(l_dir);
+    
+    size_t l_valid_hashes = 0;
+    
+    // Process each wallet file
+    while ((l_dir_entry = readdir(l_dir)) != NULL) {
+        if (!strstr(l_dir_entry->d_name, ".dwallet")) {
+            continue;
+        }
+        
+        // Extract wallet name (without .dwallet extension)
+        char l_wallet_name[256];
+        char *l_ext_pos = strstr(l_dir_entry->d_name, ".dwallet");
+        size_t l_name_len = l_ext_pos - l_dir_entry->d_name;
+        if (l_name_len >= sizeof(l_wallet_name)) {
+            log_it(L_WARNING, "Wallet name too long: %s", l_dir_entry->d_name);
+            continue;
+        }
+        
+        dap_strncpy(l_wallet_name, l_dir_entry->d_name, l_name_len);
+        l_wallet_name[l_name_len] = '\0';
+        
+        // Try to open wallet (without password first)
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallets_path, NULL);
+        if (!l_wallet) {
+            log_it(L_DEBUG, "Cannot open wallet '%s' (may be password protected)", l_wallet_name);
+            continue;
+        }
+        
+        // Get public key hash from wallet
+        dap_hash_fast_t l_pkey_hash;
+        if (dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash) == 0) {
+            l_hashes[l_valid_hashes] = l_pkey_hash;
+            l_valid_hashes++;
+            log_it(L_DEBUG, "Added wallet '%s' hash: %s", 
+                l_wallet_name, dap_hash_fast_to_str_static(&l_pkey_hash));
+        } else {
+            log_it(L_WARNING, "Failed to get public key hash from wallet '%s'", l_wallet_name);
+        }
+        
+        dap_chain_wallet_close(l_wallet);
+    }
+    
+    closedir(l_dir);
+    
+    if (l_valid_hashes == 0) {
+        DAP_DELETE(l_hashes);
+        return 0;
+    }
+    
+    // Resize array if needed
+    if (l_valid_hashes < l_wallet_count) {
+        dap_hash_fast_t *l_new_hashes = DAP_NEW_Z_COUNT(dap_hash_fast_t, l_valid_hashes);
+        if (!l_new_hashes) {
+            DAP_DELETE(l_hashes);
+            return -4;
+        }
+        memcpy(l_new_hashes, l_hashes, l_valid_hashes * sizeof(dap_hash_fast_t));
+        DAP_DELETE(l_hashes);
+        l_hashes = l_new_hashes;
+    }
+    
+    *a_hashes_out = l_hashes;
+    *a_count_out = l_valid_hashes;
+    
+    log_it(L_INFO, "Collected %zu public key hashes from wallets", l_valid_hashes);
+    return 0;
+}
+
+/**
+ * @brief Collect all public key hashes from certificates and wallets
+ * @param a_gdb_group - GDB group name to write filtered datums to
+ * @return 0 on success, negative value on error
+ */
+static int s_chain_cs_blocks_collect_wallet_shared_hashes(const char *a_gdb_group)
+{
+    dap_return_val_if_fail(a_gdb_group, -1);
+    
+    // Clean up existing hashes
+    DAP_DELETE(s_wallet_shared_filter_pkey_hashes);
+    s_wallet_shared_filter_pkey_hashes = NULL;
+    s_wallet_shared_filter_pkey_hashes_count = 0;
+    
+    // Collect hashes from certificates
+    dap_hash_fast_t *l_cert_hashes = NULL;
+    size_t l_cert_count = 0;
+    int l_ret = s_collect_cert_pkey_hashes(&l_cert_hashes, &l_cert_count);
+    if (l_ret < 0) {
+        log_it(L_ERROR, "Failed to collect certificate hashes: %d", l_ret);
+        return l_ret;
+    }
+    
+    // Collect hashes from wallets
+    dap_hash_fast_t *l_wallet_hashes = NULL;
+    size_t l_wallet_count = 0;
+    l_ret = s_collect_wallet_pkey_hashes(&l_wallet_hashes, &l_wallet_count);
+    if (l_ret < 0) {
+        log_it(L_ERROR, "Failed to collect wallet hashes: %d", l_ret);
+        DAP_DELETE(l_cert_hashes);
+        return l_ret;
+    }
+    
+    // Calculate total count
+    size_t l_total_count = l_cert_count + l_wallet_count;
+    if (l_total_count == 0) {
+        log_it(L_INFO, "No public key hashes found in certificates or wallets");
+        DAP_DELETE(l_cert_hashes);
+        DAP_DELETE(l_wallet_hashes);
+        return 0;
+    }
+    
+    // Allocate memory for combined hashes
+    dap_hash_fast_t *l_combined_hashes = DAP_NEW_Z_COUNT(dap_hash_fast_t, l_total_count);
+    if (!l_combined_hashes) {
+        log_it(L_ERROR, "Failed to allocate memory for combined hashes");
+        DAP_DELETE(l_cert_hashes);
+        DAP_DELETE(l_wallet_hashes);
+        return -2;
+    }
+    
+    // Copy certificate hashes
+    if (l_cert_count > 0) {
+        memcpy(l_combined_hashes, l_cert_hashes, l_cert_count * sizeof(dap_hash_fast_t));
+    }
+    
+    // Copy wallet hashes
+    if (l_wallet_count > 0) {
+        memcpy(l_combined_hashes + l_cert_count, l_wallet_hashes, l_wallet_count * sizeof(dap_hash_fast_t));
+    }
+    
+    // Clean up temporary arrays
+    DAP_DELETE(l_cert_hashes);
+    DAP_DELETE(l_wallet_hashes);
+    
+    // Remove duplicates
+    size_t l_unique_count = 0;
+    for (size_t i = 0; i < l_total_count; i++) {
+        bool l_duplicate = false;
+        for (size_t j = 0; j < l_unique_count; j++) {
+            if (dap_hash_fast_compare(&l_combined_hashes[i], &l_combined_hashes[j])) {
+                l_duplicate = true;
+                break;
+            }
+        }
+        if (!l_duplicate) {
+            if (l_unique_count != i) {
+                l_combined_hashes[l_unique_count] = l_combined_hashes[i];
+            }
+            l_unique_count++;
+        }
+    }
+    
+    // Resize array if we removed duplicates
+    if (l_unique_count < l_total_count) {
+        dap_hash_fast_t *l_final_hashes = DAP_NEW_Z_COUNT(dap_hash_fast_t, l_unique_count);
+        if (!l_final_hashes) {
+            log_it(L_ERROR, "Failed to allocate memory for final hashes");
+            DAP_DELETE(l_combined_hashes);
+            return -3;
+        }
+        memcpy(l_final_hashes, l_combined_hashes, l_unique_count * sizeof(dap_hash_fast_t));
+        DAP_DELETE(l_combined_hashes);
+        l_combined_hashes = l_final_hashes;
+    }
+    
+    // Set global variables
+    s_wallet_shared_filter_pkey_hashes = l_combined_hashes;
+    s_wallet_shared_filter_pkey_hashes_count = l_unique_count;
+    dap_strncpy(s_wallet_shared_gdb_group, a_gdb_group, sizeof(s_wallet_shared_gdb_group) - 1);
+    s_wallet_shared_filter_enabled = true;
+    
+    log_it(L_INFO, "Wallet shared filter enabled with %zu unique public key hashes (from %zu certificates, %zu wallets) in GDB group: %s",
+        l_unique_count, l_cert_count, l_wallet_count, a_gdb_group);
+    
+    // Print all hashes for debugging
+    for (size_t i = 0; i < l_unique_count; i++) {
+        log_it(L_DEBUG, "Filter hash [%zu]: %s", i, dap_hash_fast_to_str_static(&s_wallet_shared_filter_pkey_hashes[i]));
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Check if public key hash matches any of the filter hashes
+ * @param a_pkey_hash - public key hash to check
+ * @return true if match found, false otherwise
+ */
+static bool s_wallet_shared_filter_matches_pkey(const dap_hash_fast_t *a_pkey_hash)
+{
+    if (!s_wallet_shared_filter_enabled || !s_wallet_shared_filter_pkey_hashes || !a_pkey_hash) {
+        return false;
+    }
+    
+    for (size_t i = 0; i < s_wallet_shared_filter_pkey_hashes_count; i++) {
+        if (dap_hash_fast_compare(a_pkey_hash, &s_wallet_shared_filter_pkey_hashes[i])) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+
+
+/**
+ * @brief Write filtered datum (transaction) to GDB if it matches any of the filter hashes
+ * 
+ * This function checks if the provided transaction:
+ * - Has conditional output of type DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED
+ * - Contains any of the specified public key hashes in its signatures (TX_ITEM_TYPE_SIG)
+ * 
+ * If both conditions are met, the transaction is written to the specified GDB group as datum.
+ * 
+ * @param a_tx - transaction to check and potentially write
+ * @param a_gdb_group - GDB group name to write filtered datum to
+ * @return 1 if datum written, 0 if not matching criteria, negative value on error:
+ *         -1: invalid arguments or filter not enabled
+ *         -2: failed to create datum from transaction
+ *         -3: failed to write to GDB
+ */
+static int s_write_wallet_shared_datum_by_multiple_pkeys(dap_chain_datum_tx_t *a_tx, const char *a_gdb_group)
+{
+    dap_return_val_if_fail(a_tx && a_gdb_group, -1);
+    
+    if (!s_wallet_shared_filter_enabled || !s_wallet_shared_filter_pkey_hashes || s_wallet_shared_filter_pkey_hashes_count == 0) {
+        return 0; // Filter not enabled or no hashes configured
+    }
+    
+    // Check if transaction has wallet shared condition output
+    int l_out_idx = 0;
+    dap_chain_tx_out_cond_t *l_cond_out = dap_chain_datum_tx_out_cond_get(a_tx, 
+        DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_out_idx);
+    
+    if (!l_cond_out)
+        return 0; // Transaction doesn't have wallet shared condition output
+        
+    // Check if transaction contains any of our public key hashes in signatures
+    bool l_pkey_found = false;
+    
+    // Parse transaction signatures to find public key hashes
+    byte_t *l_item;
+    size_t l_item_size;
+    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+        if (*l_item == TX_ITEM_TYPE_SIG) {
+            dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)l_item;
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+            if (l_sign) {
+                dap_hash_fast_t l_current_pkey_hash;
+                if (dap_sign_get_pkey_hash(l_sign, &l_current_pkey_hash)) {
+                    log_it(L_DEBUG, "Current tx pkey hash: %s", dap_hash_fast_to_str_static(&l_current_pkey_hash));
+                    if (s_wallet_shared_filter_matches_pkey(&l_current_pkey_hash)) {
+                        l_pkey_found = true;
+                        log_it(L_DEBUG, "Found matching public key hash in transaction");
+                        break; // Found matching public key hash, stop searching
+                    }
+                }
+            }
+        }
+    }
+    
+    if (!l_pkey_found)
+        return 0; // Transaction doesn't contain any of the specified public keys
+    
+    // Create datum from transaction
+    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
+    if (!l_datum) {
+        log_it(L_ERROR, "Failed to create datum from transaction");
+        return -2;
+    }
+    
+    // Calculate datum hash for key
+    dap_chain_hash_fast_t l_datum_hash;
+    dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
+    char *l_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+    
+    // Write datum to GDB
+    int l_res = dap_global_db_set_sync(a_gdb_group, l_datum_hash_str, 
+        l_datum, dap_chain_datum_size(l_datum), false);
+    
+    if (l_res == DAP_GLOBAL_DB_RC_SUCCESS) {
+        log_it(L_NOTICE, "Wallet shared datum %s written to GDB group %s", 
+            l_datum_hash_str, a_gdb_group);
+        DAP_DELETE(l_datum_hash_str);
+        DAP_DELETE(l_datum);
+        return 1; // Successfully written
     } else {
-        s_wallet_shared_filter_enabled = false;
-        log_it(L_INFO, "Wallet shared filter disabled");
+        log_it(L_WARNING, "Failed to write wallet shared datum %s to GDB group %s, code %d", 
+            l_datum_hash_str, a_gdb_group, l_res);
+        DAP_DELETE(l_datum_hash_str);
+        DAP_DELETE(l_datum);
+        return -3; // Failed to write
     }
 }
 
@@ -215,14 +633,10 @@ int dap_chain_cs_blocks_init()
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     
-    // Initialize wallet shared filter with hardcoded hash
-    dap_hash_fast_t l_hardcoded_hash = {0};
-    // Hash: 0x32FA54FD19CCA71691AA4B5065CF165693A5AB8EAF0A714D4E58B393F12DCA37
-    char l_hardcoded_hash_str[] = "0x32FA54FD19CCA71691AA4B5065CF165693A5AB8EAF0A714D4E58B393F12DCA37";
-    if (dap_chain_hash_fast_from_str(l_hardcoded_hash_str, &l_hardcoded_hash) == 0) {
-        s_chain_cs_blocks_set_wallet_shared_filter(&l_hardcoded_hash, "local.wallet_shared");
-    } else {
-        log_it(L_WARNING, "Failed to parse hardcoded hash for wallet shared filter");
+    // Initialize wallet shared filter by collecting hashes from certificates and wallets
+    int l_collect_result = s_chain_cs_blocks_collect_wallet_shared_hashes("local.wallet_shared");
+    if (l_collect_result < 0) {
+        log_it(L_WARNING, "Failed to collect wallet shared hashes: %d", l_collect_result);
     }
     
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
@@ -1460,7 +1874,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                                 break;
                             }
                         }
-                        if(!l_found)
+                        if (!l_found)
                             continue;
                     } else if (!dap_chain_block_sign_match_pkey(l_block_cache->block, l_block_cache->block_size, l_pub_key))
                         continue;
@@ -1650,8 +2064,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         // Filter wallet shared datums if enabled
         if (s_wallet_shared_filter_enabled && l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
-            int l_filter_result = dap_chain_write_wallet_shared_datum_by_pkey(
-                l_tx, &s_wallet_shared_filter_pkey_hash, s_wallet_shared_gdb_group);
+            int l_filter_result = s_write_wallet_shared_datum_by_multiple_pkeys(l_tx, s_wallet_shared_gdb_group);
             if (l_filter_result == 1) {
                 log_it(L_DEBUG, "Wallet shared datum filtered and saved during block processing");
             } else if (l_filter_result < 0) {
@@ -2912,4 +3325,29 @@ dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, 
     }
 
     return l_ret;
+}
+
+/**
+ * @brief Get wallet shared filter hashes
+ * @param a_hashes_out - output array of hashes (caller must not free it)
+ * @param a_count_out - output count of hashes
+ * @return 0 on success, negative value on error:
+ *         -1: invalid arguments
+ *         -2: filter not enabled or no hashes available
+ */
+int dap_chain_cs_blocks_get_wallet_shared_hashes(dap_hash_fast_t **a_hashes_out, size_t *a_count_out)
+{
+    dap_return_val_if_fail(a_hashes_out && a_count_out, -1);
+    
+    *a_hashes_out = NULL;
+    *a_count_out = 0;
+    
+    if (!s_wallet_shared_filter_enabled || !s_wallet_shared_filter_pkey_hashes || s_wallet_shared_filter_pkey_hashes_count == 0) {
+        return -2; // Filter not enabled or no hashes available
+    }
+    
+    *a_hashes_out = s_wallet_shared_filter_pkey_hashes;
+    *a_count_out = s_wallet_shared_filter_pkey_hashes_count;
+    
+    return 0;
 }
