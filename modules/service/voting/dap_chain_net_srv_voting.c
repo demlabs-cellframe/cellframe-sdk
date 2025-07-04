@@ -105,7 +105,7 @@ static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_has
 static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash,
                                               dap_hash_fast_t a_tx_prev_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash);
 static int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
-static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in);
+static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in);
 static int s_cli_voting(int argc, char **argv, void **a_str_reply);
 
 // Cancellation verification functions
@@ -522,34 +522,29 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
 
 int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
-    if (a_type == TX_ITEM_TYPE_VOTING)
+    dap_chain_datum_tx_item_groups_t l_tx_items_groups;
+    dap_chain_datum_tx_items_group_find(a_tx_in, &l_tx_items_groups);
+    if (l_tx_items_groups.group_voting_count){
         return s_voting_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
-    if (a_type == TX_ITEM_TYPE_VOTE)
+    } else if(l_tx_items_groups.group_vote_count){
         return s_vote_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
-    if (a_type == TX_ITEM_TYPE_TSD) {
-        // This is called for cancellation transactions  
-        dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
-        for (dap_list_t *it = l_tsd_list; it; it = it->next) {
-            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)it->data)->tsd;
-            if (l_tsd->type == VOTING_TSD_TYPE_CANCEL_HASH) {
-                log_it(L_INFO, "Processing poll cancellation transaction %s, apply=%s", 
-                       dap_hash_fast_to_str_static(a_tx_hash), a_apply ? "true" : "false");
-                dap_list_free(l_tsd_list);
-                return s_voting_cancel_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
-            }
+    } else {
+        dap_chain_tx_out_cond_t *l_cond_out;
+        if ((l_cond_out = dap_chain_datum_tx_item_get_out_cond_by_subtype(a_tx_in,
+                                                                         DAP_CHAIN_TX_OUT_COND_SUBTYPE_VOTING_CANCEL))){
+            return s_voting_cancel_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
         }
-        dap_list_free(l_tsd_list);
     }
-    
-    return 0; // Return success for unknown types
+    return 0;
 }
 
-static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in)
+static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in)
 {
     dap_hash_fast_t l_hash = {};
     dap_hash_fast(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in), &l_hash);
-
-    if (a_type == TX_ITEM_TYPE_VOTING){
+    dap_chain_datum_tx_item_groups_t l_tx_items_groups;
+    dap_chain_datum_tx_items_group_find(a_tx_in, &l_tx_items_groups);
+    if (l_tx_items_groups.group_voting_count){
         dap_chain_net_votings_t * l_voting = NULL;
         pthread_rwlock_wrlock(&s_votings_rwlock);
         HASH_FIND(hh, s_votings, &l_hash, sizeof(dap_hash_fast_t), l_voting);
@@ -582,7 +577,7 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
         DAP_DELETE(l_voting);
 
         return true;
-    } else if (a_type == TX_ITEM_TYPE_VOTE){
+    } else if (l_tx_items_groups.group_vote_count){
         dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
         if(!l_vote_tx_item){
             log_it(L_ERROR, "Can't find vote item");
@@ -607,6 +602,13 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
                 l_voting->votes = dap_list_remove(l_voting->votes, l_vote->data);
                 break;
             }
+        }
+    } else {
+        dap_chain_tx_out_cond_t *l_cond_out;
+        if ((l_cond_out = dap_chain_datum_tx_item_get_out_cond_by_subtype(a_tx_in,
+                                                                         DAP_CHAIN_TX_OUT_COND_SUBTYPE_VOTING_CANCEL)))
+        {
+            s_voting_cancel_verificator(a_ledger, 0, a_tx_in, &l_hash, false);
         }
     }
 
