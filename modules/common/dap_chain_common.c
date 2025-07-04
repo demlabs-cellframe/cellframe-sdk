@@ -29,6 +29,16 @@
 #include <time.h>
 #endif
 #include "dap_chain_common.h"
+#include "dap_cert.h"
+#include "dap_enc_key.h"
+#include "uthash.h"
+#include "dap_chain_net.h"
+#include "dap_chain_ledger.h"
+#include "dap_chain_datum_tx_items.h"
+#include "dap_global_db.h"
+#include "dap_chain_datum.h"
+#include "json.h"
+#include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_chain_common"
 
@@ -285,5 +295,561 @@ void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_sta
     else
         json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
     json_object_array_add(a_json_obj_out, json_obj_lim);
+}
+
+
+
+// Structure to store key and certificate entries
+typedef struct dap_chain_keys_certs_item {
+	char name[DAP_CERT_ITEM_NAME_MAX];
+	dap_cert_t *cert;
+	dap_enc_key_t *key;
+	bool is_loaded;
+	time_t loaded_timestamp;
+	UT_hash_handle hh;
+} dap_chain_keys_certs_item_t;
+
+// Global storage for keys and certificates
+static dap_chain_keys_certs_item_t *s_keys_certs_storage = NULL;
+static bool s_keys_certs_initialized = false;
+
+/**
+ * @brief Initialize keys and certificates storage at program startup
+ * @return 0 if success, negative value on error
+ */
+int dap_chain_keys_certs_init(void)
+{
+	dap_return_val_if_fail(!s_keys_certs_initialized, -1);
+	
+	s_keys_certs_storage = NULL;
+	s_keys_certs_initialized = true;
+	
+	log_it(L_INFO, "Keys and certificates storage initialized");
+	return 0;
+}
+
+/**
+ * @brief Add certificate to storage
+ * @param a_name - certificate name 
+ * @param a_cert - certificate object
+ * @return 0 if success, negative value on error
+ */
+int dap_chain_keys_certs_add_cert(const char *a_name, dap_cert_t *a_cert)
+{
+	dap_return_val_if_fail(s_keys_certs_initialized, -1);
+	dap_return_val_if_fail(a_name && a_cert, -2);
+	
+	dap_chain_keys_certs_item_t *l_item = NULL;
+	HASH_FIND_STR(s_keys_certs_storage, a_name, l_item);
+	
+	if (l_item) {
+		if (l_item->cert) {
+			log_it(L_WARNING, "Certificate with name '%s' already exists in storage", a_name);
+			return -3;
+		}
+		// Update existing item with certificate
+		l_item->cert = a_cert;
+		l_item->is_loaded = true;
+		l_item->loaded_timestamp = time(NULL);
+	} else {
+		// Create new item
+		l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_keys_certs_item_t, -4);
+		dap_strncpy(l_item->name, a_name, sizeof(l_item->name) - 1);
+		l_item->cert = a_cert;
+		l_item->key = NULL;
+		l_item->is_loaded = true;
+		l_item->loaded_timestamp = time(NULL);
+		
+		HASH_ADD_STR(s_keys_certs_storage, name, l_item);
+	}
+	
+	log_it(L_DEBUG, "Certificate '%s' added to storage", a_name);
+	return 0;
+}
+
+/**
+ * @brief Add encryption key to storage
+ * @param a_name - key name
+ * @param a_key - encryption key object
+ * @return 0 if success, negative value on error
+ */
+int dap_chain_keys_certs_add_key(const char *a_name, dap_enc_key_t *a_key)
+{
+	dap_return_val_if_fail(s_keys_certs_initialized, -1);
+	dap_return_val_if_fail(a_name && a_key, -2);
+	
+	dap_chain_keys_certs_item_t *l_item = NULL;
+	HASH_FIND_STR(s_keys_certs_storage, a_name, l_item);
+	
+	if (l_item) {
+		if (l_item->key) {
+			log_it(L_WARNING, "Key with name '%s' already exists in storage", a_name);
+			return -3;
+		}
+		// Update existing item with key
+		l_item->key = a_key;
+		l_item->is_loaded = true;
+		l_item->loaded_timestamp = time(NULL);
+	} else {
+		// Create new item
+		l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_keys_certs_item_t, -4);
+		dap_strncpy(l_item->name, a_name, sizeof(l_item->name) - 1);
+		l_item->cert = NULL;
+		l_item->key = a_key;
+		l_item->is_loaded = true;
+		l_item->loaded_timestamp = time(NULL);
+		
+		HASH_ADD_STR(s_keys_certs_storage, name, l_item);
+	}
+	
+	log_it(L_DEBUG, "Key '%s' added to storage", a_name);
+	return 0;
+}
+
+/**
+ * @brief Get certificate from storage by name
+ * @param a_name - certificate name
+ * @return certificate object or NULL if not found
+ */
+dap_cert_t *dap_chain_keys_certs_get_cert(const char *a_name)
+{
+	dap_return_val_if_fail(s_keys_certs_initialized && a_name, NULL);
+	
+	dap_chain_keys_certs_item_t *l_item = NULL;
+	HASH_FIND_STR(s_keys_certs_storage, a_name, l_item);
+	
+	return l_item ? l_item->cert : NULL;
+}
+
+/**
+ * @brief Get encryption key from storage by name
+ * @param a_name - key name
+ * @return encryption key object or NULL if not found
+ */
+dap_enc_key_t *dap_chain_keys_certs_get_key(const char *a_name)
+{
+	dap_return_val_if_fail(s_keys_certs_initialized && a_name, NULL);
+	
+	dap_chain_keys_certs_item_t *l_item = NULL;
+	HASH_FIND_STR(s_keys_certs_storage, a_name, l_item);
+	
+	return l_item ? l_item->key : NULL;
+}
+
+/**
+ * @brief Get count of stored items
+ * @return number of items in storage
+ */
+size_t dap_chain_keys_certs_get_count(void)
+{
+	dap_return_val_if_fail(s_keys_certs_initialized, 0);
+	
+	return HASH_COUNT(s_keys_certs_storage);
+}
+
+/**
+ * @brief Check if storage is initialized
+ * @return true if initialized, false otherwise
+ */
+bool dap_chain_keys_certs_is_initialized(void)
+{
+	return s_keys_certs_initialized;
+}
+
+/**
+ * @brief Cleanup and deinitialize keys and certificates storage
+ */
+void dap_chain_keys_certs_deinit(void)
+{
+	if (!s_keys_certs_initialized)
+		return;
+	
+	dap_chain_keys_certs_item_t *l_item = NULL, *l_tmp = NULL;
+	
+	HASH_ITER(hh, s_keys_certs_storage, l_item, l_tmp) {
+		HASH_DEL(s_keys_certs_storage, l_item);
+		
+		// Note: we don't delete cert and key objects here as they might be managed elsewhere
+		// Just cleanup the storage structure
+		DAP_DELETE(l_item);
+	}
+	
+	s_keys_certs_storage = NULL;
+	s_keys_certs_initialized = false;
+	
+	log_it(L_INFO, "Keys and certificates storage deinitialized");
+}
+
+/**
+ * @brief Write filtered datum (transaction) to GDB if it matches type DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED and public key
+ * 
+ * This function checks if the provided transaction:
+ * - Has conditional output of type DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED
+ * - Contains the specified public key hash in its signatures (TX_ITEM_TYPE_SIG)
+ * 
+ * If both conditions are met, the transaction is written to the specified GDB group as datum.
+ * 
+ * @param a_tx - transaction to check and potentially write
+ * @param a_pkey_hash - public key hash to filter by (must match signature public key hash)
+ * @param a_gdb_group - GDB group name to write filtered datum to
+ * @return 1 if datum written, 0 if not matching criteria, negative value on error:
+ *         -1: invalid arguments
+ *         -2: failed to create datum from transaction
+ *         -3: failed to write to GDB
+ * 
+ * @example
+ * // Example usage during chain loading:
+ * dap_hash_fast_t l_pkey_hash;
+ * dap_chain_hash_fast_from_str("0x1234567890abcdef...", &l_pkey_hash);
+ * int l_result = dap_chain_write_wallet_shared_datum_by_pkey(l_tx, &l_pkey_hash, "filtered.wallet_shared");
+ * if (l_result == 1) {
+ *     log_it(L_INFO, "Wallet shared datum written");
+ * }
+ */
+int dap_chain_write_wallet_shared_datum_by_pkey(dap_chain_datum_tx_t *a_tx, const dap_hash_fast_t *a_pkey_hash, const char *a_gdb_group)
+{
+	dap_return_val_if_fail(a_tx && a_pkey_hash && a_gdb_group, -1);
+	
+	// Check if transaction has wallet shared condition output
+	int l_out_idx = 0;
+	dap_chain_tx_out_cond_t *l_cond_out = dap_chain_datum_tx_out_cond_get(a_tx, 
+		DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_out_idx);
+	
+	if (!l_cond_out)
+		return 0; // Transaction doesn't have wallet shared condition output
+		
+	// Check if transaction contains our public key hash in signatures
+	bool l_pkey_found = false;
+	
+	// Parse transaction signatures to find public key hashes
+	byte_t *l_item;
+	size_t l_item_size;
+	TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+		if (*l_item == TX_ITEM_TYPE_SIG) {
+			dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)l_item;
+			dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+			if (l_sign) {
+				dap_hash_fast_t l_current_pkey_hash;
+				if (dap_sign_get_pkey_hash(l_sign, &l_current_pkey_hash)) {
+                    log_it(L_DEBUG, "l_current_pkey_hash: %s", dap_hash_fast_to_str_static(&l_current_pkey_hash));
+					if (dap_hash_fast_compare(a_pkey_hash, &l_current_pkey_hash)) {
+						l_pkey_found = true;
+						break; // Found matching public key hash, stop searching
+					}
+				}
+			}
+		}
+	}
+	
+	if (!l_pkey_found)
+		return 0; // Transaction doesn't contain the specified public key
+	
+	// Create datum from transaction
+	size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
+	dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
+	if (!l_datum) {
+		log_it(L_ERROR, "Failed to create datum from transaction");
+		return -2;
+	}
+	
+	// Calculate datum hash for key
+	dap_chain_hash_fast_t l_datum_hash;
+	dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
+	char *l_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+	
+	// Write datum to GDB
+	int l_res = dap_global_db_set_sync(a_gdb_group, l_datum_hash_str, 
+		l_datum, dap_chain_datum_size(l_datum), false);
+	
+	if (l_res == DAP_GLOBAL_DB_RC_SUCCESS) {
+		log_it(L_NOTICE, "Wallet shared datum %s written to GDB group %s", 
+			l_datum_hash_str, a_gdb_group);
+		DAP_DELETE(l_datum_hash_str);
+		DAP_DELETE(l_datum);
+		return 1; // Successfully written
+	} else {
+		log_it(L_WARNING, "Failed to write wallet shared datum %s to GDB group %s, code %d", 
+			l_datum_hash_str, a_gdb_group, l_res);
+		DAP_DELETE(l_datum_hash_str);
+		DAP_DELETE(l_datum);
+		return -3; // Failed to write
+	}
+}
+
+/**
+ * @brief Read and output wallet shared datums from GDB to JSON format
+ * 
+ * This function reads all datums from the specified GDB group, filters them by:
+ * - Datum must be a transaction (DAP_CHAIN_DATUM_TX)
+ * - Transaction must have conditional output of type DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED
+ * - Optionally filter by public key hash in transaction signatures
+ * 
+ * Matching transactions are converted to JSON format and added to the output array.
+ * 
+ * @param a_json_arr_out - JSON array to append results to
+ * @param a_gdb_group - GDB group name to read datums from
+ * @param a_pkey_hash - public key hash to filter by (optional, can be NULL)
+ * @param a_hash_out_type - hash output format ("hex" or "base58")
+ * @return number of transactions added to JSON on success, negative value on error:
+ *         -1: invalid arguments
+ *         -2: failed to read from GDB
+ *         -3: memory allocation error
+ * 
+ * @example
+ * // Example usage:
+ * json_object *l_json_array = json_object_new_array();
+ * dap_hash_fast_t l_pkey_hash;
+ * dap_chain_hash_fast_from_str("0x1234567890abcdef...", &l_pkey_hash);
+ * int l_count = dap_chain_read_wallet_shared_datums_from_gdb_json(
+ *     l_json_array, "filtered.wallet_shared", &l_pkey_hash, "hex"
+ * );
+ * if (l_count >= 0) {
+ *     log_it(L_INFO, "Found %d wallet shared transactions", l_count);
+ * }
+ */
+int dap_chain_read_wallet_shared_datums_from_gdb_json(json_object *a_json_arr_out, const char *a_gdb_group, const dap_hash_fast_t *a_pkey_hash, const char *a_hash_out_type)
+{
+	dap_return_val_if_fail(a_json_arr_out && a_gdb_group && a_hash_out_type, -1);
+	
+	size_t l_values_count = 0;
+	dap_global_db_obj_t *l_values = dap_global_db_get_all_sync(a_gdb_group, &l_values_count);
+	if (!l_values) {
+		log_it(L_WARNING, "No datums found in GDB group %s or failed to read", a_gdb_group);
+		return -2;
+	}
+	
+	int l_tx_count = 0;
+	log_it(L_INFO, "Reading %zu items from GDB group %s", l_values_count, a_gdb_group);
+	
+	for (size_t i = 0; i < l_values_count; i++) {
+		dap_global_db_obj_t *l_item = &l_values[i];
+		
+		// Check minimum size for datum
+		if (l_item->value_len < sizeof(dap_chain_datum_t)) {
+			log_it(L_WARNING, "Item %zu: too small for datum (%zu bytes)", i, l_item->value_len);
+			continue;
+		}
+		
+		dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_item->value;
+		
+		// Check if it's a transaction datum
+		if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+			log_it(L_DEBUG, "Item %zu: not a transaction datum (type %u)", i, l_datum->header.type_id);
+			continue;
+		}
+		
+		// Check minimum size for transaction
+		if (l_item->value_len < sizeof(dap_chain_datum_t) + sizeof(dap_chain_datum_tx_t)) {
+			log_it(L_WARNING, "Item %zu: too small for transaction datum", i);
+			continue;
+		}
+		
+		dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
+		
+		// Check if transaction has wallet shared condition output
+		int l_out_idx = 0;
+		dap_chain_tx_out_cond_t *l_cond_out = dap_chain_datum_tx_out_cond_get(l_tx, 
+			DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_out_idx);
+		
+		if (!l_cond_out) {
+			log_it(L_DEBUG, "Item %zu: no wallet shared condition output", i);
+			continue;
+		}
+		
+		// If public key hash is specified, check signatures
+		bool l_pkey_matches = true;
+		if (a_pkey_hash) {
+			l_pkey_matches = false;
+			byte_t *l_tx_item;
+			size_t l_tx_item_size;
+			TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, l_tx) {
+				if (*l_tx_item == TX_ITEM_TYPE_SIG) {
+					dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)l_tx_item;
+					dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+					if (l_sign) {
+						dap_hash_fast_t l_current_pkey_hash;
+						if (dap_sign_get_pkey_hash(l_sign, &l_current_pkey_hash)) {
+							if (dap_hash_fast_compare(a_pkey_hash, &l_current_pkey_hash)) {
+								l_pkey_matches = true;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		if (!l_pkey_matches) {
+			log_it(L_DEBUG, "Item %zu: public key doesn't match", i);
+			continue;
+		}
+		
+		// Create JSON object for this transaction
+		json_object *l_json_tx = json_object_new_object();
+		if (!l_json_tx) {
+			log_it(L_ERROR, "Failed to create JSON object for transaction %zu", i);
+			continue;
+		}
+		
+		// Calculate datum hash for this transaction
+		dap_hash_fast_t l_datum_hash;
+		dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
+		
+		// Add basic transaction info
+		const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+			? dap_enc_base58_encode_hash_to_str_static(&l_datum_hash)
+			: dap_chain_hash_fast_to_str_static(&l_datum_hash);
+		json_object_object_add(l_json_tx, "datum_hash", json_object_new_string(l_hash_str));
+		json_object_object_add(l_json_tx, "gdb_key", json_object_new_string(l_item->key));
+		json_object_object_add(l_json_tx, "wallet_shared_type", json_object_new_string("WALLET_SHARED"));
+		
+		// Create a dummy json array for errors (required by dump function)
+		json_object *l_json_arr_reply = json_object_new_array();
+		
+		// Use existing function to dump transaction details to JSON
+		if (dap_chain_datum_dump_tx_json(l_json_arr_reply, l_tx, NULL, l_json_tx, a_hash_out_type, &l_datum_hash, (dap_chain_net_id_t){0})) {
+			json_object_array_add(a_json_arr_out, l_json_tx);
+			l_tx_count++;
+			log_it(L_DEBUG, "Added wallet shared transaction %s to JSON output", l_hash_str);
+		} else {
+			log_it(L_WARNING, "Failed to dump transaction %zu to JSON", i);
+			json_object_put(l_json_tx);
+		}
+		
+		json_object_put(l_json_arr_reply);
+	}
+	
+	dap_global_db_objs_delete(l_values, l_values_count);
+	
+	log_it(L_INFO, "Exported %d wallet shared transactions from GDB group %s to JSON", 
+		l_tx_count, a_gdb_group);
+	
+	return l_tx_count;
+}
+
+/**
+ * @brief Create JSON object with wallet shared transactions from GDB
+ * 
+ * This is a convenience wrapper that creates a JSON object containing wallet shared transactions
+ * from the specified GDB group. The result includes metadata and an array of transactions.
+ * 
+ * @param a_gdb_group - GDB group name to read datums from
+ * @param a_pkey_hash - public key hash to filter by (optional, can be NULL)
+ * @param a_hash_out_type - hash output format ("hex" or "base58")
+ * @return JSON object with results, or NULL on error. Caller must free with json_object_put()
+ * 
+ * @example
+ * // Example usage:
+ * dap_hash_fast_t l_pkey_hash;
+ * dap_chain_hash_fast_from_str("0x1234567890abcdef...", &l_pkey_hash);
+ * json_object *l_result = dap_chain_get_wallet_shared_datums_json(
+ *     "filtered.wallet_shared", &l_pkey_hash, "hex"
+ * );
+ * if (l_result) {
+ *     printf("Result: %s\n", json_object_to_json_string(l_result));
+ *     json_object_put(l_result);
+ * }
+ */
+json_object *dap_chain_get_wallet_shared_datums_json(const char *a_gdb_group, const dap_hash_fast_t *a_pkey_hash, const char *a_hash_out_type)
+{
+	dap_return_val_if_fail(a_gdb_group && a_hash_out_type, NULL);
+	
+	json_object *l_result = json_object_new_object();
+	if (!l_result) {
+		log_it(L_ERROR, "Failed to create JSON result object");
+		return NULL;
+	}
+	
+	json_object *l_transactions = json_object_new_array();
+	if (!l_transactions) {
+		log_it(L_ERROR, "Failed to create JSON transactions array");
+		json_object_put(l_result);
+		return NULL;
+	}
+	
+	// Read wallet shared transactions
+	int l_tx_count = dap_chain_read_wallet_shared_datums_from_gdb_json(
+		l_transactions, a_gdb_group, a_pkey_hash, a_hash_out_type);
+	
+	// Add metadata to result
+	json_object_object_add(l_result, "gdb_group", json_object_new_string(a_gdb_group));
+	json_object_object_add(l_result, "hash_format", json_object_new_string(a_hash_out_type));
+	json_object_object_add(l_result, "filter_type", json_object_new_string("WALLET_SHARED"));
+	
+	if (a_pkey_hash) {
+		const char *l_pkey_str = dap_strcmp(a_hash_out_type, "hex")
+			? dap_enc_base58_encode_hash_to_str_static(a_pkey_hash)
+			: dap_chain_hash_fast_to_str_static(a_pkey_hash);
+		json_object_object_add(l_result, "public_key_filter", json_object_new_string(l_pkey_str));
+	} else {
+		json_object_object_add(l_result, "public_key_filter", json_object_new_null());
+	}
+	
+	json_object_object_add(l_result, "transaction_count", json_object_new_int(l_tx_count >= 0 ? l_tx_count : 0));
+	json_object_object_add(l_result, "success", json_object_new_boolean(l_tx_count >= 0));
+	
+	if (l_tx_count >= 0) {
+		json_object_object_add(l_result, "transactions", l_transactions);
+	} else {
+		json_object_object_add(l_result, "error_code", json_object_new_int(l_tx_count));
+		json_object_put(l_transactions);
+	}
+	
+	return l_result;
+}
+
+
+
+/**
+ * @brief Clear entire GDB group (delete all records)
+ * 
+ * This function completely removes all records from the specified GDB group.
+ * Use with caution as this operation is irreversible.
+ * 
+ * @param a_gdb_group - GDB group name to clear completely
+ * @return number of records deleted on success, negative value on error:
+ *         -1: invalid arguments
+ *         -2: failed to read from GDB
+ * 
+ * @example
+ * // Clear all records from wallet shared group
+ * int l_cleared = dap_chain_clear_gdb_group("filtered.wallet_shared");
+ * if (l_cleared >= 0) {
+ *     log_it(L_INFO, "Cleared %d records from GDB", l_cleared);
+ * }
+ */
+int dap_chain_clear_gdb_group(const char *a_gdb_group)
+{
+	dap_return_val_if_fail(a_gdb_group, -1);
+	
+	size_t l_values_count = 0;
+	dap_global_db_obj_t *l_values = dap_global_db_get_all_sync(a_gdb_group, &l_values_count);
+	if (!l_values) {
+		log_it(L_WARNING, "No records found in GDB group %s or failed to read", a_gdb_group);
+		return -2;
+	}
+	
+	int l_deleted_count = 0;
+	log_it(L_INFO, "Clearing %zu records from GDB group %s", l_values_count, a_gdb_group);
+	
+	for (size_t i = 0; i < l_values_count; i++) {
+		dap_global_db_obj_t *l_item = &l_values[i];
+		
+		int l_del_result = dap_global_db_del_sync(a_gdb_group, l_item->key);
+		if (l_del_result == DAP_GLOBAL_DB_RC_SUCCESS) {
+			l_deleted_count++;
+			log_it(L_DEBUG, "Deleted record with key %s from GDB group %s", 
+				l_item->key, a_gdb_group);
+		} else {
+			log_it(L_WARNING, "Failed to delete record with key %s from GDB group %s, code %d", 
+				l_item->key, a_gdb_group, l_del_result);
+		}
+	}
+	
+	dap_global_db_objs_delete(l_values, l_values_count);
+	
+	log_it(L_INFO, "Cleared %d records from GDB group %s", l_deleted_count, a_gdb_group);
+	
+	return l_deleted_count;
 }
 

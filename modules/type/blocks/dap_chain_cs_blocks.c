@@ -34,6 +34,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_datum.h"
+#include "dap_chain_common.h"
 #include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
@@ -178,7 +179,30 @@ static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_c
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
+// Wallet shared filter variables
+static bool s_wallet_shared_filter_enabled = false;
+static dap_hash_fast_t s_wallet_shared_filter_pkey_hash = {0};
+static char s_wallet_shared_gdb_group[256] = "filtered.wallet_shared";
+
 static dap_list_t *s_fork_resolved_notificators = NULL;
+
+/**
+ * @brief Set wallet shared filter configuration
+ * @param a_pkey_hash - public key hash to filter by
+ * @param a_gdb_group - GDB group name to write filtered datums to
+ */
+static void s_chain_cs_blocks_set_wallet_shared_filter(const dap_hash_fast_t *a_pkey_hash, const char *a_gdb_group)
+{
+    if (a_pkey_hash && a_gdb_group) {
+        s_wallet_shared_filter_pkey_hash = *a_pkey_hash;
+        dap_strncpy(s_wallet_shared_gdb_group, a_gdb_group, sizeof(s_wallet_shared_gdb_group) - 1);
+        s_wallet_shared_filter_enabled = true;
+        log_it(L_INFO, "Wallet shared filter enabled with GDB group: %s", a_gdb_group);
+    } else {
+        s_wallet_shared_filter_enabled = false;
+        log_it(L_INFO, "Wallet shared filter disabled");
+    }
+}
 
 /**
  * @brief dap_chain_cs_blocks_init
@@ -190,6 +214,17 @@ int dap_chain_cs_blocks_init()
     dap_chain_cs_type_add("blocks", s_chain_cs_blocks_new, NULL);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
+    
+    // Initialize wallet shared filter with hardcoded hash
+    dap_hash_fast_t l_hardcoded_hash = {0};
+    // Hash: 0x32FA54FD19CCA71691AA4B5065CF165693A5AB8EAF0A714D4E58B393F12DCA37
+    char l_hardcoded_hash_str[] = "0x32FA54FD19CCA71691AA4B5065CF165693A5AB8EAF0A714D4E58B393F12DCA37";
+    if (dap_chain_hash_fast_from_str(l_hardcoded_hash_str, &l_hardcoded_hash) == 0) {
+        s_chain_cs_blocks_set_wallet_shared_filter(&l_hardcoded_hash, "local.wallet_shared");
+    } else {
+        log_it(L_WARNING, "Failed to parse hardcoded hash for wallet shared filter");
+    }
+    
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:\n"
             "block -net <net_name> [-chain <chain_name>] new\n"
@@ -1611,6 +1646,19 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
 
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
+
+        // Filter wallet shared datums if enabled
+        if (s_wallet_shared_filter_enabled && l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
+            int l_filter_result = dap_chain_write_wallet_shared_datum_by_pkey(
+                l_tx, &s_wallet_shared_filter_pkey_hash, s_wallet_shared_gdb_group);
+            if (l_filter_result == 1) {
+                log_it(L_DEBUG, "Wallet shared datum filtered and saved during block processing");
+            } else if (l_filter_result < 0) {
+                log_it(L_WARNING, "Failed to filter wallet shared datum, error code %d", l_filter_result);
+            }
+        }
+
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED){ // If this is any datum other than a already cached transaction
             l_ret++;
             if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
@@ -1634,6 +1682,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
             dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash, (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
+          
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,

@@ -8557,3 +8557,46 @@ int com_policy(int argc, char **argv, void **reply) {
 
     return 0;
 }
+
+/**
+ * @brief com_certs
+ * Temporary certificate management command
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @return int
+ */
+int com_certs(int a_argc, char **a_argv, void **a_str_reply)
+{
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    json_object * json_arr_out = json_object_new_array();
+    
+    int l_arg_index = 1;
+    
+    // Check for 'list' subcommand
+    if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "list", NULL)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, -1, "Unknown subcommand. Available: list");
+        return -1;
+    }
+
+    // Execute 'certs list' command
+    dap_list_t *l_certs = dap_cert_get_all_mem();
+
+    for(dap_list_t *l_cert = l_certs; l_cert; l_cert = l_cert->next) {
+        dap_cert_t *l_cert_obj = (dap_cert_t *)l_cert->data;
+        dap_hash_fast_t l_hash;
+        if (dap_cert_get_pkey_hash(l_cert_obj, &l_hash)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, -135, "Can't serialize cert %s", l_cert_obj->name);
+            return -135;
+        }
+        char l_hash_str[DAP_HASH_FAST_STR_SIZE] = {};
+        dap_hash_fast_to_str(&l_hash, l_hash_str, sizeof(l_hash_str));
+        json_object *l_json_obj = json_object_new_object();
+        json_object_object_add(l_json_obj, "name", json_object_new_string(l_cert_obj->name));
+        json_object_object_add(l_json_obj, "hash", json_object_new_string(l_hash_str));
+        json_object_array_add(json_arr_out, l_json_obj);
+    }
+    json_object_array_add(*a_json_arr_reply, json_arr_out);
+    
+    return 0;
+}

@@ -33,6 +33,7 @@
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_list.h"
+#include "dap_chain_common.h"
 
 
 enum emit_delegation_error {
@@ -1085,6 +1086,51 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
 }
 
 /**
+ * @brief s_cli_list - List wallet shared transactions from GDB
+ * @param a_argc
+ * @param a_argv
+ * @param a_arg_index
+ * @param a_json_arr_reply
+ * @param a_net
+ * @param a_chain
+ * @param a_hash_out_type
+ * @return
+ */
+static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+{
+    const char *l_gdb_group = "local.wallet_shared";
+    const char *l_pkey_hash_str = NULL;
+    
+    // Check for optional public key filter parameter
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey", &l_pkey_hash_str);
+    
+    dap_hash_fast_t l_pkey_hash = {0};
+    dap_hash_fast_t *l_pkey_hash_ptr = NULL;
+    
+    if (l_pkey_hash_str) {
+        if (dap_chain_hash_fast_from_str(l_pkey_hash_str, &l_pkey_hash)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
+                "Can't recognize %s as a hex format public key hash", l_pkey_hash_str);
+            return ERROR_VALUE;
+        }
+        l_pkey_hash_ptr = &l_pkey_hash;
+    }
+    
+    // Get wallet shared transactions from GDB in JSON format
+    json_object *l_result = dap_chain_get_wallet_shared_datums_json(l_gdb_group, l_pkey_hash_ptr, a_hash_out_type);
+    if (!l_result) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, 
+            "Failed to retrieve wallet shared transactions from GDB");
+        return ERROR_MEMORY;
+    }
+    
+    // Add the result to the reply array
+    json_object_array_add(*a_json_arr_reply, l_result);
+    
+    return DAP_NO_ERROR;
+}
+
+/**
  * @brief s_cli_stake_lock
  * @param a_argc
  * @param a_argv
@@ -1125,6 +1171,8 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply)
         return s_cli_sign(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "info", NULL))
         return s_cli_info(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "list", NULL))
+        return s_cli_list(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
     else {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_SUBCOMMAND, "Subcommand %s not recognized", a_argv[l_arg_index]);
         return ERROR_SUBCOMMAND;

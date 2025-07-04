@@ -104,6 +104,7 @@ int dap_chain_cell_init(void)
     
 #endif
     //s_cells_path = dap_config_get_item_str(g_config,"resources","cells_storage");
+    
     return  0;
 }
 
@@ -468,6 +469,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos);
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
             a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash, false);
+            
             a_cell->map_pos += l_el_size;
             a_chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
         }
@@ -501,6 +503,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             dap_hash_fast_t l_atom_hash = {};
             dap_hash_fast(l_element, l_el_size, &l_atom_hash);
             dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size, &l_atom_hash, false);
+            
             if (l_res != ATOM_ACCEPT && l_res != ATOM_FORK) {
                 DAP_DELETE(l_element);
             }
