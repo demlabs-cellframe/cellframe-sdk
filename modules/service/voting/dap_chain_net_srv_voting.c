@@ -1143,6 +1143,30 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             json_object_object_add( json_obj_vote, "question", 
                                     json_object_new_string_len(l_voting_question, l_voting->voting_params.voting_question_length) );
             json_object_object_add(json_obj_vote, "token", json_object_new_string(l_voting->voting_params.token_ticker));
+            
+            // Add status information
+            const char *l_status_str = "active";
+            switch (l_voting->voting_params.status) {
+                case DAP_CHAIN_NET_VOTING_STATUS_ACTIVE:
+                    if (l_voting->voting_params.voting_expire && l_voting->voting_params.voting_expire < dap_time_now())
+                        l_status_str = "expired";
+                    else
+                        l_status_str = "active";
+                    break;
+                case DAP_CHAIN_NET_VOTING_STATUS_EXPIRED:
+                    l_status_str = "expired";
+                    break;
+                case DAP_CHAIN_NET_VOTING_STATUS_CANCELLED:
+                    l_status_str = "cancelled";
+                    break;
+                case DAP_CHAIN_NET_VOTING_STATUS_COMPLETED:
+                    l_status_str = "completed";
+                    break;
+                default:
+                    l_status_str = "unknown";
+                    break;
+            }
+            json_object_object_add(json_obj_vote, "status", json_object_new_string(l_status_str));
             json_object_array_add(json_arr_voting_out, json_obj_vote);
         }
         pthread_rwlock_unlock(&s_votings_rwlock);
@@ -1198,13 +1222,35 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                                json_object_new_string_len((char*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset,
                                l_voting->voting_params.voting_question_length));
         json_object_object_add(json_vote_out, "token", json_object_new_string(l_voting->voting_params.token_ticker));
+
+        // Add status information
+        const char *l_status_str = "active";
+        switch (l_voting->voting_params.status) {
+            case DAP_CHAIN_NET_VOTING_STATUS_ACTIVE:
+                if (l_voting->voting_params.voting_expire && l_voting->voting_params.voting_expire < dap_time_now())
+                    l_status_str = "expired";
+                else
+                    l_status_str = "active";
+                break;
+            case DAP_CHAIN_NET_VOTING_STATUS_EXPIRED:
+                l_status_str = "expired";
+                break;
+            case DAP_CHAIN_NET_VOTING_STATUS_CANCELLED:
+                l_status_str = "cancelled";
+                break;
+            case DAP_CHAIN_NET_VOTING_STATUS_COMPLETED:
+                l_status_str = "completed";
+                break;
+            default:
+                l_status_str = "unknown";
+                break;
+        }
+        json_object_object_add(json_vote_out, "status", json_object_new_string(l_status_str));
         if (l_voting->voting_params.voting_expire) {
             char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting->voting_params.voting_expire);
             json_object_object_add(json_vote_out, "expiration", 
                                     json_object_new_string(l_tmp_buf));
-            json_object_object_add(json_vote_out, "status",
-                                   json_object_new_string( l_voting->voting_params.voting_expire >= dap_time_now() ? "active" : "expired" ));
         }
         if (l_voting->voting_params.votes_max_count){
             json_object_object_add(json_vote_out, "votes_max",
@@ -1883,17 +1929,17 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json
         return DAP_CHAIN_NET_VOTE_CANCEL_VOTING_TX_NOT_FOUND;
     }
 
-    const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
+    dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
     if (!l_addr_from) {
         return DAP_CHAIN_NET_VOTE_CANCEL_SOURCE_ADDRESS_INVALID;
     }
 
     // Check if the voting transaction was signed by this wallet
     bool l_is_owner = false;
+    dap_chain_addr_t l_owner_addr = {};
     dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*)dap_chain_datum_tx_item_get(l_voting_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
     if (l_tx_sig) {
         dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-        dap_chain_addr_t l_owner_addr;
         dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, a_net->pub.id);
         if (!dap_chain_addr_compare(&l_owner_addr, l_addr_from)) {
             l_is_owner = true;
@@ -1901,6 +1947,7 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json
     }
 
     if (!l_is_owner) {
+        log_it(L_ERROR, "Voting %s was not signed by this wallet %s , owner %s", dap_chain_hash_fast_to_str_static(&a_voting_hash), dap_chain_addr_to_str_static(l_addr_from), dap_chain_addr_to_str_static(&l_owner_addr));
         return DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS;
     }
     
