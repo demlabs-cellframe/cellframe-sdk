@@ -516,11 +516,12 @@ int s_tsd_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, d
         return -4;
     }
 
+    dap_tsd_t *l_tsd = (dap_tsd_t *)l_tsd_tx_item->tsd;
     dap_chain_hash_fast_t l_voting_hash = {};
-    if (l_tsd_tx_item->header.type == VOTING_TSD_TYPE_CANCEL) {
-        l_voting_hash = *((dap_chain_hash_fast_t*)l_tsd_tx_item->tsd);
+    if (l_tsd->type == VOTING_TSD_TYPE_CANCEL) {
+        l_voting_hash = *((dap_chain_hash_fast_t*)l_tsd->data);
     } else {
-        log_it(L_ERROR, "Unexpected tsd type %d for tx %s", l_tsd_tx_item->header.type, dap_chain_hash_fast_to_str_static(a_tx_hash));
+        log_it(L_ERROR, "Unexpected tsd type %d for tx %s", l_tsd->type, dap_chain_hash_fast_to_str_static(a_tx_hash));
         return -14;
     }
 
