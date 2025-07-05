@@ -1941,7 +1941,7 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json
     if (l_tx_sig) {
         dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
         dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, a_net->pub.id);
-        if (!dap_chain_addr_compare(&l_owner_addr, l_addr_from)) {
+        if (dap_chain_addr_compare(&l_owner_addr, l_addr_from)) {
             l_is_owner = true;
         }
     }
