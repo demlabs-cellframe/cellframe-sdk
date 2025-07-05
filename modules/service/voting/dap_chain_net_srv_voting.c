@@ -558,7 +558,7 @@ int s_tsd_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, d
     dap_hash_fast_t l_pkey_hash_tx = {};
     dap_sign_get_pkey_hash(l_owner_sign, &l_pkey_hash_owner);
     dap_sign_get_pkey_hash(l_tx_sign, &l_pkey_hash_tx);
-    if (dap_hash_fast_compare(&l_pkey_hash_owner, &l_pkey_hash_tx)) {
+    if (!dap_hash_fast_compare(&l_pkey_hash_owner, &l_pkey_hash_tx)) {
         log_it(L_ERROR, "Signs are not equal for tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
         return -15;
     }
