@@ -4169,7 +4169,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } else if ( dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_TSD, NULL) ) {
             log_it(L_DEBUG, "Checking tsd item");
             dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_TSD, NULL);
-            if (l_tsd->header.type == VOTING_TSD_TYPE_CANCEL) {
+            dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_tsd->tsd;
+            if (l_tsd_data->type == VOTING_TSD_TYPE_CANCEL) {
                 log_it(L_DEBUG, "Checking tsd item cancel for poll");
                 if (s_voting_callbacks.voting_callback) {
                     if ((l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_TSD, a_tx, a_tx_hash, false))) {
@@ -4627,6 +4628,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, a_tx_hash, true);
         else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE)
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, true);
+        else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL)
+            l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_TSD, a_tx, a_tx_hash, true);
     }
     if (!s_check_hal(a_ledger, a_tx_hash))
         assert(!l_err_num);
