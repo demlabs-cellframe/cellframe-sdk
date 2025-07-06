@@ -525,16 +525,6 @@ int s_tsd_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, d
         return -14;
     }
 
-    dap_chain_net_votings_t *l_voting = NULL;
-    pthread_rwlock_wrlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, &l_voting_hash, sizeof(dap_hash_fast_t), l_voting);
-    pthread_rwlock_unlock(&s_votings_rwlock);
-    if (!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
-        log_it(L_ERROR, "Can't find poll with hash %s in net %s",
-               dap_chain_hash_fast_to_str_static(&l_voting_hash), a_ledger->net->pub.name);
-        return -5;
-    }
-
     // Get last sign item from transaction
     dap_sign_t *l_tx_sign = NULL, *l_owner_sign = NULL;
     uint8_t *l_tx_item = NULL; size_t l_size; int i;
@@ -562,15 +552,28 @@ int s_tsd_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, d
         log_it(L_ERROR, "Signs are not equal for tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
         return -15;
     }
+
+    dap_chain_net_votings_t *l_voting = NULL;
+    pthread_rwlock_wrlock(&s_votings_rwlock);
+    HASH_FIND(hh, s_votings, &l_voting_hash, sizeof(dap_hash_fast_t), l_voting);
+    if (!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
+        log_it(L_ERROR, "Can't find poll with hash %s in net %s",
+            dap_chain_hash_fast_to_str_static(&l_voting_hash), a_ledger->net->pub.name);
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        return -5;
+    }
     if (a_apply) {
         l_voting->voting_params.status = DAP_CHAIN_NET_VOTING_STATUS_CANCELLED;
         l_voting->voting_params.cancelled_by_tx_hash = *a_tx_hash;
     }
+    pthread_rwlock_unlock(&s_votings_rwlock);
+    log_it(L_DEBUG, "Verification callback for item %d done", a_type);
     return DAP_LEDGER_CHECK_OK;
 }
 
 int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
+    log_it(L_DEBUG, "Verification callback for item %d", a_type);
     if (a_type == TX_ITEM_TYPE_VOTING)
         return s_voting_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
     if (a_type == TX_ITEM_TYPE_VOTE)
