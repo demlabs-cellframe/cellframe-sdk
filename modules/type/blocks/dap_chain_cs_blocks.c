@@ -532,19 +532,20 @@ static bool s_wallet_shared_filter_matches_pkey(const dap_hash_fast_t *a_pkey_ha
 
 
 /**
- * @brief Write filtered datum (transaction) to GDB if it matches any of the filter hashes
+ * @brief Write filtered public key hashes to GDB if transaction matches filter criteria
  * 
  * This function checks if the provided transaction:
  * - Has conditional output of type DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED
- * - Contains any of the specified public key hashes in its signatures (TX_ITEM_TYPE_SIG)
+ * - Contains any of the specified public key hashes in its TSD sections
  * 
- * If both conditions are met, the transaction is written to the specified GDB group as datum.
+ * If both conditions are met, all matching public key hashes from TSD sections are collected
+ * into a dap_chain_pkey_hashes_t structure and written to the specified GDB group.
  * 
- * @param a_tx - transaction to check and potentially write
- * @param a_gdb_group - GDB group name to write filtered datum to
- * @return 1 if datum written, 0 if not matching criteria, negative value on error:
+ * @param a_tx - transaction to check and potentially process
+ * @param a_gdb_group - GDB group name to write filtered pkey hashes structure to
+ * @return 1 if pkey hashes written, 0 if not matching criteria, negative value on error:
  *         -1: invalid arguments or filter not enabled
- *         -2: failed to create datum from transaction
+ *         -2: failed to allocate memory for pkey hashes structure
  *         -3: failed to write to GDB
  */
 static int s_write_wallet_shared_datum_by_multiple_pkeys(dap_chain_datum_tx_t *a_tx, const char *a_gdb_group)
@@ -553,6 +554,10 @@ static int s_write_wallet_shared_datum_by_multiple_pkeys(dap_chain_datum_tx_t *a
     
     if (!s_wallet_shared_filter_enabled || !s_wallet_shared_filter_pkey_hashes || s_wallet_shared_filter_pkey_hashes_count == 0) {
         return 0; // Filter not enabled or no hashes configured
+    }
+    if (!dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF) &&
+        !dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL)) {
+        return 0; // Transaction doesn't have wallet shared condition output
     }
     
     // Check if transaction has wallet shared condition output
@@ -563,61 +568,87 @@ static int s_write_wallet_shared_datum_by_multiple_pkeys(dap_chain_datum_tx_t *a
     if (!l_cond_out)
         return 0; // Transaction doesn't have wallet shared condition output
         
-    // Check if transaction contains any of our public key hashes in signatures
-    bool l_pkey_found = false;
+    // Collect all public key hashes from TSD sections that match our filter
+    dap_hash_fast_t *l_found_hashes = NULL;
+    size_t l_found_count = 0;
     
-    // Parse transaction signatures to find public key hashes
-    byte_t *l_item;
-    size_t l_item_size;
-    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
-        if (*l_item == TX_ITEM_TYPE_SIG) {
-            dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)l_item;
-            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-            if (l_sign) {
-                dap_hash_fast_t l_current_pkey_hash;
-                if (dap_sign_get_pkey_hash(l_sign, &l_current_pkey_hash)) {
-                    log_it(L_DEBUG, "Current tx pkey hash: %s", dap_hash_fast_to_str_static(&l_current_pkey_hash));
-                    if (s_wallet_shared_filter_matches_pkey(&l_current_pkey_hash)) {
-                        l_pkey_found = true;
-                        log_it(L_DEBUG, "Found matching public key hash in transaction");
-                        break; // Found matching public key hash, stop searching
+    // Parse TSD sections in conditional output to find all public key hashes
+    if (l_cond_out->tsd_size > 0) {
+        dap_tsd_t *l_tsd;
+        size_t l_tsd_size;
+        dap_tsd_iter(l_tsd, l_tsd_size, l_cond_out->tsd, l_cond_out->tsd_size) {
+            // Look for hash TSD sections containing public key hashes
+            if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
+                dap_hash_fast_t *l_current_pkey_hash = (dap_hash_fast_t *)l_tsd->data;
+                log_it(L_DEBUG, "Current TSD pkey hash: %s", dap_hash_fast_to_str_static(l_current_pkey_hash));
+                
+                if (s_wallet_shared_filter_matches_pkey(l_current_pkey_hash)) {
+                    log_it(L_DEBUG, "Found matching public key hash in TSD section");
+                    
+                    // Resize array to accommodate new hash
+                    dap_hash_fast_t *l_temp = DAP_REALLOC_COUNT(l_found_hashes, l_found_count + 1);
+                    if (!l_temp) {
+                        log_it(L_ERROR, "Failed to allocate memory for hash collection");
+                        DAP_DELETE(l_found_hashes);
+                        return -2;
                     }
+                    l_found_hashes = l_temp;
+                    
+                    // Add hash to collection
+                    l_found_hashes[l_found_count] = *l_current_pkey_hash;
+                    l_found_count++;
                 }
             }
         }
     }
     
-    if (!l_pkey_found)
+    if (l_found_count == 0) {
+        log_it(L_DEBUG, "No matching public key hashes found in TSD sections");
         return 0; // Transaction doesn't contain any of the specified public keys
+    }
     
-    // Create datum from transaction
-    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
-    if (!l_datum) {
-        log_it(L_ERROR, "Failed to create datum from transaction");
+    // Create serialized public key hashes structure
+    // Allocate continuous memory block: header + hash array
+    size_t l_total_size = sizeof(dap_chain_pkey_hashes_t) + (l_found_count * sizeof(dap_hash_fast_t));
+    uint8_t *l_serialized_data = DAP_NEW_Z_SIZE(uint8_t, l_total_size);
+    if (!l_serialized_data) {
+        log_it(L_ERROR, "Failed to allocate memory for serialized pkey hashes");
+        DAP_DELETE(l_found_hashes);
         return -2;
     }
     
-    // Calculate datum hash for key
-    dap_chain_hash_fast_t l_datum_hash;
-    dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
-    char *l_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+    // Fill the header part
+    dap_chain_pkey_hashes_t *l_pkey_hashes = (dap_chain_pkey_hashes_t *)l_serialized_data;
+    l_pkey_hashes->version = 1;
+    l_pkey_hashes->hashes_count = l_found_count;
+    l_pkey_hashes->hashes = (dap_hash_fast_t *)(l_serialized_data + sizeof(dap_chain_pkey_hashes_t));
     
-    // Write datum to GDB
-    int l_res = dap_global_db_set_sync(a_gdb_group, l_datum_hash_str, 
-        l_datum, dap_chain_datum_size(l_datum), false);
+    // Copy hashes data after the header
+    memcpy(l_serialized_data + sizeof(dap_chain_pkey_hashes_t), 
+           l_found_hashes, l_found_count * sizeof(dap_hash_fast_t));
+    
+    // Calculate transaction hash for key
+    dap_chain_hash_fast_t l_tx_hash;
+    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
+    char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_hash);
+    
+    // Write serialized pkey hashes structure to GDB
+    int l_res = dap_global_db_set_sync(a_gdb_group, l_tx_hash_str, 
+        l_serialized_data, l_total_size, false);
     
     if (l_res == DAP_GLOBAL_DB_RC_SUCCESS) {
-        log_it(L_NOTICE, "Wallet shared datum %s written to GDB group %s", 
-            l_datum_hash_str, a_gdb_group);
-        DAP_DELETE(l_datum_hash_str);
-        DAP_DELETE(l_datum);
+        log_it(L_NOTICE, "Wallet shared pkey hashes (%zu hashes) written to GDB group %s with key %s", 
+            l_found_count, a_gdb_group, l_tx_hash_str);
+        DAP_DELETE(l_tx_hash_str);
+        DAP_DELETE(l_found_hashes);
+        DAP_DELETE(l_serialized_data);
         return 1; // Successfully written
     } else {
-        log_it(L_WARNING, "Failed to write wallet shared datum %s to GDB group %s, code %d", 
-            l_datum_hash_str, a_gdb_group, l_res);
-        DAP_DELETE(l_datum_hash_str);
-        DAP_DELETE(l_datum);
+        log_it(L_WARNING, "Failed to write wallet shared pkey hashes to GDB group %s with key %s, code %d", 
+            a_gdb_group, l_tx_hash_str, l_res);
+        DAP_DELETE(l_tx_hash_str);
+        DAP_DELETE(l_found_hashes);
+        DAP_DELETE(l_serialized_data);
         return -3; // Failed to write
     }
 }

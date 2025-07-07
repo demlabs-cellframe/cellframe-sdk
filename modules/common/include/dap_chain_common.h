@@ -146,6 +146,16 @@ extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
 extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
+/**
+ * @brief Structure for storing public key hashes collection
+ * @details Used for storing multiple public key hashes with versioning support
+ */
+typedef struct dap_chain_pkey_hashes {
+    uint8_t version;                    // Version field for future compatibility
+    size_t hashes_count;               // Number of hashes in the collection
+    dap_hash_fast_t *hashes;           // Pointer to array of public key hashes
+} dap_chain_pkey_hashes_t;
+
 enum dap_chain_srv_unit_enum {
     SERV_UNIT_UNDEFINED = 0 ,
     SERV_UNIT_SEC = 0x00000002, // seconds
