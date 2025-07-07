@@ -2795,7 +2795,11 @@ static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap
                                 dap_time_t a_hardfork_start_time, dap_list_t *a_trackers)
 {
     dap_ledger_hardfork_condouts_t *l_new_condout = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_hardfork_condouts_t, -1);
-    *l_new_condout = (dap_ledger_hardfork_condouts_t) { .hash = *a_tx_hash, .cond = a_out_cond, .sign = a_sign };
+    *l_new_condout = (dap_ledger_hardfork_condouts_t) {
+            .hash = *a_tx_hash,
+            .cond = DAP_DUP_SIZE(a_out_cond, dap_chain_datum_item_tx_get_size((byte_t *)a_out_cond, 0)),
+            .sign = DAP_DUP_SIZE(a_sign, dap_chain_datum_item_tx_get_size((byte_t *)a_sign, 0))
+    };
     dap_strncpy(l_new_condout->ticker, a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     l_new_condout->trackers = s_trackers_aggregate_hardfork(a_ledger, NULL, a_trackers, a_hardfork_start_time);
     DL_APPEND(*a_ret_list, l_new_condout);

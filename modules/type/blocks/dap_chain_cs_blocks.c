@@ -1949,18 +1949,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     // Make a block copy to avoid unmapping block pointer destruction
                     dap_chain_block_t *l_block_copy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_block, a_atom_size, ATOM_REJECT);
                     l_block = l_block_copy;
-                    dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id);
-                    dap_ledger_tx_purge(l_net->pub.ledger, false);
-                    dap_chain_srv_purge_all(a_chain->net_id);
-                    dap_chain_cell_truncate(a_chain, c_dap_chain_cell_id_null, a_atom_size);
-                    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
-                    if (dap_chain_cell_remove(a_chain, c_dap_chain_cell_id_null, l_role.enums == NODE_ROLE_ARCHIVE)) {
+                    if (dap_ledger_chain_purge(a_chain, a_atom_size)) {
                         log_it(L_ERROR, "Can't accept hardfork genesis block %s: removing cell error", dap_hash_fast_to_str_static(a_atom_hash));
                         DAP_DELETE(l_block_copy);
                         return ATOM_REJECT;
                     }
-                    dap_chain_purge(a_chain);
-                    dap_chain_cell_create(a_chain, c_dap_chain_cell_id_null);
                     int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
                     DAP_DELETE(l_block_copy);
                     if (l_err) {
@@ -2978,7 +2971,7 @@ static int s_compare_fees(dap_chain_cs_blocks_hardfork_fees_t *a_list1, dap_chai
 
 static int s_aggregate_fees(dap_chain_cs_blocks_hardfork_fees_t **a_out_list, dap_chain_block_autocollect_type_t a_type, dap_sign_t *a_sign, uint256_t a_value)
 {
-    dap_chain_cs_blocks_hardfork_fees_t l_new_fee = { .owner_sign = a_sign };
+    dap_chain_cs_blocks_hardfork_fees_t l_new_fee = { .owner_sign = DAP_DUP_SIZE(a_sign, dap_sign_get_size(a_sign)) };
     dap_chain_cs_blocks_hardfork_fees_t *l_exist = NULL;
     DL_SEARCH(*a_out_list, l_exist, &l_new_fee, s_compare_fees);
     if (!l_exist) {
