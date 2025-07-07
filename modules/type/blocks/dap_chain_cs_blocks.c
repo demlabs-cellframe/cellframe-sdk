@@ -34,10 +34,12 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_datum.h"
+#include "dap_chain_datum_tx_items.h"
 #include "dap_chain_common.h"
 #include "dap_enc_base58.h"
 #include "dap_cert.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_shared.h"
 #include "dap_config.h"
 #include "dap_file_utils.h"
 #include <dirent.h>

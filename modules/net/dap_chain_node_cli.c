@@ -201,6 +201,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet shared list - list wallet shared transactions from GDB\n"
                                 "\t-net <net_name>\n"
                                 "\t[-pkey <pkey_hash>] - filter by public key hash\n"
+                                "\t[-all] - show all entries in GDB (including invalid structures)\n"
                                 "\t[-H {hex(default) | base58}] - hash format for output\n"
                             "Hint:\n"
                                 "\texample value_coins (only natural) 1.0 123.4567\n"

@@ -1087,6 +1087,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
 
 /**
  * @brief s_cli_list - List wallet shared public key hashes from GDB
+ * @details By default shows only valid pkey_hashes structures. With -all shows all entries.
  * @param a_argc
  * @param a_argv
  * @param a_arg_index
@@ -1100,9 +1101,13 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
 {
     const char *l_gdb_group = "local.wallet_shared";
     const char *l_pkey_hash_str = NULL;
+    bool l_show_all = false;
     
     // Check for optional public key filter parameter
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey", &l_pkey_hash_str);
+    
+    // Check for -all parameter
+    l_show_all = dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-all", NULL);
     
     dap_hash_fast_t l_pkey_hash = {0};
     dap_hash_fast_t *l_pkey_hash_ptr = NULL;
@@ -1131,6 +1136,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     
     json_object_object_add(l_result, "gdb_group", json_object_new_string(l_gdb_group));
     json_object_object_add(l_result, "hash_format", json_object_new_string(a_hash_out_type));
+    json_object_object_add(l_result, "show_all_entries", json_object_new_boolean(l_show_all));
     
     if (l_pkey_hash_ptr) {
         const char *l_pkey_str = dap_strcmp(a_hash_out_type, "hex")
@@ -1148,59 +1154,75 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     for (size_t i = 0; i < l_values_count; i++) {
         dap_global_db_obj_t *l_item = &l_values[i];
         
-        // Check minimum size for pkey hashes structure
-        if (l_item->value_len < sizeof(dap_chain_pkey_hashes_t)) {
-            log_it(L_WARNING, "Item %zu: too small for pkey hashes structure (%zu bytes)", i, l_item->value_len);
-            continue;
-        }
+        // Create JSON entry for this item
+        json_object *l_entry = json_object_new_object();
+        json_object_object_add(l_entry, "gdb_key", json_object_new_string(l_item->key));
+        json_object_object_add(l_entry, "data_size", json_object_new_int64(l_item->value_len));
         
-        // Deserialize pkey hashes structure
-        uint8_t *l_data = (uint8_t *)l_item->value;
-        dap_chain_pkey_hashes_t *l_pkey_hashes = (dap_chain_pkey_hashes_t *)l_data;
-        
-        // Validate structure
-        size_t l_expected_size = sizeof(dap_chain_pkey_hashes_t) + (l_pkey_hashes->hashes_count * sizeof(dap_hash_fast_t));
-        if (l_item->value_len < l_expected_size) {
-            log_it(L_WARNING, "Item %zu: invalid pkey hashes structure size", i);
-            continue;
-        }
-        
-        // Get hashes array from serialized data
-        dap_hash_fast_t *l_hashes = (dap_hash_fast_t *)(l_data + sizeof(dap_chain_pkey_hashes_t));
-        
-        // Apply public key filter if specified
+        bool l_is_valid_structure = false;
         bool l_matches_filter = true;
-        if (l_pkey_hash_ptr) {
-            l_matches_filter = false;
-            for (size_t j = 0; j < l_pkey_hashes->hashes_count; j++) {
-                if (dap_hash_fast_compare(l_pkey_hash_ptr, &l_hashes[j])) {
-                    l_matches_filter = true;
-                    break;
+        
+        // Check if we can parse it as pkey hashes structure
+        if (l_item->value_len >= sizeof(dap_chain_pkey_hashes_t)) {
+            uint8_t *l_data = (uint8_t *)l_item->value;
+            dap_chain_pkey_hashes_t *l_pkey_hashes = (dap_chain_pkey_hashes_t *)l_data;
+            
+            // Validate structure
+            size_t l_expected_size = sizeof(dap_chain_pkey_hashes_t) + (l_pkey_hashes->hashes_count * sizeof(dap_hash_fast_t));
+            if (l_item->value_len >= l_expected_size && l_pkey_hashes->hashes_count > 0) {
+                l_is_valid_structure = true;
+                
+                // Get hashes array from serialized data
+                dap_hash_fast_t *l_hashes = (dap_hash_fast_t *)(l_data + sizeof(dap_chain_pkey_hashes_t));
+                
+                // Apply public key filter if specified
+                if (l_pkey_hash_ptr) {
+                    l_matches_filter = false;
+                    for (size_t j = 0; j < l_pkey_hashes->hashes_count; j++) {
+                        if (dap_hash_fast_compare(l_pkey_hash_ptr, &l_hashes[j])) {
+                            l_matches_filter = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (l_matches_filter) {
+                    // Add structure info
+                    json_object_object_add(l_entry, "type", json_object_new_string("pkey_hashes_structure"));
+                    json_object_object_add(l_entry, "version", json_object_new_int(l_pkey_hashes->version));
+                    json_object_object_add(l_entry, "public_key_count", json_object_new_int64(l_pkey_hashes->hashes_count));
+                    
+                    // Add all public key hashes
+                    json_object *l_pkey_hashes_json = json_object_new_array();
+                    for (size_t j = 0; j < l_pkey_hashes->hashes_count; j++) {
+                        const char *l_hash_str = l_is_base58 
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_hashes[j])
+                            : dap_chain_hash_fast_to_str_static(&l_hashes[j]);
+                        json_object_array_add(l_pkey_hashes_json, json_object_new_string(l_hash_str));
+                    }
+                    json_object_object_add(l_entry, "public_key_hashes", l_pkey_hashes_json);
                 }
             }
         }
         
-        if (!l_matches_filter) {
+        if (!l_is_valid_structure) {
+            json_object_object_add(l_entry, "type", json_object_new_string("raw_data"));
+            json_object_object_add(l_entry, "version", json_object_new_null());
+            json_object_object_add(l_entry, "public_key_count", json_object_new_null());
+            json_object_object_add(l_entry, "public_key_hashes", json_object_new_null());
+            
+            // If -all not specified, skip invalid structures
+            if (!l_show_all) {
+                json_object_put(l_entry);
+                continue;
+            }
+        }
+        
+        // If filter specified and doesn't match, skip this entry
+        if (l_pkey_hash_ptr && !l_matches_filter) {
+            json_object_put(l_entry);
             continue;
         }
-        
-        // Create JSON entry for this item
-        json_object *l_entry = json_object_new_object();
-        json_object *l_pkey_hashes_json = json_object_new_array();
-        
-        // Add basic info
-        json_object_object_add(l_entry, "transaction_hash", json_object_new_string(l_item->key));
-        json_object_object_add(l_entry, "version", json_object_new_int(l_pkey_hashes->version));
-        json_object_object_add(l_entry, "public_key_count", json_object_new_int64(l_pkey_hashes->hashes_count));
-        
-        // Add all public key hashes
-        for (size_t j = 0; j < l_pkey_hashes->hashes_count; j++) {
-            const char *l_hash_str = l_is_base58 
-                ? dap_enc_base58_encode_hash_to_str_static(&l_hashes[j])
-                : dap_chain_hash_fast_to_str_static(&l_hashes[j]);
-            json_object_array_add(l_pkey_hashes_json, json_object_new_string(l_hash_str));
-        }
-        json_object_object_add(l_entry, "public_key_hashes", l_pkey_hashes_json);
         
         json_object_array_add(l_entries, l_entry);
         l_matched_count++;
