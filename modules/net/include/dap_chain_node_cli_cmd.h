@@ -247,6 +247,7 @@ typedef enum s_com_err{
     DAP_CHAIN_NODE_CLI_OK = 0,
     DAP_CHAIN_NODE_CLI_REQUIRE_FEE,
     DAP_CHAIN_NODE_CLI_REQUIRE_NET,
+    DAP_CHAIN_NODE_CLI_REQUIRE_EMISSION,
     DAP_CHAIN_NODE_CLI_FEE_IS_LOW,
     DAP_CHAIN_NODE_CLI_FEE_IS_ZERO,
     DAP_CHAIN_NODE_CLI_NET_NOT_FOUND,
@@ -283,15 +284,21 @@ typedef enum cmd_check_flag {
     DAP_CHAIN_NODE_CLI_CHECK_FEE_ZERO = BIT(2),
     DAP_CHAIN_NODE_CLI_CHECK_CERT = BIT(3),
     DAP_CHAIN_NODE_CLI_CHECK_WALLET = BIT(4),
+    DAP_CHAIN_NODE_CLI_CHECK_EMISSION = BIT(5),
+    DAP_CHAIN_NODE_CLI_CHECK_CHAIN = BIT(6),
+    DAP_CHAIN_NODE_CLI_CHECK_EMISSION_CHAIN = BIT(7),
 } cmd_check_flag_t;
 
 typedef enum cmd_check_tsd {
-    DAP_CHAIN_NODE_CLI_CHECK_TSD_NET = 1,
+    DAP_CHAIN_NODE_CLI_CHECK_TSD_NET = 0,
     DAP_CHAIN_NODE_CLI_CHECK_TSD_FEE,
     DAP_CHAIN_NODE_CLI_CHECK_TSD_CERT,
     DAP_CHAIN_NODE_CLI_CHECK_TSD_WALLET,
+    DAP_CHAIN_NODE_CLI_CHECK_TSD_EMISSION_HASH,
+    DAP_CHAIN_NODE_CLI_CHECK_TSD_CHAIN,
+    DAP_CHAIN_NODE_CLI_CHECK_TSD_EMISSION_CHAIN,
+    DAP_CHAIN_NODE_CLI_CHECK_TSD_TOTAL,
 } cmd_check_tsd_t;
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -530,7 +537,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version);
  */
 int com_policy(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
-byte_t *dap_chain_node_cli_check(int argc, char **argv, json_object **a_json_arr_reply, uint64_t a_flags, size_t *a_ret_size);
+byte_t *dap_chain_node_cli_check(int argc, char **argv, json_object **a_json_arr_reply, uint64_t a_flags_necessary, uint64_t a_flags_optional, size_t *a_ret_size);
 
 #ifdef __cplusplus
 }
