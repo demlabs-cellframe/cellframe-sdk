@@ -31,6 +31,7 @@
 #include "dap_chain_tx.h"
 #include "dap_list.h"
 #include "dap_chain_datum_tx_receipt.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_wallet_shared.h"
@@ -1280,10 +1281,23 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 if(l_json_tags && json_object_is_type(l_json_tags, json_type_array)) {
                     size_t l_tags_count = json_object_array_length(l_json_tags);
                     if(l_tags_count > 0) {
-                        struct json_object *l_json_tag = json_object_array_get_idx(l_json_tags, 0);
-                        if(l_json_tag && json_object_is_type(l_json_tag, json_type_string)) {
-                            l_tag_str = json_object_get_string(l_json_tag);
+                        // form one string from all tags elements using dap_string_t
+                        dap_string_t *l_tags_string = dap_string_new(NULL);
+                        
+                        for(size_t j = 0; j < l_tags_count; j++) {
+                            struct json_object *l_json_tag = json_object_array_get_idx(l_json_tags, j);
+                            if(l_json_tag && json_object_is_type(l_json_tag, json_type_string)) {
+                                const char *l_tag_value = json_object_get_string(l_json_tag);
+                                if(l_tag_value) {
+                                    if(j > 0) {
+                                        dap_string_append_c(l_tags_string, ' ');
+                                    }
+                                    dap_string_append(l_tags_string, l_tag_value);
+                                }
+                            }
                         }
+                        l_tag_str = l_tags_string->str;
+                        dap_string_free(l_tags_string, false);
                     }
                 }
                 
@@ -1296,7 +1310,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared(
                     l_srv_uid, l_value, (uint32_t)l_min_sig_count, l_pkey_hashes, l_pkey_hashes_count, l_tag_str);
                 
-                DAP_DELETE(l_pkey_hashes);
+                DAP_DEL_MULTY(l_pkey_hashes, l_tag_str);
                 
                 if(l_out_cond_item) {
                     l_item = (const uint8_t*) l_out_cond_item;

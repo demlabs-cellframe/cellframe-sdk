@@ -8556,8 +8556,8 @@ byte_t *dap_chain_node_cli_check(int argc, char **argv, json_object **a_json_arr
         return NULL;
     }
     int l_arg_index = 1;
-    size_t l_ret_size = (a_flags & DAP_CHAIN_NODE_CLI_CHECK_NET) * (sizeof(dap_tsd_t) + sizeof(dap_chain_net_t *)) +
-                        (a_flags & (DAP_CHAIN_NODE_CLI_CHECK_FEE_LOW | DAP_CHAIN_NODE_CLI_CHECK_FEE_ZERO)) * (sizeof(dap_tsd_t) + sizeof(uint256_t));
+    size_t l_ret_size = (bool)(a_flags & DAP_CHAIN_NODE_CLI_CHECK_NET) * (sizeof(dap_tsd_t) + sizeof(dap_chain_net_t *)) +
+                        (bool)(a_flags & (DAP_CHAIN_NODE_CLI_CHECK_FEE_LOW | DAP_CHAIN_NODE_CLI_CHECK_FEE_ZERO)) * (sizeof(dap_tsd_t) + sizeof(uint256_t));
     byte_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(byte_t, l_ret_size, NULL);
     byte_t *l_ptr = l_ret;
     if (a_flags & DAP_CHAIN_NODE_CLI_CHECK_NET) {
