@@ -4175,9 +4175,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                         l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
                     }
                 }
+                if (a_action)
+                    *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL;
             }
-            if (a_action)
-                *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL;
         }
     }
 

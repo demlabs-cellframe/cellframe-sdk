@@ -985,6 +985,10 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_BAD_TYPE, "command requires parameter '-fee' to be valid uint256");
                 return -DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_BAD_TYPE;
             } break;
+            case DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS, "You don't have rights to cancel this poll.");
+                return -DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS;
+            } break;
             default: {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_UNKNOWN_ERR, "Undefined error code: %d", res);
             } break;
