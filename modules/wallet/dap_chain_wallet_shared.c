@@ -1088,6 +1088,8 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
 /**
  * @brief s_cli_list - List wallet shared public key hashes from GDB
  * @details By default shows only valid pkey_hashes structures. With -all shows all entries.
+ *          Supports filtering by public key hash (-pkey), address (-addr), wallet (-w), or certificate (-cert).
+ *          These filter parameters are mutually exclusive.
  * @param a_argc
  * @param a_argv
  * @param a_arg_index
@@ -1101,23 +1103,100 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
 {
     const char *l_gdb_group = "local.wallet_shared";
     const char *l_pkey_hash_str = NULL;
+    const char *l_addr_str = NULL;
+    const char *l_wallet_name = NULL;
+    const char *l_cert_name = NULL;
     bool l_show_all = false;
     
-    // Check for optional public key filter parameter
+    // Check for optional filter parameters
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey", &l_pkey_hash_str);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-addr", &l_addr_str);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_name);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_name);
     
     // Check for -all parameter
     l_show_all = dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-all", NULL);
     
+    // Check for mutually exclusive parameters
+    int l_filter_count = 0;
+    if (l_pkey_hash_str) l_filter_count++;
+    if (l_addr_str) l_filter_count++;
+    if (l_wallet_name) l_filter_count++;
+    if (l_cert_name) l_filter_count++;
+    
+    if (l_filter_count > 1) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, 
+            "Parameters -pkey, -addr, -w, and -cert are mutually exclusive");
+        return ERROR_PARAM;
+    }
+    
     dap_hash_fast_t l_pkey_hash = {0};
     dap_hash_fast_t *l_pkey_hash_ptr = NULL;
     
+    // Process different filter types
     if (l_pkey_hash_str) {
         if (dap_chain_hash_fast_from_str(l_pkey_hash_str, &l_pkey_hash)) {
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
                 "Can't recognize %s as a hex format public key hash", l_pkey_hash_str);
             return ERROR_VALUE;
         }
+        l_pkey_hash_ptr = &l_pkey_hash;
+    } else if (l_addr_str) {
+        // Convert address to public key hash
+        dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
+        if (!l_addr) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
+                "Can't parse address %s", l_addr_str);
+            return ERROR_VALUE;
+        }
+        
+        // Extract public key hash from address
+        memcpy(&l_pkey_hash, &l_addr->data.hash, sizeof(dap_hash_fast_t));
+        l_pkey_hash_ptr = &l_pkey_hash;
+        DAP_DELETE(l_addr);
+    } else if (l_wallet_name) {
+        // Get public key hash from wallet
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, 
+            dap_chain_wallet_get_path(g_config), NULL);
+        if (!l_wallet) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
+                "Can't open wallet %s", l_wallet_name);
+            return ERROR_VALUE;
+        }
+        
+        dap_hash_fast_t *l_wallet_pkey_hash = dap_chain_wallet_get_pkey_hash(l_wallet, 0);
+        if (!l_wallet_pkey_hash) {
+            dap_chain_wallet_close(l_wallet);
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
+                "Can't get public key hash from wallet %s", l_wallet_name);
+            return ERROR_VALUE;
+        }
+        
+        l_pkey_hash = *l_wallet_pkey_hash;
+        l_pkey_hash_ptr = &l_pkey_hash;
+        DAP_DELETE(l_wallet_pkey_hash);
+        dap_chain_wallet_close(l_wallet);
+    } else if (l_cert_name) {
+        // Get public key hash from certificate
+        dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+        if (!l_cert) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
+                "Can't find certificate %s", l_cert_name);
+            return ERROR_VALUE;
+        }
+        
+        if (!l_cert->enc_key) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
+                "Certificate %s has no encryption key", l_cert_name);
+            return ERROR_VALUE;
+        }
+        
+        if (dap_enc_key_get_pkey_hash(l_cert->enc_key, &l_pkey_hash) != 0) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
+                "Can't get public key hash from certificate %s", l_cert_name);
+            return ERROR_VALUE;
+        }
+        
         l_pkey_hash_ptr = &l_pkey_hash;
     }
     
@@ -1138,13 +1217,31 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_result, "hash_format", json_object_new_string(a_hash_out_type));
     json_object_object_add(l_result, "show_all_entries", json_object_new_boolean(l_show_all));
     
+    // Add filter information
     if (l_pkey_hash_ptr) {
         const char *l_pkey_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(l_pkey_hash_ptr)
             : dap_chain_hash_fast_to_str_static(l_pkey_hash_ptr);
         json_object_object_add(l_result, "public_key_filter", json_object_new_string(l_pkey_str));
+        
+        // Add filter type information
+        if (l_pkey_hash_str) {
+            json_object_object_add(l_result, "filter_type", json_object_new_string("pkey_hash"));
+            json_object_object_add(l_result, "filter_value", json_object_new_string(l_pkey_hash_str));
+        } else if (l_addr_str) {
+            json_object_object_add(l_result, "filter_type", json_object_new_string("address"));
+            json_object_object_add(l_result, "filter_value", json_object_new_string(l_addr_str));
+        } else if (l_wallet_name) {
+            json_object_object_add(l_result, "filter_type", json_object_new_string("wallet"));
+            json_object_object_add(l_result, "filter_value", json_object_new_string(l_wallet_name));
+        } else if (l_cert_name) {
+            json_object_object_add(l_result, "filter_type", json_object_new_string("certificate"));
+            json_object_object_add(l_result, "filter_value", json_object_new_string(l_cert_name));
+        }
     } else {
         json_object_object_add(l_result, "public_key_filter", json_object_new_null());
+        json_object_object_add(l_result, "filter_type", json_object_new_string("none"));
+        json_object_object_add(l_result, "filter_value", json_object_new_null());
     }
     
     bool l_is_base58 = dap_strcmp(a_hash_out_type, "hex");
