@@ -567,13 +567,11 @@ int s_tsd_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, d
         l_voting->voting_params.cancelled_by_tx_hash = *a_tx_hash;
     }
     pthread_rwlock_unlock(&s_votings_rwlock);
-    log_it(L_DEBUG, "Verification callback for item %d done", a_type);
     return DAP_LEDGER_CHECK_OK;
 }
 
 int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
-    log_it(L_DEBUG, "Verification callback for item %d", a_type);
     if (a_type == TX_ITEM_TYPE_VOTING)
         return s_voting_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
     if (a_type == TX_ITEM_TYPE_VOTE)
@@ -1077,6 +1075,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             case DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED: {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED, "This poll is already expired.");
             } break;
+            case DAP_CHAIN_NET_VOTE_VOTING_CANCELLED: {
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_CANCELLED, "This poll is cancelled.");
+            } break;
             case DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT: {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT, 
                                                     "No key found in \"%s\" certificate", l_cert_name);                
@@ -1250,6 +1251,11 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 break;
         }
         json_object_object_add(json_vote_out, "status", json_object_new_string(l_status_str));
+        if (l_voting->voting_params.status == DAP_CHAIN_NET_VOTING_STATUS_CANCELLED) {
+            json_object_object_add(json_vote_out, "cancelled_by_tx", 
+                                    json_object_new_string(dap_chain_hash_fast_to_str_static(&l_voting->voting_params.cancelled_by_tx_hash)));
+        }
+
         if (l_voting->voting_params.voting_expire) {
             char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting->voting_params.voting_expire);
@@ -1652,6 +1658,9 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
 
     if (l_voting->voting_params.voting_expire && dap_time_now() > l_voting->voting_params.voting_expire)
         return DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED;
+    
+    if (l_voting->voting_params.status == DAP_CHAIN_NET_VOTING_STATUS_CANCELLED)
+        return DAP_CHAIN_NET_VOTE_VOTING_CANCELLED;
 
     dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
     if (!l_addr_from)
