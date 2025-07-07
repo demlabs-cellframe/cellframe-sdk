@@ -1222,7 +1222,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         const char *l_pkey_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(l_pkey_hash_ptr)
             : dap_chain_hash_fast_to_str_static(l_pkey_hash_ptr);
-        json_object_object_add(l_result, "public_key_filter", json_object_new_string(l_pkey_str));
+        json_object_object_add(l_result, "pkey_filter", json_object_new_string(l_pkey_str));
         
         // Add filter type information
         if (l_pkey_hash_str) {
@@ -1239,7 +1239,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
             json_object_object_add(l_result, "filter_value", json_object_new_string(l_cert_name));
         }
     } else {
-        json_object_object_add(l_result, "public_key_filter", json_object_new_null());
+        json_object_object_add(l_result, "pkey_filter", json_object_new_null());
         json_object_object_add(l_result, "filter_type", json_object_new_string("none"));
         json_object_object_add(l_result, "filter_value", json_object_new_null());
     }
@@ -1253,8 +1253,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         
         // Create JSON entry for this item
         json_object *l_entry = json_object_new_object();
-        json_object_object_add(l_entry, "gdb_key", json_object_new_string(l_item->key));
-        json_object_object_add(l_entry, "data_size", json_object_new_int64(l_item->value_len));
+        json_object_object_add(l_entry, "tx_hash", json_object_new_string(l_item->key));
         
         bool l_is_valid_structure = false;
         bool l_matches_filter = true;
@@ -1285,9 +1284,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                 
                 if (l_matches_filter) {
                     // Add structure info
-                    json_object_object_add(l_entry, "type", json_object_new_string("pkey_hashes_structure"));
-                    json_object_object_add(l_entry, "version", json_object_new_int(l_pkey_hashes->version));
-                    json_object_object_add(l_entry, "public_key_count", json_object_new_int64(l_pkey_hashes->hashes_count));
+                    json_object_object_add(l_entry, "pkey_count", json_object_new_int64(l_pkey_hashes->hashes_count));
                     
                     // Add all public key hashes
                     json_object *l_pkey_hashes_json = json_object_new_array();
@@ -1297,16 +1294,14 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                             : dap_chain_hash_fast_to_str_static(&l_hashes[j]);
                         json_object_array_add(l_pkey_hashes_json, json_object_new_string(l_hash_str));
                     }
-                    json_object_object_add(l_entry, "public_key_hashes", l_pkey_hashes_json);
+                    json_object_object_add(l_entry, "pkey_hashes", l_pkey_hashes_json);
                 }
             }
         }
         
         if (!l_is_valid_structure) {
-            json_object_object_add(l_entry, "type", json_object_new_string("raw_data"));
-            json_object_object_add(l_entry, "version", json_object_new_null());
-            json_object_object_add(l_entry, "public_key_count", json_object_new_null());
-            json_object_object_add(l_entry, "public_key_hashes", json_object_new_null());
+            json_object_object_add(l_entry, "pkey_count", json_object_new_null());
+            json_object_object_add(l_entry, "pkey_hashes", json_object_new_null());
             
             // If -all not specified, skip invalid structures
             if (!l_show_all) {
