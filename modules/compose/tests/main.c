@@ -10,6 +10,7 @@
 
 #define LOG_TAG "dap_tx_compose_tests"
 #define KEY_COUNT 10
+#define DAP_ALIGN_SIZE(size, align) (((size) + (align) - 1) & ~((align) - 1))
 
 const char *s_ticker_native = "BUZ";
 const char *s_ticker_delegate = "mBUZ";
