@@ -274,6 +274,7 @@ void s_chain_datum_xchange_invalidate_test(const char *a_token_sell, const char 
 
 void s_chain_datum_tx_ser_deser_test()
 {
+    dap_print_module_name("tx_ser_deser_compose");
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
     
     // Fill only the data fields with random bytes, excluding the config field
