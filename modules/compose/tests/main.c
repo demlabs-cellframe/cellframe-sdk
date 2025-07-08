@@ -4,6 +4,8 @@
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx_out_cond.h"
+#include "dap_chain_datum_decree.h"
 #include <json-c/json.h>
 
 #define LOG_TAG "dap_tx_compose_tests"
@@ -60,12 +62,9 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     size_t l_signs_count = rand() % KEY_COUNT + 1;
     dap_test_msg("add %zu tsd sections", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i) {
-        int l_rand_data = rand() % dap_maxval(l_rand_data);
-        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand() % dap_maxval(l_rand_data), sizeof(l_rand_data));
-        if (l_tsd->header.size != sizeof(dap_time_t)) {
-            log_it(L_WARNING, "Invalid expire time size");
-            continue;
-        }
+        const char *l_comment = "dap_tx_compose_tests";
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(l_comment,
+                DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING, strlen(l_comment));
         dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
         DAP_DEL_Z(l_tsd);
     }
@@ -277,10 +276,26 @@ void s_chain_datum_tx_ser_deser_test()
     dap_print_module_name("tx_ser_deser_compose");
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
     
-    // Fill only the data fields with random bytes, excluding the config field
-    randombytes(&s_data->addr_from, sizeof(dap_chain_addr_t));
-    randombytes(&s_data->addr_to, sizeof(dap_chain_addr_t));
-    randombytes(&s_data->addr_any, sizeof(dap_chain_addr_t));
+    // Fill only safe data fields with random bytes, avoiding critical fields that need valid values
+    // Don't randomize addr_from, addr_to, addr_any as they need to be valid addresses
+    
+    // Create valid addresses instead of random bytes
+    memset(&s_data->addr_from, 0, sizeof(dap_chain_addr_t));
+    memset(&s_data->addr_to, 0, sizeof(dap_chain_addr_t));
+    memset(&s_data->addr_any, 0, sizeof(dap_chain_addr_t));
+    
+    // Set up basic valid addresses (using hash160 type)
+    s_data->addr_from.net_id.uint64 = 0x0123456789abcdef;
+    s_data->addr_to.net_id.uint64 = 0x0123456789abcdef;
+    s_data->addr_any.net_id.uint64 = 0x0123456789abcdef;
+    
+    // Fill some address data with deterministic values instead of random
+    for (int i = 0; i < 20; i++) {
+        s_data->addr_from.data.hash_fast.raw[i] = (uint8_t)(i + 1);
+        s_data->addr_to.data.hash_fast.raw[i] = (uint8_t)(i + 10);
+        s_data->addr_any.data.hash_fast.raw[i] = (uint8_t)(i + 20);
+    }
+    
     randombytes(&s_data->node_addr, sizeof(dap_chain_node_addr_t));
     randombytes(&s_data->value, sizeof(uint256_t));
     randombytes(&s_data->value_delegate, sizeof(uint256_t));
@@ -289,7 +304,12 @@ void s_chain_datum_tx_ser_deser_test()
     randombytes(&s_data->idx_2, sizeof(uint32_t));
     randombytes(&s_data->hash_1, sizeof(dap_hash_fast_t));
     randombytes(&s_data->srv_uid, sizeof(dap_chain_net_srv_uid_t));
-    randombytes(&s_data->cond_out, sizeof(dap_chain_tx_out_cond_t));
+    
+    // Initialize cond_out with zeros first, then set specific fields
+    memset(&s_data->cond_out, 0, sizeof(dap_chain_tx_out_cond_t));
+    s_data->cond_out.header.item_type = 0x61; // TX_ITEM_TYPE_OUT_COND
+    s_data->cond_out.header.subtype = 0x02;   // DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE
+    randombytes(&s_data->cond_out.header.value, sizeof(uint256_t));
     
     s_data->time_staking = dap_time_now() + 10000;
     s_data->reinvest_percent = dap_chain_coins_to_balance("12.3456789");
