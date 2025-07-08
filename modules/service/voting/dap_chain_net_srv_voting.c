@@ -403,6 +403,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             l_ticker_in = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in->header.tx_prev_hash);
             break;
         case TX_ITEM_TYPE_OUT_EXT:
+        case TX_ITEM_TYPE_OUT_STD:
             l_ticker_in = l_prev_out_union->token;
             break;
         default:
