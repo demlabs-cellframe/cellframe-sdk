@@ -391,23 +391,46 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
     for (dap_list_t *it = l_ins_list; it; it = it->next) {
         dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)it->data;
         dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(a_ledger, &l_tx_in->header.tx_prev_hash);
-        dap_chain_tx_out_ext_t *l_prev_out_union = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_out_get_by_out_idx(
+        byte_t *l_prev_out_union = dap_chain_datum_tx_out_get_by_out_idx(
                                                     l_tx_prev_temp, l_tx_in->header.tx_out_prev_idx);
         if (!l_prev_out_union) {
             dap_list_free(l_ins_list);
             return -18;
         }
         const char *l_ticker_in = NULL;
-        switch (l_prev_out_union->header.type) {
-        case TX_ITEM_TYPE_OUT:
+        switch (*l_prev_out_union) {
+        case TX_ITEM_TYPE_OUT: {
+            dap_chain_tx_out_t *l_prev_out = (dap_chain_tx_out_t *)l_prev_out_union;
             l_ticker_in = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in->header.tx_prev_hash);
+            if (SUM_256_256(l_weight, l_prev_out->header.value, &l_weight)) {
+                log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
+                dap_list_free(l_ins_list);
+                return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
+            }
             break;
-        case TX_ITEM_TYPE_OUT_EXT:
-        case TX_ITEM_TYPE_OUT_STD:
-            l_ticker_in = l_prev_out_union->token;
+        }
+        case TX_ITEM_TYPE_OUT_STD: {
+            dap_chain_tx_out_std_t *l_prev_out = (dap_chain_tx_out_std_t *)l_prev_out_union;
+            l_ticker_in = l_prev_out->token;
+            if (SUM_256_256(l_weight, l_prev_out->value, &l_weight)) {
+                log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
+                dap_list_free(l_ins_list);
+                return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
+            }
             break;
+        }
+        case TX_ITEM_TYPE_OUT_EXT: {
+            dap_chain_tx_out_ext_t *l_prev_out = (dap_chain_tx_out_ext_t *)l_prev_out_union;
+            l_ticker_in = l_prev_out->token;
+            if (SUM_256_256(l_weight, l_prev_out->header.value, &l_weight)) {
+                log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
+                dap_list_free(l_ins_list);
+                return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
+            }
+            break;
+        }
         default:
-            log_it(L_WARNING, "Unexpected tx item %d in vote tx %s", l_prev_out_union->header.type, dap_hash_fast_to_str_static(a_tx_hash));
+            log_it(L_WARNING, "Unexpected tx item type %d in vote tx %s", *l_prev_out_union, dap_hash_fast_to_str_static(a_tx_hash));
             dap_list_free(l_ins_list);
             return -19;
         }
@@ -422,11 +445,6 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
                                         dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
             dap_list_free(l_ins_list);
             return -20;
-        }
-        if (SUM_256_256(l_weight, l_prev_out_union->header.value, &l_weight)) {
-            log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
-            dap_list_free(l_ins_list);
-            return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
         }
     }
     dap_list_free(l_ins_list);
