@@ -411,8 +411,10 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             dap_list_free(l_ins_list);
             return -19;
         }
-        if (dap_strcmp(l_ticker_in, l_voting->voting_params.token_ticker))
+        if (dap_strcmp(l_ticker_in, l_voting->voting_params.token_ticker)) {
+            log_it(L_DEBUG, "Coin with ticker %s is not allowed for poll %s", l_ticker_in, dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
             continue;
+        }
         if (s_datum_tx_voting_coin_check_spent(a_ledger->net, l_vote_tx_item->voting_hash,
                                                l_tx_in->header.tx_prev_hash, l_tx_in->header.tx_out_prev_idx,
                                                l_old_vote ? &l_pkey_hash : NULL)) {
