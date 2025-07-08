@@ -57,6 +57,17 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
 
+dap_chain_datum_tx_t *s_dap_chain_datum_tx_add_item_aligned(dap_chain_datum_tx_t **a_tx, void *a_item)
+{
+    size_t l_item_size = dap_chain_datum_tx_item_get_size(a_item);
+    size_t l_item_size_aligned = DAP_ALIGN_SIZE(l_item_size, 8);
+    void *l_item_aligned = DAP_NEW_Z_SIZE(void*, l_item_size_aligned);
+    memcpy(l_item_aligned, a_item, l_item_size);
+    dap_chain_datum_tx_t *l_res = dap_chain_datum_tx_add_item(a_tx, l_item_aligned);
+    DAP_DEL_Z(l_item_aligned);
+    return l_res;
+}
+
 void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 {
     size_t l_signs_count = rand() % KEY_COUNT + 1;
@@ -65,7 +76,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         const char *l_comment = "dap_tx_compose_tests";
         dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(l_comment,
                 DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING, strlen(l_comment));
-        dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
+        dap_assert(s_dap_chain_datum_tx_add_item_aligned(a_datum, l_tsd) != NULL, "datum_1 add tsd");
         DAP_DEL_Z(l_tsd);
     }
     l_signs_count = rand() % KEY_COUNT + 3;
@@ -76,7 +87,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_assert(dap_chain_datum_tx_verify_sign_all(*a_datum) == 0, "datum sign verify");
 
     dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
-    dap_assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1, "Protection to add item after signs");
+    dap_assert(s_dap_chain_datum_tx_add_item_aligned(a_datum, l_out_count) == NULL, "Protection to add item after signs");
     DAP_DEL_Z(l_out_count);
     json_object *l_datum_1_json = json_object_new_object();
     json_object *l_error_json = json_object_new_array();
