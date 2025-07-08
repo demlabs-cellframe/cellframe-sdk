@@ -60,7 +60,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
 
 dap_chain_datum_tx_t *s_dap_chain_datum_tx_add_item_aligned(dap_chain_datum_tx_t **a_tx, void *a_item)
 {
-    size_t l_item_size = dap_chain_datum_tx_item_get_size(a_item);
+    size_t l_item_size = dap_chain_datum_item_tx_get_size(a_item, 0);
     size_t l_item_size_aligned = DAP_ALIGN_SIZE(l_item_size, 8);
     void *l_item_aligned = DAP_NEW_Z_SIZE(void*, l_item_size_aligned);
     memcpy(l_item_aligned, a_item, l_item_size);
