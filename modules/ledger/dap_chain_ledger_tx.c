@@ -29,6 +29,7 @@
 #include "dap_notify_srv.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_time.h"
 
 #define LOG_TAG "dap_ledger_tx"
 
@@ -2724,16 +2725,15 @@ dap_list_t *s_trackers_aggregate_hardfork(dap_ledger_t *a_ledger, dap_list_t *a_
     return a_trackers;
 }
 
-static dap_chain_addr_t* s_change_addr(struct json_object *a_json, dap_chain_addr_t *a_addr)
+static dap_chain_addr_t *s_change_addr(struct json_object *a_json, dap_chain_addr_t *a_addr)
 {
     if(!a_json || !a_addr)
         return NULL;
     const char * l_out_addr = dap_chain_addr_to_str_static(a_addr);
     struct json_object *l_json = json_object_object_get(a_json, l_out_addr);
     if(l_json && json_object_is_type(l_json, json_type_string)) {
-        const char *l_change_str =  json_object_get_string(l_json);
-        dap_chain_addr_t* l_ret_addr =  dap_chain_addr_from_str(l_change_str);
-        DAP_DELETE(l_change_str);
+        const char *l_change_str = json_object_get_string(l_json);
+        dap_chain_addr_t *l_ret_addr = dap_chain_addr_from_str(l_change_str);
         return l_ret_addr;
     }
     return NULL;
@@ -2766,7 +2766,7 @@ static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, dap_ledg
         char *l_total_value_str = dap_uint256_decimal_to_char(l_exist->value);
         const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
         log_it(L_NOTICE, "Aggregate %s %s for addr %s with total value %s", l_value_str, a_ticker,
-                                            dap_chain_addr_to_str_static(a_addr), l_total_value_str);
+                                            dap_chain_addr_to_str_static(&l_new_balance.addr), l_total_value_str);
         DAP_DELETE(l_total_value_str);
     }
     l_exist->trackers = s_trackers_aggregate_hardfork(a_ledger, l_exist->trackers, a_trackers, a_hardfork_start_time);
@@ -2784,6 +2784,13 @@ static int s_aggregate_out_locked(dap_ledger_hardfork_balances_t **a_out_list, d
     *l_new_balance = (dap_ledger_hardfork_balances_t){ .addr = l_change_addr ? *l_change_addr : *a_addr, .value = a_value, .ts_unlock = a_unlock_time };
     DAP_DEL_Z(l_change_addr);
     memcpy(l_new_balance->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    if (g_debug_ledger) {
+        char l_unlock_time_str[DAP_TIME_STR_SIZE];
+        dap_time_to_str_rfc822(l_unlock_time_str, sizeof(l_unlock_time_str), a_unlock_time);
+        const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
+        log_it(L_NOTICE, "Aggregate %s %s for addr %s with locked timestamp %s", l_value_str, a_ticker,
+                                            dap_chain_addr_to_str_static(&l_new_balance->addr), l_unlock_time_str);
+    }
     l_new_balance->trackers = s_trackers_aggregate_hardfork(a_ledger, NULL, a_trackers, a_hardfork_start_time);
     DL_APPEND(*a_out_list, l_new_balance);
     return 0;

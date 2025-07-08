@@ -458,7 +458,8 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
 #endif
                        )
     {
-        l_ret = a_chain->callback_add_datums(a_chain, &a_datum, 1) ? 0 : DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT;
+        if (a_chain->callback_add_datums(a_chain, &a_datum, 1) == 0)
+            l_ret = DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT;
     }
     if (a_ret)
         *a_ret = l_ret;
@@ -542,10 +543,12 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
             i++;
         }
         dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SERVICE_STATE, NULL, sizeof(dap_chain_datum_service_state_t) + l_cur_step_size);
-        memcpy(((dap_chain_datum_service_state_t *)l_datum->data)->states, l_ptr, l_cur_step_size);
-        ((dap_chain_datum_service_state_t *)l_datum->data)->srv_uid = a_state->uid;
-        ((dap_chain_datum_service_state_t *)l_datum->data)->state_size = l_cur_step_size;
-        ((dap_chain_datum_service_state_t *)l_datum->data)->states_count = i;
+        dap_chain_datum_service_state_t *l_state = (dap_chain_datum_service_state_t *)l_datum->data;
+        dap_uuid_generate_nonce(l_state->nonce, DAP_CHAIN_DATUM_NONCE_SIZE);
+        l_state->srv_uid = a_state->uid;
+        l_state->state_size = l_cur_step_size;
+        l_state->states_count = i;
+        memcpy(l_state->states, l_ptr, l_cur_step_size);
         ret = DAP_REALLOC_RET_VAL_IF_FAIL(ret, ++l_datums_count * sizeof(dap_chain_datum_t *), NULL);
         ret[l_datums_count - 1] = l_datum;
         l_ptr = l_offset;
@@ -855,9 +858,14 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                 }
             }
             int l_ret = 0;
-            if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, &l_ret))
+            if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, &l_ret)) {
+                if (l_ret == -1)
+                    // Delete processed objects
+                    log_it(L_INFO, "Datum %s is already in chain. Delete it from mempool", l_objs[i].key);
+                else
+                    log_it(L_ERROR, "Hardfork datum %s is not processed with error %d", l_objs[i].key, l_ret);
                 dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
-            if (l_ret == DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT) {
+            } else if (l_ret == DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT) {
                 log_it(L_NOTICE, "Hardfork datum %s is not processed because block limit exeeded", l_objs[i].key);
                 break;
             }
