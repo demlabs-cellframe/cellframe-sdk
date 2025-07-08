@@ -34,6 +34,9 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
+#include "dap_global_db.h"
+#include "dap_sign.h"
+#include "dap_chain_datum_tx_items.h"
 
 
 enum emit_delegation_error {
@@ -1045,6 +1048,82 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_final_tx_hash);
     const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_cond->header.value, &l_balance_coins);
     
+    // Search for mempool transactions with conditional inputs referencing this output
+    json_object *l_jobj_mempool_txs = json_object_new_array();
+    char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    size_t l_objs_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
+    
+    if (l_objs && l_objs_count > 0) {
+        for (size_t i = 0; i < l_objs_count; i++) {
+            if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
+                continue;
+                
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+                continue;
+                
+            dap_chain_datum_tx_t *l_tx_mempool = (dap_chain_datum_tx_t *)l_datum->data;
+            bool l_found_matching_input = false;
+            
+            // Check if transaction has conditional input referencing our output
+            byte_t *l_item; 
+            size_t l_item_size;
+            TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
+                if (*l_item == TX_ITEM_TYPE_IN_COND) {
+                    dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
+                    if (dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_final_tx_hash)) {
+                        l_found_matching_input = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (l_found_matching_input) {
+                // Create transaction object for JSON
+                json_object *l_jobj_tx = json_object_new_object();
+                json_object *l_jobj_signatures = json_object_new_array();
+                
+                // Add transaction hash
+                char *l_tx_hash_str = l_objs[i].key;
+                json_object_object_add(l_jobj_tx, "tx_hash", 
+                    json_object_new_string(dap_strcmp(a_hash_out_type, "hex") ? 
+                        dap_enc_base58_encode_to_str_static(l_tx_hash_str, strlen(l_tx_hash_str)) : l_tx_hash_str));
+                
+                // Extract signatures from transaction
+                TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
+                    if (*l_item == TX_ITEM_TYPE_SIG) {
+                        dap_sign_t *l_sign = (dap_sign_t *)l_item;
+                        json_object *l_jobj_sig = json_object_new_object();
+                        
+                        // Get public key hash from signature
+                        dap_hash_fast_t l_sign_pkey_hash = {0};
+                        if (dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash)) {
+                            json_object_object_add(l_jobj_sig, "pkey_hash", 
+                                json_object_new_string(dap_strcmp(a_hash_out_type, "hex") ? 
+                                    dap_enc_base58_encode_hash_to_str_static(&l_sign_pkey_hash) : 
+                                    dap_hash_fast_to_str_static(&l_sign_pkey_hash)));
+                        } else {
+                            json_object_object_add(l_jobj_sig, "pkey_hash", json_object_new_null());
+                        }
+                        
+                        // Add signature type
+                        const char *l_sign_type_str = dap_sign_type_to_str(l_sign->header.type);
+                        json_object_object_add(l_jobj_sig, "type", 
+                            json_object_new_string(l_sign_type_str ? l_sign_type_str : "unknown"));
+                        
+                        json_object_array_add(l_jobj_signatures, l_jobj_sig);
+                    }
+                }
+                
+                json_object_object_add(l_jobj_tx, "signatures", l_jobj_signatures);
+                json_object_array_add(l_jobj_mempool_txs, l_jobj_tx);
+            }
+        }
+        dap_global_db_objs_delete(l_objs, l_objs_count);
+    }
+    DAP_DELETE(l_mempool_group);
+    
     json_object *l_jobj_balance = json_object_new_object();
     json_object *l_jobj_token = json_object_new_object();
     json_object *l_jobj_take_verify = json_object_new_object();
@@ -1053,8 +1132,8 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object *l_json_jobj_info = json_object_new_object();
 
     bool l_is_base_hash_type = dap_strcmp(a_hash_out_type, "hex");
-    // tocken block
-    const char *l_description =  dap_ledger_get_description_by_ticker(a_net->pub.ledger, l_tx_ticker);
+    // token block
+    const char *l_description = dap_ledger_get_description_by_ticker(a_net->pub.ledger, l_tx_ticker);
     json_object *l_jobj_description = l_description ? json_object_new_string(l_description)
                                                     : json_object_new_null();
     json_object_object_add(l_jobj_token, "ticker", json_object_new_string(l_tx_ticker));
@@ -1081,6 +1160,8 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_json_jobj_info, "balance", l_jobj_balance);
     json_object_object_add(l_json_jobj_info, "take_verify", l_jobj_take_verify);
     json_object_object_add(l_json_jobj_info, "token", l_jobj_token);
+    json_object_object_add(l_json_jobj_info, "mempool_txs", l_jobj_mempool_txs);
+    
     json_object_array_add(*a_json_arr_reply, l_json_jobj_info);
     return DAP_NO_ERROR;
 }
