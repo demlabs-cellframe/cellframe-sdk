@@ -275,7 +275,21 @@ void s_chain_datum_xchange_invalidate_test(const char *a_token_sell, const char 
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
-    randombytes(s_data, sizeof(struct tests_data));
+    
+    // Fill only the data fields with random bytes, excluding the config field
+    randombytes(&s_data->addr_from, sizeof(dap_chain_addr_t));
+    randombytes(&s_data->addr_to, sizeof(dap_chain_addr_t));
+    randombytes(&s_data->addr_any, sizeof(dap_chain_addr_t));
+    randombytes(&s_data->node_addr, sizeof(dap_chain_node_addr_t));
+    randombytes(&s_data->value, sizeof(uint256_t));
+    randombytes(&s_data->value_delegate, sizeof(uint256_t));
+    randombytes(&s_data->value_per_unit_max, sizeof(uint256_t));
+    randombytes(&s_data->idx_1, sizeof(uint32_t));
+    randombytes(&s_data->idx_2, sizeof(uint32_t));
+    randombytes(&s_data->hash_1, sizeof(dap_hash_fast_t));
+    randombytes(&s_data->srv_uid, sizeof(dap_chain_net_srv_uid_t));
+    randombytes(&s_data->cond_out, sizeof(dap_chain_tx_out_cond_t));
+    
     s_data->time_staking = dap_time_now() + 10000;
     s_data->reinvest_percent = dap_chain_coins_to_balance("12.3456789");
     for (size_t i = 0; i < KEY_COUNT; ++i)
