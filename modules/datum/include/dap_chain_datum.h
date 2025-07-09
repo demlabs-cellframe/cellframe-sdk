@@ -72,36 +72,40 @@
 
 #define DAP_CHAIN_DATUM_CUSTOM              0xffff
 
-#define DAP_DATUM_TYPE_STR(t, s)        \
-    switch (t) {                        \
-    case DAP_CHAIN_DATUM_TX:            \
-        s = "DATUM_TX"; break;          \
-    case DAP_CHAIN_DATUM_TX_REQUEST:    \
-        s = "DATUM_WASM_CODE"; break;   \
-    case DAP_CHAIN_DATUM_WASM_CODE:     \
-        s = "DATUM_WASM_CODE"; break;   \
-    case DAP_CHAIN_DATUM_WASM_DATA:     \
-        s = "DATUM_WASM_DATA"; break;   \
-    case DAP_CHAIN_DATUM_EVM_CODE:      \
-        s = "DATUM_EVM_CODE"; break;    \
-    case DAP_CHAIN_DATUM_EVM_DATA:      \
-        s = "DATUM_EVM_DATA"; break;    \
-    case DAP_CHAIN_DATUM_CA:            \
-        s = "DATUM_CA"; break;          \
-    case DAP_CHAIN_DATUM_SIGNER:        \
-        s = "DATUM_SIGNER"; break;      \
-    case DAP_CHAIN_DATUM_CUSTOM:        \
-        s = "DATUM_CUSTOM"; break;      \
-    case DAP_CHAIN_DATUM_TOKEN:    \
-        s = "DATUM_TOKEN"; break;  \
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
-        s = "DATUM_TOKEN_EMISSION"; break;\
-    case DAP_CHAIN_DATUM_DECREE:        \
-        s = "DATUM_DECREE"; break;      \
-    case DAP_CHAIN_DATUM_ANCHOR:        \
-        s = "DATUM_ANCHOR"; break;      \
-    default:                            \
-        s = "DATUM_UNKNOWN"; break;     \
+#define DAP_DATUM_TYPE_STR(t, s)            \
+    switch (t) {                            \
+    case DAP_CHAIN_DATUM_TX:                \
+        s = "DATUM_TX"; break;              \
+    case DAP_CHAIN_DATUM_TX_REQUEST:        \
+        s = "DATUM_TX_REQUEST"; break;      \
+    case DAP_CHAIN_DATUM_WASM_CODE:         \
+        s = "DATUM_WASM_CODE"; break;       \
+    case DAP_CHAIN_DATUM_WASM_DATA:         \
+        s = "DATUM_WASM_DATA"; break;       \
+    case DAP_CHAIN_DATUM_EVM_CODE:          \
+        s = "DATUM_EVM_CODE"; break;        \
+    case DAP_CHAIN_DATUM_EVM_DATA:          \
+        s = "DATUM_EVM_DATA"; break;        \
+    case DAP_CHAIN_DATUM_CA:                \
+        s = "DATUM_CA"; break;              \
+    case DAP_CHAIN_DATUM_SIGNER:            \
+        s = "DATUM_SIGNER"; break;          \
+    case DAP_CHAIN_DATUM_CUSTOM:            \
+        s = "DATUM_CUSTOM"; break;          \
+    case DAP_CHAIN_DATUM_TOKEN:             \
+        s = "DATUM_TOKEN"; break;           \
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION:    \
+        s = "DATUM_TOKEN_EMISSION"; break;  \
+    case DAP_CHAIN_DATUM_TOKEN_DISMISSAL:   \
+        s = "DATUM_TOKEN_DISMISSAL"; break; \
+    case DAP_CHAIN_DATUM_DECREE:            \
+        s = "DATUM_DECREE"; break;          \
+    case DAP_CHAIN_DATUM_ANCHOR:            \
+        s = "DATUM_ANCHOR"; break;          \
+    case DAP_CHAIN_DATUM_SERVICE_STATE:     \
+        s = "DATUM_SERVICE_STATE"; break;   \
+    default:                                \
+        s = "DATUM_UNKNOWN"; break;         \
     }
 
 #define DAP_CHAIN_DATUM_ID_SIZE 2

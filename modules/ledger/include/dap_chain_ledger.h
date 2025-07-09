@@ -229,6 +229,8 @@ typedef struct dap_ledger_datum_iter_data {
 #define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
 // Error code for not enough fee for tx (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_FEE     -1114
+// Error code for block limit exeeded (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT        -1115
 
 #define DAP_LEDGER_TOKENS_STR              "tokens"
 #define DAP_LEDGER_EMISSIONS_STR           "emissions"
@@ -429,6 +431,7 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
 void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
 void dap_ledger_tx_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
 void dap_ledger_token_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
+int dap_ledger_chain_purge(dap_chain_t *a_chain, size_t a_atom_size);
 
 /**
  * Return number transactions from the cache
