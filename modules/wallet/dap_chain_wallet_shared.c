@@ -1245,17 +1245,16 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
             return ERROR_VALUE;
         }
         
-        dap_hash_fast_t *l_wallet_pkey_hash = dap_chain_wallet_get_pkey_hash(l_wallet, 0);
-        if (!l_wallet_pkey_hash) {
+        dap_hash_fast_t l_wallet_pkey_hash = {0};         
+        if (dap_chain_wallet_get_pkey_hash(l_wallet, &l_wallet_pkey_hash)) {
             dap_chain_wallet_close(l_wallet);
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
                 "Can't get public key hash from wallet %s", l_wallet_name);
             return ERROR_VALUE;
         }
         
-        l_pkey_hash = *l_wallet_pkey_hash;
+        l_pkey_hash = l_wallet_pkey_hash;
         l_pkey_hash_ptr = &l_pkey_hash;
-        DAP_DELETE(l_wallet_pkey_hash);
         dap_chain_wallet_close(l_wallet);
     } else if (l_cert_name) {
         // Get public key hash from certificate
