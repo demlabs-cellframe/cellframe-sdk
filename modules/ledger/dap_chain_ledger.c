@@ -29,6 +29,8 @@
 #include "uthash.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_common.h"
+#include "dap_chain_cell.h"
+#include "dap_chain_srv.h"
 #include "dap_math_ops.h"
 #include "dap_list.h"
 #include "dap_hash.h"
@@ -1041,6 +1043,27 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     dap_ledger_token_purge(a_ledger, a_preserve_db);
     dap_ledger_decree_purge(a_ledger);
     PVT(a_ledger)->load_end = false;
+}
+
+int dap_ledger_chain_purge(dap_chain_t *a_chain, size_t a_atom_size)
+{
+    dap_return_val_if_fail(a_chain, -1);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ledger_tx_purge(l_net->pub.ledger, false);
+    if (dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id))
+        return -2;
+    if (dap_chain_srv_purge_all(a_chain->net_id))
+        return -3;
+    if (a_atom_size && dap_chain_cell_truncate(a_chain, c_dap_chain_cell_id_null, a_atom_size))
+        return -4;
+    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
+    if (dap_chain_cell_remove(a_chain, c_dap_chain_cell_id_null, l_role.enums == NODE_ROLE_ARCHIVE))
+        return -5;
+    if (dap_chain_purge(a_chain))
+        return -6;
+    if (dap_chain_cell_create(a_chain, c_dap_chain_cell_id_null))
+        return -7;
+    return 0;
 }
 
 void dap_ledger_tx_purge(dap_ledger_t *a_ledger, bool a_preserve_db)

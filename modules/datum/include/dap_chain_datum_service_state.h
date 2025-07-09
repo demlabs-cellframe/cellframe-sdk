@@ -22,8 +22,10 @@
 #pragma once
 
 #include "dap_chain_srv.h"
+#include "dap_chain_datum.h"
 
 typedef struct dap_chain_datum_service_state {
+    byte_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
     dap_chain_srv_uid_t srv_uid;
     uint32_t states_count;
     uint64_t state_size;

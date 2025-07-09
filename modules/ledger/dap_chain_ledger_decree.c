@@ -23,6 +23,7 @@
 
 #include <memory.h>
 #include <assert.h>
+#include "dap_chain_datum_tx_tsd.h"
 #include "dap_common.h"
 #include "dap_sign.h"
 #include "dap_pkey.h"
@@ -629,8 +630,21 @@ const char *l_ban_addr;
             if (!a_apply || (a_anchored && dap_chain_generation_banned(l_chain, l_hardfork_generation)))
                 break;   // Silent hardfork start ignorance for banned generations
 
-            dap_list_t *l_addrs = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
+            dap_list_t *l_addrs = NULL, *l_addrs_tsd = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
                                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
+            for (dap_list_t *it = l_addrs_tsd; it; it = it->next) {
+                dap_tsd_t *l_tsd = (dap_tsd_t *)it->data;
+                if (l_tsd->size != sizeof(dap_stream_node_addr_t)) {
+                    dap_hash_fast_t l_decree_hash = {0};
+                    dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+                    log_it(L_WARNING, "Invalid size of node addr tsd for decree %s", dap_hash_fast_to_str_static(&l_decree_hash));
+                    continue;
+                }
+                dap_stream_node_addr_t *l_addr = (dap_stream_node_addr_t *)l_tsd->data;
+                l_addrs = dap_list_append(l_addrs, DAP_DUP(l_addr));
+            }
+            dap_list_free_full(l_addrs_tsd, NULL);
+
             dap_tsd_t *l_changed_addrs = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
             json_object *l_changed_addrs_json = l_changed_addrs ? json_tokener_parse((char *)l_changed_addrs->data) : NULL;
@@ -692,8 +706,10 @@ const char *l_ban_addr;
             uint16_t l_banned_generation = *(uint16_t *)l_generation->data;
             if (!a_apply)
                 break;
-            if (l_chain->hardfork_data && l_chain->hardfork_generation == l_banned_generation)
+            if (l_chain->generation == l_banned_generation) {
                 dap_chain_esbocs_set_hardfork_complete(l_chain);
+                dap_ledger_chain_purge(l_chain, 0);
+            }
             return dap_chain_generation_ban(l_chain, l_banned_generation);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY: {
@@ -793,7 +809,10 @@ static bool s_compare_anchors(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchor
 
 int s_aggregate_anchor(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t **a_out_list, uint16_t a_subtype, dap_chain_datum_anchor_t *a_anchor)
 {
-    dap_ledger_hardfork_anchors_t l_new_anchor = { .anchor = a_anchor, .decree_subtype = a_subtype };
+    dap_ledger_hardfork_anchors_t l_new_anchor = {
+            .anchor = DAP_DUP_SIZE(a_anchor, dap_chain_datum_anchor_get_size(a_anchor)),
+            .decree_subtype = a_subtype
+    };
     dap_ledger_hardfork_anchors_t *l_exist = NULL, *l_tmp;
     DL_FOREACH_SAFE(*a_out_list, l_exist, l_tmp)
         if (s_compare_anchors(a_ledger, l_exist, &l_new_anchor))
@@ -812,8 +831,10 @@ int s_aggregate_anchor(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t **a
         if (l_exist->decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN) {
             assert(a_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN);
             DL_DELETE(*a_out_list, l_exist);
-        } else
-            l_exist->anchor = a_anchor;
+        } else {
+            DAP_DEL_Z(l_exist->anchor);
+            l_exist->anchor = DAP_DUP_SIZE(a_anchor, dap_chain_datum_anchor_get_size(a_anchor));
+        }
     }
     return 0;
 }
