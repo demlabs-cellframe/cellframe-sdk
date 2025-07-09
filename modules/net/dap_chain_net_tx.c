@@ -1350,7 +1350,7 @@ static const uint8_t * s_dap_chain_net_tx_create_tsd_item(json_object *a_json_it
         return NULL;
     }
 
-    uint8_t *l_tsd_data = DAP_NEW_Z_SIZE(uint8_t, l_tsd_data_size);
+    uint8_t *l_tsd_data = DAP_NEW_Z_SIZE(uint8_t, l_tsd_data_size+1);
     size_t l_tsd_data_size_decoded = dap_enc_base58_decode(l_tsd_data_str, l_tsd_data);
     if (l_tsd_data_size_decoded != l_tsd_data_size) {
         log_it(L_ERROR, "Json TX: data size in tsd section - %zu, expected - %zu", l_tsd_data_size_decoded, l_tsd_data_size);
