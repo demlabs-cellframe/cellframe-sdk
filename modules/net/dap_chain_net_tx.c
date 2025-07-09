@@ -2606,6 +2606,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
     char *l_tx_hash_str = dap_hash_fast_str_new(a_tx, dap_chain_datum_tx_get_size(a_tx));
 
     json_object_object_add(json_obj_out, "datum_hash", json_object_new_string(l_tx_hash_str));
+    DAP_DELETE(l_tx_hash_str);
     json_object_object_add(json_obj_out, "ts_created", json_object_new_int64(a_tx->header.ts_created));
     json_object_object_add(json_obj_out, "datum_type", json_object_new_string("tx"));
 
@@ -2640,6 +2641,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
             json_object_object_add(json_obj_item, "sig_size",   json_object_new_uint64(l_sign_size));
             json_object_object_add(json_obj_item, "sig_b64",    json_object_new_string(l_sign_b64));
+            DAP_DELETE(l_sign_b64);
         } break;
         case TX_ITEM_TYPE_TSD: {
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)item)->tsd;
