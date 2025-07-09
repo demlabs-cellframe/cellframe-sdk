@@ -4,6 +4,7 @@
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_token.h"
 #include <json-c/json.h>
 
 #define LOG_TAG "dap_tx_compose_tests"
@@ -60,8 +61,10 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     size_t l_signs_count = rand() % KEY_COUNT + 1;
     dap_test_msg("add %zu tsd sections", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i) {
-        int l_rand_data = rand() % dap_maxval(l_rand_data);
-        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand() % dap_maxval(l_rand_data), sizeof(l_rand_data));
+        int l_rand_data = rand();
+        // Use valid TSD types instead of random values
+        int l_tsd_type = (i % 2 == 0) ? DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_DATA : DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TIMESTAMP;
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, l_tsd_type, sizeof(l_rand_data));
         if (l_tsd->header.size != sizeof(dap_time_t)) {
             log_it(L_WARNING, "Invalid expire time size");
             continue;
