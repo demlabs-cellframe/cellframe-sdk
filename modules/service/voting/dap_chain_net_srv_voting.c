@@ -588,25 +588,54 @@ static dap_list_t* s_get_options_list_from_str(const char* a_str)
     size_t l_opt_str_len = strlen(l_options_str_dup);
     char* l_option_start_ptr = l_options_str_dup;
     dap_string_t* l_option_str = dap_string_new(NULL);
+    bool l_inside_quotes = false;
+    
     for (size_t i = 0; i <= l_opt_str_len; i++){
         if(i == l_opt_str_len){
+            // End of string, add the last option
             l_option_str = dap_string_append_len(l_option_str, l_option_start_ptr, &l_options_str_dup[i] - l_option_start_ptr);
             char* l_option = dap_string_free(l_option_str, false);
             l_option = dap_strstrip(l_option);// removes leading and trailing spaces
+            
+            // Remove quotes if present
+            size_t l_option_len = strlen(l_option);
+            if (l_option_len >= 2 && l_option[0] == '"' && l_option[l_option_len - 1] == '"') {
+                memmove(l_option, l_option + 1, l_option_len - 2);
+                l_option[l_option_len - 2] = '\0';
+            }
+            
             l_ret = dap_list_append(l_ret, l_option);
             break;
         }
-        if (l_options_str_dup [i] == ','){
-            if(i > 0 && l_options_str_dup [i-1] == '\\'){
+        
+        // Track quote state
+        if (l_options_str_dup[i] == '"') {
+            l_inside_quotes = !l_inside_quotes;
+        }
+        
+        // Handle comma separation
+        if (l_options_str_dup[i] == ',' && !l_inside_quotes){
+            if(i > 0 && l_options_str_dup[i-1] == '\\'){
+                // Escaped comma, include it in the option
                 l_option_str = dap_string_append_len(l_option_str, l_option_start_ptr, i-1);
-                l_option_start_ptr = &l_options_str_dup [i];
+                l_option_start_ptr = &l_options_str_dup[i];
                 continue;
             }
+            
+            // Found a separator comma
             l_option_str = dap_string_append_len(l_option_str, l_option_start_ptr, &l_options_str_dup[i] - l_option_start_ptr);
-            l_option_start_ptr = &l_options_str_dup [i+1];
+            l_option_start_ptr = &l_options_str_dup[i+1];
             char* l_option = dap_string_free(l_option_str, false);
             l_option_str = dap_string_new(NULL);
             l_option = dap_strstrip(l_option);// removes leading and trailing spaces
+            
+            // Remove quotes if present
+            size_t l_option_len = strlen(l_option);
+            if (l_option_len >= 2 && l_option[0] == '"' && l_option[l_option_len - 1] == '"') {
+                memmove(l_option, l_option + 1, l_option_len - 2);
+                l_option[l_option_len - 2] = '\0';
+            }
+            
             l_ret = dap_list_append(l_ret, l_option);
         }
     }
