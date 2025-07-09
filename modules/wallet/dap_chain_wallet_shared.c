@@ -1088,8 +1088,8 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
                 char *l_tx_hash_str = l_objs[i].key;
                 json_object_object_add(l_jobj_tx, "tx_hash", 
                     json_object_new_string(dap_strcmp(a_hash_out_type, "hex") ? 
-                        dap_enc_base58_encode_to_str_static(l_tx_hash_str, strlen(l_tx_hash_str)) : l_tx_hash_str));
-                
+                        dap_enc_base58_encode_hash_to_str_static((const dap_hash_fast_t *)l_tx_hash_str) : l_tx_hash_str));
+
                 // Extract signatures from transaction
                 TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
                     if (*l_item == TX_ITEM_TYPE_SIG) {
