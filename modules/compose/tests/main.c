@@ -67,6 +67,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, l_tsd_type, sizeof(l_rand_data));
         if (l_tsd->header.size != sizeof(dap_time_t)) {
             log_it(L_WARNING, "Invalid expire time size");
+            DAP_DEL_Z(l_tsd);
             continue;
         }
         dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
