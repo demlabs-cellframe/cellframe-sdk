@@ -118,7 +118,7 @@ int dap_chain_net_srv_voting_init()
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
     dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
                 "poll", s_cli_voting, "Voting/poll commands",
-                            "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>]"
+                            "poll create -net <net_name> -question <\"Question_string\"> -options <\"[Option0], [Option1], ... [OptionN]\"> [-expire <poll_expire_time_in_RCF822>]"
                                            " [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll vote -net <net_name> -hash <poll_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
                             "poll list -net <net_name>\n"
@@ -576,6 +576,49 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
     return true;
 }
 
+static char* s_process_option_string(const char* a_option)
+{
+    if (!a_option) {
+        return NULL;
+    }
+    
+    size_t l_len = strlen(a_option);
+    if (l_len == 0) {
+        return strdup("");
+    }
+    
+    // Check if option is surrounded by square brackets
+    bool l_bracketed = (l_len >= 2 && a_option[0] == '[' && a_option[l_len - 1] == ']');
+    
+    // Calculate the source range (skip brackets if present)
+    const char* l_start = l_bracketed ? a_option + 1 : a_option;
+    const char* l_end = l_bracketed ? a_option + l_len - 1 : a_option + l_len;
+    
+    // Allocate result buffer
+    char* l_result = DAP_NEW_Z_COUNT(char, l_len + 1);
+    if (!l_result) {
+        return NULL;
+    }
+    
+    // Process the string, handling escape sequences
+    size_t l_result_pos = 0;
+    for (const char* l_pos = l_start; l_pos < l_end; l_pos++) {
+        if (*l_pos == '\\' && l_pos + 1 < l_end) {
+            char l_next = *(l_pos + 1);
+            if (l_next == '[' || l_next == ']' || l_next == '\\' || l_next == ',') {
+                // Unescape the character
+                l_result[l_result_pos++] = l_next;
+                l_pos++; // Skip the next character
+                continue;
+            }
+        }
+        l_result[l_result_pos++] = *l_pos;
+    }
+    
+    l_result[l_result_pos] = '\0';
+    return l_result;
+}
+
 static dap_list_t* s_get_options_list_from_str(const char* a_str)
 {
     dap_list_t* l_ret = NULL;
@@ -586,57 +629,67 @@ static dap_list_t* s_get_options_list_from_str(const char* a_str)
     }
 
     size_t l_opt_str_len = strlen(l_options_str_dup);
-    char* l_option_start_ptr = l_options_str_dup;
     dap_string_t* l_option_str = dap_string_new(NULL);
-    bool l_inside_quotes = false;
+    bool l_inside_brackets = false;
     
     for (size_t i = 0; i <= l_opt_str_len; i++){
         if(i == l_opt_str_len){
             // End of string, add the last option
-            l_option_str = dap_string_append_len(l_option_str, l_option_start_ptr, &l_options_str_dup[i] - l_option_start_ptr);
             char* l_option = dap_string_free(l_option_str, false);
             l_option = dap_strstrip(l_option);// removes leading and trailing spaces
             
-            // Remove quotes if present
-            size_t l_option_len = strlen(l_option);
-            if (l_option_len >= 2 && l_option[0] == '"' && l_option[l_option_len - 1] == '"') {
-                memmove(l_option, l_option + 1, l_option_len - 2);
-                l_option[l_option_len - 2] = '\0';
+            // Process and add option if not empty
+            char* l_processed_option = s_process_option_string(l_option);
+            if (l_processed_option && strlen(l_processed_option) > 0) {
+                l_ret = dap_list_append(l_ret, l_processed_option);
+            } else {
+                DAP_DELETE(l_processed_option);
             }
-            
-            l_ret = dap_list_append(l_ret, l_option);
+            DAP_DELETE(l_option);
             break;
         }
         
-        // Track quote state
-        if (l_options_str_dup[i] == '"') {
-            l_inside_quotes = !l_inside_quotes;
+        // Handle escaped characters
+        if (l_options_str_dup[i] == '\\' && i + 1 < l_opt_str_len) {
+            char l_next_char = l_options_str_dup[i + 1];
+            if (l_next_char == '[' || l_next_char == ']' || l_next_char == '\\' || l_next_char == ',') {
+                // Add escaped character
+                dap_string_append_c(l_option_str, l_next_char);
+                i++; // Skip the next character
+                continue;
+            }
+        }
+        
+        // Track bracket state (only if not escaped)
+        if (l_options_str_dup[i] == '[') {
+            l_inside_brackets = true;
+            dap_string_append_c(l_option_str, l_options_str_dup[i]);
+            continue;
+        }
+        if (l_options_str_dup[i] == ']') {
+            l_inside_brackets = false;
+            dap_string_append_c(l_option_str, l_options_str_dup[i]);
+            continue;
         }
         
         // Handle comma separation
-        if (l_options_str_dup[i] == ',' && !l_inside_quotes){
-            if(i > 0 && l_options_str_dup[i-1] == '\\'){
-                // Escaped comma, include it in the option
-                l_option_str = dap_string_append_len(l_option_str, l_option_start_ptr, i-1);
-                l_option_start_ptr = &l_options_str_dup[i];
-                continue;
-            }
-            
+        if (l_options_str_dup[i] == ',' && !l_inside_brackets){
             // Found a separator comma
-            l_option_str = dap_string_append_len(l_option_str, l_option_start_ptr, &l_options_str_dup[i] - l_option_start_ptr);
-            l_option_start_ptr = &l_options_str_dup[i+1];
             char* l_option = dap_string_free(l_option_str, false);
             l_option_str = dap_string_new(NULL);
             l_option = dap_strstrip(l_option);// removes leading and trailing spaces
             
-            // Remove quotes if present
-            size_t l_option_len = strlen(l_option);
-            if (l_option_len >= 2 && l_option[0] == '"' && l_option[l_option_len - 1] == '"') {
-                memmove(l_option, l_option + 1, l_option_len - 2);
-                l_option[l_option_len - 2] = '\0';
+            // Process and add option if not empty
+            char* l_processed_option = s_process_option_string(l_option);
+            if (l_processed_option && strlen(l_processed_option) > 0) {
+                l_ret = dap_list_append(l_ret, l_processed_option);
+            } else {
+                DAP_DELETE(l_processed_option);
             }
-            
-            l_ret = dap_list_append(l_ret, l_option);
+            DAP_DELETE(l_option);
+        } else {
+            // Regular character, add to current option
+            dap_string_append_c(l_option_str, l_options_str_dup[i]);
         }
     }
 
