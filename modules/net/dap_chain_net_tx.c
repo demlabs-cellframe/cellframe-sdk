@@ -2645,7 +2645,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)item)->tsd;
             json_object_object_add(json_obj_item,"data_type", json_object_new_int(l_tsd->type));
             json_object_object_add(json_obj_item,"data_size", json_object_new_uint64(l_tsd->size));
-            char *l_tsd_str = dap_enc_base58_encode_to_str(l_tsd->data, l_tsd->size);
+            char *l_tsd_str = dap_enc_base58_encode_to_str(l_tsd->data, l_tsd->size + 1);
             json_object_object_add(json_obj_item,"data", json_object_new_string(l_tsd_str));
             DAP_DELETE(l_tsd_str);
         } break;
