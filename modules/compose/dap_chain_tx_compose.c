@@ -2780,6 +2780,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
     // Add question to tsd data
     dap_chain_tx_tsd_t* l_question_tsd = dap_chain_datum_voting_question_tsd_create(a_question, strlen(a_question));
     dap_chain_datum_tx_add_item(&l_tx, l_question_tsd);
+    DAP_DEL_Z(l_question_tsd);
 
     // Add options to tsd
     dap_list_t *l_temp = a_options;
