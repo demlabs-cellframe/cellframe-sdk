@@ -34,6 +34,7 @@
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
+#include "json.h"
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
 
@@ -146,6 +147,16 @@ extern const dap_chain_srv_uid_t c_dap_chain_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
 extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
+/**
+ * @brief Structure for storing public key hashes collection
+ * @details Used for storing multiple public key hashes with versioning support
+ */
+ typedef struct dap_chain_pkey_hashes {
+    uint8_t version;                    // Version field for future compatibility
+    size_t hashes_count;               // Number of hashes in the collection
+    dap_hash_fast_t *hashes;           // Pointer to array of public key hashes
+} dap_chain_pkey_hashes_t;
+
 enum dap_chain_srv_unit_enum {
     SERV_UNIT_UNDEFINED = 0 ,
     SERV_UNIT_SEC = 0x00000002, // seconds
@@ -240,6 +251,10 @@ int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
 void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count,
                                      bool a_last);
+
+int dap_chain_read_wallet_shared_datums_from_gdb_json(json_object *a_json_arr_out, const char *a_gdb_group, const dap_hash_fast_t *a_pkey_hash, const char *a_hash_out_type);
+json_object *dap_chain_get_wallet_shared_datums_json(const char *a_gdb_group, const dap_hash_fast_t *a_pkey_hash, const char *a_hash_out_type);
+int dap_chain_clear_gdb_group(const char *a_gdb_group);
 
 DAP_STATIC_INLINE bool dap_chain_addr_compare(const dap_chain_addr_t *a_addr1, const dap_chain_addr_t *a_addr2)
 {
