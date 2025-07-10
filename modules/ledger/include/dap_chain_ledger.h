@@ -498,7 +498,7 @@ int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
                                dap_ledger_cond_in_add_callback_t a_callback_in_add, dap_ledger_cond_out_add_callback_t a_callback_out_add,
                                dap_ledger_cond_in_delete_callback_t a_callback_in_delete, dap_ledger_cond_out_delete_callback_t a_callback_out_delete);
 // Add new verificator callback for voting. Returns 1 if callback replaced, overwise returns 0
-int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_voting_callback, dap_ledger_vote_callback_t a_vote_callback,
+int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_voting_callback, dap_ledger_vote_callback_t a_vote_callback, dap_ledger_voting_cancel_callback_t a_vote_cancel_verificator,
                                       dap_ledger_voting_delete_callback_t a_callback_delete, dap_ledger_voting_expire_callback_t a_callback_expire);
 int dap_ledger_tax_callback_set(dap_ledger_tax_callback_t a_callback);
 // Getting a list of transactions from the ledger.

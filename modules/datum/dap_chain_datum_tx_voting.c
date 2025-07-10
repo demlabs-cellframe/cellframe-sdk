@@ -252,26 +252,3 @@ json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, i
     return l_object;
 }
 
-const char* dap_get_voting_status(struct voting* a_voting) {
-    const char *l_status_str = "unknown";
-    switch (a_voting->params.status) {
-        case DAP_CHAIN_NET_VOTING_STATUS_ACTIVE:
-            if (a_voting->params.voting_expire && a_voting->params.voting_expire < dap_time_now())
-                l_status_str = "expired";
-            else
-                l_status_str = "active";
-            break;
-        case DAP_CHAIN_NET_VOTING_STATUS_EXPIRED:
-            l_status_str = "expired";
-            break;
-        case DAP_CHAIN_NET_VOTING_STATUS_CANCELLED:
-            l_status_str = "cancelled";
-            break;
-        case DAP_CHAIN_NET_VOTING_STATUS_COMPLETED:
-            l_status_str = "completed";
-            break;
-        default:
-            break;
-    }
-    return l_status_str;
-}

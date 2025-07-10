@@ -1534,7 +1534,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
             assert(l_vote_tx_item);
         } else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL)
-            l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_TSD, a_tx, a_tx_hash, true);
+            l_err_num = s_voting_callbacks.voting_callback(a_ledger, a_tx, a_tx_hash, true);
     }
     assert(!l_err_num);
 
