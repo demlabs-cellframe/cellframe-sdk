@@ -49,6 +49,7 @@ typedef struct dap_chain_ledger_votings_callbacks {
     dap_ledger_vote_callback_t vote_callback;
     dap_ledger_voting_delete_callback_t voting_delete_callback;
     dap_ledger_voting_expire_callback_t voting_expire_callback;
+    dap_ledger_voting_cancel_callback_t voting_cancel_callback;
 } dap_chain_ledger_votings_callbacks_t;
 
 static dap_ledger_verificator_t *s_verificators;
@@ -1099,6 +1100,20 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
            }
            if (a_action) 
                *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTE;
+            
+        } else if ( dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_TSD, NULL) ) {
+            dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_TSD, NULL);
+            dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_tsd->tsd;
+            if (l_tsd_data->type == VOTING_TSD_TYPE_CANCEL) {
+                if (s_voting_callbacks.voting_cancel_callback) {
+                    if ((l_err_num = s_voting_callbacks.voting_cancel_callback(a_ledger, a_tx, a_tx_hash, false))) {
+                        debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for voting", l_err_num);
+                        l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+                    }
+                }
+                if (a_action)
+                    *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL;
+            }
         }
     }
 
@@ -1518,7 +1533,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_err_num = s_voting_callbacks.vote_callback(a_ledger, a_tx, &l_tx_hash, &l_vote_pkey_hash, true);
             l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
             assert(l_vote_tx_item);
-        }
+        } else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL)
+            l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_TSD, a_tx, a_tx_hash, true);
     }
     assert(!l_err_num);
 
@@ -2594,7 +2610,7 @@ int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
     return 0;
 }
 
-int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_voting_callback, dap_ledger_vote_callback_t a_vote_callback,
+int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_voting_callback, dap_ledger_vote_callback_t a_vote_callback, dap_ledger_voting_cancel_callback_t a_vote_cancel_verificator,
                                       dap_ledger_voting_delete_callback_t a_callback_delete, dap_ledger_voting_expire_callback_t a_callback_expire)
 {
     dap_return_val_if_fail(a_voting_callback && a_vote_callback && a_callback_delete && a_callback_expire, -1);
@@ -2604,6 +2620,7 @@ int dap_ledger_voting_verificator_add(dap_ledger_voting_callback_t a_voting_call
     s_voting_callbacks.vote_callback = a_vote_callback;
     s_voting_callbacks.voting_delete_callback = a_callback_delete;
     s_voting_callbacks.voting_expire_callback = a_callback_expire;
+    s_voting_callbacks.voting_cancel_callback = a_vote_cancel_verificator;
     return ret;
 }
 
