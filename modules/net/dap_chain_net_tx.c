@@ -1249,6 +1249,7 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
             }
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_params(l_srv_uid, l_value, l_signing_addr,
                                                                                                          &l_signer_node_addr, uint256_0, l_params, l_params_size);
+            DAP_DEL_Z(l_params);
             DAP_DELETE(l_signing_addr);
             // Save value for using in In item
             if(l_out_cond_item) {
