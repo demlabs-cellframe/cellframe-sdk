@@ -1193,6 +1193,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         dap_hash_fast_t l_blank_hash = {};
         dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, a_delegated_ticker_str);
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
+        DAP_DEL_Z(l_in_ems);
     }
 
     // add 'out_cond' and 'out_ext' items

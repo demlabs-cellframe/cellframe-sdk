@@ -89,7 +89,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
     dap_assert(json_object_object_length(l_datum_1_json), "dap_chain_net_tx_to_json");
     printf("\n");
-    dap_chain_datum_tx_t *l_datum_2 = dap_chain_datum_tx_create();;
+    dap_chain_datum_tx_t *l_datum_2 = NULL;
     size_t
         l_items_count = 0,
         l_items_ready = 0;

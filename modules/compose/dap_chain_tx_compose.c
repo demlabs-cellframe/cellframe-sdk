@@ -1083,6 +1083,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         uint32_t l_tx_num = a_tx_num;
         dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_tx_num, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
         dap_chain_datum_tx_add_item(&l_tx, l_out_count);
+        DAP_DEL_Z(l_out_count);
     }
     
     if (l_single_channel) { // add 'out' items
@@ -2125,6 +2126,7 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_chain_addr_t *a_w
         dap_hash_fast_t l_blank_hash = {};
         dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, a_delegated_ticker_str);
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
+        DAP_DEL_Z(l_in_ems);
     }
 
     // add 'out_cond' and 'out_ext' items

@@ -1071,8 +1071,10 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
                     l_price_unit, l_params, l_params_size);
             } else {
                 log_it(L_ERROR, "Json TX: bad pkey in OUT_COND_SUBTYPE_SRV_PAY");
+                DAP_DEL_Z(l_params);
                 return NULL;
             }
+            DAP_DEL_Z(l_params);
             // Save value for using in In item
             if(!l_out_cond_item) {
                 if (a_jobj_arr_errors)
@@ -1141,6 +1143,7 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
                                                                                                             l_seller_addr,
                                                                                                             l_params, l_params_size);
             DAP_DELETE(l_params);
+            DAP_DELETE(l_seller_addr);
             // Save value for using in In item
             if (l_out_cond_item) {
                 return (const uint8_t*) l_out_cond_item;
