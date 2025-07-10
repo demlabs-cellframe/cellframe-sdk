@@ -1049,7 +1049,8 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_cond->header.value, &l_balance_coins);
     
     // Search for mempool transactions with conditional inputs referencing this output
-    json_object *l_jobj_mempool_txs = json_object_new_array();
+    json_object *l_jobj_waiting_operations_hashes = json_object_new_array();
+    int l_waiting_operations_count = 0;
     char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
@@ -1080,44 +1081,25 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
             }
             
             if (l_found_matching_input) {
-                // Create transaction object for JSON
-                json_object *l_jobj_tx = json_object_new_object();
-                json_object *l_jobj_signatures = json_object_new_array();
-                
-                // Add transaction hash
-                char *l_tx_hash_str = l_objs[i].key;
-                json_object_object_add(l_jobj_tx, "tx_hash", 
-                    json_object_new_string(dap_strcmp(a_hash_out_type, "hex") ? 
-                        dap_enc_base58_encode_hash_to_str_static((const dap_hash_fast_t *)l_tx_hash_str) : l_tx_hash_str));
-
                 // Extract signatures from transaction
                 TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
                     if (*l_item == TX_ITEM_TYPE_SIG) {
-                        dap_sign_t *l_sign = (dap_sign_t *)l_item;
-                        json_object *l_jobj_sig = json_object_new_object();
-                        
-                        // Get public key hash from signature
-                        dap_hash_fast_t l_sign_pkey_hash = {0};
-                        if (dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash)) {
-                            json_object_object_add(l_jobj_sig, "pkey_hash", 
-                                json_object_new_string(dap_strcmp(a_hash_out_type, "hex") ? 
+                        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)l_item;
+                        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+                        if (l_sign) {
+                            // Get public key hash from signature
+                            dap_hash_fast_t l_sign_pkey_hash = {0};
+                            if (dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash) == 0) {
+                                const char *l_pkey_hash_str = dap_strcmp(a_hash_out_type, "hex") ? 
                                     dap_enc_base58_encode_hash_to_str_static(&l_sign_pkey_hash) : 
-                                    dap_hash_fast_to_str_static(&l_sign_pkey_hash)));
-                        } else {
-                            json_object_object_add(l_jobj_sig, "pkey_hash", json_object_new_null());
+                                    dap_hash_fast_to_str_static(&l_sign_pkey_hash);
+                                json_object_array_add(l_jobj_waiting_operations_hashes, 
+                                    json_object_new_string(l_pkey_hash_str));
+                                l_waiting_operations_count++;
+                            }
                         }
-                        
-                        // Add signature type
-                        const char *l_sign_type_str = dap_sign_type_to_str(l_sign->header.type);
-                        json_object_object_add(l_jobj_sig, "type", 
-                            json_object_new_string(l_sign_type_str ? l_sign_type_str : "unknown"));
-                        
-                        json_object_array_add(l_jobj_signatures, l_jobj_sig);
                     }
                 }
-                
-                json_object_object_add(l_jobj_tx, "signatures", l_jobj_signatures);
-                json_object_array_add(l_jobj_mempool_txs, l_jobj_tx);
             }
         }
         dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -1160,7 +1142,8 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_json_jobj_info, "balance", l_jobj_balance);
     json_object_object_add(l_json_jobj_info, "take_verify", l_jobj_take_verify);
     json_object_object_add(l_json_jobj_info, "token", l_jobj_token);
-    json_object_object_add(l_json_jobj_info, "mempool_txs", l_jobj_mempool_txs);
+    json_object_object_add(l_json_jobj_info, "waiting_operations_count", json_object_new_int(l_waiting_operations_count));
+    json_object_object_add(l_json_jobj_info, "waiting_operations_hashes", l_jobj_waiting_operations_hashes);
     
     json_object_array_add(*a_json_arr_reply, l_json_jobj_info);
     return DAP_NO_ERROR;
@@ -1293,9 +1276,9 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object *l_result = json_object_new_object();
     json_object *l_entries = json_object_new_array();
     
-    json_object_object_add(l_result, "gdb_group", json_object_new_string(l_gdb_group));
-    json_object_object_add(l_result, "hash_format", json_object_new_string(a_hash_out_type));
     json_object_object_add(l_result, "show_all_entries", json_object_new_boolean(l_show_all));
+    // Add network information
+    json_object_object_add(l_result, "net", json_object_new_string(a_net->pub.name));
     
     // Add filter information
     if (l_pkey_hash_ptr) {
@@ -1322,6 +1305,12 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         json_object_object_add(l_result, "pkey_filter", json_object_new_null());
         json_object_object_add(l_result, "filter_type", json_object_new_string("none"));
         json_object_object_add(l_result, "filter_value", json_object_new_null());
+        if (!l_show_all) {
+            json_object_put(l_result);
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, 
+                "No filter specified, use -all to show all entries");
+            return ERROR_PARAM;
+        }
     }
     
     bool l_is_base58 = dap_strcmp(a_hash_out_type, "hex");
@@ -1347,6 +1336,14 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
             size_t l_expected_size = sizeof(dap_chain_pkey_hashes_t) + (l_pkey_hashes->hashes_count * sizeof(dap_hash_fast_t));
             if (l_item->value_len >= l_expected_size && l_pkey_hashes->hashes_count > 0) {
                 l_is_valid_structure = true;
+                
+                // Check network filter - skip if doesn't match current network
+                if (l_pkey_hashes->net_id.uint64 != a_net->pub.id.uint64) {
+                    log_it(L_DEBUG, "Skipping entry with net_id %llu, current network is %llu", 
+                           l_pkey_hashes->net_id.uint64, a_net->pub.id.uint64);
+                    json_object_put(l_entry);
+                    continue;
+                }
                 
                 // Get hashes array from serialized data
                 dap_hash_fast_t *l_hashes = (dap_hash_fast_t *)(l_data + sizeof(dap_chain_pkey_hashes_t));

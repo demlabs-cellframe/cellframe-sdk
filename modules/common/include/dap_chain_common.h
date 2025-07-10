@@ -152,6 +152,7 @@ extern const dap_chain_addr_t c_dap_chain_addr_blank;
  */
 typedef struct dap_chain_pkey_hashes {
     uint8_t version;                    // Version field for future compatibility
+    dap_chain_net_id_t net_id;          // Network identifier
     size_t hashes_count;               // Number of hashes in the collection
     dap_hash_fast_t *hashes;           // Pointer to array of public key hashes
 } dap_chain_pkey_hashes_t;

@@ -550,7 +550,7 @@ static bool s_wallet_shared_filter_matches_pkey(const dap_hash_fast_t *a_pkey_ha
  *         -2: failed to allocate memory for pkey hashes structure
  *         -3: failed to write to GDB
  */
-static int s_write_wallet_shared_datum_by_multiple_pkeys(dap_chain_datum_tx_t *a_tx, const char *a_gdb_group)
+static int s_write_wallet_shared_datum_by_multiple_pkeys(dap_chain_datum_tx_t *a_tx, const char *a_gdb_group, dap_chain_net_id_t a_net_id)
 {
     dap_return_val_if_fail(a_tx && a_gdb_group, -1);
     
@@ -622,6 +622,7 @@ static int s_write_wallet_shared_datum_by_multiple_pkeys(dap_chain_datum_tx_t *a
     // Fill the header part
     dap_chain_pkey_hashes_t *l_pkey_hashes = (dap_chain_pkey_hashes_t *)l_serialized_data;
     l_pkey_hashes->version = 1;
+    l_pkey_hashes->net_id = a_net_id;
     l_pkey_hashes->hashes_count = l_found_count;
     l_pkey_hashes->hashes = (dap_hash_fast_t *)(l_serialized_data + sizeof(dap_chain_pkey_hashes_t));
     
@@ -639,15 +640,15 @@ static int s_write_wallet_shared_datum_by_multiple_pkeys(dap_chain_datum_tx_t *a
         l_serialized_data, l_total_size, false);
     
     if (l_res == DAP_GLOBAL_DB_RC_SUCCESS) {
-        log_it(L_NOTICE, "Wallet shared pkey hashes (%zu hashes) written to GDB group %s with key %s", 
-            l_found_count, a_gdb_group, l_tx_hash_str);
+        log_it(L_NOTICE, "Wallet shared pkey hashes (%zu hashes) written to GDB group %s with key %s for network %llu", 
+            l_found_count, a_gdb_group, l_tx_hash_str, a_net_id.uint64);
         DAP_DELETE(l_tx_hash_str);
         DAP_DELETE(l_found_hashes);
         DAP_DELETE(l_serialized_data);
         return 1; // Successfully written
     } else {
-        log_it(L_WARNING, "Failed to write wallet shared pkey hashes to GDB group %s with key %s, code %d", 
-            a_gdb_group, l_tx_hash_str, l_res);
+        log_it(L_WARNING, "Failed to write wallet shared pkey hashes to GDB group %s with key %s for network %llu, code %d", 
+            a_gdb_group, l_tx_hash_str, a_net_id.uint64, l_res);
         DAP_DELETE(l_tx_hash_str);
         DAP_DELETE(l_found_hashes);
         DAP_DELETE(l_serialized_data);
@@ -2097,7 +2098,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         // Filter wallet shared datums if enabled
         if (s_wallet_shared_filter_enabled && l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
-            int l_filter_result = s_write_wallet_shared_datum_by_multiple_pkeys(l_tx, s_wallet_shared_gdb_group);
+            int l_filter_result = s_write_wallet_shared_datum_by_multiple_pkeys(l_tx, s_wallet_shared_gdb_group, a_blocks->chain->net_id);
             if (l_filter_result == 1) {
                 log_it(L_DEBUG, "Wallet shared datum filtered and saved during block processing");
             } else if (l_filter_result < 0) {
