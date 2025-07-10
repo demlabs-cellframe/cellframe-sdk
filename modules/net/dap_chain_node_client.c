@@ -376,11 +376,17 @@ void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client)
  */
 int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms)
 {
-    int ret = -1;
+    int ret = -2; // Default error
     if(!a_client){
         log_it(L_ERROR, "Can't wait for status for (null) object");
         return -3;
     }
+    
+    if (a_timeout_ms < 0) {
+        log_it(L_ERROR, "Invalid timeout value: %d", a_timeout_ms);
+        return -2;
+    }
+    
     pthread_mutex_lock(&a_client->wait_mutex);
     // have waited
     if(a_client->state == a_waited_state) {
@@ -399,24 +405,41 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     while (a_client->state != a_waited_state) {
         // prepare for signal waiting
         struct timespec l_cond_timeout;
-        clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
-        l_cond_timeout.tv_sec += a_timeout_ms/1000;
+#ifdef DAP_OS_DARWIN
+        clock_gettime(CLOCK_REALTIME, &l_cond_timeout);  // On macOS use CLOCK_REALTIME
+#else
+        clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);  // On other platforms use CLOCK_MONOTONIC
+#endif
+        l_cond_timeout.tv_sec += a_timeout_ms / 1000;
+        l_cond_timeout.tv_nsec += (a_timeout_ms % 1000) * 1000000;
+        if (l_cond_timeout.tv_nsec >= 1000000000) {
+            l_cond_timeout.tv_sec++;
+            l_cond_timeout.tv_nsec -= 1000000000;
+        }
+        
         int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
         if (l_ret_wait == 0) {
-            if (a_client->state != a_waited_state) {
-                if (a_client->state == NODE_CLIENT_STATE_CONNECTING)
-                    continue; // Spurious wakeup?
-                assert(a_client->state == NODE_CLIENT_STATE_DISCONNECTED || a_client->state == NODE_CLIENT_STATE_ERROR);
+            if (a_client->state == a_waited_state) {
+                ret = 0;  // Success
+                break;
+            } else if (a_client->state == NODE_CLIENT_STATE_CONNECTING) {
+                continue; // Spurious wakeup, continue waiting
+            } else if (a_client->state == NODE_CLIENT_STATE_DISCONNECTED || a_client->state == NODE_CLIENT_STATE_ERROR) {
+                ret = -2;  // Connection error
+                break;
+            } else {
+                ret = -2;  // Unexpected state
+                break;
             }
-            ret = a_client->state == a_waited_state ? 0 : -2;
-        } else if (l_ret_wait == ETIMEDOUT) { // 110 260
+        } else if (l_ret_wait == ETIMEDOUT) {
             log_it(L_NOTICE, "Wait for status is stopped by timeout");
-            ret = -1;
-        } else if (l_ret_wait != 0) {
+            ret = -1;  // Timeout
+            break;
+        } else {
             log_it(L_CRITICAL, "pthread_cond_timedwait() error %d:\"%s\"", l_ret_wait, dap_strerror(l_ret_wait));
-            ret = -4;
+            ret = -4;  // pthread error
+            break;
         }
-        break;
     }
     pthread_mutex_unlock(&a_client->wait_mutex);
     return ret;

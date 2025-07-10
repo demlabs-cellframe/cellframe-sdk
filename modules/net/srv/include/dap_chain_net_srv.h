@@ -314,6 +314,8 @@ typedef enum s_com_net_srv_err{
 
     DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UNKNOWN_SUB_COM_ERR,
 
+    DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_CANT_DELETE_ERR,
+
     DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UNKNOWN    
 
 } s_com_net_srv_err_t;

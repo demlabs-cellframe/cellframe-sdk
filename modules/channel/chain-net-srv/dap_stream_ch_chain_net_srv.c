@@ -774,21 +774,23 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
         pkt_test_t *l_request = (pkt_test_t*)l_ch_pkt->data;
         if (dap_chain_net_srv_get(l_request->srv_uid) == NULL){
-            log_it(L_WARNING, "Can't find service with id %"DAP_UINT64_FORMAT_U, l_request->srv_uid.uint64);
+            log_it(L_WARNING, "Can't find service with id %"DAP_UINT64_FORMAT_U" for CHECK_REQUEST from %s", l_request->srv_uid.uint64, a_ch->stream->esocket->remote_addr_str);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;
         }
+        
+        log_it(L_DEBUG, "Service found, processing CHECK_REQUEST from %s", a_ch->stream->esocket->remote_addr_str);
 
         if (l_request->data_size_recv > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX || l_request->data_size > DAP_CHAIN_NET_SRV_CH_REQUEST_SIZE_MAX) {
-            log_it(L_WARNING, "Too large payload %"DAP_UINT64_FORMAT_U" [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
+            log_it(L_WARNING, "Too large payload %"DAP_UINT64_FORMAT_U" [pkt seq %"DAP_UINT64_FORMAT_U"] from %s", l_request->data_size_recv, l_ch_pkt->hdr.seq_id, a_ch->stream->esocket->remote_addr_str);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;
         }
         size_t l_request_size = l_request->data_size + sizeof(pkt_test_t);
         if (l_ch_pkt->hdr.data_size != l_request_size) {
-            log_it(L_WARNING, "Wrong CHECK_REQUEST size %u, must be %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.data_size, l_request_size, l_ch_pkt->hdr.seq_id);
+            log_it(L_WARNING, "Wrong CHECK_REQUEST size %u, must be %zu [pkt seq %"DAP_UINT64_FORMAT_U"] from %s", l_ch_pkt->hdr.data_size, l_request_size, l_ch_pkt->hdr.seq_id, a_ch->stream->esocket->remote_addr_str);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;
@@ -796,7 +798,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         dap_chain_hash_fast_t l_data_hash;
         dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash); // TODO change it to less CPU consuming algorithm
         if (l_request->data_size > 0 && !dap_hash_fast_compare(&l_data_hash, &l_request->data_hash)) {
-            log_it(L_WARNING, "Wrong hash [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.seq_id);
+            log_it(L_WARNING, "Wrong hash [pkt seq %"DAP_UINT64_FORMAT_U"] from %s", l_ch_pkt->hdr.seq_id, a_ch->stream->esocket->remote_addr_str);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;
