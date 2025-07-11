@@ -862,7 +862,7 @@ static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a
 /**
  * Node command
  */
-int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
+int com_node(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_LIST, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
@@ -1485,7 +1485,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
  * @param str_reply
  * @return
  */
-int com_version(int argc, char ** argv, void **a_str_reply, int a_version)
+int com_version(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     (void) argc;
@@ -1512,7 +1512,7 @@ int com_version(int argc, char ** argv, void **a_str_reply, int a_version)
  * @param str_reply
  * @return int
  */
-int com_help(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_help(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     if (a_argc > 1) {
         log_it(L_DEBUG, "Help for command %s", a_argv[1]);
@@ -5232,7 +5232,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_versi
  * @param str_reply
  * @return
  */
-int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
@@ -5437,7 +5437,7 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
  * @param a_str_reply
  * @return int
  */
-int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
+int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     (void) a_argc;
     json_object** a_json_arr_reply = (json_object**)a_str_reply;
@@ -5624,7 +5624,7 @@ static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
     return DAP_DELETE(l_hash_str_dup), l_ret_list;
 }
 
-int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version)
+int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     (void) a_argc;
     int arg_index = 1;
@@ -5931,7 +5931,7 @@ void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, 
        
 }
 
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply, int a_version)
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     (void) a_argc;
     int arg_index = 1;
@@ -6229,7 +6229,7 @@ int com_chain_ca_copy( int a_argc,  char ** a_argv, void **a_str_reply, int a_ve
  * @param a_str_reply
  * @return
  */
-int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply, int a_version)
+int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
@@ -6318,7 +6318,7 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply, int a_ver
  * @param str_reply
  * @return int
  */
-int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version)
+int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     int l_arg_index = 1;
     const char *l_net_name = NULL; // optional parameter
@@ -6463,7 +6463,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply, int 
  * @param str_reply
  * @return int
  */
-int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply)
+int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     int l_arg_index = 1;
     const char *l_net_name = NULL; // optional parameter
@@ -6607,7 +6607,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply)
  * @param str_reply
  * @return int
  */
-int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_version)
+int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     int arg_index = 1;
 //    int cmd_num = 1;
@@ -6974,7 +6974,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
  * @param str_reply
  * @return int
  */
-int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     const char * l_tx_hash_str = NULL;
@@ -7330,7 +7330,7 @@ int com_stats(int argc, char **a_argv, void **a_str_reply, int a_version)
  * @param str_reply
  * @return int
  */
-int com_exit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_exit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     UNUSED(a_argc);
     UNUSED(a_argv);
@@ -7349,7 +7349,7 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
  * @param str_reply
  * @return int
  */
-int com_print_log(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_print_log(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
@@ -7396,7 +7396,7 @@ int com_print_log(int a_argc, char **a_argv, void **a_str_reply, int a_version)
  * @param a_str_reply
  * @return
  */
-int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     int arg_index = 1;
     const char *l_filename = NULL;
@@ -7509,7 +7509,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version)
  * @param a_str_reply
  * @return
  */
-int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
@@ -7639,7 +7639,7 @@ typedef struct _pvt_net_nodes_list {
     size_t count_nodes;
 } _pvt_net_nodes_list_t;
 
-int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     //default init
@@ -7813,7 +7813,7 @@ struct opts {
 
 #define BUILD_BUG(condition) ((void)sizeof(char[1-2*!!(condition)]))
 
-int com_signer(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_signer(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     enum {
         CMD_NONE, CMD_SIGN, CMD_CHECK

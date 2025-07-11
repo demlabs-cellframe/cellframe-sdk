@@ -1498,7 +1498,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 }
 
 // Decree commands handlers
-int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND, CMD_INFO };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};
