@@ -418,7 +418,7 @@ DAP_INLINE uint32_t dap_chain_policy_get_last_num(dap_chain_net_id_t a_net_id)
 }
 
 
-json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id)
+json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version)
 {
     struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     dap_return_val_if_pass(!l_net_item, NULL);
@@ -428,7 +428,7 @@ json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id)
     dap_string_t *l_inactive_str = dap_string_new("");
     if (l_net_item->last_num)
         dap_string_append_printf(l_active_str, "%s CN-%u ", s_policy_is_deactivated(l_net_item, l_net_item->last_num) ? "<" : "<=", l_net_item->last_num);
-    json_object_object_add(l_ret, "cumulative active", json_object_new_string(l_active_str->str));
+    json_object_object_add(l_ret, a_version == 1 ? "cumulative active" : "cumulative_active", json_object_new_string(l_active_str->str));
     dap_string_erase(l_active_str, 0, -1);
     struct policy_activate_table
         *l_temp = NULL,
@@ -441,8 +441,8 @@ json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id)
                 dap_string_append_printf(l_inactive_str, "CN-%u ", l_current->policy->num);
         }
     }
-    json_object_object_add(l_ret, "conditional active", json_object_new_string(l_active_str->str));
-    json_object_object_add(l_ret, "conditional inactive", json_object_new_string(l_inactive_str->str));
+    json_object_object_add(l_ret, a_version == 1 ? "conditional active" : "conditional_active", json_object_new_string(l_active_str->str));
+    json_object_object_add(l_ret, a_version == 1 ? "conditional inactive" : "conditional_inactive", json_object_new_string(l_inactive_str->str));
     
     dap_string_free(l_active_str, true);
     dap_string_erase(l_inactive_str, 0, -1);
