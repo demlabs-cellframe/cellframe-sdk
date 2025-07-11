@@ -1177,10 +1177,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-addr", &l_addr_str);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_name);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_name);
-    
-    // Check for -all parameter
-    l_show_all = dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-all", NULL);
-    
+
     // Check for mutually exclusive parameters
     int l_filter_count = 0;
     if (l_pkey_hash_str) l_filter_count++;
@@ -1192,6 +1189,8 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, 
             "Parameters -pkey, -addr, -w, and -cert are mutually exclusive");
         return ERROR_PARAM;
+    } else if (l_filter_count == 0) {
+        l_show_all = true;
     }
     
     dap_hash_fast_t l_pkey_hash = {0};
@@ -1304,13 +1303,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     } else {
         json_object_object_add(l_result, "pkey_filter", json_object_new_null());
         json_object_object_add(l_result, "filter_type", json_object_new_string("none"));
-        json_object_object_add(l_result, "filter_value", json_object_new_null());
-        if (!l_show_all) {
-            json_object_put(l_result);
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, 
-                "No filter specified, use -all to show all entries");
-            return ERROR_PARAM;
-        }
+        json_object_object_add(l_result, "filter_value", json_object_new_null());        
     }
     
     bool l_is_base58 = dap_strcmp(a_hash_out_type, "hex");
