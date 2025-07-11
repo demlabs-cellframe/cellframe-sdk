@@ -557,10 +557,6 @@ static int s_write_wallet_shared_datum_by_multiple_pkeys(dap_chain_datum_tx_t *a
     if (!s_wallet_shared_filter_enabled || !s_wallet_shared_filter_pkey_hashes || s_wallet_shared_filter_pkey_hashes_count == 0) {
         return 0; // Filter not enabled or no hashes configured
     }
-    if (!dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF) &&
-        !dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL)) {
-        return 0; // Transaction doesn't have wallet shared condition output
-    }
     
     // Check if transaction has wallet shared condition output
     int l_out_idx = 0;
