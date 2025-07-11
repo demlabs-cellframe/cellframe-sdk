@@ -1759,7 +1759,7 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
  * @param str_reply
  * @return int
  */
-int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
+int com_tx_create_json(int a_argc, char ** a_argv, void **reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object**)reply;
     int l_arg_index = 1;
@@ -1928,7 +1928,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
  * @param str_reply
  * @return int
  */
-int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_version)
+int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     int arg_index = 1;
 //    int cmd_num = 1;
@@ -2294,7 +2294,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
  * @param str_reply
  * @return int
  */
-int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version)
+int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     int l_arg_index = 1;
     const char *l_net_name = NULL; // optional parameter
@@ -2441,7 +2441,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
  * @param str_reply
  * @return int
  */
-int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     const char * l_tx_hash_str = NULL;
@@ -2741,7 +2741,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
  * @param a_str_reply
  * @return int
  */
-int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
+int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     (void) a_argc;
     json_object** a_json_arr_reply = (json_object**)a_str_reply;
@@ -2921,7 +2921,7 @@ static dap_list_t* s_hashes_parse_str_list(const char *a_hashes_str)
     return l_ret_list;
 }
 
-int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version)
+int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     (void) a_argc;
     int arg_index = 1;
@@ -3228,7 +3228,7 @@ void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, 
 
 }
 
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply, int a_version)
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     (void) a_argc;
     int arg_index = 1;
