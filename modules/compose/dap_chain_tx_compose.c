@@ -39,6 +39,7 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_node_client.h"
+#include "dap_chain_wallet_shared.h"
 
 #include <json-c/json.h>
 
@@ -5395,8 +5396,21 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     return l_tx;
 }
 
-json_object * dap_wallet_shared_funds_hold_compose(const char * a_net_name, dap_chain_addr_t *a_owner_addr, const char * a_token_str, uint256_t a_value, 
-                                                    uint256_t a_fee, uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, 
+typedef enum {
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_CONFIG = -1,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE = -2,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_MEMORY = -3,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_HASH = -4,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_NETWORK = -5,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_WALLET = -6,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_BALANCE = -7,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_TX_CREATE = -8,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_TX_SIGN = -9,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_TX_SEND = -10
+} dap_shared_funds_hold_compose_error_t;
+
+json_object * dap_wallet_shared_funds_hold_compose(const char * a_net_name, dap_chain_addr_t *a_owner_addr, const char * a_token_str, const char * a_value_str, 
+                                                    const char * a_fee_str, const char * a_signs_min_str, const char * a_pkeys_str, 
                                                     const char *a_tag_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path)
 {
     if (!a_net_name || !a_token_str || !a_tag_str) return NULL;
@@ -5411,47 +5425,47 @@ json_object * dap_wallet_shared_funds_hold_compose(const char * a_net_name, dap_
     uint256_t l_value = dap_chain_balance_scan(a_value_str);
     if (IS_ZERO_256(l_value)) {
         dap_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Format -value <256 bit integer> and not equal zero");
-        return NULL;
+        return s_compose_config_return_response_handler(l_config);
     }
 
-    uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
+    uint256_t l_fee = dap_chain_balance_scan(a_fee_str);
     if (IS_ZERO_256(l_fee)) {
         dap_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Format -fee <256 bit integer> and not equal zer");
-        return NULL;
+        return s_compose_config_return_response_handler(l_config);
     }
 
-    uint32_t l_signs_min = atoi(l_signs_min_str);
+    uint32_t l_signs_min = atoi(a_signs_min_str);
     if (!l_signs_min) {
         dap_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Format -signs_minimum <32-bit unsigned integer>");
-        return NULL;
+        return s_compose_config_return_response_handler(l_config);
     }
 
-    size_t l_pkeys_str_size = strlen(l_pkeys_str);
+    size_t l_pkeys_str_size = strlen(a_pkeys_str);
     size_t l_hashes_count_max = l_pkeys_str_size / DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_hash_fast_t)),
            l_hashes_count = 0;
     dap_chain_hash_fast_t *l_pkey_hashes = DAP_NEW_Z_COUNT(dap_chain_hash_fast_t, l_hashes_count_max);
     if (!l_pkey_hashes) {
         dap_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_MEMORY, c_error_memory_alloc);
-        DAP_DELETE(l_enc_key);
-        return NULL;
+        DAP_DEL_Z(l_pkey_hashes);
+        return s_compose_config_return_response_handler(l_config);
     }
     char l_hash_str_buf[DAP_HASH_FAST_STR_SIZE];
-    const char *l_token_ptr = l_pkeys_str;
+    const char *l_token_ptr = a_pkeys_str;
     for (size_t i = 0; i < l_hashes_count_max; i++) {
         const char *l_cur_ptr = strchr(l_token_ptr, ',');
         if (!l_cur_ptr)
-            l_cur_ptr = l_pkeys_str + l_pkeys_str_size;
+            l_cur_ptr = a_pkeys_str + l_pkeys_str_size;
         dap_strncpy(l_hash_str_buf, l_token_ptr, dap_min(DAP_HASH_FAST_STR_SIZE, l_cur_ptr - l_token_ptr));
         if (dap_chain_hash_fast_from_str(l_hash_str_buf, l_pkey_hashes + i)) {
             dap_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
-            DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
-            return ERROR_VALUE;
+            DAP_DEL_Z(l_pkey_hashes);
+            return s_compose_config_return_response_handler(l_config);
         }
         for (size_t j = 0; j < i; ++j) {
             if (!memcmp(l_pkey_hashes + j, l_pkey_hashes + i, sizeof(dap_chain_hash_fast_t))){
                 dap_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Find pkey hash %s dublicate", l_hash_str_buf);
-                DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
-                return ERROR_VALUE;
+                DAP_DEL_Z(l_pkey_hashes);
+                return s_compose_config_return_response_handler(l_config);
             }
         }
         if (*l_cur_ptr == 0) {
@@ -5462,17 +5476,16 @@ json_object * dap_wallet_shared_funds_hold_compose(const char * a_net_name, dap_
     }
 
     if (!l_hashes_count) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
-        DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
-        return ERROR_VALUE;
+        dap_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
+        return s_compose_config_return_response_handler(l_config);
     }
     if (l_hashes_count < l_signs_min) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Quantity of pkey_hashes %zu should not be less than signs_minimum (%zu)", l_hashes_count, l_signs_min);
-        DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
-        return ERROR_VALUE;
+        dap_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Quantity of pkey_hashes %zu should not be less than signs_minimum (%zu)", l_hashes_count, l_signs_min);
+        DAP_DEL_Z(l_pkey_hashes);
+        return s_compose_config_return_response_handler(l_config);
     }
-    dap_chain_datum_tx_t * l_tx = dap_emitting_tx_create_compose(a_owner_addr, a_token_str, a_value, a_fee, a_signs_min, l_pkey_hashes, l_hashes_count, a_tag_str, l_config);
-    DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+    dap_chain_datum_tx_t * l_tx = dap_emitting_tx_create_compose(a_owner_addr, a_token_str, l_value, l_fee, l_signs_min, l_pkey_hashes, l_hashes_count, a_tag_str, l_config);
+    DAP_DEL_Z(l_pkey_hashes);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
@@ -5481,6 +5494,13 @@ json_object * dap_wallet_shared_funds_hold_compose(const char * a_net_name, dap_
     return s_compose_config_return_response_handler(l_config);
 
 }
+
+
+typedef enum {
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_OVERFLOW = -2,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_FUNDS = -3,
+    SHARED_FUNDS_HOLD_COMPOSE_ERR_COMPOSE = -4
+} shared_funds_hold_compose_err_t;
 
 dap_chain_datum_tx_t * dap_emitting_tx_create_compose(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee, uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str, compose_config_t *a_config)
 {
@@ -5595,21 +5615,23 @@ dap_chain_datum_tx_t * dap_emitting_tx_create_compose(dap_chain_addr_t *a_owner_
             return NULL;
         }
     }
-    if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1)
+    if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_COMPOSE, "Cant add validator fee output");
         json_object_put(l_outs_native);
         json_object_put(l_outs_main);
         return NULL;
+    }
 
     if (!l_share_native) {
         uint256_t l_fee_back = {};
         // fee coin back
         SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
-        if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, a_owner_addr, l_fee_back, l_native_ticker) != 1)
+        if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, a_owner_addr, l_fee_back, l_native_ticker) != 1) {
             dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_COMPOSE, "Cant add fee back output");
             json_object_put(l_outs_native);
             json_object_put(l_outs_main);
             return NULL;
+        }
     }
 
     return l_tx;
