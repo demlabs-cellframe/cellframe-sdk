@@ -2126,9 +2126,16 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 log_it(L_ERROR, "Json TX: bad value in TYPE_RECEIPT");
                 break;
             }
+            dap_hash_fast_t l_prev_tx_hash = {};
+            const char* l_prev_tx_hash_str = NULL;
+            if((l_prev_tx_hash_str = s_json_get_text(l_json_item_obj, "prev_tx")) == NULL) {
+                log_it(L_ERROR, "Json TX: bad prev_tx in TYPE_RECEIPT");
+                break;
+            }
+            dap_chain_hash_fast_from_str(l_prev_tx_hash_str, &l_prev_tx_hash);
             const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
             size_t l_params_size = dap_strlen(l_params_str);
-            dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params_str, l_params_size);
+            dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params_str, l_params_size, &l_prev_tx_hash);
             l_item = (const uint8_t*) l_receipt;
             if (!l_item) {
                 char *l_str_err = dap_strdup_printf("Unable to create receipt out for transaction "
