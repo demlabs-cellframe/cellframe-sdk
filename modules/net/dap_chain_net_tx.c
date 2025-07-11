@@ -1325,7 +1325,14 @@ static const uint8_t * s_dap_chain_net_tx_create_receipt_item(json_object *a_jso
         l_params = DAP_NEW_Z_SIZE(char, l_params_size);
         l_params_size = dap_enc_base58_decode(l_params_str, l_params);
     }
-    dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params, l_params_size);
+    dap_hash_fast_t l_prev_tx_hash = {};
+    const char* l_prev_tx_hash_str = NULL;
+    if((l_prev_tx_hash_str = s_json_get_text(a_json_item_obj, "prev_tx")) == NULL) {
+        log_it(L_ERROR, "Json TX: bad prev_tx in TYPE_RECEIPT");
+        return NULL;
+    }
+    dap_chain_hash_fast_from_str(l_prev_tx_hash_str, &l_prev_tx_hash);
+    dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params, l_params_size, &l_prev_tx_hash);
     if (!l_receipt) {
         if (a_jobj_arr_errors)
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create receipt out for transaction "

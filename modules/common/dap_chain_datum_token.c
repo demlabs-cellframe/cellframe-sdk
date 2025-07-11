@@ -262,8 +262,10 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_tsd_n
  * @param a_tsd_n_signs
  * @param a_certs_size
  */
-void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_t * a_tsd_n_signs, size_t a_certs_size, const char *a_hash_out_type)
+void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_t * a_tsd_n_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
 {
+    if (a_version == 1)
+        json_object_object_add(a_json_obj_out, "Signatures", json_object_new_string(""));
     if (!a_certs_size) {
         json_object_object_add(a_json_obj_out, "status", json_object_new_string("<NONE>"));
         return;
@@ -297,9 +299,9 @@ void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_
                                : dap_chain_hash_fast_to_str_new(&l_pkey_hash);
 
         json_object_object_add(l_json_obj_out, "line", json_object_new_int(i));
-        json_object_object_add(l_json_obj_out, "hash", json_object_new_string(l_hash_str));
-        json_object_object_add(l_json_obj_out, "sign_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
-        json_object_object_add(l_json_obj_out, "bytes", json_object_new_int(l_sign->header.sign_size));
+        json_object_object_add(l_json_obj_out, a_version == 1 ? "hash" : "sig_pkey_hash", json_object_new_string(l_hash_str));
+        json_object_object_add(l_json_obj_out, a_version == 1 ? "sign_type" : "sig_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
+        json_object_object_add(l_json_obj_out, a_version == 1 ? "bytes" : "sig_size", json_object_new_int(l_sign->header.sign_size));
         json_object_array_add(json_arr_seg, l_json_obj_out);
         DAP_DEL_Z(l_hash_str);
     }
