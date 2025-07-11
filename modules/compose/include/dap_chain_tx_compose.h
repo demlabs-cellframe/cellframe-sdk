@@ -203,6 +203,10 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
                                                             uint256_t a_datoshi_fee, dap_chain_tx_out_cond_t* a_cond_tx, 
                                                             uint32_t a_prev_cond_idx, compose_config_t *a_config);
 
+json_object * dap_wallet_shared_funds_hold_compose(const char * a_net_name, dap_chain_addr_t *a_owner_addr, const char * a_token_str, uint256_t a_value, 
+                                                    uint256_t a_fee, uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, 
+                                                    const char *a_tag_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path);
+
 #ifdef __cplusplus
 }
 #endif

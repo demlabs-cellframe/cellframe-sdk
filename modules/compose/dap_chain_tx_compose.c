@@ -5395,7 +5395,9 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     return l_tx;
 }
 
-json_object * dap_wallet_shared_funds_hold_compose(const char * a_net_name, dap_chain_addr_t *a_owner_addr, const char * a_token_str, uint256_t a_value, uint256_t a_fee, uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str, const char *a_url_str, const char *a_port, const char *a_cert_path)
+json_object * dap_wallet_shared_funds_hold_compose(const char * a_net_name, dap_chain_addr_t *a_owner_addr, const char * a_token_str, uint256_t a_value, 
+                                                    uint256_t a_fee, uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, 
+                                                    const char *a_tag_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path)
 {
     if (!a_net_name || !a_token_str || !a_tag_str) return NULL;
 
