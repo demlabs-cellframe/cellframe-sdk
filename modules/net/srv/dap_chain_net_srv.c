@@ -763,18 +763,14 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -2;
     }
 
-    if (l_receipt){
-        if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(dap_chain_receipt_info_t))){
-            log_it(L_ERROR, "Provider sign in receipt not passed verification.");
-            return -3;
-        }
-    } else {
-        if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt_old->receipt_info, sizeof(dap_chain_receipt_info_old_t))){
-            log_it(L_ERROR, "Provider sign in receipt not passed verification.");
-            return -3;
-        }
-    }
+    const void *l_p_receipt_info = l_receipt ? (const void*)&l_receipt->receipt_info : (const void*)&l_receipt_old->receipt_info;
+    size_t l_receipt_info_size = l_receipt ? sizeof(dap_chain_receipt_info_t) : sizeof(dap_chain_receipt_info_old_t);
 
+    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), l_p_receipt_info, l_receipt_info_size)){
+        log_it(L_ERROR, "Provider sign in receipt not passed verification.");
+        return -3;
+    }
+    
     // Checking the signature matches the provider's signature
     dap_hash_fast_t l_tx_sign_pkey_hash = {};
     dap_hash_fast_t l_provider_pkey_hash = {};
