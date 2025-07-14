@@ -107,9 +107,9 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
 }
 
 /**
- * Get item name by item type
- *
- * return name, or "UNKNOWN"
+ * @brief Get item name by item type (short version)
+ * @param a_type Item type
+ * @return name, or "UNDEFINED"
  */
 DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chain_tx_item_type_t a_type) {
     switch(a_type){
@@ -117,6 +117,7 @@ DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chai
         case TX_ITEM_TYPE_IN_EMS: return "in_ems";
         case TX_ITEM_TYPE_IN_REWARD: return "in_reward";
         case TX_ITEM_TYPE_OUT: return "out";
+        case TX_ITEM_TYPE_OUT_OLD: return "out_old";
         case TX_ITEM_TYPE_OUT_EXT: return "out_ext";
         case TX_ITEM_TYPE_OUT_STD: return "out_std";
         case TX_ITEM_TYPE_PKEY: return "pkey";
@@ -130,7 +131,6 @@ DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chai
         default: return "UNDEFINED";
     }
 }
-
 
 bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_res_group);
 void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_group);

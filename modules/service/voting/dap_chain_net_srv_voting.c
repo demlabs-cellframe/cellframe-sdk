@@ -93,7 +93,7 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
                                               dap_hash_fast_t a_tx_prev_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash);
 static int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
 static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in);
-static int s_cli_voting(int argc, char **argv, void **a_str_reply);
+static int s_cli_voting(int argc, char **argv, void **a_str_reply, int a_version);
 
 static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
@@ -640,7 +640,7 @@ dap_list_t* dap_get_options_list_from_str(const char* a_str)
     return l_ret;
 }
 
-static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
+static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **json_arr_reply = (json_object **)a_str_reply;
     enum {CMD_NONE=0, CMD_CREATE, CMD_VOTE, CMD_LIST, CMD_DUMP};
@@ -784,7 +784,12 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         switch (res) {
             case DAP_CHAIN_NET_VOTE_CREATE_OK: {
                 json_object* json_obj_inf = json_object_new_object();
-                json_object_object_add(json_obj_inf, "datum_add_successfully", json_object_new_string(l_hash_ret));
+                if (a_version == 1) {
+                    json_object_object_add(json_obj_inf, "Datum add successfully", json_object_new_string(l_hash_ret));
+                } else {
+                    json_object_object_add(json_obj_inf, "status", json_object_new_string("success"));
+                    json_object_object_add(json_obj_inf, "tx_hash", json_object_new_string(l_hash_ret));
+                }
                 json_object_array_add(*json_arr_reply, json_obj_inf);
                 DAP_DELETE(l_hash_ret);
                 return DAP_CHAIN_NET_VOTE_CREATE_OK;
@@ -923,7 +928,12 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         switch (res) {
             case DAP_CHAIN_NET_VOTE_VOTING_OK: {
                 json_object* json_obj_inf = json_object_new_object();
-                json_object_object_add(json_obj_inf, "datum_add_successfully_to_mempool", json_object_new_string(l_hash_tx));
+                if (a_version == 1) {
+                    json_object_object_add(json_obj_inf, "Datum add successfully to mempool", json_object_new_string(l_hash_tx));
+                } else {
+                    json_object_object_add(json_obj_inf, "status", json_object_new_string("success"));
+                    json_object_object_add(json_obj_inf, "tx_hash", json_object_new_string(l_hash_tx));
+                }
                 json_object_array_add(*json_arr_reply, json_obj_inf);
                 DAP_DELETE(l_hash_tx);
                 return DAP_CHAIN_NET_VOTE_CREATE_OK;
