@@ -420,12 +420,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\t-num <policy_num>\n"
                 "policy list - show all policies from table in net\n"
                 "\t-net <net_name>\n");
-
-    // Temporary hashes command
-    dap_cli_server_cmd_add ("hashes", com_hashes, "Display wallet shared filter hashes (temporary command)",
-                "hashes list\n"
-                "\tList all wallet shared filter public key hashes\n");
-
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
                 "exit\n" );

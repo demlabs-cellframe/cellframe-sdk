@@ -37,7 +37,18 @@
 #include "dap_global_db.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx_items.h"
+#include <dirent.h>
 
+static char s_wallet_shared_gdb_group[] = "local.wallet_shared";
+
+/**
+ * @brief Structure for storing public key hashes collection
+ * @details Used for storing multiple public key hashes with versioning support
+ */
+typedef struct shared_hold_tx_hashes {
+    size_t tx_hashes_count;               // Number of hashes in the collection
+    dap_hash_fast_t hashes[];           // Pointer to array of public key hashes
+} shared_hold_tx_hashes_t;
 
 enum emit_delegation_error {
     DAP_NO_ERROR = 0,
@@ -292,6 +303,79 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
         m_tx_fail(ERROR_COMPOSE, "Can't add sign output");
     return l_tx;
+}
+
+/**
+ * @brief Collect public key hashes from local wallet files
+ * @return 0 on success, negative value on error
+ */
+static int s_collect_wallet_pkey_hashes()
+{
+    const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
+    if (!l_wallets_path) {
+        log_it(L_WARNING, "Wallet path not configured");
+        return -2;
+    }
+    // Open wallet directory
+    DIR *l_dir = opendir(l_wallets_path);
+    if (!l_dir) {
+        log_it(L_DEBUG, "Cannot open wallet directory: %s", l_wallets_path);
+        return 0; // Not an error, just no wallets
+    }
+    
+    // Count wallet files first
+    size_t l_wallet_count = 0;
+    struct dirent *l_dir_entry;
+    while ((l_dir_entry = readdir(l_dir)) != NULL) {
+        if (strstr(l_dir_entry->d_name, ".dwallet")) {
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_dir_entry->d_name, l_wallets_path, NULL);
+            if (l_wallet) {
+                dap_hash_fast_t l_pkey_hash;
+                if (dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash) != 0) {
+                    log_it(L_WARNING, "Failed to get public key hash from wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
+                    continue;
+                }
+                log_it(L_DEBUG, "Added wallet '%s' hash: %s", l_dir_entry->d_name, dap_hash_fast_to_str_static(&l_pkey_hash));
+                dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
+                    NULL, 0, false);
+            } else {
+                log_it(L_WARNING, "Cannot open wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
+            }
+        }
+    }
+    return 0;
+}
+
+/**
+ * @brief Collect public key hashes from certificates in memory
+ * @return 0 on success, negative value on error
+ */
+static int s_collect_cert_pkey_hashes()
+{
+    // Get all certificates from memory
+    dap_list_t *l_certs_list = dap_cert_get_all_mem();
+    if (!l_certs_list) {
+        log_it(L_DEBUG, "No certificates found in memory");
+        return 0;
+    }
+    // Extract hashes from certificates
+    for (dap_list_t *l_item = l_certs_list; l_item; l_item = l_item->next) {
+        dap_cert_t *l_cert = (dap_cert_t *)l_item->data;
+        if (!l_cert || !l_cert->enc_key) {
+            log_it(L_WARNING, "Invalid certificate or encryption key");
+            continue;
+        }
+        dap_hash_fast_t l_pkey_hash;
+        if (dap_cert_get_pkey_hash(l_cert, &l_pkey_hash)) {
+            log_it(L_WARNING, "Failed to get public key hash from certificate '%s'", l_cert->name);
+            continue;
+        }
+        dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
+                    NULL, 0, false);
+        log_it(L_DEBUG, "Added certificate '%s' hash: %s", l_cert->name, dap_hash_fast_to_str_static(&l_pkey_hash));
+    }  
+    dap_list_free_full(l_certs_list, NULL);
+    return 0;
 }
 
 
@@ -1165,12 +1249,10 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
  */
 static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
-    const char *l_gdb_group = "local.wallet_shared";
     const char *l_pkey_hash_str = NULL;
     const char *l_addr_str = NULL;
     const char *l_wallet_name = NULL;
     const char *l_cert_name = NULL;
-    bool l_show_all = false;
     
     // Check for optional filter parameters
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey", &l_pkey_hash_str);
@@ -1179,22 +1261,14 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_name);
 
     // Check for mutually exclusive parameters
-    int l_filter_count = 0;
-    if (l_pkey_hash_str) l_filter_count++;
-    if (l_addr_str) l_filter_count++;
-    if (l_wallet_name) l_filter_count++;
-    if (l_cert_name) l_filter_count++;
-    
+    int l_filter_count = (bool)l_pkey_hash_str + (bool)l_addr_str + (bool)l_wallet_name + (bool)l_cert_name;
     if (l_filter_count > 1) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, 
             "Parameters -pkey, -addr, -w, and -cert are mutually exclusive");
         return ERROR_PARAM;
-    } else if (l_filter_count == 0) {
-        l_show_all = true;
     }
     
     dap_hash_fast_t l_pkey_hash = {0};
-    dap_hash_fast_t *l_pkey_hash_ptr = NULL;
     
     // Process different filter types
     if (l_pkey_hash_str) {
@@ -1203,7 +1277,6 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                 "Can't recognize %s as a hex format public key hash", l_pkey_hash_str);
             return ERROR_VALUE;
         }
-        l_pkey_hash_ptr = &l_pkey_hash;
     } else if (l_addr_str) {
         // Convert address to public key hash
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
@@ -1212,10 +1285,8 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                 "Can't parse address %s", l_addr_str);
             return ERROR_VALUE;
         }
-        
         // Extract public key hash from address
         memcpy(&l_pkey_hash, &l_addr->data.hash, sizeof(dap_hash_fast_t));
-        l_pkey_hash_ptr = &l_pkey_hash;
         DAP_DELETE(l_addr);
     } else if (l_wallet_name) {
         // Get public key hash from wallet
@@ -1236,7 +1307,6 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         }
         
         l_pkey_hash = l_wallet_pkey_hash;
-        l_pkey_hash_ptr = &l_pkey_hash;
         dap_chain_wallet_close(l_wallet);
     } else if (l_cert_name) {
         // Get public key hash from certificate
@@ -1258,150 +1328,34 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                 "Can't get public key hash from certificate %s", l_cert_name);
             return ERROR_VALUE;
         }
-        
-        l_pkey_hash_ptr = &l_pkey_hash;
     }
     
     // Read wallet shared pkey hashes from GDB
     size_t l_values_count = 0;
-    dap_global_db_obj_t *l_values = dap_global_db_get_all_sync(l_gdb_group, &l_values_count);
+    dap_store_obj_t *l_values = NULL;
+    if (l_filter_count) {
+        l_values = dap_global_db_get_raw_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash));
+        l_values_count = 1;
+    } else {
+        l_values = dap_global_db_get_all_raw_sync(s_wallet_shared_gdb_group, &l_values_count);
+    }
     if (!l_values) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, 
-            "No wallet shared data found in GDB group %s", l_gdb_group);
+            "No wallet shared data found in GDB group %s", s_wallet_shared_gdb_group);
         return ERROR_MEMORY;
     }
-    
-    // Create result JSON object
-    json_object *l_result = json_object_new_object();
-    json_object *l_entries = json_object_new_array();
-    
-    json_object_object_add(l_result, "show_all_entries", json_object_new_boolean(l_show_all));
-    // Add network information
-    json_object_object_add(l_result, "net", json_object_new_string(a_net->pub.name));
-    
-    // Add filter information
-    if (l_pkey_hash_ptr) {
-        const char *l_pkey_str = dap_strcmp(a_hash_out_type, "hex")
-            ? dap_enc_base58_encode_hash_to_str_static(l_pkey_hash_ptr)
-            : dap_chain_hash_fast_to_str_static(l_pkey_hash_ptr);
-        json_object_object_add(l_result, "pkey_filter", json_object_new_string(l_pkey_str));
-        
-        // Add filter type information
-        if (l_pkey_hash_str) {
-            json_object_object_add(l_result, "filter_type", json_object_new_string("pkey_hash"));
-            json_object_object_add(l_result, "filter_value", json_object_new_string(l_pkey_hash_str));
-        } else if (l_addr_str) {
-            json_object_object_add(l_result, "filter_type", json_object_new_string("address"));
-            json_object_object_add(l_result, "filter_value", json_object_new_string(l_addr_str));
-        } else if (l_wallet_name) {
-            json_object_object_add(l_result, "filter_type", json_object_new_string("wallet"));
-            json_object_object_add(l_result, "filter_value", json_object_new_string(l_wallet_name));
-        } else if (l_cert_name) {
-            json_object_object_add(l_result, "filter_type", json_object_new_string("certificate"));
-            json_object_object_add(l_result, "filter_value", json_object_new_string(l_cert_name));
-        }
-    } else {
-        json_object_object_add(l_result, "pkey_filter", json_object_new_null());
-        json_object_object_add(l_result, "filter_type", json_object_new_string("none"));
-        json_object_object_add(l_result, "filter_value", json_object_new_null());        
-    }
-    
-    bool l_is_base58 = dap_strcmp(a_hash_out_type, "hex");
-    int l_matched_count = 0;
-    
-    // Process each entry in GDB
     for (size_t i = 0; i < l_values_count; i++) {
-        dap_global_db_obj_t *l_item = &l_values[i];
-        
-        // Create JSON entry for this item
-        json_object *l_entry = json_object_new_object();
-        json_object_object_add(l_entry, "tx_hash", json_object_new_string(l_item->key));
-        
-        bool l_is_valid_structure = false;
-        bool l_matches_filter = true;
-        
-        // Check if we can parse it as pkey hashes structure
-        if (l_item->value_len >= sizeof(dap_chain_pkey_hashes_t)) {
-            uint8_t *l_data = (uint8_t *)l_item->value;
-            dap_chain_pkey_hashes_t *l_pkey_hashes = (dap_chain_pkey_hashes_t *)l_data;
-            
-            // Validate structure
-            size_t l_expected_size = sizeof(dap_chain_pkey_hashes_t) + (l_pkey_hashes->hashes_count * sizeof(dap_hash_fast_t));
-            if (l_item->value_len >= l_expected_size && l_pkey_hashes->hashes_count > 0) {
-                l_is_valid_structure = true;
-                
-                // Check network filter - skip if doesn't match current network
-                if (l_pkey_hashes->net_id.uint64 != a_net->pub.id.uint64) {
-                    log_it(L_DEBUG, "Skipping entry with net_id %llu, current network is %llu", 
-                           l_pkey_hashes->net_id.uint64, a_net->pub.id.uint64);
-                    json_object_put(l_entry);
-                    continue;
-                }
-                
-                // Get hashes array from serialized data
-                dap_hash_fast_t *l_hashes = (dap_hash_fast_t *)(l_data + sizeof(dap_chain_pkey_hashes_t));
-                
-                // Apply public key filter if specified
-                if (l_pkey_hash_ptr) {
-                    l_matches_filter = false;
-                    for (size_t j = 0; j < l_pkey_hashes->hashes_count; j++) {
-                        if (dap_hash_fast_compare(l_pkey_hash_ptr, &l_hashes[j])) {
-                            l_matches_filter = true;
-                            break;
-                        }
-                    }
-                }
-                
-                if (l_matches_filter) {
-                    // Add structure info
-                    json_object_object_add(l_entry, "pkey_count", json_object_new_int64(l_pkey_hashes->hashes_count));
-                    
-                    // Add all public key hashes
-                    json_object *l_pkey_hashes_json = json_object_new_array();
-                    for (size_t j = 0; j < l_pkey_hashes->hashes_count; j++) {
-                        const char *l_hash_str = l_is_base58 
-                            ? dap_enc_base58_encode_hash_to_str_static(&l_hashes[j])
-                            : dap_chain_hash_fast_to_str_static(&l_hashes[j]);
-                        json_object_array_add(l_pkey_hashes_json, json_object_new_string(l_hash_str));
-                    }
-                    json_object_object_add(l_entry, "pkey_hashes", l_pkey_hashes_json);
-                }
-            }
+        shared_hold_tx_hashes_t *l_hold_hashes = (shared_hold_tx_hashes_t *)l_values[i].value;
+        json_object *l_jobj_item = json_object_new_object();
+        json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_values[i].key));
+        json_object *l_jobj_hold_hashes = json_object_new_array();
+        for (size_t j = 0; j < l_hold_hashes->tx_hashes_count; j++) {
+            json_object_array_add(l_jobj_hold_hashes, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes->hashes[j])));
         }
-        
-        if (!l_is_valid_structure) {
-            json_object_object_add(l_entry, "pkey_count", json_object_new_null());
-            json_object_object_add(l_entry, "pkey_hashes", json_object_new_null());
-            
-            // If -all not specified, skip invalid structures
-            if (!l_show_all) {
-                json_object_put(l_entry);
-                continue;
-            }
-        }
-        
-        // If filter specified and doesn't match, skip this entry
-        if (l_pkey_hash_ptr && !l_matches_filter) {
-            json_object_put(l_entry);
-            continue;
-        }
-        
-        json_object_array_add(l_entries, l_entry);
-        l_matched_count++;
+        json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_hold_hashes);
+        json_object_array_add(*a_json_arr_reply, l_jobj_item);
     }
-    
-    // Add summary info
-    json_object_object_add(l_result, "total_entries", json_object_new_int(l_values_count));
-    json_object_object_add(l_result, "matched_entries", json_object_new_int(l_matched_count));
-    json_object_object_add(l_result, "success", json_object_new_boolean(true));
-    json_object_object_add(l_result, "entries", l_entries);
-    
-    // Cleanup
-    dap_global_db_objs_delete(l_values, l_values_count);
-    
-    // Add the result to the reply array
-    json_object_array_add(*a_json_arr_reply, l_result);
-    
+    dap_store_obj_free(l_values, l_values_count);
     return DAP_NO_ERROR;
 }
 
@@ -1454,11 +1408,39 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, i
     }
 }
 
+int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx)
+{
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
+    if (!l_cond) {
+        return ERROR_TX_MISMATCH;
+    }
+    dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
+    dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
+            size_t l_tx_hashes_count = 0;
+            shared_hold_tx_hashes_t *l_shared_hashes = (shared_hold_tx_hashes_t *)dap_global_db_get_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(l_tsd->data), NULL, 0, false);
+            if (!l_shared_hashes) {
+                l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(shared_hold_tx_hashes_t, sizeof(shared_hold_tx_hashes_t) + sizeof(dap_hash_fast_t), -1);
+                l_shared_hashes->tx_hashes_count = 1;
+            } else {
+                l_shared_hashes->tx_hashes_count++;
+                l_shared_hashes = DAP_REALLOC(l_shared_hashes, l_shared_hashes->tx_hashes_count * sizeof(dap_hash_fast_t));
+            }
+            l_shared_hashes->hashes[l_shared_hashes->tx_hashes_count - 1] = dap_chain_node_datum_tx_calc_hash(a_tx);
+            
+            dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(l_tsd->data), l_shared_hashes, sizeof(shared_hold_tx_hashes_t) + l_tx_hashes_count * sizeof(dap_hash_fast_t), false);
+        }
+    }
+    return 0;
+}
+
 int dap_chain_wallet_shared_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL);
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
     dap_ledger_service_add(l_uid, "wallet shared", s_tag_check);
 
+    s_collect_wallet_pkey_hashes();
+    s_collect_cert_pkey_hashes();
     return 0;
 }
