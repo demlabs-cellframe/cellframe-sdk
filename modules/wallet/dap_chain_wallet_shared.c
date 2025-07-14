@@ -1347,13 +1347,15 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     for (size_t i = 0; i < l_values_count; i++) {
         shared_hold_tx_hashes_t *l_hold_hashes = (shared_hold_tx_hashes_t *)l_values[i].value;
         json_object *l_jobj_item = json_object_new_object();
+        json_object_array_add(*a_json_arr_reply, l_jobj_item);
         json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_values[i].key));
+        if (!l_hold_hashes)
+            continue;
         json_object *l_jobj_hold_hashes = json_object_new_array();
         for (size_t j = 0; j < l_hold_hashes->tx_hashes_count; j++) {
             json_object_array_add(l_jobj_hold_hashes, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes->hashes[j])));
         }
         json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_hold_hashes);
-        json_object_array_add(*a_json_arr_reply, l_jobj_item);
     }
     dap_store_obj_free(l_values, l_values_count);
     return DAP_NO_ERROR;
@@ -1440,6 +1442,7 @@ int dap_chain_wallet_shared_init()
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
     dap_ledger_service_add(l_uid, "wallet shared", s_tag_check);
 
+    dap_global_db_erase_table_sync(s_wallet_shared_gdb_group);
     s_collect_wallet_pkey_hashes();
     s_collect_cert_pkey_hashes();
     return 0;
