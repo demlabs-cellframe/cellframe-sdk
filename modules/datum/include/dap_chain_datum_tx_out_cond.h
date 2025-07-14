@@ -37,7 +37,6 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED = 0x07,
-    DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK = 0x08,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL = 0xFF
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;

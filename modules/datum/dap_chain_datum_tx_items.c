@@ -276,16 +276,6 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a
     return l_item;
 }
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee_stack(uint256_t a_value)
-{
-    dap_return_val_if_pass(IS_ZERO_256(a_value), NULL);
-    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, NULL, NULL);
-    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
-    l_item->header.value = a_value;
-    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK;
-    return l_item;
-}
-
 /**
  * Create item dap_chain_tx_out_cond_t
  *

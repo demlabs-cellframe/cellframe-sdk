@@ -94,6 +94,12 @@ typedef struct dap_ledger_hardfork_anchors {
     dap_chain_datum_anchor_t *anchor;
     struct dap_ledger_hardfork_anchors *prev, *next;
 } dap_ledger_hardfork_anchors_t;
+
+typedef struct dap_ledger_hardfork_fees {
+    dap_chain_addr_t owner_addr;
+    uint256_t fees_n_rewards_sum;
+    struct dap_ledger_hardfork_fees *prev, *next;
+} dap_ledger_hardfork_fees_t;
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
@@ -481,9 +487,6 @@ bool dap_ledger_tx_check_recipient(dap_ledger_t* a_ledger, dap_chain_hash_fast_t
 // Get all transactions from the cache with the specified out_cond items
 dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_chain_srv_uid_t a_srv_uid);
 
-// Get first tx with type a_subtype
-dap_chain_tx_used_out_item_t *dap_ledger_get_tx_cond_out(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr_from, dap_chain_tx_out_cond_subtype_t a_subtype);
-
 dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *a_ledger, const char *a_token, dap_chain_tx_out_cond_subtype_t a_subtype,
                                                                   const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash, int *a_out_idx);
 
@@ -538,7 +541,9 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
 dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash);
 int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
-dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object* a_changed_addrs);
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time,
+                                                            dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object *a_changed_addrs,
+                                                            dap_ledger_hardfork_fees_t *a_fees_list);
 dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
 uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash,

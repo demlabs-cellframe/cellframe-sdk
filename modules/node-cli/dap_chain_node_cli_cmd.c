@@ -4610,7 +4610,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                         return -DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_KEYS_ERR;
                 }
             }
-        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_retry", &l_param_value_str)) {
+        } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-hardfork_retry") != -1) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY;
             if (!dap_chain_esbocs_hardfork_engaged(l_decree_chain)) {
                 log_it(L_WARNING, "Hardfork is not engaged, can't retry");
@@ -4633,7 +4633,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                         return -DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_KEYS_ERR;
                 }
             }
-        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_complete", &l_param_value_str)) {
+        } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-hardfork_complete") != -1) {
             if (!l_net->pub.ledger->is_hardfork_state) {
                 log_it(L_ERROR, "Hardfork isn't started, can't complete");
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_STARTED_ERR,
@@ -4641,7 +4641,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                 return -DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_STARTED_ERR;
             }
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE;
-        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_cancel", &l_param_value_str)) {
+        } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-hardfork_cancel") != -1) {
             uint16_t l_generation = l_decree_chain->generation;
             if (!l_generation) {
                 log_it(L_ERROR, "Can't cancel base chain generation");
