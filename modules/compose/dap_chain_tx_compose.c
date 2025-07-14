@@ -495,7 +495,7 @@ json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * 
     dap_json_rpc_params_add_data(params, l_cmd_str, TYPE_PARAM_STRING);
     uint64_t l_id_response = dap_json_rpc_response_get_new_id();
     char ** l_cmd_arr_str = dap_strsplit(l_cmd_str, ";", -1);
-    dap_json_rpc_request_t *l_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response);
+    dap_json_rpc_request_t *l_request = dap_json_rpc_request_creation(l_cmd_arr_str[0], params, l_id_response, dap_cli_server_get_version());
     dap_strfreev(l_cmd_arr_str);
     DAP_DEL_Z(l_cmd_str);
 
