@@ -1296,12 +1296,14 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
             uint256_t l_value = { };
             if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                dap_json_rpc_error_add(a_json_item_obj, -1, "Bad value in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
             }
             
             int64_t l_min_sig_count;
             if(!s_json_get_int64_uint64(a_json_item_obj, "min_sig_count", &l_min_sig_count, true)) {
+                dap_json_rpc_error_add(a_json_item_obj, -1, "Bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
             }
@@ -1309,18 +1311,21 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
             // Read owner public key hashes array
             struct json_object *l_json_pkey_hashes = json_object_object_get(a_json_item_obj, "owner_pkey_hashes");
             if(!l_json_pkey_hashes || !json_object_is_type(l_json_pkey_hashes, json_type_array)) {
+                dap_json_rpc_error_add(a_json_item_obj, -1, "Bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
             }
             
             size_t l_pkey_hashes_count = json_object_array_length(l_json_pkey_hashes);
             if(l_pkey_hashes_count == 0) {
+                dap_json_rpc_error_add(a_json_item_obj, -1, "Empty owner_pkey_hashes array in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: empty owner_pkey_hashes array in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
             }
             
             dap_hash_fast_t *l_pkey_hashes = DAP_NEW_Z_SIZE(dap_hash_fast_t, l_pkey_hashes_count * sizeof(dap_hash_fast_t));
             if(!l_pkey_hashes) {
+                dap_json_rpc_error_add(a_json_item_obj, -1, "Memory allocation error for pkey_hashes");
                 log_it(L_ERROR, "Json TX: memory allocation error for pkey_hashes");
                 break;
             }
@@ -1329,12 +1334,14 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
             for(size_t j = 0; j < l_pkey_hashes_count; j++) {
                 struct json_object *l_json_hash = json_object_array_get_idx(l_json_pkey_hashes, j);
                 if(!l_json_hash || !json_object_is_type(l_json_hash, json_type_string)) {
+                    dap_json_rpc_error_add(a_json_item_obj, -1, "Invalid pkey hash at index %zu", j);
                     log_it(L_ERROR, "Json TX: invalid pkey hash at index %zu", j);
                     l_pkey_hashes_valid = false;
                     break;
                 }
                 const char *l_hash_str = json_object_get_string(l_json_hash);
                 if(dap_chain_hash_fast_from_str(l_hash_str, l_pkey_hashes + j)) {
+                    dap_json_rpc_error_add(a_json_item_obj, -1, "Can't parse pkey hash '%s' at index %zu", l_hash_str, j);
                     log_it(L_ERROR, "Json TX: can't parse pkey hash '%s' at index %zu", l_hash_str, j);
                     l_pkey_hashes_valid = false;
                     break;
