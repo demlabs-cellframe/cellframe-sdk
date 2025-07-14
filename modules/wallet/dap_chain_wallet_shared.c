@@ -46,6 +46,8 @@ static char s_wallet_shared_gdb_group[] = "local.wallet_shared";
  * @details Used for storing multiple public key hashes with versioning support
  */
 typedef struct shared_hold_tx_hashes {
+    int type;  // wallet or cert
+    char name[DAP_CERT_ITEM_NAME_MAX];
     size_t tx_hashes_count;               // Number of hashes in the collection
     dap_hash_fast_t hashes[];           // Pointer to array of public key hashes
 } shared_hold_tx_hashes_t;
@@ -335,9 +337,12 @@ static int s_collect_wallet_pkey_hashes()
                     log_it(L_WARNING, "Failed to get public key hash from wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
                     continue;
                 }
+                shared_hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(shared_hold_tx_hashes_t, sizeof(shared_hold_tx_hashes_t), -1);
+                l_shared_hashes->type = 0;
+                dap_strncpy(l_shared_hashes->name, l_dir_entry->d_name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_dir_entry->d_name)));
                 log_it(L_DEBUG, "Added wallet '%s' hash: %s", l_dir_entry->d_name, dap_hash_fast_to_str_static(&l_pkey_hash));
                 dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
-                    NULL, 0, false);
+                    l_shared_hashes, sizeof(shared_hold_tx_hashes_t), false);
             } else {
                 log_it(L_WARNING, "Cannot open wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
             }
@@ -362,7 +367,11 @@ static int s_collect_cert_pkey_hashes()
     for (dap_list_t *l_item = l_certs_list; l_item; l_item = l_item->next) {
         dap_cert_t *l_cert = (dap_cert_t *)l_item->data;
         if (!l_cert || !l_cert->enc_key) {
-            log_it(L_WARNING, "Invalid certificate or encryption key");
+            log_it(L_WARNING, "Invalid certificate or encryption key in certificate %s", l_cert->name);
+            continue;
+        }
+        if (!l_cert->enc_key->priv_key_data_size || !l_cert->enc_key->priv_key_data) {
+            log_it(L_DEBUG, "Certificate %s without private data ignored", l_cert->name);
             continue;
         }
         dap_hash_fast_t l_pkey_hash;
@@ -370,11 +379,14 @@ static int s_collect_cert_pkey_hashes()
             log_it(L_WARNING, "Failed to get public key hash from certificate '%s'", l_cert->name);
             continue;
         }
+        shared_hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(shared_hold_tx_hashes_t, sizeof(shared_hold_tx_hashes_t), -1);
+        l_shared_hashes->type = 1;
+        dap_strncpy(l_shared_hashes->name, l_cert->name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_cert->name)));
         dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
-                    NULL, 0, false);
+                    l_shared_hashes, sizeof(shared_hold_tx_hashes_t), false);
         log_it(L_DEBUG, "Added certificate '%s' hash: %s", l_cert->name, dap_hash_fast_to_str_static(&l_pkey_hash));
     }  
-    dap_list_free_full(l_certs_list, NULL);
+    dap_list_free(l_certs_list);
     return 0;
 }
 
@@ -1349,6 +1361,8 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         json_object *l_jobj_item = json_object_new_object();
         json_object_array_add(*a_json_arr_reply, l_jobj_item);
         json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_values[i].key));
+        json_object_object_add(l_jobj_item, "type", json_object_new_int(l_hold_hashes->type));
+        json_object_object_add(l_jobj_item, "name", json_object_new_string(l_hold_hashes->name));
         if (!l_hold_hashes)
             continue;
         json_object *l_jobj_hold_hashes = json_object_new_array();
@@ -1383,14 +1397,18 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, i
                                 "Invalid parameter -H, valid values: -H <hex | base58>");
         return ERROR_PARAM;
     }
-    int l_err_net_chain = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TX);
-    if (l_err_net_chain)
-        return l_err_net_chain;
+
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "list", NULL))
+        return s_cli_list(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, NULL, NULL, l_hash_out_type);
 
     if (dap_chain_net_get_load_mode(l_net)) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_NETWORK, "Can't apply command while network in load mode");
         return ERROR_NETWORK;
     }
+
+    int l_err_net_chain = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TX);
+    if (l_err_net_chain)
+        return l_err_net_chain;
 
     if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "hold", NULL))
         return s_cli_hold(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
@@ -1402,8 +1420,6 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, i
         return s_cli_sign(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "info", NULL))
         return s_cli_info(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "list", NULL))
-        return s_cli_list(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
     else {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_SUBCOMMAND, "Subcommand %s not recognized", a_argv[l_arg_index]);
         return ERROR_SUBCOMMAND;
@@ -1420,17 +1436,18 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx)
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             size_t l_tx_hashes_count = 0;
-            shared_hold_tx_hashes_t *l_shared_hashes = (shared_hold_tx_hashes_t *)dap_global_db_get_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(l_tsd->data), NULL, 0, false);
+            size_t l_shared_hashes_size = sizeof(shared_hold_tx_hashes_t);
+            shared_hold_tx_hashes_t *l_shared_hashes = (shared_hold_tx_hashes_t *)dap_global_db_get_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(l_tsd->data), &l_shared_hashes_size, 0, false);
             if (!l_shared_hashes) {
-                l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(shared_hold_tx_hashes_t, sizeof(shared_hold_tx_hashes_t) + sizeof(dap_hash_fast_t), -1);
-                l_shared_hashes->tx_hashes_count = 1;
-            } else {
-                l_shared_hashes->tx_hashes_count++;
-                l_shared_hashes = DAP_REALLOC(l_shared_hashes, l_shared_hashes->tx_hashes_count * sizeof(dap_hash_fast_t));
+                continue;
             }
+            l_shared_hashes_size += sizeof(dap_hash_fast_t);
+            l_shared_hashes->tx_hashes_count++;
+            l_shared_hashes = DAP_REALLOC(l_shared_hashes, l_shared_hashes_size);
             l_shared_hashes->hashes[l_shared_hashes->tx_hashes_count - 1] = dap_chain_node_datum_tx_calc_hash(a_tx);
+            log_it(L_DEBUG, "Added tx hash to shared hashes: %s", dap_hash_fast_to_str_static(&l_shared_hashes->hashes[l_shared_hashes->tx_hashes_count - 1]));
             
-            dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(l_tsd->data), l_shared_hashes, sizeof(shared_hold_tx_hashes_t) + l_tx_hashes_count * sizeof(dap_hash_fast_t), false);
+            dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(l_tsd->data), l_shared_hashes, l_shared_hashes_size, false);
         }
     }
     return 0;
