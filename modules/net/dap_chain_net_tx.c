@@ -34,12 +34,14 @@
 #include "dap_list.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_shared.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "json.h"
 #include "dap_chain_net_srv.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_cs_blocks.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_chain_net_tx"
 
@@ -1267,7 +1269,9 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: {
             uint256_t l_value = { };
             s_json_get_uint256(a_json_item_obj, "value", &l_value);
-            if(!IS_ZERO_256(l_value)) {
+            uint256_t l_min = { };
+            dap_chain_net_srv_stake_get_fee_validators(a_net, NULL, NULL, &l_min, NULL);
+            if(!IS_ZERO_256(l_value) && compare256(l_value, l_min) >= 0) {
                 if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK){
                     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_fee(l_value);
                     return (const uint8_t*) l_out_cond_item;
@@ -1281,9 +1285,111 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
                         dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create conditional out for transaction "
                                                         "can of type %s described in item %zu.", l_subtype_str, i);
                 }
+            } else {
+                char *l_fee_value_str = dap_chain_balance_print(l_value);
+                char *l_fee_min_str = dap_chain_balance_print(l_min);
+                dap_json_rpc_error_add(a_json_item_obj, -1, "Fee value %s less than minimum value %s", l_fee_value_str, l_fee_min_str);
+                log_it(L_ERROR, "Json TX: low value (%s) in OUT_COND_SUBTYPE_FEE (min = %s)", l_fee_value_str, l_fee_min_str);
+                DAP_DEL_MULTY(l_fee_min_str, l_fee_value_str);
             }
-            else
-                log_it(L_ERROR, "Json TX: zero value in OUT_COND_SUBTYPE_FEE");
+        } break;
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
+            uint256_t l_value = { };
+            if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_WALLET_SHARED");
+                break;
+            }
+            
+            int64_t l_min_sig_count;
+            if(!s_json_get_int64_uint64(a_json_item_obj, "min_sig_count", &l_min_sig_count, true)) {
+                log_it(L_ERROR, "Json TX: bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
+                break;
+            }
+            
+            // Read owner public key hashes array
+            struct json_object *l_json_pkey_hashes = json_object_object_get(a_json_item_obj, "owner_pkey_hashes");
+            if(!l_json_pkey_hashes || !json_object_is_type(l_json_pkey_hashes, json_type_array)) {
+                log_it(L_ERROR, "Json TX: bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
+                break;
+            }
+            
+            size_t l_pkey_hashes_count = json_object_array_length(l_json_pkey_hashes);
+            if(l_pkey_hashes_count == 0) {
+                log_it(L_ERROR, "Json TX: empty owner_pkey_hashes array in OUT_COND_SUBTYPE_WALLET_SHARED");
+                break;
+            }
+            
+            dap_hash_fast_t *l_pkey_hashes = DAP_NEW_Z_SIZE(dap_hash_fast_t, l_pkey_hashes_count * sizeof(dap_hash_fast_t));
+            if(!l_pkey_hashes) {
+                log_it(L_ERROR, "Json TX: memory allocation error for pkey_hashes");
+                break;
+            }
+            
+            bool l_pkey_hashes_valid = true;
+            for(size_t j = 0; j < l_pkey_hashes_count; j++) {
+                struct json_object *l_json_hash = json_object_array_get_idx(l_json_pkey_hashes, j);
+                if(!l_json_hash || !json_object_is_type(l_json_hash, json_type_string)) {
+                    log_it(L_ERROR, "Json TX: invalid pkey hash at index %zu", j);
+                    l_pkey_hashes_valid = false;
+                    break;
+                }
+                const char *l_hash_str = json_object_get_string(l_json_hash);
+                if(dap_chain_hash_fast_from_str(l_hash_str, l_pkey_hashes + j)) {
+                    log_it(L_ERROR, "Json TX: can't parse pkey hash '%s' at index %zu", l_hash_str, j);
+                    l_pkey_hashes_valid = false;
+                    break;
+                }
+            }
+            
+            if(!l_pkey_hashes_valid) {
+                DAP_DELETE(l_pkey_hashes);
+                break;
+            }
+            
+            // Read optional tags array
+            char *l_tag_str = NULL;
+            struct json_object *l_json_tags = json_object_object_get(a_json_item_obj, "tags");
+            if(l_json_tags && json_object_is_type(l_json_tags, json_type_array)) {
+                size_t l_tags_count = json_object_array_length(l_json_tags);
+                if(l_tags_count > 0) {
+                    // form one string from all tags elements using dap_string_t
+                    dap_string_t *l_tags_string = dap_string_new(NULL);
+                    
+                    for(size_t j = 0; j < l_tags_count; j++) {
+                        struct json_object *l_json_tag = json_object_array_get_idx(l_json_tags, j);
+                        if(l_json_tag && json_object_is_type(l_json_tag, json_type_string)) {
+                            const char *l_tag_value = json_object_get_string(l_json_tag);
+                            if(l_tag_value) {
+                                if(j > 0) {
+                                    dap_string_append_c(l_tags_string, ' ');
+                                }
+                                dap_string_append(l_tags_string, l_tag_value);
+                            }
+                        }
+                    }
+                    l_tag_str = l_tags_string->str;
+                    dap_string_free(l_tags_string, false);
+                }
+            }
+            
+            dap_chain_net_srv_uid_t l_srv_uid;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+                // Default service for wallet shared
+                l_srv_uid.uint64 = DAP_CHAIN_WALLET_SHARED_ID;
+            }
+            
+            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared(
+                l_srv_uid, l_value, (uint32_t)l_min_sig_count, l_pkey_hashes, l_pkey_hashes_count, l_tag_str);
+            
+            DAP_DEL_MULTY(l_pkey_hashes, l_tag_str);
+            
+            if(l_out_cond_item) {
+                SUM_256_256(*a_value_need, l_value, a_value_need);
+                return (const uint8_t*) l_out_cond_item;
+            } else {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -10, "Unable to create conditional out for transaction "
+                                                    "of type %s described in item %zu.", l_subtype_str, i);
+            }
         } break;
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED:{
             log_it(L_WARNING, "Undefined subtype: '%s' of 'out_cond' item %zu ", l_subtype_str, i);
@@ -2043,7 +2149,9 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: {
                 uint256_t l_value = { };
                 s_json_get_uint256(l_json_item_obj, "value", &l_value);
-                if(!IS_ZERO_256(l_value)) {
+                uint256_t l_min = { };
+                dap_chain_net_srv_stake_get_fee_validators(a_net, NULL, NULL, &l_min, NULL);
+                if(!IS_ZERO_256(l_value) && compare256(l_value, l_min) >= 0) {
                     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_fee(l_value);
                     l_item = (const uint8_t*) l_out_cond_item;
                     // Save value for using in In item
@@ -2056,11 +2164,14 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
                         DAP_DELETE(l_str_err);
                     }
+                } else {
+                    char *l_fee_value_str = dap_chain_balance_print(l_value);
+                    char *l_fee_min_str = dap_chain_balance_print(l_min);
+                    dap_json_rpc_error_add(l_jobj_errors, -10, "Fee value %s less than minimum value %s", l_fee_value_str, l_fee_min_str);
+                    log_it(L_ERROR, "Json TX: low value (%s) in OUT_COND_SUBTYPE_FEE (min = %s)", l_fee_value_str, l_fee_min_str);
+                    DAP_DEL_MULTY(l_fee_min_str, l_fee_value_str);
                 }
-                else
-                    log_it(L_ERROR, "Json TX: zero value in OUT_COND_SUBTYPE_FEE");
-            }
-                break;
+            } break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED:
                 log_it(L_WARNING, "Undefined subtype: '%s' of 'out_cond' item %zu ", l_subtype_str, i);
                 char *l_str_err = dap_strdup_printf("Specified unknown sub type %s of conditional out on item %zu.",
@@ -2729,6 +2840,32 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                     char *l_reinvest_percent = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.reinvest_percent);
                     json_object_object_add(json_obj_item, "reinvest_percent", json_object_new_string(l_reinvest_percent));
                     DAP_DELETE(l_reinvest_percent);
+                } break;
+                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
+                    json_object_object_add(json_obj_item,"subtype", json_object_new_string("wallet_shared"));
+                    json_object_object_add(json_obj_item, "min_sig_count", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.wallet_shared.signers_minimum));
+                    json_object *l_jobj_pkey_hashes = json_object_new_array();
+                    json_object *l_jobj_tags = json_object_new_array();
+                    dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
+                    size_t l_tags_count = 0;
+                    size_t l_pkey_hashes_count = 0;
+                    dap_tsd_iter(l_tsd, l_tsd_size, ((dap_chain_tx_out_cond_t*)item)->tsd, ((dap_chain_tx_out_cond_t*)item)->tsd_size) {
+                        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
+                            json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
+                            l_pkey_hashes_count++;
+                        }
+                        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR) {
+                            json_object_array_add(l_jobj_tags, json_object_new_string((char*)(l_tsd->data)));
+                            l_tags_count++;
+                        }
+                    }
+                    if (!l_pkey_hashes_count) {
+                        log_it(L_ERROR, "Wallet shared condition has no owner pkey hashes");
+                    }
+                    json_object_object_add(json_obj_item, "owner_pkey_hashes", l_jobj_pkey_hashes);
+                    if (l_tags_count > 0) {
+                        json_object_object_add(json_obj_item, "tags", l_jobj_tags);
+                    }
                 } break;
                 default: break;
             }

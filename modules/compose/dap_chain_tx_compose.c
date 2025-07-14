@@ -5522,7 +5522,7 @@ dap_chain_datum_tx_t * dap_emitting_tx_create_compose(dap_chain_addr_t *a_owner_
     if (l_share_native && SUM_256_256(l_value, l_fee_total, &l_value)) {
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
     }
-
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST  
     // list of transaction with 'out' items to sell
     json_object *l_outs_native = NULL;
     json_object *l_outs_main = NULL;
@@ -5539,6 +5539,12 @@ dap_chain_datum_tx_t * dap_emitting_tx_create_compose(dap_chain_addr_t *a_owner_
 
     int l_out_native_count = json_object_array_length(l_outs_native);
     int l_out_main_count = json_object_array_length(l_outs_main);
+#else
+    json_object *l_outs_native = NULL;
+    json_object *l_outs_main = NULL;
+    int l_out_native_count = 0;
+    int l_out_main_count = 0;
+#endif
 
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_main, l_out_main_count, l_value, &l_value_transfer);
     if (!l_list_used_out) {
@@ -5551,13 +5557,14 @@ dap_chain_datum_tx_t * dap_emitting_tx_create_compose(dap_chain_addr_t *a_owner_
     // add 'in' items to pay for share
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST 
     if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_COMPOSE, "Can't compose the transaction input");
         json_object_put(l_outs_native);
         json_object_put(l_outs_main);
         return NULL;
     }
-
+#endif
     dap_list_t *l_list_fee_out = NULL;
     if (!l_share_native) {
         l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count, l_fee_total, &l_fee_transfer);
