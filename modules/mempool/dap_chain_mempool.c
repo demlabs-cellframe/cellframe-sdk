@@ -808,6 +808,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
         return NULL;
     }
 
+
     dap_chain_datum_tx_t *l_tx_cond = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_final_hash);
     int l_out_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_cond_idx);
@@ -826,6 +827,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
     SUM_256_256(l_value_send, l_net_fee, &l_value_send);
     SUM_256_256(l_value_send, l_fee, &l_value_send);
+
     if (compare256(l_out_cond->header.value, l_value_send) < 0) {
         log_it(L_WARNING, "Requested conditioned transaction have no enough funds");
         if (a_ret_status)
@@ -875,7 +877,10 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     //add 'out_cond' item
     uint256_t l_new_val = {};
     uint256_t l_value_cond = l_out_cond->header.value;
+    log_it(L_DEBUG, "l_value_cond: %"DAP_UINT64_FORMAT_U", l_value_send: %"DAP_UINT64_FORMAT_U", l_new_val: %"DAP_UINT64_FORMAT_U"",
+           l_value_cond, l_value_send, l_new_val);
     SUBTRACT_256_256(l_value_cond, l_value_send, &l_new_val);
+    log_it(L_DEBUG, "l_new_val: %"DAP_UINT64_FORMAT_U"", l_new_val);
     if (!IS_ZERO_256(l_new_val)){
         dap_chain_tx_out_cond_t *l_new_out_cond = DAP_DUP_SIZE(l_out_cond, sizeof(dap_chain_tx_out_cond_t) + l_out_cond->tsd_size);
         l_new_out_cond->header.value = l_new_val;
