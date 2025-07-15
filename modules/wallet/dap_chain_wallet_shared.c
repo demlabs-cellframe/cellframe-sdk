@@ -41,16 +41,31 @@
 
 static char s_wallet_shared_gdb_group[] = "local.wallet_shared";
 
+typedef enum hash_file_type {
+    HASH_FILE_TYPE_WALLET = 0,
+    HASH_FILE_TYPE_CERT = 1,
+} hash_file_type_t;
+
+typedef enum tx_role {
+    TX_ROLE_CREATOR = 0,
+    TX_ROLE_OWNER = 1,
+} tx_role_t;
+
+typedef struct hold_tx_hash_item {
+    tx_role_t role;
+    dap_hash_fast_t hash;
+} hold_tx_hash_item_t;
+
 /**
  * @brief Structure for storing public key hashes collection
  * @details Used for storing multiple public key hashes with versioning support
  */
-typedef struct shared_hold_tx_hashes {
-    int type;  // wallet or cert
+typedef struct hold_tx_hashes {
+    hash_file_type_t type;  // wallet or cert
     char name[DAP_CERT_ITEM_NAME_MAX];
-    size_t tx_hashes_count;               // Number of hashes in the collection
-    dap_hash_fast_t hashes[];           // Pointer to array of public key hashes
-} shared_hold_tx_hashes_t;
+    size_t tx_count;               // Number of hashes in the collection
+    hold_tx_hash_item_t tx[];           // Pointer to array of public key hashes
+} hold_tx_hashes_t;
 
 enum emit_delegation_error {
     DAP_NO_ERROR = 0,
@@ -337,12 +352,12 @@ static int s_collect_wallet_pkey_hashes()
                     log_it(L_WARNING, "Failed to get public key hash from wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
                     continue;
                 }
-                shared_hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(shared_hold_tx_hashes_t, sizeof(shared_hold_tx_hashes_t), -1);
-                l_shared_hashes->type = 0;
+                hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(hold_tx_hashes_t, sizeof(hold_tx_hashes_t), -1);
+                l_shared_hashes->type = HASH_FILE_TYPE_WALLET;
                 dap_strncpy(l_shared_hashes->name, l_dir_entry->d_name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_dir_entry->d_name) - 8));
                 log_it(L_DEBUG, "Added wallet '%s' hash: %s", l_dir_entry->d_name, dap_hash_fast_to_str_static(&l_pkey_hash));
                 dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
-                    l_shared_hashes, sizeof(shared_hold_tx_hashes_t), false);
+                    l_shared_hashes, sizeof(hold_tx_hashes_t), false);
             } else {
                 log_it(L_WARNING, "Cannot open wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
             }
@@ -379,11 +394,11 @@ static int s_collect_cert_pkey_hashes()
             log_it(L_WARNING, "Failed to get public key hash from certificate '%s'", l_cert->name);
             continue;
         }
-        shared_hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(shared_hold_tx_hashes_t, sizeof(shared_hold_tx_hashes_t), -1);
-        l_shared_hashes->type = 1;
+        hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(hold_tx_hashes_t, sizeof(hold_tx_hashes_t), -1);
+        l_shared_hashes->type = HASH_FILE_TYPE_CERT;
         dap_strncpy(l_shared_hashes->name, l_cert->name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_cert->name)));
         dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
-                    l_shared_hashes, sizeof(shared_hold_tx_hashes_t), false);
+                    l_shared_hashes, sizeof(hold_tx_hashes_t), false);
         log_it(L_DEBUG, "Added certificate '%s' hash: %s", l_cert->name, dap_hash_fast_to_str_static(&l_pkey_hash));
     }  
     dap_list_free(l_certs_list);
@@ -1353,9 +1368,9 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
 
     for (size_t i = 0; i < l_values_count; i++) {
         json_object *l_jobj_item = json_object_new_object();
-        shared_hold_tx_hashes_t *l_hold_hashes = NULL;
+        hold_tx_hashes_t *l_hold_hashes = NULL;
         if (!l_filter_count) {
-            l_hold_hashes = (shared_hold_tx_hashes_t *)l_values[i].value;
+            l_hold_hashes = (hold_tx_hashes_t *)l_values[i].value;
             json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_values[i].key));
             json_object_object_add(l_jobj_item, "type", json_object_new_string(l_hold_hashes->type ? "cert" : "wallet"));
             json_object_object_add(l_jobj_item, "name", json_object_new_string(l_hold_hashes->name));
@@ -1364,23 +1379,26 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
             json_object_object_add(l_jobj_item, "type", json_object_new_string(l_cert_name ? "cert" : l_wallet_name ? "wallet" : "other"));
             json_object_object_add(l_jobj_item, "name", json_object_new_string(l_cert_name ? l_cert_name : l_wallet_name ? l_wallet_name : "other"));
         }
-        
+        json_object *l_jobj_nets_hashes = json_object_new_object();
         for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
             if (!dap_strcmp(l_item->data, s_wallet_shared_gdb_group))
                 continue;
             if (l_net && dap_strcmp((char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_net_name))
                 continue;
-            shared_hold_tx_hashes_t *l_hold_hashes_by_name = dap_global_db_get_sync(l_item->data, l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key, NULL, NULL, NULL);
+            hold_tx_hashes_t *l_hold_hashes_by_name = dap_global_db_get_sync(l_item->data, l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key, NULL, NULL, NULL);
             if (l_hold_hashes_by_name) {
-                json_object *l_jobj_hold_hashes = json_object_new_array();
-                for (size_t j = 0; j < l_hold_hashes_by_name->tx_hashes_count; j++) {
-                    json_object_array_add(l_jobj_hold_hashes, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes_by_name->hashes[j])));
+                json_object *l_jobj_owned_tx = json_object_new_array();
+                json_object *l_jobj_created_tx = json_object_new_array();
+                for (size_t j = 0; j < l_hold_hashes_by_name->tx_count; j++) {
+                    json_object_array_add(l_hold_hashes_by_name->tx[j].role == TX_ROLE_OWNER ? l_jobj_owned_tx : l_jobj_created_tx, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
                 }
-                json_object *l_jobj_hold_hashes_item = json_object_new_object();
-                json_object_object_add(l_jobj_hold_hashes_item, (char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_jobj_hold_hashes);
-                json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_hold_hashes_item);
+                json_object *l_jobj_hashes = json_object_new_object();
+                json_object_object_add(l_jobj_hashes, "owner", l_jobj_owned_tx);
+                json_object_object_add(l_jobj_hashes, "creator", l_jobj_created_tx);
+                json_object_object_add(l_jobj_nets_hashes, (char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_jobj_hashes);
             }
         }
+        json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_nets_hashes);
         json_object_array_add(*a_json_arr_reply, l_jobj_item);
     }
     dap_store_obj_free(l_values, l_values_count);
@@ -1439,6 +1457,28 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, i
     }
 }
 
+static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_hash_fast_t *a_hash, tx_role_t a_role)
+{
+    size_t l_tx_hashes_count = 0;
+    size_t l_shared_hashes_size = 0;
+    const char *l_hash_str = dap_hash_fast_to_str_static(a_hash);
+    hold_tx_hashes_t *l_shared_hashes = (hold_tx_hashes_t *)dap_global_db_get_sync(a_group, l_hash_str, &l_shared_hashes_size, 0, false);
+    if (!l_shared_hashes) {
+        l_shared_hashes_size = sizeof(hold_tx_hashes_t) + sizeof(hold_tx_hash_item_t);
+        l_shared_hashes = DAP_NEW_Z_SIZE_RET_IF_FAIL(hold_tx_hashes_t, l_shared_hashes_size);
+    } else {
+        l_shared_hashes_size += sizeof(hold_tx_hash_item_t);
+        l_shared_hashes = DAP_REALLOC(l_shared_hashes, l_shared_hashes_size);
+    }
+    l_shared_hashes->tx[l_shared_hashes->tx_count].hash = dap_chain_node_datum_tx_calc_hash(a_tx);
+    l_shared_hashes->tx[l_shared_hashes->tx_count].role = a_role;
+    l_shared_hashes->tx_count++;
+    log_it(L_DEBUG, "Added tx hash as %s to shared hashes: %s", a_role == TX_ROLE_CREATOR ? "creator" : "owner", dap_hash_fast_to_str_static(&l_shared_hashes->tx[l_shared_hashes->tx_count - 1].hash));
+    
+    dap_global_db_set_sync(a_group, l_hash_str, l_shared_hashes, l_shared_hashes_size, false);
+    DAP_DELETE(l_shared_hashes);
+}
+
 int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_net_name)
 {
     dap_return_val_if_pass(!a_net_name || !a_tx, ERROR_PARAM);
@@ -1448,23 +1488,16 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
     }
     dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
     char *l_group = dap_strdup_printf("%s.%s", s_wallet_shared_gdb_group, a_net_name);
+
+    dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(a_tx, 0);
+    dap_hash_fast_t l_hash = {0};
+    //  add creator hash
+    dap_sign_get_pkey_hash(l_sig, &l_hash);
+    s_hold_tx_add(a_tx, l_group, &l_hash, TX_ROLE_CREATOR);
+    //  add owner hashes
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
-            size_t l_tx_hashes_count = 0;
-            size_t l_shared_hashes_size = 0;
-            shared_hold_tx_hashes_t *l_shared_hashes = (shared_hold_tx_hashes_t *)dap_global_db_get_sync(l_group, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), &l_shared_hashes_size, 0, false);
-            if (!l_shared_hashes) {
-                l_shared_hashes_size = sizeof(shared_hold_tx_hashes_t) + sizeof(dap_hash_fast_t);
-                l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(shared_hold_tx_hashes_t, l_shared_hashes_size, ERROR_MEMORY, l_group);
-            } else {
-                l_shared_hashes_size += sizeof(dap_hash_fast_t);
-                l_shared_hashes = DAP_REALLOC(l_shared_hashes, l_shared_hashes_size);
-            }
-            l_shared_hashes->hashes[l_shared_hashes->tx_hashes_count] = dap_chain_node_datum_tx_calc_hash(a_tx);
-            l_shared_hashes->tx_hashes_count++;
-            log_it(L_DEBUG, "Added tx hash to shared hashes: %s", dap_hash_fast_to_str_static(&l_shared_hashes->hashes[l_shared_hashes->tx_hashes_count - 1]));
-            
-            dap_global_db_set_sync(l_group, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), l_shared_hashes, l_shared_hashes_size, false);
+            s_hold_tx_add(a_tx, l_group, (dap_hash_fast_t *)l_tsd->data, TX_ROLE_OWNER);
         }
     }
     DAP_DELETE(l_group);
