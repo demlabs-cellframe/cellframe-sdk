@@ -480,11 +480,6 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version);
  */
 int com_policy(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
-/**
- * Display wallet shared filter hashes (temporary command)
- */
-int com_hashes(int a_argc, char **a_argv, void **a_str_reply);
-
 #ifdef __cplusplus
 }
 #endif

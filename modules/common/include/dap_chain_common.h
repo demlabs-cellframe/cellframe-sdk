@@ -251,12 +251,6 @@ int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
 void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count, bool a_last);
 
-// GDB filtering functions
-//int dap_chain_write_wallet_shared_datum_by_pkey(dap_chain_datum_tx_t *a_tx, const dap_hash_fast_t *a_pkey_hash, const char *a_gdb_group);
-int dap_chain_read_wallet_shared_datums_from_gdb_json(json_object *a_json_arr_out, const char *a_gdb_group, const dap_hash_fast_t *a_pkey_hash, const char *a_hash_out_type);
-json_object *dap_chain_get_wallet_shared_datums_json(const char *a_gdb_group, const dap_hash_fast_t *a_pkey_hash, const char *a_hash_out_type);
-int dap_chain_clear_gdb_group(const char *a_gdb_group);
-
 DAP_STATIC_INLINE bool dap_chain_addr_compare(const dap_chain_addr_t *a_addr1, const dap_chain_addr_t *a_addr2)
 {
     return !memcmp(a_addr1, a_addr2, sizeof(dap_chain_addr_t));
