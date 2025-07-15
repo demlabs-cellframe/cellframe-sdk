@@ -63,17 +63,11 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     for (size_t i = 0; i < l_signs_count; ++i) {
         int l_rand_data = rand();
         // Use valid TSD types instead of random values
-        int l_tsd_type = (i % 2 == 0) ? DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_DATA : DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TIMESTAMP;
-        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, l_tsd_type, sizeof(l_rand_data));
-        if (l_tsd->header.size != sizeof(dap_time_t)) {
-            log_it(L_WARNING, "Invalid expire time size");
-            DAP_DEL_Z(l_tsd);
-            continue;
-        }
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand(), sizeof(l_rand_data));
         dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
         DAP_DEL_Z(l_tsd);
     }
-    l_signs_count = rand() % KEY_COUNT + 3;
+    l_signs_count = rand() % KEY_COUNT + 1;
     dap_test_msg("add %zu signs", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
@@ -294,6 +288,27 @@ void s_chain_datum_shared_funds_hold_test()
     DAP_DEL_MULTY(l_owner_hashes, l_rand_tag);
 }
 
+void s_chain_datum_shared_funds_refill_test()
+{
+    dap_print_module_name("tx_shared_funds_refill_compose");
+    size_t l_signs_count = rand() % KEY_COUNT + 1;
+    dap_test_msg("add %zu tsd sections", l_signs_count);
+    dap_list_t *l_tsd_list = NULL;
+    for (size_t i = 0; i < l_signs_count; ++i) {
+        int l_rand_data = rand();
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand(), sizeof(l_rand_data));
+        l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+    }
+
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_wallet_shared_refilling_tx_create_compose(
+        &s_data->addr_from, s_data->value, s_data->value_fee,
+        &s_data->hash_1, l_tsd_list, &s_data->config);
+    dap_assert(l_datum_1, "tx_shared_funds_refill_compose");
+    dap_list_free_full(l_tsd_list, NULL);
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+}
+
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
@@ -331,6 +346,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_vote_voting_test();
     s_chain_datum_shared_funds_hold_test();
     // s_chain_datum_shared_funds_take_test();
+    s_chain_datum_shared_funds_refill_test();
 
     if (s_data->config.response_handler) {
         json_object_put(s_data->config.response_handler);
