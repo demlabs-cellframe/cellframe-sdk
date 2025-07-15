@@ -1265,18 +1265,26 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     const char *l_addr_str = NULL;
     const char *l_wallet_name = NULL;
     const char *l_cert_name = NULL;
+    const char *l_net_name = NULL;
     
     // Check for optional filter parameters
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey", &l_pkey_hash_str);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-addr", &l_addr_str);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_name);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_name);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_name);
 
     // Check for mutually exclusive parameters
     int l_filter_count = (bool)l_pkey_hash_str + (bool)l_addr_str + (bool)l_wallet_name + (bool)l_cert_name;
     if (l_filter_count > 1) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, 
             "Parameters -pkey, -addr, -w, and -cert are mutually exclusive");
+        return ERROR_PARAM;
+    }
+
+    dap_chain_net_t *l_net = NULL;
+    if (l_net_name && !(l_net = dap_chain_net_by_name(l_net_name)) ) { // Can't find such network
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Network %s not found", l_net_name);
         return ERROR_PARAM;
     }
     
@@ -1377,6 +1385,8 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         
         for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
             if (!dap_strcmp(l_item->data, s_wallet_shared_gdb_group))
+                continue;
+            if (l_net && dap_strcmp((char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_net_name))
                 continue;
             shared_hold_tx_hashes_t *l_hold_hashes_by_name = dap_global_db_get_sync(l_item->data, l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key, NULL, NULL, NULL);
             if (l_hold_hashes_by_name) {
