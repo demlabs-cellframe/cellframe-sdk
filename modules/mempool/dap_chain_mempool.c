@@ -877,7 +877,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     //add 'out_cond' item
     uint256_t l_new_val = {};
     uint256_t l_value_cond = l_out_cond->header.value;
-    log_it(L_DEBUG, "l_value_cond: %"DAP_UINT64_FORMAT_U", l_value_send: %"DAP_UINT64_FORMAT_U", l_new_val: %"DAP_UINT64_FORMAT_U"",
+    log_it(L_DEBUG, "l_value_cond: %"s", l_value_send: %"s", l_new_val: %"s"",
            dap_chain_balance_to_coins(l_value_cond), dap_chain_balance_to_coins(l_value_send), dap_chain_balance_to_coins(l_new_val));
     SUBTRACT_256_256(l_value_cond, l_value_send, &l_new_val);
     log_it(L_DEBUG, "l_new_val: %s", dap_chain_balance_to_coins(l_new_val));
