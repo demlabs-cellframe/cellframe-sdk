@@ -1229,12 +1229,16 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     json_object_object_add(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
     // result block
+    dap_hash_fast_t l_creator_hash = {0};
+    dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, 0);
+    dap_sign_get_pkey_hash(l_sig, &l_creator_hash);
     json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_tx_hash) : dap_hash_fast_to_str_static(&l_tx_hash)));
     json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) : dap_hash_fast_to_str_static(&l_final_tx_hash)));
     json_object_object_add(l_json_jobj_info, "tags", l_jobj_tags);
     json_object_object_add(l_json_jobj_info, "balance", l_jobj_balance);
-    json_object_object_add(l_json_jobj_info, "take_verify", l_jobj_take_verify);
     json_object_object_add(l_json_jobj_info, "token", l_jobj_token);
+    json_object_object_add(l_json_jobj_info, "creator", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_creator_hash) : dap_hash_fast_to_str_static(&l_creator_hash)));
+    json_object_object_add(l_json_jobj_info, "take_verify", l_jobj_take_verify);
     json_object_object_add(l_json_jobj_info, "waiting_operations_count", json_object_new_int(l_waiting_operations_count));
     json_object_object_add(l_json_jobj_info, "waiting_operations_hashes", l_jobj_waiting_operations_hashes);
     
