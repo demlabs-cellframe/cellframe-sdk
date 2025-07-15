@@ -339,7 +339,7 @@ static int s_collect_wallet_pkey_hashes()
                 }
                 shared_hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(shared_hold_tx_hashes_t, sizeof(shared_hold_tx_hashes_t), -1);
                 l_shared_hashes->type = 0;
-                dap_strncpy(l_shared_hashes->name, l_dir_entry->d_name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_dir_entry->d_name)));
+                dap_strncpy(l_shared_hashes->name, l_dir_entry->d_name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_dir_entry->d_name) - 8));
                 log_it(L_DEBUG, "Added wallet '%s' hash: %s", l_dir_entry->d_name, dap_hash_fast_to_str_static(&l_pkey_hash));
                 dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
                     l_shared_hashes, sizeof(shared_hold_tx_hashes_t), false);
@@ -1356,22 +1356,37 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
             "No wallet shared data found in GDB group %s", s_wallet_shared_gdb_group);
         return ERROR_MEMORY;
     }
+    dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
+    if (!l_groups_list) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't get groups from GDB bymask %s", s_wallet_shared_gdb_group);
+        return ERROR_VALUE;
+    }
+
     for (size_t i = 0; i < l_values_count; i++) {
         shared_hold_tx_hashes_t *l_hold_hashes = (shared_hold_tx_hashes_t *)l_values[i].value;
         json_object *l_jobj_item = json_object_new_object();
-        json_object_array_add(*a_json_arr_reply, l_jobj_item);
         json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_values[i].key));
-        json_object_object_add(l_jobj_item, "type", json_object_new_int(l_hold_hashes->type));
+        json_object_object_add(l_jobj_item, "type", json_object_new_string(l_hold_hashes->type ? "cert" : "wallet"));
         json_object_object_add(l_jobj_item, "name", json_object_new_string(l_hold_hashes->name));
-        if (!l_hold_hashes)
-            continue;
-        json_object *l_jobj_hold_hashes = json_object_new_array();
-        for (size_t j = 0; j < l_hold_hashes->tx_hashes_count; j++) {
-            json_object_array_add(l_jobj_hold_hashes, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes->hashes[j])));
+        
+        for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
+            if (!dap_strcmp(l_item->data, s_wallet_shared_gdb_group))
+                continue;
+            shared_hold_tx_hashes_t *l_hold_hashes_by_name = dap_global_db_get_sync(l_item->data, l_values[i].key, NULL, NULL, NULL);
+            if (l_hold_hashes_by_name) {
+                json_object *l_jobj_hold_hashes = json_object_new_array();
+                for (size_t j = 0; j < l_hold_hashes_by_name->tx_hashes_count; j++) {
+                    json_object_array_add(l_jobj_hold_hashes, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes_by_name->hashes[j])));
+                }
+                json_object *l_jobj_hold_hashes_item = json_object_new_object();
+                json_object_object_add(l_jobj_hold_hashes_item, (char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_jobj_hold_hashes);
+                json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_hold_hashes_item);
+            }
         }
-        json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_hold_hashes);
+        json_object_array_add(*a_json_arr_reply, l_jobj_item);
     }
     dap_store_obj_free(l_values, l_values_count);
+    DAP_DELETE(l_groups_list);
     return DAP_NO_ERROR;
 }
 
@@ -1426,30 +1441,35 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, i
     }
 }
 
-int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx)
+int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_net_name)
 {
+    dap_return_val_if_pass(!a_net_name || !a_tx, ERROR_PARAM);
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
     if (!l_cond) {
         return ERROR_TX_MISMATCH;
     }
     dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
+    char *l_group = dap_strdup_printf("%s.%s", s_wallet_shared_gdb_group, a_net_name);
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             size_t l_tx_hashes_count = 0;
-            size_t l_shared_hashes_size = sizeof(shared_hold_tx_hashes_t);
-            shared_hold_tx_hashes_t *l_shared_hashes = (shared_hold_tx_hashes_t *)dap_global_db_get_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(l_tsd->data), &l_shared_hashes_size, 0, false);
+            size_t l_shared_hashes_size = 0;
+            shared_hold_tx_hashes_t *l_shared_hashes = (shared_hold_tx_hashes_t *)dap_global_db_get_sync(l_group, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), &l_shared_hashes_size, 0, false);
             if (!l_shared_hashes) {
-                continue;
+                l_shared_hashes_size = sizeof(shared_hold_tx_hashes_t) + sizeof(dap_hash_fast_t);
+                l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(shared_hold_tx_hashes_t, l_shared_hashes_size, ERROR_MEMORY, l_group);
+            } else {
+                l_shared_hashes_size += sizeof(dap_hash_fast_t);
+                l_shared_hashes = DAP_REALLOC(l_shared_hashes, l_shared_hashes_size);
             }
-            l_shared_hashes_size += sizeof(dap_hash_fast_t);
+            l_shared_hashes->hashes[l_shared_hashes->tx_hashes_count] = dap_chain_node_datum_tx_calc_hash(a_tx);
             l_shared_hashes->tx_hashes_count++;
-            l_shared_hashes = DAP_REALLOC(l_shared_hashes, l_shared_hashes_size);
-            l_shared_hashes->hashes[l_shared_hashes->tx_hashes_count - 1] = dap_chain_node_datum_tx_calc_hash(a_tx);
             log_it(L_DEBUG, "Added tx hash to shared hashes: %s", dap_hash_fast_to_str_static(&l_shared_hashes->hashes[l_shared_hashes->tx_hashes_count - 1]));
             
-            dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(l_tsd->data), l_shared_hashes, l_shared_hashes_size, false);
+            dap_global_db_set_sync(l_group, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), l_shared_hashes, l_shared_hashes_size, false);
         }
     }
+    DAP_DELETE(l_group);
     return 0;
 }
 
@@ -1459,7 +1479,14 @@ int dap_chain_wallet_shared_init()
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
     dap_ledger_service_add(l_uid, "wallet shared", s_tag_check);
 
-    dap_global_db_erase_table_sync(s_wallet_shared_gdb_group);
+    dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
+    if (!l_groups_list) {
+        return ERROR_VALUE;
+    }
+    for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
+        dap_global_db_erase_table_sync(l_item->data);
+    }
+    dap_list_free(l_groups_list);
     s_collect_wallet_pkey_hashes();
     s_collect_cert_pkey_hashes();
     return 0;

@@ -1652,7 +1652,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             !dap_chain_datum_tx_item_get_tsd_by_type((dap_chain_datum_tx_t*)l_datum->data, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF) &&
             !dap_chain_datum_tx_item_get_tsd_by_type((dap_chain_datum_tx_t*)l_datum->data, DAP_CHAIN_WALLET_SHARED_TSD_REFILL)) {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
-            dap_chain_wallet_shared_hold_tx_add(l_tx);
+            dap_chain_wallet_shared_hold_tx_add(l_tx, a_blocks->chain->net_name);
         }
 
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED){ // If this is any datum other than a already cached transaction
