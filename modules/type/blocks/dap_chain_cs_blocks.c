@@ -923,6 +923,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                 json_object_object_add(json_obj_sign, "type",json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
                 json_object_object_add(json_obj_sign, "size",json_object_new_uint64(l_sign_size));
                 json_object_object_add(json_obj_sign, "pkey_hash",json_object_new_string(l_hash_str));
+                dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
+                uint256_t l_reward = l_chain->callback_calc_reward(l_chain, &l_block_cache->block_hash, l_pkey);
+                DAP_DELETE(l_pkey);
+                const char *l_reward_coins_str = NULL;
+                const char *l_reward_value_str = dap_uint256_to_char(l_reward, &l_reward_coins_str);
+                json_object* json_obj_reward = json_object_new_object();
+                json_object_object_add(json_obj_reward, "coins", json_object_new_string(l_reward_coins_str));
+                json_object_object_add(json_obj_reward, "value", json_object_new_string(l_reward_value_str));
+                json_object_object_add(json_obj_sign, "reward", json_obj_reward);
                 json_object_array_add(json_arr_sign_out, json_obj_sign);
             }
             json_object_array_add(*a_json_arr_reply, json_arr_sign_out);

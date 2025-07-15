@@ -40,8 +40,10 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_wallet_shared.h"
+#include "dap_chain_common.h"
 
 #include <json-c/json.h>
+#define LOG_TAG "dap_chain_tx_compose"
 
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
 #include "../../dap-sdk/crypto/src/rand/dap_rand.h"
@@ -5525,7 +5527,7 @@ dap_chain_datum_tx_t * dap_emitting_tx_create_compose(dap_chain_addr_t *a_owner_
     if (l_share_native && SUM_256_256(l_value, l_fee_total, &l_value)) {
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
     }
-
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST  
     // list of transaction with 'out' items to sell
     json_object *l_outs_native = NULL;
     json_object *l_outs_main = NULL;
@@ -5542,6 +5544,12 @@ dap_chain_datum_tx_t * dap_emitting_tx_create_compose(dap_chain_addr_t *a_owner_
 
     int l_out_native_count = json_object_array_length(l_outs_native);
     int l_out_main_count = json_object_array_length(l_outs_main);
+#else
+    json_object *l_outs_native = NULL;
+    json_object *l_outs_main = NULL;
+    int l_out_native_count = 0;
+    int l_out_main_count = 0;
+#endif
 
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_main, l_out_main_count, l_value, &l_value_transfer);
     if (!l_list_used_out) {
@@ -5554,13 +5562,14 @@ dap_chain_datum_tx_t * dap_emitting_tx_create_compose(dap_chain_addr_t *a_owner_
     // add 'in' items to pay for share
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST 
     if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_COMPOSE, "Can't compose the transaction input");
         json_object_put(l_outs_native);
         json_object_put(l_outs_main);
         return NULL;
     }
-
+#endif
     dap_list_t *l_list_fee_out = NULL;
     if (!l_share_native) {
         l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count, l_fee_total, &l_fee_transfer);
@@ -5719,7 +5728,7 @@ json_object * dap_wallet_shared_funds_refill_compose(const char * a_net_name, da
 dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_chain_addr_t *a_owner_addr, uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* a_tsd_items, compose_config_t *a_config)
 {
     if (!a_config || IS_ZERO_256(a_value) || IS_ZERO_256(a_fee)) return NULL;
-
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     json_object *l_json_ledger_info = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", dap_hash_fast_to_str_static(a_tx_in_hash), a_config->net_name);
     if (!l_json_ledger_info) {
         return NULL;
@@ -5742,6 +5751,9 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
     if (!l_tx_ticker) {
         return NULL;
     }
+#else
+    char *l_tx_ticker = dap_strdup("tBUZ");
+#endif
     const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
     bool l_refill_native = !dap_strcmp(l_native_ticker, l_tx_ticker);
     uint256_t l_value = a_value, l_value_transfer = {}, l_fee_transfer = {}; // how many coins to transfer
@@ -5753,17 +5765,21 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
     dap_chain_addr_t * l_addr_fee = NULL;
     bool l_net_fee_used = dap_get_remote_net_fee_and_address( &l_net_fee, &l_addr_fee, a_config);
     if (l_net_fee_used && SUM_256_256(l_net_fee, a_fee, &l_fee_total) ) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
         DAP_DELETE(l_tx_ticker);
         return NULL;
+#endif
     }
     if (l_refill_native && SUM_256_256(l_value, l_fee_total, &l_value)) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
         DAP_DELETE(l_tx_ticker);
         return NULL;
+#endif
     }
 
-
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     // list of transaction with 'out' items to sell
     json_object *l_outs_native = NULL;
     json_object *l_outs_main = NULL;
@@ -5781,6 +5797,12 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
 
     int l_out_native_count = json_object_array_length(l_outs_native);
     int l_out_main_count = json_object_array_length(l_outs_main);
+#else
+    int l_out_native_count = 0;
+    int l_out_main_count = 0;
+    json_object *l_outs_native = NULL;
+    json_object *l_outs_main = NULL;
+#endif
 
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_main, l_out_main_count, l_value, &l_value_transfer);
     if (!l_list_used_out) {
@@ -5794,6 +5816,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
     // add 'in' items to pay for share
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_COMPOSE, "Can't compose the transaction input");
         json_object_put(l_outs_native);
@@ -5801,7 +5824,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
         DAP_DELETE(l_tx_ticker);
         return NULL;
     }
-
+#endif
     dap_list_t *l_list_fee_out = NULL;
     if (!l_refill_native) {
         l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count, l_fee_total, &l_fee_transfer);
@@ -5814,6 +5837,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
         }
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
         dap_list_free_full(l_list_fee_out, NULL);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
             dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_COMPOSE, "Can't compose the fee transaction input");
             json_object_put(l_outs_native);
@@ -5821,8 +5845,9 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
             DAP_DELETE(l_tx_ticker);
             return NULL;
         }
+#endif
     }
-
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     json_object *l_json_shared_info = dap_request_command_to_rpc_with_params(a_config, "wallet", "shared;info;-tx;%s;-net;%s", dap_hash_fast_to_str_static(a_tx_in_hash), a_config->net_name);
     if (!l_json_shared_info) {
         DAP_DELETE(l_tx_ticker);
@@ -5872,7 +5897,23 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
         DAP_DELETE(l_tx_ticker);
         return NULL;
     }
-
+#else
+    dap_hash_fast_t l_final_tx_hash = {};
+    dap_chain_net_srv_uid_t l_srv_uid = {};
+    uint256_t l_value_out = {};
+    randombytes(&l_final_tx_hash, sizeof(dap_hash_fast_t));
+    randombytes(&l_srv_uid, sizeof(dap_chain_net_srv_uid_t));
+    randombytes(&l_value_out, sizeof(uint256_t));
+    int l_prev_cond_idx = rand();
+    size_t l_owner_hashes_count = rand() % 10 + 1;
+    size_t l_signs_min = rand() % l_owner_hashes_count + 1;
+    dap_hash_fast_t *l_owner_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_hash_fast_t, l_owner_hashes_count * sizeof(dap_hash_fast_t), NULL);
+    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count, NULL);
+    dap_random_string_fill(l_rand_tag, l_owner_hashes_count);
+    randombytes(l_owner_hashes, l_owner_hashes_count * sizeof(dap_hash_fast_t));
+    dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_item_out_cond_create_wallet_shared(l_srv_uid, l_value_out, l_signs_min, l_owner_hashes, l_owner_hashes_count, l_rand_tag);
+    DAP_DEL_MULTY(l_owner_hashes, l_rand_tag);
+#endif
     // add 'in_cond' item
     if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, -1) != 1) {
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_COMPOSE, "Can't compose the transaction conditional input");
@@ -5882,9 +5923,11 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
 
     uint256_t l_value_back = {};
     if(SUM_256_256(l_cond_prev->header.value, a_value, &l_value_back)) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         dap_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
         DAP_DELETE(l_tx_ticker);
         return NULL;
+#endif
     }
 
     dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size);
