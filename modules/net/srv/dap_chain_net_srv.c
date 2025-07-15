@@ -903,13 +903,20 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         default:
             break;
         }
+        log_it(L_DEBUG, "l_receipt_value_datoshi: %s, l_cond_out_value: %s",
+               dap_chain_balance_to_coins(l_receipt_value_datoshi), dap_chain_balance_to_coins(l_cond_out_value));
     }
 
+
+    log_it(L_DEBUG, "l_prev_out_cond->header.value: %s, l_receipt_value_datoshi: %s",
+           dap_chain_balance_to_coins(l_prev_out_cond->header.value), dap_chain_balance_to_coins(l_receipt_value_datoshi));
     if (SUBTRACT_256_256(l_prev_out_cond->header.value, l_receipt_value_datoshi, &l_receipt_value_datoshi)) {
         log_it(L_WARNING, "Integer overflow while payback calculation");
         return -14;
     }
 
+    log_it(L_DEBUG, "l_receipt_value_datoshi: %s, l_cond_out_value: %s",
+           dap_chain_balance_to_coins(l_receipt_value_datoshi), dap_chain_balance_to_coins(l_cond_out_value));
     return compare256(l_receipt_value_datoshi, l_cond_out_value) ? log_it(L_ERROR, "Value in tx out is invalid!"), -13 : 0;
 }
 

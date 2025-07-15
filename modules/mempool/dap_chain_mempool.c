@@ -877,10 +877,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     //add 'out_cond' item
     uint256_t l_new_val = {};
     uint256_t l_value_cond = l_out_cond->header.value;
-    log_it(L_DEBUG, "l_value_cond: %s, l_value_send: %s, l_new_val: %s",
-           dap_chain_balance_to_coins(l_value_cond), dap_chain_balance_to_coins(l_value_send), dap_chain_balance_to_coins(l_new_val));
     SUBTRACT_256_256(l_value_cond, l_value_send, &l_new_val);
-    log_it(L_DEBUG, "l_new_val: %s", dap_chain_balance_to_coins(l_new_val));
     if (!IS_ZERO_256(l_new_val)){
         dap_chain_tx_out_cond_t *l_new_out_cond = DAP_DUP_SIZE(l_out_cond, sizeof(dap_chain_tx_out_cond_t) + l_out_cond->tsd_size);
         l_new_out_cond->header.value = l_new_val;
