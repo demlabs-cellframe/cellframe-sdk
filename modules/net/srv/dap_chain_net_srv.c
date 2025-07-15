@@ -893,7 +893,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
             dap_chain_tx_out_std_t *l_tx_out = (dap_chain_tx_out_std_t*)l_item;
             l_out_addr = l_tx_out->addr;
             if (dap_chain_addr_compare(&l_out_addr, &l_network_fee_addr) &&
-                    SUM_256_256(l_receipt_value_datoshi, l_tx_out->header.value, &l_receipt_value_datoshi)) {
+                    SUM_256_256(l_receipt_value_datoshi, l_tx_out->value, &l_receipt_value_datoshi)) {
                 log_it(L_WARNING, "Integer overflow while sum of outs calculation");
                 return -14;
             }
