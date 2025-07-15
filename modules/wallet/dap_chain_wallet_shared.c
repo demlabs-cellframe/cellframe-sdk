@@ -1150,57 +1150,39 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
-    
-    if (l_objs && l_objs_count > 0) {
-        for (size_t i = 0; i < l_objs_count; i++) {
-            if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
-                continue;
-                
-            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
-                continue;
-                
-            dap_chain_datum_tx_t *l_tx_mempool = (dap_chain_datum_tx_t *)l_datum->data;
-            bool l_found_matching_input = false;
+    DAP_DELETE(l_mempool_group);
+
+    for (size_t i = 0; i < l_objs_count; ++i) {
+        if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
+            continue;
             
-            // Check if transaction has conditional input referencing our output
-            byte_t *l_item; 
-            size_t l_item_size;
-            TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
-                if (*l_item == TX_ITEM_TYPE_IN_COND) {
-                    dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
-                    if (dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_final_tx_hash)) {
-                        l_found_matching_input = true;
-                        break;
-                    }
-                }
-            }
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+            continue;
             
-            if (l_found_matching_input) {
-                // Extract signatures from transaction
-                TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
-                    if (*l_item == TX_ITEM_TYPE_SIG) {
-                        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)l_item;
-                        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-                        if (l_sign) {
-                            // Get public key hash from signature
-                            dap_hash_fast_t l_sign_pkey_hash = {0};
-                            if (dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash) == 0) {
-                                const char *l_pkey_hash_str = dap_strcmp(a_hash_out_type, "hex") ? 
-                                    dap_enc_base58_encode_hash_to_str_static(&l_sign_pkey_hash) : 
-                                    dap_hash_fast_to_str_static(&l_sign_pkey_hash);
-                                json_object_array_add(l_jobj_waiting_operations_hashes, 
-                                    json_object_new_string(l_pkey_hash_str));
-                                l_waiting_operations_count++;
-                            }
-                        }
-                    }
+        dap_chain_datum_tx_t *l_tx_mempool = (dap_chain_datum_tx_t *)l_datum->data;
+        bool l_found_matching_input = false;
+        
+        // Check if transaction has conditional input referencing our output
+        byte_t *l_item; 
+        size_t l_item_size;
+        TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
+            if (*l_item == TX_ITEM_TYPE_IN_COND) {
+                dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
+                if (dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_final_tx_hash)) {
+                    l_found_matching_input = true;
+                    break;
                 }
             }
         }
-        dap_global_db_objs_delete(l_objs, l_objs_count);
+        
+        if (l_found_matching_input) {
+            dap_hash_fast_t l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx_mempool);
+            json_object_array_add(l_jobj_waiting_operations_hashes, json_object_new_string(dap_hash_fast_to_str_static(&l_tx_hash)));
+            ++l_waiting_operations_count;
+        }
     }
-    DAP_DELETE(l_mempool_group);
+    dap_global_db_objs_delete(l_objs, l_objs_count);
     
     json_object *l_jobj_balance = json_object_new_object();
     json_object *l_jobj_token = json_object_new_object();
