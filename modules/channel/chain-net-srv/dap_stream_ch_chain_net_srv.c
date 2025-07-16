@@ -1097,21 +1097,23 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     DAP_DEL_Z(l_curr_grace_item->grace);
                     DAP_DEL_Z(l_curr_grace_item);
                     pthread_mutex_unlock(&l_srv->grace_mutex);
-                    // s_service_substate_pay_service(l_usage);
                     // Send new receipt with new tx
+                    dap_chain_datum_tx_receipt_t *l_receipt_to_send = NULL;
                     if (l_usage->receipt_next){
                         DAP_DEL_Z(l_usage->receipt_next);
                         l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0, &l_usage->tx_cond_hash);
+                        l_receipt_to_send = l_usage->receipt_next;
                     } else if (l_usage->receipt) {
                         DAP_DEL_Z(l_usage->receipt);
                         l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0, &l_usage->tx_cond_hash);
+                        l_receipt_to_send = l_usage->receipt;
                     }
                     l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
                     //start timeout timer
                     l_usage->receipt_timeout_timer_start_callback(l_usage);
                     log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_chain_hash_fast_to_str_static(&l_responce->hdr.tx_cond));
                     dap_stream_ch_pkt_write_unsafe(l_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-                        l_usage->receipt, l_usage->receipt->size);
+                        l_receipt_to_send, l_receipt_to_send->size);
                 } else {
                     l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER;
                     log_it(L_NOTICE, "Can't find new tx cond %s in ledger. Waiting...", dap_chain_hash_fast_to_str_static(&l_responce->hdr.tx_cond));
