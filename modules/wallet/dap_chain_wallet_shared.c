@@ -1501,7 +1501,7 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             s_hold_tx_add(a_tx, l_group, (dap_hash_fast_t *)l_tsd->data, TX_ROLE_OWNER);
-            dap_global_db_set_sync(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), NULL, NULL, false);
+            dap_global_db_set_sync(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), NULL, 0, false);
         }
     }
     DAP_DELETE(l_group);
