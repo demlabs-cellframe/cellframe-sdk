@@ -984,11 +984,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     s_service_substate_go_to_error(l_usage);
                     break;
                 }
-            } else {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-                s_service_substate_go_to_error(l_usage);
-                break;
             }
         }
 
