@@ -965,6 +965,31 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                 s_service_substate_go_to_error(l_usage);
                 break;
             }
+        } else if (l_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT) {
+            if (l_usage->receipt_next){
+                DAP_DELETE(l_usage->receipt_next);
+                l_usage->receipt_next = DAP_DUP_SIZE(l_receipt, l_receipt_size);
+                if (!l_usage->receipt_next) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+                    s_service_substate_go_to_error(l_usage);
+                    break;
+                }
+            } else if (l_usage->receipt) {
+                DAP_DELETE(l_usage->receipt);
+                l_usage->receipt = DAP_DUP_SIZE(l_receipt, l_receipt_size);
+                if (!l_usage->receipt) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+                    s_service_substate_go_to_error(l_usage);
+                    break;
+                }
+            } else {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+                s_service_substate_go_to_error(l_usage);
+                break;
+            }
         }
 
         s_service_substate_pay_service(l_usage);
