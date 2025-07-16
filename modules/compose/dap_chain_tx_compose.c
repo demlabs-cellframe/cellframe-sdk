@@ -2336,11 +2336,15 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
     if (a_cond_tx) {
         uint8_t *l_cond_tx = NULL;
         size_t l_item_size = 0;
-        int l_item_index = 0;
-        TX_ITEM_ITER_TX_TYPE(l_cond_tx, TX_ITEM_TYPE_OUT_COND, l_item_size, l_item_index, l_datum) {
+        int l_item_index = 0, l_idx = 0;
+        TX_ITEM_ITER_TX_TYPE(l_cond_tx, TX_ITEM_TYPE_OUT_ALL, l_item_size, l_item_index, l_datum) {
             if (((dap_chain_tx_out_cond_t *)l_cond_tx)->header.subtype == a_cond_subtype) {
+                if (a_cond_idx) {
+                    *a_cond_idx = l_idx;
+                }
                 break;
             }
+            l_idx++;
         }
         if (!l_cond_tx) {
             log_it(L_ERROR, "s_get_datum_info_from_rpc: no transaction output condition found");
