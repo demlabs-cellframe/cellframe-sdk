@@ -49,7 +49,7 @@
 #include "dap_config.h"
 #include "dap_cert.h"
 #include "dap_timerfd.h"
-#include "dap_chain_datum_tx_in_ems.h"
+#include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_token.h"
 #include "dap_global_db.h"
 #include "dap_chain_ledger.h"
@@ -225,6 +225,16 @@ typedef struct dap_ledger_wallet_balance {
     UT_hash_handle hh;
 } dap_ledger_wallet_balance_t;
 
+typedef struct dap_ledger_event {
+    dap_hash_fast_t tx_hash;
+    dap_hash_fast_t pkey_hash;
+    char *group_name;
+    uint16_t event_type;
+    void *event_data;
+    size_t event_data_size;
+    UT_hash_handle hh;
+} dap_ledger_event_t;
+
 typedef struct dap_ledger_cache_item {
     dap_chain_hash_fast_t *hash;
     bool found;
@@ -267,6 +277,9 @@ typedef struct dap_ledger_private {
     // separate access to balances
     pthread_rwlock_t balance_accounts_rwlock;
     dap_ledger_wallet_balance_t *balance_accounts;
+    // separate access to events
+    pthread_rwlock_t events_rwlock;
+    dap_ledger_event_t *events;
     // separate access to threshold
     dap_ledger_tx_item_t *threshold_txs;
     pthread_rwlock_t threshold_txs_rwlock;
@@ -5845,4 +5858,106 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
     if (a_ledger_rc)
         *a_ledger_rc = l_rc;
     return l_ret;
+}
+
+int dap_ledger_event_add(dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event)
+{
+    dap_return_val_if_fail(a_ledger && a_event, -3);
+    dap_ledger_event_t *l_event = NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    unsigned int l_hash_value = 0;
+    HASH_VALUE(&a_event->tx_hash, sizeof(dap_hash_fast_t), l_hash_value);
+    pthread_rwlock_wrlock(&l_ledger_pvt->events_rwlock);
+    HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->events, &a_event->tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
+    if (l_event) {
+        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+        return -1;
+    }
+    l_event = DAP_NEW_Z(dap_ledger_event_t);
+    if (!l_event) {
+        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+        return -2;
+    }
+    *l_event = (dap_ledger_event_t) {
+        .tx_hash = a_event->tx_hash,
+        .pkey_hash = a_event->pkey_hash,
+        .group_name = dap_strdup(a_event->group_name),
+        .event_type = a_event->event_type,
+        .event_data_size = a_event->event_data_size
+    };
+    if (a_event->event_data_size) {
+        l_event->event_data = DAP_DUP_SIZE(a_event->event_data, a_event->event_data_size);
+        if (!l_event->event_data) {
+            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+            return -2;
+        }
+    }
+    HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->events, tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
+    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+    return 0;
+}
+
+static dap_chain_tx_event_t *s_ledger_event_to_tx_event(dap_ledger_event_t *a_event)
+{
+    dap_chain_tx_event_t *l_tx_event = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_tx_event_t, NULL);
+    *l_tx_event = (dap_chain_tx_event_t) {
+        .group_name = dap_strdup(a_event->group_name),
+        .tx_hash = a_event->tx_hash,
+        .pkey_hash = a_event->pkey_hash,
+        .event_type = a_event->event_type,
+        .event_data_size = a_event->event_data_size
+    };
+    if (a_event->event_data_size)
+        l_tx_event->event_data = DAP_DUP_SIZE_RET_VAL_IF_FAIL(a_event->event_data, a_event->event_data_size, NULL);
+    return l_tx_event;
+}
+
+dap_chain_tx_event_t *dap_ledger_event_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
+    dap_ledger_event_t *l_event = NULL;
+    HASH_FIND(hh, l_ledger_pvt->events, a_tx_hash, sizeof(dap_hash_fast_t), l_event);
+    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+    if (!l_event)
+        return NULL;
+    return s_ledger_event_to_tx_event(l_event);
+}
+
+dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_group_name)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
+    dap_list_t *l_list = NULL;
+    for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
+        if (dap_strcmp(it->group_name, a_group_name))
+            continue;
+        dap_chain_tx_event_t *l_tx_event = s_ledger_event_to_tx_event(it);
+        if (!l_tx_event) {
+            log_it(L_ERROR, "Can't allocate memory for tx event in dap_ledger_event_get_list()");
+            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+            dap_list_free_full(l_list, dap_chain_datum_tx_event_delete);
+            return NULL;
+        }
+        l_list = dap_list_append(l_list, l_tx_event);
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+    return l_list;
+}
+
+int dap_ledger_event_delete(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_wrlock(&l_ledger_pvt->events_rwlock);
+    dap_ledger_event_t *l_event = NULL;
+    HASH_FIND(hh, l_ledger_pvt->events, a_tx_hash, sizeof(dap_hash_fast_t), l_event);
+    if (!l_event) {
+        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+        return -1;
+    }
+    HASH_DEL(l_ledger_pvt->events, l_event);
+    DAP_DEL_Z(l_event->event_data);
+    DAP_DEL_MULTY(l_event->group_name, l_event);
+    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+    return 0;
 }

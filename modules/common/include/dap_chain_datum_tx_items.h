@@ -39,6 +39,7 @@
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
+#include "dap_chain_datum_tx_event.h"
 
 typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_in_all;
@@ -288,6 +289,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 // Get output by output index
 #define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
     dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
+
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, dap_chain_tx_item_type_t a_type);
+void dap_chain_datum_tx_event_delete(void *a_event);
 
 #ifdef __cplusplus
 }

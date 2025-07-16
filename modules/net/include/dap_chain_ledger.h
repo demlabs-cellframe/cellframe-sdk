@@ -470,6 +470,11 @@ dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(d
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger);
 
+int dap_ledger_event_add(dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event);
+dap_chain_tx_event_t *dap_ledger_event_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_group_name);
+int dap_ledger_event_delete(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+
 #ifdef __cplusplus
 }
 #endif

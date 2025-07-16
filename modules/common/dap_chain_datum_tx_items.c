@@ -744,3 +744,9 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t
     }
     return NULL;
 }
+
+void dap_chain_datum_tx_event_delete(void *a_event)
+{
+    dap_chain_tx_event_t *l_event = a_event;
+    DAP_DEL_MULTY(l_event->group_name, l_event->event_data, l_event);
+}
