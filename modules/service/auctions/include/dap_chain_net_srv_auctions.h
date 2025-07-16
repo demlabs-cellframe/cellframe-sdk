@@ -563,6 +563,108 @@ dap_chain_auction_info_t* dap_chain_auction_info_from_events(dap_chain_net_t *a_
 void dap_chain_auction_events_list_free(dap_list_t *a_events);
 
 // ===========================================
+// CLI HELPER FUNCTIONS
+// ===========================================
+
+/**
+ * @brief Create auction bid transaction
+ * 
+ * @param a_net Network
+ * @param a_auction_hash Auction hash
+ * @param a_range_end Range end (1-8)
+ * @param a_bid_amount Bid amount in CELL
+ * @param a_lock_time Lock time in seconds
+ * @param a_fee Transaction fee
+ * @param a_wallet_name Wallet name
+ * @return dap_chain_datum_tx_t* Created transaction or NULL on error
+ */
+dap_chain_datum_tx_t* dap_chain_auction_bid_transaction_create(dap_chain_net_t *a_net, 
+                                                               const dap_hash_fast_t *a_auction_hash,
+                                                               uint8_t a_range_end,
+                                                               uint256_t a_bid_amount,
+                                                               dap_time_t a_lock_time,
+                                                               uint256_t a_fee,
+                                                               const char *a_wallet_name);
+
+/**
+ * @brief Convert auction status to string
+ * 
+ * @param a_status Auction status
+ * @return const char* Status string
+ */
+const char* dap_chain_auction_status_to_str(dap_chain_auction_status_t a_status);
+
+/**
+ * @brief Convert event type to string
+ * 
+ * @param a_type Event type
+ * @return const char* Type string
+ */
+const char* dap_chain_auction_event_type_to_str(dap_chain_auction_event_type_t a_type);
+
+/**
+ * @brief Convert string to event type
+ * 
+ * @param a_str Event type string
+ * @return dap_chain_auction_event_type_t Event type
+ */
+dap_chain_auction_event_type_t dap_chain_auction_event_type_from_str(const char *a_str);
+
+/**
+ * @brief Free auction list
+ * 
+ * @param a_auctions Auction list
+ * @param a_count Number of auctions
+ */
+void dap_chain_auction_storage_free_list(dap_chain_auction_info_t **a_auctions, size_t a_count);
+
+/**
+ * @brief Free auction info
+ * 
+ * @param a_auction_info Auction info to free
+ */
+void dap_chain_auction_storage_free_auction_info(dap_chain_auction_info_t *a_auction_info);
+
+/**
+ * @brief Free bid list  
+ * 
+ * @param a_bids Bid list
+ * @param a_count Number of bids
+ */
+void dap_chain_auction_storage_free_bid_list(dap_chain_auction_bid_t **a_bids, size_t a_count);
+
+/**
+ * @brief Clear network auction storage
+ * 
+ * @param a_net Network to clear
+ */
+void dap_chain_auction_storage_clear_network(dap_chain_net_t *a_net);
+
+/**
+ * @brief Free events list
+ * 
+ * @param a_events Events list
+ * @param a_count Number of events
+ */
+void dap_chain_auction_events_free_list(dap_chain_auction_event_t **a_events, size_t a_count);
+
+// ===========================================
+// CLI COMMAND HANDLERS  
+// ===========================================
+
+/**
+ * @brief CLI handler for auction bid withdraw
+ * 
+ * Creates a withdraw transaction to unlock funds from auction bid conditional transaction.
+ * 
+ * @param argc Argument count
+ * @param argv Argument values  
+ * @param a_str_reply Reply string
+ * @return int Result code (0 on success)
+ */
+static int s_cli_auction_withdraw(int argc, char **argv, void **a_str_reply);
+
+// ===========================================
 // CLI AND SERVICE INTEGRATION
 // ===========================================
 
