@@ -215,24 +215,77 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
         dap_global_db_driver_delete(a_obj, 1);
         return;
     }
-    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)a_obj->value;
-    dap_return_if_fail(l_node_info);
-
+    
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     dap_return_if_fail(l_net);
-    int l_ret = -1;
-    for (size_t i = 0; i < 3 && l_ret != 0; i++) {
-        dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
-        if (l_client)
-            l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
-        dap_chain_node_client_close_mt(l_client);  //del in s_go_stage_on_client_worker_unsafe
+    
+    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)a_obj->value;
+    if (!l_node_info || a_obj->value_len < sizeof(dap_chain_node_info_t)) {
+        log_it(L_ERROR, "Invalid node info for key %s", a_obj->key);
+        return;
     }
-    if (l_ret == 0) {
+    
+    // check node in nodes.states
+    bool l_state_active = false;
+    dap_nanotime_t l_info_state_timestamp = 0;
+    size_t l_data_size = 0;
+    char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
+    byte_t *l_node_info_states_data = dap_global_db_get_sync(l_gdb_group, a_obj->key, &l_data_size, NULL, &l_info_state_timestamp);
+    DAP_DELETE(l_gdb_group);
+    dap_chain_node_net_states_info_t *l_node_info_states = NULL;
+    if (l_node_info_states_data) {
+        if ( (l_data_size - sizeof(dap_chain_node_net_states_info_t)) % sizeof(dap_chain_node_addr_t) ) {
+            if ( (l_data_size - sizeof(dap_chain_node_net_states_info_v1_t)) % sizeof(dap_chain_node_addr_t) ) {
+                DAP_DELETE(l_node_info_states_data);
+                log_it(L_ERROR, "Irrelevant size of node %s info", a_obj->key);
+                return;
+            }
+            dap_chain_node_net_states_info_v1_t *l_info_old = (dap_chain_node_net_states_info_v1_t*)l_node_info_states_data;
+            l_node_info_states = DAP_NEW_Z_SIZE( dap_chain_node_net_states_info_t, sizeof(dap_chain_node_net_states_info_t) 
+                                        + (l_info_old->uplinks_count + l_info_old->downlinks_count) * sizeof(dap_chain_node_addr_t) );
+            if (!l_node_info_states) {
+                DAP_DELETE(l_node_info_states_data);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                return;
+            }
+            l_node_info_states->version_info = 1;
+            memcpy( (byte_t*)l_node_info_states + node_info_v1_shift, l_info_old, l_data_size );
+            DAP_DELETE(l_node_info_states_data);
+        } else
+            l_node_info_states = (dap_chain_node_net_states_info_t*)l_node_info_states_data;
+    }
+
+    // check is node active for last two hours
+    if (l_info_state_timestamp > (dap_nanotime_now() - dap_nanotime_from_sec(7200)) 
+        && l_node_info_states && l_node_info_states->info_v1.downlinks_count > 0) {
+            l_state_active = true;
+            log_it(L_DEBUG, "Node %s [ %s : %u ] is active in nodes.states, rewrite to node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
+    }
+
+    // if no data in nodes.state do handshake
+    if (!l_state_active) {
+        int l_ret = -1;
+        for (size_t i = 0; i < 3 && l_ret != 0; i++) {
+            dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
+            if (l_client) {
+                l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
+                dap_chain_node_client_close_mt(l_client);
+            }
+        }
+        if (l_ret == 0) {
+            l_state_active = true;
+            log_it(L_DEBUG, "Node %s [ %s : %u ] is answered for handshake, rewrite to node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
+        }
+    }
+
+    if (l_state_active) {
         dap_global_db_set_sync(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, a_obj->flags & DAP_GLOBAL_DB_RECORD_PINNED);
     } else {
-        log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ] delete from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
+        log_it(L_DEBUG, "Node %s [ %s : %u ] is not active, delete them from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
         dap_global_db_driver_delete(a_obj, 1);
     }
+    
+    DAP_DELETE(l_node_info_states);
 }
 
 int dap_chain_node_list_clean_init() {
