@@ -1170,13 +1170,19 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
             dap_string_free(l_str_signs, true);
         }
         json_object_object_add(l_json_ret, "signs", l_jobj_signs);
+        dap_hash_fast_t l_pkey_hash = {};
+        dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash);
+        json_object_object_add(l_json_ret, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
         struct json_object *l_jobj_network = json_object_new_object();
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             struct json_object *l_jobj_net = json_object_new_object();
             dap_chain_addr_t *l_wallet_addr_in_net = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+            
             json_object_object_add(l_jobj_net, "addr",
                                    json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net)));
             json_object_object_add(l_jobj_network, l_net->pub.name, l_jobj_net);
+            
+           
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_net->pub.ledger, l_wallet_addr_in_net, &l_addr_tokens,
@@ -1201,6 +1207,11 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
             DAP_DELETE(l_wallet_addr_in_net);
             json_object_object_add(l_jobj_net, "tokens", l_arr_balance);
             DAP_DELETE(l_addr_tokens);
+            // add shared wallet tx hashes
+            json_object *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_pkey_hash, l_net->pub.name);
+            if (l_tx_hashes) {
+                json_object_object_add(l_json_ret, "wallet_shared_tx_hashes", l_tx_hashes);
+            }
         }
         json_object_object_add(l_json_ret, "networks", l_jobj_network);
         dap_chain_wallet_close(l_wallet);

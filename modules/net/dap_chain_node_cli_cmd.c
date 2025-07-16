@@ -1773,6 +1773,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 json_object_object_add(json_obj_wall, "wallet", json_object_new_string(l_wallet->name));
             }
             json_object_object_add(json_obj_wall, "addr", l_l_addr_str ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
+                        dap_hash_fast_t l_pkey_hash = {};
+            dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash);
+            json_object_object_add(json_obj_wall, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
             json_object_object_add(json_obj_wall, "network", l_net_name? json_object_new_string(l_net_name) : json_object_new_string("-"));
 
             size_t l_addr_tokens_size = 0;
@@ -1852,6 +1855,12 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 json_object_object_add(json_obj_wall, "locked_outs", j_arr_locked_balance);
             } else if (!l_addr_tokens_size)
                 json_object_object_add(json_obj_wall, "balance", json_object_new_string("0"));
+
+            // add shared wallet tx hashes
+            json_object *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_pkey_hash, l_net->pub.name);
+            if (l_tx_hashes) {
+                json_object_object_add(json_obj_wall, "wallet_shared_tx_hashes", l_tx_hashes);
+            }
 
             json_object_array_add(json_arr_out, json_obj_wall);
             DAP_DELETE(l_addr);

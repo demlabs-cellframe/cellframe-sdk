@@ -205,6 +205,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\t[-w <wallet_name>] - filter by wallet name\n"
                                 "\t[-cert <cert_name>] - filter by certificate name\n"
                                 "\t  Note: -pkey, -addr, -w, and -cert are mutually exclusive\n"
+                                "\t[-local] - filter by local wallets and certificates\n"
                                 "\t[-H {hex(default) | base58}] - hash format for output\n"
                             "Hint:\n"
                                 "\texample value_coins (only natural) 1.0 123.4567\n"

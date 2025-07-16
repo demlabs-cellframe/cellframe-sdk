@@ -40,6 +40,7 @@
 #include <dirent.h>
 
 static char s_wallet_shared_gdb_group[] = "local.wallet_shared";
+static char s_wallet_shared_gdb_pkeys[] = "local.wallet_shared_pkeys";
 
 typedef enum hash_file_type {
     HASH_FILE_TYPE_WALLET = 0,
@@ -80,7 +81,8 @@ enum emit_delegation_error {
     ERROR_CREATE,
     ERROR_PLACE,
     ERROR_SUBCOMMAND,
-    ERROR_NETWORK
+    ERROR_NETWORK,
+    ERROR_NOT_FOUND
 };
 
 #define LOG_TAG "dap_chain_wallet_shared"
@@ -1274,6 +1276,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_name);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_name);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_name);
+    bool l_local = dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-local", NULL);
 
     // Check for mutually exclusive parameters
     int l_filter_count = (bool)l_pkey_hash_str + (bool)l_addr_str + (bool)l_wallet_name + (bool)l_cert_name;
@@ -1356,13 +1359,15 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     dap_store_obj_t *l_values = NULL;
     if (l_filter_count) {
         l_values_count = 1;
-    } else {
+    } else if (l_local) {
         l_values = dap_global_db_get_all_raw_sync(s_wallet_shared_gdb_group, &l_values_count);
-        if (!l_values) {
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, 
-                "No wallet shared data found in GDB group %s", s_wallet_shared_gdb_group);
-            return ERROR_MEMORY;
-        }
+    } else {
+        l_values = dap_global_db_get_all_raw_sync(s_wallet_shared_gdb_pkeys, &l_values_count);
+    }
+    if (!l_values_count) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_NOT_FOUND, 
+            "No wallet shared data found in GDB group %s", s_wallet_shared_gdb_group);
+        return ERROR_NOT_FOUND;
     }
     dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
     if (!l_groups_list) {
@@ -1376,12 +1381,8 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         if (!l_filter_count) {
             l_hold_hashes = (hold_tx_hashes_t *)l_values[i].value;
             json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_values[i].key));
-            json_object_object_add(l_jobj_item, "type", json_object_new_string(l_hold_hashes->type ? "cert" : "wallet"));
-            json_object_object_add(l_jobj_item, "name", json_object_new_string(l_hold_hashes->name));
         } else {
             json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
-            json_object_object_add(l_jobj_item, "type", json_object_new_string(l_cert_name ? "cert" : l_wallet_name ? "wallet" : "other"));
-            json_object_object_add(l_jobj_item, "name", json_object_new_string(l_cert_name ? l_cert_name : l_wallet_name ? l_wallet_name : "other"));
         }
         json_object *l_jobj_nets_hashes = json_object_new_object();
         for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
@@ -1392,14 +1393,11 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
             hold_tx_hashes_t *l_hold_hashes_by_name = dap_global_db_get_sync(l_item->data, l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key, NULL, NULL, NULL);
             if (l_hold_hashes_by_name) {
                 json_object *l_jobj_owned_tx = json_object_new_array();
-                json_object *l_jobj_created_tx = json_object_new_array();
                 for (size_t j = 0; j < l_hold_hashes_by_name->tx_count; j++) {
-                    json_object_array_add(l_hold_hashes_by_name->tx[j].role == TX_ROLE_OWNER ? l_jobj_owned_tx : l_jobj_created_tx, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
+                    if (l_hold_hashes_by_name->tx[j].role == TX_ROLE_OWNER)
+                        json_object_array_add(l_jobj_owned_tx, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
                 }
-                json_object *l_jobj_hashes = json_object_new_object();
-                json_object_object_add(l_jobj_hashes, "owner", l_jobj_owned_tx);
-                json_object_object_add(l_jobj_hashes, "creator", l_jobj_created_tx);
-                json_object_object_add(l_jobj_nets_hashes, (char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_jobj_hashes);
+                json_object_object_add(l_jobj_nets_hashes, (char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_jobj_owned_tx);
             }
         }
         json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_nets_hashes);
@@ -1409,6 +1407,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     DAP_DELETE(l_groups_list);
     return DAP_NO_ERROR;
 }
+
 
 /**
  * @brief s_cli_stake_lock
@@ -1502,10 +1501,29 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             s_hold_tx_add(a_tx, l_group, (dap_hash_fast_t *)l_tsd->data, TX_ROLE_OWNER);
+            dap_global_db_set_sync(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), NULL, NULL, false);
         }
     }
     DAP_DELETE(l_group);
     return 0;
+}
+
+json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name)
+{
+    json_object *l_json_ret = json_object_new_array();
+    char *l_group = dap_strdup_printf("%s.%s", s_wallet_shared_gdb_group, a_net_name);
+    hold_tx_hashes_t *l_item = dap_global_db_get_sync(l_group, dap_hash_fast_to_str_static(a_pkey_hash), NULL, NULL, false);
+    DAP_DELETE(l_group);
+    if (!l_item) {
+        return NULL;
+    }
+    for (size_t i = 0; i < l_item->tx_count; i++) {
+        if (l_item->tx[i].role == TX_ROLE_OWNER) {
+            json_object_array_add(l_json_ret, json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx[i].hash)));
+        }
+    }
+    DAP_DELETE(l_item);
+    return l_json_ret;
 }
 
 int dap_chain_wallet_shared_init()
