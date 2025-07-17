@@ -8601,7 +8601,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
  */
 int com_auction(int argc, char **argv, void **str_reply, int a_version) {
     enum {
-        CMD_NONE, CMD_BID, CMD_LIST, CMD_INFO, CMD_EVENTS, CMD_LOAD
+        CMD_NONE, CMD_BID, CMD_WITHDRAW,CMD_LIST, CMD_INFO, CMD_EVENTS
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
@@ -8612,6 +8612,7 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version) {
     const char *l_auction_hash_str = NULL;
     const char *l_wallet_name = NULL;
     const char *l_event_type = NULL;
+    const char *l_bid_tx_hash_str = NULL;
     
     uint64_t l_cell_amount = 0;
     uint64_t l_fee_amount = 0;
@@ -8634,8 +8635,8 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version) {
         cmd_num = CMD_INFO;
     else if(!strcmp(str_tmp, "events"))
         cmd_num = CMD_EVENTS;
-    else if(!strcmp(str_tmp, "load"))
-        cmd_num = CMD_LOAD;
+    else if(!strcmp(str_tmp, "withdraw"))
+        cmd_num = CMD_WITHDRAW;
     else {
         dap_cli_server_cmd_set_reply_text(str_reply, "Unknown command %s", str_tmp);
         return -4;
@@ -8724,9 +8725,21 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version) {
             dap_cli_server_cmd_set_reply_text(str_reply, "Events command not implemented yet");
             return -100;
         }
-        case CMD_LOAD: {
-            // TODO: Implement auction state loading logic
-            dap_cli_server_cmd_set_reply_text(str_reply, "Load command not implemented yet");
+        case CMD_WITHDRAW: {
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-bid_tx_hash", &l_bid_tx_hash_str);
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-fee", &str_tmp);
+            if(str_tmp)
+                l_fee_amount = strtoull(str_tmp, NULL, 10);
+                
+            str_tmp = NULL;
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
+            if(!l_bid_tx_hash_str || !l_wallet_name || !l_fee_amount) {
+                dap_cli_server_cmd_set_reply_text(str_reply, "Missing required parameters for withdraw command");
+                return -5;
+            }
+            // TODO: Implement auction withdraw logic
+            
+            dap_cli_server_cmd_set_reply_text(str_reply, "Withdraw command not implemented yet");
             return -100;
         }
         default:
