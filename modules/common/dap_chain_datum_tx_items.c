@@ -621,6 +621,7 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_out_cond_undefined);
     dap_list_free(a_items_groups->items_out_all);
     dap_list_free(a_items_groups->items_in_all);
+    dap_list_free(a_items_groups->items_event);
 }
 
 #define DAP_LIST_SAPPEND(X, Y) X = dap_list_append(X,Y)
@@ -725,6 +726,9 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
         case TX_ITEM_TYPE_VOTE:
             DAP_LIST_SAPPEND(a_res_group->items_vote, l_item);
             break;
+        case TX_ITEM_TYPE_EVENT:
+            DAP_LIST_SAPPEND(a_res_group->items_event, l_item);
+            break;
         default:
             DAP_LIST_SAPPEND(a_res_group->items_unknown, l_item);
         }
@@ -745,6 +749,20 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t
     return NULL;
 }
 
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, uint16_t a_type)
+{
+    dap_return_val_if_fail(a_group_name, NULL);
+    size_t l_group_name_size = strlen(a_group_name);
+    if (l_group_name_size > UINT16_MAX)
+        return NULL;
+    dap_chain_tx_item_event_t *l_event = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_item_event_t, sizeof(dap_chain_tx_item_event_t) + l_group_name_size, NULL);
+    strcpy((char *)l_event->group_name, a_group_name);
+    l_event->type = TX_ITEM_TYPE_EVENT;
+    l_event->version = 0;
+    l_event->group_size = (uint16_t)l_group_name_size;
+    l_event->event_type = a_type;
+    return l_event;
+}
 void dap_chain_datum_tx_event_delete(void *a_event)
 {
     dap_chain_tx_event_t *l_event = a_event;

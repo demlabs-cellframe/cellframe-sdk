@@ -40,6 +40,7 @@ enum {
     DAP_DATUM_MEMPOOL_NONE = 0, DAP_DATUM_MEMPOOL_ADD, DAP_DATUM_MEMPOOL_CHECK, DAP_DATUM_MEMPOOL_DEL
 };
 
+
 // datum mempool structure
 typedef struct dap_datum_mempool {
     uint16_t version;        // structure version
@@ -110,3 +111,17 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
                                            uint256_t a_value_fee, const char *a_hash_out_type);
 char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_sign_key, dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                          uint256_t a_value_fee, const char *a_hash_out_type);
+
+/**
+ * @brief Compose event transaction following cellframe mempool style
+ * @param[in] a_chain Chain to create transaction for
+ * @param[in] a_key_from Private key for signing transaction
+ * @param[in] a_params Transaction parameters
+ * @param[in] a_hash_out_type Hash output format
+ * @return Transaction hash string on success, NULL on error
+ */
+char *dap_chain_mempool_event_compose(dap_chain_t *a_chain,
+                                      dap_enc_key_t *a_key_from,
+                                      dap_enc_key_t *a_service_key,
+                                      const dap_chain_mempool_event_tx_params_t *a_params,
+                                      const char *a_hash_out_type);

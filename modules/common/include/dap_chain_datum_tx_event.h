@@ -30,7 +30,7 @@ typedef struct dap_chain_tx_item_event {
     uint8_t version;                        /// @param version          @brief Version of the event.
     uint16_t group_size;                    /// @param group_size       @brief Size of the group
     uint16_t event_type;                    /// @param event_type       @brief Event type.
-    byte_t group[];                         /// @param group            @brief Event group
+    byte_t group_name[];                    /// @param group_name       @brief Event group name
 } DAP_ALIGN_PACKED dap_chain_tx_item_event_t;
 
 typedef struct dap_chain_tx_event {
@@ -49,8 +49,11 @@ typedef struct dap_chain_tx_event {
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_LOST                0x0004
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED           0x0005
 
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED_JSON_STR     "auction_started"
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED_JSON_STR  "auction_bid_placed"
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_WON_JSON_STR         "auction_won"
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_LOST_JSON_STR        "auction_lost"
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED_JSON_STR   "auction_cancel"
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED_JSON_STR    "auction_started"
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED_JSON_STR "auction_bid_placed"
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_WON_JSON_STR        "auction_won"
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_LOST_JSON_STR       "auction_lost"
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED_JSON_STR  "auction_cancel"
+
+#define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA                   0x1000
+#define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA_JSON_STR          "custom_data"
