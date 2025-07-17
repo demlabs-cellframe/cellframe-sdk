@@ -8589,3 +8589,150 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
 
     return 0;
 }
+
+/**
+ * @brief com_auction
+ * Auction command handler
+ * @param argc
+ * @param argv
+ * @param str_reply
+ * @param a_version
+ * @return
+ */
+int com_auction(int argc, char **argv, void **str_reply, int a_version) {
+    enum {
+        CMD_NONE, CMD_BID, CMD_LIST, CMD_INFO, CMD_EVENTS, CMD_LOAD
+    };
+    int arg_index = 1;
+    int cmd_num = CMD_NONE;
+    
+    const char *str_tmp = NULL;
+    dap_chain_net_t *l_net = NULL;
+    
+    const char *l_auction_hash_str = NULL;
+    const char *l_wallet_name = NULL;
+    const char *l_event_type = NULL;
+    
+    uint64_t l_cell_amount = 0;
+    uint64_t l_fee_amount = 0;
+    uint8_t l_range_end = 0;
+    uint8_t l_lock_months = 0;
+    uint32_t l_limit = 50;
+    bool l_active_only = false;
+    
+    if(arg_index >= argc) {
+        dap_cli_server_cmd_set_reply_text(str_reply, "Command not specified");
+        return -3;
+    }
+    
+    str_tmp = argv[arg_index];
+    if(!strcmp(str_tmp, "bid"))
+        cmd_num = CMD_BID;
+    else if(!strcmp(str_tmp, "list"))
+        cmd_num = CMD_LIST;
+    else if(!strcmp(str_tmp, "info"))
+        cmd_num = CMD_INFO;
+    else if(!strcmp(str_tmp, "events"))
+        cmd_num = CMD_EVENTS;
+    else if(!strcmp(str_tmp, "load"))
+        cmd_num = CMD_LOAD;
+    else {
+        dap_cli_server_cmd_set_reply_text(str_reply, "Unknown command %s", str_tmp);
+        return -4;
+    }
+    
+    arg_index++;
+
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &str_tmp);
+    if(!str_tmp) {
+        dap_cli_server_cmd_set_reply_text(str_reply, "Network not specified");
+        return -1;
+    }
+    
+    l_net = dap_chain_net_by_name(str_tmp);
+    if(!l_net) {
+        dap_cli_server_cmd_set_reply_text(str_reply, "Network %s not found", str_tmp);
+        return -2;
+    }
+
+    
+    switch(cmd_num) {
+        case CMD_BID: {
+            // Parse bid command parameters
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-auction", &l_auction_hash_str);
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
+            
+            str_tmp = NULL;
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-range", &str_tmp);
+            if(str_tmp)
+                l_range_end = (uint8_t)atoi(str_tmp);
+                
+            str_tmp = NULL;
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-amount", &str_tmp);
+            if(str_tmp)
+                l_cell_amount = strtoull(str_tmp, NULL, 10);
+                
+            str_tmp = NULL;
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-lock", &str_tmp);
+            if(str_tmp)
+                l_lock_months = (uint8_t)atoi(str_tmp);
+                
+            str_tmp = NULL;
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-fee", &str_tmp);
+            if(str_tmp)
+                l_fee_amount = strtoull(str_tmp, NULL, 10);
+                
+            // Validate parameters
+            if(!l_auction_hash_str || !l_wallet_name || !l_range_end || !l_cell_amount || !l_lock_months || !l_fee_amount) {
+                dap_cli_server_cmd_set_reply_text(str_reply, "Missing required parameters for bid command");
+                return -5;
+            }
+            
+            // TODO: Implement bid creation logic
+            dap_cli_server_cmd_set_reply_text(str_reply, "Bid command not implemented yet");
+            return -100;
+        }
+        case CMD_LIST: {
+            l_active_only = dap_cli_server_cmd_check_option(argv, arg_index, argc, "-active_only");
+            
+            // TODO: Implement auction listing logic
+            dap_cli_server_cmd_set_reply_text(str_reply, "List command not implemented yet");
+            return -100;
+        }
+        case CMD_INFO: {
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-auction", &l_auction_hash_str);
+            
+            if(!l_auction_hash_str) {
+                dap_cli_server_cmd_set_reply_text(str_reply, "Missing auction hash parameter");
+                return -6;
+            }
+            
+            // TODO: Implement auction info logic
+            dap_cli_server_cmd_set_reply_text(str_reply, "Info command not implemented yet");
+            return -100;
+        }
+        case CMD_EVENTS: {
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-auction", &l_auction_hash_str);
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-type", &l_event_type);
+            
+            str_tmp = NULL;
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-limit", &str_tmp);
+            if(str_tmp)
+                l_limit = (uint32_t)atoi(str_tmp);
+                
+            // TODO: Implement events listing logic
+            dap_cli_server_cmd_set_reply_text(str_reply, "Events command not implemented yet");
+            return -100;
+        }
+        case CMD_LOAD: {
+            // TODO: Implement auction state loading logic
+            dap_cli_server_cmd_set_reply_text(str_reply, "Load command not implemented yet");
+            return -100;
+        }
+        default:
+            dap_cli_server_cmd_set_reply_text(str_reply, "Unknown command");
+            return -7;
+    }
+    
+    return 0;
+} 

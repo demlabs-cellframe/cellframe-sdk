@@ -480,6 +480,11 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version);
  */
 int com_policy(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
+/**
+ * Auction command handler
+ */
+int com_auction(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+
 #ifdef __cplusplus
 }
 #endif
