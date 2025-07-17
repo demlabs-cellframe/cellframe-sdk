@@ -1529,7 +1529,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
 }
 
 /**
-  * @brief Compose a transaction with event item using cellframe mempool style
+  * @brief Compose a transaction with event item for ledger event system
   * @param[in] a_chain Chain to create transaction for
   * @param[in] a_key_from Private key for signing
   * @param[in] a_service_key Service key for signing

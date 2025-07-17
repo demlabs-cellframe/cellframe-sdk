@@ -116,12 +116,21 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
  * @brief Compose event transaction following cellframe mempool style
  * @param[in] a_chain Chain to create transaction for
  * @param[in] a_key_from Private key for signing transaction
- * @param[in] a_params Transaction parameters
+ * @param[in] a_service_key Service key for signing transaction
+ * @param[in] a_group_name Event group name
+ * @param[in] a_event_type Event type
+ * @param[in] a_event_data Event data
+ * @param[in] a_event_data_size Size of event data
+ * @param[in] a_fee_value Fee value
  * @param[in] a_hash_out_type Hash output format
  * @return Transaction hash string on success, NULL on error
  */
 char *dap_chain_mempool_event_compose(dap_chain_t *a_chain,
                                       dap_enc_key_t *a_key_from,
                                       dap_enc_key_t *a_service_key,
-                                      const dap_chain_mempool_event_tx_params_t *a_params,
+                                      const char *a_group_name,
+                                      uint16_t a_event_type,
+                                      const void *a_event_data,
+                                      size_t a_event_data_size,
+                                      uint256_t a_fee_value,
                                       const char *a_hash_out_type);
