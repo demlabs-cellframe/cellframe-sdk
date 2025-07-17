@@ -675,7 +675,7 @@ json_object* dap_request_command_to_rpc_with_params(compose_config_t *a_config, 
                         a_method, l_msg);
     } else {
         l_ret = snprintf(data, sizeof(data),
-                            "{\"method\": \"%s\",\"params\": [\"%s;%s\"],\"id\": \"1\"}",
+                            "{\"method\": \"%s\",\"params\": [\"%s;%s\"],\"id\": \"1\",\"version\": \"2\"}",
                             a_method, a_method, l_msg);
     }
 
