@@ -2792,8 +2792,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 l_printed_orders_count++; 
                 if (l_head && (it->prev->next == NULL)) break;              
             }
-            json_object_object_add(json_obj_order, a_version == 1 ? "ORDERS" : "orders", json_arr_orders_out);
-            json_object_array_add(*json_arr_reply, json_obj_order); 
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 dap_list_free(l_list);
             } else {
@@ -2806,9 +2804,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             } else {
                 json_object_object_add(json_obj_order, a_version == 1 ? "ORDERS" : "orders", json_arr_orders_out);
                 json_object_object_add(json_obj_order, "total", json_object_new_uint64(i_tmp));
-                json_object_array_add(*json_arr_reply, json_obj_order);
             }
-
+            
+            json_object_array_add(*json_arr_reply, json_obj_order);
             if (!json_object_array_length(json_arr_orders_out)) {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_UNREC_STATUS_ERR, "No orders found");
             }
