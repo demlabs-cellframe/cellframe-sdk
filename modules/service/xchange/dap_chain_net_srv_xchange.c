@@ -2766,6 +2766,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_tx->header.ts_created);
 
                 json_object* l_json_obj_order = json_object_new_object();
+                if (!l_json_obj_order) {
+                    log_it(L_ERROR, "Can't create json object");
+                    return -XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_JSON_OBJECT;
+                }
                 json_object_object_add(l_json_obj_order, "order_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_tx_hash)));
                 json_object_object_add(l_json_obj_order, "ts_created", json_object_new_string(l_tmp_buf));
                 json_object_object_add(l_json_obj_order, "status", json_object_new_string(l_status_order_str));
