@@ -778,6 +778,6 @@ int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_
     json_object *l_object = a_json_obj;
     json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     json_object_object_add(l_object, "event_version", json_object_new_int(a_event->version));
-    json_object_object_add(l_object, "event_group", json_object_new_string_len(a_event->group_name));
+    json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_size));
     return 0;
 }
