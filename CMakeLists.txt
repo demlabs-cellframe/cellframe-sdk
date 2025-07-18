@@ -4,7 +4,95 @@ project(cellframe-sdk C)
 set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "4.0.0")
 
+# =========================================
+# UNIVERSAL BUILD SYSTEM - CELLFRAME SDK
+# =========================================
+# Cellframe SDK always builds its modules as STATIC internally,
+# then combines them into one big STATIC or SHARED library
+
+# Default: BUILD_SHARED=ON (final library is shared)
+# Override: BUILD_SHARED=OFF (final library is static)
+option(BUILD_SHARED "Build final Cellframe SDK library as shared (default)" ON)
+
+# Internal modules are ALWAYS static
+set(CELLFRAME_INTERNAL_LIB_TYPE STATIC)
+
+if(BUILD_SHARED)
+    message("[+] Cellframe SDK: Building final library as SHARED (modules: static internally)")
+    set(CELLFRAME_FINAL_LIB_TYPE SHARED)
+    set(CELLFRAME_BUILD_MODE "shared")
+else()
+    message("[+] Cellframe SDK: Building final library as STATIC (modules: static internally)")
+    set(CELLFRAME_FINAL_LIB_TYPE STATIC)
+    set(CELLFRAME_BUILD_MODE "static")
+endif()
+
+# Export build mode for consumers
+set(CELLFRAME_SDK_BUILD_MODE ${CELLFRAME_BUILD_MODE} CACHE STRING "Cellframe SDK final library mode (shared/static)")
+set(CELLFRAME_SDK_INTERNAL_MODE "static" CACHE STRING "Cellframe SDK internal modules mode (always static)")
+
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
+
+# =========================================
+# INTERNAL MODULE CREATION MACRO
+# =========================================
+# Creates internal static modules (always static)
+# Usage: cellframe_add_library(target_name sources... HEADERS headers...)
+macro(cellframe_add_library TARGET_NAME)
+    cmake_parse_arguments(CELLFRAME_LIB "" "" "HEADERS" ${ARGN})
+    
+    # Always create modules as STATIC with original name
+    add_library(${TARGET_NAME} STATIC ${CELLFRAME_LIB_UNPARSED_ARGUMENTS} ${CELLFRAME_LIB_HEADERS})
+    
+    # Track modules for final library creation
+    if(NOT DEFINED CELLFRAME_INTERNAL_MODULES)
+        set(CELLFRAME_INTERNAL_MODULES "")
+    endif()
+    list(APPEND CELLFRAME_INTERNAL_MODULES ${TARGET_NAME})
+    set(CELLFRAME_INTERNAL_MODULES ${CELLFRAME_INTERNAL_MODULES} CACHE INTERNAL "List of Cellframe internal modules")
+    
+    message("[+] Cellframe Internal Module: ${TARGET_NAME} (static)")
+endmacro()
+
+# =========================================
+# FINAL LIBRARY CREATION (will be called at the end)
+# =========================================
+# Creates final combined Cellframe SDK library 
+macro(cellframe_create_final_library)
+    if(DEFINED CELLFRAME_INTERNAL_MODULES)
+        message("[+] Creating final Cellframe SDK library: cellframe_sdk (${CELLFRAME_BUILD_MODE})")
+        message("[+] Internal modules to combine: ${CELLFRAME_INTERNAL_MODULES}")
+        
+        # Create final library that combines all internal modules
+        add_library(cellframe_sdk ${CELLFRAME_FINAL_LIB_TYPE})
+        
+        # Set properties for final library
+        if(BUILD_SHARED)
+            set_target_properties(cellframe_sdk PROPERTIES
+                POSITION_INDEPENDENT_CODE ON
+                VERSION ${CELLFRAME_SDK_NATIVE_VERSION}
+                SOVERSION 4
+            )
+            target_compile_definitions(cellframe_sdk PRIVATE CELLFRAME_BUILDING_LIB)
+            target_compile_definitions(cellframe_sdk INTERFACE CELLFRAME_USING_SHARED)
+        else()
+            target_compile_definitions(cellframe_sdk INTERFACE CELLFRAME_USING_STATIC)
+        endif()
+        
+        # Link all internal static modules into final library
+        target_link_libraries(cellframe_sdk PUBLIC ${CELLFRAME_INTERNAL_MODULES})
+        
+        # Also inherit include directories from internal modules
+        foreach(module ${CELLFRAME_INTERNAL_MODULES})
+            get_target_property(module_includes ${module} INTERFACE_INCLUDE_DIRECTORIES)
+            if(module_includes)
+                target_include_directories(cellframe_sdk PUBLIC ${module_includes})
+            endif()
+        endforeach()
+        
+        message("[+] Final Cellframe SDK Library: cellframe_sdk created successfully")
+    endif()
+endmacro()
 
 if (INSTALL_SDK)
     set(INSTALL_DAP_SDK ON)
@@ -243,3 +331,9 @@ if(ENABLE_CPPCHECK_ANALYSIS)
         message(WARNING "cppcheck not found, cppcheck_analysis target unavailable")
     endif()
 endif()
+
+# =========================================
+# CREATE FINAL CELLFRAME SDK LIBRARY
+# =========================================
+# Combine all internal static modules into one final library
+cellframe_create_final_library()

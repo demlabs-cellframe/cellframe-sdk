@@ -26,7 +26,8 @@ if(WIN32)
   add_compile_definitions(_GNU_SOURCE)
 endif()
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NODE_CLI_SRCS} ${DAP_CHAIN_NODE_CLI_HEADERS} ${IPUTILS_SRCS} ${IPUTILS_HEADERS})
+# Use universal Cellframe library macro
+cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_NODE_CLI_SRCS} ${IPUTILS_SRCS} HEADERS ${DAP_CHAIN_NODE_CLI_HEADERS} ${IPUTILS_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_io dap_notify_srv dap_cli_server dap_chain dap_chain_wallet
                                         dap_chain_mempool dap_global_db dap_chain_cs_esbocs dap_json_rpc)

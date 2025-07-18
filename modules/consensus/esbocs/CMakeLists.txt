@@ -4,7 +4,8 @@ project (dap_chain_cs_esbocs)
 file(GLOB DAP_CHAIN_ESBOCS_SRCS *.c)
 file(GLOB DAP_CHAIN_CS_ESBOCS_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_ESBOCS_SRCS} ${DAP_CHAIN_CS_ESBOCS_HEADERS})
+# Use universal Cellframe library macro
+cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_ESBOCS_SRCS} HEADERS ${DAP_CHAIN_CS_ESBOCS_HEADERS})
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)

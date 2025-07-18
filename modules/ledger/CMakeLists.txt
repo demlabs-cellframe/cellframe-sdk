@@ -5,7 +5,8 @@ project (dap_chain_ledger)
 file(GLOB DAP_CHAIN_LEDGER_SRCS *.c)
 file(GLOB DAP_CHAIN_LEDGER_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_LEDGER_SRCS} ${DAP_CHAIN_LEDGER_HEADERS})
+# Use universal Cellframe library macro
+cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_LEDGER_SRCS} HEADERS ${DAP_CHAIN_LEDGER_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_notify_srv dap_chain dap_chain_wallet dap_global_db dap_json_rpc)
 

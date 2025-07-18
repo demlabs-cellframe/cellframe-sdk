@@ -4,7 +4,8 @@ project (dap_chain_datum)
 file(GLOB DAP_CHAIN_DATUM_SRCS  *.c)
 file(GLOB DAP_CHAIN_DATUM_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_DATUM_SRCS} ${DAP_CHAIN_DATUM_HEADERS})
+# Use universal Cellframe library macro
+cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_DATUM_SRCS} HEADERS ${DAP_CHAIN_DATUM_HEADERS})
 
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
