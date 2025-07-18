@@ -329,7 +329,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list coins -net <net_name> [-limit] [-offset]\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
-            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n");
+            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
+            "ledger event list -net <net_name> [-limit] [-offset] [-group]\n"
+            "ledger event dump {<event_hash> | -hash <event_hash>} -net <net_name>\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info",

@@ -1015,6 +1015,27 @@ static size_t dap_db_net_history_token_list(json_object* a_json_arr_reply, dap_c
     return l_token_num_total;
 }
 
+/**
+ * @brief s_ledger_json_pack_atom
+ * Pack atom data into JSON format for ledger command
+ * @param a_json_out JSON array to add atom to
+ * @param a_atom_hash Atom hash
+ * @param a_atom_num Atom number
+ * @param a_ts_created Creation timestamp  
+ * @param a_version API version
+ */
+static void s_ledger_json_pack_atom(json_object *a_json_out, dap_chain_hash_fast_t *a_atom_hash, 
+                                   uint64_t a_atom_num, dap_time_t a_ts_created, int a_version) {
+    json_object *json_obj_atom = json_object_new_object();
+    char buf[DAP_TIME_STR_SIZE];
+    dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, a_ts_created);
+    
+    json_object_object_add(json_obj_atom, a_version == 1 ? "atom number" : "atom_num", json_object_new_uint64(a_atom_num));
+    json_object_object_add(json_obj_atom, a_version == 1 ? "hash" : "atom_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(a_atom_hash)));
+    json_object_object_add(json_obj_atom, "ts_created", json_object_new_string(buf));
+    
+    json_object_array_add(a_json_out, json_obj_atom);
+}
 
 /**
  * @brief com_ledger
@@ -1028,7 +1049,7 @@ static size_t dap_db_net_history_token_list(json_object* a_json_arr_reply, dap_c
 int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) reply;
-    enum { CMD_NONE, CMD_LIST, CMD_TX_INFO };
+    enum { CMD_NONE, CMD_LIST, CMD_TX_INFO, CMD_EVENT };
     int arg_index = 1;
     const char *l_net_str = NULL;
     const char *l_tx_hash_str = NULL;
@@ -1042,9 +1063,11 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
     }
 
-    //switch ledger params list | tx | info
+    //switch ledger params event | list | tx | info
     int l_cmd = CMD_NONE;
-    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "list", NULL)){
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "event", NULL))
+        l_cmd = CMD_EVENT;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "list", NULL)){
         l_cmd = CMD_LIST;
     } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "info", NULL))
         l_cmd = CMD_TX_INFO;
@@ -1168,9 +1191,216 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         if (json_datum){
             json_object_array_add(*a_json_arr_reply, json_datum);
         }        
+    } else if (l_cmd == CMD_EVENT) {
+        // Event command handling
+        const char *l_event_subcmd = NULL;
+        const char *l_event_hash_str = NULL;
+        
+        // Get event subcommand (list or dump)
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "list", NULL)) {
+            l_event_subcmd = "list";
+        } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "dump", NULL)) {
+            l_event_subcmd = "dump";
+            // Try to get event hash from -hash parameter first
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_event_hash_str);
+            // If not found with -hash, try to get from next positional argument
+            if (!l_event_hash_str && arg_index + 1 < a_argc && a_argv[arg_index + 1] && 
+                !dap_cli_server_cmd_check_option(a_argv, arg_index + 1, a_argc, "-net") &&
+                !dap_cli_server_cmd_check_option(a_argv, arg_index + 1, a_argc, "-hash")) {
+                l_event_hash_str = a_argv[arg_index + 1];
+            }
+        } else if (arg_index < a_argc && a_argv[arg_index] && 
+                   !dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-net") &&
+                   !dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-limit") &&
+                   !dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-offset")) {
+            // Backward compatibility: treat as event hash for dump if not "list" or "dump"
+            l_event_hash_str = a_argv[arg_index];
+            l_event_subcmd = "dump";
+        }
+        
+        if (!l_event_subcmd) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_EVENT_PARAM_ERR, 
+                                 "Event command requires 'list' or event hash for dump");
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_EVENT_PARAM_ERR;
+        }
+        
+        // Get network parameter
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
+        if (!l_net_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR, 
+                                 "Event command requires -net parameter");
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR;
+        }
+        
+        dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+        if (!l_net) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_FIND_ERR, 
+                                 "Can't find net %s", l_net_str);
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_FIND_ERR;
+        }
+        
+        // Find the zero chain (chain ID 0) which contains events
+        dap_chain_t *l_chain = NULL;
+        dap_chain_id_t l_zero_chain_id = {.uint64 = 0};
+        
+        l_chain = dap_chain_find_by_id(l_net->pub.id, l_zero_chain_id);
+        
+        if (!l_chain) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR, 
+                                 "Zero chain not found in network %s", l_net_str);
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR;
+        }
+        
+        // Verify this is a DAG chain (zero chain should use dag_poa consensus)
+        const char *l_cs_type = dap_chain_get_cs_type(l_chain);
+        if (!l_cs_type || (dap_strcmp(l_cs_type, "dag") != 0 && dap_strcmp(l_cs_type, "dag_poa") != 0)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR, 
+                                 "Zero chain in network %s does not support events (cs_type: %s)", 
+                                 l_net_str, l_cs_type ? l_cs_type : "unknown");
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR;
+        }
+        
+        if (dap_strcmp(l_event_subcmd, "list") == 0) {
+            // Handle event list command
+            const char *l_limit_str = NULL;
+            const char *l_offset_str = NULL;
+            
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+            
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 100;
+            size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+            
+            json_object *json_obj_event_list = json_object_new_object();
+            json_object *json_arr_events = json_object_new_array();
+            
+            // Get atom count from chain
+            size_t l_total_atoms = l_chain->callback_count_atom ? l_chain->callback_count_atom(l_chain) : 0;
+            size_t l_processed = 0;
+            size_t l_added = 0;
+            
+            // Use chain's atom iteration interface
+            if (l_chain->callback_get_atoms) {
+                // Calculate page parameters for chain callback
+                size_t l_page_size = l_limit;
+                size_t l_page = (l_offset / l_page_size) + 1;
+                
+                dap_list_t *l_atoms = l_chain->callback_get_atoms(l_chain, l_page_size, l_page, false);
+                dap_list_t *l_current = l_atoms;
+                
+                uint64_t l_atom_num = l_offset + 1;
+                
+                while (l_current && l_added < l_limit) {
+                    if (l_current->data) {
+                        // Get atom and size from list (they're stored in pairs)
+                        dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)l_current->data;
+                        l_current = l_current->next;
+                        if (!l_current) break;
+                        
+                        size_t *l_atom_size = (size_t *)l_current->data;
+                        l_current = l_current->next;
+                        
+                        // Calculate atom hash
+                        dap_chain_hash_fast_t l_atom_hash;
+                        dap_hash_fast(l_atom, *l_atom_size, &l_atom_hash);
+                        
+                        // Get timestamp from atom (this is chain-type specific)
+                        dap_time_t l_ts = l_chain->callback_atom_get_timestamp ? 
+                                        l_chain->callback_atom_get_timestamp(l_atom) : 0;
+                        
+                        s_ledger_json_pack_atom(json_arr_events, &l_atom_hash, l_atom_num++, l_ts, a_version);
+                        l_added++;
+                    } else {
+                        l_current = l_current->next;
+                    }
+                }
+                
+                dap_list_free(l_atoms);
+            }
+            
+            json_object_object_add(json_obj_event_list, a_version == 1 ? "EVENTS" : "events", json_arr_events);
+            
+            json_object_object_add(json_obj_event_list, a_version == 1 ? "net name" : "net_name", 
+                                 json_object_new_string(l_net->pub.name));
+            json_object_object_add(json_obj_event_list, "chain", json_object_new_string(l_chain->name));
+            json_object_object_add(json_obj_event_list, a_version == 1 ? "total events" : "total_events", 
+                                 json_object_new_uint64(l_total_atoms));
+            json_object_object_add(json_obj_event_list, a_version == 1 ? "returned events" : "returned_events", 
+                                 json_object_new_uint64(l_added));
+            
+            json_object_array_add(*a_json_arr_reply, json_obj_event_list);
+            
+        } else if (dap_strcmp(l_event_subcmd, "dump") == 0) {
+            // Handle event dump command
+            if (!l_event_hash_str) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_EVENT_PARAM_ERR, 
+                                     "Event dump requires event hash");
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_EVENT_PARAM_ERR;
+            }
+            
+            dap_chain_hash_fast_t l_atom_hash;
+            if (dap_chain_hash_fast_from_str(l_event_hash_str, &l_atom_hash)) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_EVENT_HASH_ERR, 
+                                     "Can't parse event hash %s", l_event_hash_str);
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_EVENT_HASH_ERR;
+            }
+            
+            // Find atom by hash using chain interface
+            dap_chain_atom_ptr_t l_atom = NULL;
+            size_t l_atom_size = 0;
+            
+            // Find atom in all cells 
+            dap_chain_cell_t *l_cell, *l_iter_tmp;
+            HASH_ITER(hh, l_chain->cells, l_cell, l_iter_tmp) {
+                dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, 0);
+                if (l_iter && l_chain->callback_atom_find_by_hash) {
+                    l_atom = l_chain->callback_atom_find_by_hash(l_iter, &l_atom_hash, &l_atom_size);
+                    l_chain->callback_atom_iter_delete(l_iter);
+                    if (l_atom)
+                        break;
+                } else if (l_iter) {
+                    l_chain->callback_atom_iter_delete(l_iter);
+                }
+            }
+            
+            if (!l_atom) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_EVENT_NOT_FOUND_ERR, 
+                                     "Event with hash %s not found", l_event_hash_str);
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_EVENT_NOT_FOUND_ERR;
+            }
+            
+            json_object *json_obj_event = json_object_new_object();
+            char buf[DAP_TIME_STR_SIZE];
+            
+            // Atom hash
+            json_object_object_add(json_obj_event, a_version == 1 ? "Event hash" : "atom_hash", 
+                                 json_object_new_string(l_event_hash_str));
+            
+            // Get timestamp from atom
+            dap_time_t l_ts = l_chain->callback_atom_get_timestamp ? 
+                            l_chain->callback_atom_get_timestamp(l_atom) : 0;
+            
+            if (l_ts) {
+                dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_ts);
+                json_object_object_add(json_obj_event, "ts_created", json_object_new_string(buf));
+            }
+            
+            json_object_object_add(json_obj_event, "atom_size", json_object_new_uint64(l_atom_size));
+            
+            // Use chain's atom to JSON conversion if available
+            if (l_chain->callback_atom_dump_json) {
+                json_object *l_atom_json = l_chain->callback_atom_dump_json(a_json_arr_reply, l_chain, 
+                                                                          l_atom, l_atom_size, l_hash_out_type, a_version);
+                if (l_atom_json) {
+                    json_object_object_add(json_obj_event, "atom_details", l_atom_json);
+                }
+            }
+            
+            json_object_array_add(*a_json_arr_reply, json_obj_event);
+        }
     }
     else{
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'ledger' requires parameter 'list' or 'info'", l_tx_hash_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'ledger' requires parameter 'list', 'info', or 'event'", l_tx_hash_str);
         return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
     }
     return 0;
@@ -1952,3 +2182,4 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 
     return 0;
 }
+
