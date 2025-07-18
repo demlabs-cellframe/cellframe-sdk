@@ -235,9 +235,8 @@ void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
         switch (*item) {
         case TX_ITEM_TYPE_EVENT: {
             dap_chain_tx_item_event_t *l_event_item = (dap_chain_tx_item_event_t *)item;
-            json_object_object_add(json_obj_item, "type", json_object_new_string("event"));
-            json_object_object_add(json_obj_item, "group_name", json_object_new_string_len((char *)l_event_item->group_name, l_event_item->group_size));
-            json_object_object_add(json_obj_item, "event_type", json_object_new_int(l_event_item->event_type));
+            json_object_object_add(json_obj_item, "type", json_object_new_string("EVENT"));
+            dap_chain_datum_tx_item_event_to_json(json_obj_item, l_event_item);
             break;
         }
         case TX_ITEM_TYPE_IN: {

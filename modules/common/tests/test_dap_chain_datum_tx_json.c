@@ -61,13 +61,13 @@
 * @param l_tx_num
 */
 bool dap_chain_datum_dump_tx_json_old(json_object* a_json_arr_reply,
-                            dap_chain_datum_tx_t *a_datum,
-                            const char *a_ticker,
-                            json_object* json_obj_out,
-                            const char *a_hash_out_type,
-                            dap_hash_fast_t *a_tx_hash,
+                                            dap_chain_datum_tx_t *a_datum,
+                                            const char *a_ticker,
+                                            json_object* json_obj_out,
+                                            const char *a_hash_out_type,
+                                            dap_hash_fast_t *a_tx_hash,
 
-                            dap_chain_net_id_t a_net_id,
+                                            dap_chain_net_id_t a_net_id,
                             int a_version)
 {
    bool l_is_first = false;
@@ -662,7 +662,7 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
         dap_chain_datum_tx_add_item(&l_tx, l_sig_item);
         DAP_DELETE(l_sig_item);
     }
-
+    
     return l_tx;
 }
 

@@ -49,11 +49,19 @@ typedef struct dap_chain_tx_event {
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_LOST                0x0004
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED           0x0005
 
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED_JSON_STR    "auction_started"
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED_JSON_STR "auction_bid_placed"
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_WON_JSON_STR        "auction_won"
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_LOST_JSON_STR       "auction_lost"
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED_JSON_STR  "auction_cancel"
+DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_event_type)
+{
+    switch (a_event_type) {
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED: return "auction_started";
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED: return "auction_bid_placed";
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_WON: return "auction_won";
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_LOST: return "auction_lost";  
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED: return "auction_cancel";
+        default: return "unknown";
+    }
+}
 
 #define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA                   0x1000
 #define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA_JSON_STR          "custom_data"
+
+int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_item_event_t *a_event);

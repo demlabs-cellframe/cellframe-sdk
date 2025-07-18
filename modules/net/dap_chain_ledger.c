@@ -332,6 +332,16 @@ static bool s_tag_check_block_reward(dap_ledger_t *a_ledger, dap_chain_datum_tx_
     return false;
 }
 
+static bool s_tag_check_event(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
+{
+    //event tag
+    if (!a_items_grp->items_event)
+        return false;
+
+    if (a_action)
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_EVENT;
+    return true;
+}
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond)
 {
         dap_hash_fast_t *l_tx_prev_hash = &a_in_cond->header.tx_prev_hash;    
@@ -494,6 +504,10 @@ int dap_ledger_init()
 
     dap_chain_net_srv_uid_t l_uid_breward = { .uint64 = DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID };
     dap_ledger_service_add(l_uid_breward, "block_reward", s_tag_check_block_reward);
+
+    dap_chain_net_srv_uid_t l_uid_event = { .uint64 = DAP_CHAIN_NET_SRV_EVENT_ID };
+    dap_ledger_service_add(l_uid_event, "event", s_tag_check_event);
+
     return 0;
 }
 

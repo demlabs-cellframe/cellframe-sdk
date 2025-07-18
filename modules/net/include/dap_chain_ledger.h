@@ -39,6 +39,7 @@
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x09
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
+#define DAP_CHAIN_NET_SRV_EVENT_ID 0xA0
 
 typedef struct dap_ledger {
     dap_chain_net_t *net;
@@ -141,6 +142,8 @@ typedef enum dap_chain_tx_tag_action_type {
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD =    1 << 13,
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE =    1 << 14,
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL =  1 << 15,
+
+    DAP_CHAIN_TX_TAG_ACTION_EVENT =                 1 << 16,
    
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
 } dap_chain_tx_tag_action_type_t;
