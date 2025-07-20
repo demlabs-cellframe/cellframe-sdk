@@ -1239,23 +1239,46 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_FIND_ERR;
         }
         
-        // Find the zero chain (chain ID 0) which contains events
+        // Get chain parameter or default to zero chain (chain ID 0)
+        const char *l_chain_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
+        
         dap_chain_t *l_chain = NULL;
-        dap_chain_id_t l_zero_chain_id = {.uint64 = 0};
-        
-        l_chain = dap_chain_find_by_id(l_net->pub.id, l_zero_chain_id);
-        
-        if (!l_chain) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR, 
-                                 "Zero chain not found in network %s", l_net_str);
-            return DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR;
+        if (l_chain_str) {
+            // Use specified chain
+            l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+            if (!l_chain) {
+                dap_string_t *l_reply = dap_string_new("");
+                dap_string_append_printf(l_reply, "Invalid '-chain' parameter \"%s\", not found in net %s\n"
+                                                  "Available chains:",
+                                                  l_chain_str, l_net_str);
+                dap_chain_t *l_chain_iter;
+                DL_FOREACH(l_net->pub.chains, l_chain_iter) {
+                    dap_string_append_printf(l_reply, "\n\t%s", l_chain_iter->name);
+                }
+                char *l_str_reply = dap_string_free(l_reply, false);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR, 
+                                     "%s", l_str_reply);
+                DAP_DELETE(l_str_reply);
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR;
+            }
+        } else {
+            // Default to zero chain (chain ID 0) which contains events
+            dap_chain_id_t l_zero_chain_id = {.uint64 = 0};
+            l_chain = dap_chain_find_by_id(l_net->pub.id, l_zero_chain_id);
+            
+            if (!l_chain) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR, 
+                                     "Zero chain not found in network %s", l_net_str);
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR;
+            }
         }
         
         // Verify this is a DAG chain (zero chain should use dag_poa consensus)
         const char *l_cs_type = dap_chain_get_cs_type(l_chain);
         if (!l_cs_type || (dap_strcmp(l_cs_type, "dag") != 0 && dap_strcmp(l_cs_type, "dag_poa") != 0)) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR, 
-                                 "Zero chain in network %s does not support events (cs_type: %s)", 
+                                 "%s in network %s does not support events (cs_type: %s)", l_chain_str,
                                  l_net_str, l_cs_type ? l_cs_type : "unknown");
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_CHAIN_TYPE_ERR;
         }
@@ -1268,7 +1291,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
             
-            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 100;
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             
             json_object *json_obj_event_list = json_object_new_object();
@@ -1282,15 +1305,15 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             // Use chain's atom iteration interface
             if (l_chain->callback_get_atoms) {
                 // Calculate page parameters for chain callback
-                size_t l_page_size = l_limit;
-                size_t l_page = (l_offset / l_page_size) + 1;
+                size_t l_page_size = l_limit ? l_limit : l_total_atoms;
+                size_t l_page = l_page_size ? (l_offset / l_page_size) + 1 : 1;
                 
                 dap_list_t *l_atoms = l_chain->callback_get_atoms(l_chain, l_page_size, l_page, false);
                 dap_list_t *l_current = l_atoms;
                 
                 uint64_t l_atom_num = l_offset + 1;
                 
-                while (l_current && l_added < l_limit) {
+                while (l_current && (l_limit == 0 || l_added < l_limit)) {
                     if (l_current->data) {
                         // Get atom and size from list (they're stored in pairs)
                         dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)l_current->data;
