@@ -334,14 +334,13 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
             switch (l_receipt_old->exts_size) {
             case (sizeof(dap_sign_t) * 2): {
                 dap_sign_t *l_client = (dap_sign_t*)(l_receipt_old->exts_n_signs  + sizeof(dap_sign_t));
-                json_object_object_add(json_obj_item,"Client", json_object_new_string(""));
-                dap_sign_get_information_json(a_json_arr_reply, l_client, json_obj_item, a_hash_out_type, a_version);                
+                json_object_object_add(json_obj_item, a_version == 1 ? "Client" : "sig_inf", json_object_new_string(a_version == 1 ? "" : "client"));
+                dap_sign_get_information_json(a_json_arr_reply, l_client, json_obj_item, a_hash_out_type, a_version);                 
             }
             case (sizeof(dap_sign_t)): {
                 dap_sign_t *l_provider = (dap_sign_t*)(l_receipt_old->exts_n_signs);
-                json_object_object_add(json_obj_item,"Provider", json_object_new_string(""));
-                dap_sign_get_information_json(a_json_arr_reply, l_provider,json_obj_item, a_hash_out_type, a_version);
-                break;
+                json_object_object_add(json_obj_item, a_version == 1 ? "Provider" : "sig_inf", json_object_new_string(a_version == 1 ? "" : "provider"));
+                dap_sign_get_information_json(a_json_arr_reply, l_provider,json_obj_item, a_hash_out_type, a_version);break;
             }
             }
         } break;

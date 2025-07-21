@@ -861,7 +861,7 @@ static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
 /**
  * Node command
  */
-int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
+int com_node(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     enum {
@@ -1672,7 +1672,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
  * @param str_reply
  * @return
  */
-int com_version(int argc, char ** argv, void **a_str_reply, int a_version)
+int com_version(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     (void) argc;
@@ -1699,7 +1699,7 @@ int com_version(int argc, char ** argv, void **a_str_reply, int a_version)
  * @param str_reply
  * @return int
  */
-int com_help(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_help(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     if (a_argc > 1) {
         log_it(L_DEBUG, "Help for command %s", a_argv[1]);
@@ -4227,7 +4227,7 @@ int com_chain_ca_copy( int a_argc,  char ** a_argv, void **a_str_reply, int a_ve
  * @param a_str_reply
  * @return
  */
-int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply, int a_version)
+int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
@@ -4349,7 +4349,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 }
 
 // Decree commands handlers
-int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND, CMD_INFO };
@@ -5106,7 +5106,7 @@ int com_stats(int argc, char **a_argv, void **a_str_reply, int a_version)
  * @param str_reply
  * @return int
  */
-int com_exit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_exit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     UNUSED(a_argc);
     UNUSED(a_argv);
@@ -5125,7 +5125,7 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
  * @param a_str_reply
  * @return
  */
-int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     int arg_index = 1;
     const char *l_filename = NULL;
@@ -5238,7 +5238,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version)
  * @param a_str_reply
  * @return
  */
-int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
@@ -5368,7 +5368,7 @@ typedef struct _pvt_net_nodes_list {
     size_t count_nodes;
 } _pvt_net_nodes_list_t;
 
-int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     //default init
@@ -5543,7 +5543,7 @@ struct opts {
 
 #define BUILD_BUG(condition) ((void)sizeof(char[1-2*!!(condition)]))
 
-int com_signer(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_signer(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     enum {
         CMD_NONE, CMD_SIGN, CMD_CHECK
@@ -6231,7 +6231,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
     return 0;
 }
 
-int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
+int com_file(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
