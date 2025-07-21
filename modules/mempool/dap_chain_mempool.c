@@ -1541,7 +1541,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
   * @param[in] a_hash_out_type Hash output format
   * @return Transaction hash string on success, NULL on error
   */
- char *dap_chain_mempool_event_compose(dap_chain_t *a_chain,
+ char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
                                dap_enc_key_t *a_key_from,
                                dap_enc_key_t *a_service_key,
                                const char *a_group_name,

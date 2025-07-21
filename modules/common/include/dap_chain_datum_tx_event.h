@@ -25,6 +25,8 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 
+#define DAP_CHAIN_TX_EVENT_VERSION                          0x0001
+
 typedef struct dap_chain_tx_item_event {
     dap_chain_tx_item_type_t type;          /// @param type             @brief Transaction item type
     uint8_t version;                        /// @param version          @brief Version of the event.
@@ -35,7 +37,6 @@ typedef struct dap_chain_tx_item_event {
 
 typedef struct dap_chain_tx_event {
     char *group_name;                   /// @param group_name           @brief Event group name
-    dap_chain_tx_item_type_t type;      /// @param type                 @brief Transaction item type
     dap_chain_hash_fast_t tx_hash;      /// @param tx_hash              @brief Hash of the transaction.
     dap_chain_hash_fast_t pkey_hash;    /// @param pkey_hash            @brief Hash of the public key.
     uint16_t event_type;                /// @param event_type           @brief Event type.

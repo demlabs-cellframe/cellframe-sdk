@@ -136,9 +136,6 @@ typedef enum dap_chain_tx_tag_action_type {
     DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
     DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
 
-    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
-    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
-
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD =    1 << 13,
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE =    1 << 14,
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL =  1 << 15,
@@ -477,7 +474,37 @@ int dap_ledger_event_add(dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event);
 dap_chain_tx_event_t *dap_ledger_event_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_group_name);
 int dap_ledger_event_delete(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+/**
+ * @brief Check if a public key is allowed for creating events
+ * @param a_ledger The ledger instance
+ * @param a_pkey_hash Hash of the public key to check
+ * @return 0 if allowed, -1 if not allowed
+ */
+ int dap_ledger_check_event_pkey(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
 
+ /**
+  * @brief Add a public key to the allowed list for creating events
+  * @param a_ledger The ledger instance
+  * @param a_pkey_hash Hash of the public key to add
+  * @return 0 on success, -1 on error
+  */
+ int dap_ledger_event_pkey_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
+ 
+ /**
+  * @brief Remove a public key from the allowed list for creating events
+  * @param a_ledger The ledger instance
+  * @param a_pkey_hash Hash of the public key to remove
+  * @return 0 on success, -1 on error or if not found
+  */
+ int dap_ledger_event_pkey_rm(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
+ 
+ /**
+  * @brief Get a list of all allowed public keys for creating events
+  * @param a_ledger The ledger instance
+  * @return dap_list_t* List of dap_hash_fast_t* pointers to allowed public key hashes, NULL if empty or on error
+  */
+ dap_list_t *dap_ledger_event_pkey_list(dap_ledger_t *a_ledger);
+ 
 #ifdef __cplusplus
 }
 #endif
