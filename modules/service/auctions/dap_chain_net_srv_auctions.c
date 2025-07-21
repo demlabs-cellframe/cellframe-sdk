@@ -44,6 +44,150 @@ enum error_code {
     COMMAND_NOT_RECOGNIZED = 20
 };
 
+// Callbacks
+static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
+static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+int com_auction(int argc, char **argv, void **str_reply, int a_version);
+
+/**
+ * @brief Service initialization
+ * @return Returns 0 on success
+ */
+int dap_chain_net_srv_auctions_init(void)
+{
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID, s_auction_bid_callback_verificator, s_auction_bid_callback_updater, NULL);
+    dap_cli_server_cmd_add ("auction", com_auction, "Auction commands",
+                "Commands to work with auctions\n"
+                "Usage:\n"
+                "\tauction bid -net <network> -auction <hash> -range <1..8> -amount <value> -lock <3..24> -fee <value> -w <wallet>\n"
+                "\tauction withdraw -net <network> -bid_tx_hash <hash> -fee <value> -w <wallet>\n"
+                "\tauction list -net <network> [-active_only]\n"
+                "\tauction info -net <network> -auction <hash>\n"
+                "\tauction events -net <network> [-auction <hash>] [-type <event_type>] [-limit <count>]\n"
+                "Options:\n"
+                "\t-net <network>          Network name (for example 'Backbone')\n"
+                "\t-auction <hash>         Auction hash (64-char hex)\n"
+                "\t-range <1..8>          CellSlot range end (start always 1)\n"
+                "\t-amount <value>        Bid amount in CELL tokens\n"
+                "\t-lock <3..24>          Token lock period in months\n"
+                "\t-fee <value>           Transaction fee in CELL\n"
+                "\t-w <wallet>            Wallet name for payment\n"
+                "\t-bid_tx_hash <hash>    Hash of bid transaction (64-char hex)\n"
+                "\t-active_only           Show only active auctions\n"
+                "\t-type <event_type>     Filter events by type\n"
+                "\t-limit <count>         Limit number of events (default: 50)\n"
+                "Event types:\n"
+                "\tAUCTION_CREATED       New auction created\n"
+                "\tBID_PLACED            New bid placed\n"
+                "\tAUCTION_ENDED         Auction ended\n"
+                "\tWINNER_DETERMINED     Winner determined\n"
+                "\tAUCTION_CANCELLED     Auction cancelled\n"
+                "Rules:\n"
+                "\t• Score = range_end × bid_amount (higher wins)\n"
+                "\t• Only CELL token accepted\n"
+                "\t• Min bid: 31.250 CELL (3-month lock)\n"
+                "\t• Max bid: 250,000 CELL (24-month lock)\n"
+                "\t• Range: 1-8 CellSlots (1 slot = 3 months)\n"
+                "\t• Lock: 3-24 months (matches range × 3)\n"
+                "Examples:\n"
+                "\tauction bid -net Backbone -auction 0123..cdef -range 4 -amount 100.0 -lock 12 -fee 0.1 -w my_wallet\n"
+                "\tauction withdraw -net Backbone -bid_tx_hash 0123..cdef -fee 0.1 -w my_wallet\n"
+                "\tauction list -net Backbone -active_only\n"
+                "\tauction info -net Backbone -auction 0123..cdef\n"
+                "\tauction events -net Backbone -auction 0123..cdef -type BID_PLACED -limit 10\n");
+
+        
+    return 0;
+}
+
+/**
+ * @brief Service deinitialization
+ */
+void dap_chain_net_srv_auctions_deinit(void)
+{
+
+}
+
+static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,
+                                 dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item)
+{
+
+}
+
+/**
+ * @brief Verify auction bid conditional output
+ * @param a_ledger Ledger instance
+ * @param a_cond Conditional output to verify
+ * @param a_tx_in Input transaction
+ * @param a_owner Whether the transaction is from the owner
+ * @return Returns 0 on success, negative error code otherwise
+ */
+static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, 
+                                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+{
+    if (!a_cond) {
+        log_it(L_WARNING, "NULL conditional output specified");
+        return -1;
+    }
+
+    // Check if output type is auction bid
+    if (a_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID) {
+        log_it(L_WARNING, "Invalid conditional output subtype (expected auction bid)");
+        return -2;
+    }
+
+
+    // Check range_end value
+    if (a_cond->subtype.srv_auction_bid.range_end > 8) {
+        log_it(L_WARNING, "Invalid range_end value %u (must be <= 8)", a_cond->subtype.srv_auction_bid.range_end);
+        return -3;
+    }
+
+    // TODO: Check if auction with auction_hash exists
+    // This will require:
+    // 1. Access to auction storage/ledger
+    // 2. Lookup auction by hash
+    // 3. Verify auction state (should be active)
+    // For now just log that this check is pending implementation
+    char l_auction_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&a_cond->subtype.srv_auction_bid.auction_hash, l_auction_hash_str, sizeof(l_auction_hash_str));
+    log_it(L_DEBUG, "TODO: Implement auction existence check for hash %s", l_auction_hash_str);
+
+    return 0;
+}
+
+/**
+ * @brief Create auctions service
+ * @param a_srv Parent service
+ * @return Returns service instance or NULL on error
+ */
+dap_chain_net_srv_auctions_t *dap_chain_net_srv_auctions_create(dap_chain_net_srv_t *a_srv)
+{
+    dap_chain_net_srv_auctions_t *l_auctions = DAP_NEW_Z(dap_chain_net_srv_auctions_t);
+    if(!l_auctions) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
+    l_auctions->parent = a_srv;
+    return l_auctions;
+}
+
+/**
+ * @brief Find auction by hash
+ * @param a_auctions Service instance
+ * @param a_hash Auction hash
+ * @return Returns auction instance or NULL if not found
+ */
+dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_find(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_hash)
+{
+    if(!a_net || !a_hash)
+        return NULL;
+    
+    // TODO: Implement auction search
+    
+    return NULL;
+} 
+
 /**
  * @brief Handle error codes and output error messages
  * @param a_err_code Error code
@@ -317,8 +461,9 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_HASH_ARG_ERROR, "Auction hash not specified");
                 return -1;
             }
-
-            dap_chain_net_srv_auction_t *l_auction = dap_chain_net_srv_auctions_find(l_net, l_auction_hash_str);
+            dap_hash_fast_t l_auction_hash;
+            dap_chain_hash_fast_from_str(l_auction_hash_str, &l_auction_hash);
+            dap_chain_net_srv_auction_t *l_auction = dap_chain_net_srv_auctions_find(l_net, &l_auction_hash);
             if(!l_auction) {
                 dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_NOT_FOUND_ERROR, "Auction not found");
                 return -1;
@@ -362,180 +507,3 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
 
     return 0;
 }
-
-/**
- * Auction command handler
- */
-static int com_auction(int a_argc, char **a_argv, void **a_str_reply, int a_version);
-
-
-// Callbacks
-static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
-static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-
-/**
- * @brief Service initialization
- * @return Returns 0 on success
- */
-int dap_chain_net_srv_auctions_init(void)
-{
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID, s_auction_bid_callback_verificator, s_auction_bid_callback_updater, NULL);
-    dap_cli_server_cmd_add ("auction", com_auction, "Auction commands",
-                "CELLFRAME AUCTION CLI\n"
-                "=====================\n\n"
-                "USAGE:\n"
-                "  auction <subcommand> [options...]\n\n"
-                "AVAILABLE SUBCOMMANDS:\n\n"
-                "  bid       Create auction bid transaction\n"
-                "  withdraw       Create auction withdraw transaction\n" 
-                "  list      List auctions in network\n"
-                "  info      Show detailed auction information\n"
-                "  events    Show auction events from ledger\n"
-                "DETAILED SYNTAX:\n\n"
-                "1. CREATE AUCTION BID:\n"
-                "   auction bid -net <network_name> -auction <auction_hash>\n"
-                "               -range <range_end> -amount <cell_amount>\n"
-                "               -lock <lock_months> -fee <fee_amount>\n"
-                "               -w <wallet_name> [--help]\n\n"
-                "   REQUIRED PARAMETERS:\n"
-                "     -net <network_name>     Network name (e.g., 'Backbone')\n"
-                "     -auction <auction_hash> 64-character hex auction hash\n"
-                "     -range <range_end>      CellSlot range end (1-8, start always 1)\n"
-                "     -amount <cell_amount>   Bid amount in CELL tokens\n"
-                "     -lock <lock_months>     Token lock period (3-24 months)\n"
-                "     -fee <fee_amount>       Transaction fee in CELL\n"
-                "     -w <wallet_name>        Wallet name for payment\n\n"
-                "2. CREATE AUCTION WITHDRAW:\n" 
-                "   auction withdraw -net <network_name> -bid_tx_hash <bid_tx_hash>\n" 
-                "               -fee <fee_amount>  -w <wallet_name> \n\n" 
-
-                "   REQUIRED PARAMETERS:\n" 
-                "     -net <network_name>     Network name (e.g., 'Backbone')\n" 
-                "     -bid_tx_hash <bid_tx_hash> 64-character hex hash of bid tx\n" 
-                "     -fee <fee_amount>       Transaction fee in CELL\n" 
-                "     -w <wallet_name>        Wallet name for payment\n\n" 
-
-                "3. LIST AUCTIONS:\n"
-                "   auction list -net <network_name> [-active_only]\n"
-                "   REQUIRED PARAMETERS:\n"
-                "     -net <network_name>     Network name\n\n"
-                "4. SHOW AUCTION INFO:\n"
-                "   auction info -net <network_name> -auction <auction_hash>\n"
-                "   REQUIRED PARAMETERS:\n"
-                "     -net <network_name>     Network name\n"
-                "     -auction <auction_hash> Auction hash to query\n\n"
-                "5. SHOW AUCTION EVENTS:\n"
-                "   auction events -net <network_name> [-auction <auction_hash>]\n"
-                "                  [-type <event_type>] [-limit <count>]\n"
-                "   REQUIRED PARAMETERS:\n"
-                "     -net <network_name>     Network name\n\n"
-                "   OPTIONAL PARAMETERS:\n"
-                "     -auction <auction_hash> Filter by specific auction\n"
-                "     -type <event_type>      Filter by event type\n"
-                "     -limit <count>          Limit results (default: 50)\n"
-                "   EVENT TYPES:\n"
-                "     AUCTION_CREATED         New auction created\n"
-                "     BID_PLACED              New bid placed\n"
-                "     AUCTION_ENDED           Auction ended\n"
-                "     WINNER_DETERMINED       Winner determined\n"
-                "     AUCTION_CANCELLED       Auction cancelled\n\n"
-                "CELLFRAME AUCTION RULES:\n"
-                "========================\n"
-                "• Scoring Formula:     range_end × bid_amount = points (higher wins)\n"
-                "• Token Type:          Only CELL (native token) accepted\n"
-                "• Minimum Bid:         31.250 CELL for 3-month lock period\n"
-                "• Maximum Bid:         250,000 CELL for 24-month lock period\n"
-                "• Range Specification: 1-8 CellSlots (1 slot = 3 months)\n"
-                "• Lock Period:         3-24 months (matches range × 3)\n\n");
-
-        
-    return 0;
-}
-
-/**
- * @brief Service deinitialization
- */
-void dap_chain_net_srv_auctions_deinit(void)
-{
-    DAP_DEL_Z(s_srv_callbacks);
-}
-
-static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,
-                                 dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item)
-{
-
-}
-
-/**
- * @brief Verify auction bid conditional output
- * @param a_ledger Ledger instance
- * @param a_cond Conditional output to verify
- * @param a_tx_in Input transaction
- * @param a_owner Whether the transaction is from the owner
- * @return Returns 0 on success, negative error code otherwise
- */
-static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, 
-                                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner)
-{
-    if (!a_cond) {
-        log_it(L_WARNING, "NULL conditional output specified");
-        return -1;
-    }
-
-    // Check if output type is auction bid
-    if (a_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID) {
-        log_it(L_WARNING, "Invalid conditional output subtype (expected auction bid)");
-        return -2;
-    }
-
-
-    // Check range_end value
-    if (a_cond->subtype.srv_auction_bid.range_end > 8) {
-        log_it(L_WARNING, "Invalid range_end value %u (must be <= 8)", a_cond->subtype.srv_auction_bid.range_end);
-        return -3;
-    }
-
-    // TODO: Check if auction with auction_hash exists
-    // This will require:
-    // 1. Access to auction storage/ledger
-    // 2. Lookup auction by hash
-    // 3. Verify auction state (should be active)
-    // For now just log that this check is pending implementation
-    char l_auction_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(&a_cond->subtype.srv_auction_bid.auction_hash, l_auction_hash_str, sizeof(l_auction_hash_str));
-    log_it(L_DEBUG, "TODO: Implement auction existence check for hash %s", l_auction_hash_str);
-
-    return 0;
-}
-
-/**
- * @brief Create auctions service
- * @param a_srv Parent service
- * @return Returns service instance or NULL on error
- */
-dap_chain_net_srv_auctions_t *dap_chain_net_srv_auctions_create(dap_chain_net_srv_t *a_srv)
-{
-    dap_chain_net_srv_auctions_t *l_auctions = DAP_NEW_Z(dap_chain_net_srv_auctions_t);
-    if(!l_auctions) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-    l_auctions->parent = a_srv;
-    return l_auctions;
-}
-
-/**
- * @brief Find auction by hash
- * @param a_auctions Service instance
- * @param a_hash Auction hash
- * @return Returns auction instance or NULL if not found
- */
-dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_find(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_hash)
-{
-    if(!a_net || !a_hash)
-        return NULL;
-    
-    // TODO: Implement auction search
-    
-    return NULL;
-} 
