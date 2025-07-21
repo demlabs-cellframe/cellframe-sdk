@@ -172,7 +172,7 @@ void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_c
  * @param str_reply
  * @return
  */
-static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, int a_version)
+static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     int ret = -666;
     int arg_index = 1;
