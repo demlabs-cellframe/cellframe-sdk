@@ -3238,8 +3238,6 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EXTEND) return "extend";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CLOSE) return "close";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CHANGE) return "change";
-    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTING) return "voting";
-    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTE) return "vote";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD) return "hold";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE) return "take";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL) return "refill";
@@ -5006,10 +5004,10 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     TX_ITEM_ITER_TX(it, l_size, a_tx) {
         switch (*it) {
         case TX_ITEM_TYPE_VOTING:
-            s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, a_tx_hash);
+            s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx);
             break;
         case TX_ITEM_TYPE_VOTE:
-            s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash);
+            s_voting_callbacks.voting_delete_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx);
             break;
         case TX_ITEM_TYPE_EVENT:
             s_ledger_event_remove(a_ledger, a_tx_hash);
@@ -6075,7 +6073,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
         switch (*l_item) {
         case TX_ITEM_TYPE_EVENT:
-            if (l_count++) {
+            if (l_event_count++) {
                 log_it(L_WARNING, "Multiple event items in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
                 pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
                 return -2;
@@ -6108,7 +6106,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
             }
             l_event_tsd = l_tsd_data;
             break;
-        case TX_ITEM_TYPE_SIGN:
+        case TX_ITEM_TYPE_SIG:
             if (++l_sign_count == 2)
                 l_event_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
             break;
@@ -6146,15 +6144,15 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         .event_data_size = l_event_tsd ? l_event_tsd->size : 0,
         .pkey_hash = l_event_pkey_hash
     };
-    l_event->group_name = DAP_NEW_SIZE(l_event_item->group_size);
+    l_event->group_name = DAP_NEW_SIZE(char, l_event_item->group_size + 1);
     if (!l_event->group_name) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         DAP_DEL_Z(l_event);
         return -9;
     }
-    dap_strncpy((char *)l_event->group_name, l_event_item->group_name, l_event_item->group_size);
+    dap_strncpy((char *)l_event->group_name, (char *)l_event_item->group_name, l_event_item->group_size);
     if (l_event_tsd) {
-        l_event->event_data = DAP_DUP_SIZE(l_event_tsd->data, l_event_tsd->size);
+        l_event->event_data = DAP_DUP_SIZE((byte_t *)l_event_tsd->data, l_event_tsd->size);
         if (!l_event->event_data) {
             pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
             DAP_DEL_Z(l_event);

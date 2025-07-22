@@ -332,9 +332,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
             "ledger event list -net <net_name> [-group <group_name>]\n"
             "ledger event dump -net <net_name> -hash <tx_hash>\n"
-            "ledger event key add -net <net_name> -hash <pkey_hash>\n"
-            "ledger event key remove -net <net_name> -hash <pkey_hash>\n"
-            "ledger event key list -net <net_name>\n");
+            "ledger event key add -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key remove -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key list -net <net_name> [-H <hex|base58>]\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info",

@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <pthread.h>
+#include "dap_chain_net.h"
 #include "uthash.h"
 #include "dap_cli_server.h"
 #include "dap_common.h"
@@ -1031,6 +1032,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
     enum { CMD_NONE, CMD_LIST, CMD_TX_INFO, CMD_EVENT };
     int arg_index = 1;
     const char *l_net_str = NULL;
+    const char *l_target_chain_str = NULL;
     const char *l_tx_hash_str = NULL;
     const char *l_hash_out_type = NULL;
 
@@ -1144,22 +1146,117 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 int l_res = -1;
                 const char *l_action = NULL;
                 
-                if (l_key_subcmd == KEY_SUBCMD_ADD) {
-                    l_action = "add";
-                    l_res = dap_ledger_event_pkey_add(l_ledger, &l_pkey_hash);
-                } else if (l_key_subcmd == KEY_SUBCMD_REMOVE) {
-                    l_action = "remove";
-                    l_res = dap_ledger_event_pkey_rm(l_ledger, &l_pkey_hash);
+                // Get certs for signing the decree
+                const char *l_certs_str = NULL;
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+                if (!l_certs_str) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR,
+                                        "Parameter -certs is required to sign the decree");
+                    return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
                 }
-                
-                json_object* l_json_obj_out = json_object_new_object();
-                json_object_object_add(l_json_obj_out, "action", json_object_new_string(l_action));
-                json_object_object_add(l_json_obj_out, "key_hash", json_object_new_string(l_pkey_hash_str));
-                json_object_object_add(l_json_obj_out, "status", 
-                                      json_object_new_string(l_res == 0 ? "success" : "error"));
-                json_object_array_add(*a_json_arr_reply, l_json_obj_out);
-                return l_res == 0 ? 0 : -1;
+
+                // Get certificates for signing
+                char **l_certs_array = NULL;
+                uint16_t l_certs_count = 0;
+                dap_cert_t **l_certs = NULL;
+                if (l_certs_str && strlen(l_certs_str) > 0) {
+                    l_certs_array = dap_strsplit(l_certs_str, ",", -1);
+                    if (!l_certs_array) {
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR,
+                                            "Can't parse certs");
+                        return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+                    }
+                    for(l_certs_count = 0; l_certs_array[l_certs_count]; l_certs_count++);
+                    l_certs = DAP_NEW_SIZE(dap_cert_t*, sizeof(dap_cert_t*) * l_certs_count);
+                    for(uint16_t i = 0; i < l_certs_count; i++) {
+                        l_certs[i] = dap_cert_find_by_name(l_certs_array[i]);
+                        if(!l_certs[i]){
+                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR,
+                                                "Can't find cert \"%s\"", l_certs_array[i]);
+                            DAP_DELETE(l_certs);
+                            dap_strfreev(l_certs_array);
+                            return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+                        }
+                    }
+                } else {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, 
+                                            "Parameter -certs is required");
+                    return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+                }
+
+                // Get or create decree chain
+                dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(l_ledger->net, CHAIN_TYPE_DECREE);
+                if (!l_chain) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_DECREE_CHAIN,
+                                            "Network %s doesn't have a decree chain", l_net_str);
+                    DAP_DELETE(l_certs);
+                    dap_strfreev(l_certs_array);
+                    return DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_DECREE_CHAIN;
+                }
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_target_chain_str);
+                dap_chain_t *l_target_chain = l_target_chain_str ? dap_chain_net_get_chain_by_name(l_ledger->net, l_target_chain_str) 
+                                                                 : dap_chain_net_get_chain_by_chain_type(l_ledger->net, CHAIN_TYPE_TX);
+                if (!l_target_chain) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_ANCHOR_CHAIN,
+                                            "Network %s doesn't have a chain %s", l_net_str, l_target_chain_str ? l_target_chain_str : "type tx");
+                    return DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_ANCHOR_CHAIN;
+                }
+                size_t l_tsd_size = sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t); 
+                // Create a decree
+                size_t l_decree_size = sizeof(dap_chain_datum_decree_t) + l_tsd_size;
+                dap_chain_datum_decree_t *l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_decree_size);
+                l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
+                l_decree->header.ts_created = dap_time_now();
+                l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
+                l_decree->header.common_decree_params.net_id = l_ledger->net->pub.id;
+                l_decree->header.common_decree_params.chain_id = l_target_chain->id;
+                l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_ledger->net);
+                // Set the subtype based on command
+                l_decree->header.sub_type = l_key_subcmd == KEY_SUBCMD_ADD ? 
+                                        DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD : 
+                                        DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE;
+                l_decree->header.data_size = l_tsd_size;
+                l_decree->header.signs_size = 0;
+
+                // Add TSD with key hash
+                dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, &l_pkey_hash, sizeof(l_pkey_hash));
+
+                // Sign the decree
+                size_t l_total_signs_success = 0;
+                l_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
+                DAP_DELETE(l_certs);
+                dap_strfreev(l_certs_array);
+
+                if (!l_decree || l_total_signs_success == 0) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_SIGNING_FAILED,
+                                        "Decree signing failed");
+                    DAP_DELETE(l_decree);
+                    return DAP_CHAIN_NODE_CLI_COM_LEDGER_SIGNING_FAILED;
+                }
+
+                // Create datum and add to mempool
+                dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE,
+                                                                    l_decree,
+                                                                    sizeof(*l_decree) + l_decree->header.data_size +
+                                                                    l_decree->header.signs_size);
+                DAP_DELETE(l_decree);
+                char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+                DAP_DELETE(l_datum);
+
+                if (l_key_str_out) {
+                    json_object *l_json_object = json_object_new_object();
+                    json_object_object_add(l_json_object, "status", json_object_new_string("success"));
+                    json_object_object_add(l_json_object, "action", json_object_new_string(l_key_subcmd == KEY_SUBCMD_ADD ? "add" : "remove"));
+                    json_object_object_add(l_json_object, "decree_datum", json_object_new_string(l_key_str_out));
+                    json_object_array_add(*a_json_arr_reply, l_json_object);
+                    DAP_DELETE(l_key_str_out);
+                    return 0;
+                } else {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_MEMPOOL_FAILED, "Failed to add decree to mempool");
+                    return DAP_CHAIN_NODE_CLI_COM_LEDGER_MEMPOOL_FAILED;
+                }
             }
+                
         } else if (l_subcmd == SUBCMD_LIST) {
             dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
             if (l_net_str == NULL) {

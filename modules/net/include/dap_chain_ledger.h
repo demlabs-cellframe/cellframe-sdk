@@ -101,6 +101,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
     DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX,
     DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL,
+    DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE,
     /* Emisssion check return codes */
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
     DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN,
@@ -244,6 +245,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX: return "Can't find tx in ledger for removing.";
     case DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET: return "The transaction was rejected because it contains multiple outputs to other networks.";
     case DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL: return "Usage of timed locked out is forbidden for this tx";
+    case DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE: return "Event verification failure";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";
@@ -480,7 +482,7 @@ int dap_ledger_event_delete(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
  * @param a_pkey_hash Hash of the public key to check
  * @return 0 if allowed, -1 if not allowed
  */
- int dap_ledger_check_event_pkey(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
+ int dap_ledger_event_pkey_check(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
 
  /**
   * @brief Add a public key to the allowed list for creating events
