@@ -659,6 +659,7 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_out_cond_srv_xchange);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_pos_delegate);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_lock);
+    dap_list_free(a_items_groups->items_out_cond_srv_auction_bid);
     dap_list_free(a_items_groups->items_out_cond_wallet_shared);
     dap_list_free(a_items_groups->items_in_ems);
     dap_list_free(a_items_groups->items_vote);
@@ -743,6 +744,9 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_lock, l_item);
+                break;
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_auction_bid, l_item);
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_wallet_shared, l_item);

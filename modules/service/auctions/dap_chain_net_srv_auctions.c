@@ -14,7 +14,11 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_node_cli.h"
+#include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_out_cond.h"
+#include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx_event.h"
+#include "dap_chain_ledger.h"
 #include "json-c/json.h"
 
 #define LOG_TAG "dap_chain_net_srv_auctions"
@@ -106,8 +110,8 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
  * @brief Verify auction bid conditional output
  * @param a_ledger Ledger instance
  * @param a_cond Conditional output to verify
- * @param a_tx_in Input transaction
- * @param a_owner Whether the transaction is from the owner
+ * @param a_tx_in Input transaction (withdrawal transaction)
+ * @param a_owner Whether the transaction is from the owner (who created the lock)
  * @return Returns 0 on success, negative error code otherwise
  */
 static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, 
@@ -124,24 +128,145 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         return -2;
     }
 
-
     // Check range_end value
     if (a_cond->subtype.srv_auction_bid.range_end > 8) {
         log_it(L_WARNING, "Invalid range_end value %u (must be <= 8)", a_cond->subtype.srv_auction_bid.range_end);
         return -3;
     }
 
-    // TODO: Check if auction with auction_hash exists
-    // This will require:
-    // 1. Access to auction storage/ledger
-    // 2. Lookup auction by hash
-    // 3. Verify auction state (should be active)
-    // For now just log that this check is pending implementation
-    char l_auction_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(&a_cond->subtype.srv_auction_bid.auction_hash, l_auction_hash_str, sizeof(l_auction_hash_str));
-    log_it(L_DEBUG, "TODO: Implement auction existence check for hash %s", l_auction_hash_str);
+    // Only the owner (who created the bid/lock) can withdraw funds
+    if (!a_owner) {
+        log_it(L_WARNING, "Withdrawal denied: only the owner who created the bid can withdraw funds");
+        return -9;
+    }
 
-    return 0;
+    // 1. In withdrawal transaction, find the auction transaction hash from the conditional output
+    dap_hash_fast_t l_auction_hash = a_cond->subtype.srv_auction_bid.auction_hash;
+    char l_auction_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&l_auction_hash, l_auction_hash_str, sizeof(l_auction_hash_str));
+    
+    log_it(L_DEBUG, "Verifying withdrawal for auction hash %s by owner", l_auction_hash_str);
+
+    // 2. Find the auction transaction by hash
+    dap_chain_datum_tx_t *l_auction_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_auction_hash);
+    if (!l_auction_tx) {
+        log_it(L_WARNING, "Auction transaction %s not found in ledger", l_auction_hash_str);
+        return -4;
+    }
+
+    // 3. Extract group name from the auction transaction
+    char *l_group_name = NULL;
+    
+    // Look for event item in auction transaction to get group name
+    byte_t *l_item = NULL;
+    size_t l_item_size = 0;
+    TX_ITEM_ITER_TX(l_item, l_item_size, l_auction_tx) {
+        if (*l_item == TX_ITEM_TYPE_EVENT) {
+            dap_chain_tx_item_event_t *l_event_item = (dap_chain_tx_item_event_t *)l_item;
+            if (l_event_item->group_size > 0) {
+                l_group_name = DAP_NEW_SIZE(char, l_event_item->group_size + 1);
+                if (l_group_name) {
+                    memcpy(l_group_name, l_event_item->group_name, l_event_item->group_size);
+                    l_group_name[l_event_item->group_size] = '\0';
+                }
+                break;
+            }
+        }
+    }
+
+    if (!l_group_name) {
+        log_it(L_WARNING, "Could not extract group name from auction transaction %s", l_auction_hash_str);
+        return -5;
+    }
+
+    log_it(L_DEBUG, "Auction group name: %s", l_group_name);
+
+    // 4. Use dap_ledger_event_get_list to get auction events
+    dap_list_t *l_events_list = dap_ledger_event_get_list(a_ledger, l_group_name);
+    if (!l_events_list) {
+        log_it(L_WARNING, "No events found for auction group %s", l_group_name);
+        DAP_DELETE(l_group_name);
+        return -6;
+    }
+
+    // 5. Iterate through events to determine auction status
+    bool l_auction_lost = false;
+    bool l_auction_won = false;
+    bool l_auction_cancelled = false;
+    dap_time_t l_auction_end_time = 0;
+    
+    for (dap_list_t *l_item = l_events_list; l_item; l_item = l_item->next) {
+        dap_chain_tx_event_t *l_event = (dap_chain_tx_event_t *)l_item->data;
+        if (!l_event) continue;
+
+        switch (l_event->event_type) {
+            case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_LOST:
+                // Check if this loss event is for our auction
+                if (dap_hash_fast_compare(&l_auction_hash, &l_event->tx_hash)) {
+                    l_auction_lost = true;
+                    log_it(L_DEBUG, "Auction %s lost", l_auction_hash_str);
+                }
+                break;
+                
+            case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_WON:
+                // Check if this win event is for our auction
+                if (dap_hash_fast_compare(&l_auction_hash, &l_event->tx_hash)) {
+                    l_auction_won = true;
+                    log_it(L_DEBUG, "Auction %s won", l_auction_hash_str);
+                }
+                break;
+                
+            case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED:
+                // Check if this cancellation event is for our auction
+                if (dap_hash_fast_compare(&l_auction_hash, &l_event->tx_hash)) {
+                    l_auction_cancelled = true;
+                    log_it(L_DEBUG, "Auction %s cancelled", l_auction_hash_str);
+                }
+                break;
+                
+            default:
+                // For auction end events, we would need to extract end time
+                // This would require checking event data or other mechanisms
+                break;
+        }
+    }
+
+    // Clean up events list
+    dap_list_free_full(l_events_list, dap_chain_datum_tx_event_delete);
+    DAP_DELETE(l_group_name);
+
+    // 6. Make decision about withdrawal validity
+    
+    // Case 1: Project lost the auction - withdrawal is valid
+    if (l_auction_lost) {
+        log_it(L_DEBUG, "Withdrawal allowed: auction %s was lost", l_auction_hash_str);
+        return 0;
+    }
+    
+    // Case 2: Auction was cancelled - withdrawal is valid
+    if (l_auction_cancelled) {
+        log_it(L_DEBUG, "Withdrawal allowed: auction %s was cancelled", l_auction_hash_str);
+        return 0;
+    }
+    
+    // Case 3: Project won the auction - check if lock period has expired
+    if (l_auction_won) {
+        dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
+        dap_time_t l_lock_end_time = l_auction_end_time + a_cond->subtype.srv_auction_bid.lock_time;
+        
+        if (l_current_time >= l_lock_end_time) {
+            log_it(L_DEBUG, "Withdrawal allowed: auction %s won and lock period expired", l_auction_hash_str);
+            return 0;
+        } else {
+            log_it(L_WARNING, "Withdrawal denied: auction %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")", 
+                   l_auction_hash_str, l_current_time, l_lock_end_time);
+            return -7;
+        }
+    }
+    
+    // Case 4: Auction status unknown or still active - withdrawal not valid
+    log_it(L_WARNING, "Withdrawal denied: auction %s status unclear or still active", l_auction_hash_str);
+    return -8;
 }
 
 /**
