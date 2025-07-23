@@ -1131,10 +1131,11 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str ? l_fee_str : "0");
             
             // Открываем кошелек и получаем из него ключ
+            unsigned int l_wallet_stat = 0;
             const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallets_path);
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallets_path, &l_wallet_stat);
             if (!l_wallet) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Can't open wallet %s", l_wallet_name);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Can't open wallet %s, error %u", l_wallet_name, l_wallet_stat);
                 return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
             }
             
@@ -1188,7 +1189,6 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             );
             
             // Освобождаем ресурсы
-            dap_chain_wallet_close(l_wallet);
             DAP_DEL_Z(l_event_data);
             
             if (l_tx_hash_str) {
