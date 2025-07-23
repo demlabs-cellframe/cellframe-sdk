@@ -39,6 +39,7 @@
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
+#include "dap_chain_datum_tx_event.h"
 
 typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_in_all;
@@ -68,7 +69,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_tsd;
     dap_list_t *items_pkey;
     dap_list_t *items_receipt;
-
+    dap_list_t *items_event;
     dap_list_t *items_unknown;
 
 } dap_chain_datum_tx_item_groups_t;
@@ -102,6 +103,7 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
         case TX_ITEM_TYPE_VOTING: return "TX_ITEM_TYPE_VOTING";
         case TX_ITEM_TYPE_VOTE: return "TX_ITEM_TYPE_VOTE";
+        case TX_ITEM_TYPE_EVENT: return "TX_ITEM_TYPE_EVENT";
         default: return "UNDEFINED";
     }
 }
@@ -128,6 +130,7 @@ DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chai
         case TX_ITEM_TYPE_TSD: return "data";
         case TX_ITEM_TYPE_VOTING: return "voting";
         case TX_ITEM_TYPE_VOTE: return "vote";
+        case TX_ITEM_TYPE_EVENT: return "event";
         default: return "UNDEFINED";
     }
 }
@@ -295,6 +298,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 // Get output by output index
 #define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
     dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
+
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, uint16_t a_type);
+void dap_chain_datum_tx_event_delete(void *a_event);
 
 #ifdef __cplusplus
 }
