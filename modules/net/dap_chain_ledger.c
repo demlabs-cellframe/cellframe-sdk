@@ -258,6 +258,11 @@ typedef struct dap_ledger_bridged_tx_notifier {
     void *arg;
 } dap_ledger_bridged_tx_notifier_t;
 
+typedef struct dap_ledger_event_notifier {
+    dap_ledger_event_notify_t callback;
+    void *arg;
+} dap_ledger_event_notifier_t;
+
 typedef struct dap_ledger_hal_item {
     dap_chain_hash_fast_t hash;
     UT_hash_handle hh;
@@ -308,6 +313,7 @@ typedef struct dap_ledger_private {
     //notifiers
     dap_list_t *bridged_tx_notifiers;
     dap_list_t *tx_add_notifiers;
+    dap_list_t *event_notifiers;
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
     // White- and blacklist
     dap_ledger_hal_item_t *hal_items, *hrl_items;
@@ -5910,6 +5916,31 @@ void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged
     PVT(a_ledger)->bridged_tx_notifiers = dap_list_append(PVT(a_ledger)->bridged_tx_notifiers , l_notifier);
 }
 
+/**
+ * @brief Add notification callback for event transactions
+ * @param a_ledger Ledger instance
+ * @param a_callback Callback function to be called when a new event is added
+ * @param a_arg User data to be passed to the callback
+ */
+void dap_ledger_event_notify_add(dap_ledger_t *a_ledger, dap_ledger_event_notify_t a_callback, void *a_arg)
+{
+    if (!a_ledger || !a_callback)
+        return;
+    
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    
+    dap_ledger_event_notifier_t *l_notifier = DAP_NEW_Z(dap_ledger_event_notifier_t);
+    if (!l_notifier) {
+        log_it(L_CRITICAL, "Memory allocation error in dap_ledger_event_notify_add()");
+        return;
+    }
+    
+    l_notifier->callback = a_callback;
+    l_notifier->arg = a_arg;
+    
+    l_ledger_pvt->event_notifiers = dap_list_append(l_ledger_pvt->event_notifiers, l_notifier);
+}
+
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger)
 {
     return PVT(a_ledger)->cached;
@@ -5930,43 +5961,6 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
     if (a_ledger_rc)
         *a_ledger_rc = l_rc;
     return l_ret;
-}
-
-int dap_ledger_event_add(dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event)
-{
-    dap_return_val_if_fail(a_ledger && a_event, -3);
-    dap_ledger_event_t *l_event = NULL;
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    unsigned int l_hash_value = 0;
-    HASH_VALUE(&a_event->tx_hash, sizeof(dap_hash_fast_t), l_hash_value);
-    pthread_rwlock_wrlock(&l_ledger_pvt->events_rwlock);
-    HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->events, &a_event->tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
-    if (l_event) {
-        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-        return -1;
-    }
-    l_event = DAP_NEW_Z(dap_ledger_event_t);
-    if (!l_event) {
-        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-        return -2;
-    }
-    *l_event = (dap_ledger_event_t) {
-        .tx_hash = a_event->tx_hash,
-        .pkey_hash = a_event->pkey_hash,
-        .group_name = dap_strdup(a_event->group_name),
-        .event_type = a_event->event_type,
-        .event_data_size = a_event->event_data_size
-    };
-    if (a_event->event_data_size) {
-        l_event->event_data = DAP_DUP_SIZE(a_event->event_data, a_event->event_data_size);
-        if (!l_event->event_data) {
-            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-            return -2;
-        }
-    }
-    HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->events, tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
-    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-    return 0;
 }
 
 static dap_chain_tx_event_t *s_ledger_event_to_tx_event(dap_ledger_event_t *a_event)
@@ -6017,7 +6011,8 @@ dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_grou
     return l_list;
 }
 
-int dap_ledger_event_delete(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
+
+static int s_ledger_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     pthread_rwlock_wrlock(&l_ledger_pvt->events_rwlock);
@@ -6027,26 +6022,26 @@ int dap_ledger_event_delete(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -1;
     }
-    HASH_DEL(l_ledger_pvt->events, l_event);
-    DAP_DEL_Z(l_event->event_data);
-    DAP_DEL_MULTY(l_event->group_name, l_event);
-    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-    return 0;
-}
-
-static int s_ledger_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
-{
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    pthread_rwlock_wrlock(&l_ledger_pvt->events_rwlock);
-    dap_ledger_event_t *l_event = NULL;
-    HASH_FIND(hh, l_ledger_pvt->events, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_event);
-    if (!l_event) {
-        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-        return -1;
-    }
+    
+    // Create a copy of the event for notifiers
+    dap_chain_tx_event_t *l_tx_event = s_ledger_event_to_tx_event(l_event);
+    
+    // Remove the event from hash table
     HASH_DEL(l_ledger_pvt->events, l_event);
     DAP_DEL_MULTY(l_event->event_data, l_event->group_name, l_event);
     pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+    
+    // Call event notifiers
+    if (l_tx_event) {
+        for (dap_list_t *it = l_ledger_pvt->event_notifiers; it; it = it->next) {
+            dap_ledger_event_notifier_t *l_notifier = (dap_ledger_event_notifier_t *)it->data;
+            if (l_notifier && l_notifier->callback) {
+                l_notifier->callback(l_notifier->arg, a_ledger, l_tx_event, a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_DELETED);
+            }
+        }
+        dap_chain_datum_tx_event_delete(l_tx_event);
+    }
+    
     return 0;
 }
 
@@ -6160,7 +6155,20 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         }
     }
     HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->events, tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
+    // Call event notifiers
+    dap_chain_tx_event_t *l_tx_event = s_ledger_event_to_tx_event(l_event);
     pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+    
+    if (l_tx_event) {
+        for (dap_list_t *it = l_ledger_pvt->event_notifiers; it; it = it->next) {
+            dap_ledger_event_notifier_t *l_notifier = (dap_ledger_event_notifier_t *)it->data;
+            if (l_notifier && l_notifier->callback) {
+                l_notifier->callback(l_notifier->arg, a_ledger, l_tx_event, a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_ADDED);
+            }
+        }
+        dap_chain_datum_tx_event_delete(l_tx_event);
+    }
+
     return 0;
 }
 
