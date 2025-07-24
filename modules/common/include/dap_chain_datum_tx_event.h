@@ -46,18 +46,20 @@ typedef struct dap_chain_tx_event {
 
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED             0x0001
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED          0x0002
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_WON                 0x0003
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_LOST                0x0004
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED           0x0005
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED           0x0003
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED               0x0004
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_WITHDRAWN       0x0005
+
+// TODO: Add event types data structure for auction
 
 DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_event_type)
 {
     switch (a_event_type) {
         case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED: return "auction_started";
         case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED: return "auction_bid_placed";
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_WON: return "auction_won";
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_LOST: return "auction_lost";  
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED: return "auction_ended";
         case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED: return "auction_cancel";
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_WITHDRAWN: return "auction_bid_withdrawn";
         default: return "unknown";
     }
 }
