@@ -673,7 +673,6 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
 #define always_true(ev) true
         dap_chain_cs_dag_event_item_t *l_tmp = NULL, *l_cur_ev, *l_tmp_ev;
         HASH_SELECT(hh_select, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, always_true); /* Always true predicate */
-        pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         while ((l_hashes_linked < l_hashes_size) && (HASH_CNT(hh_select, l_tmp) > 0)) {
             int l_random_id = rand() % HASH_CNT(hh_select, l_tmp), l_hash_id = 0;
             HASH_ITER(hh_select, l_tmp, l_cur_ev, l_tmp_ev) {
@@ -685,6 +684,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
             }
         }
         HASH_CLEAR(hh_select, l_tmp);
+        pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         if (l_hashes_linked < l_hashes_size) {
             log_it(L_ERROR, "No enough unlinked events present (only %lu of %lu), a dummy round?", l_hashes_linked, l_hashes_size);
             return false;
