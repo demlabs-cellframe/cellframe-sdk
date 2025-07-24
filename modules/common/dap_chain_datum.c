@@ -457,6 +457,29 @@ void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
                     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_unlock);
                     json_object_object_add(json_obj_item,"time_unlock", json_object_new_string(l_tmp_buf));
                 } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID: {
+                    // Auction hash
+                    l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_auction_bid.auction_hash;
+                    const char *l_auction_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                            : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
+                    json_object_object_add(json_obj_item, "auction_hash", json_object_new_string(l_auction_hash_str));
+                    
+                    // Range end (CellSlot range 1-8)
+                    json_object_object_add(json_obj_item, "range_end", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_auction_bid.range_end));
+                    
+                    // Lock time duration
+                    dap_time_t l_lock_time = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_auction_bid.lock_time;
+                    if (l_lock_time > 0) {
+                        // Convert lock time to readable format (showing as duration in seconds)
+                        snprintf(l_tmp_buff, sizeof(l_tmp_buff), "%"DAP_UINT64_FORMAT_U" sec", l_lock_time);
+                        json_object_object_add(json_obj_item, "lock_time", json_object_new_string(l_tmp_buff));
+                        json_object_object_add(json_obj_item, "lock_time_sec", json_object_new_uint64(l_lock_time));
+                    } else {
+                        json_object_object_add(json_obj_item, "lock_time", json_object_new_string("no_lock"));
+                        json_object_object_add(json_obj_item, "lock_time_sec", json_object_new_uint64(0));
+                    }
+                } break;
                 default: break;
             }
             break;
