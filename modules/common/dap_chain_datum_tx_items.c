@@ -75,6 +75,8 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
         return TX_ITEM_TYPE_VOTING;
     else if(!dap_strcmp(a_datum_name, "vote"))
         return TX_ITEM_TYPE_VOTE;
+    else if(!dap_strcmp(a_datum_name, "event"))
+        return TX_ITEM_TYPE_EVENT;
     return TX_ITEM_TYPE_UNKNOWN;
 }
 
@@ -129,8 +131,9 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     // Access data size by struct field
     case TX_ITEM_TYPE_TSD:           return m_tx_item_size_ext(dap_chain_tx_tsd_t, header.size);
     case TX_ITEM_TYPE_OUT_COND: return m_tx_item_size_ext(dap_chain_tx_out_cond_t, tsd_size);
-    case TX_ITEM_TYPE_PKEY:         return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.sig_size);
+    case TX_ITEM_TYPE_PKEY:         return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.size);
     case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
+    case TX_ITEM_TYPE_EVENT:  return m_tx_item_size_ext(dap_chain_tx_item_event_t, group_size);
     // Receipt size calculation is non-trivial...
     case TX_ITEM_TYPE_RECEIPT_OLD:{
         if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
@@ -669,6 +672,7 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_out_cond_undefined);
     dap_list_free(a_items_groups->items_out_all);
     dap_list_free(a_items_groups->items_in_all);
+    dap_list_free(a_items_groups->items_event);
 }
 
 #define DAP_LIST_SAPPEND(X, Y) X = dap_list_append(X,Y)
@@ -773,6 +777,9 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
         case TX_ITEM_TYPE_VOTE:
             DAP_LIST_SAPPEND(a_res_group->items_vote, l_item);
             break;
+        case TX_ITEM_TYPE_EVENT:
+            DAP_LIST_SAPPEND(a_res_group->items_event, l_item);
+            break;
         default:
             DAP_LIST_SAPPEND(a_res_group->items_unknown, l_item);
         }
@@ -791,4 +798,34 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t
         return (dap_chain_tx_tsd_t *)l_item;
     }
     return NULL;
+}
+
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, uint16_t a_type)
+{
+    dap_return_val_if_fail(a_group_name, NULL);
+    size_t l_group_name_size = strlen(a_group_name);
+    if (l_group_name_size > UINT16_MAX)
+        return NULL;
+    dap_chain_tx_item_event_t *l_event = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_item_event_t, sizeof(dap_chain_tx_item_event_t) + l_group_name_size, NULL);
+    strcpy((char *)l_event->group_name, a_group_name);
+    l_event->type = TX_ITEM_TYPE_EVENT;
+    l_event->version = DAP_CHAIN_TX_EVENT_VERSION;
+    l_event->group_size = (uint16_t)l_group_name_size;
+    l_event->event_type = a_type;
+    return l_event;
+}
+void dap_chain_datum_tx_event_delete(void *a_event)
+{
+    dap_chain_tx_event_t *l_event = a_event;
+    DAP_DEL_MULTY(l_event->group_name, l_event->event_data, l_event);
+}
+
+int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_item_event_t *a_event)
+{
+    dap_return_val_if_fail(a_json_obj && a_event, -1);
+    json_object *l_object = a_json_obj;
+    json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
+    json_object_object_add(l_object, "event_version", json_object_new_int(a_event->version));
+    json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_size));
+    return 0;
 }
