@@ -6090,7 +6090,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
                 return -4;
             }
             break;
-        case TX_ITEM_TYPE_TSD:
+        case TX_ITEM_TYPE_TSD: {
             dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)l_item;
             if (l_tsd->header.size < sizeof(dap_tsd_t)) {
                 log_it(L_WARNING, "TSD size is less than expected in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
@@ -6106,7 +6106,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
                 return -6;
             }
             l_event_tsd = l_tsd_data;
-            break;
+        } break;
         case TX_ITEM_TYPE_SIG:
             if (++l_sign_count == 2)
                 l_event_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
