@@ -529,22 +529,15 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
     return DAP_LEDGER_CHECK_OK;
 }
 
-int s_tsd_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
+int s_voting_cancel_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
-    dap_chain_tx_tsd_t *l_tsd_tx_item = (dap_chain_tx_tsd_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_TSD, NULL);
-    if (!l_tsd_tx_item) {
-        log_it(L_ERROR, "Can't find tsd item for tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
-        return -4;
-    }
-
-    dap_tsd_t *l_tsd = (dap_tsd_t *)l_tsd_tx_item->tsd;
-    dap_chain_hash_fast_t l_voting_hash = {};
-    if (l_tsd->type == VOTING_TSD_TYPE_CANCEL) {
-        l_voting_hash = *((dap_chain_hash_fast_t*)l_tsd->data);
-    } else {
-        log_it(L_ERROR, "Unexpected tsd type %d for tx %s", l_tsd->type, dap_chain_hash_fast_to_str_static(a_tx_hash));
+    dap_chain_tx_tsd_t *l_tsd_cancel = dap_chain_datum_tx_item_get_tsd_by_type(a_tx_in, VOTING_TSD_TYPE_CANCEL);
+    if (!l_tsd_cancel) {
+        log_it(L_ERROR, "Can't find cancel tsd item for tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
         return -14;
     }
+    dap_tsd_t *l_tsd = (dap_tsd_t *)l_tsd_cancel->tsd;
+    dap_chain_hash_fast_t l_voting_hash = *((dap_chain_hash_fast_t*)l_tsd->data);
 
     // Get last sign item from transaction
     dap_sign_t *l_tx_sign = NULL, *l_owner_sign = NULL;
@@ -597,8 +590,8 @@ int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx
         return s_voting_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
     if (a_type == TX_ITEM_TYPE_VOTE)
         return s_vote_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
-    if (a_type == TX_ITEM_TYPE_TSD)
-        return s_tsd_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
+    if (a_type == TX_ITEM_TYPE_VOTING_CANCEL)
+        return s_voting_cancel_verificator(a_ledger, a_type, a_tx_in, a_tx_hash, a_apply);
     log_it(L_ERROR, "Item %d is not supported in polls", a_type);
     return -3;
 }
@@ -2050,6 +2043,15 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json
 
     // Create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+    dap_chain_tx_voting_t *l_voting_cancel_item = dap_chain_datum_tx_item_voting_cancel_create();
+    if (!l_voting_cancel_item) {
+        dap_chain_datum_tx_delete(l_tx);
+        dap_list_free_full(l_list_used_out, NULL);
+        return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX;
+    }
+    dap_chain_datum_tx_add_item(&l_tx, l_voting_cancel_item);
+    DAP_DEL_Z(l_voting_cancel_item);
 
     // Add TSD with voting hash to cancel
     dap_chain_tx_tsd_t *l_cancel_tsd = dap_chain_datum_voting_cancel_tsd_create(l_voting->voting_hash);

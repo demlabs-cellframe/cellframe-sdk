@@ -535,6 +535,24 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
             json_object_object_add(json_obj_item, a_version == 1 ? "Vote answer idx" : "vote_answer_idx", json_object_new_uint64(l_vote_item->answer_idx));
 
         } break;
+        case TX_ITEM_TYPE_VOTING_CANCEL:{
+            if (a_version == 1)
+                json_object_object_add(json_obj_item, "item type", json_object_new_string("VOTING CANCEL"));
+            dap_chain_tx_tsd_t *l_cancel_tsd = dap_chain_datum_tx_item_get_tsd_by_type(a_datum, VOTING_TSD_TYPE_CANCEL);
+            if (l_cancel_tsd) {
+                dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_cancel_tsd->tsd;
+                if (l_tsd_data->size == sizeof(dap_chain_hash_fast_t)) {
+                    dap_chain_hash_fast_t *l_voting_hash = (dap_chain_hash_fast_t *)l_tsd_data->data;
+                    char *l_voting_hash_str = dap_chain_hash_fast_to_str_new(l_voting_hash);
+                    json_object_object_add(json_obj_item, a_version == 1 ? "Voting hash" : "voting_hash", json_object_new_string(l_voting_hash_str));
+                    DAP_DELETE(l_voting_hash_str);
+                } else {
+                    json_object_object_add(json_obj_item, a_version == 1 ? "Voting hash" : "voting_hash", json_object_new_string("Invalid TSD data"));
+                }
+            } else {
+                json_object_object_add(json_obj_item, a_version == 1 ? "Voting hash" : "voting_hash", json_object_new_string("TSD not found"));
+            }
+        } break;
         default:
             if (a_version == 1)
                 json_object_object_add(json_obj_item, "item type", json_object_new_string("This transaction have unknown item type"));
