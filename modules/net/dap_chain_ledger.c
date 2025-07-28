@@ -3246,7 +3246,6 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EXTEND) return "extend";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CLOSE) return "close";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CHANGE) return "change";
-    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL) return "voting_cancel";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD) return "hold";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE) return "take";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL) return "refill";
@@ -4687,9 +4686,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             break;
         case TX_ITEM_TYPE_VOTE:
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, true);
-            break;
-        case DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL:
-            l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_TSD, a_tx, a_tx_hash, true);
             break;
         case TX_ITEM_TYPE_EVENT:
             l_err_num = s_ledger_event_verify_add(a_ledger, a_tx_hash, a_tx, true);
