@@ -30,7 +30,6 @@
 typedef struct dap_chain_tx_item_event {
     dap_chain_tx_item_type_t type;          /// @param type             @brief Transaction item type
     uint8_t version;                        /// @param version          @brief Version of the event.
-    uint16_t group_size;                    /// @param group_size       @brief Size of the group
     uint16_t event_type;                    /// @param event_type       @brief Event type.
     byte_t group_name[];                    /// @param group_name       @brief Event group name
 } DAP_ALIGN_PACKED dap_chain_tx_item_event_t;
@@ -50,7 +49,29 @@ typedef struct dap_chain_tx_event {
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED               0x0004
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_WITHDRAWN       0x0005
 
-// TODO: Add event types data structure for auction
+typedef enum dap_chain_tx_event_data_time_unit {
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS  = 0,
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS   = 1,
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS  = 2,
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS = 3,
+} DAP_ALIGN_PACKED dap_chain_tx_event_data_time_unit_t;
+
+struct dap_chain_tx_event_data_auction_started {
+    uint32 multiplier;
+    dap_chain_tx_event_data_time_unit_t time_unit;
+    uint32 calculation_rule_id;
+    uint8_t projects_cnt;
+    uint32_t project_ids[];
+} DAP_ALIGN_PACKED dap_chain_tx_event_data_auction_started_t;
+
+struct dap_chain_tx_event_data_bid_placed {
+    uint32_t project_id;
+} DAP_ALIGN_PACKED dap_chain_tx_event_data_bid_placed_t;
+
+struct dap_chain_tx_event_data_ended {
+    uint8_t winners_cnt;
+    uint32_t winners_ids[];
+} DAP_ALIGN_PACKED dap_chain_tx_event_data_ended_t;
 
 DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_event_type)
 {

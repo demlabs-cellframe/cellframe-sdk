@@ -819,6 +819,14 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
 
     log_it(L_DEBUG, "Auction group name: %s", l_group_name);
 
+    // 4. Get project id from bid transaction
+    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx_in) {
+        if (*l_item == TX_ITEM_TYPE_EVENT) {
+            dap_chain_tx_item_event_t *l_event_item = (dap_chain_tx_item_event_t *)l_item;
+            
+        }
+    }
+
     // 4. Use dap_ledger_event_get_list to get auction events
     dap_list_t *l_events_list = dap_ledger_event_get_list(a_ledger, l_group_name);
     if (!l_events_list) {
@@ -845,6 +853,8 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED:
                 // TODO:
                 // 1. Get project id from bid transaction
+                dap_chain_tx_event_data_ended_t *l_event_data = (dap_chain_tx_event_data_ended_t *)l_event->event_data;
+                uint32_t l_bid_project
                 // 2. Check project won or lost
                 // 3. Make decision about withdrawal validity
 
