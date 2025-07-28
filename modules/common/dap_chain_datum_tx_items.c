@@ -760,7 +760,7 @@ dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_n
     if (l_group_name_size > UINT16_MAX)
         return NULL;
     dap_chain_tx_item_event_t *l_event = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_item_event_t, sizeof(dap_chain_tx_item_event_t) + l_group_name_size, NULL);
-    strcpy((char *)l_event->group_name, a_group_name);
+    memcpy(l_event->group_name, a_group_name, l_group_name_size);
     l_event->type = TX_ITEM_TYPE_EVENT;
     l_event->version = DAP_CHAIN_TX_EVENT_VERSION;
     l_event->group_size = (uint16_t)l_group_name_size;
