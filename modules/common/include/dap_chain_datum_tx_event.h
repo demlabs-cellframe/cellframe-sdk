@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 #include "dap_common.h"
+#include "dap_time.h"
 #include "dap_chain_common.h"
 
 #define DAP_CHAIN_TX_EVENT_VERSION                          0x0001
@@ -32,10 +33,12 @@ typedef struct dap_chain_tx_item_event {
     uint8_t version;                        /// @param version          @brief Version of the event.
     uint16_t group_size;                    /// @param group_size       @brief Size of the group
     uint16_t event_type;                    /// @param event_type       @brief Event type.
+    dap_time_t timestamp;                   /// @param timestamp        @brief Timestamp of the event.
     byte_t group_name[];                    /// @param group_name       @brief Event group name
 } DAP_ALIGN_PACKED dap_chain_tx_item_event_t;
 
 typedef struct dap_chain_tx_event {
+    dap_time_t timestamp;               /// @param timestamp            @brief Timestamp of the event.
     char *group_name;                   /// @param group_name           @brief Event group name
     dap_chain_hash_fast_t tx_hash;      /// @param tx_hash              @brief Hash of the transaction.
     dap_chain_hash_fast_t pkey_hash;    /// @param pkey_hash            @brief Hash of the public key.
@@ -66,3 +69,4 @@ DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_eve
 #define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA_JSON_STR          "custom_data"
 
 int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_item_event_t *a_event);
+int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type);

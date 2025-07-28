@@ -1554,7 +1554,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     // Validate input parameters using standard cellframe pattern
     dap_return_val_if_fail(a_chain && a_key_from && a_service_key && a_hash_out_type, NULL);
     dap_return_val_if_fail(a_group_name && strlen(a_group_name), NULL);
-    dap_return_val_if_fail((a_event_data != NULL) != (a_event_data_size > 0), NULL);
+    dap_return_val_if_fail((a_event_data != NULL) == (a_event_data_size > 0), NULL);
     dap_return_val_if_fail(a_key_from->priv_key_data && a_key_from->priv_key_data_size, NULL);
     dap_return_val_if_fail(a_service_key->priv_key_data && a_service_key->priv_key_data_size, NULL);
 
