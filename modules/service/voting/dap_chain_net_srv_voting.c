@@ -954,7 +954,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
         char *l_hash_tx;
 
-        dap_chain_net_vote_cancel_result_t res = dap_chain_net_vote_cancel(*json_arr_reply, l_value_fee, l_wallet, l_voting_hash, l_net, l_hash_out_type, &l_hash_tx);
+        dap_chain_net_vote_cancel_result_t res = dap_chain_net_vote_cancel(*json_arr_reply, l_value_fee, l_wallet, &l_voting_hash, l_net, l_hash_out_type, &l_hash_tx);
         dap_chain_wallet_close(l_wallet);
 
         switch (res) {
@@ -1949,14 +1949,14 @@ void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info){
     DAP_DELETE(a_info);
 }
 
-dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out)
+dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out)
 {
     if (!a_wallet || !a_net || !a_hash_tx_out)
         return DAP_CHAIN_NET_VOTE_CANCEL_UNKNOWN_ERR;
 
     dap_chain_net_votings_t *l_voting = NULL;
     pthread_rwlock_rdlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, &a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
+    HASH_FIND(hh, s_votings, a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
 
     if (!l_voting) {
@@ -1994,7 +1994,7 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json
     }
 
     if (!l_is_owner) {
-        log_it(L_ERROR, "Voting %s was not signed by this wallet %s , owner %s", dap_chain_hash_fast_to_str_static(&a_voting_hash), dap_chain_addr_to_str_static(l_addr_from), dap_chain_addr_to_str_static(&l_owner_addr));
+        log_it(L_ERROR, "Voting %s was not signed by this wallet %s , owner %s", dap_chain_hash_fast_to_str_static(a_voting_hash), dap_chain_addr_to_str_static(l_addr_from), dap_chain_addr_to_str_static(&l_owner_addr));
         return DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS;
     }
     
@@ -2019,8 +2019,8 @@ dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json
 
     // Create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-
-    dap_chain_tx_vote_t *l_vote_item = dap_chain_datum_tx_item_vote_create(&a_voting_hash, 0);
+    uint64_t l_answer_idx = 0;
+    dap_chain_tx_vote_t *l_vote_item = dap_chain_datum_tx_item_vote_create(a_voting_hash, &l_answer_idx);
     if(!l_vote_item){
         dap_chain_datum_tx_delete(l_tx);
         return DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_CREATE_VOTE_ITEM;
