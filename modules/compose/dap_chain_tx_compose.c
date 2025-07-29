@@ -894,6 +894,10 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
             return s_compose_config_return_response_handler(l_config);
         }
         for (size_t i = 0; i < l_value_el_count; ++i) {
+            if (l_time_unlock_array[i] && !dap_strcmp(l_time_unlock_array[i], "0")) {
+                l_time_lock[i] = 0;
+                continue;
+            }
             l_time_lock[i] = dap_time_from_str_rfc822(l_time_unlock_array[i]);
             if (!l_time_lock[i]) {
                 dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Wrong time format. Parameter -lock_before must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +0300\"");
