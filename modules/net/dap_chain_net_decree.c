@@ -644,6 +644,56 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             return dap_chain_policy_apply(l_policy, a_net->pub.id);
         }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD: {
+            dap_hash_fast_t l_pkey_hash;
+            if (dap_chain_datum_decree_get_hash(a_decree, &l_pkey_hash)) {
+                log_it(L_WARNING, "Can't get event pkey hash from decree.");
+                return -114;
+            }
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (!a_anchored)
+                break;
+            if (dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
+                log_it(L_WARNING, "Event pkey already exists in ledger");
+                return -116;
+            }
+            if (!a_apply)
+                break;
+            int l_ret = dap_ledger_event_pkey_add(a_net->pub.ledger, &l_pkey_hash);
+            if (l_ret != 0) {
+                log_it(l_ret == -2 ? L_INFO : L_ERROR, "Error adding event pkey to ledger: %d", l_ret);
+                return -118;
+            }
+        } break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE: {
+            dap_hash_fast_t l_pkey_hash;
+            if (dap_chain_datum_decree_get_hash(a_decree, &l_pkey_hash)) {
+                log_it(L_WARNING, "Can't get event pkey hash from decree.");
+                return -114;
+            }
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (!a_anchored)
+                break;
+            if (!dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
+                log_it(L_WARNING, "Event pkey not found in ledger");
+                return -116;
+            }
+            if (!a_apply)
+                break;
+            int l_ret = dap_ledger_event_pkey_rm(a_net->pub.ledger, &l_pkey_hash);
+            if (l_ret != 0) {
+                log_it(l_ret == -2 ? L_INFO : L_ERROR, "Error removing event pkey from ledger: %d", l_ret);
+                return -118;
+            }
+        } break;
         default:
             return -1;
     }
