@@ -2681,17 +2681,22 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
  * @param a_str_tmp
  * @param a_hash_out_type
  */
-void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain_net_t * a_net, dap_chain_t * a_chain, const char * a_add,
-                                        json_object *a_json_obj, const char *a_hash_out_type, bool a_fast, size_t a_limit, size_t a_offset, int a_version) {
-    dap_chain_addr_t *l_wallet_addr_tmp = dap_chain_addr_from_str(a_add);
-    if (a_add && !l_wallet_addr_tmp) {
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CONVERT_BASE58_TO_ADDR_WALLET, "Cannot convert "
-                                                                                                 "string '%s' to binary address.\n", a_add);
-        return;
+void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain_net_t * a_net, dap_chain_t * a_chain, const char * a_addr,
+                                        json_object *a_json_obj, const char *a_hash_out_type, bool a_fast, size_t a_limit, size_t a_offset, int a_version)
+{
+    dap_chain_addr_t l_wallet_addr = {};
+    if (a_addr) {
+        dap_chain_addr_t *l_wallet_addr_tmp = dap_chain_addr_from_str(a_addr);
+        if (!l_wallet_addr_tmp) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CONVERT_BASE58_TO_ADDR_WALLET, "Cannot convert "
+                                                                                                 "string '%s' to binary address.\n", a_addr);
+            return;
+        }
+        l_wallet_addr = *l_wallet_addr_tmp;
+        DAP_DELETE(l_wallet_addr_tmp);
     }
-    dap_chain_addr_t l_wallet_addr = *l_wallet_addr_tmp;
-    DAP_DELETE(l_wallet_addr_tmp);
-    if (l_wallet_addr_tmp && a_fast) {
+
+    if (a_addr && a_fast) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_FAST_AND_BASE58_ADDR,
                                "In fast mode, it is impossible to count the number of transactions and emissions "
                                "for a specific address. The -brief and -addr options are mutually exclusive.\n");
@@ -2737,23 +2742,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     DAP_DELETE(l_gdb_group_mempool);    
     // Создаем массив для datums
-    json_object *l_jobj_datums;
-    size_t l_offset = a_offset;
-    
-    if (l_objs_count == 0 || l_objs_count < l_offset) {
-        l_jobj_datums = json_object_new_null();
-        if (!l_jobj_datums) {
-            dap_global_db_objs_delete(l_objs, l_objs_count);
-            json_object_put(l_obj_chain);
-            dap_json_rpc_allocation_error(a_json_arr_reply);
-            return;
-        }
-        // Добавляем пустой массив datums в объект chain
-        json_object_object_add(l_obj_chain, "datums", l_jobj_datums);
-        goto return_obj_chain;
-    }
-
-    l_jobj_datums = json_object_new_array();
+    json_object *l_jobj_datums = json_object_new_array();
     if (!l_jobj_datums) {
         dap_global_db_objs_delete(l_objs, l_objs_count);
         json_object_put(l_obj_chain);
@@ -2762,11 +2751,13 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     }
     // Добавляем массив datums в объект chain
     json_object_object_add(l_obj_chain, "datums", l_jobj_datums);
+    if (l_objs_count == 0 || l_objs_count < a_offset)
+        goto return_obj_chain;
     // Добавление информации о пагинации
     size_t l_arr_start = 0;
-    if (l_offset) {
-        l_arr_start = l_offset;
-        json_object *l_jobj_offset = json_object_new_uint64(l_offset);
+    if (a_offset) {
+        l_arr_start = a_offset;
+        json_object *l_jobj_offset = json_object_new_uint64(a_offset);
         if (!l_jobj_offset) {
             dap_global_db_objs_delete(l_objs, l_objs_count);
             json_object_put(l_obj_chain);
@@ -2778,7 +2769,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     
     size_t l_arr_end = l_objs_count;
     if (a_limit) {
-        l_arr_end = l_offset + a_limit;
+        l_arr_end = a_offset + a_limit;
         if (l_arr_end > l_objs_count)
             l_arr_end = l_objs_count;
         json_object *l_jobj_limit = json_object_new_uint64(l_arr_end);
@@ -2895,7 +2886,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         }
 
         if (a_fast) {
-            if (l_wallet_addr_tmp)
+            if (a_addr)
                 json_object_array_del_idx(l_jobj_datums, json_object_array_length(l_jobj_datums) - 1, 1);
             continue;
         }
@@ -2976,7 +2967,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 }
                 dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sig);
                 dap_chain_addr_fill_from_sign(&l_addr_from, l_sign, a_net->pub.id);
-                if (l_wallet_addr_tmp && dap_chain_addr_compare(&l_wallet_addr, &l_addr_from))
+                if (a_addr && dap_chain_addr_compare(&l_wallet_addr, &l_addr_from))
                     l_datum_is_accepted_addr = true;
 
                 json_object *l_jobj_to_list = json_object_new_array();
@@ -3189,7 +3180,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                     }
 
                     if (l_dist_addr) {
-                        if (!l_datum_is_accepted_addr && l_wallet_addr_tmp) {
+                        if (!l_datum_is_accepted_addr && a_addr) {
                             l_datum_is_accepted_addr = dap_chain_addr_compare(&l_wallet_addr, l_dist_addr);
                         }
                         json_object *l_jobj_f = json_object_new_object();
@@ -3344,7 +3335,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 size_t l_emi_size = l_datum->header.data_size;
                 dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_read(l_datum->data,
                                                                                         &l_emi_size);
-                if (l_wallet_addr_tmp && l_emi && dap_chain_addr_compare(&l_wallet_addr, &l_emi->hdr.address))
+                if (a_addr && l_emi && dap_chain_addr_compare(&l_wallet_addr, &l_emi->hdr.address))
                     l_datum_is_accepted_addr = true;
                 DAP_DELETE(l_emi);
                 dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id, true, a_version);
@@ -3353,13 +3344,8 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
             default:
                 dap_chain_datum_dump_json(a_json_arr_reply, l_jobj_datum,l_datum,a_hash_out_type,a_net->pub.id, true, a_version);
         }
-        if (l_wallet_addr_tmp) {
-            if (l_datum_is_accepted_addr) {
-                json_object_array_add(l_jobj_datums, l_jobj_datum);
-            } else
-                json_object_put(l_jobj_datum);
-        } else
-            json_object_array_add(l_jobj_datums, l_jobj_datum);
+        if (a_addr && !l_datum_is_accepted_addr)
+            json_object_array_del_idx(l_jobj_datums, json_object_array_length(l_jobj_datums) - 1, 1);
     }
     // Освобождаем временные ресурсы
     dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -3382,8 +3368,7 @@ return_obj_chain:
     json_object_object_add(l_obj_chain, "total", l_object_total);
     
     // Добавляем chain в общий массив JSON объектов
-    json_object_array_add(a_json_obj, l_obj_chain);
-    
+    json_object_array_add(a_json_obj, l_obj_chain);    
 }
 
 static int mempool_delete_for_chain(dap_chain_t *a_chain, const char * a_datum_hash_str, json_object **a_json_arr_reply) {

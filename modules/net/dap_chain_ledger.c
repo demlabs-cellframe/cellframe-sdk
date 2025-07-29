@@ -62,6 +62,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -229,6 +230,7 @@ typedef struct dap_ledger_wallet_balance {
 } dap_ledger_wallet_balance_t;
 
 typedef struct dap_ledger_event {
+    dap_time_t timestamp;
     dap_hash_fast_t tx_hash;
     dap_hash_fast_t pkey_hash;
     char *group_name;
@@ -3247,6 +3249,7 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD) return "hold";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE) return "take";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL) return "refill";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EVENT) return "event";
 
     return "WTFSUBTAG";
 
@@ -3270,6 +3273,7 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
     if (strcmp("hold", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD;
     if (strcmp("take", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE;
     if (strcmp("refill", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL;
+    if (strcmp("event", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EVENT;
     return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
 }
 
@@ -5971,7 +5975,8 @@ static dap_chain_tx_event_t *s_ledger_event_to_tx_event(dap_ledger_event_t *a_ev
         .tx_hash = a_event->tx_hash,
         .pkey_hash = a_event->pkey_hash,
         .event_type = a_event->event_type,
-        .event_data_size = a_event->event_data_size
+        .event_data_size = a_event->event_data_size,
+        .timestamp = a_event->timestamp
     };
     if (a_event->event_data_size)
         l_tx_event->event_data = DAP_DUP_SIZE_RET_VAL_IF_FAIL(a_event->event_data, a_event->event_data_size, NULL);
@@ -6056,7 +6061,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     unsigned int l_hash_value = 0;
     HASH_VALUE(a_tx_hash, sizeof(dap_hash_fast_t), l_hash_value);
     HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->events, a_tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
-    if (!l_event) {
+    if (l_event) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -1;
     }
@@ -6084,7 +6089,8 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
                 pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
                 return -4;
             }
-        case TX_ITEM_TYPE_TSD:
+            break;
+        case TX_ITEM_TYPE_TSD: {
             dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)l_item;
             if (l_tsd->header.size < sizeof(dap_tsd_t)) {
                 log_it(L_WARNING, "TSD size is less than expected in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
@@ -6100,7 +6106,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
                 return -6;
             }
             l_event_tsd = l_tsd_data;
-            break;
+        } break;
         case TX_ITEM_TYPE_SIG:
             if (++l_sign_count == 2)
                 l_event_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
@@ -6114,7 +6120,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -7;
     }
-    if (dap_chain_datum_tx_verify_sign(a_tx, 2)) {
+    if (dap_chain_datum_tx_verify_sign(a_tx, 1)) {
         log_it(L_WARNING, "Sign verification failed in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -8;
@@ -6137,9 +6143,11 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         .tx_hash = *a_tx_hash,
         .event_type = l_event_item->event_type,
         .event_data_size = l_event_tsd ? l_event_tsd->size : 0,
-        .pkey_hash = l_event_pkey_hash
+        .pkey_hash = l_event_pkey_hash,
+        .timestamp = l_event_item->timestamp
     };
     l_event->group_name = DAP_NEW_SIZE(char, l_event_item->group_name_size + 1);
+
     if (!l_event->group_name) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         DAP_DEL_Z(l_event);

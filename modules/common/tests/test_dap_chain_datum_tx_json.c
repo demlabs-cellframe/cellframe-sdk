@@ -150,7 +150,7 @@ bool dap_chain_datum_dump_tx_json_old(json_object* a_json_arr_reply,
            if (a_version == 1)
                json_object_object_add(json_obj_item, "item type", json_object_new_string("SIG"));
            dap_sign_get_information_json(a_json_arr_reply, l_sign, json_obj_item, a_hash_out_type, a_version);
-           dap_chain_addr_t l_sender_addr;
+           dap_chain_addr_t l_sender_addr = {};
            dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign, a_net_id);
            json_object_object_add(json_obj_item, a_version == 1 ? "Sender addr" : "sender_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_sender_addr)));            
        } break;

@@ -34,6 +34,7 @@
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_datum_tx_pkey.h"
 #include "dap_chain_datum_tx_receipt.h"
+#include "dap_time.h"
 
 #define LOG_TAG "dap_chain_datum_tx_items"
 
@@ -811,11 +812,12 @@ dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_n
     if (l_group_name_size > UINT16_MAX)
         return NULL;
     dap_chain_tx_item_event_t *l_event = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_item_event_t, sizeof(dap_chain_tx_item_event_t) + l_group_name_size, NULL);
-    strcpy((char *)l_event->group_name, a_group_name);
+    memcpy(l_event->group_name, a_group_name, l_group_name_size);
     l_event->type = TX_ITEM_TYPE_EVENT;
     l_event->version = DAP_CHAIN_TX_EVENT_VERSION;
     l_event->group_name_size = (uint16_t)l_group_name_size;
     l_event->event_type = a_type;
+    l_event->timestamp = dap_time_now();
     return l_event;
 }
 void dap_chain_datum_tx_event_delete(void *a_event)
@@ -828,12 +830,42 @@ int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_
 {
     dap_return_val_if_fail(a_json_obj && a_event, -1);
     json_object *l_object = a_json_obj;
+
+    char l_timestamp_str[DAP_TIME_STR_SIZE] = {0};
+    dap_time_to_str_rfc822(l_timestamp_str, DAP_TIME_STR_SIZE, a_event->timestamp);
+    json_object_object_add(l_object, "timestamp", json_object_new_string(l_timestamp_str));
     json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     json_object_object_add(l_object, "event_version", json_object_new_int(a_event->version));
     json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_name_size));
     return 0;
 }
 
+int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type)
+{
+    dap_return_val_if_fail(a_json_obj && a_event, -1);
+    json_object *l_object = a_json_obj;
+    char l_timestamp_str[DAP_TIME_STR_SIZE] = {0};
+    dap_time_to_str_rfc822(l_timestamp_str, DAP_TIME_STR_SIZE, a_event->timestamp);
+    json_object_object_add(l_object, "timestamp", json_object_new_string(l_timestamp_str));
+    json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
+    json_object_object_add(l_object, "event_group", json_object_new_string(a_event->group_name));
+    const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->tx_hash)
+                                                                   : dap_chain_hash_fast_to_str_static(&a_event->tx_hash);
+    json_object_object_add(l_object, "tx_hash", json_object_new_string(l_tx_hash_str));
+    const char *l_pkey_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->pkey_hash)
+                                                                     : dap_hash_fast_to_str_static(&a_event->pkey_hash);
+    json_object_object_add(l_object, "pkey_hash", json_object_new_string(l_pkey_hash_str));
+    json_object_object_add(l_object, "data_size", json_object_new_int64(a_event->event_data_size));
+    if (a_event->event_data && a_event->event_data_size > 0) {
+        char *l_data_hex = DAP_NEW_Z_SIZE(char, a_event->event_data_size * 2 + 1);
+        if (l_data_hex) {
+            dap_bin2hex(l_data_hex, a_event->event_data, a_event->event_data_size);
+            json_object_object_add(l_object, "data_hex", json_object_new_string(l_data_hex));
+            DAP_DELETE(l_data_hex);
+        }
+    }
+    return 0;
+}
 
 dap_tsd_t *dap_chain_tx_event_data_auction_started_tsd_create(uint32_t a_multiplier, dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
 {

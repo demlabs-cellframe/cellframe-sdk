@@ -848,7 +848,7 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED:
             {
                 dap_chain_tx_event_data_auction_started_t *l_event_data = (dap_chain_tx_event_data_auction_started_t *)l_event->event_data;
-                dap_time_t l_auction_end_timeout = l_event->event_ts + l_event_data->duration + DAP_SEC_PER_DAY;
+                dap_time_t l_auction_end_timeout = l_event->timestamp + l_event_data->duration + DAP_SEC_PER_DAY;
                 dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
                 if (l_current_time >= l_auction_end_timeout) {
                     log_it(L_DEBUG, "Withdrawal allowed: auction %s ended by time", l_auction_hash_str);

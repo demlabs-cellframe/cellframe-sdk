@@ -33,16 +33,16 @@ typedef struct dap_chain_tx_item_event {
     dap_chain_tx_item_type_t type;          /// @param type             @brief Transaction item type
     uint8_t version;                        /// @param version          @brief Version of the event.
     uint16_t event_type;                    /// @param event_type       @brief Event type.
-    dap_time_t event_ts;                   /// @param event_ts          @brief Timestamp of the event.
+    dap_time_t timestamp;                   /// @param event_ts          @brief Timestamp of the event.
     uint32_t group_name_size;               /// @param group_name_size  @brief Size of the event group name.
     byte_t group_name[];                    /// @param group_name       @brief Event group name
 } DAP_ALIGN_PACKED dap_chain_tx_item_event_t;
 
 typedef struct dap_chain_tx_event {
+    dap_time_t timestamp;               /// @param timestamp            @brief Timestamp of the event.
     char *group_name;                   /// @param group_name           @brief Event group name
     dap_chain_hash_fast_t tx_hash;      /// @param tx_hash              @brief Hash of the transaction.
     dap_chain_hash_fast_t pkey_hash;    /// @param pkey_hash            @brief Hash of the public key.
-    dap_time_t event_ts;                /// @param event_ts             @brief Timestamp of the event.
     uint16_t event_type;                /// @param event_type           @brief Event type.
     void *event_data;                   /// @param event_data           @brief Event data.
     size_t event_data_size;             /// @param event_data_size      @brief Event data size.
@@ -94,3 +94,4 @@ int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_
 
 dap_tsd_t *dap_chain_tx_event_data_auction_started_tsd_create(uint32_t a_multiplier, dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[]);
 dap_tsd_t *dap_chain_tx_event_data_ended_tsd_create(uint8_t a_winners_cnt, uint32_t a_winners_ids[]);    
+int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type);

@@ -108,6 +108,7 @@ enum DAP_CHAIN_NET_VOTE_VOTING_ERROR{
     DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE,
     DAP_CHAIN_NET_VOTE_VOTING_THIS_VOTING_HAVE_MAX_VALUE_VOTES,
     DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED,
+    DAP_CHAIN_NET_VOTE_VOTING_CANCELLED,
     DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT,
     DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED,
     DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED,
@@ -153,4 +154,23 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
 dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net);
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_vote_hash);
 void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info);
+typedef enum {
+    DAP_CHAIN_NET_VOTE_CANCEL_OK = 0,
+    DAP_CHAIN_NET_VOTE_CANCEL_HASH_NOT_FOUND,
+    DAP_CHAIN_NET_VOTE_CANCEL_HASH_INVALID,
+    DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_NOT_VALID,
+    DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_BAD_TYPE,
+    DAP_CHAIN_NET_VOTE_CANCEL_WALLET_PARAM_NOT_VALID,
+    DAP_CHAIN_NET_VOTE_CANCEL_WALLET_DOES_NOT_EXIST,
+    DAP_CHAIN_NET_VOTE_CANCEL_VOTING_NOT_ACTIVE,
+    DAP_CHAIN_NET_VOTE_CANCEL_VOTING_EXPIRED,
+    DAP_CHAIN_NET_VOTE_CANCEL_VOTING_TX_NOT_FOUND,
+    DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS,
+    DAP_CHAIN_NET_VOTE_CANCEL_SOURCE_ADDRESS_INVALID,
+    DAP_CHAIN_NET_VOTE_CANCEL_NOT_ENOUGH_FUNDS,
+    DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX,
+    DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_POOL_IN_MEMPOOL,
+    DAP_CHAIN_NET_VOTE_CANCEL_UNKNOWN_ERR = 99
+} dap_chain_net_vote_cancel_result_t;
+dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out);
 

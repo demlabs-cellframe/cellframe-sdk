@@ -1046,11 +1046,11 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
 
     //switch ledger params list | tx | info
     int l_cmd = CMD_NONE;
-    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "list", NULL)){
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "list", NULL)){
         l_cmd = CMD_LIST;
-    } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "info", NULL))
+    } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "info", NULL))
         l_cmd = CMD_TX_INFO;
-    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "event", NULL))
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "event", NULL))
         l_cmd = CMD_EVENT;
 
     bool l_is_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
@@ -1073,7 +1073,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         
         if (l_subcmd == SUBCMD_NONE) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, 
-                                  "Command 'event' requires subcommand 'list', 'dump', 'create' or 'key'");
+                                  "Subcommand 'event' requires subcommand 'list', 'dump', 'create' or 'key'");
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
         }
         
@@ -1128,7 +1128,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             
             const char *l_fee_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str);
-            uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str ? l_fee_str : "0");
+            uint256_t l_fee = dap_chain_balance_scan(l_fee_str ? l_fee_str : "0");
             
             // Открываем кошелек и получаем из него ключ
             unsigned int l_wallet_stat = 0;
@@ -1245,11 +1245,10 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 if (l_list) {
                     for (dap_list_t *l_item = l_list; l_item; l_item = l_item->next) {
                         dap_hash_fast_t *l_hash = (dap_hash_fast_t *)l_item->data;
-                        char *l_hash_str = dap_strcmp(l_hash_out_type, "hex") 
-                                           ? dap_enc_base58_encode_hash_to_str(l_hash)
-                                           : dap_chain_hash_fast_to_str_new(l_hash);
+                        const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex") 
+                                           ? dap_enc_base58_encode_hash_to_str_static(l_hash)
+                                           : dap_chain_hash_fast_to_str_static(l_hash);
                         json_object_array_add(l_json_array_keys, json_object_new_string(l_hash_str));
-                        DAP_DELETE(l_hash_str);
                     }
                     
                     // Free the list and its elements
@@ -1415,14 +1414,8 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 for (dap_list_t *l_item = l_events; l_item; l_item = l_item->next) {
                     dap_chain_tx_event_t *l_event = (dap_chain_tx_event_t *)l_item->data;
                     json_object *l_json_event = json_object_new_object();
-                    char *l_tx_hash_str = dap_strcmp(l_hash_out_type, "hex")
-                                        ? dap_enc_base58_encode_hash_to_str(&l_event->tx_hash)
-                                        : dap_chain_hash_fast_to_str_new(&l_event->tx_hash);
-                    json_object_object_add(l_json_event, "tx_hash", json_object_new_string(l_tx_hash_str));
-                    json_object_object_add(l_json_event, "group", json_object_new_string(l_event->group_name));
-                    json_object_object_add(l_json_event, "type", json_object_new_int(l_event->event_type));
+                    dap_chain_datum_tx_event_to_json(l_json_event, l_event, l_hash_out_type);
                     json_object_array_add(l_json_arr_events, l_json_event);
-                    DAP_DELETE(l_tx_hash_str);
                 }
                 
                 // Free the list and its elements
@@ -1467,32 +1460,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             }
             
             json_object *l_json_obj_out = json_object_new_object();
-            
-            // Basic event info
-            json_object_object_add(l_json_obj_out, "tx_hash", json_object_new_string(l_tx_hash_str));
-            json_object_object_add(l_json_obj_out, "group", json_object_new_string(l_event->group_name));
-            json_object_object_add(l_json_obj_out, "type", json_object_new_int(l_event->event_type));
-            
-            // Public key hash
-            char *l_pkey_hash_str = dap_strcmp(l_hash_out_type, "hex")
-                                  ? dap_enc_base58_encode_hash_to_str(&l_event->pkey_hash)
-                                  : dap_chain_hash_fast_to_str_new(&l_event->pkey_hash);
-            json_object_object_add(l_json_obj_out, "pkey_hash", json_object_new_string(l_pkey_hash_str));
-            DAP_DELETE(l_pkey_hash_str);
-            
-            // Event data as hex
-            if (l_event->event_data && l_event->event_data_size > 0) {
-                char *l_event_data_hex = DAP_NEW_Z_SIZE(char, l_event->event_data_size * 2 + 1);
-                if (l_event_data_hex) {
-                    dap_bin2hex(l_event_data_hex, l_event->event_data, l_event->event_data_size);
-                    json_object_object_add(l_json_obj_out, "data_size", json_object_new_int64(l_event->event_data_size));
-                    json_object_object_add(l_json_obj_out, "data_hex", json_object_new_string(l_event_data_hex));
-                    DAP_DELETE(l_event_data_hex);
-                }
-            } else {
-                json_object_object_add(l_json_obj_out, "data_size", json_object_new_int64(0));
-            }
-            
+            dap_chain_datum_tx_event_to_json(l_json_obj_out, l_event, l_hash_out_type);
             json_object_array_add(*a_json_arr_reply, l_json_obj_out);
             dap_chain_datum_tx_event_delete(l_event);
             return 0;
@@ -1616,7 +1584,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         }        
     }
     else{
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'ledger' requires parameter 'list' or 'info'", l_tx_hash_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'ledger' requires parameter 'list' or 'info' or 'event'", l_tx_hash_str);
         return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
     }
     return 0;
