@@ -670,7 +670,7 @@ json_object* dap_request_command_to_rpc_with_params(compose_config_t *a_config, 
                         a_method, l_msg);
     } else {
         l_ret = snprintf(data, sizeof(data),
-                            "{\"method\": \"%s\",\"params\": [\"%s;%s\"],\"id\": \"1\"}",
+                            "{\"method\": \"%s\",\"params\": [\"%s;%s\"],\"id\": \"1\",\"version\": \"2\"}",
                             a_method, a_method, l_msg);
     }
 
@@ -1232,7 +1232,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_arra
         }
         
         json_object *l_value_datosi_obj = NULL;
-        json_object_object_get_ex(l_output, "value_datosi", &l_value_datosi_obj);
+        json_object_object_get_ex(l_output, "value_datoshi", &l_value_datosi_obj);
         if (!l_value_datosi_obj) {
             continue;
         }
