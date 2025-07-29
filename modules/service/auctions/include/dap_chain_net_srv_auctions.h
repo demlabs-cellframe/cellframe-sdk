@@ -27,8 +27,12 @@
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_datum_tx_event.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_chain_ledger.h"
 #include "uthash.h"
+
+// Auction service ID
+#define DAP_CHAIN_NET_SRV_AUCTION_ID 0x07
 
 // Forward declarations
 typedef struct dap_chain_net_srv_auctions dap_chain_net_srv_auctions_t;

@@ -6079,7 +6079,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
                 pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
                 return -3;
             }
-            if (!l_event_item->group_size) {
+            if (!l_event_item->group_name_size) {
                 log_it(L_WARNING, "Event group size is 0 in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
                 pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
                 return -4;
@@ -6139,13 +6139,13 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         .event_data_size = l_event_tsd ? l_event_tsd->size : 0,
         .pkey_hash = l_event_pkey_hash
     };
-    l_event->group_name = DAP_NEW_SIZE(char, l_event_item->group_size + 1);
+    l_event->group_name = DAP_NEW_SIZE(char, l_event_item->group_name_size + 1);
     if (!l_event->group_name) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         DAP_DEL_Z(l_event);
         return -9;
     }
-    dap_strncpy((char *)l_event->group_name, (char *)l_event_item->group_name, l_event_item->group_size);
+    dap_strncpy((char *)l_event->group_name, (char *)l_event_item->group_name, l_event_item->group_name_size);
     if (l_event_tsd) {
         l_event->event_data = DAP_DUP_SIZE((byte_t *)l_event_tsd->data, l_event_tsd->size);
         if (!l_event->event_data) {

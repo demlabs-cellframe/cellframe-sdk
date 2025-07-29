@@ -133,7 +133,7 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_OUT_COND: return m_tx_item_size_ext(dap_chain_tx_out_cond_t, tsd_size);
     case TX_ITEM_TYPE_PKEY:         return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.size);
     case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
-    case TX_ITEM_TYPE_EVENT:  return m_tx_item_size_ext(dap_chain_tx_item_event_t, group_size);
+    case TX_ITEM_TYPE_EVENT:  return m_tx_item_size_ext(dap_chain_tx_item_event_t, group_name_size);
     // Receipt size calculation is non-trivial...
     case TX_ITEM_TYPE_RECEIPT_OLD:{
         if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
@@ -814,7 +814,7 @@ dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_n
     strcpy((char *)l_event->group_name, a_group_name);
     l_event->type = TX_ITEM_TYPE_EVENT;
     l_event->version = DAP_CHAIN_TX_EVENT_VERSION;
-    l_event->group_size = (uint16_t)l_group_name_size;
+    l_event->group_name_size = (uint16_t)l_group_name_size;
     l_event->event_type = a_type;
     return l_event;
 }
@@ -830,6 +830,40 @@ int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_
     json_object *l_object = a_json_obj;
     json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     json_object_object_add(l_object, "event_version", json_object_new_int(a_event->version));
-    json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_size));
+    json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_name_size));
     return 0;
+}
+
+
+dap_tsd_t *dap_chain_tx_event_data_auction_started_tsd_create(uint32_t a_multiplier, dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
+{
+    size_t l_data_size = sizeof(dap_chain_tx_event_data_auction_started_t) + a_projects_cnt * sizeof(uint32_t);
+    dap_chain_tx_event_data_auction_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_auction_started_t, l_data_size, NULL);
+    
+    l_data->multiplier = a_multiplier;
+    l_data->time_unit = a_time_unit;
+    l_data->calculation_rule_id = a_calculation_rule_id;
+    l_data->projects_cnt = a_projects_cnt;
+    dap_tsd_t *l_tsd = dap_tsd_create(DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_STARTED, l_data, l_data_size);
+    DAP_DEL_Z(l_data);
+    if (!l_tsd){
+        log_it(L_ERROR, "dap_chain_tx_event_data_auction_started_tsd_create: failed to create tsd");
+        return NULL;
+    }
+    return l_tsd;
+}
+
+dap_tsd_t *dap_chain_tx_event_data_ended_tsd_create(uint8_t a_winners_cnt, uint32_t a_winners_ids[])
+{
+    size_t l_data_size = sizeof(dap_chain_tx_event_data_ended_t) + a_winners_cnt * sizeof(uint32_t);
+    dap_chain_tx_event_data_ended_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_ended_t, l_data_size, NULL);
+    l_data->winners_cnt = a_winners_cnt;
+    memcpy(l_data->winners_ids, a_winners_ids, a_winners_cnt * sizeof(uint32_t));
+    dap_tsd_t *l_tsd = dap_tsd_create(DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_ENDED, l_data, l_data_size);
+    DAP_DEL_Z(l_data);
+    if (!l_tsd){
+        log_it(L_ERROR, "dap_chain_tx_event_data_ended_tsd_create: failed to create tsd");
+        return NULL;
+    }
+    return l_tsd;
 }

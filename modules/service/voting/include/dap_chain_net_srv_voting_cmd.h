@@ -30,9 +30,6 @@
 #include "dap_chain_tx_out_cond.h"
 #include "json_object.h"
 
-// Auction service ID
-#define DAP_CHAIN_NET_SRV_AUCTION_ID 0x07
-
 // Monitoring command type (only monitoring)
 typedef enum {
     DAP_AUCTION_CMD_MONITOR = 1
