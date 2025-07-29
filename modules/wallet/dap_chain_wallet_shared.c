@@ -81,8 +81,7 @@ enum emit_delegation_error {
     ERROR_CREATE,
     ERROR_PLACE,
     ERROR_SUBCOMMAND,
-    ERROR_NETWORK,
-    ERROR_NOT_FOUND
+    ERROR_NETWORK
 };
 
 #define LOG_TAG "dap_chain_wallet_shared"
@@ -1365,9 +1364,9 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         l_values = dap_global_db_get_all_raw_sync(s_wallet_shared_gdb_pkeys, &l_values_count);
     }
     if (!l_values_count) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_NOT_FOUND, 
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
             "No wallet shared data found in GDB group %s", s_wallet_shared_gdb_group);
-        return ERROR_NOT_FOUND;
+        return ERROR_VALUE;
     }
     dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
     if (!l_groups_list) {
