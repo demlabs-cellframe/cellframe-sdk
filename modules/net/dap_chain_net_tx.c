@@ -1722,22 +1722,6 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             json_object_object_add(json_obj_item,"vote_answer_idx", json_object_new_uint64(l_vote_item->answer_idx));
 
         } break;
-        case TX_ITEM_TYPE_VOTING_CANCEL: {
-            dap_chain_tx_tsd_t *l_cancel_tsd = dap_chain_datum_tx_item_get_tsd_by_type(a_tx, VOTING_TSD_TYPE_CANCEL);
-            json_object_object_add(json_obj_item,"type", json_object_new_string("voting_cancel"));
-            if (l_cancel_tsd) {
-                dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_cancel_tsd->tsd;
-                if (l_tsd_data->size == sizeof(dap_chain_hash_fast_t)) {
-                    dap_chain_hash_fast_t *l_voting_hash = (dap_chain_hash_fast_t *)l_tsd_data->data;
-                    const char *l_hash_str = dap_chain_hash_fast_to_str_static(l_voting_hash);
-                    json_object_object_add(json_obj_item,"voting_hash", json_object_new_string(l_hash_str));
-                } else {
-                    json_object_object_add(json_obj_item,"voting_hash", json_object_new_string("Invalid TSD data"));
-                }
-            } else {
-                json_object_object_add(json_obj_item,"voting_hash", json_object_new_string("TSD not found"));
-            }
-        } break;
         default:
             json_object_object_add(json_obj_item,"type", json_object_new_string("This transaction have unknown item type"));
             break;

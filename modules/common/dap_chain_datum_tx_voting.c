@@ -164,13 +164,6 @@ dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void)
     return l_item;
 }
 
-dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_cancel_create(void)
-{
-    dap_chain_tx_voting_t * l_item = DAP_NEW_Z(dap_chain_tx_voting_t);
-    l_item->type = TX_ITEM_TYPE_VOTING_CANCEL;
-    return l_item;
-}
-
 const char *s_tx_voting_get_answer_text_by_idx(dap_chain_datum_tx_t *a_tx, uint64_t a_idx) {
     byte_t *l_item; size_t l_tx_item_size;
     dap_tsd_t *l_tsd;

@@ -207,7 +207,6 @@ enum dap_chain_tx_item_type {
     /// @brief Transaction: voting and vote
     TX_ITEM_TYPE_VOTING = 0x90,
     TX_ITEM_TYPE_VOTE = 0x91,
-    TX_ITEM_TYPE_VOTING_CANCEL = 0x92,
 
     /// @brief Virtual types for items enumearting
     TX_ITEM_TYPE_IN_EMS_LOCK = 0xf1,

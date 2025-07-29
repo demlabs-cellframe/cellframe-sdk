@@ -103,7 +103,6 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
         case TX_ITEM_TYPE_VOTING: return "TX_ITEM_TYPE_VOTING";
         case TX_ITEM_TYPE_VOTE: return "TX_ITEM_TYPE_VOTE";
-        case TX_ITEM_TYPE_VOTING_CANCEL: return "TX_ITEM_TYPE_VOTING_CANCEL";
         default: return "UNDEFINED";
     }
 }
@@ -130,7 +129,6 @@ DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chai
         case TX_ITEM_TYPE_TSD: return "data";
         case TX_ITEM_TYPE_VOTING: return "voting";
         case TX_ITEM_TYPE_VOTE: return "vote";
-        case TX_ITEM_TYPE_VOTING_CANCEL: return "voting_cancel";
         default: return "UNDEFINED";
     }
 }

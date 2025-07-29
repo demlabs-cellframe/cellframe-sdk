@@ -93,7 +93,6 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_chain_has
 dap_chain_tx_tsd_t *dap_chain_datum_voting_token_tsd_create(const char *a_token_ticker);
 
 dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void);
-dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_cancel_create(void);
 json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_tx, int a_version);
 
 

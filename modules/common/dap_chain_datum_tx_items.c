@@ -124,7 +124,6 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_IN_REWARD:return m_tx_item_size(dap_chain_tx_in_reward_t);
     case TX_ITEM_TYPE_VOTING:   return m_tx_item_size(dap_chain_tx_voting_t);
     case TX_ITEM_TYPE_VOTE:     return m_tx_item_size(dap_chain_tx_vote_t);
-    case TX_ITEM_TYPE_VOTING_CANCEL: return m_tx_item_size(dap_chain_tx_voting_t);
     // Access data size by struct field
     case TX_ITEM_TYPE_TSD:           return m_tx_item_size_ext(dap_chain_tx_tsd_t, header.size);
     case TX_ITEM_TYPE_OUT_COND: return m_tx_item_size_ext(dap_chain_tx_out_cond_t, tsd_size);
@@ -725,9 +724,6 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
 
         case TX_ITEM_TYPE_VOTE:
             DAP_LIST_SAPPEND(a_res_group->items_vote, l_item);
-            break;
-        case TX_ITEM_TYPE_VOTING_CANCEL:
-            DAP_LIST_SAPPEND(a_res_group->items_voting_cancel, l_item);
             break;
         default:
             DAP_LIST_SAPPEND(a_res_group->items_unknown, l_item);

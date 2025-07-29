@@ -3190,7 +3190,6 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_CHANGE) return "change";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTING) return "voting";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTE) return "vote";
-    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL) return "voting_cancel";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD) return "hold";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE) return "take";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL) return "refill";
@@ -4165,15 +4164,6 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
            }
            if (a_action) 
                *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTE;
-        } else if ( dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_VOTING_CANCEL, NULL) ) {
-                if (s_voting_callbacks.voting_callback) {
-                    if ((l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING_CANCEL, a_tx, a_tx_hash, false))) {
-                        debug_if(s_debug_more, L_WARNING, "Verificator check error %d for voting cancel", l_err_num);
-                        l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
-                    }
-                }
-                if (a_action)
-                    *a_action = DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL;
         }
     }
 
@@ -4621,8 +4611,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, a_tx_hash, true);
         else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTE)
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, true);
-        else if (l_action == DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL)
-            l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING_CANCEL, a_tx, a_tx_hash, true);
     }
     if (!s_check_hal(a_ledger, a_tx_hash))
         assert(!l_err_num);
