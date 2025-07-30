@@ -160,6 +160,22 @@ typedef struct dap_ledger_anchor_item {
     UT_hash_handle hh;
 } dap_ledger_anchor_item_t;
 
+typedef struct dap_ledger_event {
+    dap_time_t timestamp;
+    dap_hash_fast_t tx_hash;
+    dap_hash_fast_t pkey_hash;
+    char *group_name;
+    uint16_t event_type;
+    void *event_data;
+    size_t event_data_size;
+    UT_hash_handle hh;
+} dap_ledger_event_t;
+
+typedef struct dap_ledger_event_pkey_item {
+    dap_hash_fast_t pkey_hash;
+    UT_hash_handle hh;
+} dap_ledger_event_pkey_item_t;
+
 // dap_ledger_t private section
 typedef struct dap_ledger_private {
     // separate access to transactions

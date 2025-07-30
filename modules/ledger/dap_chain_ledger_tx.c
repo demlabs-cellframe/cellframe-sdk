@@ -24,6 +24,7 @@
     You should have received a copy of the GNU General Public License
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <pthread.h>
 #include "dap_chain_ledger.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_notify_srv.h"
@@ -1093,7 +1094,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             case TX_ITEM_TYPE_VOTE:
                 if (s_voting_callbacks.vote_callback) {
                     if (!dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true) &&
-                    (l_err_num = s_voting_callbacks.vote_callback(a_ledger, a_tx, a_tx_hash, false))) {
+                    (l_err_num = s_voting_callbacks.vote_callback(a_ledger, a_tx, a_tx_hash, NULL, false))) {
                         debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for vote", l_err_num);
                         l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
                         break;

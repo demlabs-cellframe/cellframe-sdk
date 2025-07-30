@@ -2594,7 +2594,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     
     // Получаем все объекты из mempool
     size_t l_objs_count = 0;
-    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    char * l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     if(!l_gdb_group_mempool) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_GET_MEMPOOL_GROUP,
                                "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
@@ -2783,7 +2783,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 json_object_object_add(l_jobj_datum, "ledger_rc", l_jobj_ledger_rc);
 
                 // Добавляем информацию о сервисе и действии
-                dap_chain_net_srv_uid_t uid;
+                dap_chain_srv_uid_t uid;
                 char *service_name;
                 dap_chain_tx_tag_action_type_t action;
                 int l_rc = dap_ledger_deduct_tx_tag(a_net->pub.ledger, l_tx, &service_name, &uid, &action);
@@ -2826,7 +2826,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                     json_object_object_add(l_jobj_datum, "warning", l_jobj_wgn);
                     continue;
                 }
-                dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sig);
+                dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_sig);
                 dap_chain_addr_fill_from_sign(&l_addr_from, l_sign, a_net->pub.id);
                 if (a_addr && dap_chain_addr_compare(&l_wallet_addr, &l_addr_from))
                     l_datum_is_accepted_addr = true;
@@ -3125,8 +3125,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 json_object_object_add(l_jobj_datum, "vote", l_jobj_tx_vote);
                 dap_list_t *l_vote_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTE, NULL);
                 for (dap_list_t *it = l_vote_list; it; it = it->next) {
-                    json_object *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json(
-                            (dap_chain_tx_vote_t *) it->data, a_net->pub.ledger, a_version);
+                    json_object *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json((dap_chain_tx_vote_t *) it->data, a_version);
                     json_object_array_add(l_jobj_tx_vote, l_jobj_vote);
                 }
                 dap_list_free(l_vote_list);
@@ -5873,7 +5872,7 @@ static char **s_parse_items(const char *a_str, char a_delimiter, int *a_count, c
 
     char **lines = DAP_CALLOC(l_count_temp, sizeof (void *));
     if (!lines) {
-        log_it(L_ERROR, "Memoru allocation error in s_parse_items");
+        log_it(L_ERROR, "Memory allocation error in s_parse_items");
         DAP_DELETE(l_temp_str);
         return NULL;
     }

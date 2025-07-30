@@ -20,30 +20,15 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <pthread.h>
 #include "dap_chain_ledger_pvt.h"
 
 #define LOG_TAG "dap_ledger_event"
-
-typedef struct dap_ledger_event {
-    dap_time_t timestamp;
-    dap_hash_fast_t tx_hash;
-    dap_hash_fast_t pkey_hash;
-    char *group_name;
-    uint16_t event_type;
-    void *event_data;
-    size_t event_data_size;
-    UT_hash_handle hh;
-} dap_ledger_event_t;
 
 typedef struct dap_ledger_event_notifier {
     dap_ledger_event_notify_t callback;
     void *arg;
 } dap_ledger_event_notifier_t;
-
-typedef struct dap_ledger_event_pkey_item {
-    dap_hash_fast_t pkey_hash;
-    UT_hash_handle hh;
-} dap_ledger_event_pkey_item_t;
 
 static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply);
 static int s_ledger_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
@@ -214,7 +199,7 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
         } break;
         case TX_ITEM_TYPE_SIG:
             if (++l_sign_count == 2)
-                l_event_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
+                l_event_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_item);
             break;
         default:
             break;

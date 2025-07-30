@@ -1442,7 +1442,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, 
                                                     &l_addr_from, &l_list_fee_out, 
                                                     l_total_fee, &l_fee_transfer) == -101) {
-        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                             &l_addr_from, l_total_fee, 
                                                             &l_fee_transfer);
     }
