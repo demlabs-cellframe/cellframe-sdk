@@ -1,18 +1,5 @@
 #include "dap_struct_packing_tests.h"
-<<<<<<< HEAD:modules/datum/tests/dap_struct_packing_tests.c
 #include "dap_chain_datum_tx_items.h"
-=======
-#include "dap_math_ops.h"
-#include "dap_chain_datum_tx_out.h"
-#include "dap_chain_datum_tx_in_cond.h"
-#include "dap_chain_datum_tx_in_ems.h"
-#include "dap_chain_datum_tx_in.h"
-#include "dap_chain_datum_tx_pkey.h"
-#include "dap_chain_datum_tx_sig.h"
-#include "dap_chain_datum_tx_tsd.h"
-#include <stddef.h>
-#include <stdio.h> // Added for printf
->>>>>>> 0e84f8c00 (feature-18357):modules/common/tests/dap_struct_packing_tests.c
 
 DAP_STATIC_INLINE int s_get_delta_addr(const void *a_addr_1, const void *a_addr_2)
 {
