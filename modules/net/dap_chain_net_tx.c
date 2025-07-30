@@ -721,6 +721,7 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
                                                                     "wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                                 break;
                             }
+                            UNUSED(l_token);
                         } else {
                             log_it(L_WARNING, "Invalid 'in' item, can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                             if (a_jobj_arr_errors)
@@ -1040,11 +1041,12 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
                 log_it(L_ERROR, "Json TX: bad price_unit in OUT_COND_SUBTYPE_SRV_PAY");
                 return NULL;
             }
-            dap_chain_srv_uid_t l_srv_uid;
-            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)){
+            uint64_t l_srv_uid_uint64 = 0;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)){
                 // Default service DAP_CHAIN_NET_SRV_VPN_ID
-                l_srv_uid.uint64 = 0x0000000000000001;
+                l_srv_uid_uint64 = 0x0000000000000001;
             }
+            dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64 };
             const char *l_params_str = s_json_get_text(a_json_item_obj, "params");
             uint8_t *l_params = NULL;
             size_t l_params_size = 0;
@@ -1082,11 +1084,12 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
         } break;
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
 
-            dap_chain_srv_uid_t l_srv_uid;
-            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+            uint64_t l_srv_uid_uint64 = 0;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)) {
                 // Default service DAP_CHAIN_NET_SRV_XCHANGE_ID
-                l_srv_uid.uint64 = 0x2;
+                l_srv_uid_uint64 = 0x2;
             }
+            dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64 };
             dap_chain_net_id_t l_buy_net_id = {}; 
             if(dap_chain_net_id_parse(s_json_get_text(a_json_item_obj, "buy_net_id"), &l_buy_net_id)) {
                 log_it(L_ERROR, "Json TX: buy_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
@@ -1148,11 +1151,12 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
             }
         } break;
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:{
-            dap_chain_srv_uid_t l_srv_uid;
-            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+            uint64_t l_srv_uid_uint64 = 0;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)) {
                 // Default service DAP_CHAIN_NET_SRV_STAKE_ID
-                l_srv_uid.uint64 = 0x12;
+                l_srv_uid_uint64 = 0x12;
             }
+            dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64 };
             uint256_t l_value = { };
             if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
                 log_it(L_ERROR, "Json TX: bad value in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
@@ -1202,11 +1206,12 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
             }
         } break;
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:{
-            dap_chain_srv_uid_t l_srv_uid;
-            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+            uint64_t l_srv_uid_uint64 = 0;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)) {
                 // Default service DAP_CHAIN_NET_SRV_STAKE_ID
-                l_srv_uid.uint64 = 0x13;
+                l_srv_uid_uint64 = 0x13;
             }
+            dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64 };
             uint256_t l_value = { };
             if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
                 log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
@@ -1292,8 +1297,8 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
 
 static const uint8_t * s_dap_chain_net_tx_create_receipt_item(json_object *a_json_item_obj, json_object *a_jobj_arr_errors, dap_chain_datum_tx_t *a_tx, dap_list_t *a_sign_list, size_t i)
 {
-    dap_chain_srv_uid_t l_srv_uid;
-    if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+    uint64_t l_srv_uid_uint64 = 0;
+    if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)) {
         log_it(L_ERROR, "Json TX: bad service_id in TYPE_RECEIPT");
         return NULL;
     }
@@ -1326,6 +1331,7 @@ static const uint8_t * s_dap_chain_net_tx_create_receipt_item(json_object *a_jso
         log_it(L_ERROR, "Json TX: bad prev_tx in TYPE_RECEIPT");
         return NULL;
     }
+    dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64};
     dap_chain_hash_fast_from_str(l_prev_tx_hash_str, &l_prev_tx_hash);
     dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params, l_params_size, &l_prev_tx_hash);
     if (!l_receipt) {
