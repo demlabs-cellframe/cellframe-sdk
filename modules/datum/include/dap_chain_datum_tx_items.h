@@ -27,7 +27,6 @@
 #include <string.h>
 
 #include "dap_common.h"
-#include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_pkey.h"
 #include "dap_sign.h"
@@ -41,6 +40,7 @@
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
 #include "dap_chain_datum_tx_pkey.h"
+#include "dap_chain_datum_tx_event.h"
 
 typedef struct dap_chain_datum_tx dap_chain_datum_tx_t;
 
@@ -74,6 +74,7 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
         case TX_ITEM_TYPE_VOTING: return "TX_ITEM_TYPE_VOTING";
         case TX_ITEM_TYPE_VOTE: return "TX_ITEM_TYPE_VOTE";
+        case TX_ITEM_TYPE_EVENT: return "TX_ITEM_TYPE_EVENT";
         default: return "UNDEFINED";
     }
 }
@@ -100,6 +101,7 @@ DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chai
         case TX_ITEM_TYPE_TSD: return "data";
         case TX_ITEM_TYPE_VOTING: return "voting";
         case TX_ITEM_TYPE_VOTE: return "vote";
+        case TX_ITEM_TYPE_EVENT: return "event";
         default: return "UNDEFINED";
     }
 }
@@ -263,6 +265,9 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
 
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type);
 
+
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, uint16_t a_type);
+void dap_chain_datum_tx_event_delete(void *a_event);
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,18 @@
 #include "dap_struct_packing_tests.h"
+<<<<<<< HEAD:modules/datum/tests/dap_struct_packing_tests.c
 #include "dap_chain_datum_tx_items.h"
+=======
+#include "dap_math_ops.h"
+#include "dap_chain_datum_tx_out.h"
+#include "dap_chain_datum_tx_in_cond.h"
+#include "dap_chain_datum_tx_in_ems.h"
+#include "dap_chain_datum_tx_in.h"
+#include "dap_chain_datum_tx_pkey.h"
+#include "dap_chain_datum_tx_sig.h"
+#include "dap_chain_datum_tx_tsd.h"
+#include <stddef.h>
+#include <stdio.h> // Added for printf
+>>>>>>> 0e84f8c00 (feature-18357):modules/common/tests/dap_struct_packing_tests.c
 
 DAP_STATIC_INLINE int s_get_delta_addr(const void *a_addr_1, const void *a_addr_2)
 {
@@ -87,14 +100,16 @@ static int s_chain_tx_pkey_test()
 {
     dap_print_module_name("dap_chain_tx_pkey_test");
     dap_chain_tx_pkey_t s = {0};
-    dap_assert(sizeof(s) == 16, "size");
-    dap_assert(sizeof(s.header) == 12, "header size");
-    dap_assert(s_get_delta_addr(&s, &s.header) == 0, "header");
-    dap_assert(s_get_delta_addr(&s, &s.header.type) == 0, "header.type");
-    dap_assert(s_get_delta_addr(&s, &s.header.sig_type) == 1, "header.sig_type");
-    dap_assert(s_get_delta_addr(&s, &s.header.sig_size) == 8, "header.sig_size");
-    dap_assert(s_get_delta_addr(&s, &s.seq_no) == 12, "seq_no");
-    dap_assert(s_get_delta_addr(&s, &s.pkey) == 16, "pkey");
+    printf("sizeof(s) = %zu\n", sizeof(s));
+    printf("offsetof(header) = %zu\n", offsetof(dap_chain_tx_pkey_t, header));
+    printf("offsetof(header.type) = %zu\n", offsetof(dap_chain_tx_pkey_t, header.type));
+    printf("offsetof(header.size) = %zu\n", offsetof(dap_chain_tx_pkey_t, header.size));
+    printf("offsetof(pkey) = %zu\n", offsetof(dap_chain_tx_pkey_t, pkey));
+    dap_assert(sizeof(s) == 9, "size");
+    dap_assert(offsetof(dap_chain_tx_pkey_t, header) == 1, "header offset");
+    dap_assert(offsetof(dap_chain_tx_pkey_t, header.type) == 1, "header.type offset");
+    dap_assert(offsetof(dap_chain_tx_pkey_t, header.size) == 5, "header.size offset");
+    dap_assert(offsetof(dap_chain_tx_pkey_t, pkey) == 9, "pkey offset");
     return 0;
 }
 
