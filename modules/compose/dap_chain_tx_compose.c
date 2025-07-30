@@ -5253,7 +5253,7 @@ dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
         for (size_t i = 0; i < json_object_array_length(l_spent_outs); i++) {
             json_object *l_spent_out = json_object_array_get_idx(l_spent_outs, i);
             if (json_object_get_int(json_object_object_get(l_spent_out, "out")) == l_cond_out_idx) {
-                const char *l_next_hash = json_object_get_string(json_object_object_get(l_spent_out, "is_spent_by_tx"));
+                const char *l_next_hash = json_object_get_string(json_object_object_get(l_spent_out, "spent_by_tx"));
                 if (l_next_hash && dap_chain_hash_fast_from_str(l_next_hash, &l_current_hash) == 0) {
                     l_found_next = true;
                     break;
