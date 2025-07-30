@@ -720,8 +720,7 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
                                 l_token = ((dap_chain_tx_out_std_t *)l_prev_item)->token;
                             } else {
                                 log_it(L_WARNING, "Invalid 'in' item, wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
-                                if (a_jobj_arr_errors)
-                                    dap_json_rpc_error_add(a_jobj_arr_errors,-1,"Unable to create in for transaction. Invalid 'in' item, "
+                                dap_json_rpc_error_add(a_jobj_arr_errors,-1,"Unable to create in for transaction. Invalid 'in' item, "
                                                                     "wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                                 break;
                             }
@@ -967,10 +966,10 @@ static const uint8_t *s_dap_chain_net_tx_create_out_ext_item (json_object *a_jso
             } else {
                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
             }
-            if (l_addr) DAP_DELETE(l_addr);
+            DAP_DELETE(l_addr);
             return l_out_item;      
         }
-        if (l_addr) DAP_DELETE(l_addr);
+        DAP_DELETE(l_addr);
     }
     return NULL;
 }
@@ -2489,7 +2488,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
             continue;
         }
 
-        log_it(L_DEBUG, "Json TX: process item %s", json_object_get_string(l_json_item_type));
+        log_it(L_DEBUG, "Json TX: process item %s", l_item_type_str);
         // Create an item depending on its type
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
@@ -2538,7 +2537,18 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
             return DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR;
         } else {        
             // Add item to transaction
-            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_item);
+            char *l_hash_str = s_json_get_text(l_json_item_obj, "item_hash");
+            if (l_hash_str) {
+                char *l_hash_str_current = dap_hash_fast_str_new(l_item, dap_chain_datum_item_tx_get_size(l_item, 0));
+                if (l_hash_str_current && strcmp(l_hash_str, l_hash_str_current)) {
+                    log_it(L_ERROR, "Item %zu type '%s' has invalid hash '%s'", i, l_item_type_str, l_hash_str);
+                    dap_json_rpc_error_add(a_jobj_arr_errors,DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,"Item %zu can't created, exit from creator!", i);
+                    DAP_DEL_MULTY(l_tx, l_item, l_hash_str_current);
+                    return DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR;
+                }
+                DAP_DEL_Z(l_hash_str_current);
+            }
+            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_item);
             l_items_ready++;
             DAP_DELETE(l_item);
         }
@@ -2624,8 +2634,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
 
 int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json)
 {
-    if(!a_tx || !a_out_json)
-        return log_it(L_ERROR, "Empty transaction"), DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS;
+    dap_return_val_if_pass(!a_tx || !a_out_json, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS);
 
     json_object* json_obj_out = a_out_json;
     json_object* l_json_arr_reply = NULL;
@@ -2646,6 +2655,9 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
         json_object* json_obj_item = json_object_new_object();
         json_object_object_add(json_obj_item,"type", json_object_new_string(dap_chain_datum_tx_item_type_to_str_short(*item)));
+        l_hash_str = dap_hash_fast_str_new(item, l_size);
+        json_object_object_add(json_obj_item,"item_hash", json_object_new_string(l_hash_str));
+        DAP_DEL_Z(l_hash_str);
         switch (*item) {
         case TX_ITEM_TYPE_IN:
             l_hash_tmp = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
