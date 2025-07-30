@@ -843,39 +843,38 @@ static const uint8_t * s_dap_chain_net_tx_create_in_ems_item (json_object *a_jso
     l_chain_id.uint64 = l_chain_id_int;
     const char *l_json_item_token = s_json_get_text(a_json_item_obj, "token");
     if (l_json_item_token && l_is_chain_id){
-        dap_hash_fast_t l_blank_hash = {};
-        dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, l_json_item_token);
+        dap_hash_fast_t l_token_ems_hash = {};
+        const char *l_json_item_token_ems_hash = s_json_get_text(a_json_item_obj, "token_ems_hash");
+        if(l_json_item_token_ems_hash && dap_chain_hash_fast_from_str(l_json_item_token_ems_hash, &l_token_ems_hash)) {
+            log_it(L_WARNING, "Invalid 'in_ems' item, bad hash");
+            dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create in for transaction. Invalid 'in_ems' item, bad hash");
+            return NULL;
+        }
+        dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_token_ems_hash, l_json_item_token);
         return (const uint8_t*) l_in_ems;
     } else {
         char *l_str_err = NULL;
         if (!l_is_chain_id) {
             log_it(L_WARNING, "Invalid 'in_ems' item, can't read chain_id");
-            if (a_jobj_arr_errors)
-                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create in for transaction. Invalid 'in_ems' item, can't read chain_id");
+            dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create in for transaction. Invalid 'in_ems' item, can't read chain_id");
         }
         if (!l_json_item_token){
             log_it(L_WARNING, "Invalid 'in_ems' item, bad token");
-            if (a_jobj_arr_errors)
-                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create in for transaction. Invalid 'in_ems' item, bad token");
+            dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create in for transaction. Invalid 'in_ems' item, bad token");
         }
     }
     return NULL;
 }
 
 static const uint8_t * s_dap_chain_net_tx_create_in_reward_item (json_object *a_json_item_obj, json_object *a_jobj_arr_errors) {
-    uint256_t l_value = { };
     const char *l_block_hash_str = s_json_get_text(a_json_item_obj, "block_hash");
-    bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
-    if(l_block_hash_str ) {
-        dap_hash_fast_t l_block_hash;
-        if(l_is_value && !dap_chain_hash_fast_from_str(l_block_hash_str, &l_block_hash)) {                             
-            dap_chain_tx_in_reward_t *l_in_reward = dap_chain_datum_tx_item_in_reward_create(&l_block_hash);
-            return (const uint8_t*) l_in_reward;
-        } else {
-            log_it(L_WARNING, "Invalid 'in_reward' item, bad block_hash %s", l_block_hash_str);
-            if (a_jobj_arr_errors)
-                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Invalid 'in_reward' item, bad block_hash %s", l_block_hash_str);
-        }
+    dap_hash_fast_t l_block_hash;
+    if(l_block_hash_str && !dap_chain_hash_fast_from_str(l_block_hash_str, &l_block_hash)) {             
+        dap_chain_tx_in_reward_t *l_in_reward = dap_chain_datum_tx_item_in_reward_create(&l_block_hash);
+        return (const uint8_t*) l_in_reward;
+    } else {
+        log_it(L_WARNING, "Invalid 'in_reward' item, bad block_hash %s", l_block_hash_str);
+        dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Invalid 'in_reward' item, bad block_hash %s", l_block_hash_str);
     }
     return NULL;
 }
@@ -2541,7 +2540,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
             if (l_hash_str) {
                 char *l_hash_str_current = dap_hash_fast_str_new(l_item, dap_chain_datum_item_tx_get_size(l_item, 0));
                 if (l_hash_str_current && strcmp(l_hash_str, l_hash_str_current)) {
-                    log_it(L_ERROR, "Item %zu type '%s' has invalid hash '%s'", i, l_item_type_str, l_hash_str);
+                    log_it(L_ERROR, "Item %zu type '%s' has invalid hash '%s'", i + 1, l_item_type_str, l_hash_str_current);
                     dap_json_rpc_error_add(a_jobj_arr_errors,DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,"Item %zu can't created, exit from creator!", i);
                     DAP_DEL_MULTY(l_tx, l_item, l_hash_str_current);
                     return DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR;
