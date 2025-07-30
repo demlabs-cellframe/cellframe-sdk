@@ -696,7 +696,7 @@ json_object* dap_request_command_to_rpc_with_params(compose_config_t *a_config, 
 bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **a_addr_fee, compose_config_t *a_config) {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     *a_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
-    randombytes(*l_addr_fee, sizeof(dap_chain_addr_t));
+    randombytes(*a_addr_fee, sizeof(dap_chain_addr_t));
     a_net_fee->_lo.b = rand() % 500;
 #else
     dap_return_val_if_pass(!a_net_fee || !a_addr_fee || !a_config || !a_config->net_name, false);
