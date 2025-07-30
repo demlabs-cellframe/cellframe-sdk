@@ -104,11 +104,10 @@ typedef struct dap_auction_cache_item {
     dap_auction_project_cache_item_t *projects; // Hash table of projects by project_hash
     uint32_t projects_count;           // Number of projects in this auction
     
-    // Winner tracking (for ended auctions) - now it's a project that wins
-    dap_hash_fast_t winner_project_hash; // Hash of winning project (if any)
-    char *winner_project_name;         // Name of winning project
-    uint256_t winner_total_amount;     // Total amount bid for winning project
+    // Winner tracking (for ended auctions)
     bool has_winner;                   // Whether auction has determined winner
+    uint8_t winners_cnt;               // Number of winners in this auction
+    uint32_t *winners_ids;             // Array of winner project IDs from event data
     
     UT_hash_handle hh;                 // Hash table handle by auction_tx_hash
 } dap_auction_cache_item_t;
@@ -150,10 +149,9 @@ typedef struct dap_chain_net_srv_auction {
     uint32_t projects_count;
     
     // Winner information (if auction ended)
-    bool has_winner;
-    dap_hash_fast_t winner_project_hash;
-    char *winner_project_name;
-    uint256_t winner_total_amount;
+    bool has_winner;                      // Whether auction has determined winner
+    uint8_t winners_cnt;                  // Number of winners
+    uint32_t *winners_ids;                // Array of winner project IDs
     
     // Projects array (if requested)
     dap_chain_net_srv_auction_project_t *projects;
@@ -166,6 +164,10 @@ extern "C" {
 // Service initialization/deinitialization
 int dap_chain_net_srv_auctions_init(void);
 void dap_chain_net_srv_auctions_deinit(void);
+
+// Register event notification callback for a specific network
+// This should be called when new networks are created after auction service initialization
+int dap_chain_net_srv_auctions_register_net_callback(dap_chain_net_t *a_net);
 
 // Service management
 dap_chain_net_srv_auctions_t *dap_chain_net_srv_auctions_create(dap_chain_net_srv_t *a_srv);
@@ -198,10 +200,10 @@ int dap_auction_cache_update_auction_status(dap_auction_cache_t *a_cache,
 int dap_auction_cache_withdraw_bid(dap_auction_cache_t *a_cache,
                                   dap_hash_fast_t *a_bid_hash);
 
-int dap_auction_cache_set_winner(dap_auction_cache_t *a_cache,
+int dap_auction_cache_set_winners(dap_auction_cache_t *a_cache,
                                  dap_hash_fast_t *a_auction_hash,
-                                 dap_hash_fast_t *a_winner_project_hash,
-                                 const char *a_winner_project_name);
+                                 uint8_t a_winners_cnt,
+                                 uint32_t *a_winners_ids);
 
 // Search functions
 dap_auction_cache_item_t *dap_auction_cache_find_auction(dap_auction_cache_t *a_cache,

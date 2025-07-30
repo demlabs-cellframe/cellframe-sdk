@@ -76,16 +76,24 @@ int dap_chain_net_srv_auctions_init(void)
         log_it(L_CRITICAL, "Failed to create auction cache");
         return -1;
     }
-
+    
     // Register verificator for auction bid conditional outputs
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID, 
                                s_auction_bid_callback_verificator, 
                                s_auction_bid_callback_updater, 
                                NULL);
 
-    // TODO: Register event notification callback for all networks
-    // This will be called when implementing the notification system
-    // For now, we need to manually call this for each network's ledger
+    // Register event notification callback for all existing networks
+    dap_chain_net_t *l_net = dap_chain_net_iter_start();
+    while (l_net) {
+        if (l_net->pub.ledger) {
+            dap_ledger_event_notify_add(l_net->pub.ledger, dap_auction_cache_event_callback, s_auction_cache);
+            log_it(L_DEBUG, "Registered auction event callback for network %s", l_net->pub.name);
+        } else {
+            log_it(L_WARNING, "Network %s has no ledger, skipping auction event registration", l_net->pub.name);
+        }
+        l_net = dap_chain_net_iter_next(l_net);
+    }
     
     dap_cli_server_cmd_add ("auction", com_auction, "Auction commands",
                 "bid -net <network> -auction <hash> -range <1..8> -amount <value> -lock <3..24> -fee <value> -w <wallet>\n"
@@ -192,7 +200,7 @@ void dap_auction_cache_delete(dap_auction_cache_t *a_cache)
         // Clean up auction data
         DAP_DELETE(l_auction->group_name);
         DAP_DELETE(l_auction->description);
-        DAP_DELETE(l_auction->winner_project_name);
+        DAP_DELETE(l_auction->winners_ids);  // Clean up winners array
         HASH_DEL(a_cache->auctions, l_auction);
         DAP_DELETE(l_auction);
     }
@@ -251,9 +259,8 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
     l_auction->projects = NULL;
     l_auction->projects_count = 0;
     l_auction->has_winner = false;
-    memset(&l_auction->winner_project_hash, 0, sizeof(dap_hash_fast_t));
-    l_auction->winner_project_name = NULL;
-    l_auction->winner_total_amount = uint256_0;
+    l_auction->winners_cnt = 0;
+    l_auction->winners_ids = NULL;
     
     if (a_group_name) {
         l_auction->group_name = dap_strdup(a_group_name);
@@ -489,19 +496,19 @@ int dap_auction_cache_withdraw_bid(dap_auction_cache_t *a_cache,
 }
 
 /**
- * @brief Set winner of auction
+ * @brief Set winners of auction
  * @param a_cache Cache instance
  * @param a_auction_hash Hash of auction transaction
- * @param a_winner_project_hash Hash of winning project
- * @param a_winner_project_name Name of winning project
+ * @param a_winners_cnt Number of winners
+ * @param a_winners_ids Array of winner project IDs
  * @return Returns 0 on success, negative error code otherwise
  */
-int dap_auction_cache_set_winner(dap_auction_cache_t *a_cache,
+int dap_auction_cache_set_winners(dap_auction_cache_t *a_cache,
                                  dap_hash_fast_t *a_auction_hash,
-                                 dap_hash_fast_t *a_winner_project_hash,
-                                 const char *a_winner_project_name)
+                                 uint8_t a_winners_cnt,
+                                 uint32_t *a_winners_ids)
 {
-    if (!a_cache || !a_auction_hash || !a_winner_project_hash)
+    if (!a_cache || !a_auction_hash || !a_winners_ids || a_winners_cnt == 0)
         return -1;
     
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
@@ -511,38 +518,36 @@ int dap_auction_cache_set_winner(dap_auction_cache_t *a_cache,
     HASH_FIND(hh, a_cache->auctions, a_auction_hash, sizeof(dap_hash_fast_t), l_auction);
     if (!l_auction) {
         pthread_rwlock_unlock(&a_cache->cache_rwlock);
-        log_it(L_WARNING, "Auction %s not found in cache for setting winner", 
+        log_it(L_WARNING, "Auction %s not found in cache for setting multiple winners", 
                dap_chain_hash_fast_to_str_static(a_auction_hash));
         return -2;
     }
     
-    // Find the winning project
-    dap_auction_project_cache_item_t *l_winner_project = NULL;
-    HASH_FIND(hh, l_auction->projects, a_winner_project_hash, sizeof(dap_hash_fast_t), l_winner_project);
+    // Clean up previous winners array if exists
+    DAP_DELETE(l_auction->winners_ids);
     
-    // Set winner information
+    // Set multiple winners information
     l_auction->has_winner = true;
-    l_auction->winner_project_hash = *a_winner_project_hash;
-    
-    // Clean up previous winner name if any
-    DAP_DELETE(l_auction->winner_project_name);
-    if (a_winner_project_name) {
-        l_auction->winner_project_name = dap_strdup(a_winner_project_name);
-    } else if (l_winner_project && l_winner_project->project_name) {
-        l_auction->winner_project_name = dap_strdup(l_winner_project->project_name);
+    l_auction->winners_cnt = a_winners_cnt;
+    l_auction->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * a_winners_cnt);
+    if (!l_auction->winners_ids) {
+        pthread_rwlock_unlock(&a_cache->cache_rwlock);
+        log_it(L_CRITICAL, "Memory allocation error for winners array");
+        return -3;
     }
     
-    if (l_winner_project) {
-        l_auction->winner_total_amount = l_winner_project->total_amount;
-    } else {
-        l_auction->winner_total_amount = uint256_0;
+    // Copy winners IDs
+    memcpy(l_auction->winners_ids, a_winners_ids, sizeof(uint32_t) * a_winners_cnt);
+    
+    // Log the winners for debugging
+    for (uint8_t i = 0; i < a_winners_cnt; i++) {
+        log_it(L_DEBUG, "Winner #%u: project ID %u", i + 1, a_winners_ids[i]);
     }
     
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
     
-    log_it(L_DEBUG, "Set winner for auction %s: project %s", 
-           dap_chain_hash_fast_to_str_static(a_auction_hash),
-           l_auction->winner_project_name ? l_auction->winner_project_name : "unknown");
+    log_it(L_DEBUG, "Set %u winners for auction %s", 
+           a_winners_cnt, dap_chain_hash_fast_to_str_static(a_auction_hash));
     
     return 0;
 }
@@ -631,15 +636,99 @@ void dap_auction_cache_event_callback(void *a_arg,
                    dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             
             if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
-                // Add new auction or update existing one to ACTIVE status
-                dap_auction_cache_item_t *l_auction = dap_auction_cache_find_auction(s_auction_cache, &a_event->tx_hash);
-                if (l_auction) {
-                    dap_auction_cache_update_auction_status(s_auction_cache, &a_event->tx_hash, DAP_AUCTION_STATUS_ACTIVE);
-                } else {
-                    // Create new auction entry
-                    dap_auction_cache_add_auction(s_auction_cache, &a_event->tx_hash, 
-                                                 a_ledger->net->pub.id, a_event->group_name);
-                    dap_auction_cache_update_auction_status(s_auction_cache, &a_event->tx_hash, DAP_AUCTION_STATUS_ACTIVE);
+                // Parse event data for auction started info
+                if (a_event->event_data && a_event->event_data_size >= sizeof(dap_chain_tx_event_data_auction_started_t)) {
+                    dap_chain_tx_event_data_auction_started_t *l_started_data = 
+                        (dap_chain_tx_event_data_auction_started_t *)a_event->event_data;
+                    
+                    // Add new auction or update existing one to ACTIVE status
+                    dap_auction_cache_item_t *l_auction = dap_auction_cache_find_auction(s_auction_cache, &a_event->tx_hash);
+                    if (l_auction) {
+                        dap_auction_cache_update_auction_status(s_auction_cache, &a_event->tx_hash, DAP_AUCTION_STATUS_ACTIVE);
+                        l_auction->start_time = a_event->timestamp;
+                        
+                        // Calculate end time from duration
+                        switch (l_started_data->time_unit) {
+                            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS:
+                                l_auction->end_time = a_event->timestamp + (l_started_data->duration * 3600);
+                                break;
+                            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS:
+                                l_auction->end_time = a_event->timestamp + (l_started_data->duration * 24 * 3600);
+                                break;
+                            default:
+                                l_auction->end_time = a_event->timestamp + l_started_data->duration;
+                                break;
+                        }
+                    } else {
+                        // Create new auction entry
+                        dap_auction_cache_add_auction(s_auction_cache, &a_event->tx_hash, 
+                                                     a_ledger->net->pub.id, a_event->group_name);
+                        l_auction = dap_auction_cache_find_auction(s_auction_cache, &a_event->tx_hash);
+                        if (l_auction) {
+                            dap_auction_cache_update_auction_status(s_auction_cache, &a_event->tx_hash, DAP_AUCTION_STATUS_ACTIVE);
+                            l_auction->start_time = a_event->timestamp;
+                            
+                            // Calculate end time from duration
+                            switch (l_started_data->time_unit) {
+                                case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS:
+                                    l_auction->end_time = a_event->timestamp + (l_started_data->duration * 3600);
+                                    break;
+                                case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS:
+                                    l_auction->end_time = a_event->timestamp + (l_started_data->duration * 24 * 3600);
+                                    break;
+                                default:
+                                    l_auction->end_time = a_event->timestamp + l_started_data->duration;
+                                    break;
+                            }
+                        }
+                    }
+                    
+                    log_it(L_INFO, "Auction %s started with %u projects, duration: %u %s", 
+                           dap_chain_hash_fast_to_str_static(&a_event->tx_hash),
+                           l_started_data->projects_cnt,
+                           l_started_data->duration,
+                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS ? "hours" :
+                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS ? "days" : "seconds");
+                }
+            }
+        } break;
+        
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED: {
+            log_it(L_DEBUG, "Processing auction ended event for %s", 
+                   dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
+            
+            if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
+                // Parse event data for winners information
+                if (a_event->event_data && a_event->event_data_size >= sizeof(dap_chain_tx_event_data_ended_t)) {
+                    dap_chain_tx_event_data_ended_t *l_ended_data = 
+                        (dap_chain_tx_event_data_ended_t *)a_event->event_data;
+                    
+                    // Update auction status to ENDED
+                    dap_auction_cache_update_auction_status(s_auction_cache, &a_event->tx_hash, DAP_AUCTION_STATUS_ENDED);
+                    
+                    // Set winners
+                    if (l_ended_data->winners_cnt > 0) {
+                        dap_auction_cache_set_winners(s_auction_cache, &a_event->tx_hash,
+                                                     l_ended_data->winners_cnt, l_ended_data->winners_ids);
+                        
+                        log_it(L_INFO, "Auction %s ended with %u winner(s)", 
+                               dap_chain_hash_fast_to_str_static(&a_event->tx_hash),
+                               l_ended_data->winners_cnt);
+                        
+                        // Log all winners
+                        for (uint8_t i = 0; i < l_ended_data->winners_cnt; i++) {
+                            log_it(L_DEBUG, "Winner #%u: project ID %u", i + 1, l_ended_data->winners_ids[i]);
+                        }
+                    } else {
+                        log_it(L_INFO, "Auction %s ended with no winners", 
+                               dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
+                    }
+                    
+                    // Set end time
+                    dap_auction_cache_item_t *l_auction = dap_auction_cache_find_auction(s_auction_cache, &a_event->tx_hash);
+                    if (l_auction) {
+                        l_auction->end_time = a_event->timestamp;
+                    }
                 }
             }
         } break;
@@ -650,6 +739,12 @@ void dap_auction_cache_event_callback(void *a_arg,
             
             if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
                 dap_auction_cache_update_auction_status(s_auction_cache, &a_event->tx_hash, DAP_AUCTION_STATUS_CANCELLED);
+                
+                // Set end time
+                dap_auction_cache_item_t *l_auction = dap_auction_cache_find_auction(s_auction_cache, &a_event->tx_hash);
+                if (l_auction) {
+                    l_auction->end_time = a_event->timestamp;
+                }
             }
         } break;
         
@@ -783,21 +878,22 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         {
             // 1. Get project id from bid transaction
             uint32_t l_bid_project = a_cond->subtype.srv_auction_bid.project_id;
-            // 2. Get winners from auction ended event
-
-            uint32_t l_winners_count = l_auction->winners_cnt;
-            // 3. Check project won or lost
+            
+            // 2. Check if this project is among the winners
             bool l_is_winner = false;
-            for (uint32_t i = 0; i < l_winners_count; i++) {
-                if (l_event_data->winners_ids[i] == l_bid_project) {
-                    l_is_winner = true;
-                    break;
+            if (l_auction->winners_cnt > 0 && l_auction->winners_ids) {
+                for (uint32_t i = 0; i < l_auction->winners_cnt; i++) {
+                    if (l_auction->winners_ids[i] == l_bid_project) {
+                        l_is_winner = true;
+                        break;
+                    }
                 }
             }
-            // 4. Make decision about withdrawal validity
+            
+            // 3. Make decision about withdrawal validity
             if (l_is_winner) { // If project is winner, check if lock period expired
                 dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
-                dap_time_t l_lock_end_time = l_auction_end_time + a_cond->subtype.srv_auction_bid.lock_time;
+                dap_time_t l_lock_end_time = l_auction->end_time + a_cond->subtype.srv_auction_bid.lock_time;
                 
                 if (l_current_time >= l_lock_end_time) {
                     log_it(L_DEBUG, "Withdrawal allowed: auction %s won and lock period expired", l_auction_hash_str);
@@ -816,21 +912,23 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         }
         case DAP_AUCTION_STATUS_ACTIVE:
         {
-            dap_chain_tx_event_data_auction_started_t *l_event_data = (dap_chain_tx_event_data_auction_started_t *)l_event->event_data;
-            dap_time_t l_auction_end_timeout = l_event->timestamp + l_event_data->duration + DAP_SEC_PER_DAY;
+            // For active auctions, check if time has expired based on cache data
             dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
-            if (l_current_time >= l_auction_end_timeout) {
+            if (l_auction->end_time > 0 && l_current_time >= l_auction->end_time) {
                 log_it(L_DEBUG, "Withdrawal allowed: auction %s ended by time", l_auction_hash_str);
                 l_is_auction_ended_by_time = true;
+                ret_code = 0;
+            } else {
+                log_it(L_WARNING, "Withdrawal denied: auction %s is still active", l_auction_hash_str);
+                ret_code = -8;
             }
+            break;
         }
         default:
+            log_it(L_WARNING, "Auction %s has unknown status %d", l_auction_hash_str, l_auction->status);
+            ret_code = -6;
             break;
     }
-
-
-    // Clean up events list
-    dap_list_free_full(l_events_list, dap_chain_datum_tx_event_delete);
 
     if ((l_is_auction_ended_by_time || l_is_auction_ended_by_event) && ret_code == 0) {
         return 0;
@@ -881,7 +979,7 @@ void dap_chain_net_srv_auction_delete(dap_chain_net_srv_auction_t *a_auction)
         return;
     
     DAP_DELETE(a_auction->description);
-    DAP_DELETE(a_auction->winner_project_name);
+    DAP_DELETE(a_auction->winners_ids);  // Free winners array
     
     // Free projects array if present
     if (a_auction->projects) {
@@ -930,10 +1028,15 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_find(dap_chain_net_t *a_
     
     // Winner information
     l_auction->has_winner = l_cached_auction->has_winner;
-    l_auction->winner_project_hash = l_cached_auction->winner_project_hash;
-    l_auction->winner_total_amount = l_cached_auction->winner_total_amount;
-    if (l_cached_auction->winner_project_name) {
-        l_auction->winner_project_name = dap_strdup(l_cached_auction->winner_project_name);
+    l_auction->winners_cnt = l_cached_auction->winners_cnt;
+    if (l_cached_auction->winners_cnt > 0 && l_cached_auction->winners_ids) {
+        l_auction->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * l_cached_auction->winners_cnt);
+        if (l_auction->winners_ids) {
+            memcpy(l_auction->winners_ids, l_cached_auction->winners_ids, 
+                   sizeof(uint32_t) * l_cached_auction->winners_cnt);
+        }
+    } else {
+        l_auction->winners_ids = NULL;
     }
     
     if (l_cached_auction->description) {
@@ -993,10 +1096,15 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_get_detailed(dap_chain_n
     
     // Winner information
     l_auction->has_winner = l_cached_auction->has_winner;
-    l_auction->winner_project_hash = l_cached_auction->winner_project_hash;
-    l_auction->winner_total_amount = l_cached_auction->winner_total_amount;
-    if (l_cached_auction->winner_project_name) {
-        l_auction->winner_project_name = dap_strdup(l_cached_auction->winner_project_name);
+    l_auction->winners_cnt = l_cached_auction->winners_cnt;
+    if (l_cached_auction->winners_cnt > 0 && l_cached_auction->winners_ids) {
+        l_auction->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * l_cached_auction->winners_cnt);
+        if (l_auction->winners_ids) {
+            memcpy(l_auction->winners_ids, l_cached_auction->winners_ids, 
+                   sizeof(uint32_t) * l_cached_auction->winners_cnt);
+        }
+    } else {
+        l_auction->winners_ids = NULL;
     }
     
     if (l_cached_auction->description) {
@@ -1083,10 +1191,15 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
         
         // Winner information
         l_auction->has_winner = l_cached_auction->has_winner;
-        l_auction->winner_project_hash = l_cached_auction->winner_project_hash;
-        l_auction->winner_total_amount = l_cached_auction->winner_total_amount;
-        if (l_cached_auction->winner_project_name) {
-            l_auction->winner_project_name = dap_strdup(l_cached_auction->winner_project_name);
+        l_auction->winners_cnt = l_cached_auction->winners_cnt;
+        if (l_cached_auction->winners_cnt > 0 && l_cached_auction->winners_ids) {
+            l_auction->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * l_cached_auction->winners_cnt);
+            if (l_auction->winners_ids) {
+                memcpy(l_auction->winners_ids, l_cached_auction->winners_ids, 
+                       sizeof(uint32_t) * l_cached_auction->winners_cnt);
+            }
+        } else {
+            l_auction->winners_ids = NULL;
         }
         
         if (l_cached_auction->description) {
@@ -1798,18 +1911,18 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 json_object_object_add(l_auction_obj, "projects_count", 
                     json_object_new_uint64(l_auction->projects_count));
                 
-                // Winner information
-                if (l_auction->has_winner) {
-                    json_object *l_winner_obj = json_object_new_object();
-                    json_object_object_add(l_winner_obj, "project_hash",
-                        json_object_new_string(dap_chain_hash_fast_to_str_static(&l_auction->winner_project_hash)));
-                    if (l_auction->winner_project_name) {
-                        json_object_object_add(l_winner_obj, "project_name",
-                            json_object_new_string(l_auction->winner_project_name));
+                // Winners information
+                if (l_auction->has_winner && l_auction->winners_cnt > 0) {
+                    json_object *l_winners_array = json_object_new_array();
+                    for (uint8_t i = 0; i < l_auction->winners_cnt; i++) {
+                        json_object *l_winner_obj = json_object_new_object();
+                        json_object_object_add(l_winner_obj, "project_id", 
+                            json_object_new_uint64(l_auction->winners_ids[i]));
+                        json_object_array_add(l_winners_array, l_winner_obj);
                     }
-                    const char *l_amount_str = dap_uint256_to_char(l_auction->winner_total_amount, NULL);
-                    json_object_object_add(l_winner_obj, "total_amount", json_object_new_string(l_amount_str));
-                    json_object_object_add(l_auction_obj, "winner", l_winner_obj);
+                    json_object_object_add(l_auction_obj, "winners", l_winners_array);
+                    json_object_object_add(l_auction_obj, "winners_count", 
+                        json_object_new_uint64(l_auction->winners_cnt));
                 }
                 
                 json_object_array_add(l_auctions_array, l_auction_obj);
@@ -1871,18 +1984,18 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                     json_object_new_string(l_auction->description));
             }
             
-            // Winner information
-            if (l_auction->has_winner) {
-                json_object *l_winner_obj = json_object_new_object();
-                json_object_object_add(l_winner_obj, "project_hash",
-                    json_object_new_string(dap_chain_hash_fast_to_str_static(&l_auction->winner_project_hash)));
-                if (l_auction->winner_project_name) {
-                    json_object_object_add(l_winner_obj, "project_name",
-                        json_object_new_string(l_auction->winner_project_name));
+            // Winners information
+            if (l_auction->has_winner && l_auction->winners_cnt > 0) {
+                json_object *l_winners_array = json_object_new_array();
+                for (uint8_t i = 0; i < l_auction->winners_cnt; i++) {
+                    json_object *l_winner_obj = json_object_new_object();
+                    json_object_object_add(l_winner_obj, "project_id", 
+                        json_object_new_uint64(l_auction->winners_ids[i]));
+                    json_object_array_add(l_winners_array, l_winner_obj);
                 }
-                const char *l_amount_str = dap_uint256_to_char(l_auction->winner_total_amount, NULL);
-                json_object_object_add(l_winner_obj, "total_amount", json_object_new_string(l_amount_str));
-                json_object_object_add(l_json_obj, "winner", l_winner_obj);
+                json_object_object_add(l_json_obj, "winners", l_winners_array);
+                json_object_object_add(l_json_obj, "winners_count", 
+                    json_object_new_uint64(l_auction->winners_cnt));
             }
             
             // Projects information
