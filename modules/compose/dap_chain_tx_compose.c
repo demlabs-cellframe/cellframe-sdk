@@ -2319,6 +2319,9 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
     }
     json_object_get(l_response);
     json_object_put(l_raw_response);
+    
+    log_it_fl(L_INFO, "response: %s", json_object_to_json_string(l_response));
+
     dap_chain_datum_tx_t *l_datum = dap_chain_datum_tx_create();
     size_t
         l_items_count = 0,
@@ -5488,4 +5491,20 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     }
 
     return l_tx;
+}
+
+int compose_cmd(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+{
+    dap_chain_addr_t l_addr = {};
+    dap_cli_xchange_order_remove_compose(
+        "raiden", "0x140F5018AFEEF6AB49FF7D69975487AFC3581024B49F1877EA208E7E64419971",
+        "1.0", &l_addr, "127.0.0.1", 8081, NULL
+    );
+    return 0;
+}
+
+int composer_init(void)
+{
+    dap_cli_server_cmd_add("composer", compose_cmd, "Composer", "Composer");
+    return 0;
 }
