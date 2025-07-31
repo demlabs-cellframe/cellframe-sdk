@@ -2854,7 +2854,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
                 if (l_hash_str_current && strcmp(l_hash_str, l_hash_str_current)) {
                     log_it(L_ERROR, "Item %zu type '%s' has invalid hash '%s'", i + 1, l_item_type_str, l_hash_str_current);
                     dap_json_rpc_error_add(a_jobj_arr_errors,DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,"Item %zu can't created, exit from creator!", i);
-                    DAP_DEL_MULTY(l_tx, l_item, l_hash_str_current);
+                    DAP_DEL_MULTY(l_tx, (void *)l_item, l_hash_str_current);
                     return DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR;
                 }
                 DAP_DEL_Z(l_hash_str_current);
