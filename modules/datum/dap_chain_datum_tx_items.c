@@ -405,7 +405,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                   dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
-                                                                                  uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size)
+                                                                                  uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size, uint32_t a_flags)
 {
     if (IS_ZERO_256(a_value))
         return NULL;
@@ -417,6 +417,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_param
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
     l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
+    l_item->subtype.srv_stake_pos_delegate.flags = a_flags;
     if (a_params && a_params_size) {
         l_item->tsd_size = (uint32_t)a_params_size;
         memcpy(l_item->tsd, a_params, a_params_size);
@@ -434,7 +435,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_param
  * @return
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_srv_uid_t a_srv_uid,
-                                                                                uint256_t a_value, uint64_t a_time_staking,
+                                                                                uint256_t a_value, uint64_t a_time_unlock,
                                                                                 uint256_t a_reinvest_percent,
                                                                                 uint32_t a_flags)
 {
@@ -447,7 +448,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_lock.flags = a_flags;
     l_item->subtype.srv_stake_lock.reinvest_percent = a_reinvest_percent;
-    l_item->subtype.srv_stake_lock.time_unlock = dap_time_now() + a_time_staking;
+    l_item->subtype.srv_stake_lock.time_unlock = a_time_unlock;
     return l_item;
 }
 
