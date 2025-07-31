@@ -71,11 +71,6 @@ typedef struct dap_auction_project_cache_item {
     uint32_t bids_count;               // Number of bids for this project
     uint32_t active_bids_count;        // Number of active (non-withdrawn) bids
     
-    // Best bid information for this project
-    dap_hash_fast_t best_bid_hash;     // Hash of the highest bid for this project
-    uint256_t best_bid_amount;         // Amount of the highest bid
-    uint8_t best_range_end;            // Range of the best bid
-    
     UT_hash_handle hh;                 // Hash table handle by project_hash
 } dap_auction_project_cache_item_t;
 
@@ -133,8 +128,6 @@ typedef struct dap_chain_net_srv_auction_project {
     uint256_t total_amount;
     uint32_t bids_count;
     uint32_t active_bids_count;
-    uint256_t best_bid_amount;
-    uint8_t best_range_end;
 } dap_chain_net_srv_auction_project_t;
 
 // Single auction structure (for external API)
