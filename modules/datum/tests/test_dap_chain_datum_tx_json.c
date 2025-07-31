@@ -457,7 +457,7 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
     }
     
     // OUT_COND: srv_uid присваивается явно
-    dap_chain_net_srv_uid_t l_srv_uid;
+    dap_chain_srv_uid_t l_srv_uid;
     // Определения констант для теста
     #ifndef DAP_CHAIN_NET_SRV_PAY_ID
     #define DAP_CHAIN_NET_SRV_PAY_ID 1
