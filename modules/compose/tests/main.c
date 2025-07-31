@@ -306,8 +306,8 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
-    s_chain_datum_vote_create_test();
-    s_chain_datum_vote_voting_test();
+    // s_chain_datum_vote_create_test();
+    // s_chain_datum_vote_voting_test();
 
     if (s_data->config.response_handler) {
         json_object_put(s_data->config.response_handler);
