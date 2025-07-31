@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(common-tests)
+project(datum-tests)
 
 file(GLOB DAP_CHAIN_TESTS_HEADERS include/*.h)
 file(GLOB DAP_CHAIN_TESTS_SRC *.c)
@@ -18,6 +18,6 @@ endif()
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 add_test(
-    NAME common-tests
-    COMMAND common-tests
+    NAME datum-tests
+    COMMAND datum-tests
 )

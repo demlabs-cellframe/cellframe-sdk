@@ -2775,7 +2775,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
             continue;
         }
         struct json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
-        if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
+        if(!l_json_item_type || !json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
@@ -2936,7 +2936,188 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
 
     // Use the new unified function
     dap_chain_net_id_t l_net_id = {.uint64 = 0};
-    dap_chain_datum_dump_tx_items(json_arr_items, a_tx, "hex", l_net_id, 2, NULL);
+    //dap_chain_datum_dump_tx_items(json_arr_items, a_tx, "hex", l_net_id, 2, NULL);
+
+    dap_hash_fast_t l_hash_tmp = { };
+    byte_t *item; size_t l_size;
+    const char *l_hash_str = NULL;
+    TX_ITEM_ITER_TX(item, l_size, a_tx) {
+        json_object* json_obj_item = json_object_new_object();
+        json_object_object_add(json_obj_item,"type", json_object_new_string(dap_chain_datum_tx_item_type_to_str_short(*item)));
+        switch (*item) {
+        case TX_ITEM_TYPE_IN:
+            l_hash_tmp = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
+            l_hash_str = dap_hash_fast_to_str_static(&l_hash_tmp);
+            json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(l_hash_str));
+            json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_uint64(((dap_chain_tx_in_t*)item)->header.tx_out_prev_idx));
+            break;
+        case TX_ITEM_TYPE_OUT: { // 256
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_t*)item)->header.value, &l_coins_str );
+            json_object_object_add(json_obj_item,"addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_t*)item)->addr)));
+            json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
+        } break;
+        case TX_ITEM_TYPE_SIG: {
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t*)item);
+            char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1);
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+            json_object_object_add(json_obj_item, "sig_size",   json_object_new_uint64(l_sign_size));
+            json_object_object_add(json_obj_item, "sig_b64",    json_object_new_string(l_sign_b64));
+        } break;
+        case TX_ITEM_TYPE_TSD: {
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)item)->tsd;
+            json_object_object_add(json_obj_item,"data_type", json_object_new_int(l_tsd->type));
+            json_object_object_add(json_obj_item,"data_size", json_object_new_uint64(l_tsd->size));
+            char *l_tsd_str = dap_enc_base58_encode_to_str(l_tsd->data, l_tsd->size);
+            json_object_object_add(json_obj_item,"data", json_object_new_string(l_tsd_str));
+            DAP_DELETE(l_tsd_str);
+        } break;
+        case TX_ITEM_TYPE_IN_COND:
+            l_hash_tmp = ((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
+            l_hash_str = dap_hash_fast_to_str_static(&l_hash_tmp);
+            json_object_object_add(json_obj_item,"receipt_idx", json_object_new_int(((dap_chain_tx_in_cond_t*)item)->header.receipt_idx));
+            json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(l_hash_str));
+            json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_uint64(((dap_chain_tx_in_cond_t*)item)->header.tx_out_prev_idx));
+            break;
+        case TX_ITEM_TYPE_OUT_COND: {
+            char l_tmp_buff[70]={0};
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_cond_t*)item)->header.value, &l_coins_str);
+            dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->header.ts_expires;
+            if (l_ts_exp > 0)
+                dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_exp);
+            json_object_object_add(json_obj_item,"ts_expires", l_ts_exp ? json_object_new_string(l_tmp_buf) : json_object_new_string("never"));
+            json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
+            json_object_object_add(json_obj_item, "coins", json_object_new_string(l_coins_str));
+            sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_x"",((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64);
+            json_object_object_add(json_obj_item,"service_id", json_object_new_string(l_tmp_buff));
+            json_object_object_add(json_obj_item,"subtype", json_object_new_string(dap_chain_tx_out_cond_subtype_to_str_short(((dap_chain_tx_out_cond_t*)item)->header.subtype)));
+            switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE:
+                    break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
+                    const char *l_coins_str, *l_value_str =
+                        dap_uint256_to_char( ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str );
+                    l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
+                    l_hash_str = dap_hash_fast_to_str_static(&l_hash_tmp);
+                    const char *l_unit = dap_chain_net_srv_price_unit_uid_to_str(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit);
+                    json_object_object_add(json_obj_item,"price_unit", json_object_new_string(l_unit));
+                    json_object_object_add(json_obj_item,"pkey_hash", json_object_new_string(l_hash_str));
+                    json_object_object_add(json_obj_item,"value_max_per_unit", json_object_new_string(l_value_str));
+                } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
+                    dap_chain_node_addr_t *l_signer_node_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
+                    dap_chain_addr_t *l_signing_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
+                    l_hash_tmp = l_signing_addr->data.hash_fast;
+                    l_hash_str = dap_hash_fast_to_str_static(&l_hash_tmp);
+                    json_object_object_add(json_obj_item,"signing_addr", json_object_new_string(dap_chain_addr_to_str_static(l_signing_addr)));
+                    sprintf(l_tmp_buff,""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(l_signer_node_addr));
+                    json_object_object_add(json_obj_item,"signer_node_addr", json_object_new_string(l_tmp_buff));
+                    json_object_object_add(json_obj_item,"subtype", json_object_new_string("srv_stake_pos_delegate"));
+                } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
+                    const char
+                        *l_rate_str,
+                        *l_tmp_str = dap_uint256_to_char( (((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate), &l_rate_str );
+                    sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_x"",((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64);
+                    json_object_object_add(json_obj_item,"buy_net_id", json_object_new_string(l_tmp_buff));
+                    sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_x"",((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.sell_net_id.uint64);
+                    json_object_object_add(json_obj_item,"sell_net_id", json_object_new_string(l_tmp_buff));
+                    json_object_object_add(json_obj_item,"buy_token", json_object_new_string(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_token));
+                    json_object_object_add(json_obj_item,"seller_addr", json_object_new_string(dap_chain_addr_to_str_static( &((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.seller_addr ))); 
+                    json_object_object_add(json_obj_item,"rate", json_object_new_string(l_rate_str));
+                } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
+                    dap_time_t l_ts_unlock = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
+                    snprintf(l_tmp_buf, DAP_TIME_STR_SIZE, "%"DAP_UINT64_FORMAT_U, l_ts_unlock);
+                    json_object_object_add(json_obj_item,"time_staking", json_object_new_string(l_tmp_buf));
+                    char *l_reinvest_percent = dap_chain_balance_coins_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.reinvest_percent);
+                    json_object_object_add(json_obj_item, "reinvest_percent", json_object_new_string(l_reinvest_percent));
+                    DAP_DELETE(l_reinvest_percent);
+                } break;
+                default: break;
+            }
+            if (((dap_chain_tx_out_cond_t*)item)->tsd_size) {
+                char *l_params_str = dap_enc_base58_encode_to_str(((dap_chain_tx_out_cond_t*)item)->tsd, ((dap_chain_tx_out_cond_t*)item)->tsd_size);
+                json_object_object_add(json_obj_item,"params", json_object_new_string(l_params_str));
+                DAP_DELETE(l_params_str);
+            }
+        } break;
+        case TX_ITEM_TYPE_IN_EMS: {
+            json_object_object_add(json_obj_item,"chain_id", json_object_new_uint64(((dap_chain_tx_in_ems_t*)item)->header.token_emission_chain_id.uint64));
+            json_object_object_add(json_obj_item,"token", json_object_new_string(((dap_chain_tx_in_ems_t*)item)->header.ticker));
+            json_object_object_add(json_obj_item,"token_ems_hash", json_object_new_string( dap_hash_fast_to_str_static(&((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash)));
+            
+        } break;
+
+        case TX_ITEM_TYPE_OUT_EXT: {
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str );
+            json_object_object_add(json_obj_item,"addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_ext_t*)item)->addr)));
+            json_object_object_add(json_obj_item,"token", json_object_new_string(((dap_chain_tx_out_ext_t*)item)->token));
+            json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
+            json_object_object_add(json_obj_item, "coins", json_object_new_string(l_coins_str));
+
+        } break;
+
+        case TX_ITEM_TYPE_OUT_STD: {
+            const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_std_t *)item)->value, &l_coins_str );
+            json_object_object_add(json_obj_item, "type", json_object_new_string("out_std"));
+            json_object_object_add(json_obj_item, "addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_std_t *)item)->addr)));
+            json_object_object_add(json_obj_item, "token", json_object_new_string(((dap_chain_tx_out_std_t *)item)->token));
+            json_object_object_add(json_obj_item, "value", json_object_new_string(l_value_str));
+            json_object_object_add(json_obj_item, "coins", json_object_new_string(l_coins_str));
+            dap_time_t l_ts_unlock = ((dap_chain_tx_out_std_t *)item)->ts_unlock;
+            snprintf(l_tmp_buf, DAP_TIME_STR_SIZE, "%"DAP_UINT64_FORMAT_U, l_ts_unlock);
+            json_object_object_add(json_obj_item, "time_unlock", json_object_new_string(l_tmp_buf));
+        } break;
+
+        case TX_ITEM_TYPE_VOTING:{
+            size_t l_tsd_size = 0;
+            dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_tx, NULL, (byte_t*)item + l_size, TX_ITEM_TYPE_TSD, &l_tsd_size);
+            if (!l_item || !l_tsd_size)
+                    break;
+            dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_datum_tx_voting_parse_tsd(a_tx);
+            json_object_object_add(json_obj_item,"type", json_object_new_string("voting"));
+            json_object_object_add(json_obj_item,"voting_question", json_object_new_string(l_voting_params->question));
+            json_object *l_json_array = json_object_new_array();
+            json_object_object_add(json_obj_item, "token", json_object_new_string(l_voting_params->token_ticker));
+            dap_list_t *l_temp = l_voting_params->options;
+            uint8_t l_index = 0;
+            while (l_temp) {
+                json_object_array_add(l_json_array, json_object_new_string((char *)l_temp->data));
+                l_index++;
+                l_temp = l_temp->next;
+            }
+            json_object_object_add(json_obj_item, "answer_options", l_json_array);
+            if (l_voting_params->voting_expire) {
+                snprintf(l_tmp_buf, DAP_TIME_STR_SIZE, "%"DAP_UINT64_FORMAT_U, l_voting_params->voting_expire);
+                json_object_object_add(json_obj_item, "voting_expire", json_object_new_string(l_tmp_buf));
+            }
+            if (l_voting_params->votes_max_count) {
+                json_object_object_add(json_obj_item, "votes_max_count", json_object_new_uint64(l_voting_params->votes_max_count));
+            }
+            json_object_object_add(json_obj_item,"changing_vote", json_object_new_boolean(l_voting_params->vote_changing_allowed));
+            json_object_object_add(json_obj_item,"delegate_key_required", json_object_new_boolean(l_voting_params->delegate_key_required));  
+            dap_list_free_full(l_voting_params->options, NULL);
+            DAP_DELETE(l_voting_params->question);
+            DAP_DELETE(l_voting_params);
+        } break;
+        case TX_ITEM_TYPE_VOTE:{
+            dap_chain_tx_vote_t *l_vote_item = (dap_chain_tx_vote_t *)item;
+            const char *l_hash_str = dap_chain_hash_fast_to_str_static(&l_vote_item->voting_hash);
+            json_object_object_add(json_obj_item,"type", json_object_new_string("vote"));
+            json_object_object_add(json_obj_item,"voting_hash", json_object_new_string(l_hash_str));
+            json_object_object_add(json_obj_item,"answer_idx", json_object_new_uint64(l_vote_item->answer_idx));
+        } break;
+        case TX_ITEM_TYPE_IN_REWARD:{
+            const char *l_hash_str = dap_chain_hash_fast_to_str_static(&((dap_chain_tx_in_reward_t *)item)->block_hash);
+            json_object_object_add(json_obj_item,"block_hash", json_object_new_string(l_hash_str));
+        } break;
+        default:
+            json_object_object_add(json_obj_item,"type", json_object_new_string("This transaction have unknown item type"));
+            break;
+        }
+        json_object_array_add(json_arr_items, json_obj_item);
+    }
 
     json_object_object_add(json_obj_out, "items", json_arr_items);
 
