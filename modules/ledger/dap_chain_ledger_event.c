@@ -22,6 +22,7 @@
 
 #include <pthread.h>
 #include "dap_chain_ledger_pvt.h"
+#include "dap_hash.h"
 
 #define LOG_TAG "dap_ledger_event"
 
@@ -222,6 +223,17 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
                                                                 dap_hash_fast_to_str_static(a_tx_hash));
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -9;
+    }
+    for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
+        if (!memcmp(it->group_name, l_event_item->group_name, l_event_item->group_size)) {
+            if (!dap_hash_fast_compare(&it->pkey_hash, &l_event_pkey_hash)) {
+                log_it(L_WARNING, "Group %s already exists with pkey_hash %s not matching event sign pkey hash %s",
+                        it->group_name, dap_hash_fast_to_str_static(&it->pkey_hash), dap_hash_fast_to_str_static(&l_event_pkey_hash));
+                pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+                return -11;
+            }
+            break;
+        }
     }
     if (!a_apply) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
