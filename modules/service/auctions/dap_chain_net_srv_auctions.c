@@ -684,7 +684,7 @@ void dap_auction_cache_event_callback(void *a_arg,
                                dap_auction_status_to_str(DAP_AUCTION_STATUS_ACTIVE));
                     }
                     
-                    log_it(L_INFO, "Auction %s started with %u projects, duration: %u %s", 
+                    log_it(L_INFO, "Auction %s started with %u projects, duration: %"DAP_UINT64_FORMAT_U" %s", 
                            dap_chain_hash_fast_to_str_static(&a_event->tx_hash),
                            l_started_data->projects_cnt,
                            l_started_data->duration,
@@ -848,8 +848,10 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
                dap_chain_hash_fast_to_str_static(a_tx_in_hash));
 
         // 1. Find auction bid conditional output in the current transaction
-        dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_item_out_cond_find(a_tx_in, 
-                                                                                     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID);
+        int l_out_num = 0;
+        dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, 
+                                                                             DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID,
+                                                                             &l_out_num);
         if (!l_out_cond) {
             log_it(L_DEBUG, "No auction bid conditional output found in transaction %s", 
                    dap_chain_hash_fast_to_str_static(a_tx_in_hash));
@@ -982,9 +984,8 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
 
                 // Mark bid as withdrawn
                 l_bid->is_withdrawn = true;
-                if (l_auction->active_bids_count > 0) {
+                if (l_auction->active_bids_count > 0)
                     l_auction->active_bids_count--;
-                }
                 l_bid_found = true;
 
                 log_it(L_INFO, "Marked bid %s as withdrawn in auction %s (remaining active: %u)",
@@ -1486,9 +1487,9 @@ dap_auction_stats_t *dap_chain_net_srv_auctions_get_stats(dap_chain_net_t *a_net
  * @param a_fee Validator fee
  * @return Returns transaction hash string or NULL on error
  */
-static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code)
+static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_to, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code)
 {
-    if (!a_net || !a_key_from || !a_bid_tx_hash || IS_ZERO_256(a_fee))
+    if (!a_net || !a_key_to || !a_bid_tx_hash || IS_ZERO_256(a_fee))
         return NULL;
 
     dap_ledger_t *l_ledger = a_net->pub.ledger;
@@ -1516,7 +1517,8 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
     }
     
     // 3. Find auction transaction
-    dap_chain_datum_tx_t *l_auction_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_out_cond->subtype.srv_auction_bid.auction_hash);
+    dap_hash_fast_t l_auction_hash = l_out_cond->subtype.srv_auction_bid.auction_hash;
+    dap_chain_datum_tx_t *l_auction_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_auction_hash);
     if (!l_auction_tx) {
         log_it(L_ERROR, "Auction transaction not found");
         set_ret_code(a_ret_code, -4);
@@ -1526,7 +1528,7 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
     // 4. Verify bid withdraw is allowed
     dap_auction_cache_item_t *l_auction = dap_auction_cache_find_auction(s_auction_cache, &l_auction_hash);
     if (!l_auction) {
-        log_it(L_WARNING, "Auction %s not found in cache", l_auction_hash_str);
+        log_it(L_WARNING, "Auction %s not found in cache", dap_chain_hash_fast_to_str_static(&l_auction_hash));
         set_ret_code(a_ret_code, -7);
         return NULL;
     }
@@ -1535,26 +1537,26 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
         case DAP_AUCTION_STATUS_ENDED:
         {
             // 1. Get project id from bid transaction
-            uint32_t l_bid_project = a_cond->subtype.srv_auction_bid.project_id;
+            uint32_t l_bid_project = l_out_cond->subtype.srv_auction_bid.project_id;
             // 2. Get winners from auction ended event
 
             uint32_t l_winners_count = l_auction->winners_cnt;
             // 3. Check project won or lost
             bool l_is_winner = false;
             for (uint32_t i = 0; i < l_winners_count; i++) {
-                if (l_event_data->winners_ids[i] == l_bid_project) {
+                if (l_auction->winners_ids[i] == l_bid_project) {
                     l_is_winner = true;
                     break;
                 }
             }
             // 4. Make decision about withdrawal validity
             if (l_is_winner) { // If project is winner, check if lock period expired
-                dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
-                dap_time_t l_lock_end_time = l_auction_end_time + a_cond->subtype.srv_auction_bid.lock_time;
+                dap_time_t l_current_time = dap_ledger_get_blockchain_time(l_ledger);
+                dap_time_t l_lock_end_time = l_auction->end_time + l_out_cond->subtype.srv_auction_bid.lock_time;
                 
                 if (l_current_time < l_lock_end_time) {
                     log_it(L_WARNING, "Withdrawal denied: auction %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")", 
-                        l_auction_hash_str, l_current_time, l_lock_end_time);
+                        dap_chain_hash_fast_to_str_static(&l_auction_hash), l_current_time, l_lock_end_time);
                     set_ret_code(a_ret_code, -7);
                     return NULL;
                 }
@@ -1563,11 +1565,10 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
         }
         case DAP_AUCTION_STATUS_ACTIVE:
         {
-            dap_chain_tx_event_data_auction_started_t *l_event_data = (dap_chain_tx_event_data_auction_started_t *)l_event->event_data;
-            dap_time_t l_auction_end_timeout = l_event->timestamp + l_event_data->duration + DAP_SEC_PER_DAY;
-            dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
+            dap_time_t l_auction_end_timeout = l_auction->end_time + DAP_SEC_PER_DAY;
+            dap_time_t l_current_time = dap_ledger_get_blockchain_time(l_ledger);
             if (l_current_time < l_auction_end_timeout) {
-                log_it(L_DEBUG, "Withdrawal not allowed: auction %s ended by time", l_auction_hash_str);
+                log_it(L_DEBUG, "Withdrawal not allowed: auction %s ended by time", dap_chain_hash_fast_to_str_static(&l_auction_hash));
                 set_ret_code(a_ret_code, -8);
                 return NULL;
             }
@@ -1579,10 +1580,9 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
     // 5. Get delegated token and value
     uint256_t l_value_delegated = {};
     uint256_t l_value_transfer = {}; // how many coins to transfer
-    bool l_main_native = !dap_strcmp(a_main_ticker, l_native_ticker);
     dap_list_t *l_list_used_out = NULL;
     char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
-    const char *l_ticker_str = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_bid_tx->hash);
+    const char *l_ticker_str = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_auction_hash);
     if (!l_ticker_str) {
         log_it(L_ERROR, "Failed to get token ticker");
         set_ret_code(a_ret_code, -12);
@@ -1609,9 +1609,12 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
         return NULL;
     }
 
+    dap_chain_addr_t l_addr = {};
+    dap_chain_addr_fill_from_key(&l_addr, a_key_to, a_net->pub.id);
+
     if (!IS_ZERO_256(l_value_delegated)) {
         if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_delegated_ticker_str, &l_addr, &l_list_used_out, l_value_delegated, &l_value_transfer) == -101)
-            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_delegated_ticker_str,
+            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker_str,
                                                                                  &l_addr, l_value_delegated, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");
@@ -1630,7 +1633,7 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
 
     // add 'in_cond' & 'in' items
     {
-        dap_chain_datum_tx_add_in_cond_item(&l_withdraw_tx, &l_bid_tx->hash, l_out_num, 0);
+        dap_chain_datum_tx_add_in_cond_item(&l_withdraw_tx, a_bid_tx_hash, l_out_num, 0);
         if (l_list_used_out) {
             uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_withdraw_tx, l_list_used_out);
             assert(EQUAL_256(l_value_to_items, l_value_transfer));
@@ -1639,12 +1642,16 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
     }
 
     // add 'out_ext' items
+    uint256_t l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
+    dap_chain_addr_t l_addr_fee = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
+    SUM_256_256(l_net_fee, a_fee, &l_total_fee);
     uint256_t l_value_back = {};
     {
         uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
         // Network fee
         if(l_net_fee_used){
-            if (!dap_chain_datum_tx_add_out_ext_item(&l_withdraw_tx, &l_addr_fee, l_net_fee, l_native_ticker)){
+            if (!dap_chain_datum_tx_add_out_ext_item(&l_withdraw_tx, &l_addr_fee, l_net_fee, a_net->pub.native_ticker)){
                 dap_chain_datum_tx_delete(l_withdraw_tx);
                 set_ret_code(a_ret_code, -5);
                 return NULL;
@@ -1664,24 +1671,15 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
             }
         }
         // coin back
-        if(l_main_native){
-            if (SUBTRACT_256_256(l_out_cond->header.value, l_value_pack, &l_value_back)) {
+        if (SUBTRACT_256_256(l_out_cond->header.value, l_value_pack, &l_value_back)) {
+            dap_chain_datum_tx_delete(l_withdraw_tx);
+            set_ret_code(a_ret_code, -13);
+            return NULL;
+        }
+        if(!IS_ZERO_256(l_value_back)) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_withdraw_tx, &l_addr, l_value_back, a_net->pub.native_ticker)!=1) {
                 dap_chain_datum_tx_delete(l_withdraw_tx);
-                set_ret_code(a_ret_code, -13);
-                return NULL;
-            }
-            if(!IS_ZERO_256(l_value_back)) {
-                if (dap_chain_datum_tx_add_out_ext_item(&l_withdraw_tx, &l_addr, l_value_back, l_main_ticker)!=1) {
-                    dap_chain_datum_tx_delete(l_withdraw_tx);
-                    set_ret_code(a_ret_code, -7);
-                    return NULL;
-                }
-            }
-        } else {
-            SUBTRACT_256_256(l_fee_transfer, l_value_pack, &l_value_back);
-            if (dap_chain_datum_tx_add_out_ext_item(&l_withdraw_tx, &l_addr, l_value_back, l_main_ticker)!=1) {
-                dap_chain_datum_tx_delete(l_withdraw_tx);
-                set_ret_code(a_ret_code, -8);
+                set_ret_code(a_ret_code, -7);
                 return NULL;
             }
         }
@@ -1707,7 +1705,7 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
     }
 
     // add 'sign' items
-    if(dap_chain_datum_tx_add_sign_item(&l_withdraw_tx, a_key_from) != 1) {
+    if(dap_chain_datum_tx_add_sign_item(&l_withdraw_tx, a_key_to) != 1) {
         dap_chain_datum_tx_delete(l_withdraw_tx);
         set_ret_code(a_ret_code, -12);
         return NULL;
@@ -2302,8 +2300,59 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 
                 DAP_DELETE(l_tx_hash_str);
             } else {
-                // Error creating transaction
-                dap_json_rpc_error_add(*l_json_arr_reply, WITHDRAW_CREATE_ERROR, "Error creating withdraw transaction: %d", l_ret_code);
+                // Error creating transaction - handle specific error codes
+                const char *l_error_msg = NULL;
+                switch (l_ret_code) {
+                    case 0:
+                        l_error_msg = "Success (unexpected error)";
+                        break;
+                    case -1:
+                        l_error_msg = "Ledger not found";
+                        break;
+                    case -2:
+                        l_error_msg = "Bid transaction not found";
+                        break;
+                    case -3:
+                        l_error_msg = "Bid output not found";
+                        break;
+                    case -4:
+                        l_error_msg = "Auction transaction not found";
+                        break;
+                    case -5:
+                        l_error_msg = "Failed to add network fee output";
+                        break;
+                    case -6:
+                        l_error_msg = "Failed to add validator fee";
+                        break;
+                    case -7:
+                        l_error_msg = "Auction not found in cache or withdrawal not allowed";
+                        break;
+                    case -8:
+                        l_error_msg = "Withdrawal not allowed: auction still active";
+                        break;
+                    case -9:
+                        l_error_msg = "Failed to create transaction";
+                        break;
+                    case -10:
+                        l_error_msg = "Failed to add delegated token burn output";
+                        break;
+                    case -11:
+                        l_error_msg = "Failed to add delegated token change output";
+                        break;
+                    case -12:
+                        l_error_msg = "Failed to get token ticker or sign transaction";
+                        break;
+                    case -13:
+                        l_error_msg = "Delegated token not found or not enough tokens";
+                        break;
+                    case -14:
+                        l_error_msg = "Failed to get emission rate";
+                        break;
+                    default:
+                        l_error_msg = "Unknown error occurred";
+                        break;
+                }
+                dap_json_rpc_error_add(*l_json_arr_reply, WITHDRAW_CREATE_ERROR, "Error creating withdraw transaction: %s (code: %d)", l_error_msg, l_ret_code);
                 return -1;
             }
         } break;
