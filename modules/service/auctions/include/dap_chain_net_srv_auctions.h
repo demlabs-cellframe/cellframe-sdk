@@ -104,10 +104,10 @@ typedef struct dap_auction_cache_item {
     dap_auction_project_cache_item_t *projects; // Hash table of projects by project_hash
     uint32_t projects_count;           // Number of projects in this auction
     
-    // Winner tracking (for ended auctions) - now it's a project that wins
-    dap_hash_fast_t winner_project_hash; // Hash of winning project (if any)
-    char *winner_project_name;         // Name of winning project
-    uint256_t winner_total_amount;     // Total amount bid for winning project
+    // Winner tracking (for ended auctions)
+    bool has_winner;                   // Whether auction has determined winner
+    uint8_t winners_cnt;               // Number of winners in this auction
+    uint32_t *winners_ids; 
     bool has_winner;                   // Whether auction has determined winner
     
     UT_hash_handle hh;                 // Hash table handle by auction_tx_hash
