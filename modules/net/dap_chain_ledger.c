@@ -6133,6 +6133,18 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -9;
     }
+    for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
+        if (!memcmp(it->group_name, l_event_item->group_name, l_event_item->group_size)) {
+            if (!dap_hash_fast_compare(&it->pkey_hash, &l_event_pkey_hash)) {
+                log_it(L_WARNING, "Group %s already exists with pkey_hash %s not matching event sign pkey hash %s",
+                        it->group_name, dap_hash_fast_to_str_static(&it->pkey_hash), dap_hash_fast_to_str_static(&l_event_pkey_hash));
+                pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+                return -10;
+            }
+            break;
+        }
+    }
+
     if (!a_apply) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return 0;
@@ -6150,7 +6162,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     if (!l_event->group_name) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         DAP_DEL_Z(l_event);
-        return -9;
+        return -11;
     }
     dap_strncpy((char *)l_event->group_name, (char *)l_event_item->group_name, l_event_item->group_size);
     if (l_event_tsd) {
@@ -6158,7 +6170,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         if (!l_event->event_data) {
             pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
             DAP_DEL_Z(l_event);
-            return -10;
+            return -12;
         }
     }
     HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->events, tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
