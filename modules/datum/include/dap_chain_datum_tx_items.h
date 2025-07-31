@@ -225,7 +225,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_param
 
 // Create cond out
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_srv_uid_t a_srv_uid,
-                                                                                  uint256_t a_value, uint64_t a_time_staking,
+                                                                                  uint256_t a_value, uint64_t a_time_unlock,
                                                                                   uint256_t a_reinvest_percent,
                                                                                   uint32_t a_flags);
 
