@@ -18,7 +18,26 @@ if(CMAKE_C_COMPILER MATCHES "clang")
 endif()
 
 if(NOT DEFINED CELLFRAME_MODULES)
-    include (dap-sdk/cmake/OS_Detection.cmake)
+    # Check for external shared DAP SDK first
+    if(DAP_SDK_PATH AND DAP_SDK_TARGET_NAME)
+        message("[+] Cellframe SDK: Using shared DAP SDK from ${DAP_SDK_PATH}")
+        
+        # Include external DAP SDK OS detection
+        include(${DAP_SDK_PATH}/cmake/OS_Detection.cmake)
+        
+        # No need to add dap-sdk subdirectory - using external target ${DAP_SDK_TARGET_NAME}
+        set(CELLFRAME_EXTERNAL_DAP_SDK ON)
+        message("[+] Cellframe SDK: ✅ Using shared DAP SDK, no duplication")
+        
+    else()
+        message("[+] Cellframe SDK: Using INTERNAL dap-sdk (fallback mode)")
+        
+        # Legacy mode - use internal dap-sdk
+        include (dap-sdk/cmake/OS_Detection.cmake)
+        add_subdirectory(dap-sdk)
+        set(CELLFRAME_EXTERNAL_DAP_SDK OFF)
+        message("[+] Cellframe SDK: ⚠️ Internal DAP SDK mode")
+    endif()
 
     set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange")
 
@@ -29,8 +48,6 @@ if(NOT DEFINED CELLFRAME_MODULES)
     if(BUILD_CELLFRAME_SDK_TESTS)
         set(DAPSDK_MODULES "test-framework")
     endif()
-
-    add_subdirectory(dap-sdk)
 
     set(CELLFRAME_SDK_STANDALONE_BUILD ON)
 endif()
@@ -72,10 +89,19 @@ add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
 # init libs
 set(CELLFRAME_LIBS "")
 
-# Core libs from dap-sdk
+# Core libs from dap-sdk 
 if (CELLFRAME_MODULES MATCHES "core")
     message("[+] Module 'core'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_plugin dap_crypto m)
+    
+    if(CELLFRAME_EXTERNAL_DAP_SDK AND DAP_SDK_TARGET_NAME)
+        # Use external shared DAP SDK target
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} ${DAP_SDK_TARGET_NAME} m)
+        message("[+] Core: Using shared DAP SDK target: ${DAP_SDK_TARGET_NAME}")
+    else()
+        # Legacy: Use individual DAP SDK libraries
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_plugin dap_crypto m)
+        message("[+] Core: Using individual DAP SDK libraries (legacy mode)")
+    endif()
 endif()
 
 # General chain libs
@@ -87,8 +113,16 @@ endif()
 # Networking
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-        dap_stream dap_stream_ch dap_client dap_cli_server dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_chain_mempool)
+    
+    if(NOT CELLFRAME_EXTERNAL_DAP_SDK)
+        # Legacy: Add individual DAP SDK network libraries
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
+            dap_stream dap_stream_ch dap_client dap_cli_server dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_chain_mempool)
+        message("[+] Network: Adding individual DAP SDK network libraries (legacy mode)")
+    else()
+        # External shared DAP SDK already includes all network libs
+        message("[+] Network: All network libraries included in shared DAP SDK")
+    endif()
 endif()
 
 # Chain net services
