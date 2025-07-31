@@ -291,21 +291,21 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->value_fee._lo.a = 0;
     s_data->value_fee._lo.b = rand() % 1000;
     
-    // s_chain_datum_tx_create_test();
-    // s_chain_datum_cond_create_test();
-    // s_chain_datum_stake_lock_test();
+    s_chain_datum_tx_create_test();
+    s_chain_datum_cond_create_test();
+    s_chain_datum_stake_lock_test();
     s_chain_datum_delegate_test();
-    // s_chain_datum_stake_unlock_test();
-    // s_chain_datum_stake_invalidate_test();
-    // s_chain_datum_exchange_create_test();
-    // s_chain_datum_exchange_purchase_test(s_ticker_native, s_ticker_delegate);
-    // s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_native);
-    // s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_custom);
-    // s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
-    // s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
-    // s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
-    // s_chain_datum_vote_create_test();
-    // s_chain_datum_vote_voting_test();
+    s_chain_datum_stake_unlock_test();
+    s_chain_datum_stake_invalidate_test();
+    s_chain_datum_exchange_create_test();
+    s_chain_datum_exchange_purchase_test(s_ticker_native, s_ticker_delegate);
+    s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_native);
+    s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_custom);
+    s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
+    s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
+    s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
+    s_chain_datum_vote_create_test();
+    s_chain_datum_vote_voting_test();
 
     if (s_data->config.response_handler) {
         json_object_put(s_data->config.response_handler);
