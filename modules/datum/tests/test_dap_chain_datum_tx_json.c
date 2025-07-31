@@ -146,7 +146,7 @@ bool dap_chain_datum_dump_tx_json_old(json_object* a_json_arr_reply,
            json_object_object_add(json_obj_item,"block_hash", json_object_new_string(l_hash_str));
        } break;
        case TX_ITEM_TYPE_SIG: {
-           dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)item);
+           dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t*)item);
            if (a_version == 1)
                json_object_object_add(json_obj_item, "item type", json_object_new_string("SIG"));
            dap_sign_get_information_json(a_json_arr_reply, l_sign, json_obj_item, a_hash_out_type, a_version);
@@ -524,7 +524,7 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
     // 4. OUT_COND with SRV_STAKE_LOCK subtype
     l_srv_uid.uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID;
     dap_chain_tx_out_cond_t *l_out_cond_lock = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-        l_srv_uid, dap_chain_uint256_from(500), 3600, dap_chain_uint256_from(5));
+        l_srv_uid, dap_chain_uint256_from(500), 3600, dap_chain_uint256_from(5), 0);
     if (l_out_cond_lock) {
         l_out_cond_lock->header.item_type = TX_ITEM_TYPE_OUT_COND;
         dap_chain_datum_tx_add_item(&l_tx, l_out_cond_lock);
