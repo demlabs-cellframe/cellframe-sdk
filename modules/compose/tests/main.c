@@ -114,8 +114,10 @@ void s_chain_datum_cond_create_test()
     dap_print_module_name("tx_cond_create_compose");
     size_t l_rand_data_size = rand() % 256;
     char *l_rand_data = DAP_NEW_Z_SIZE_RET_IF_FAIL(char, l_rand_data_size);
-    randombytes(l_rand_data, l_rand_data_size);
-    size_t l_pkey_size = rand() % 1024;
+    if (l_rand_data_size > 0) {
+        randombytes(l_rand_data, l_rand_data_size);
+    }
+    size_t l_pkey_size = rand() % 1024 + 1; // Ensure non-zero size
     dap_pkey_t *pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, l_pkey_size + sizeof(dap_pkey_t));
     pkey->header.type.type = DAP_PKEY_TYPE_SIG_BLISS;
     pkey->header.size = l_pkey_size;
@@ -137,7 +139,7 @@ void s_chain_datum_cond_create_test()
 void s_chain_datum_delegate_test()
 {
     dap_print_module_name("tx_delegate_compose");
-    size_t l_pkey_size = rand() % 1024;
+    size_t l_pkey_size = rand() % 1024 + 1;
     dap_pkey_t *pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, l_pkey_size + sizeof(dap_pkey_t));
     pkey->header.type.type = DAP_PKEY_TYPE_SIG_BLISS;
     pkey->header.size = l_pkey_size;
