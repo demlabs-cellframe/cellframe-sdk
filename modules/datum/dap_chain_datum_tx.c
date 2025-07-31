@@ -78,6 +78,11 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     memcpy((uint8_t*)tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
     *a_tx = tx_new;
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    char *l_hash = dap_hash_fast_str_new(a_item, size);
+    printf("Add \"%s\" item %s\n",  dap_chain_datum_tx_item_type_to_str_short(*(byte_t *)(a_item)), l_hash);
+    DAP_DEL_Z(l_hash);
+#endif
     return 1;
 }
 
@@ -307,7 +312,7 @@ int dap_chain_datum_tx_verify_sign_all(dap_chain_datum_tx_t *a_tx)
         if ((l_ret = dap_chain_datum_tx_verify_sign(a_tx, l_sign_num++))) {
             return l_ret;
         } else {
-            log_it(L_ERROR, "Sign %d verified", l_sign_num);
+            log_it(L_DEBUG, "Sign %d verified", l_sign_num);
         }
     }
     return l_ret;
