@@ -111,7 +111,6 @@
 #include "dap_chain_policy.h"
 #include "dap_time.h"
 
-
 #include "dap_chain_net_tx.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
@@ -412,6 +411,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
  */
 int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
+    
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
