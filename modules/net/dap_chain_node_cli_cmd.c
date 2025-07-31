@@ -1712,7 +1712,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             s_wallet_list(c_wallets_path, json_arr_out, NULL, a_version);
             if (json_object_array_length(json_arr_out) == 0) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR,
-                    "Сouldn't find any wallets");
+                    "Couldn't find any wallets");
             }
             break;
         // wallet info
