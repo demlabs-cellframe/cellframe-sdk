@@ -4,7 +4,9 @@
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_token.h"
 #include <json-c/json.h>
+#include "dap_chain_datum_tx_out_cond.h"
 
 #define LOG_TAG "dap_tx_compose_tests"
 #define KEY_COUNT 10
@@ -29,9 +31,9 @@ struct tests_data {
     uint32_t idx_2;
     dap_hash_fast_t hash_1;
     dap_chain_srv_uid_t srv_uid;
+    dap_chain_tx_out_cond_t cond_out;
     compose_config_t config;
     time_t time_staking;
-    dap_chain_tx_out_cond_t cond_out; // Variable sized type moved to end
 };
 
 static dap_enc_key_type_t s_key_types[] = {
@@ -60,12 +62,9 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     size_t l_signs_count = rand() % KEY_COUNT + 1;
     dap_test_msg("add %zu tsd sections", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i) {
-        int l_rand_data = rand() % dap_maxval(l_rand_data);
-        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand() % dap_maxval(l_rand_data), sizeof(l_rand_data));
-        if (l_tsd->header.size != sizeof(dap_time_t)) {
-            log_it(L_WARNING, "Invalid expire time size");
-            continue;
-        }
+        int l_rand_data = rand();
+        // Use valid TSD types instead of random values
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand(), sizeof(l_rand_data));
         dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
         DAP_DEL_Z(l_tsd);
     }
@@ -82,33 +81,20 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     json_object *l_datum_1_json = json_object_new_object();
     json_object *l_error_json = json_object_new_array();
     dap_test_msg("convert to json");
-    int l_json_result = dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
-    if (l_json_result == 0 && json_object_object_length(l_datum_1_json) > 0) {
-        dap_test_msg("dap_chain_net_tx_to_json PASS.");
-        printf("\n");
-        
-        dap_chain_datum_tx_t *l_datum_2 = dap_chain_datum_tx_create();
-        size_t l_items_count = 0, l_items_ready = 0;
-        dap_test_msg("create datum from json");
-        int l_from_json_result = dap_chain_tx_datum_from_json(l_datum_1_json, NULL, l_error_json, &l_datum_2, &l_items_count, &l_items_ready);
-        
-        if (l_from_json_result == 0) {
-            dap_test_msg("tx_create_by_json PASS.");
-            dap_assert(l_items_count == l_items_ready, "items_count == items_ready");
-            dap_assert((*a_datum)->header.tx_items_size == l_datum_2->header.tx_items_size, "items_size_1 == items_size_2");
-            dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_tx_get_size(*a_datum)), "datum_1 == datum_2");
-            
-        } else {
-            dap_test_msg("tx_create_by_json FAILED.");
-        }
-        
-        if (l_datum_2) {
-            dap_chain_datum_tx_delete(l_datum_2);
-        }
-    } else {
-        dap_test_msg("dap_chain_net_tx_to_json FAILED.");
-    }
-    
+    dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
+    dap_assert(json_object_object_length(l_datum_1_json), "dap_chain_net_tx_to_json");
+    printf("\n");
+    dap_chain_datum_tx_t *l_datum_2 = NULL;
+    size_t
+        l_items_count = 0,
+        l_items_ready = 0;
+    dap_test_msg("create datum from json");
+    dap_assert(!dap_chain_tx_datum_from_json(l_datum_1_json, NULL, l_error_json, &l_datum_2, &l_items_count, &l_items_ready), "tx_create_by_json");
+    dap_assert(l_items_count == l_items_ready, "items_count == items_ready")
+    dap_assert((*a_datum)->header.tx_items_size == l_datum_2->header.tx_items_size, "items_size_1 == items_size_2");
+    dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_tx_get_size(*a_datum)), "datum_1 == datum_2");
+    dap_assert(!dap_chain_datum_tx_verify_sign_all(l_datum_2), "datum_2 sign verify");
+    dap_chain_datum_tx_delete(l_datum_2);
     json_object_put(l_datum_1_json);
     json_object_put(l_error_json);
 }
@@ -116,9 +102,8 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 void s_chain_datum_tx_create_test()
 { 
     dap_print_module_name("tx_create_compose");
-    dap_chain_addr_t *l_addr_to_ptr = &s_data->addr_to;
-    dap_chain_addr_t **l_addr_to = &l_addr_to_ptr;
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(&s_data->addr_from, l_addr_to, s_ticker_native, &s_data->value, s_data->value_fee, 1, &s_data->config);
+    dap_chain_addr_t *l_addr_to = &s_data->addr_to;
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(&s_data->addr_from, &l_addr_to, s_ticker_native, &s_data->value, s_data->value_fee, 1, &s_data->config);
     dap_assert(l_datum_1, "tx_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -154,12 +139,11 @@ void s_chain_datum_cond_create_test()
 void s_chain_datum_delegate_test()
 {
     dap_print_module_name("tx_delegate_compose");
-    size_t l_pkey_size = rand() % 1024 + 1; // Ensure non-zero size
+    size_t l_pkey_size = rand() % 1024 + 1;
     dap_pkey_t *pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, l_pkey_size + sizeof(dap_pkey_t));
     pkey->header.type.type = DAP_PKEY_TYPE_SIG_BLISS;
     pkey->header.size = l_pkey_size;
     randombytes(pkey->pkey, l_pkey_size);
-    // TODO fix to delegate
     dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_create_compose(&s_data->addr_any, s_data->value, s_data->value_fee, &s_data->addr_from, &s_data->node_addr, &s_data->addr_to, s_data->reinvest_percent, NULL, pkey, &s_data->config);
     dap_assert(l_datum_1, "tx_delegate_compose");
     s_datum_sign_and_check(&l_datum_1);
@@ -292,31 +276,12 @@ void s_chain_datum_xchange_invalidate_test(const char *a_token_sell, const char 
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
-
-    // Generate keys first before any tests
+    randombytes(s_data, sizeof(struct tests_data));
+    s_data->time_staking = dap_time_now() + 10000;
+    s_data->reinvest_percent = dap_chain_balance_scan("12.3456789");
     for (size_t i = 0; i < KEY_COUNT; ++i)
         s_key[i] = dap_enc_key_new_generate(s_key_types[rand() % s_sign_type_count], NULL, 0, NULL, 0, 0);
-    
-    // Initialize individual fields instead of overwriting entire structure with random data
-    randombytes(&s_data->value, sizeof(s_data->value));
-    randombytes(&s_data->value_delegate, sizeof(s_data->value_delegate));
-    randombytes(&s_data->value_per_unit_max, sizeof(s_data->value_per_unit_max));
-    randombytes(&s_data->hash_1, sizeof(s_data->hash_1));
-    randombytes(&s_data->srv_uid, sizeof(s_data->srv_uid));
-    randombytes(&s_data->cond_out, sizeof(s_data->cond_out));
-    randombytes(&s_data->node_addr, sizeof(s_data->node_addr));
-    s_data->idx_1 = rand();
-    s_data->idx_2 = rand();
-    
-    s_data->time_staking = dap_time_now() + 10000;
-    s_data->reinvest_percent = dap_chain_balance_coins_scan("12.3456789");
-    
     memset(&s_data->config, 0, sizeof(compose_config_t));
-    s_data->addr_from = *dap_chain_addr_from_str("o9z3wUTSTicckJuoxkLc5q1CwaYs23474GbBm8ebgSZd1WmB7EhkPDpsoZPGX3hmhGa1wCqTDKgPjirbp3H45bg3tc6U5k8wCEJX575X");
-    s_data->addr_to = *dap_chain_addr_from_str("o9z3wUTSTicckJuoyzRZwr7gJE6GruN5VYiGwWA2TWh5LWXSZC4gS21WrxHD3eqaTJneuoCGVzgrbMNrMPAW3BtWRujQn9TgtJhGqBgS");
-    // Initialize addr_any to a valid address
-    s_data->addr_any = s_data->addr_from;
-    
     s_data->config.net_name = s_net_name;
     s_data->config.url_str = s_url;
     s_data->config.port = 8081;
