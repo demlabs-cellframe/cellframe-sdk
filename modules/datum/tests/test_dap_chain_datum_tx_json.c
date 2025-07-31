@@ -329,13 +329,13 @@ bool dap_chain_datum_dump_tx_json_old(json_object* a_json_arr_reply,
            dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, NULL, (byte_t*)item + l_size, TX_ITEM_TYPE_TSD, &l_tsd_size);
            if (!l_item || !l_tsd_size)
                    break;
-           dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(a_datum);
+           dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_datum_tx_voting_parse_tsd(a_datum);
            if (a_version == 1)
                json_object_object_add(json_obj_item, "item type", json_object_new_string("VOTING"));
-           json_object_object_add(json_obj_item, a_version == 1 ? "Voting question" : "voting_question", json_object_new_string(l_voting_params->voting_question));
+           json_object_object_add(json_obj_item, a_version == 1 ? "Voting question" : "voting_question", json_object_new_string(l_voting_params->question));
            json_object_object_add(json_obj_item, a_version == 1 ? "Answer options" : "answer_options", json_object_new_string(""));
            
-           dap_list_t *l_temp = l_voting_params->answers_list;
+           dap_list_t *l_temp = l_voting_params->options;
            uint8_t l_index = 0;
            while (l_temp) {
                json_object_object_add(json_obj_item, dap_itoa(l_index), json_object_new_string((char *)l_temp->data));
@@ -359,9 +359,7 @@ bool dap_chain_datum_dump_tx_json_old(json_object* a_json_arr_reply,
                json_object_object_add(json_obj_item,"changing_vote", json_object_new_boolean(l_voting_params->vote_changing_allowed));
                json_object_object_add(json_obj_item,"delegate_key_required", json_object_new_boolean(l_voting_params->delegate_key_required));   
            }
-           dap_list_free_full(l_voting_params->answers_list, NULL);
-           DAP_DELETE(l_voting_params->voting_question);
-           DAP_DELETE(l_voting_params);
+           dap_chain_datum_tx_voting_params_delete(l_voting_params);
        } break;
        case TX_ITEM_TYPE_VOTE:{
            dap_chain_tx_vote_t *l_vote_item = (dap_chain_tx_vote_t *)item;
