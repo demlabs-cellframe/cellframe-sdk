@@ -132,7 +132,7 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_OUT_COND: return m_tx_item_size_ext(dap_chain_tx_out_cond_t, tsd_size);
     case TX_ITEM_TYPE_PKEY:         return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.size);
     case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
-    case TX_ITEM_TYPE_EVENT:  return m_tx_item_size_ext(dap_chain_tx_item_event_t, group_size);
+    case TX_ITEM_TYPE_EVENT:  return m_tx_item_size_ext(dap_chain_tx_item_event_t, group_name_size);
     // Receipt size calculation is non-trivial...
     case TX_ITEM_TYPE_RECEIPT_OLD:{
         if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
@@ -569,7 +569,7 @@ dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_n
     memcpy(l_event->group_name, a_group_name, l_group_name_size);
     l_event->type = TX_ITEM_TYPE_EVENT;
     l_event->version = DAP_CHAIN_TX_EVENT_VERSION;
-    l_event->group_size = (uint16_t)l_group_name_size;
+    l_event->group_name_size = (uint16_t)l_group_name_size;
     l_event->event_type = a_type;
     l_event->timestamp = dap_time_now();
     return l_event;
@@ -589,7 +589,7 @@ int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_
     json_object_object_add(l_object, "timestamp", json_object_new_string(l_timestamp_str));
     json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     json_object_object_add(l_object, "event_version", json_object_new_int(a_event->version));
-    json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_size));
+    json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_name_size));
     return 0;
 }
 

@@ -31,7 +31,7 @@
 typedef struct dap_chain_tx_item_event {
     dap_chain_tx_item_type_t type;          /// @param type             @brief Transaction item type
     uint8_t version;                        /// @param version          @brief Version of the event.
-    uint16_t group_size;                    /// @param group_size       @brief Size of the group
+    uint16_t group_name_size;               /// @param group_name_size  @brief Size of the group name
     uint16_t event_type;                    /// @param event_type       @brief Event type.
     dap_time_t timestamp;                   /// @param timestamp        @brief Timestamp of the event.
     byte_t group_name[];                    /// @param group_name       @brief Event group name
