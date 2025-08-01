@@ -152,6 +152,15 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_chain_has
     return l_tsd;
 }
 
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_chain_hash_fast_t a_voting_hash)
+{
+    
+    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&a_voting_hash, VOTING_TSD_TYPE_CANCEL, sizeof(dap_chain_hash_fast_t));
+
+    return l_tsd;
+}
+
+
 dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void)
 {
     dap_chain_tx_voting_t * l_item = DAP_NEW_Z(dap_chain_tx_voting_t);
