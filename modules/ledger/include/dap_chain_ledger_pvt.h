@@ -160,6 +160,22 @@ typedef struct dap_ledger_anchor_item {
     UT_hash_handle hh;
 } dap_ledger_anchor_item_t;
 
+typedef struct dap_ledger_event {
+    dap_time_t timestamp;
+    dap_hash_fast_t tx_hash;
+    dap_hash_fast_t pkey_hash;
+    char *group_name;
+    uint16_t event_type;
+    void *event_data;
+    size_t event_data_size;
+    UT_hash_handle hh;
+} dap_ledger_event_t;
+
+typedef struct dap_ledger_event_pkey_item {
+    dap_hash_fast_t pkey_hash;
+    UT_hash_handle hh;
+} dap_ledger_event_pkey_item_t;
+
 // dap_ledger_t private section
 typedef struct dap_ledger_private {
     // separate access to transactions
@@ -181,6 +197,12 @@ typedef struct dap_ledger_private {
     pthread_rwlock_t threshold_txs_rwlock;
     dap_ledger_tx_item_t *threshold_txs;
     dap_interval_timer_t threshold_txs_free_timer;
+    // separate access to events
+    pthread_rwlock_t events_rwlock;
+    dap_ledger_event_t *events;
+    // Event allowed public keys
+    pthread_rwlock_t event_pkeys_rwlock;
+    dap_ledger_event_pkey_item_t *event_pkeys_allowed;
     // separate access to decrees storage & processing
     pthread_rwlock_t decrees_rwlock;
     dap_list_t *decree_owners_pkeys;
@@ -205,9 +227,11 @@ typedef struct dap_ledger_private {
     //notifiers
     dap_list_t *bridged_tx_notifiers;
     dap_list_t *tx_add_notifiers;
+    dap_list_t *event_notifiers;
+
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
     // White- and blacklist
-    dap_ledger_hal_item_t *hal_items, *hrl_items;
+    dap_ledger_hal_item_t *hal_items, *hrl_items;    
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -243,3 +267,5 @@ dap_ledger_token_emission_item_t *dap_ledger_pvt_emission_item_find(dap_ledger_t
 dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive);
 void dap_ledger_pvt_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
 int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse);
+int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply);
+int dap_ledger_pvt_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
