@@ -5164,6 +5164,7 @@ typedef enum dap_chain_net_srv_xchange_purchase_compose_error {
 dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  compose_config_t * a_config, 
                                                   dap_time_t *a_ts_created, const char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out) {
     dap_chain_tx_out_cond_t *l_cond_tx = NULL;
+    dap_chain_tx_out_cond_t *l_ret = NULL;
     dap_hash_fast_t l_current_hash = {};
     dap_chain_datum_tx_t *l_tx = NULL;
 
@@ -5191,7 +5192,7 @@ dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_COND_TX, "No transaction output condition found");
         return NULL;
     }
-
+    l_ret = DAP_DUP_SIZE(l_cond_tx, dap_chain_datum_item_tx_get_size(l_cond_tx, 0));
     *a_seller_addr = l_cond_tx->subtype.srv_xchange.seller_addr;
 
     if (a_ts_created) {
@@ -5199,7 +5200,7 @@ dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
     }
     *a_hash_out = l_current_hash;
     DAP_DELETE(l_tx);
-    return l_cond_tx;
+    return l_ret;
 }
 
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t *a_order_hash, uint256_t a_value,
