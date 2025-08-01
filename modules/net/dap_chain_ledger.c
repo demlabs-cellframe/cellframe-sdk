@@ -6134,7 +6134,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         return -9;
     }
     for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
-        if (!memcmp(it->group_name, l_event_item->group_name, l_event_item->group_size)) {
+        if (!memcmp(it->group_name, l_event_item->group_name, l_event_item->group_name_size)) {
             if (!dap_hash_fast_compare(&it->pkey_hash, &l_event_pkey_hash)) {
                 log_it(L_WARNING, "Group %s already exists with pkey_hash %s not matching event sign pkey hash %s",
                         it->group_name, dap_hash_fast_to_str_static(&it->pkey_hash), dap_hash_fast_to_str_static(&l_event_pkey_hash));
