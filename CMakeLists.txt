@@ -186,6 +186,12 @@ if (CELLFRAME_MODULES MATCHES "srv-voting")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
 endif()
 
+# Enable service auctions
+if (CELLFRAME_MODULES MATCHES "srv-auctions")
+    message("[+] Module 'srv-auctions'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_auctions)
+endif()
+
 # Enable service TX multisign with consensus
 if (CELLFRAME_MODULES MATCHES "srv-emit-delegate")
     message("[+] Module 'srv-emit-delegate'")

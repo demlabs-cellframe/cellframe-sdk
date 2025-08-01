@@ -99,6 +99,8 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;
     else if(!dap_strcmp(a_subtype_str, "fee"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE;
+    else if(!dap_strcmp(a_subtype_str, "srv_auction_bid"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID;
     return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
 }
 
@@ -132,7 +134,7 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_OUT_COND: return m_tx_item_size_ext(dap_chain_tx_out_cond_t, tsd_size);
     case TX_ITEM_TYPE_PKEY:         return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.size);
     case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
-    case TX_ITEM_TYPE_EVENT:  return m_tx_item_size_ext(dap_chain_tx_item_event_t, group_size);
+    case TX_ITEM_TYPE_EVENT:  return m_tx_item_size_ext(dap_chain_tx_item_event_t, group_name_size);
     // Receipt size calculation is non-trivial...
     case TX_ITEM_TYPE_RECEIPT_OLD:{
         if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
@@ -390,6 +392,52 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
     return l_item;
 }
 
+/**
+ * @brief dap_chain_datum_tx_item_out_cond_create_srv_auction_bid
+ * Create conditional output transaction item for auction bid
+ * 
+ * @param a_srv_uid Service UID for auction service
+ * @param a_value Bid amount in datoshi
+ * @param a_auction_hash Hash of the auction being bid on
+ * @param a_range_end End of CellSlot range (1-8), range_start is always 1
+ * @param a_lock_time Lock time for the bid tokens
+ * @param a_params Additional TSD parameters
+ * @param a_params_size Size of additional parameters
+ * @return dap_chain_tx_out_cond_t* Conditional output item or NULL on error
+ */
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(dap_chain_net_srv_uid_t a_srv_uid,
+                                                                                  uint256_t a_value,
+                                                                                  const dap_hash_fast_t *a_auction_hash,
+                                                                                  uint8_t a_range_end,
+                                                                                  dap_time_t a_lock_time,
+                                                                                  const void *a_params, size_t a_params_size)
+{
+    if (IS_ZERO_256(a_value) || !a_auction_hash || a_range_end < 1 || a_range_end > 8)
+        return NULL;
+    
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, 
+                                                                      sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    
+    // Set header fields
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID;
+    l_item->header.srv_uid = a_srv_uid;
+    
+    // Set auction bid specific fields
+    l_item->subtype.srv_auction_bid.auction_hash = *a_auction_hash;
+    l_item->subtype.srv_auction_bid.range_end = a_range_end;
+    l_item->subtype.srv_auction_bid.lock_time = a_lock_time;
+    
+    // Copy additional parameters if provided
+    if (a_params && a_params_size) {
+        l_item->tsd_size = (uint32_t)a_params_size;
+        memcpy(l_item->tsd, a_params, a_params_size);
+    }
+    
+    return l_item;
+}
+
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                    uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
                                                                                    size_t a_pkey_hashes_count, const char *a_tag_str)
@@ -612,6 +660,7 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_out_cond_srv_xchange);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_pos_delegate);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_lock);
+    dap_list_free(a_items_groups->items_out_cond_srv_auction_bid);
     dap_list_free(a_items_groups->items_out_cond_wallet_shared);
     dap_list_free(a_items_groups->items_in_ems);
     dap_list_free(a_items_groups->items_vote);
@@ -697,6 +746,9 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_lock, l_item);
                 break;
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_auction_bid, l_item);
+                break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_wallet_shared, l_item);
                 break;
@@ -763,7 +815,7 @@ dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_n
     memcpy(l_event->group_name, a_group_name, l_group_name_size);
     l_event->type = TX_ITEM_TYPE_EVENT;
     l_event->version = DAP_CHAIN_TX_EVENT_VERSION;
-    l_event->group_size = (uint16_t)l_group_name_size;
+    l_event->group_name_size = (uint16_t)l_group_name_size;
     l_event->event_type = a_type;
     l_event->timestamp = dap_time_now();
     return l_event;
@@ -778,12 +830,13 @@ int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_
 {
     dap_return_val_if_fail(a_json_obj && a_event, -1);
     json_object *l_object = a_json_obj;
+
     char l_timestamp_str[DAP_TIME_STR_SIZE] = {0};
     dap_time_to_str_rfc822(l_timestamp_str, DAP_TIME_STR_SIZE, a_event->timestamp);
     json_object_object_add(l_object, "timestamp", json_object_new_string(l_timestamp_str));
     json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     json_object_object_add(l_object, "event_version", json_object_new_int(a_event->version));
-    json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_size));
+    json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_name_size));
     return 0;
 }
 
@@ -812,4 +865,37 @@ int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event
         }
     }
     return 0;
+}
+
+dap_tsd_t *dap_chain_tx_event_data_auction_started_tsd_create(uint32_t a_multiplier, dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
+{
+    size_t l_data_size = sizeof(dap_chain_tx_event_data_auction_started_t) + a_projects_cnt * sizeof(uint32_t);
+    dap_chain_tx_event_data_auction_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_auction_started_t, l_data_size, NULL);
+    
+    l_data->multiplier = a_multiplier;
+    l_data->time_unit = a_time_unit;
+    l_data->calculation_rule_id = a_calculation_rule_id;
+    l_data->projects_cnt = a_projects_cnt;
+    dap_tsd_t *l_tsd = dap_tsd_create(DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_STARTED, l_data, l_data_size);
+    DAP_DEL_Z(l_data);
+    if (!l_tsd){
+        log_it(L_ERROR, "dap_chain_tx_event_data_auction_started_tsd_create: failed to create tsd");
+        return NULL;
+    }
+    return l_tsd;
+}
+
+dap_tsd_t *dap_chain_tx_event_data_ended_tsd_create(uint8_t a_winners_cnt, uint32_t a_winners_ids[])
+{
+    size_t l_data_size = sizeof(dap_chain_tx_event_data_ended_t) + a_winners_cnt * sizeof(uint32_t);
+    dap_chain_tx_event_data_ended_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_ended_t, l_data_size, NULL);
+    l_data->winners_cnt = a_winners_cnt;
+    memcpy(l_data->winners_ids, a_winners_ids, a_winners_cnt * sizeof(uint32_t));
+    dap_tsd_t *l_tsd = dap_tsd_create(DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_ENDED, l_data, l_data_size);
+    DAP_DEL_Z(l_data);
+    if (!l_tsd){
+        log_it(L_ERROR, "dap_chain_tx_event_data_ended_tsd_create: failed to create tsd");
+        return NULL;
+    }
+    return l_tsd;
 }

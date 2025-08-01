@@ -59,6 +59,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_out_cond_srv_xchange;
     dap_list_t *items_out_cond_srv_stake_pos_delegate;
     dap_list_t *items_out_cond_srv_stake_lock;
+    dap_list_t *items_out_cond_srv_auction_bid;
     dap_list_t *items_out_cond_wallet_shared;
     dap_list_t *items_out_cond_unknonwn;
     dap_list_t *items_out_cond_undefined;
@@ -245,6 +246,13 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_net_srv_uid_t a_srv_uid,
                                                                                   uint256_t a_value, uint64_t a_time_staking,
                                                                                   uint256_t a_reinvest_percent);
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(dap_chain_net_srv_uid_t a_srv_uid,
+                                                                                  uint256_t a_value,
+                                                                                  const dap_hash_fast_t *a_auction_hash,
+                                                                                  uint8_t a_range_end,
+                                                                                  dap_time_t a_lock_time,
+                                                                                  const void *a_params, size_t a_params_size);
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
