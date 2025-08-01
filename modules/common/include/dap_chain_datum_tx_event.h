@@ -23,17 +23,18 @@
 
 #include <stdint.h>
 #include "dap_common.h"
-#include "dap_time.h"
 #include "dap_chain_common.h"
+#include "dap_tsd.h"
+#include "dap_time.h"
 
 #define DAP_CHAIN_TX_EVENT_VERSION                          0x0001
 
 typedef struct dap_chain_tx_item_event {
     dap_chain_tx_item_type_t type;          /// @param type             @brief Transaction item type
     uint8_t version;                        /// @param version          @brief Version of the event.
-    uint16_t group_size;                    /// @param group_size       @brief Size of the group
     uint16_t event_type;                    /// @param event_type       @brief Event type.
-    dap_time_t timestamp;                   /// @param timestamp        @brief Timestamp of the event.
+    dap_time_t timestamp;                   /// @param event_ts          @brief Timestamp of the event.
+    uint32_t group_name_size;               /// @param group_name_size  @brief Size of the event group name.
     byte_t group_name[];                    /// @param group_name       @brief Event group name
 } DAP_ALIGN_PACKED dap_chain_tx_item_event_t;
 
@@ -48,17 +49,40 @@ typedef struct dap_chain_tx_event {
 } dap_chain_tx_event_t;
 
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED             0x0001
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED          0x0002
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_FINISH              0x0003
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED           0x0004
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED           0x0002
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED               0x0003
+
+typedef enum dap_chain_tx_event_data_time_unit {
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS  = 0,
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS   = 1,
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS  = 2,
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS = 3,
+} dap_chain_tx_event_data_time_unit_t;
+
+#define DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_STARTED             0x0001
+#define DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_CANCELLED           0x0002
+#define DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_ENDED               0x0003
+
+typedef struct dap_chain_tx_event_data_auction_started {
+    uint32_t multiplier;
+    dap_time_t duration;
+    dap_chain_tx_event_data_time_unit_t time_unit;
+    uint32_t calculation_rule_id;
+    uint8_t projects_cnt;
+    uint32_t project_ids[];
+} DAP_ALIGN_PACKED dap_chain_tx_event_data_auction_started_t;
+
+typedef struct dap_chain_tx_event_data_ended {
+    uint8_t winners_cnt;
+    uint32_t winners_ids[];
+} DAP_ALIGN_PACKED dap_chain_tx_event_data_ended_t;
 
 DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_event_type)
 {
     switch (a_event_type) {
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED: return "auction_started";
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED: return "auction_bid_placed";
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_FINISH: return "auction_finish";  
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED: return "auction_cancel";
+        case DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_STARTED: return "auction_started";
+        case DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_ENDED: return "auction_ended";
+        case DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_CANCELLED: return "auction_cancel";
         default: return "unknown";
     }
 }
@@ -67,4 +91,7 @@ DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_eve
 #define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA_JSON_STR          "custom_data"
 
 int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_item_event_t *a_event);
+
+dap_tsd_t *dap_chain_tx_event_data_auction_started_tsd_create(uint32_t a_multiplier, dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[]);
+dap_tsd_t *dap_chain_tx_event_data_ended_tsd_create(uint8_t a_winners_cnt, uint32_t a_winners_ids[]);    
 int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type);
