@@ -1394,7 +1394,7 @@ static const uint8_t * s_dap_chain_net_tx_create_tsd_item(json_object *a_json_it
     uint8_t *l_tsd_data = DAP_NEW_Z_SIZE(uint8_t, l_tsd_data_size+1);
     size_t l_tsd_data_size_decoded = dap_enc_base58_decode(l_tsd_data_str, l_tsd_data);
     if (l_tsd_data_size_decoded != l_tsd_data_size) {
-        log_it(L_ERROR, "Json TX: data size in tsd section - %zu, expected - %zu", l_tsd_data_size_decoded, l_tsd_data_size);
+        log_it(L_ERROR, "Json TX: data size in tsd section - %zu, expected - %"DAP_UINT64_FORMAT_U, l_tsd_data_size_decoded, l_tsd_data_size);
         if (a_jobj_arr_errors)
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: data size in tsd section - %zu, expected - %zu", l_tsd_data_size_decoded, l_tsd_data_size);
         DAP_DELETE(l_tsd_data);
@@ -1577,7 +1577,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
 
-    log_it(L_ERROR, "Json TX: found %lu items", l_items_count);
+    log_it(L_ERROR, "Json TX: found %zu items", l_items_count);
     // Create transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     if(!l_tx) {
@@ -2459,7 +2459,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;
     }
     l_net = l_net ? l_net : a_net;
-    log_it(L_NOTICE, "Json TX: found %lu items", l_items_count);
+    log_it(L_NOTICE, "Json TX: found %zu items", l_items_count);
 
     // Create transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
