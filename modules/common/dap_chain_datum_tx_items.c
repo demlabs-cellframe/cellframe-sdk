@@ -867,7 +867,7 @@ int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event
     return 0;
 }
 
-dap_tsd_t *dap_chain_tx_event_data_auction_started_tsd_create(uint32_t a_multiplier, dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
+byte_t *dap_chain_tx_event_data_auction_started_create(size_t *a_data_size, uint32_t a_multiplier, dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
 {
     size_t l_data_size = sizeof(dap_chain_tx_event_data_auction_started_t) + a_projects_cnt * sizeof(uint32_t);
     dap_chain_tx_event_data_auction_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_auction_started_t, l_data_size, NULL);
@@ -876,26 +876,23 @@ dap_tsd_t *dap_chain_tx_event_data_auction_started_tsd_create(uint32_t a_multipl
     l_data->time_unit = a_time_unit;
     l_data->calculation_rule_id = a_calculation_rule_id;
     l_data->projects_cnt = a_projects_cnt;
-    dap_tsd_t *l_tsd = dap_tsd_create(DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_STARTED, l_data, l_data_size);
-    DAP_DEL_Z(l_data);
-    if (!l_tsd){
-        log_it(L_ERROR, "dap_chain_tx_event_data_auction_started_tsd_create: failed to create tsd");
-        return NULL;
-    }
-    return l_tsd;
+    memcpy(l_data->project_ids, a_project_ids, a_projects_cnt * sizeof(uint32_t));
+    
+    if (a_data_size)
+        *a_data_size = l_data_size;
+    
+    return (byte_t *)l_data;
 }
 
-dap_tsd_t *dap_chain_tx_event_data_ended_tsd_create(uint8_t a_winners_cnt, uint32_t a_winners_ids[])
+byte_t *dap_chain_tx_event_data_auction_ended_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[])
 {
     size_t l_data_size = sizeof(dap_chain_tx_event_data_ended_t) + a_winners_cnt * sizeof(uint32_t);
     dap_chain_tx_event_data_ended_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_ended_t, l_data_size, NULL);
     l_data->winners_cnt = a_winners_cnt;
     memcpy(l_data->winners_ids, a_winners_ids, a_winners_cnt * sizeof(uint32_t));
-    dap_tsd_t *l_tsd = dap_tsd_create(DAP_CHAIN_TX_EVENT_DATA_TSD_TYPE_AUCTION_ENDED, l_data, l_data_size);
-    DAP_DEL_Z(l_data);
-    if (!l_tsd){
-        log_it(L_ERROR, "dap_chain_tx_event_data_ended_tsd_create: failed to create tsd");
-        return NULL;
-    }
-    return l_tsd;
+    
+    if (a_data_size)
+        *a_data_size = l_data_size;
+    
+    return (byte_t *)l_data;
 }
