@@ -202,7 +202,6 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
                                                             dap_chain_addr_t *a_buyer_addr, uint256_t a_datoshi_buy,
                                                             uint256_t a_datoshi_fee, dap_chain_tx_out_cond_t* a_cond_tx, 
                                                             uint32_t a_prev_cond_idx, compose_config_t *a_config);
-
 #ifdef __cplusplus
 }
 #endif
