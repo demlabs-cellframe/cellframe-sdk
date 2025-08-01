@@ -174,7 +174,9 @@ void dap_auction_cache_delete(dap_auction_cache_t *a_cache);
 int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache, 
                                   dap_hash_fast_t *a_auction_hash,
                                   dap_chain_net_id_t a_net_id,
-                                  const char *a_group_name);
+                                  const char *a_group_name,
+                                  dap_chain_tx_event_data_auction_started_t *a_started_data,
+                                  dap_time_t a_tx_timestamp);
 
 int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
                               dap_hash_fast_t *a_auction_hash,
