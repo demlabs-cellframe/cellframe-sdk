@@ -245,6 +245,12 @@ void dap_auction_cache_event_callback(void *a_arg,
 const char *dap_auction_status_to_str(dap_auction_status_t a_status);
 dap_auction_status_t dap_auction_status_from_event_type(uint16_t a_event_type);
 
+// Transaction creation functions 
+char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
+                                uint8_t a_range_end, uint256_t a_amount, dap_time_t a_lock_time, uint256_t a_fee, int *a_ret_code);
+
+char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code);
+
 #ifdef __cplusplus
 }
 #endif 

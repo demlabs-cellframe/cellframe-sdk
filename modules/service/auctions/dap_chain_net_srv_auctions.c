@@ -60,9 +60,9 @@ enum error_code {
 // Callbacks
 static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
 static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-static char *s_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
+char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
                                      uint8_t a_range_end, uint256_t a_amount, dap_time_t a_lock_time, uint256_t a_fee, int *a_ret_code);
-static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code);
+char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code);
 int com_auction(int argc, char **argv, void **str_reply, int a_version);
 
 /**
@@ -1487,7 +1487,7 @@ dap_auction_stats_t *dap_chain_net_srv_auctions_get_stats(dap_chain_net_t *a_net
  * @param a_fee Validator fee
  * @return Returns transaction hash string or NULL on error
  */
-static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_to, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code)
+char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_to, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code)
 {
     if (!a_net || !a_key_to || !a_bid_tx_hash || IS_ZERO_256(a_fee))
         return NULL;
@@ -1741,15 +1741,16 @@ static char *s_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_ke
 /**
  * @brief Create auction bid transaction
  * @param a_net Network instance
- * @param a_key_from Wallet key for signing
- * @param a_auction_hash Hash of the auction being bid on
- * @param a_range_end CellSlot range end (1-8)
- * @param a_amount Bid amount in datoshi
- * @param a_lock_time Lock time duration in seconds
- * @param a_fee Validator fee
+ * @param a_key_from Encryption key for transaction signing
+ * @param a_auction_hash Hash of the auction transaction
+ * @param a_range_end Range end value (1-8)
+ * @param a_amount Bid amount
+ * @param a_lock_time Lock time in seconds
+ * @param a_fee Transaction fee
+ * @param a_ret_code Return code for error handling
  * @return Returns transaction hash string or NULL on error
  */
-static char *s_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
+char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
                                      uint8_t a_range_end, uint256_t a_amount, dap_time_t a_lock_time, uint256_t a_fee, int *a_ret_code)
 {
     if (!a_net || !a_key_from || !a_auction_hash || IS_ZERO_256(a_amount) || a_range_end < 1 || a_range_end > 8)
@@ -2158,7 +2159,7 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
 
             // Create auction bid transaction
             int l_ret_code = 0;
-            char *l_tx_hash_str = s_auction_bid_tx_create(l_net, l_enc_key, &l_auction_hash, 
+            char *l_tx_hash_str = dap_auction_bid_tx_create(l_net, l_enc_key, &l_auction_hash, 
                                                          l_range_end, l_amount, l_lock_time, l_fee, &l_ret_code);
             DAP_DELETE(l_enc_key);
             
@@ -2279,7 +2280,7 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
 
             // Create withdraw transaction
             int l_ret_code = 0;
-            char *l_tx_hash_str = s_auction_bid_withdraw_tx_create(l_net, l_enc_key, l_bid_tx_hash_str, l_fee, &l_ret_code);
+            char *l_tx_hash_str = dap_auction_bid_withdraw_tx_create(l_net, l_enc_key, l_bid_tx_hash_str, l_fee, &l_ret_code);
             DAP_DELETE(l_enc_key);
 
             // Close wallet
