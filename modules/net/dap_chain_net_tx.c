@@ -1433,10 +1433,6 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, 
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
     l_tx_sig->header.version = l_version;
     l_tx_sig->header.sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-    // dap_hex2bin(l_tx_sig->sig, l_sign_b64_str, l_sign_size * 2);
-    // char *l_sign_b64 = DAP_NEW_Z_SIZE(char, l_sign_size * 2 + 1);
-    // dap_bin2hex(l_sign_b64, l_sign_b64, l_sign_size);
-    // log_it(L_ERROR, "Json TX: sign_b64 - %s", l_sign_b64);
     if ( l_tx_sig->header.sig_size  != l_sign_size || l_sign_size != dap_sign_get_size((dap_sign_t *)l_tx_sig->sig) ) {
         if (a_jobj_arr_errors)
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Sign size failed!");
@@ -1444,7 +1440,6 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, 
         DAP_DELETE(l_tx_sig);
         return NULL;
     }
-
     return (const uint8_t*)l_tx_sig;
 }
 
@@ -2710,13 +2705,6 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             size_t l_sign_size = dap_sign_get_size(l_sign);
             char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(l_sign_size) + 1);
             dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-            // char *l_sign_b64 = DAP_NEW_Z_SIZE(char, l_sign_size * 2 + 1);
-            // dap_bin2hex(l_sign_b64, l_sign, l_sign_size);
-            // dap_sign_t *l_sign_new = DAP_NEW_Z_SIZE(dap_sign_t, l_sign_size);
-            // dap_hex2bin(l_sign_new, l_sign_b64, l_sign_size);
-            // int l_verify = dap_chain_datum_tx_verify_sign_all(a_tx);
-            // int cmp = memcmp(l_sign, l_sign_new, l_sign_size);
-            // log_it(L_INFO, "Json TX: sig_b64 - %s", l_sign_b64);
             json_object_object_add(json_obj_item, "sig_size", json_object_new_uint64(l_sign_size));
             json_object_object_add(json_obj_item, "sig_b64", json_object_new_string(l_sign_b64));
             json_object_object_add(json_obj_item, "sig_version", json_object_new_int(((dap_chain_tx_sig_t*)item)->header.version));
