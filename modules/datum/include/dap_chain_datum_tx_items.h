@@ -267,7 +267,9 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t
 
 
 dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, uint16_t a_type);
-void dap_chain_datum_tx_event_delete(void *a_event);
+
+void dap_chain_tx_event_delete(void *a_event);
+dap_chain_tx_event_t *dap_chain_tx_event_copy(dap_chain_tx_event_t *a_event);
 
 #ifdef __cplusplus
 }

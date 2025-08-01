@@ -70,8 +70,19 @@ static dap_chain_tx_event_t *s_ledger_event_to_tx_event(dap_ledger_event_t *a_ev
         .event_data_size = a_event->event_data_size,
         .timestamp = a_event->timestamp
     };
-    if (a_event->event_data_size)
-        l_tx_event->event_data = DAP_DUP_SIZE_RET_VAL_IF_FAIL(a_event->event_data, a_event->event_data_size, NULL);
+    if (!l_tx_event->group_name) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        DAP_DELETE(l_tx_event);
+        return NULL;
+    }
+    if (a_event->event_data_size && a_event->event_data) {
+        l_tx_event->event_data = DAP_DUP_SIZE(a_event->event_data, a_event->event_data_size);
+        if (!l_tx_event->event_data) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            DAP_DEL_MULTY(l_tx_event->group_name, l_tx_event);
+            return NULL;
+        }
+    }
     return l_tx_event;
 }
  
@@ -99,7 +110,7 @@ dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_grou
         if (!l_tx_event) {
             log_it(L_ERROR, "Can't allocate memory for tx event in dap_ledger_event_get_list()");
             pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-            dap_list_free_full(l_list, dap_chain_datum_tx_event_delete);
+            dap_list_free_full(l_list, dap_chain_tx_event_delete);
             return NULL;
         }
         l_list = dap_list_append(l_list, l_tx_event);
@@ -135,7 +146,7 @@ int dap_ledger_pvt_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
                 l_notifier->callback(l_notifier->arg, a_ledger, l_tx_event, a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_DELETED);
             }
         }
-        dap_chain_datum_tx_event_delete(l_tx_event);
+        dap_chain_tx_event_delete(l_tx_event);
     }
     
     return 0;
@@ -275,7 +286,7 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
                 l_notifier->callback(l_notifier->arg, a_ledger, l_tx_event, a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_ADDED);
             }
         }
-        dap_chain_datum_tx_event_delete(l_tx_event);
+        dap_chain_tx_event_delete(l_tx_event);
     }
 
     return 0;
@@ -400,4 +411,25 @@ dap_list_t *dap_ledger_event_pkey_list(dap_ledger_t *a_ledger)
     pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
     return l_list;
 }
-  
+
+dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
+{
+    dap_ledger_hardfork_events_t *ret = NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
+    for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
+        dap_ledger_hardfork_events_t *l_add = DAP_NEW_Z(dap_ledger_hardfork_events_t);
+        if (!l_add) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            break;
+        }
+        l_add->event = s_ledger_event_to_tx_event(it);
+        if (!l_add->event) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            break;
+        }
+        DL_APPEND(ret, l_add);
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+    return ret;
+}

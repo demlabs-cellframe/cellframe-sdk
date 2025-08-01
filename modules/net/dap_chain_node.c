@@ -75,6 +75,7 @@ struct hardfork_states {
     dap_ledger_hardfork_anchors_t  *anchors;
     dap_ledger_hardfork_balances_t *balances;
     dap_ledger_hardfork_condouts_t *condouts;
+    dap_ledger_hardfork_events_t *events;
     dap_chain_cs_blocks_hardfork_fees_t *fees;
     dap_chain_srv_hardfork_state_t *service_states;
     size_t service_state_datum_iterator;
