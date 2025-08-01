@@ -49,7 +49,7 @@ typedef struct dap_chain_tx_event {
 
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED             0x0001
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED          0x0002
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_FINISH              0x0003
+#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED               0x0003
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED           0x0004
 
 DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_event_type)
@@ -57,8 +57,8 @@ DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_eve
     switch (a_event_type) {
         case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED: return "auction_started";
         case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED: return "auction_bid_placed";
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_FINISH: return "auction_finish";  
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED: return "auction_cancel";
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED: return "auction_ended";
+        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED: return "auction_cancelled";
         default: return "unknown";
     }
 }
