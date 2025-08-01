@@ -348,7 +348,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
             "ledger trace -net <net_name> -from <hash1> -to <hash2> [-H {hex|base58}]\n"
-            "\t Build transaction chain from hash2 to hash1 using backward traversal\n");
+            "\t Build transaction chain from hash2 to hash1 using backward traversal\n"
+            "ledger event list -net <net_name> [-group <group_name>]\n"
+            "ledger event dump -net <net_name> -hash <tx_hash>\n"
+            "ledger event create -net <net_name> [-chain <chain_name>] -w <wallet_name> -service_key <cert_name> -group <group_name> -event_type <event_type> [-event_data <event_data>] [-fee <fee_value>] [-H <hex|base58>]\n"
+            "ledger event key add -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key remove -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key list -net <net_name> [-H <hex|base58>]\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info", dap_chain_node_cli_cmd_id_from_str("token"),

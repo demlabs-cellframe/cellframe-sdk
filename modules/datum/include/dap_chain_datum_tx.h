@@ -89,6 +89,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_tsd;
     dap_list_t *items_pkey;
     dap_list_t *items_receipt;
+    dap_list_t *items_event;
 
     dap_list_t *items_unknown;
 

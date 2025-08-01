@@ -435,7 +435,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 }
 
 void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_items_groups)
-{
+{   
     dap_list_free(a_items_groups->items_in);
     dap_list_free(a_items_groups->items_in_cond);
     dap_list_free(a_items_groups->items_in_reward);
@@ -462,14 +462,15 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_out_cond_undefined);
     dap_list_free(a_items_groups->items_out_all);
     dap_list_free(a_items_groups->items_in_all);
+    dap_list_free(a_items_groups->items_event);
 }
 
 #define DAP_LIST_SAPPEND(X, Y) X = dap_list_append(X,Y)
 bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_res_group)
-{
-    if (!a_tx || !a_res_group)
-        return false;
-
+{   
+    if(!a_tx || !a_res_group)
+        return NULL;
+    
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
         switch (*l_item) {
@@ -551,8 +552,8 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
         case TX_ITEM_TYPE_SIG:
             DAP_LIST_SAPPEND(a_res_group->items_sig, l_item);
             break;
-        case TX_ITEM_TYPE_RECEIPT:
         case TX_ITEM_TYPE_RECEIPT_OLD:
+        case TX_ITEM_TYPE_RECEIPT:
             DAP_LIST_SAPPEND(a_res_group->items_receipt, l_item);
             break;
         case TX_ITEM_TYPE_TSD:
@@ -565,6 +566,9 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
 
         case TX_ITEM_TYPE_VOTE:
             DAP_LIST_SAPPEND(a_res_group->items_vote, l_item);
+            break;
+        case TX_ITEM_TYPE_EVENT:
+            DAP_LIST_SAPPEND(a_res_group->items_event, l_item);
             break;
         default:
             DAP_LIST_SAPPEND(a_res_group->items_unknown, l_item);

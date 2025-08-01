@@ -42,6 +42,7 @@
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv.h"
 #include "dap_enc_base64.h"
+#include "json_object.h"
 
 #define LOG_TAG "dap_chain_net_tx"
 const dap_chain_addr_t c_dap_chain_addr_blank_1 = {0};
@@ -720,6 +721,7 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
                                                                     "wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                                 break;
                             }
+                            UNUSED(l_token);
                         } else {
                             log_it(L_WARNING, "Invalid 'in' item, can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                             if (a_jobj_arr_errors)
@@ -1043,11 +1045,12 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
                 log_it(L_ERROR, "Json TX: bad price_unit in OUT_COND_SUBTYPE_SRV_PAY");
                 return NULL;
             }
-            dap_chain_srv_uid_t l_srv_uid;
-            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)){
+            uint64_t l_srv_uid_uint64 = 0;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)){
                 // Default service DAP_CHAIN_NET_SRV_VPN_ID
-                l_srv_uid.uint64 = 0x0000000000000001;
+                l_srv_uid_uint64 = 0x0000000000000001;
             }
+            dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64 };
             const char *l_params_str = s_json_get_text(a_json_item_obj, "params");
             uint8_t *l_params = NULL;
             size_t l_params_size = 0;
@@ -1085,11 +1088,12 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
         } break;
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
 
-            dap_chain_srv_uid_t l_srv_uid;
-            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+            uint64_t l_srv_uid_uint64 = 0;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)) {
                 // Default service DAP_CHAIN_NET_SRV_XCHANGE_ID
-                l_srv_uid.uint64 = 0x2;
+                l_srv_uid_uint64 = 0x2;
             }
+            dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64 };
             dap_chain_net_id_t l_buy_net_id = {}; 
             if(dap_chain_net_id_parse(s_json_get_text(a_json_item_obj, "buy_net_id"), &l_buy_net_id)) {
                 log_it(L_ERROR, "Json TX: buy_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
@@ -1151,11 +1155,12 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
             }
         } break;
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:{
-            dap_chain_srv_uid_t l_srv_uid;
-            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+            uint64_t l_srv_uid_uint64 = 0;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)) {
                 // Default service DAP_CHAIN_NET_SRV_STAKE_ID
-                l_srv_uid.uint64 = 0x12;
+                l_srv_uid_uint64 = 0x12;
             }
+            dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64 };
             uint256_t l_value = { };
             if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
                 log_it(L_ERROR, "Json TX: bad value in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
@@ -1209,11 +1214,12 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
             }
         } break;
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:{
-            dap_chain_srv_uid_t l_srv_uid;
-            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+            uint64_t l_srv_uid_uint64 = 0;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)) {
                 // Default service DAP_CHAIN_NET_SRV_STAKE_ID
-                l_srv_uid.uint64 = 0x13;
+                l_srv_uid_uint64 = 0x13;
             }
+            dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64 };
             uint256_t l_value = { };
             if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
                 log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
@@ -1305,8 +1311,8 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (json_object *a_j
 
 static const uint8_t * s_dap_chain_net_tx_create_receipt_item(json_object *a_json_item_obj, json_object *a_jobj_arr_errors, dap_chain_datum_tx_t *a_tx, dap_list_t *a_sign_list, size_t i)
 {
-    dap_chain_srv_uid_t l_srv_uid;
-    if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+    uint64_t l_srv_uid_uint64 = 0;
+    if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid_uint64)) {
         log_it(L_ERROR, "Json TX: bad service_id in TYPE_RECEIPT");
         return NULL;
     }
@@ -1339,6 +1345,7 @@ static const uint8_t * s_dap_chain_net_tx_create_receipt_item(json_object *a_jso
         log_it(L_ERROR, "Json TX: bad prev_tx in TYPE_RECEIPT");
         return NULL;
     }
+    dap_chain_srv_uid_t l_srv_uid = { .uint64 = l_srv_uid_uint64};
     dap_chain_hash_fast_from_str(l_prev_tx_hash_str, &l_prev_tx_hash);
     dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params, l_params_size, &l_prev_tx_hash);
     if (!l_receipt) {
@@ -1777,6 +1784,37 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         // Create an item depending on its type
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
+        case TX_ITEM_TYPE_EVENT: {
+            const char *l_group_name = s_json_get_text(l_json_item_obj, "group_name");
+            if (!l_group_name) {
+                log_it(L_ERROR, "Json TX: bad group_name in TX_ITEM_TYPE_EVENT");
+                char *l_str_err = dap_strdup_printf("For item %zu of type 'event' the 'group_name' is missing.", i);
+                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                DAP_DELETE(l_str_err);
+                if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                break;
+            }
+
+            int64_t l_event_type_int;
+            if (!s_json_get_int64_uint64(l_json_item_obj, "event_type", &l_event_type_int, false)) {
+                log_it(L_ERROR, "Json TX: bad event_type in TX_ITEM_TYPE_EVENT");
+                char *l_str_err = dap_strdup_printf("For item %zu of type 'event' the 'event_type' is missing or invalid.", i);
+                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                DAP_DELETE(l_str_err);
+                if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                break;
+            }
+
+            dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(l_group_name, (uint16_t)l_event_type_int);
+            if (!l_event_item) {
+                 char *l_str_err = dap_strdup_printf("Unable to create event item for transaction from item %zu.", i);
+                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                DAP_DELETE(l_str_err);
+                if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+            }
+            l_item = (const uint8_t*) l_event_item;
+            break;
+        }
         case TX_ITEM_TYPE_IN: {
             // Save item obj for in
             // Read prev_hash and out_prev_idx
@@ -2751,7 +2789,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
             continue;
         }
         struct json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
-        if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
+        if(!l_json_item_type || !json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
@@ -2816,7 +2854,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
                 if (l_hash_str_current && strcmp(l_hash_str, l_hash_str_current)) {
                     log_it(L_ERROR, "Item %zu type '%s' has invalid hash '%s'", i + 1, l_item_type_str, l_hash_str_current);
                     dap_json_rpc_error_add(a_jobj_arr_errors,DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,"Item %zu can't created, exit from creator!", i);
-                    DAP_DEL_MULTY(l_tx, l_item, l_hash_str_current);
+                    DAP_DEL_MULTY(l_tx, (void *)l_item, l_hash_str_current);
                     return DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR;
                 }
                 DAP_DEL_Z(l_hash_str_current);
@@ -2911,10 +2949,6 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
     dap_return_val_if_pass(!a_tx || !a_out_json, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS);
 
     json_object* json_obj_out = a_out_json;
-    json_object* l_json_arr_reply = NULL;
-    dap_hash_fast_t l_hash_tmp = { };
-    byte_t *item; size_t l_size;
-    char *l_hash_str = NULL;
     char l_tmp_buf[DAP_TIME_STR_SIZE];
     json_object* json_arr_items = json_object_new_array();
 
@@ -2924,6 +2958,13 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
     json_object_object_add(json_obj_out, "ts_created", json_object_new_int64(a_tx->header.ts_created));
     json_object_object_add(json_obj_out, "datum_type", json_object_new_string("tx"));
 
+    // Use the new unified function
+    dap_chain_net_id_t l_net_id = {.uint64 = 0};
+    //dap_chain_datum_dump_tx_items(json_arr_items, a_tx, "hex", l_net_id, 2, NULL);
+
+    dap_hash_fast_t l_hash_tmp = { };
+    byte_t *item; size_t l_size;
+    const char *l_hash_str = NULL;
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
         json_object* json_obj_item = json_object_new_object();
         json_object_object_add(json_obj_item,"type", json_object_new_string(dap_chain_datum_tx_item_type_to_str_short(*item)));
