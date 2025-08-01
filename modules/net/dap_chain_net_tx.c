@@ -701,7 +701,7 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
         switch (l_item_type) {
             case TX_ITEM_TYPE_IN: {
                 const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-                uint64_t l_out_prev_idx;
+                uint64_t l_out_prev_idx = 0;
                 bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
                 // If prev_hash and out_prev_idx were read
                 if(l_prev_hash_str && l_is_out_prev_idx){
@@ -740,7 +740,7 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
             }break;
             case TX_ITEM_TYPE_IN_COND: {
                 const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-                uint64_t l_out_prev_idx;
+                uint64_t l_out_prev_idx = 0;
                 char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
                 bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
                 if(l_prev_hash_str && l_is_out_prev_idx){
@@ -812,7 +812,7 @@ static const uint8_t * s_dap_chain_net_tx_create_in_item (json_object *a_json_it
     // Save item obj for in
     // Read prev_hash and out_prev_idx
     const char *l_prev_hash_str = s_json_get_text(a_json_item_obj, "prev_hash");
-    uint64_t l_out_prev_idx;
+    uint64_t l_out_prev_idx = 0;
     bool l_is_out_prev_idx = s_json_get_int64_uint64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
     // If prev_hash and out_prev_idx were read
     if(l_prev_hash_str && l_is_out_prev_idx) {
@@ -838,7 +838,7 @@ static const uint8_t * s_dap_chain_net_tx_create_in_item (json_object *a_json_it
 
 static const uint8_t * s_dap_chain_net_tx_create_in_ems_item (json_object *a_json_item_obj, json_object *a_jobj_arr_errors) {
     dap_chain_id_t l_chain_id;
-    uint64_t l_chain_id_int;
+    uint64_t l_chain_id_int = 0;
     bool l_is_chain_id = s_json_get_int64_uint64(a_json_item_obj, "chain_id", &l_chain_id_int, true);
     l_chain_id.uint64 = l_chain_id_int;
     const char *l_json_item_token = s_json_get_text(a_json_item_obj, "token");
@@ -881,7 +881,7 @@ static const uint8_t * s_dap_chain_net_tx_create_in_reward_item (json_object *a_
 
 static const uint8_t * s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item_obj, json_object *a_jobj_arr_errors, dap_chain_net_t *a_net) {
     const char *l_prev_hash_str = s_json_get_text(a_json_item_obj, "prev_hash");
-    uint64_t l_out_prev_idx;
+    uint64_t l_out_prev_idx = 0;
     bool l_is_out_prev_idx = s_json_get_int64_uint64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
     if(l_prev_hash_str && l_is_out_prev_idx){
         dap_chain_hash_fast_t l_tx_prev_hash = {};
@@ -1337,7 +1337,7 @@ static const uint8_t * s_dap_chain_net_tx_create_receipt_item(json_object *a_jso
         log_it(L_ERROR, "Json TX: bad price_unit in TYPE_RECEIPT");
         return NULL;
     }
-    uint64_t l_units;
+    uint64_t l_units = 0;
     if(!s_json_get_int64_uint64(a_json_item_obj, "units", &l_units, true)) {
         log_it(L_ERROR, "Json TX: bad units in TYPE_RECEIPT");
         return NULL;
@@ -1426,11 +1426,13 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, 
     if ( !s_json_get_int64_uint64(a_json_item_obj, "sig_size", &l_sign_size, true) )
         log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
 
+    uint64_t l_version = 1;
+    s_json_get_int64_uint64(a_json_item_obj, "sig_version", &l_version, true);
+
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
-    l_tx_sig->header.version = 1;
+    l_tx_sig->header.version = l_version;
     l_tx_sig->header.sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-
     if ( l_tx_sig->header.sig_size  != l_sign_size || l_sign_size != dap_sign_get_size((dap_sign_t *)l_tx_sig->sig) ) {
         if (a_jobj_arr_errors)
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Sign size failed!");
@@ -1458,7 +1460,7 @@ const uint8_t *s_dap_chain_net_tx_create_voting_item(json_object *a_jobj_arr_err
 
 const uint8_t *s_dap_chain_net_tx_create_vote_item(json_object *a_json_item_obj, json_object *a_jobj_arr_errors)
 {
-    uint64_t l_value_idx;
+    uint64_t l_value_idx = 0;
     const char *l_voting_hash_str = s_json_get_text(a_json_item_obj, "voting_hash");
     bool l_is_value = s_json_get_int64_uint64(a_json_item_obj, "answer_idx", &l_value_idx, true);
     if(l_voting_hash_str ) {
@@ -1639,7 +1641,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         break;
                     }
                     const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-                    int64_t l_out_prev_idx;
+                    int64_t l_out_prev_idx = 0;
                     bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx,false);
                     // If prev_hash and out_prev_idx were read
                     if(l_prev_hash_str && l_is_out_prev_idx){
@@ -1722,7 +1724,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             // Save item obj for in
             // Read prev_hash and out_prev_idx
             const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-            int64_t l_out_prev_idx;
+            int64_t l_out_prev_idx = 0;
             bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, false);
             // If prev_hash and out_prev_idx were read
             if(l_prev_hash_str && l_is_out_prev_idx) {
@@ -2116,7 +2118,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
             int64_t l_sign_size = 0, l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
                     l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
-            if ( !s_json_get_int64_uint64(l_json_item_obj, "sig_size", &l_sign_size,false) )
+            if ( !s_json_get_int64_uint64(l_json_item_obj, "sig_size", &l_sign_size, false) )
                 log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
 
             dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
@@ -2153,7 +2155,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 log_it(L_ERROR, "Json TX: bad price_unit in TYPE_RECEIPT");
                 break;
             }
-            int64_t l_units;
+            int64_t l_units = 0;
             if(!s_json_get_int64_uint64(l_json_item_obj, "units", &l_units, false)){
                 log_it(L_ERROR, "Json TX: bad units in TYPE_RECEIPT");
                 break;
@@ -2184,7 +2186,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         }
             break;
         case TX_ITEM_TYPE_TSD: {
-            int64_t l_tsd_type;
+            int64_t l_tsd_type = 0;
             if(!s_json_get_int64_uint64(l_json_item_obj, "type_tsd", &l_tsd_type, false)) {
                 log_it(L_ERROR, "Json TX: bad type_tsd in TYPE_TSD");
                 break;
@@ -2700,11 +2702,12 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
         } break;
         case TX_ITEM_TYPE_SIG: {
             dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)item);
-            char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1);
             size_t l_sign_size = dap_sign_get_size(l_sign);
+            char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(l_sign_size) + 1);
             dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-            json_object_object_add(json_obj_item, "sig_size",   json_object_new_uint64(l_sign_size));
-            json_object_object_add(json_obj_item, "sig_b64",    json_object_new_string(l_sign_b64));
+            json_object_object_add(json_obj_item, "sig_size", json_object_new_uint64(l_sign_size));
+            json_object_object_add(json_obj_item, "sig_b64", json_object_new_string(l_sign_b64));
+            json_object_object_add(json_obj_item, "sig_version", json_object_new_int(((dap_chain_tx_sig_t*)item)->header.version));
             DAP_DELETE(l_sign_b64);
         } break;
         case TX_ITEM_TYPE_TSD: {
@@ -2755,6 +2758,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                     json_object_object_add(json_obj_item,"signing_addr", json_object_new_string(dap_chain_addr_to_str_static(l_signing_addr)));            
                     sprintf(l_tmp_buff,""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(l_signer_node_addr));
                     json_object_object_add(json_obj_item,"signer_node_addr", json_object_new_string(l_tmp_buff));
+                    json_object_object_add(json_obj_item, "flags", json_object_new_int(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.flags));
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
                     const char
@@ -2775,6 +2779,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                     char *l_reinvest_percent = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.reinvest_percent);
                     json_object_object_add(json_obj_item, "reinvest_percent", json_object_new_string(l_reinvest_percent));
                     DAP_DELETE(l_reinvest_percent);
+                    json_object_object_add(json_obj_item, "flags", json_object_new_int(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.flags));
                 } break;
                 default: break;
             }

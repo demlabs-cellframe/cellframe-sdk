@@ -2319,6 +2319,7 @@ dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
     }
     json_object_get(l_response);
     json_object_put(l_raw_response);
+
     dap_chain_datum_tx_t *l_datum = dap_chain_datum_tx_create();
     size_t
         l_items_count = 0,
@@ -5489,3 +5490,4 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
 
     return l_tx;
 }
+
