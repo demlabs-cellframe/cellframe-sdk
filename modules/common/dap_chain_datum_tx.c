@@ -82,6 +82,11 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     memcpy((uint8_t*) tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
     *a_tx = tx_new;
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    char *l_hash = dap_hash_fast_str_new(a_item, size);
+    printf("Add \"%s\" item %s\n",  dap_chain_datum_tx_item_type_to_str_short(*(byte_t *)(a_item)), l_hash);
+    DAP_DEL_Z(l_hash);
+#endif
     return 1;
 }
 
@@ -207,7 +212,15 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
  */
 int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
-    return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, 0) );
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    if (false)
+        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, rand() % UINT64_MAX ) );
+    else
+        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,  dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
+#else
+    return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,  dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
+    // return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, 0) );
+#endif
 }
 
 /**
@@ -300,4 +313,19 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
             a_tx->header.tx_items_size = l_tx_items_size;
     }
     return debug_if(l_ret, L_ERROR, "Sign verification error %d", l_ret), l_ret;
+}
+
+int dap_chain_datum_tx_verify_sign_all(dap_chain_datum_tx_t *a_tx)
+{
+    int l_sign_num = 0;
+    int l_ret = 0;
+    byte_t *l_item = NULL;
+    size_t l_item_size = 0;
+    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+        if (*l_item != TX_ITEM_TYPE_SIG)
+            continue;
+        if ((l_ret = dap_chain_datum_tx_verify_sign(a_tx, l_sign_num++)))
+            return l_ret;
+    }
+    return l_ret;
 }

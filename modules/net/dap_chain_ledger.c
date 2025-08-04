@@ -5415,6 +5415,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const c
     while ( compare256(l_value_transfer, a_value_need) == -1 
             && (l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash, true)) )
     {
+        log_it(L_WARNING, "ledger found - %s ", dap_hash_fast_to_str_static(&l_tx_cur_hash));
         // Get all item from transaction by type
         byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
         dap_chain_addr_t l_out_addr = { };
@@ -5462,6 +5463,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const c
                 continue;
             }
             // Check whether used 'out' items
+            log_it(L_WARNING, "ledger add - %s ", dap_hash_fast_to_str_static(&l_tx_cur_hash));
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
             l_list_used_out = dap_list_append(l_list_used_out, l_item);
