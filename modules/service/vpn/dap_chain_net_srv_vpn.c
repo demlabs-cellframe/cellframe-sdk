@@ -2256,10 +2256,10 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
         json_object_object_add(l_json_response, "server_pkey_hash", l_new_data);
 
         l_new_data = json_object_new_uint64(l_remain_service ? l_remain_service->limits_bytes : 0);
-        json_object_object_add(l_json_response, "limits_bytes", l_new_data);
+        json_object_object_add(l_json_response, "limit_bytes", l_new_data);
 
         l_new_data = json_object_new_uint64(l_remain_service ? l_remain_service->limits_ts : 0);
-        json_object_object_add(l_json_response, "limits_sec", l_new_data);
+        json_object_object_add(l_json_response, "limit_sec", l_new_data);
 
         const char *output_string = json_object_to_json_string(l_json_response);
         dap_http_simple_reply(a_http_simple, (void*)output_string, strlen(output_string));
