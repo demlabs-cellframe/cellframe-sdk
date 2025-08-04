@@ -482,7 +482,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->addr), a_link->uplink.client->link_info.uplink_addr, a_error);
-        json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+        json_object_object_add(l_json, "error_message", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
     }
@@ -519,8 +519,9 @@ int s_link_manager_link_request(uint64_t a_net_id)
 
 static int s_link_manager_link_count_changed()
 {
-    struct json_object *l_json = dap_chain_nets_info_json_collect(dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
-    json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+    int l_version = dap_cli_server_get_version();
+    struct json_object *l_json = dap_chain_nets_info_json_collect(l_version);
+    json_object_object_add(l_json, l_version == 1 ? "errorMessage" : "error_message", json_object_new_string(" ")); // regular notify has no error
     dap_notify_server_send_mt(json_object_get_string(l_json));
     json_object_put(l_json);
     return 0;
@@ -678,8 +679,9 @@ struct json_object *dap_chain_nets_info_json_collect(int a_version){
  */
 static void s_net_states_notify(dap_chain_net_t *a_net)
 {
-    struct json_object *l_json = dap_chain_net_states_json_collect(a_net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
-    json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+    int l_version = dap_cli_server_get_version();
+    struct json_object *l_json = dap_chain_net_states_json_collect(a_net, l_version);
+    json_object_object_add(l_json, l_version == 1 ? "errorMessage" : "error_message", json_object_new_string(" ")); // regular notify has no error
     dap_notify_server_send_mt(json_object_get_string(l_json));
     json_object_put(l_json);
 }
@@ -690,9 +692,10 @@ static void s_net_states_notify(dap_chain_net_t *a_net)
  */
 static bool s_net_states_notify_timer_callback(UNUSED_ARG void *a_arg)
 {
+    int l_version = dap_cli_server_get_version();
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
-        struct json_object *l_json = dap_chain_net_states_json_collect(net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
-        json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+        struct json_object *l_json = dap_chain_net_states_json_collect(net, l_version);
+        json_object_object_add(l_json, l_version == 1 ? "errorMessage" : "error_message", json_object_new_string(" ")); // regular notify has no error
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
     }
@@ -2272,13 +2275,13 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
     char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
     if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL) {
-        log_it(L_NOTICE, "Removed node %s from network %s at %s\n",
+        log_it(L_NOTICE, "Removed node %s from network %s at %s",
                                  a_obj->key, l_net->pub.name, l_ts);
         return;
     }
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
     assert(dap_chain_node_info_get_size(l_node_info) == a_obj->value_len);
-    log_it(L_NOTICE, "Added node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s\n",
+    log_it(L_NOTICE, "Added node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s",
                              NODE_ADDR_FP_ARGS_S(l_node_info->address),
                              l_node_info->ext_host, l_node_info->ext_port,
                              l_net->pub.name, l_ts);

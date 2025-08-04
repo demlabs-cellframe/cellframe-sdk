@@ -2639,8 +2639,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             size_t l_arr_start = 0;            
             size_t l_arr_end = 0;
             json_object* json_obj_order = json_object_new_object();
+            json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
-            dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list),true);
+            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
+            json_object_object_add(json_obj_order, "pagina", json_arr_orders_limit);
+
             size_t i_tmp = 0;
 
             // Print all txs
@@ -2763,6 +2766,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_tx->header.ts_created);
 
                 json_object* l_json_obj_order = json_object_new_object();
+                if (!l_json_obj_order) {
+                    log_it(L_ERROR, "Can't create json object");
+                    return -XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_JSON_OBJECT;
+                }
                 json_object_object_add(l_json_obj_order, "order_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_tx_hash)));
                 json_object_object_add(l_json_obj_order, "ts_created", json_object_new_string(l_tmp_buf));
                 json_object_object_add(l_json_obj_order, "status", json_object_new_string(l_status_order_str));
@@ -2789,8 +2796,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 l_printed_orders_count++; 
                 if (l_head && (it->prev->next == NULL)) break;              
             }
-            json_object_object_add(json_obj_order, a_version == 1 ? "ORDERS" : "orders", json_arr_orders_out);
-            json_object_array_add(*json_arr_reply, json_obj_order); 
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 dap_list_free(l_list);
             } else {
@@ -2803,9 +2808,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             } else {
                 json_object_object_add(json_obj_order, a_version == 1 ? "ORDERS" : "orders", json_arr_orders_out);
                 json_object_object_add(json_obj_order, "total", json_object_new_uint64(i_tmp));
-                json_object_array_add(*json_arr_reply, json_obj_order);
             }
-
+            
+            json_object_array_add(*json_arr_reply, json_obj_order);
             if (!json_object_array_length(json_arr_orders_out)) {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_UNREC_STATUS_ERR, "No orders found");
             }
