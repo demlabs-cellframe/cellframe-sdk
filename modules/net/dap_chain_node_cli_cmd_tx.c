@@ -2144,7 +2144,7 @@ int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_par
             }
 
             json_object *j_obj_block_number, *j_obj_hash, *j_obj_create, *j_obj_lim, *j_obj_off;
-            if (json_object_object_get_ex(json_obj_result, "block_number", &j_obj_block_number) &&
+            if (json_object_object_get_ex(json_obj_result, "block number", &j_obj_block_number) &&
                 json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
                 json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
             {
