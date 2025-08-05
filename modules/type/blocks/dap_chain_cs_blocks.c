@@ -237,9 +237,9 @@ int dap_chain_cs_blocks_init()
 
         "Commission collect:\n"
             "block -net <net_name> [-chain <chain_name>] fee collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
+            " -cert <priv_cert_name> -addr <addr> {-hashes <hashes_list>|-before_hardfork} -fee <value> \n"
                 "\t\t Take delegated part of commission\n\n"
-                "\t\t {-before_hardfork} collect fees from blocks before hardfork\n\n"
+                "\t\t -before_hardfork collect fees & rewards from all unspent blocks before hardfork\n\n"
 
         "Reward for block signs:\n"
             "block -net <net_name> [-chain <chain_name>] reward set"
@@ -250,9 +250,9 @@ int dap_chain_cs_blocks_init()
                 "\t\t Show base reward for sign for one block at one minute\n\n"
 
             "block -net <net_name> [-chain <chain_name>] reward collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
+            " -cert <priv_cert_name> -addr <addr> {-hashes <hashes_list>|-before_hardfork} -fee <value>\n"
                 "\t\t Take delegated part of reward\n\n"
-                "\t\t {-before_hardfork} collect rewards from blocks before hardfork\n\n"
+                "\t\t -before_hardfork collect fees & rewards from all unspent blocks before hardfork\n\n"
 
         "Rewards and fees autocollect status:\n"
             "block -net <net_name> [-chain <chain_name>] autocollect status\n"
@@ -276,9 +276,6 @@ int dap_chain_cs_blocks_init()
     }
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL, NULL, NULL, NULL);
     log_it(L_NOTICE ,"Initialized blocks(m) chain type");
-
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK, s_fee_stack_verificator_callback, NULL, NULL, NULL, NULL, NULL);
-    log_it(L_NOTICE ,"Initialized blocks(m) chain type verificator for fee stack subtype");
 
     return 0;
 }
@@ -1298,8 +1295,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hashes", &l_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_value_str);
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", &l_fee_value_str);
-            int l_before_hardfork = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", NULL);
+            bool l_before_hardfork = dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-before_hardfork") != -1;
 
             if (!l_addr_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block %s collect' requires parameter '-addr'", l_subcmd_str);
@@ -1330,13 +1326,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
 
-            if (!l_hash_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee collect' requires parameter '-hashes'");
-                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
-            }
-
             char *l_hash_tx = NULL;
-            if (l_before_hardfork == 0) {
+            if (!l_before_hardfork) {
+                if (!l_hash_str) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee collect' requires parameter '-hashes'");
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+                }
                 // NOTE: This call will modify source string
                 l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
                 if (!l_block_list || !l_hashes_count) {
@@ -1347,9 +1342,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 char *l_hash_tx = l_subcmd == SUBCMD_FEE
                     ? dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type)
                     : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
-            } else {
-                char *l_hash_tx = dap_chain_mempool_tx_coll_fee_stack_create(l_blocks, l_cert->enc_key, l_addr, l_fee_value, l_hash_out_type);
-            }
+            } else
+                l_hash_tx = dap_chain_mempool_tx_coll_fee_stack_create(l_blocks, l_cert->enc_key, l_addr, l_fee_value, l_hash_out_type);
             
             if (l_hash_tx) {
                 json_object* json_obj_out = json_object_new_object();
@@ -2730,11 +2724,12 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         dap_chain_datum_t *l_datum = a_datums[i];
         size_t l_datum_size = dap_chain_datum_size(l_datum);
         if (!l_datum_size) {
-            log_it(L_WARNING, "Empty datum"); /* How might it be? */
+            log_it(L_WARNING, "Empty datum #%zu", i); /* How might it be? */
             continue;
         }
         if (l_blocks->block_new_size + l_datum_size > DAP_CHAIN_CANDIDATE_MAX_SIZE) {
-            log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_CANDIDATE_MAX_SIZE);
+            log_it(L_DEBUG, "Maximum size exeeded for datum #%zu, %zu > %d", i, l_blocks->block_new_size + l_datum_size,
+                                                                             DAP_CHAIN_CANDIDATE_MAX_SIZE);
             break;
         }
         if (!l_blocks->block_new) {
@@ -2925,15 +2920,6 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
     return -4;
 }
 
-
-static int s_fee_stack_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
-                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
-{
-    return a_owner ? 0 : -1;
-}
-
-
-
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain)
 {
     return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count;
@@ -2964,15 +2950,16 @@ static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size
     return l_list;
 }
 
-static int s_compare_fees(dap_chain_cs_blocks_hardfork_fees_t *a_list1, dap_chain_cs_blocks_hardfork_fees_t *a_list2)
+static int s_compare_fees(dap_ledger_hardfork_fees_t *a_list1, dap_ledger_hardfork_fees_t *a_list2)
 {
-    return !dap_sign_compare_pkeys(a_list1->owner_sign, a_list2->owner_sign);
+    return !dap_chain_addr_compare(&a_list1->owner_addr, &a_list2->owner_addr);
 }
 
-static int s_aggregate_fees(dap_chain_cs_blocks_hardfork_fees_t **a_out_list, dap_chain_block_autocollect_type_t a_type, dap_sign_t *a_sign, uint256_t a_value)
+static int s_aggregate_fees(dap_ledger_hardfork_fees_t **a_out_list, dap_chain_block_autocollect_type_t a_type, dap_chain_addr_t *a_addr, uint256_t a_value)
 {
-    dap_chain_cs_blocks_hardfork_fees_t l_new_fee = { .owner_sign = DAP_DUP_SIZE(a_sign, dap_sign_get_size(a_sign)) };
-    dap_chain_cs_blocks_hardfork_fees_t *l_exist = NULL;
+    assert(a_addr && a_out_list);
+    dap_ledger_hardfork_fees_t l_new_fee = { .owner_addr = *a_addr };
+    dap_ledger_hardfork_fees_t *l_exist = NULL;
     DL_SEARCH(*a_out_list, l_exist, &l_new_fee, s_compare_fees);
     if (!l_exist) {
         l_exist = DAP_DUP(&l_new_fee);
@@ -3000,9 +2987,9 @@ static int s_aggregate_fees(dap_chain_cs_blocks_hardfork_fees_t **a_out_list, da
     return 0;
 }
 
-dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_chain)
+dap_ledger_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_chain)
 {
-    dap_chain_cs_blocks_hardfork_fees_t *ret = NULL;
+    dap_ledger_hardfork_fees_t *ret = NULL;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
@@ -3018,13 +3005,15 @@ dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chai
                     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp);
                     if (!l_cond)
                         continue;
-                    if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + j, l_out_idx_tmp, NULL))
-                        s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_FEES, l_sign, l_cond->header.value);
+                    if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + j, l_out_idx_tmp, NULL)) {
+                        dap_chain_addr_t l_addr = {};
+                        dap_chain_addr_fill_from_sign(&l_addr, l_sign, a_chain->net_id);
+                        s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_FEES, &l_addr, l_cond->header.value);
+                    }
                 }
             }
             if (l_ts < DAP_REWARD_INIT_TIMESTAMP)
                 break;
-            //dap_chain_cs_esbocs_get_precached_key_hash(l_sign);
             dap_hash_fast_t l_pkey_hash;
             dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
             if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
@@ -3032,7 +3021,9 @@ dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chai
             dap_pkey_t *l_sign_pkey = dap_pkey_get_from_sign(l_sign);
             uint256_t l_reward_value = s_callback_calc_reward(a_chain, &l_block_cache->block_hash, l_sign_pkey);
             DAP_DELETE(l_sign_pkey);
-            s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_REWARDS, l_sign, l_reward_value);
+            dap_chain_addr_t l_addr = {};
+            dap_chain_addr_fill_from_sign(&l_addr, l_sign, a_chain->net_id);
+            s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_REWARDS, &l_addr, l_reward_value);
         }
     }
     return ret;

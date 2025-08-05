@@ -33,7 +33,7 @@
 #ifdef DAP_TPS_TEST
 #define DAP_CHAIN_ATOM_MAX_SIZE (100 * 1024 * 1024)
 #else
-#define DAP_CHAIN_ATOM_MAX_SIZE (1 * 1024 * 1024) // 10 MB // UNDO it after debug
+#define DAP_CHAIN_ATOM_MAX_SIZE (10 * 1024 * 1024) // 10 MB
 #endif
 
 typedef struct dap_chain dap_chain_t;

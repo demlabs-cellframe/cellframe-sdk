@@ -920,7 +920,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         case TX_ITEM_TYPE_OUT_STD: {
             dap_chain_tx_out_std_t *l_tx_out = (dap_chain_tx_out_std_t *)it;
-            if (l_tx_out->ts_unlock) {
+            if (l_tx_out->ts_unlock &&
+                    dap_chain_policy_is_activated( a_ledger->net->pub.id, DAP_CHAIN_POLICY_OUT_STD_TIMELOCK_USE)) { // UNDO it after debug
                 l_err_num = DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL;
                 break;
             }
@@ -2855,12 +2856,17 @@ static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap
     return 0;
 }
 
-dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object *a_changed_addrs)
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time,
+                                                            dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object *a_changed_addrs,
+                                                            dap_ledger_hardfork_fees_t *a_fees_list)
 {
     dap_return_val_if_fail(a_ledger, NULL);
     dap_ledger_hardfork_balances_t *ret = NULL;
     dap_ledger_hardfork_condouts_t *l_cond_ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_ledger_hardfork_fees_t *it;
+    DL_FOREACH(a_fees_list, it)
+        s_aggregate_out(&ret, a_ledger, a_ledger->net->pub.native_ticker, &it->owner_addr, it->fees_n_rewards_sum, a_hardfork_decree_creation_time, NULL, a_changed_addrs);
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     for (dap_ledger_tx_item_t *it = l_ledger_pvt->ledger_items; it; it = it->hh.next) {
         if (it->cache_data.n_outs == it->cache_data.n_outs_used || it->cache_data.ts_spent)

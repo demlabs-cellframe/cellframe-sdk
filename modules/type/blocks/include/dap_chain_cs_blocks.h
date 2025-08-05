@@ -78,11 +78,6 @@ typedef enum s_com_blocks_err{
     DAP_CHAIN_NODE_CLI_COM_BLOCK_UNKNOWN /* MAX */
 } s_com_blocks_err_t;
 
-typedef struct dap_chain_cs_blocks_hardfork_fees {
-    dap_sign_t *owner_sign;
-    uint256_t fees_n_rewards_sum;
-    struct dap_chain_cs_blocks_hardfork_fees *prev, *next;
-} dap_chain_cs_blocks_hardfork_fees_t;
 typedef struct dap_chain_cs_blocks_reward
 {
     dap_hash_fast_t pkey_hash;
@@ -97,7 +92,7 @@ void dap_chain_cs_blocks_deinit();
 dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_t *a_blocks, dap_chain_hash_fast_t *a_block_hash);
 dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_cs_blocks_t * a_blocks,  uint64_t a_block_number);
 
-dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_chain);
+dap_ledger_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_chain);
 int dap_chain_block_add_fork_notificator(dap_chain_cs_blocks_callback_fork_resolved_t a_callback, void *a_arg);
 
 DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_fee_group(const char *a_net_name)
