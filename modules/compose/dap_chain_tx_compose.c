@@ -3619,7 +3619,12 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
 
     if (a_tx_hash_str) {
         char data[512];
-        json_object *l_json_coins = dap_request_command_to_rpc_with_params(l_config, "srv_stake", "list;tx;-net;%s", l_config->net_name);
+        json_object *l_json_answer = dap_request_command_to_rpc_with_params(l_config, "srv_stake", "list;tx;-net;%s", l_config->net_name);
+        if (!l_json_answer) {
+            log_it_fl(L_ERROR, "failed to get rpc answer");
+            return s_compose_config_return_response_handler(l_config);
+        }
+        json_object *l_json_coins = json_object_array_get_idx(l_json_answer, 0);
         if (!l_json_coins) {
             log_it_fl(L_ERROR, "failed to get tx list");
             return s_compose_config_return_response_handler(l_config);
@@ -3632,12 +3637,12 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
             const char *tx_hash = json_object_get_string(json_object_object_get(tx_item, "tx_hash"));
             if (tx_hash && strcmp(tx_hash, l_tx_hash_str_tmp) == 0) {
                 log_it_fl(L_ERROR, "transaction already exists");
-                json_object_put(l_json_coins);
+                json_object_put(l_json_answer);
                 dap_json_compose_error_add(l_config->response_handler, DAP_CLI_STAKE_INVALIDATE_TX_EXISTS, "Transaction already exists");
                 return s_compose_config_return_response_handler(l_config);
             }
         }
-        json_object_put(l_json_coins);
+        json_object_put(l_json_answer);
     }
 
 
