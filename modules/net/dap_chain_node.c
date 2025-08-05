@@ -64,6 +64,7 @@ enum hardfork_state {
     STATE_ANCHORS = 0,
     STATE_BALANCES,
     STATE_CONDOUTS,
+    STATE_EVENTS,
     STATE_FEES,
     STATE_SERVICES,
     STATE_MEMPOOL
@@ -528,7 +529,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     DAP_DELETE(l_gdb_group_mempool);
 }
 
-dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t *a_state, size_t *a_datums_count)
+static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t *a_state, size_t *a_datums_count)
 {
     dap_chain_datum_t **ret = NULL;
     size_t l_datums_count = 0;
@@ -574,6 +575,7 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1);
     l_states->balances = dap_ledger_states_aggregate(l_net->pub.ledger, a_last_block_timestamp, &l_states->condouts, a_changed_addrs);
     l_states->anchors = dap_ledger_anchors_aggregate(l_net->pub.ledger, a_chain->id);
+    l_states->events = dap_ledger_events_aggregate(l_net->pub.ledger, a_chain->id);
     l_states->fees = dap_chain_cs_blocks_fees_aggregate(a_chain);
     size_t l_state_size = 0;
     l_states->service_states = dap_chain_srv_hardfork_all(l_net->pub.id);
@@ -615,7 +617,7 @@ static int s_tx_trackers_add(dap_chain_datum_tx_t **a_tx, dap_list_t *a_trackers
     return 0;
 }
 
-dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_ticker, uint256_t a_value, dap_list_t *a_trackers, dap_time_t a_unlock_time)
+static dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_ticker, uint256_t a_value, dap_list_t *a_trackers, dap_time_t a_unlock_time)
 {
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx)
@@ -633,7 +635,7 @@ dap_chain_datum_t *s_datum_tx_create(dap_chain_addr_t *a_addr, const char *a_tic
     return l_datum_tx;
 }
 
-dap_chain_datum_t *s_cond_tx_create(dap_chain_tx_out_cond_t *a_cond, dap_chain_tx_sig_t *a_sign, dap_hash_fast_t *a_hash, const char *a_ticker, dap_list_t *a_trackers)
+static dap_chain_datum_t *s_cond_tx_create(dap_chain_tx_out_cond_t *a_cond, dap_chain_tx_sig_t *a_sign, dap_hash_fast_t *a_hash, const char *a_ticker, dap_list_t *a_trackers)
 {
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx)
@@ -677,7 +679,60 @@ dap_chain_datum_t *s_cond_tx_create(dap_chain_tx_out_cond_t *a_cond, dap_chain_t
     return l_datum_tx;
 }
 
-dap_chain_datum_t *s_fee_tx_create(uint256_t a_value, dap_sign_t *a_owner_sign)
+static dap_chain_datum_t *s_event_tx_create(dap_chain_tx_event_t *a_event)
+{
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx)
+        return NULL;
+    dap_chain_tx_item_event_t *l_event = dap_chain_datum_tx_event_create(a_event->group_name, a_event->event_type, a_event->timestamp);
+    if (!l_event) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (dap_chain_datum_tx_add_item(&l_tx, l_event) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    dap_chain_tx_tsd_t *l_tx_hash_tsd = dap_chain_datum_tx_item_tsd_create(&a_event->tx_hash, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TX_HASH, sizeof(dap_hash_fast_t));
+    if (!l_tx_hash_tsd) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (dap_chain_datum_tx_add_item(&l_tx, l_tx_hash_tsd) != 1) {
+        DAP_DELETE(l_tx_hash_tsd);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    l_tx_hash_tsd = dap_chain_datum_tx_item_tsd_create(&a_event->pkey_hash, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_PKEY_HASH, sizeof(dap_hash_fast_t));
+    if (!l_tx_hash_tsd) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (dap_chain_datum_tx_add_item(&l_tx, l_tx_hash_tsd) != 1) {
+        DAP_DELETE(l_tx_hash_tsd);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_tx_hash_tsd);
+    if (a_event->event_data && a_event->event_data_size) {
+        dap_chain_tx_tsd_t *l_event_tsd = dap_chain_datum_tx_item_tsd_create(a_event->event_data, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_EVENT_DATA, a_event->event_data_size);
+        if (!l_event_tsd) {
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        if (dap_chain_datum_tx_add_item(&l_tx, l_event_tsd) != 1) {
+            DAP_DELETE(l_event_tsd);
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        DAP_DELETE(l_event_tsd);
+    }
+    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
+    dap_chain_datum_tx_delete(l_tx);
+    return l_datum_tx;
+}
+
+static dap_chain_datum_t *s_fee_tx_create(uint256_t a_value, dap_sign_t *a_owner_sign)
 {
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx)
@@ -751,6 +806,20 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                 break;
             }
             DAP_DELETE(l_cond_tx);
+        }
+        l_states->main_iterator = l_states->fees;
+    case STATE_EVENTS:
+        for (dap_ledger_hardfork_events_t *it = l_states->main_iterator; it; it = it->next) {
+            dap_chain_datum_t *l_event_tx = s_event_tx_create(it->event);
+            if (!l_event_tx)
+                return -5;
+            if (!a_chain->callback_add_datums(a_chain, &l_event_tx, 1)) {
+                DAP_DELETE(l_event_tx);
+                log_it(L_NOTICE, "Hardfork processed to datum event_tx with hash %s", dap_hash_fast_to_str_static(&it->event->tx_hash));
+                l_states->main_iterator = it;
+                break;
+            }
+            DAP_DELETE(l_event_tx);
         }
         l_states->main_iterator = l_states->fees;
     case STATE_FEES:
@@ -949,11 +1018,7 @@ static int s_compare_fees(dap_chain_cs_blocks_hardfork_fees_t *a_list1, dap_chai
     int ret = compare256(a_list1->fees_n_rewards_sum, a_list2->fees_n_rewards_sum);
     if (ret)
         return ret;
-    size_t l_sign_size = dap_sign_get_size(a_list1->owner_sign);
-    ret = l_sign_size != dap_sign_get_size(a_list2->owner_sign);
-    if (ret)
-        return ret;
-    return memcmp(a_list1->owner_sign, a_list2->owner_sign, l_sign_size);
+    return !dap_chain_addr_compare(&a_list1->owner_addr, &a_list2->owner_addr);
 }
 
 static int s_compare_anchors(dap_ledger_hardfork_anchors_t *a_list1, dap_ledger_hardfork_anchors_t *a_list2)
@@ -968,6 +1033,23 @@ static int s_compare_anchors(dap_ledger_hardfork_anchors_t *a_list1, dap_ledger_
 static int s_compare_service_states(dap_chain_srv_hardfork_state_t *a_list1, dap_chain_srv_hardfork_state_t *a_list2)
 {
     return a_list1->uid.uint64 != a_list2->uid.uint64;
+}
+
+static int s_compare_events(dap_ledger_hardfork_events_t *a_list1, dap_ledger_hardfork_events_t *a_list2)
+{
+    int ret = a_list1->event->event_type != a_list2->event->event_type;
+    if (ret)
+        return ret;
+    ret = memcmp(&a_list1->event->tx_hash, &a_list2->event->tx_hash, sizeof(dap_hash_fast_t));
+    if (ret)
+        return ret;
+    ret = dap_strcmp(a_list1->group_name, a_list2->group_name);
+    if (ret)
+        return ret;
+    ret = a_list1->event->event_data_size != a_list2->event->event_data_size;
+    if (ret)
+        return ret;
+    return memcmp(a_list1->event->event_data, a_list2->event->event_data, a_list1->event->event_data_size);
 }
 
 int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, bool a_remove)
@@ -1012,11 +1094,30 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
         // Parse datum
         dap_ledger_hardfork_balances_t l_regular = {};
         dap_ledger_hardfork_condouts_t l_conitional = {};
+        dap_ledger_hardfork_events_t l_event = {};
         dap_ledger_tracker_t *l_tracker_current = NULL;
         bool l_out = false;
         byte_t *l_item; size_t l_size;
         TX_ITEM_ITER_TX(l_item, l_size, l_tx) {
             switch (*l_item) {
+            case TX_ITEM_TYPE_EVENT: {
+                dap_chain_tx_item_event_t *l_event_item = (dap_chain_tx_item_event_t *)l_item;
+                l_event.event = DAP_NEW_Z(dap_chain_tx_event_t);
+                if (!l_event.event) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    m_ret_clear(-2);
+                }
+                *l_event = (dap_chain_tx_event_t) {
+                    .event_type = l_event_item->event_type,
+                    .timestamp = l_event_item->timestamp,
+                };
+                l_event.group_name = DAP_NEW_SIZE(char, l_event_item->group_name_size + 1);
+                if (!l_event.group_name) {
+                    DAP_DEL_Z(l_event.event);
+                    m_ret_clear(-2);
+                }
+                dap_strncpy((char *)l_event.group_name, (char *)l_event_item->group_name, l_event_item->group_name_size);
+            } break;
             case TX_ITEM_TYPE_OUT_STD:
                 if (l_out || l_conitional.cond) {
                     log_it(L_WARNING, "Additional OUT_EXT item for harfork datum tx is forbidden");
@@ -1051,7 +1152,26 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 dap_tsd_t *l_tsd = (dap_tsd_t *)l_tx_tsd->tsd;
                 switch (l_tsd->type) {
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TX_HASH:
-                    l_conitional.hash = *(dap_hash_fast_t *)l_tsd->data;
+                    if (l_event.event)
+                        l_event.event->tx_hash = *(dap_hash_fast_t *)l_tsd->data;
+                    else
+                        l_conitional.hash = *(dap_hash_fast_t *)l_tsd->data;
+                    break;
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_PKEY_HASH:
+                    if (l_event.event)
+                        l_event.event->pkey_hash = *(dap_hash_fast_t *)l_tsd->data;
+                    else
+                        log_it(L_WARNING, "Pkey hash TSD item is not allowed for non-event datum");
+                    break;
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_EVENT_DATA:
+                    if (l_event.event) {
+                        l_event.event->event_data = DAP_DUP_SIZE(l_tsd->data, l_tsd->size);
+                        if (!l_event.event->event_data) {
+                            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                            m_ret_clear(-2);
+                        }
+                    } else
+                        log_it(L_WARNING, "Event data TSD item is not allowed for non-event datum");
                     break;
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TICKER:
                     if (!l_tsd->size || l_tsd->size > DAP_CHAIN_TICKER_SIZE_MAX) {
@@ -1121,24 +1241,38 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                         dap_list_free_full(l_found->trackers, dap_ledger_colour_clear_callback);
                         DAP_DEL_MULTY(l_found->cond, l_found->sign, l_found);
                         if (!a_chain->hardfork_data->condouts)
-                            a_chain->hardfork_data->state_current = STATE_FEES;
+                            a_chain->hardfork_data->state_current = STATE_EVENTS;
                     }
                     break;
                 }
             } else {
+                dap_chain_addr_t l_owner_addr = {};
+                dap_chain_addr_fill_from_sign(dap_chain_datum_tx_item_sig_get_sign(l_conitional.sign), &l_owner_addr);
                 dap_chain_cs_blocks_hardfork_fees_t *l_found = NULL,
                                                      l_sought = { .fees_n_rewards_sum = l_conitional.cond->header.value,
-                                                                  .owner_sign = dap_chain_datum_tx_item_sig_get_sign(l_conitional.sign) };
+                                                                  .owner_addr = l_owner_addr };
                 DL_SEARCH(a_chain->hardfork_data->fees, l_found, &l_sought, s_compare_fees);
                 if (l_found) {
                     if (a_remove) {
                         DL_DELETE(a_chain->hardfork_data->fees, l_found);
-                        DAP_DEL_MULTY(l_found->owner_sign, l_found);
+                        DAP_DELETE(l_found);
                         if (!a_chain->hardfork_data->fees)
                             a_chain->hardfork_data->state_current = STATE_SERVICES;
                     }
                     break;
                 }
+            }
+        } else if (l_event.event) {
+            dap_ledger_hardfork_events_t *l_found = NULL;
+            DL_SEARCH(a_chain->hardfork_data->events, l_found, &l_event, s_compare_events);
+            if (l_found) {
+                if (a_remove) {
+                    DL_DELETE(a_chain->hardfork_data->events, l_found);
+                    DAP_DEL_MULTY(l_found->event->group_name, l_found->event->event_data, l_found->event, l_found);
+                    if (!a_chain->hardfork_data->events)
+                        a_chain->hardfork_data->state_current = STATE_FEES;
+                }
+                break;
             }
         } else {
             log_it(L_WARNING, "Illegal harfork datum tx item with no OUT");

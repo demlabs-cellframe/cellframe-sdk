@@ -170,6 +170,8 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
     dap_chain_tx_item_event_t *l_event_item = NULL;
     dap_tsd_t *l_event_tsd = NULL;
     dap_sign_t *l_event_sign = NULL;
+    dap_hash_t l_event_pkey_hash = {};
+    dap_hash_t l_tx_hash = *a_tx_hash;
     byte_t *l_item; size_t l_tx_item_size;
     int l_event_count = 0, l_tsd_count = 0, l_sign_count = 0;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
@@ -200,14 +202,34 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
                 return -5;
             }
             dap_tsd_t *l_tsd_data = (dap_tsd_t *)(l_item + sizeof(dap_chain_tx_tsd_t));
-            if (l_tsd_data->type != DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA)
-                continue;
-            if (l_tsd_count++) {
-                log_it(L_WARNING, "Multiple TSD items in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
-                pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-                return -6;
+            if (!a_ledger->is_hardfork_state) {
+                if (l_tsd_data->type != DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA) {
+                    log_it(L_WARNING, "TSD type %d is not supported in tx %s", l_tsd_data->type, dap_hash_fast_to_str_static(a_tx_hash));
+                    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+                    return -6;
+                }
+            } else {           
+                switch (l_tsd_data->type) {
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_EVENT_DATA:
+                    l_event_tsd = l_tsd_data;
+                    if (l_tsd_count++) {
+                        log_it(L_WARNING, "Multiple TSD items in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
+                        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+                        return -6;
+                    }
+                    break;
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TX_HASH:
+                    l_tx_hash = *(dap_hash_fast_t *)l_tsd_data->data;
+                    break;
+                case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_PKEY_HASH:
+                    l_event_pkey_hash = *(dap_hash_fast_t *)l_tsd_data->data;
+                    break;
+                default:
+                    log_it(L_WARNING, "TSD type %d is not supported in tx %s", l_tsd_data->type, dap_hash_fast_to_str_static(a_tx_hash));
+                    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+                    return -6;
+                }
             }
-            l_event_tsd = l_tsd_data;
         } break;
         case TX_ITEM_TYPE_SIG:
             if (++l_sign_count == 2)
@@ -227,7 +249,6 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -8;
     }
-    dap_hash_t l_event_pkey_hash = {};
     dap_sign_get_pkey_hash(l_event_sign, &l_event_pkey_hash);
     if (dap_ledger_event_pkey_check(a_ledger, &l_event_pkey_hash)) {
         log_it(L_WARNING, "Event pkey %s is not allowed in tx %s", dap_hash_fast_to_str_static(&l_event_pkey_hash),
@@ -253,7 +274,7 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
 
     l_event = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_event_t, -8);
     *l_event = (dap_ledger_event_t) {
-        .tx_hash = *a_tx_hash,
+        .tx_hash = l_tx_hash,
         .event_type = l_event_item->event_type,
         .event_data_size = l_event_tsd ? l_event_tsd->size : 0,
         .pkey_hash = l_event_pkey_hash,

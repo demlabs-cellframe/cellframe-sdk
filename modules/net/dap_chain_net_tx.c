@@ -1805,7 +1805,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 break;
             }
 
-            dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(l_group_name, (uint16_t)l_event_type_int);
+            dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(l_group_name, (uint16_t)l_event_type_int, dap_time_now());
             if (!l_event_item) {
                  char *l_str_err = dap_strdup_printf("Unable to create event item for transaction from item %zu.", i);
                 json_object *l_jobj_err = json_object_new_string(l_str_err);
