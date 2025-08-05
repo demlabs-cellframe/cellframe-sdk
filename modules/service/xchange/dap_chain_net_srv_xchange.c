@@ -2646,6 +2646,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             json_object_object_add(json_obj_order, "pagina", json_arr_orders_limit);
 
             size_t i_tmp = 0;
+            size_t l_orders_count = 0;
 
             // Print all txs
             for (dap_list_t *it = l_head ? dap_list_last(l_list) : dap_list_first(l_list);
@@ -2804,12 +2805,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 dap_list_free_full(l_list, NULL);
             }
             if (a_version == 1) {
-                char *l_total = dap_strdup_printf("Total %zu orders.\n\r", i_tmp);
+                char *l_total = dap_strdup_printf("Total %zu orders.\n\r", l_orders_count);
                 json_object_object_add(json_obj_order, "number of transactions", json_object_new_string(l_total));
                 DAP_DELETE(l_total);
             } else {
                 json_object_object_add(json_obj_order, a_version == 1 ? "ORDERS" : "orders", json_arr_orders_out);
-                json_object_object_add(json_obj_order, "total", json_object_new_uint64(i_tmp));
+                json_object_object_add(json_obj_order, "total", json_object_new_uint64(l_orders_count));
             }
             
             json_object_array_add(*json_arr_reply, json_obj_order);

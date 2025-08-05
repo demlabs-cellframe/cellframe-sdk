@@ -352,7 +352,6 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
             json_object_object_add(json_obj_item, a_version == 1 ? "units type" : "units_type", json_object_new_string(dap_chain_srv_unit_enum_to_str(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm)));
             json_object_object_add(json_obj_item, "coins", json_object_new_string(l_coins_str));
             json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
-            json_object_object_add(json_obj_item,"tx hash", json_object_new_string(dap_hash_fast_to_str_static(&l_receipt->receipt_info.prev_tx_cond_hash)));
 
             if (a_version == 1)
                 json_object_object_add(json_obj_item, "Exts",json_object_new_string(""));                         
