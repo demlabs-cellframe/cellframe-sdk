@@ -89,6 +89,7 @@ enum DAP_CHAIN_NET_SRV_VOTING_CLI_ERRORS {
     DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS,
 
     DAP_CHAIN_NET_VOTE_VOTING_OK,
+    DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_SERVICE,
     DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE,
     DAP_CHAIN_NET_VOTE_VOTING_THIS_VOTING_HAVE_MAX_VALUE_VOTES,
     DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED,
@@ -127,6 +128,7 @@ enum DAP_CHAIN_NET_SRV_VOTING_CLI_ERRORS {
 
     DAP_CHAIN_NET_VOTE_CANCEL_OK,
     DAP_CHAIN_NET_VOTE_CANCEL_HASH_NOT_FOUND,
+    DAP_CHAIN_NET_VOTE_CANCEL_SERVICE_NOT_FOUND,
     DAP_CHAIN_NET_VOTE_CANCEL_HASH_INVALID,
     DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_NOT_VALID,
     DAP_CHAIN_NET_VOTE_CANCEL_FEE_PARAM_BAD_TYPE,
@@ -163,11 +165,6 @@ int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_option
                                     const char *a_hash_out_type, char **a_hash_output);
 
 
-int dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-                                                                 dap_hash_fast_t a_voting_hash, dap_chain_net_t *a_net, 
-                                                                 const char *a_hash_out_type, char **a_hash_tx_out);
-
-
 int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash,
                               uint64_t a_option_idx, dap_chain_net_t *a_net, const char *a_hash_out_type,
                               char **a_hash_tx_out);
@@ -176,6 +173,7 @@ dap_list_t *dap_chain_net_voting_list(dap_chain_net_t *a_net);
 dap_chain_net_voting_info_t *dap_chain_net_voting_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash);
 void dap_chain_net_voting_info_free(dap_chain_net_voting_info_t *a_info);
 dap_list_t* dap_get_options_list_from_str(const char* a_str);
+int dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out);
 
 #if defined(__cplusplus)
 }
