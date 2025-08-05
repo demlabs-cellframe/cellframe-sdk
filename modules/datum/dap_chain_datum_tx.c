@@ -141,7 +141,7 @@ uint256_t dap_chain_datum_tx_add_in_cond_item_list(dap_chain_datum_tx_t **a_tx, 
    uint256_t l_value_to_items = { };
    DL_FOREACH(a_list_used_out_cound, l_item_out) {
        dap_chain_tx_used_out_item_t *l_item = l_item_out->data;
-       if (1 == dap_chain_datum_tx_add_in_cond_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out,0)) {
+       if (1 == dap_chain_datum_tx_add_in_cond_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out, -1)) {
            SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
        }
    }
