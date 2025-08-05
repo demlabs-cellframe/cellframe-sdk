@@ -890,7 +890,7 @@ static uint8_t *s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
             if (!a_net) {
                 uint64_t l_receipt_idx = 0;
                 s_json_get_int64_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx, true);
-                return (const uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
+                return (uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
             }
             //check out token
             dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
@@ -944,7 +944,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_item (json_object *a_json_item_obj
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
         if((!dap_strcmp(l_json_item_addr_str,"null") || l_addr) && !IS_ZERO_256(l_value)) {            
             // Create OUT item
-            const uint8_t *l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
+            uint8_t *l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
             DAP_DELETE(l_addr);
             return l_out_item;      
         }
@@ -976,12 +976,12 @@ static uint8_t *s_dap_chain_net_tx_create_out_ext_item (json_object *a_json_item
 #endif
         if((!dap_strcmp(l_json_item_addr_str,"null") || l_addr) && !IS_ZERO_256(l_value)) {            
             // Create OUT item
-            const uint8_t *l_out_item = NULL;
+            uint8_t *l_out_item = NULL;
             
             if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK && l_is_value && !dap_strcmp(l_json_item_addr_str,"null")) {
-                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank_1, l_value, l_token);            
+                l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_ext_create(&c_dap_chain_addr_blank_1, l_value, l_token);            
             } else {
-                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
+                l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
             }
             DAP_DELETE(l_addr);
             return l_out_item;      
@@ -1765,19 +1765,19 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 if(l_addr && !IS_ZERO_256(l_value)) {
                     if(l_item_type == TX_ITEM_TYPE_OUT) {
                         // Create OUT item
-                        const uint8_t *l_out_item = NULL;
+                        uint8_t *l_out_item = NULL;
                         if (a_net && !l_signed) {// if composition is not offline
                             //if(l_multichanel)
-                                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token ? l_token : (l_main_token ? l_main_token : l_native_token), 0);
+                                l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token ? l_token : (l_main_token ? l_main_token : l_native_token), 0);
                             //else
-                            //    l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
+                            //    l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
                             if (!l_out_item) {
                                 json_object *l_jobj_err = json_object_new_string("Failed to create transaction out. "
                                                                                 "There may not be enough funds in the wallet.");
                                 if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
                             }
                         } else {
-                            l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
+                            l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
                             if (!l_out_item) {
                                 json_object *l_jobj_err = json_object_new_string("Failed to create transaction out. "
                                                                                 "There may not be enough funds in the wallet.");
@@ -1795,18 +1795,18 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         // Read address and value
                         if(l_token) {
                             // Create OUT_EXT item
-                            const uint8_t *l_out_item = NULL;
+                            uint8_t *l_out_item = NULL;
                             if (a_net){ // if composition is not offline
                                 if (!l_signed) {
                                     if(l_multichanel)
-                                        l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, 0);
+                                        l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, 0);
                                     else
-                                        l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
+                                        l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
                                 } else {
                                     if (l_item_type == TX_ITEM_TYPE_OUT_EXT)
-                                        l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
+                                        l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
                                     else
-                                        l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, 0);
+                                        l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, 0);
                                 }
                                 if (!l_out_item) {
                                     json_object *l_jobj_err = json_object_new_string("Failed to create a out ext"
@@ -1823,9 +1823,9 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                 }
                             } else {
                                 if (!l_signed || l_item_type == TX_ITEM_TYPE_OUT_STD) {
-                                    l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, 0);
+                                    l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, 0);
                                 } else {
-                                    l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
+                                    l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
                                 }
                                 if (!l_out_item) {
                                     json_object *l_jobj_err = json_object_new_string("Failed to create a out ext"

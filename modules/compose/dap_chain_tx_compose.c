@@ -3994,7 +3994,7 @@ typedef enum {
     DAP_STAKE_TX_CREATE_COMPOSE_FEE_BACK_ERROR = -36
 } stake_delegate_error_t;
 json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain_addr_t *a_wallet_addr, const char* a_cert_str, 
-                                        const char* a_pkey_full_str, const char* a_sign_type_str, const char* a_value_str, const char* a_node_addr_str, 
+                                        const char* a_pkey_full_str, const char* a_value_str, const char* a_node_addr_str, 
                                         const char* a_order_hash_str, const char* a_url_str, uint16_t a_port, const char* a_cert_path, const char* a_sovereign_addr_str, const char* a_fee_str) {
     compose_config_t *l_config = s_compose_config_init(a_net_str, a_url_str, a_port, a_cert_path);
     if (!l_config) {
@@ -4003,7 +4003,7 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
         dap_json_compose_error_add(l_json_obj_ret, STAKE_DELEGATE_COMPOSE_ERR_RPC_RESPONSE, "Can't create compose config");
         return l_json_obj_ret;
     }
-    dap_chain_addr_t l_signing_addr, l_sovereign_addr = {};
+    dap_chain_addr_t l_signing_addr = {}, l_sovereign_addr = {};
     uint256_t l_sovereign_tax = uint256_0;
     uint256_t l_value = uint256_0;
     if (a_value_str) {
@@ -4030,21 +4030,10 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
         }
         l_pkey = dap_pkey_from_enc_key(l_signing_cert->enc_key);
     }  else if (a_pkey_full_str) {
-        dap_sign_type_t l_type = dap_sign_type_from_str(a_sign_type_str);
-        if (l_type.type == SIG_TYPE_NULL) {
-            log_it_fl(L_ERROR, "wrong sign type");
-            dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_WRONG_SIGN_TYPE, "Wrong sign type");
-            return s_compose_config_return_response_handler(l_config);
-        }
         l_pkey = dap_pkey_get_from_str(a_pkey_full_str);
         if (!l_pkey) {
             log_it_fl(L_ERROR, "invalid pkey string format");
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_PKEY, "Invalid pkey string format, can't get pkey_full");
-            return s_compose_config_return_response_handler(l_config);
-        }
-        if (l_pkey->header.type.type != dap_pkey_type_from_sign_type(l_type).type) {
-            log_it_fl(L_ERROR, "pkey and sign types is different");
-            dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_PKEY, "pkey and sign types is different");
             return s_compose_config_return_response_handler(l_config);
         }
         dap_chain_hash_fast_t l_hash_public_key = {0};
@@ -4053,7 +4042,7 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
             dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_PKEY, "Invalid pkey hash format");
             return s_compose_config_return_response_handler(l_config);
         }
-        dap_chain_addr_fill(&l_signing_addr, l_type, &l_hash_public_key, dap_get_net_id(a_net_str));
+        dap_chain_addr_fill(&l_signing_addr, dap_pkey_type_to_sign_type((l_pkey->header).type), &l_hash_public_key, dap_get_net_id(a_net_str));
     }
 
     dap_chain_node_addr_t l_node_addr = g_node_addr;
@@ -4198,12 +4187,15 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
         return s_compose_config_return_response_handler(l_config);
     }
 
-    // TODO: need to make sure that the key and node are required verification 
+    if (!l_node_addr.uint64) {
+        dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_NODE_ADDR, "Invalid node addr, iz sero");
+        return s_compose_config_return_response_handler(l_config);
+    }
+
     // int l_check_result = dap_chain_net_srv_stake_verify_key_and_node(&l_signing_addr, &l_node_addr);
     // if (l_check_result) {
-    //     dap_json_compose_error_add(a_json_obj_ret, l_check_result, "Key and node verification error");
-    //     dap_enc_key_delete(l_enc_key);
-    //     return l_check_result;
+    //     dap_json_compose_error_add(l_config->response_handler, l_check_result, "Key and node verification error");
+    //     return s_compose_config_return_response_handler(l_config);
     // }
  
 
