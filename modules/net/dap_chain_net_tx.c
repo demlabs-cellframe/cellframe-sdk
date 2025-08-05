@@ -1776,12 +1776,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                                                                 "There may not be enough funds in the wallet.");
                                 if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
                             }
-                            if (l_out_item){
-                                if (l_multichanel && !dap_strcmp(((dap_chain_tx_out_std_t *)l_out_item)->token, l_native_token))
-                                    SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
-                                else
-                                    SUM_256_256(l_value_need, l_value, &l_value_need);
-                            }
                         } else {
                             l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
                             if (!l_out_item) {
@@ -1789,6 +1783,12 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                                                                 "There may not be enough funds in the wallet.");
                                 if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
                             }
+                        }
+                        if (l_out_item){
+                            if (l_multichanel && !dap_strcmp(((dap_chain_tx_out_std_t *)l_out_item)->token, l_native_token))
+                                SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
+                            else
+                                SUM_256_256(l_value_need, l_value, &l_value_need);
                         }
                         l_item = (const uint8_t*) l_out_item;
                     } else if (l_item_type == TX_ITEM_TYPE_OUT_EXT || l_item_type == TX_ITEM_TYPE_OUT_STD) {
