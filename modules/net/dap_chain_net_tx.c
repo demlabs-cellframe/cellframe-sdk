@@ -1021,12 +1021,12 @@ static uint8_t *s_dap_chain_net_tx_create_out_std_item (json_object *a_json_item
 #endif
         if((!dap_strcmp(l_json_item_addr_str,"null") || l_addr) && !IS_ZERO_256(l_value)) {            
             // Create OUT item
-            const uint8_t *l_out_item = NULL;
+            uint8_t *l_out_item = NULL;
             
             if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK && l_is_value && !dap_strcmp(l_json_item_addr_str,"null")) {
-                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(&c_dap_chain_addr_blank_1, l_value, l_token, l_time_unlock);            
+                l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(&c_dap_chain_addr_blank_1, l_value, l_token, l_time_unlock);            
             } else {
-                l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, l_time_unlock);
+                l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, l_time_unlock);
             }
             if (l_addr) DAP_DELETE(l_addr);
             return l_out_item;      

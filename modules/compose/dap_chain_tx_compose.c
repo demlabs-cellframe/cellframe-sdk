@@ -3692,16 +3692,16 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     int l_out_native_count = json_object_array_length(l_outs_native);
 #else
     const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
-    const char *l_token_ticker = "mBUZ";
+    char *l_token_ticker = dap_strdup("mBUZ");
     json_object *l_outs_native = NULL;
     json_object *response = NULL;
     int l_out_native_count = 0;
-    int l_prev_cond_idx = 0;
+    int l_tx_out_cond_idx = rand();
+    dap_chain_datum_tx_t *l_tx = NULL;
     dap_chain_addr_t l_owner_addr;
     randombytes(&l_owner_addr, sizeof(l_owner_addr));
     dap_chain_tx_out_cond_t *l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
     l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
-    dap_chain_tx_sig_t *l_tx_sig = NULL;
     l_tx_out_cond->header.value._lo.b = rand() % 500;
     l_tx_out_cond->header.value._hi.b = rand() % 100;
 #endif
