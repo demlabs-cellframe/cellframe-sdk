@@ -3525,7 +3525,7 @@ typedef enum {
     DAP_CLI_STAKE_INVALIDATE_NOT_DELEGATED = -6,
     DAP_CLI_STAKE_INVALIDATE_NO_DELEGATE_OUT = -7,
     DAP_CLI_STAKE_INVALIDATE_PREV_TX_NOT_FOUND = -8,
-    DAP_CLI_STAKE_INVALIDATE_TX_EXISTS = -9,
+    DAP_CLI_STAKE_INVALIDATE_KEY_DELEGATED = -9,
     DAP_CLI_STAKE_INVALIDATE_WALLET_NOT_FOUND = -10,
     DAP_CLI_STAKE_INVALIDATE_COMPOSE_ERROR = -11,
     DAP_STAKE_TX_INVALIDATE_COMPOSE_LEDGER_ERROR = -12,
@@ -3615,18 +3615,16 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
         }
     }
 
-    const char *l_tx_hash_str_tmp = a_tx_hash_str ? a_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash);
-
     if (a_tx_hash_str) {
-        char data[512];
-        json_object *l_json_answer = dap_request_command_to_rpc_with_params(l_config, "srv_stake", "list;tx;-net;%s", l_config->net_name);
+        const char *l_tx_hash_str_tmp = a_tx_hash_str ? a_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash);
+        json_object *l_json_answer = dap_request_command_to_rpc_with_params(l_config, "srv_stake", "list;keys;-net;%s", l_config->net_name);
         if (!l_json_answer) {
             log_it(L_ERROR, "failed to get rpc answer");
             return s_compose_config_return_response_handler(l_config);
         }
         json_object *l_json_coins = json_object_array_get_idx(l_json_answer, 0);
         if (!l_json_coins) {
-            log_it(L_ERROR, "failed to get tx list");
+            log_it(L_ERROR, "failed to get keys list");
             return s_compose_config_return_response_handler(l_config);
         }
 
@@ -3636,9 +3634,10 @@ json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const c
             json_object *tx_item = json_object_array_get_idx(l_json_coins, i);
             const char *tx_hash = json_object_get_string(json_object_object_get(tx_item, "tx_hash"));
             if (tx_hash && strcmp(tx_hash, l_tx_hash_str_tmp) == 0) {
-                log_it(L_ERROR, "transaction already exists");
+                const char *l_pkey_hash_str = json_object_get_string(json_object_object_get(tx_item, "pkey_hash"));
+                log_it(L_ERROR, "Transaction %s has active delegated key %s, need to revoke it first", tx_hash, l_pkey_hash_str);
                 json_object_put(l_json_answer);
-                dap_json_compose_error_add(l_config->response_handler, DAP_CLI_STAKE_INVALIDATE_TX_EXISTS, "Transaction already exists");
+                dap_json_compose_error_add(l_config->response_handler, DAP_CLI_STAKE_INVALIDATE_KEY_DELEGATED, "Transaction %s has active delegated key %s, need to revoke it first", tx_hash, l_pkey_hash_str);
                 return s_compose_config_return_response_handler(l_config);
             }
         }
