@@ -1212,6 +1212,7 @@ static char* s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price,
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, dap_hash_fast_t *a_order_hash, uint256_t *a_fee, bool a_ret_is_invalid)
 {
     dap_return_val_if_pass(!a_net || !a_order, NULL);
+    log_it(L_DEBUG, "forming price by order: %s", dap_hash_fast_to_str_static(a_order_hash));
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_order, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
     if (!l_out_cond)
         return NULL;
@@ -1237,6 +1238,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     l_price->rate = l_out_cond->subtype.srv_xchange.rate;
     dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger,
                                         DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->order_hash, false);
+    log_it(L_DEBUG, "order final hash: %s", dap_hash_fast_to_str_static(&l_final_hash));
     if ( !dap_hash_fast_is_blank(&l_final_hash) ) {
         l_price->tx_hash = l_final_hash;
         return l_price;
@@ -2803,10 +2805,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             }
             if (a_version == 1) {
                 char *l_total = dap_strdup_printf("Total %zu orders.\n\r", i_tmp);
+                json_object_object_add(json_obj_order, "ORDERS", json_arr_orders_out);
                 json_object_object_add(json_obj_order, "number of transactions", json_object_new_string(l_total));
                 DAP_DELETE(l_total);
             } else {
-                json_object_object_add(json_obj_order, a_version == 1 ? "ORDERS" : "orders", json_arr_orders_out);
+                json_object_object_add(json_obj_order, "orders", json_arr_orders_out);
                 json_object_object_add(json_obj_order, "total", json_object_new_uint64(i_tmp));
             }
             
