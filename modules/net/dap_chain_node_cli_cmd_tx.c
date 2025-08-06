@@ -2406,3 +2406,145 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
     return 0;
 
 }
+
+/**
+ * @brief json_print_for_tx_history_all
+ * JSON parser for tx_history command responses
+ * Handles different types of tx_history responses:
+ * - Transaction history list with summary (for -all and -addr)
+ * - Single transaction (for -tx hash)
+ * - Transaction count (for -count)
+ * @param response JSON RPC response object
+ * @param cmd_param Command parameters array
+ * @param cmd_cnt Count of command parameters
+ * @return int 0 on success, negative on error
+ */
+int json_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt)
+{
+	if (!response || !response->result_json_object) {
+		printf("Response is empty\n");
+		return -1;
+	}
+	if (json_object_get_type(response->result_json_object) == json_type_array) {
+		int result_count = json_object_array_length(response->result_json_object);
+		if (result_count <= 0) {
+			printf("Response array is empty\n");
+			return -2;
+		}
+
+		// Check if this is a count response (single object with count)
+		if (result_count == 1) {
+			json_object *first_obj = json_object_array_get_idx(response->result_json_object, 0);
+			json_object *count_obj = NULL;
+			
+			// Check for count response (version 1 or 2)
+			if (json_object_object_get_ex(first_obj, "Number of transaction", &count_obj) ||
+			    json_object_object_get_ex(first_obj, "total_tx_count", &count_obj)) {
+				printf("Total transactions count: %lld\n", json_object_get_int64(count_obj));
+				return 0;
+			}
+		}
+
+		// Handle transaction history list (should have 2 elements: transactions array + summary)
+		if (result_count >= 2) {
+			json_object *tx_array = json_object_array_get_idx(response->result_json_object, 0);
+			json_object *summary_obj = json_object_array_get_idx(response->result_json_object, 1);
+
+			// Print summary information
+			if (summary_obj) {
+				json_object *network_obj = NULL, *chain_obj = NULL;
+				json_object *tx_sum_obj = NULL, *accepted_obj = NULL, *rejected_obj = NULL;
+				
+				json_object_object_get_ex(summary_obj, "network", &network_obj);
+				json_object_object_get_ex(summary_obj, "chain", &chain_obj);
+				json_object_object_get_ex(summary_obj, "tx_sum", &tx_sum_obj);
+				json_object_object_get_ex(summary_obj, "accepted_tx", &accepted_obj);
+				json_object_object_get_ex(summary_obj, "rejected_tx", &rejected_obj);
+
+				printf("\n=== Transaction History ===\n");
+				if (network_obj && chain_obj) {
+					printf("Network: %s, Chain: %s\n", 
+						   json_object_get_string(network_obj),
+						   json_object_get_string(chain_obj));
+				}
+				if (tx_sum_obj && accepted_obj && rejected_obj) {
+					printf("Total: %d transactions (Accepted: %d, Rejected: %d)\n\n",
+						   json_object_get_int(tx_sum_obj),
+						   json_object_get_int(accepted_obj),
+						   json_object_get_int(rejected_obj));
+				}
+			}
+
+			// Print transactions table header
+			printf("_________________________________________________________________________________________________________________\n");
+			printf(" # \t| Hash \t\t   | Status     | Action \t| Token \t| Time create\n");
+			printf("_________________________________________________________________________________________________________________\n");
+
+			// Print transaction list
+			if (json_object_get_type(tx_array) == json_type_array) {
+                char *l_limit = NULL;
+                char *l_offset = NULL;
+				int tx_count = json_object_array_length(tx_array);
+				for (int i = 0; i < tx_count; i++) {
+					json_object *tx_obj = json_object_array_get_idx(tx_array, i);
+					if (!tx_obj) continue;
+
+					json_object *tx_num_obj = NULL, *hash_obj = NULL;
+					json_object *status_obj = NULL, *action_obj = NULL;
+					json_object *token_obj = NULL, *j_obj_lim = NULL, *j_obj_off = NULL;
+                    json_object *j_obj_create = NULL;
+
+					// Get transaction fields (support both version 1 and 2)
+                    if ((json_object_object_get_ex(tx_obj, "tx number", &tx_num_obj) ||
+					    json_object_object_get_ex(tx_obj, "tx_num", &tx_num_obj)) &&
+					    json_object_object_get_ex(tx_obj, "hash", &hash_obj) &&
+					    json_object_object_get_ex(tx_obj, "status", &status_obj) &&
+					    json_object_object_get_ex(tx_obj, "action", &action_obj) &&
+					    json_object_object_get_ex(tx_obj, "token ticker", &token_obj) &&
+                        json_object_object_get_ex(tx_obj, "tx created", &j_obj_create)) {
+
+					    printf("%s\t| %10s | %s\t| %s   \t| %s   \t| %s\t|\n",
+						   json_object_get_string(tx_num_obj),
+						   json_object_get_string(hash_obj)+50,
+						   json_object_get_string(status_obj),
+						   json_object_get_string(action_obj),
+						   json_object_get_string(token_obj),
+                           json_object_get_string(j_obj_create));
+                    } else if (json_object_object_get_ex(tx_obj, "limit", &j_obj_lim)) {
+                        json_object_object_get_ex(tx_obj, "offset", &j_obj_off);
+                        l_limit = json_object_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
+                        if (j_obj_off)
+                            l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_off));
+                    } else {
+                        json_print_object(tx_obj, 0);
+                    }
+				}
+                printf("_________________________________________________________________________________________________________________\n");
+                if (l_limit) {
+                    printf("\tlimit: %s \n", l_limit);
+                    DAP_DELETE(l_limit);
+                }
+                if (l_offset) {
+                    printf("\toffset: %s \n", l_offset);
+                    DAP_DELETE(l_offset);
+                }
+			}
+		} else {
+			// Single transaction or unknown format - fallback to JSON print
+			json_print_object(response->result_json_object, 0);
+		}
+	} else {
+		// Single object response - could be a single transaction
+		json_object *hash_obj = NULL;
+		if (json_object_object_get_ex(response->result_json_object, "hash", &hash_obj)) {
+			// This looks like a single transaction
+			printf("\n=== Single Transaction ===\n");
+			json_print_object(response->result_json_object, 0);
+		} else {
+			// Unknown format
+			json_print_object(response->result_json_object, 0);
+		}
+	}
+
+	return 0;
+}

@@ -4,14 +4,7 @@
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
 #include "dap_chain_datum_token.h"
->>>>>>> 8fbd7b4720fe2662379279745647ad60da842160
-=======
-#include "dap_chain_datum_token.h"
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
 #include <json-c/json.h>
 
 #define LOG_TAG "dap_tx_compose_tests"
@@ -68,20 +61,9 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     size_t l_signs_count = rand() % KEY_COUNT + 1;
     dap_test_msg("add %zu tsd sections", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-        int l_rand_data = rand() % dap_maxval(l_rand_data);
-        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand() % dap_maxval(l_rand_data), sizeof(l_rand_data));
-=======
         int l_rand_data = rand();
         // Use valid TSD types instead of random values
         dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand(), sizeof(l_rand_data));
->>>>>>> 8fbd7b4720fe2662379279745647ad60da842160
-=======
-        int l_rand_data = rand();
-        // Use valid TSD types instead of random values
-        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand(), sizeof(l_rand_data));
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
         dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
         DAP_DEL_Z(l_tsd);
     }
@@ -89,18 +71,9 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_test_msg("add %zu signs", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
 
     dap_assert(dap_chain_datum_tx_verify_sign_all(*a_datum) == 0, "datum sign verify");
 
->>>>>>> 8fbd7b4720fe2662379279745647ad60da842160
-=======
-
-    dap_assert(dap_chain_datum_tx_verify_sign_all(*a_datum) == 0, "datum sign verify");
-
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
     dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
     dap_assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1, "Protection to add item after signs");
     DAP_DEL_Z(l_out_count);
@@ -110,15 +83,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
     dap_assert(json_object_object_length(l_datum_1_json), "dap_chain_net_tx_to_json");
     printf("\n");
-<<<<<<< HEAD
-<<<<<<< HEAD
-    dap_chain_datum_tx_t *l_datum_2 = dap_chain_datum_tx_create();;
-=======
     dap_chain_datum_tx_t *l_datum_2 = NULL;
->>>>>>> 8fbd7b4720fe2662379279745647ad60da842160
-=======
-    dap_chain_datum_tx_t *l_datum_2 = NULL;
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
     size_t
         l_items_count = 0,
         l_items_ready = 0;
@@ -164,16 +129,8 @@ void s_chain_datum_cond_create_test()
     dap_assert(l_datum_1, "tx_cond_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
     DAP_DELETE(l_rand_data);
     DAP_DELETE(pkey);
->>>>>>> 8fbd7b4720fe2662379279745647ad60da842160
-=======
-    DAP_DELETE(l_rand_data);
-    DAP_DELETE(pkey);
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
 }
 
 void s_chain_datum_delegate_test()
@@ -188,14 +145,7 @@ void s_chain_datum_delegate_test()
     dap_assert(l_datum_1, "tx_stake_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
     DAP_DELETE(pkey);
->>>>>>> 8fbd7b4720fe2662379279745647ad60da842160
-=======
-    DAP_DELETE(pkey);
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
 }
 
 void s_chain_datum_stake_lock_test()
@@ -313,15 +263,7 @@ void s_chain_datum_xchange_invalidate_test(const char *a_token_sell, const char 
     l_price->datoshi_sell = s_data->value;
     l_price->rate = s_data->reinvest_percent;
     l_price->fee = s_data->value_fee;
-<<<<<<< HEAD
-<<<<<<< HEAD
-    dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_invalidate_compose(l_price, &s_data->addr_from, &s_data->config);
-=======
     dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_invalidate_compose(l_price, &s_data->cond_out, &s_data->addr_from, &s_data->addr_to, a_token_buy, 0, &s_data->config);
->>>>>>> 8fbd7b4720fe2662379279745647ad60da842160
-=======
-    dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_invalidate_compose(l_price, &s_data->cond_out, &s_data->addr_from, &s_data->addr_to, a_token_buy, 0, &s_data->config);
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
     dap_assert(l_datum_1, "tx_exchange_invalidate_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -336,13 +278,6 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->reinvest_percent = dap_chain_coins_to_balance("12.3456789");
     for (size_t i = 0; i < KEY_COUNT; ++i)
         s_key[i] = dap_enc_key_new_generate(s_key_types[rand() % s_sign_type_count], NULL, 0, NULL, 0, 0);
-<<<<<<< HEAD
-<<<<<<< HEAD
-    s_data->config.net_name = s_net_name;
-    s_data->config.url_str = s_url;
-=======
-=======
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
     memset(&s_data->config, 0, sizeof(compose_config_t));
     s_data->config.net_name = s_net_name;
     s_data->config.url_str = s_url;
@@ -350,10 +285,6 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->config.enc = false;
     s_data->config.cert_path = NULL;
     s_data->config.response_handler = json_object_new_object();
-<<<<<<< HEAD
->>>>>>> 8fbd7b4720fe2662379279745647ad60da842160
-=======
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
     s_data->value_fee._hi.a = 0;
     s_data->value_fee._hi.b = 0;
     s_data->value_fee._lo.a = 0;
@@ -375,18 +306,9 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_vote_create_test();
     s_chain_datum_vote_voting_test();
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
     if (s_data->config.response_handler) {
         json_object_put(s_data->config.response_handler);
     }
->>>>>>> 8fbd7b4720fe2662379279745647ad60da842160
-=======
-    if (s_data->config.response_handler) {
-        json_object_put(s_data->config.response_handler);
-    }
->>>>>>> 01122249a664fa0282320442f83172bf3a32720f
     DAP_DEL_Z(s_data);
     for (size_t i = 0; i < KEY_COUNT; ++i)
         dap_enc_key_delete(s_key[i]);
