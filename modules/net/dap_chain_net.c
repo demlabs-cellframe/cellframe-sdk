@@ -2785,6 +2785,12 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted transaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
             }
+            dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, 0);
+            if (l_sig && dap_sign_type_is_depricated(l_sig->header.type)){
+                dap_chain_addr_t l_addr = {};
+                dap_chain_addr_fill_from_sign(&l_addr, l_sig, a_chain->net_id);
+                log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_chain_hash_fast_to_str_static(a_datum_hash));
+            }
             return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
         }
         case DAP_CHAIN_DATUM_CA:
