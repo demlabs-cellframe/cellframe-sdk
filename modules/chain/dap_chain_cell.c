@@ -158,6 +158,8 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
             l_volume_start  = a_fpos ? dap_page_rounddown(a_fpos)   : 0,
 #endif                  
             l_offset        = a_fpos - l_volume_start;
+    // Сохраняем начало тома (offset) для последующих вычислений
+    a_cell->cur_vol_start = l_volume_start;
 #ifdef DAP_OS_WINDOWS
     hSection = (HANDLE)a_cell->map_range_bounds->data;
     a_cell->map = NULL;
@@ -437,6 +439,9 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         if (!a_chain->is_mapped) DAP_DELETE(l_hdr);
         return -3;
     }
+    // сохраняем тип файла для последующих операций
+    a_cell->file_storage_type = l_hdr->type;
+
     if (l_hdr->version < DAP_CHAIN_CELL_FILE_VERSION ){
         log_it(L_ERROR, "Too low chain version, backup files");
         fclose(a_cell->file_storage);
@@ -685,5 +690,81 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     }
     pthread_rwlock_unlock(&a_cell->storage_rwlock);
     return l_total_res;
+}
+
+/**
+ * @brief Расчёт абсолютного смещения атома по указателю на его данные (только mapped-режим).
+ * @return offset >=0 или отрицательный код ошибки.
+ */
+off_t dap_chain_cell_atom_offset_get_by_ptr(const dap_chain_cell_t *a_cell, const void *a_atom_ptr)
+{
+    if (!a_cell || !a_atom_ptr)
+        return -1;
+
+    if (!a_cell->chain || !a_cell->chain->is_mapped)
+        return -2; // not supported in non-mapped mode
+
+    const char *cptr = (const char *)a_atom_ptr;
+    if (cptr < a_cell->map || cptr >= a_cell->map_end)
+        return -3; // pointer is not within current mapped volume
+
+    // Смещение указывает на начало поля size (8 байт до данных атома)
+    return (off_t)(a_cell->cur_vol_start + (cptr - a_cell->map) - sizeof(uint64_t));
+}
+
+int dap_chain_cell_atom_read_at_offset(dap_chain_cell_t *a_cell,
+                                       off_t a_offset,
+                                       dap_chain_atom_ptr_t *a_atom_out,
+                                       uint64_t *a_atom_size_out)
+{
+    if (!a_cell || !a_atom_out || !a_atom_size_out)
+        return -1;
+
+    if (a_cell->file_storage_type == DAP_CHAIN_CELL_FILE_TYPE_COMPRESSED)
+        return -4;
+
+    // узнаём размер файла
+    off_t l_file_size = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
+    if (l_file_size < 0 || a_offset < (off_t)sizeof(dap_chain_cell_file_header_t))
+        return -2;
+
+    pthread_rwlock_rdlock(&a_cell->storage_rwlock);
+    uint64_t l_atom_size = 0;
+    int l_ret = 0;
+
+    if (a_cell->chain->is_mapped) {
+        // убедимся, что нужный том загружен
+        if (s_cell_map_new_volume(a_cell, (size_t)a_offset, true) != 0) {
+            l_ret = -3; goto finish;
+        }
+        a_cell->map_pos = a_cell->map + (a_offset - a_cell->cur_vol_start);
+        l_atom_size = *(uint64_t*)a_cell->map_pos;
+        if ((off_t)(a_offset + sizeof(uint64_t) + l_atom_size) > l_file_size) {
+            l_ret = -2; goto finish;
+        }
+        *a_atom_out = (dap_chain_atom_ptr_t)(a_cell->map_pos + sizeof(uint64_t));
+        *a_atom_size_out = l_atom_size;
+    } else {
+        if (fseeko(a_cell->file_storage, a_offset, SEEK_SET) != 0) {
+            l_ret = -3; goto finish;
+        }
+        if (fread(&l_atom_size, sizeof(l_atom_size), 1, a_cell->file_storage) != 1) {
+            l_ret = -3; goto finish;
+        }
+        if ((off_t)(a_offset + sizeof(uint64_t) + l_atom_size) > l_file_size) {
+            l_ret = -2; goto finish;
+        }
+        byte_t *buf = DAP_NEW_SIZE(byte_t, l_atom_size);
+        if (!buf) { l_ret = -3; goto finish; }
+        if (fread(buf, l_atom_size, 1, a_cell->file_storage) != 1) {
+            DAP_DELETE(buf);
+            l_ret = -3; goto finish;
+        }
+        *a_atom_out = buf;
+        *a_atom_size_out = l_atom_size;
+    }
+finish:
+    pthread_rwlock_unlock(&a_cell->storage_rwlock);
+    return l_ret;
 }
 

@@ -24,6 +24,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/types.h>
 #include <pthread.h>
 #include "uthash.h"
 #include "dap_chain.h"
@@ -38,9 +39,7 @@ typedef struct dap_chain_cell {
     FILE *file_storage;
     uint8_t file_storage_type;
     dap_list_t *map_range_bounds;
-#ifdef DAP_OS_DARWIN
-    size_t cur_vol_start;
-#endif
+    size_t cur_vol_start;          // начало текущего тома в файле (смещение), всегда актуально
     pthread_rwlock_t storage_rwlock;
     UT_hash_handle hh;
 } dap_chain_cell_t;
@@ -87,3 +86,15 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell,const void *a_atom, 
 DAP_STATIC_INLINE ssize_t dap_chain_cell_file_update(dap_chain_cell_t *a_cell) {
     return dap_chain_cell_file_append(a_cell, NULL, 0);
 }
+
+/**
+ * Получить абсолютное смещение (offset) атома в файле по указателю на его данные.
+ * Работает только в mapped-режиме. Возвращает отрицательное значение при ошибке.
+ */
+off_t dap_chain_cell_atom_offset_get_by_ptr(const dap_chain_cell_t *a_cell,
+                                            const void *a_atom_ptr);
+
+int dap_chain_cell_atom_read_at_offset(dap_chain_cell_t *a_cell,
+                                       off_t a_offset,
+                                       dap_chain_atom_ptr_t *a_atom_out,
+                                       uint64_t *a_atom_size_out);
