@@ -202,6 +202,28 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
                                                             dap_chain_addr_t *a_buyer_addr, uint256_t a_datoshi_buy,
                                                             uint256_t a_datoshi_fee, dap_chain_tx_out_cond_t* a_cond_tx, 
                                                             uint32_t a_prev_cond_idx, compose_config_t *a_config);
+
+json_object * dap_wallet_shared_funds_hold_compose(const char * a_net_name, dap_chain_addr_t *a_owner_addr, const char * a_token_str, const char * a_value_str, 
+                                                    const char * a_fee_str, const char * a_signs_min_str, const char * a_pkeys_str, 
+                                                    const char *a_tag_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
+
+dap_chain_datum_tx_t * dap_emitting_tx_create_compose(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee, 
+                                                      uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str, 
+                                                      compose_config_t *a_config);
+
+json_object * dap_wallet_shared_funds_refill_compose(const char * a_net_name, dap_chain_addr_t *a_owner_addr, const char * a_value_str, 
+                                                    const char * a_fee_str, const char * a_tx_in_hash_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path);
+
+dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_chain_addr_t *a_owner_addr, uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, 
+                                                                            dap_list_t* a_tsd_items, compose_config_t *a_config);
+
+dap_chain_datum_tx_t *dap_chain_wallet_shared_take_tx_create_compose(dap_chain_addr_t *a_owner_addr, dap_chain_addr_t *a_to_addr, uint256_t *a_value, uint32_t a_addr_count,
+                                                                    uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, dap_list_t* a_tsd_items, compose_config_t *a_config);
+
+json_object *dap_wallet_shared_funds_take_compose(const char * a_net_name,dap_chain_addr_t *a_owner_addr,  const char *a_tx_in_hash_str, const char *a_value_str, const char *a_fee_str,
+                                                    const char *a_to_addr_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
+
+
 #ifdef __cplusplus
 }
 #endif
