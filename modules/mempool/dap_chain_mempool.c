@@ -654,7 +654,6 @@ char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks
             return NULL;
         }
     }
-
     // add 'sign' items
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
         dap_chain_datum_tx_delete(l_tx);
@@ -1488,7 +1487,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     dap_list_free_full(l_list_fee_out, NULL);
 
     // Create and add event item using standard cellframe function
-    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(a_group_name, a_event_type);
+    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(a_group_name, a_event_type, dap_time_now());
     if (!l_event_item) {
         log_it(L_ERROR, "Failed to create event item");
         dap_chain_datum_tx_delete(l_tx);

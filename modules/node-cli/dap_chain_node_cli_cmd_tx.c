@@ -1643,7 +1643,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 }
                 
                 // Free the list and its elements
-                dap_list_free_full(l_events, dap_chain_datum_tx_event_delete);
+                dap_list_free_full(l_events, dap_chain_tx_event_delete);
             }
 
             json_object_object_add(l_json_obj_out, "events", l_json_arr_events);
@@ -1686,7 +1686,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             json_object *l_json_obj_out = json_object_new_object();
             dap_chain_datum_tx_event_to_json(l_json_obj_out, l_event, l_hash_out_type);
             json_object_array_add(*a_json_arr_reply, l_json_obj_out);
-            dap_chain_datum_tx_event_delete(l_event);
+            dap_chain_tx_event_delete(l_event);
             return 0;
         }
     } else if (l_cmd == CMD_TRACE) {
