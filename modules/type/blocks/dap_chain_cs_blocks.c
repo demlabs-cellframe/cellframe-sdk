@@ -2955,7 +2955,7 @@ static int s_compare_fees(dap_ledger_hardfork_fees_t *a_list1, dap_ledger_hardfo
     return !dap_chain_addr_compare(&a_list1->owner_addr, &a_list2->owner_addr);
 }
 
-static int s_aggregate_fees(dap_ledger_hardfork_fees_t **a_out_list, dap_chain_block_autocollect_type_t a_type, dap_chain_addr_t *a_addr, uint256_t a_value)
+static int s_aggregate_fees(dap_ledger_hardfork_fees_t **a_out_list, dap_chain_addr_t *a_addr, uint256_t a_value)
 {
     assert(a_addr && a_out_list);
     dap_ledger_hardfork_fees_t l_new_fee = { .owner_addr = *a_addr };
@@ -2969,20 +2969,9 @@ static int s_aggregate_fees(dap_ledger_hardfork_fees_t **a_out_list, dap_chain_b
         }
         DL_APPEND(*a_out_list, l_exist);
     }
-    switch (a_type) {
-    case DAP_CHAIN_BLOCK_COLLECT_FEES:
-        if (SUM_256_256(l_exist->fees_n_rewards_sum, a_value, &l_exist->fees_n_rewards_sum)) {
-            log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed fees");
-            return -2;
-        } break;
-    case DAP_CHAIN_BLOCK_COLLECT_REWARDS:
-        if (SUM_256_256(l_exist->fees_n_rewards_sum, a_value, &l_exist->fees_n_rewards_sum)) {
-            log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed rewards");
-            return -2;
-        } break;
-    default:
-        log_it(L_ERROR, "Illegal block autocollect type %d", a_type);
-        return -3;
+    if (SUM_256_256(l_exist->fees_n_rewards_sum, a_value, &l_exist->fees_n_rewards_sum)) {
+        log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed fees or rewards");
+        return -2;
     }
     return 0;
 }
@@ -3005,11 +2994,26 @@ dap_ledger_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_ch
                     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp);
                     if (!l_cond)
                         continue;
-                    if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + j, l_out_idx_tmp, NULL)) {
-                        dap_chain_addr_t l_addr = {};
-                        dap_chain_addr_fill_from_sign(&l_addr, l_sign, a_chain->net_id);
-                        s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_FEES, &l_addr, l_cond->header.value);
+                    if (dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + j, l_out_idx_tmp, NULL))
+                        continue;
+                    // Check and apply sovereign tax for this key
+                    uint256_t l_value_tax = {}, l_value_out = l_cond->header.value;
+                    dap_hash_fast_t l_sign_pkey_hash = {};
+                    dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+                    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_chain->net_id, &l_sign_pkey_hash);
+                    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
+                                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
+                        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
+                        if (compare256(l_value_tax, l_value_out) < 1)
+                            SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
                     }
+                    if (!IS_ZERO_256(l_value_out)) {
+                        dap_chain_addr_t l_owner_addr = {};
+                        dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, a_chain->net_id);
+                        s_aggregate_fees(&ret, &l_owner_addr, l_value_out);
+                    }
+                    if (!IS_ZERO_256(l_value_tax))
+                        s_aggregate_fees(&ret, &l_key_item->sovereign_addr, l_value_tax);
                 }
             }
             if (l_ts < DAP_REWARD_INIT_TIMESTAMP)
@@ -3021,9 +3025,9 @@ dap_ledger_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_ch
             dap_pkey_t *l_sign_pkey = dap_pkey_get_from_sign(l_sign);
             uint256_t l_reward_value = s_callback_calc_reward(a_chain, &l_block_cache->block_hash, l_sign_pkey);
             DAP_DELETE(l_sign_pkey);
-            dap_chain_addr_t l_addr = {};
-            dap_chain_addr_fill_from_sign(&l_addr, l_sign, a_chain->net_id);
-            s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_REWARDS, &l_addr, l_reward_value);
+            dap_chain_addr_t l_owner_addr = {};
+            dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, a_chain->net_id);
+            s_aggregate_fees(&ret, &l_owner_addr, l_reward_value);
         }
     }
     return ret;

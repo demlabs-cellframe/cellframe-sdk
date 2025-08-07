@@ -26,6 +26,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#include "dap_chain_datum_tx_event.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_list.h"
@@ -37,6 +38,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_net.h"
+#include "dap_chain_datum_tx_event.h"
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x07
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
@@ -96,11 +98,17 @@ typedef struct dap_ledger_hardfork_anchors {
     struct dap_ledger_hardfork_anchors *prev, *next;
 } dap_ledger_hardfork_anchors_t;
 
+typedef struct dap_ledger_hardfork_events {
+    dap_chain_tx_event_t *event;
+    struct dap_ledger_hardfork_events *prev, *next;
+} dap_ledger_hardfork_events_t;
+
 typedef struct dap_ledger_hardfork_fees {
     dap_chain_addr_t owner_addr;
     uint256_t fees_n_rewards_sum;
     struct dap_ledger_hardfork_fees *prev, *next;
 } dap_ledger_hardfork_fees_t;
+
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
@@ -559,6 +567,8 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
                                                             dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object *a_changed_addrs,
                                                             dap_ledger_hardfork_fees_t *a_fees_list);
 dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
+dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
+
 
 uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash,
                                                dap_hash_fast_t *a_tx_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash);

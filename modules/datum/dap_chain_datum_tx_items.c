@@ -549,7 +549,7 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
     return ((dap_tsd_t*)(a_tx_tsd->tsd))->data;
 }
 
-dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, uint16_t a_type)
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, uint16_t a_type, dap_time_t a_timestamp)
 {
     dap_return_val_if_fail(a_group_name, NULL);
     size_t l_group_name_size = strlen(a_group_name);
@@ -561,13 +561,33 @@ dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_n
     l_event->version = DAP_CHAIN_TX_EVENT_VERSION;
     l_event->group_name_size = (uint16_t)l_group_name_size;
     l_event->event_type = a_type;
-    l_event->timestamp = dap_time_now();
+    l_event->timestamp = a_timestamp;
     return l_event;
 }
-void dap_chain_datum_tx_event_delete(void *a_event)
+void dap_chain_tx_event_delete(void *a_event)
 {
     dap_chain_tx_event_t *l_event = a_event;
     DAP_DEL_MULTY(l_event->group_name, l_event->event_data, l_event);
+}
+
+dap_chain_tx_event_t *dap_chain_tx_event_copy(dap_chain_tx_event_t *a_event)
+{
+    dap_return_val_if_fail(a_event, NULL);
+    dap_chain_tx_event_t *l_event = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_tx_event_t, NULL);
+    *l_event = *a_event;
+    l_event->group_name = dap_strdup(a_event->group_name);
+    if (!l_event->group_name) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        DAP_DELETE(l_event);
+        return NULL;
+    }
+    l_event->event_data = DAP_DUP_SIZE(a_event->event_data, a_event->event_data_size);
+    if (!l_event->event_data) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        DAP_DEL_MULTY(l_event->group_name, l_event);
+        return NULL;
+    }
+    return l_event;
 }
 
 int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_item_event_t *a_event)
