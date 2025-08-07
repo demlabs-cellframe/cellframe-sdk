@@ -133,6 +133,13 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool
     return l_tsd;
 }
 
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_chain_hash_fast_t a_voting_hash)
+{   
+    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&a_voting_hash, VOTING_TSD_TYPE_CANCEL, sizeof(dap_chain_hash_fast_t));
+
+    return l_tsd;
+}
+
 dap_chain_tx_tsd_t *dap_chain_datum_voting_token_tsd_create(const char *a_token_ticker)
 {
     dap_return_val_if_fail(a_token_ticker && *a_token_ticker, NULL);
