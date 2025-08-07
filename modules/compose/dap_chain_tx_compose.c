@@ -38,6 +38,7 @@
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_wallet_shared.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_common.h"
 
