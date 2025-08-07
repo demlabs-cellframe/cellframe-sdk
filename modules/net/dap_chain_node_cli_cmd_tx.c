@@ -2200,41 +2200,44 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
         struct json_object *j_object_events = NULL;
         char *l_limit = NULL;
         char *l_offset = NULL;
-        if (!json_object_object_get_ex(json_obj_array, "events", &j_object_events)) {
+        
+        if (json_object_object_get_ex(json_obj_array, "events", &j_object_events) || json_object_object_get_ex(json_obj_array, "EVENTS", &j_object_events))
+        {
+            result_count = json_object_array_length(j_object_events);
+            for (int i = 0; i < result_count; i++) {
+                struct json_object *json_obj_result = json_object_array_get_idx(j_object_events, i);
+                if (!json_obj_result) {
+                    printf("Failed to get array element at index %d\n", i);
+                    continue;
+                }
+
+                json_object *j_obj_event_number, *j_obj_hash, *j_obj_create, *j_obj_lim, *j_obj_off;
+                if (json_object_object_get_ex(json_obj_result, "event number", &j_obj_event_number) &&
+                    json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
+                    json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
+                {
+                    if (j_obj_event_number && j_obj_hash && j_obj_create) {
+                        printf("   %s \t| %s | %s\t|",
+                                json_object_get_string(j_obj_event_number), json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create));
+                    } else {
+                        printf("Missing required fields in array element at index %d\n", i);
+                    }
+                } else if (json_object_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
+                    json_object_object_get_ex(json_obj_result, "offset", &j_obj_off);
+                    l_limit = json_object_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
+                    if (j_obj_off)
+                        l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_off));
+                    continue;
+                } else {
+                    json_print_object(json_obj_result, 0);
+                }             
+                printf("\n");
+            }
+            printf("________|____________________________________________________________________|__________________________________|\n\n");
+        } else {
             printf("EVENTS is empty\n");
             return -4;
         }
-        result_count = json_object_array_length(j_object_events);
-        for (int i = 0; i < result_count; i++) {
-            struct json_object *json_obj_result = json_object_array_get_idx(j_object_events, i);
-            if (!json_obj_result) {
-                printf("Failed to get array element at index %d\n", i);
-                continue;
-            }
-
-            json_object *j_obj_event_number, *j_obj_hash, *j_obj_create, *j_obj_lim, *j_obj_off;
-            if (json_object_object_get_ex(json_obj_result, "event_number", &j_obj_event_number) &&
-                json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
-                json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
-            {
-                if (j_obj_event_number && j_obj_hash && j_obj_create) {
-                    printf("   %s \t| %s | %s\t|",
-                            json_object_get_string(j_obj_event_number), json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create));
-                } else {
-                    printf("Missing required fields in array element at index %d\n", i);
-                }
-            } else if (json_object_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
-                json_object_object_get_ex(json_obj_result, "offset", &j_obj_off);
-                l_limit = json_object_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
-                if (j_obj_off)
-                    l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_off));
-                continue;
-            } else {
-                json_print_object(json_obj_result, 0);
-            }             
-            printf("\n");
-        }
-        printf("________|____________________________________________________________________|__________________________________|\n\n");
         if (l_limit) {            
             printf("\tlimit: %s \n", l_limit);
             DAP_DELETE(l_limit);
