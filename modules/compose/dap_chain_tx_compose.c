@@ -748,6 +748,12 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
 
     *a_net_fee = dap_chain_balance_scan(l_balance_str);
 
+    if(IS_ZERO_256(*a_net_fee)) {
+        log_it(L_INFO, "%s network feee is zero", a_config->net_name);
+        json_object_put(l_json_get_fee);
+        return false;
+    }
+
     json_object *l_addr = NULL;
     if (!json_object_object_get_ex(l_network, "addr", &l_addr) || 
         !json_object_is_type(l_addr, json_type_string)) {
@@ -4187,7 +4193,7 @@ json_object* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain
     }
 
     if (!l_node_addr.uint64) {
-        dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_NODE_ADDR, "Invalid node addr, iz sero");
+        dap_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_NODE_ADDR, "Invalid node addr, is sero");
         return s_compose_config_return_response_handler(l_config);
     }
 
@@ -4366,16 +4372,16 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_chain_addr_t *a_wallet_add
     // add fee items
     if (l_net_fee_used) {
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_net_fee_addr, l_net_fee, l_native_ticker) != 1) {
-            log_it(L_ERROR, "failed to add out ext item");
-            dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_NET_FEE_ERROR, "Error with network fee");
+            log_it(L_ERROR, "Error with network fee, failed to add item");
+            dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_NET_FEE_ERROR, "Error with network fee, failed to add item");
             goto tx_fail;
         }
     }
     DAP_DEL_Z(l_net_fee_addr);
     if (!IS_ZERO_256(a_fee)) {
         if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
-            log_it(L_ERROR, "failed to add fee item");
-            dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_VALIDATOR_FEE_ERROR, "Error with validator fee");
+            log_it(L_ERROR, "Error with validator fee, failed to add item");
+            dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_VALIDATOR_FEE_ERROR, "Error with validator fee, failed to add item");
             goto tx_fail;
         }
     }
@@ -4384,8 +4390,8 @@ dap_chain_datum_tx_t *dap_stake_tx_create_compose(dap_chain_addr_t *a_wallet_add
     SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
     if (!IS_ZERO_256(l_fee_back)) {
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_fee_back, l_native_ticker) != 1) {
-            log_it(L_ERROR, "failed to add out ext item");
-            dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_FEE_BACK_ERROR, "Error with fee back");
+            log_it(L_ERROR, "Error with fee back, failed to add item");
+            dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_FEE_BACK_ERROR, "Error with fee back, failed to add item");
             goto tx_fail;
         }
     }
