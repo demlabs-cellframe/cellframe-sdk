@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: Cellframe SDK
+Description: Cellframe Blockchain Platform SDK
+Version: @CELLFRAME_SDK_VERSION@
+Requires: dap-sdk >= 3.0.0
+Libs: -L${libdir} -lcellframe-sdk
+Cflags: -I${includedir}/cellframe-sdk

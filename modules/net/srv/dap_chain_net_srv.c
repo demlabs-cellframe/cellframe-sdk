@@ -93,6 +93,7 @@ int dap_chain_net_srv_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
+                            0,
         "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"

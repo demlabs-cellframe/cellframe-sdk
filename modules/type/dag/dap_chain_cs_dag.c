@@ -154,6 +154,7 @@ int dap_chain_cs_dag_init()
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
     dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands",
+                            0,
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"

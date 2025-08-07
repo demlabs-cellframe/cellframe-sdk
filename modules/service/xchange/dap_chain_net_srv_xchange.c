@@ -219,7 +219,7 @@ int dap_chain_net_srv_xchange_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL, NULL);
     dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
-
+                           DAP_CHAIN_NET_SRV_XCHANGE_ID,
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"

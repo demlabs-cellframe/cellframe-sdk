@@ -252,6 +252,7 @@ int dap_chain_net_srv_stake_lock_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, s_stake_lock_callback_updater, NULL);
     dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, "Stake lock service commands",
+                DAP_CHAIN_NET_SRV_STAKE_LOCK_ID,
                 "stake_lock hold -net <net_name> -w <wallet_name> -time_staking <YYMMDD> -token <ticker> -value <value> -fee <value>"
                             "[-chain <chain_name>] [-reinvest <percentage>]\n"
                 "stake_lock take -net <net_name> -w <wallet_name> -tx <transaction_hash> -fee <value>"

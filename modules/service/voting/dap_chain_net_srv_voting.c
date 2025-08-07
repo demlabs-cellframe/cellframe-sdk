@@ -128,6 +128,7 @@ int dap_chain_net_srv_voting_init()
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
     dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
                 "poll", s_cli_voting, "Voting/poll commands",
+                DAP_CHAIN_NET_SRV_VOTING_ID,
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>]"
                                            " [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll cancel -net <net_name> -hash <poll_hash> -fee <value_datoshi> -w <fee_wallet_name>\n"

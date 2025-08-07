@@ -752,7 +752,8 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
 
     // vpn client command
     dap_cli_server_cmd_add ("vpn_client", com_vpn_client, "VPN client control",
-    "vpn_client [start -addr <server_address> -port <server_port>|stop|status] -net <net_name>\n"
+                            0,
+        "vpn_client [start -addr <server_address> -port <server_port>|stop|status] -net <net_name>\n"
     "vpn_client init -w <wallet_name> -token <token_name> -value <value> -net <net_name>\n"
             "vpn_client stop -net <net_name>\n"
             "vpn_client status -net <net_name>\n"

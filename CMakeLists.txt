@@ -25,9 +25,22 @@ if(NOT DEFINED CELLFRAME_MODULES)
         # Include external DAP SDK OS detection
         include(${DAP_SDK_PATH}/cmake/OS_Detection.cmake)
         
+        # CRITICAL: Add include directories for external DAP SDK headers
+        include_directories(
+            ${DAP_SDK_PATH}/core/include
+            ${DAP_SDK_PATH}/crypto/include  
+            ${DAP_SDK_PATH}/plugin/include
+            ${DAP_SDK_PATH}/io/include
+            ${DAP_SDK_PATH}/net/server/cli_server/include
+            ${DAP_SDK_PATH}/global-db/include
+            ${DAP_SDK_PATH}/3rdparty/uthash/src
+            ${DAP_SDK_PATH}/3rdparty/json-c
+        )
+        
         # No need to add dap-sdk subdirectory - using external target ${DAP_SDK_TARGET_NAME}
         set(CELLFRAME_EXTERNAL_DAP_SDK ON)
         message("[+] Cellframe SDK: ✅ Using shared DAP SDK, no duplication")
+        message("[+] Cellframe SDK: ✅ Added external DAP SDK include paths")
         
     else()
         message("[+] Cellframe SDK: Using INTERNAL dap-sdk (fallback mode)")
@@ -277,4 +290,78 @@ if(ENABLE_CPPCHECK_ANALYSIS)
     else()
         message(WARNING "cppcheck not found, cppcheck_analysis target unavailable")
     endif()
+endif()
+
+# =========================================
+# INSTALL CONFIGURATION - CELLFRAME SDK
+# =========================================
+# Install shared library (only for external DAP SDK builds)
+if(CELLFRAME_EXTERNAL_DAP_SDK)
+    install(TARGETS cellframe-sdk
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        COMPONENT cellframe_sdk_runtime
+    )
+    
+    # Install headers for development
+    install(DIRECTORY 
+        modules/common/include/
+        modules/chain/include/
+        modules/net/include/
+        modules/wallet/include/
+        modules/core/include/
+        modules/consensus/
+        modules/service/
+        modules/type/
+        DESTINATION include/cellframe-sdk
+        COMPONENT cellframe_sdk_dev
+        FILES_MATCHING PATTERN "*.h"
+    )
+    
+    # Install pkg-config file
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cellframe-sdk.pc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/cellframe-sdk.pc"
+        @ONLY
+    )
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cellframe-sdk.pc"
+        DESTINATION lib/pkgconfig
+        COMPONENT cellframe_sdk_dev
+    )
+    
+    # =========================================
+    # PACKAGING SUPPORT (CPack) - CELLFRAME SDK
+    # =========================================
+    # Package configuration
+    set(CPACK_PACKAGE_NAME "libcellframe-sdk")
+    set(CPACK_PACKAGE_VERSION "1.0.0")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Cellframe SDK - Blockchain Platform SDK")
+    set(CPACK_PACKAGE_VENDOR "Demlabs")
+    set(CPACK_PACKAGE_CONTACT "support@demlabs.net")
+    
+    # Multi-component packaging
+    set(CPACK_COMPONENTS_ALL cellframe_sdk_runtime cellframe_sdk_dev)
+    
+    # Component descriptions
+    set(CPACK_COMPONENT_CELLFRAME_SDK_RUNTIME_DISPLAY_NAME "Cellframe SDK Runtime Library")
+    set(CPACK_COMPONENT_CELLFRAME_SDK_RUNTIME_DESCRIPTION "Shared library for Cellframe SDK")
+    set(CPACK_COMPONENT_CELLFRAME_SDK_RUNTIME_REQUIRED ON)
+    
+    set(CPACK_COMPONENT_CELLFRAME_SDK_DEV_DISPLAY_NAME "Cellframe SDK Development")
+    set(CPACK_COMPONENT_CELLFRAME_SDK_DEV_DESCRIPTION "Headers and development files for Cellframe SDK")
+    set(CPACK_COMPONENT_CELLFRAME_SDK_DEV_DEPENDS cellframe_sdk_runtime)
+    
+    # Debian package configuration  
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libdap-sdk (>= 3.0.0)")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "libs")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Demlabs <support@demlabs.net>")
+    
+    # Package generators
+    set(CPACK_GENERATOR "DEB;TGZ")
+    include(CPack)
+    
+    message("[+] Cellframe SDK: CPack packaging enabled for shared library")
+else()
+    message("[+] Cellframe SDK: No packaging for embedded build mode")
 endif()

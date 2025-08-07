@@ -7230,7 +7230,7 @@ int com_print_log(int a_argc, char **a_argv, void **a_str_reply, int a_version)
     }
 
     // get logs from list
-    char *l_str_ret = dap_log_get_item(l_ts_after, (int) l_limit);
+    char *l_str_ret = dap_log_get_item(NULL, l_ts_after, (int) l_limit);
     if(!l_str_ret) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS, 
                                                                         "no logs");
@@ -8344,7 +8344,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
 
     //send request
     json_object * l_response = NULL;
-    dap_json_rpc_request_send(l_client_internal, l_request, &l_response);
+    dap_json_rpc_request_send(l_client_internal, l_request, &l_response, NULL);
 
     if (l_response) {
         json_object_array_add(*a_json_arr_reply, l_response);
