@@ -25,6 +25,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <pthread.h>
+#include <stdint.h>
+#include <string.h>
+#include "json_object.h"
 #include "uthash.h"
 #include "dap_cli_server.h"
 #include "dap_common.h"
@@ -2067,8 +2070,8 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char *
             return -3;
         }
         printf("__________________________________________________________________________________________________"
-            "_______________________________________________________\n");
-        printf(" Node addres \t\t| Pkey hash \t\t\t\t\t\t\t     | Stake val | Eff val | Rel weight | Sover addr | Sover tax |\n");
+            "_______________________________________________________________________\n");
+        printf(" Node addres \t\t| Pkey hash \t\t\t\t\t\t\t\t| Stake val | Eff val | Rel weight | Sover addr \t   | Sover tax  |\n");
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         result_count = json_object_array_length(json_obj_array);
         struct json_object * json_obj_total = NULL;
@@ -2092,10 +2095,11 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char *
 
                 if (j_obj_node_addr && j_obj_pkey_hash && j_obj_stake_value && j_obj_effective_value && j_obj_related_weight
                     && j_obj_sovereign_addr && j_obj_sovereign_tax) {
-                    printf("%s \t| %s |    %4d   |   %4d  |   %4d     |    %s    |   %4d    |",
+                    printf("%s \t| %s\t|    %4d   |   %4d  |   %4d     |%s    |   %s \t|",
                             json_object_get_string(j_obj_node_addr), json_object_get_string(j_obj_pkey_hash), json_object_get_int(j_obj_stake_value),
-                            json_object_get_int(j_obj_effective_value), json_object_get_int(j_obj_related_weight), json_object_get_string(j_obj_sovereign_addr),
-                            json_object_get_int(j_obj_sovereign_tax));
+                            json_object_get_int(j_obj_effective_value), json_object_get_int(j_obj_related_weight), 
+                            strcmp(json_object_get_string(j_obj_sovereign_addr), "null") ? json_object_get_string(j_obj_sovereign_addr)+85 : "-------------------",
+                            json_object_get_string(j_obj_sovereign_tax));
                 } else {
                     printf("Missing required fields in array element at index %d\n", i);
                 }
@@ -2106,8 +2110,8 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char *
             }
             printf("\n");
         }        
-        printf("________________________|____________________________________________________________________|__"
-            "_________|_________|____________|____________|___________|\n\n");
+        printf("________________________|_______________________________________________________________________|__"
+            "_________|_________|____________|_______________________|____________|\n\n");
         if (json_obj_total)
             json_print_object(json_obj_total, 0);
     } else {
@@ -2259,63 +2263,145 @@ int json_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd_par
         printf("Response is empty\n");
         return -1;
     }
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
+        return -2;
+    
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
-            return -2;
-        }
-        printf("TOKENS is %d\n", result_count);
-        printf("______________________________________________________________________________________________________\n");
-        //struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
-        struct json_object *j_object_tokens = NULL;
-        struct json_object *j_object_tKEL = NULL;
-        char *l_limit = NULL;
-        if (!json_object_object_get_ex(response->result_json_object, "tokens", &j_object_tokens)) {
-            printf("TOKENS is empty\n");
             return -3;
         }
-        struct json_object *json_obj_array2 = json_object_array_get_idx(j_object_tokens, 0);
-        result_count = json_object_array_length(json_obj_array2);
-        printf("TOKENS is %d\n", result_count);
-        if (json_object_object_get_ex(json_obj_array2, "mtKEL", &j_object_tKEL)) {
-            printf("mtKEL found\n");
+        
+        struct json_object *json_obj_main = json_object_array_get_idx(response->result_json_object, 0);
+        struct json_object *j_object_tokens = NULL;
+        
+        // Get TOKENS or tokens array
+        if (!json_object_object_get_ex(json_obj_main, "tokens", &j_object_tokens) &&
+            !json_object_object_get_ex(json_obj_main, "TOKENS", &j_object_tokens)) {
+            printf("TOKENS field not found\n");
             return -4;
         }
         
-        printf("TOKENS is %d\n", result_count);
-        for (int i = 0; i < result_count; i++) {
-            struct json_object *json_obj_result = json_object_array_get_idx(j_object_tokens, i);
-            if (!json_obj_result) {
-                printf("Failed to get array element at index %d\n", i);
-                continue;
-            }
-
-            json_object *j_obj_event_number, *j_obj_hash, *j_obj_create, *j_obj_lim;
-            if (json_object_object_get_ex(json_obj_result, "event_number", &j_obj_event_number) &&
-                json_object_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
-                json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
-            {
-
-                if (j_obj_event_number && j_obj_hash && j_obj_create) {
-                    printf("   %s \t| %s | %s\t|",
-                            json_object_get_string(j_obj_event_number), json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create));
-                } else {
-                    printf("Missing required fields in array element at index %d\n", i);
-                }
-            } else if (json_object_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
-                l_limit = dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(j_obj_lim));
-            } else {
-                json_print_object(json_obj_result, 0);
-            }             
-            printf("______________________________________________________________________________________________________\n");
+        int chains_count = json_object_array_length(j_object_tokens);
+        if (chains_count <= 0) {
+            printf("No tokens found\n");
+            return -5;
         }
-        if (l_limit) {            
-            printf("\tlimit: %s", l_limit);
-            DAP_DELETE(l_limit);
-        }            
+        
+        // Print table header
+        printf("__________________________________________________________________________________________________________________________________________________________________________________\n");
+        printf("  Token Ticker   |   Type  | Decimals | Current Signs | Declarations  | Updates  | Decl Status| Decl Hash  | Total Supply                             | Current Supply \n");
+        printf("__________________________________________________________________________________________________________________________________________________________________________\n");
+        
+        int total_tokens = 0;
+        
+        // Iterate through chains
+        for (int chain_idx = 0; chain_idx < chains_count; chain_idx++) {
+            struct json_object *chain_tokens = json_object_array_get_idx(j_object_tokens, chain_idx);
+            if (!chain_tokens)
+                continue;
+                
+            // Iterate through tokens in this chain
+            json_object_object_foreach(chain_tokens, ticker, token_obj) {
+                total_tokens++;
+                
+                struct json_object *current_state = NULL;
+                struct json_object *declarations = NULL;
+                struct json_object *updates = NULL;
+                
+                json_object_object_get_ex(token_obj, "current_state", &current_state);
+                json_object_object_get_ex(token_obj, "current state", &current_state);
+                json_object_object_get_ex(token_obj, "declarations", &declarations);
+                json_object_object_get_ex(token_obj, "updates", &updates);
+                
+                // Extract token info from current_state
+                const char *total_supply = "N/A";
+                const char *current_supply = "N/A";
+                const char *token_type = "N/A";
+                const char *current_signs = "N/A";                
+                const char *decl_status = "N/A";
+                const char *decl_hash_short = "N/A";
+                int decimals = 0;
+                char hash_buffer[12] = {0};
+                
+                if (current_state) {
+                    struct json_object *total_supply_obj = NULL;
+                    struct json_object *current_supply_obj = NULL;
+                    struct json_object *type_obj = NULL;
+                    struct json_object *signs_obj = NULL;
+                    struct json_object *decimals_obj = NULL;
+                    
+                    if (json_object_object_get_ex(current_state, "Supply total", &total_supply_obj))
+                        total_supply = json_object_get_string(total_supply_obj);
+                    if (json_object_object_get_ex(current_state, "Supply current", &current_supply_obj))
+                        current_supply = json_object_get_string(current_supply_obj);
+                    if (json_object_object_get_ex(current_state, "type", &type_obj))
+                        token_type = json_object_get_string(type_obj);
+                    if (json_object_object_get_ex(current_state, "Auth signs valid", &signs_obj))
+                        current_signs = json_object_get_string(signs_obj);
+                    if (json_object_object_get_ex(current_state, "Decimals", &decimals_obj))
+                        decimals = json_object_get_int(decimals_obj);
+                }
+                
+                // Extract declaration info (get latest declaration)
+                if (declarations && json_object_array_length(declarations) > 0) {
+                    struct json_object *latest_decl = json_object_array_get_idx(declarations, 
+                        json_object_array_length(declarations) - 1);
+                    if (latest_decl) {
+                        struct json_object *status_obj = NULL;
+                        struct json_object *hash_obj = NULL;
+                        
+                        if (json_object_object_get_ex(latest_decl, "status", &status_obj))
+                            decl_status = json_object_get_string(status_obj);
+                        
+                        struct json_object *datum_obj = NULL;
+                        if (json_object_object_get_ex(latest_decl, "Datum", &datum_obj)) {
+                            if (json_object_object_get_ex(datum_obj, "hash", &hash_obj)) {
+                                const char *full_hash = json_object_get_string(hash_obj);
+                                decl_hash_short = full_hash;
+                                if (full_hash && strlen(full_hash) > 10) {
+                                    strncpy(hash_buffer, full_hash + strlen(full_hash) - 10, 10);
+                                    hash_buffer[10] = '\0';
+                                    decl_hash_short = hash_buffer;
+                                } else if (full_hash) {
+                                    decl_hash_short = full_hash;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                int decl_count = declarations ? json_object_array_length(declarations) : 0;
+                int upd_count = updates ? json_object_array_length(updates) : 0;
+                
+                printf("  %-15s|  %-7s|    %-6d|     %-10s|      %-9d|   %-7d|   %-9s|  %-10s|  %-40s|  %-40s|\n",
+                    ticker,
+                    token_type,
+                    decimals,
+                    current_signs,
+                    decl_count,
+                    upd_count,
+                    decl_status,
+                    decl_hash_short,
+                    total_supply,
+                    current_supply
+                );
+            }
+        }
+        
+        printf("__________________________________________________________________________________________________________________________________________________________________________\n");
+        printf("Total tokens: %d\n", total_tokens);
+        
+        // Show tokens_count if available
+        struct json_object *tokens_count_obj = NULL;
+        if (json_object_object_get_ex(json_obj_main, "tokens_count", &tokens_count_obj)) {
+            printf("Tokens count: %s\n", json_object_get_string(tokens_count_obj));
+        }
+        
     } else {
         json_print_object(response->result_json_object, 0);
+        return -6;
     }
     return 0;
 }
