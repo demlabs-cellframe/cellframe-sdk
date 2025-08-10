@@ -214,17 +214,21 @@ void dap_auction_cache_delete(dap_auction_cache_t *a_cache)
 }
 
 /**
- * @brief Add new auction to cache
+ * @brief Add new auction to cache from auction started event data
  * @param a_cache Cache instance
  * @param a_auction_hash Hash of auction transaction
  * @param a_net_id Network ID
  * @param a_group_name Event group name for this auction
+ * @param a_started_data Auction started event data
+ * @param a_tx_timestamp Timestamp of the auction transaction
  * @return Returns 0 on success, negative error code otherwise
  */
 int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache, 
                                   dap_hash_fast_t *a_auction_hash,
                                   dap_chain_net_id_t a_net_id,
-                                  const char *a_group_name)
+                                  const char *a_group_name,
+                                  dap_chain_tx_event_data_auction_started_t *a_started_data,
+                                  dap_time_t a_tx_timestamp)
 {
     if (!a_cache || !a_auction_hash)
         return -1;
@@ -249,11 +253,12 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
         return -3;
     }
     
-    // Initialize auction data
+    // Initialize basic auction data
     l_auction->auction_tx_hash = *a_auction_hash;
     l_auction->net_id = a_net_id;
-    l_auction->status = DAP_AUCTION_STATUS_CREATED;
-    l_auction->created_time = dap_nanotime_now();
+    l_auction->status = DAP_AUCTION_STATUS_ACTIVE;
+    l_auction->created_time = a_tx_timestamp;
+    l_auction->start_time = a_tx_timestamp;
     l_auction->bids = NULL;
     l_auction->bids_count = 0;
     l_auction->active_bids_count = 0;
@@ -263,17 +268,78 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
     l_auction->winners_cnt = 0;
     l_auction->winners_ids = NULL;
     
+    // Set group name if provided
     if (a_group_name) {
         l_auction->group_name = dap_strdup(a_group_name);
+    }
+    
+    // Calculate end time from auction started data if provided
+    if (a_started_data) {
+        switch (a_started_data->time_unit) {
+            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS:
+                l_auction->end_time = a_tx_timestamp + (a_started_data->duration * 3600);
+                break;
+            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS:
+                l_auction->end_time = a_tx_timestamp + (a_started_data->duration * 24 * 3600);
+                break;
+            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS:
+                l_auction->end_time = a_tx_timestamp + (a_started_data->duration * 7 * 24 * 3600);
+                break;
+            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS:
+                l_auction->end_time = a_tx_timestamp + (a_started_data->duration * 30 * 24 * 3600);
+                break;
+            default:
+                // Fallback to seconds
+                l_auction->end_time = a_tx_timestamp + a_started_data->duration;
+                break;
+        }
+        
+        // Add projects from the auction started data
+        if (a_started_data->projects_cnt > 0 && a_started_data->project_ids) {
+            l_auction->projects_count = a_started_data->projects_cnt;
+            
+            // Create project cache entries for each project ID
+            for (uint8_t i = 0; i < a_started_data->projects_cnt; i++) {
+                uint32_t l_project_id = a_started_data->project_ids[i];
+                
+                // Create project hash from project ID (simple approach - could be improved)
+                dap_hash_fast_t l_project_hash;
+                dap_hash_fast(&l_project_id, sizeof(uint32_t), &l_project_hash);
+                
+                // Create project cache item
+                dap_auction_project_cache_item_t *l_project = DAP_NEW_Z(dap_auction_project_cache_item_t);
+                if (l_project) {
+                    l_project->project_hash = l_project_hash;
+                    // Set project name as "Project_ID" for now
+                    l_project->project_name = dap_strdup_printf("Project_%u", l_project_id);
+                    UINT256_ZERO(l_project->total_amount);
+                    l_project->bids_count = 0;
+                    l_project->active_bids_count = 0;
+                    
+                    // Add to projects hash table
+                    HASH_ADD(hh, l_auction->projects, project_hash, sizeof(dap_hash_fast_t), l_project);
+                }
+            }
+        }
+        
+        log_it(L_DEBUG, "Added auction %s with %u projects, duration: %lu %s", 
+               dap_chain_hash_fast_to_str_static(a_auction_hash),
+               a_started_data->projects_cnt,
+               a_started_data->duration,
+               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS ? "hours" :
+               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS ? "days" :
+               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS ? "weeks" :
+               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS ? "months" : "seconds");
     }
     
     // Add to cache
     HASH_ADD(hh, a_cache->auctions, auction_tx_hash, sizeof(dap_hash_fast_t), l_auction);
     a_cache->total_auctions++;
+    a_cache->active_auctions++;
     
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
     
-    log_it(L_DEBUG, "Added auction %s to cache", 
+    log_it(L_DEBUG, "Added auction %s to cache with ACTIVE status", 
            dap_chain_hash_fast_to_str_static(a_auction_hash));
     return 0;
 }
@@ -643,46 +709,33 @@ void dap_auction_cache_event_callback(void *a_arg,
                         return;
                     }
                     
-                // Add new auction or update existing one to ACTIVE status
+                // Check if auction already exists in cache
                 dap_auction_cache_item_t *l_auction = dap_auction_cache_find_auction(s_auction_cache, &a_event->tx_hash);
-                    if (!l_auction) {
-                    // Create new auction entry
-                    dap_auction_cache_add_auction(s_auction_cache, &a_event->tx_hash, 
-                                                 a_ledger->net->pub.id, a_event->group_name);
-                        l_auction = dap_auction_cache_find_auction(s_auction_cache, &a_event->tx_hash);
+                if (!l_auction) {
+                    // Create new auction entry with proper auction started data
+                    int l_result = dap_auction_cache_add_auction(s_auction_cache, &a_event->tx_hash, 
+                                                               a_ledger->net->pub.id, a_event->group_name,
+                                                               l_started_data, a_event->timestamp);
+                    if (l_result != 0) {
+                        log_it(L_ERROR, "Failed to add auction %s to cache: %d", 
+                               dap_chain_hash_fast_to_str_static(&a_event->tx_hash), l_result);
+                        return;
                     }
-                    
-                    if (l_auction) {
-                        // Update status and counters efficiently (avoid second cache lookup)
-                        pthread_rwlock_wrlock(&s_auction_cache->cache_rwlock);
-                        dap_auction_status_t l_old_status = l_auction->status;
+                } else {
+                    // Auction already exists, just update its status to ACTIVE if needed
+                    pthread_rwlock_wrlock(&s_auction_cache->cache_rwlock);
+                    dap_auction_status_t l_old_status = l_auction->status;
+                    if (l_old_status != DAP_AUCTION_STATUS_ACTIVE) {
                         l_auction->status = DAP_AUCTION_STATUS_ACTIVE;
-                        l_auction->start_time = a_event->timestamp;
+                        s_auction_cache->active_auctions++;
                         
-                        // Update active auctions counter
-                        if (l_old_status != DAP_AUCTION_STATUS_ACTIVE) {
-                            s_auction_cache->active_auctions++;
-                        }
-                        
-                        // Calculate end time from duration
-                        switch (l_started_data->time_unit) {
-                            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS:
-                                l_auction->end_time = a_event->timestamp + (l_started_data->duration * 3600);
-                                break;
-                            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS:
-                                l_auction->end_time = a_event->timestamp + (l_started_data->duration * 24 * 3600);
-                                break;
-                            default:
-                                l_auction->end_time = a_event->timestamp + l_started_data->duration;
-                                break;
-                        }
-                        pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
-                        
-                        log_it(L_DEBUG, "Updated auction %s status from %s to %s", 
+                        log_it(L_DEBUG, "Updated existing auction %s status from %s to %s", 
                                dap_chain_hash_fast_to_str_static(&a_event->tx_hash),
                                dap_auction_status_to_str(l_old_status),
                                dap_auction_status_to_str(DAP_AUCTION_STATUS_ACTIVE));
                     }
+                    pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
+                }
                     
                     log_it(L_INFO, "Auction %s started with %u projects, duration: %"DAP_UINT64_FORMAT_U" %s", 
                            dap_chain_hash_fast_to_str_static(&a_event->tx_hash),
@@ -873,15 +926,13 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
 
         byte_t *l_item;
         size_t l_item_size;
-        int l_item_idx = 0;
-        while ((l_item = dap_chain_datum_tx_item_get(a_tx_in, &l_item_idx, &l_item_size, TX_ITEM_TYPE_SIG, NULL)) != NULL) {
+        while ((l_item = dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, &l_item_size)) != NULL) {
             dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t*)l_item;
             if (l_sig->header.sig_size > 0) {
                 dap_chain_addr_fill_from_sign(&l_bidder_addr, l_sig, a_ledger->net->pub.id);
                 l_bidder_found = true;
                 break;
             }
-            l_item_idx++;
         }
 
         if (!l_bidder_found) {
