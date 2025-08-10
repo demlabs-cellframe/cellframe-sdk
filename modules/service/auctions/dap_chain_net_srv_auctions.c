@@ -312,7 +312,7 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
                     l_project->project_hash = l_project_hash;
                     // Set project name as "Project_ID" for now
                     l_project->project_name = dap_strdup_printf("Project_%u", l_project_id);
-                    UINT256_ZERO(l_project->total_amount);
+                    l_project->total_amount = uint256_0;
                     l_project->bids_count = 0;
                     l_project->active_bids_count = 0;
                     
