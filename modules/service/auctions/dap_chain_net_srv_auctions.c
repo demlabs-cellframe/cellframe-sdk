@@ -1815,6 +1815,17 @@ char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_fro
     }
 
     const char *l_native_ticker = a_net->pub.native_ticker;
+    // Derive delegated m-token ticker for this chain (not hardcoded)
+    char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] = {};
+    dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_native_ticker);
+
+    // Get emission rate for delegated m-token
+    uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(l_ledger, l_delegated_ticker_str);
+    if (IS_ZERO_256(l_emission_rate)) {
+        log_it(L_ERROR, "Failed to get emission rate for delegated token %s", l_delegated_ticker_str);
+        set_ret_code(a_ret_code, -17);
+        return NULL;
+    }
     dap_chain_addr_t l_addr_from = {};
     dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_net->pub.id);
 
@@ -1880,7 +1891,7 @@ char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_fro
     // 5. Add 'in_ems' item (emission input for m-tokens)
     dap_chain_id_t l_chain_id = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX)->id;
     dap_hash_fast_t l_blank_hash = {};
-    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, "mCAPS");
+    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, l_delegated_ticker_str);
     if (l_in_ems) {
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_in_ems);
         DAP_DELETE(l_in_ems);
@@ -1900,8 +1911,15 @@ char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_fro
     DAP_DELETE(l_out_cond);
 
     // 7. Add m-tokens output
-    uint256_t l_mcaps_amount = a_amount; // 1:1 ratio for now
-    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_from, l_mcaps_amount, "mCAPS") != 1) {
+    // Calculate m-token amount using emission rate
+    uint256_t l_mtoken_amount = {};
+    if (MULT_256_COIN(a_amount, l_emission_rate, &l_mtoken_amount) || IS_ZERO_256(l_mtoken_amount)) {
+        log_it(L_ERROR, "Failed to calculate m-token amount: overflow or zero result");
+        dap_chain_datum_tx_delete(l_tx);
+        set_ret_code(a_ret_code, -18);
+        return NULL;
+    }
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_from, l_mtoken_amount, l_delegated_ticker_str) != 1) {
         log_it(L_ERROR, "Failed to add m-tokens output");
         dap_chain_datum_tx_delete(l_tx);
         set_ret_code(a_ret_code, -7);
@@ -2069,6 +2087,14 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
     int cmd_num = CMD_NONE;
     const char *str_tmp = NULL;
     json_object **l_json_arr_reply = (json_object **) str_reply;
+    
+    // Ensure JSON reply is an array to avoid segfaults on json_object_array_add
+    if (!l_json_arr_reply) {
+        return -1;
+    }
+    if (!*l_json_arr_reply || !json_object_is_type(*l_json_arr_reply, json_type_array)) {
+        *l_json_arr_reply = json_object_new_array();
+    }
     
     // Parse command
     if(arg_index >= argc) {
