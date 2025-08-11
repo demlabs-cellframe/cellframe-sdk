@@ -482,7 +482,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->addr), a_link->uplink.client->link_info.uplink_addr, a_error);
-        json_object_object_add(l_json, "error_message", json_object_new_string(l_err_str));
+        json_object_object_add(l_json, dap_cli_server_get_version() == 1 ? "errorMessage" : "error_message", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
     }
@@ -2786,7 +2786,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 return -102;
             }
             dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, 0);
-            if (l_sig && dap_sign_type_is_depricated(l_sig->header.type)){
+            if (l_sig && dap_sign_type_is_deprecated(l_sig->header.type)){
                 dap_chain_addr_t l_addr = {};
                 dap_chain_addr_fill_from_sign(&l_addr, l_sig, a_chain->net_id);
                 log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_chain_hash_fast_to_str_static(a_datum_hash));

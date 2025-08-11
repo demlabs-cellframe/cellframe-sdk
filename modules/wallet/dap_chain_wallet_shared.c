@@ -987,7 +987,7 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Specified certificate %s not found", l_cert_str);
             return ERROR_VALUE;
         }
-        if (dap_sign_type_is_depricated(dap_sign_type_from_key_type(l_cert->enc_key->type)))
+        if (dap_sign_type_is_deprecated(dap_sign_type_from_key_type(l_cert->enc_key->type)))
             l_sign_str = "The Bliss, Picnic and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n";
         else
             l_sign_str = "";
