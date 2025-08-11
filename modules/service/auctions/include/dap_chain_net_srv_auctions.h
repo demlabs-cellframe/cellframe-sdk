@@ -133,6 +133,7 @@ typedef struct dap_chain_net_srv_auction_project {
 // Single auction structure (for external API)
 typedef struct dap_chain_net_srv_auction {
     dap_hash_fast_t auction_hash;
+    char *auction_name;                   // Auction name (group_name from cache)
     dap_auction_status_t status;
     dap_time_t created_time;
     dap_time_t start_time;
@@ -183,7 +184,6 @@ int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
                               dap_hash_fast_t *a_bid_hash,
                               dap_chain_addr_t *a_bidder_addr,
                               uint256_t a_bid_amount,
-                              uint8_t a_range_end,
                               dap_time_t a_lock_time,
                               dap_hash_fast_t *a_project_hash,
                               const char *a_project_name);
@@ -249,7 +249,7 @@ dap_auction_status_t dap_auction_status_from_event_type(uint16_t a_event_type);
 
 // Transaction creation functions 
 char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
-                                uint8_t a_range_end, uint256_t a_amount, dap_time_t a_lock_time, uint256_t a_fee, int *a_ret_code);
+                                uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_project_id, uint256_t a_fee, int *a_ret_code);
 
 char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code);
 

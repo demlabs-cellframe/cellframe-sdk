@@ -40,8 +40,6 @@ enum error_code {
     AUCTION_HASH_FORMAT_ERROR = 4,
     WALLET_ARG_ERROR = 5,
     WALLET_OPEN_ERROR = 6,
-    RANGE_ARG_ERROR = 7,
-    RANGE_FORMAT_ERROR = 8,
     AMOUNT_ARG_ERROR = 9,
     AMOUNT_FORMAT_ERROR = 10,
     LOCK_ARG_ERROR = 11,
@@ -54,14 +52,23 @@ enum error_code {
     AUCTION_NOT_ACTIVE_ERROR = 18,
     BID_CREATE_ERROR = 19,
     WITHDRAW_CREATE_ERROR = 20,
-    COMMAND_NOT_RECOGNIZED = 21
+    COMMAND_NOT_RECOGNIZED = 21,
+    AUCTION_NAME_ARG_ERROR = 22,
+    AUCTION_DURATION_ARG_ERROR = 23,
+    AUCTION_DURATION_FORMAT_ERROR = 24,
+    AUCTION_END_TIME_ERROR = 25,
+    AUCTION_CREATE_ERROR = 26,
+    PROJECT_ID_ARG_ERROR = 27,
+    PROJECT_ID_FORMAT_ERROR = 28,
+    AUCTION_CACHE_NOT_INITIALIZED = 29,
+    PROJECT_NOT_FOUND_IN_AUCTION = 30
 };
 
 // Callbacks
 static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
 static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
-                                     uint8_t a_range_end, uint256_t a_amount, dap_time_t a_lock_time, uint256_t a_fee, int *a_ret_code);
+                                     uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_project_id, uint256_t a_fee, int *a_ret_code);
 char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code);
 int com_auction(int argc, char **argv, void **str_reply, int a_version);
 
@@ -97,41 +104,43 @@ int dap_chain_net_srv_auctions_init(void)
     }
     
     dap_cli_server_cmd_add ("auction", com_auction, "Auction commands",
-                "bid -net <network> -auction <hash> -range <1..8> -amount <value> -lock <3..24> -fee <value> -w <wallet>\n"
-                "\tPlace a bid on an auction\n\n"
-                "withdraw -net <network> -bid_tx_hash <hash> -fee <value> -w <wallet>\n"
-                "\tWithdraw a bid from an auction\n\n"
-                "list -net <network> [-active_only] [-projects]\n"
-                "\tList all auctions or active auctions only\n"
-                "\t-active_only: show only active auctions\n"
-                "\t-projects: include basic project information\n\n"
-                "info -net <network> -auction <hash>\n"
-                "\tGet detailed information about an auction with all projects\n\n"
-                "stats -net <network>\n"
-                "\tGet statistics about auctions (total, active, ended, cancelled)\n\n"
-                "events -net <network> [-auction <hash>] [-type <event_type>] [-limit <count>]\n"
-                "\tGet auction events with optional filtering\n\n"
-                "Event types:\n"
-                "  auction_created - New auction created\n"
-                "  auction_started - Auction bidding started\n"
-                "  auction_ended - Auction bidding ended\n"
-                "  bid_placed - New bid placed\n"
-                "  bid_withdrawn - Bid withdrawn\n"
-                "  auction_completed - Auction completed with winner\n"
-                "  auction_cancelled - Auction cancelled\n\n"
-                "Auction concept:\n"
-                "  - Multiple projects compete in each auction\n"
-                "  - People place bids on specific projects\n"
-                "  - Winner is the PROJECT with highest total bid amount\n"
-                "  - Each bid has range (1-8) and lock period (3-24 months)\n\n"
-                "Rules:\n"
-                "  - Range must be 1-8, higher range = higher priority\n"
-                "  - Lock period: 3-24 months, funds locked until withdrawal\n"
-                "  - Minimum bid amount: 1 CELL\n"
-                "  - Auction duration: 24-168 hours\n"
-                "  - Winner determined by project with highest total amount\n"
-                "  - Failed auctions: funds returned to bidders\n"
-                "  - Withdrawal fee: 0.001 CELL");
+                "bid -net <network> -auction <hash> -amount <value> -lock <3..24> -project <project_id> -fee <value> -w <wallet>\\n"
+                "\\tPlace a bid on an auction for a specific project\\n"
+                "\\t-project: project ID (uint32) for which the bid is made\\n\\n"
+                "withdraw -net <network> -bid_tx_hash <hash> -fee <value> -w <wallet>\\n"
+                "\\tWithdraw a bid from an auction\\n\\n"
+                "list -net <network> [-active_only] [-projects]\\n"
+                "\\tList all auctions or active auctions only\\n"
+                "\\t-active_only: show only active auctions\\n"
+                "\\t-projects: include basic project information\\n\\n"
+                "info -net <network> -auction <hash>\\n"
+                "\\tGet detailed information about a specific auction\\n\\n"
+                "events -net <network> [-auction <hash>] [-limit <count>]\\n"
+                "\\tGet auction events history\\n"
+                "\\t-auction: filter events for specific auction\\n"
+                "\\t-limit: maximum number of events to return\\n\\n"
+                "stats -net <network>\\n"
+                "\\tGet auction statistics\\n\\n"
+                "create -net <network> -name <auction_name> -duration <duration_hours> -projects <project_list> -fee <value> -w <wallet>\\n"
+                "\\tCreate a new auction\\n"
+                "\\t-name: auction name (string)\\n"
+                "\\t-duration: auction duration in hours\\n"
+                "\\t-projects: comma-separated list of project IDs or names\\n"
+                "\\t-fee: transaction fee\\n"
+                "\\t-w: wallet name\\n\\n"
+                "  Examples:\\n"
+                "  auction list -net myCellFrame -active_only -projects\\n"
+                "  auction bid -net myCellFrame -auction <hash> -amount 1000 -lock 6 -project 1 -fee 0.1 -w myWallet\\n"
+                "  auction info -net myCellFrame -auction <hash>\\n"
+                "  auction withdraw -net myCellFrame -bid_tx_hash <hash> -fee 0.1 -w myWallet\\n"
+                "  auction events -net myCellFrame -auction <hash> -limit 10\\n"
+                "  auction stats -net myCellFrame\\n"
+                "  auction create -net myCellFrame -name 'Test Auction' -duration 168 -projects '1,2,part3' -fee 0.1 -w myWallet\\n\\n"
+                "  Notes:\\n"
+                "  - Lock period (3-24 months): how long your tokens are locked\\n"
+                "  - Each bid has lock period (3-24 months)\\n\\n"
+                "  auction_created - Auction successfully created\\n"
+                "  auction_cancelled - Auction cancelled\\n\\n");
 
     log_it(L_NOTICE, "Auction service initialized successfully with cache monitoring");
     return 0;
@@ -311,6 +320,7 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
                 if (l_project) {
                     l_project->project_hash = l_project_hash;
                     // Set project name as "Project_ID" for now
+                    //
                     l_project->project_name = dap_strdup_printf("Project_%u", l_project_id);
                     l_project->total_amount = uint256_0;
                     l_project->bids_count = 0;
@@ -351,7 +361,6 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
  * @param a_bid_hash Hash of bid transaction
  * @param a_bidder_addr Address of bidder
  * @param a_bid_amount Bid amount
- * @param a_range_end Range end (1-8)
  * @param a_lock_time Lock time in seconds
  * @param a_project_hash Hash of project this bid is for
  * @param a_project_name Name of project this bid is for
@@ -362,7 +371,6 @@ int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
                               dap_hash_fast_t *a_bid_hash,
                               dap_chain_addr_t *a_bidder_addr,
                               uint256_t a_bid_amount,
-                              uint8_t a_range_end,
                               dap_time_t a_lock_time,
                               dap_hash_fast_t *a_project_hash,
                               const char *a_project_name)
@@ -404,7 +412,6 @@ int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
     l_bid->bid_tx_hash = *a_bid_hash;
     l_bid->bidder_addr = *a_bidder_addr;
     l_bid->bid_amount = a_bid_amount;
-    l_bid->range_end = a_range_end;
     l_bid->lock_time = a_lock_time;
     l_bid->created_time = dap_nanotime_now();
     l_bid->is_withdrawn = false;
@@ -742,7 +749,9 @@ void dap_auction_cache_event_callback(void *a_arg,
                            l_started_data->projects_cnt,
                            l_started_data->duration,
                            l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS ? "hours" :
-                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS ? "days" : "seconds");
+                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS ? "days" :
+                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS ? "weeks" :
+                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS ? "months" : "seconds");
                 }
             }
         } break;
@@ -913,7 +922,6 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
 
         // 2. Extract bid parameters from conditional output
         dap_hash_fast_t l_auction_hash = l_out_cond->subtype.srv_auction_bid.auction_hash;
-        uint8_t l_range_end = l_out_cond->subtype.srv_auction_bid.range_end;
         dap_time_t l_lock_time = l_out_cond->subtype.srv_auction_bid.lock_time;
         uint32_t l_project_id = l_out_cond->subtype.srv_auction_bid.project_id;
 
@@ -954,17 +962,16 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
                                                      a_tx_in_hash,
                                                      &l_bidder_addr,
                                                      l_bid_amount,
-                                                     l_range_end,
                                                      l_lock_time,
                                                      l_project_id > 0 ? &l_project_hash : NULL,
                                                      NULL); // project_name - could be extracted if available
 
         if (l_add_result == 0) {
-            log_it(L_INFO, "Successfully added bid %s to auction %s cache (project_id=%u, range_end=%u, amount=%s)", 
+            log_it(L_INFO, "Successfully added bid %s to auction %s cache (project_id=%u, lock_time=%"DAP_UINT64_FORMAT_U", amount=%s)", 
                    dap_chain_hash_fast_to_str_static(a_tx_in_hash),
                    dap_chain_hash_fast_to_str_static(&l_auction_hash),
                    l_project_id,
-                   l_range_end,
+                   l_lock_time,
                    dap_uint256_to_char(l_bid_amount, NULL));
         } else {
             log_it(L_WARNING, "Failed to add bid %s to auction %s cache (error: %d)", 
@@ -1029,7 +1036,6 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
         HASH_ITER(hh, l_auction->bids, l_bid, l_tmp_bid) {
             // Match bid by conditional output parameters and bidder address
             if (!l_bid->is_withdrawn &&
-                l_bid->range_end == a_prev_out_item->subtype.srv_auction_bid.range_end &&
                 l_bid->lock_time == a_prev_out_item->subtype.srv_auction_bid.lock_time &&
                 dap_chain_addr_compare(&l_bid->bidder_addr, &l_bidder_addr)) {
 
@@ -1048,9 +1054,8 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
         }
 
         if (!l_bid_found) {
-            log_it(L_WARNING, "Could not find matching bid for withdrawal in auction %s (range_end=%u, lock_time=%"DAP_UINT64_FORMAT_U")",
+            log_it(L_WARNING, "Could not find matching bid for withdrawal in auction %s (lock_time=%"DAP_UINT64_FORMAT_U")",
                    dap_chain_hash_fast_to_str_static(&l_auction_hash),
-                   a_prev_out_item->subtype.srv_auction_bid.range_end,
                    a_prev_out_item->subtype.srv_auction_bid.lock_time);
         }
 
@@ -1080,10 +1085,11 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         return -2;
     }
 
-    // Check range_end value
-    if (a_cond->subtype.srv_auction_bid.range_end < 1 || a_cond->subtype.srv_auction_bid.range_end > 8) {
-        log_it(L_WARNING, "Invalid range_end value %u (must be 1-8)", a_cond->subtype.srv_auction_bid.range_end);
-        return -3;
+    // Validate project_id 
+    uint32_t l_project_id = a_cond->subtype.srv_auction_bid.project_id;
+    if (l_project_id == 0) {
+        log_it(L_WARNING, "Invalid project_id value 0 (must be > 0)");
+        return -4;
     }
 
     // Only the owner (who created the bid/lock) can withdraw funds
@@ -1224,6 +1230,7 @@ void dap_chain_net_srv_auction_delete(dap_chain_net_srv_auction_t *a_auction)
     if (!a_auction)
         return;
     
+    DAP_DELETE(a_auction->auction_name);
     DAP_DELETE(a_auction->description);
     DAP_DELETE(a_auction->winners_ids);  // Free winners array
     
@@ -1265,10 +1272,12 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_find(dap_chain_net_t *a_
     
     // Fill auction data from cache
     l_auction->auction_hash = l_cached_auction->auction_tx_hash;
+    l_auction->auction_name = l_cached_auction->group_name ? dap_strdup(l_cached_auction->group_name) : NULL;
     l_auction->status = l_cached_auction->status;
     l_auction->created_time = l_cached_auction->created_time;
     l_auction->start_time = l_cached_auction->start_time;
     l_auction->end_time = l_cached_auction->end_time;
+    l_auction->description = l_cached_auction->description ? dap_strdup(l_cached_auction->description) : NULL;
     l_auction->bids_count = l_cached_auction->bids_count;
     l_auction->projects_count = l_cached_auction->projects_count;
     
@@ -1339,10 +1348,12 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_get_detailed(dap_chain_n
     
     // Fill basic auction data
     l_auction->auction_hash = l_cached_auction->auction_tx_hash;
+    l_auction->auction_name = l_cached_auction->group_name ? dap_strdup(l_cached_auction->group_name) : NULL;
     l_auction->status = l_cached_auction->status;
     l_auction->created_time = l_cached_auction->created_time;
     l_auction->start_time = l_cached_auction->start_time;
     l_auction->end_time = l_cached_auction->end_time;
+    l_auction->description = l_cached_auction->description ? dap_strdup(l_cached_auction->description) : NULL;
     l_auction->bids_count = l_cached_auction->bids_count;
     l_auction->projects_count = l_cached_auction->projects_count;
     
@@ -1363,10 +1374,6 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_get_detailed(dap_chain_n
     } else {
         l_auction->winners_cnt = 0;
         l_auction->winners_ids = NULL;
-    }
-    
-    if (l_cached_auction->description) {
-        l_auction->description = dap_strdup(l_cached_auction->description);
     }
     
     // Fill projects array
@@ -1438,10 +1445,12 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
         
         // Fill basic data
         l_auction->auction_hash = l_cached_auction->auction_tx_hash;
+        l_auction->auction_name = l_cached_auction->group_name ? dap_strdup(l_cached_auction->group_name) : NULL;
         l_auction->status = l_cached_auction->status;
         l_auction->created_time = l_cached_auction->created_time;
         l_auction->start_time = l_cached_auction->start_time;
         l_auction->end_time = l_cached_auction->end_time;
+        l_auction->description = l_cached_auction->description ? dap_strdup(l_cached_auction->description) : NULL;
         l_auction->bids_count = l_cached_auction->bids_count;
         l_auction->projects_count = l_cached_auction->projects_count;
         
@@ -1464,12 +1473,35 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
             l_auction->winners_ids = NULL;
         }
         
-        if (l_cached_auction->description) {
-            l_auction->description = dap_strdup(l_cached_auction->description);
+        // Fill projects array if requested and available
+        if (a_include_projects && l_cached_auction->projects_count > 0) {
+            l_auction->projects = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_srv_auction_project_t,
+                                                                sizeof(dap_chain_net_srv_auction_project_t) * l_cached_auction->projects_count,
+                                                                NULL);
+            if (l_auction->projects) {
+                uint32_t l_index = 0;
+                dap_auction_project_cache_item_t *l_project, *l_tmp_project;
+                HASH_ITER(hh, l_cached_auction->projects, l_project, l_tmp_project) {
+                    if (l_index >= l_cached_auction->projects_count)
+                        break;
+                    
+                    l_auction->projects[l_index].project_hash = l_project->project_hash;
+                    l_auction->projects[l_index].total_amount = l_project->total_amount;
+                    l_auction->projects[l_index].bids_count = l_project->bids_count;
+                    l_auction->projects[l_index].active_bids_count = l_project->active_bids_count;
+                    
+                    if (l_project->project_name) {
+                        l_auction->projects[l_index].project_name = dap_strdup(l_project->project_name);
+                    }
+                    
+                    l_index++;
+                }
+            } else {
+                // Memory allocation failed - log error but continue
+                log_it(L_ERROR, "Failed to allocate memory for projects array in list view");
+                l_auction->projects_count = 0;
+            }
         }
-        
-        // TODO: Include basic project information if a_include_projects is true
-        // For now, projects array is left NULL
         
         l_list = dap_list_append(l_list, l_auction);
     }
@@ -1794,23 +1826,63 @@ char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *
  * @param a_net Network instance
  * @param a_key_from Encryption key for transaction signing
  * @param a_auction_hash Hash of the auction transaction
- * @param a_range_end Range end value (1-8)
  * @param a_amount Bid amount
  * @param a_lock_time Lock time in seconds
+ * @param a_project_id Project ID for which the bid is made
  * @param a_fee Transaction fee
  * @param a_ret_code Return code for error handling
  * @return Returns transaction hash string or NULL on error
  */
 char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
-                                     uint8_t a_range_end, uint256_t a_amount, dap_time_t a_lock_time, uint256_t a_fee, int *a_ret_code)
+                                     uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_project_id, uint256_t a_fee, int *a_ret_code)
 {
-    if (!a_net || !a_key_from || !a_auction_hash || IS_ZERO_256(a_amount) || a_range_end < 1 || a_range_end > 8)
+    if (!a_net || !a_key_from || !a_auction_hash || IS_ZERO_256(a_amount) || a_project_id == 0)
         return NULL;
 
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     if (!l_ledger) {
         log_it(L_ERROR, "Ledger not found");
         set_ret_code(a_ret_code, -1);
+        return NULL;
+    }
+
+    // Validate project_id exists in auction
+    if (!s_auction_cache) {
+        log_it(L_ERROR, "Auction cache not initialized");
+        set_ret_code(a_ret_code, -29);
+        return NULL;
+    }
+    
+    pthread_rwlock_rdlock(&s_auction_cache->cache_rwlock);
+    dap_auction_cache_item_t *l_auction_cache = NULL;
+    HASH_FIND(hh, s_auction_cache->auctions, a_auction_hash, sizeof(dap_hash_fast_t), l_auction_cache);
+    
+    if (!l_auction_cache) {
+        pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
+        log_it(L_ERROR, "Auction not found in cache");
+        set_ret_code(a_ret_code, -30);
+        return NULL;
+    }
+    
+    // Check if project_id exists in auction
+    bool l_project_found = false;
+    if (l_auction_cache->projects_count > 0) {
+        // Generate project hash from project_id for comparison
+        dap_hash_fast_t l_project_hash = {};
+        dap_hash_fast(&a_project_id, sizeof(uint32_t), &l_project_hash);
+        
+        dap_auction_project_cache_item_t *l_project = NULL;
+        HASH_FIND(hh, l_auction_cache->projects, &l_project_hash, sizeof(dap_hash_fast_t), l_project);
+        if (l_project) {
+            l_project_found = true;
+        }
+    }
+    
+    pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
+    
+    if (!l_project_found) {
+        log_it(L_ERROR, "Project ID %u not found in auction", a_project_id);
+        set_ret_code(a_ret_code, -31);
         return NULL;
     }
 
@@ -1900,7 +1972,7 @@ char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_fro
     // 6. Add conditional output (auction bid lock)
     dap_chain_net_srv_uid_t l_srv_uid = {.uint64 = DAP_CHAIN_NET_SRV_AUCTION_ID};
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(
-        l_srv_uid, a_amount, a_auction_hash, a_range_end, a_lock_time, NULL, 0);
+        l_srv_uid, a_amount, a_auction_hash, a_lock_time, a_project_id, NULL, 0);
     if (!l_out_cond) {
         log_it(L_ERROR, "Failed to create auction bid conditional output");
         dap_chain_datum_tx_delete(l_tx);
@@ -2020,11 +2092,8 @@ static void s_error_handler(enum error_code a_err_code, dap_string_t *a_str_repl
         case WALLET_OPEN_ERROR:
             dap_string_append_printf(a_str_reply, "Can't open wallet '%s'", a_args);
             break;
-        case RANGE_ARG_ERROR:
             dap_string_append_printf(a_str_reply, "auction bid command requires parameter -range");
             break;
-        case RANGE_FORMAT_ERROR:
-            dap_string_append_printf(a_str_reply, "Range must be between 1 and 8");
             break;
         case AMOUNT_ARG_ERROR:
             dap_string_append_printf(a_str_reply, "auction bid command requires parameter -amount");
@@ -2061,6 +2130,21 @@ static void s_error_handler(enum error_code a_err_code, dap_string_t *a_str_repl
             break;
         case COMMAND_NOT_RECOGNIZED:
             dap_string_append_printf(a_str_reply, "Command '%s' not recognized", a_args);
+            break;
+        case AUCTION_CREATE_ERROR:
+            dap_string_append_printf(a_str_reply, "Error creating auction transaction: %s", a_args ? a_args : "unknown error");
+            break;
+        case PROJECT_ID_ARG_ERROR:
+            dap_string_append_printf(a_str_reply, "auction bid command requires parameter -project");
+            break;
+        case PROJECT_ID_FORMAT_ERROR:
+            dap_string_append_printf(a_str_reply, "Invalid project ID format");
+            break;
+        case AUCTION_CACHE_NOT_INITIALIZED:
+            dap_string_append_printf(a_str_reply, "Auction cache not initialized");
+            break;
+        case PROJECT_NOT_FOUND_IN_AUCTION:
+            dap_string_append_printf(a_str_reply, "Project ID not found in auction");
             break;
         default:
             dap_string_append_printf(a_str_reply, "Unknown error (code: %d)", a_err_code);
@@ -2153,19 +2237,6 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 return -1;
             }
 
-            // Parse range
-            str_tmp = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-range", &str_tmp);
-            if(!str_tmp) {
-                dap_json_rpc_error_add(*l_json_arr_reply, RANGE_ARG_ERROR, "Range not specified");
-                return -1;
-            }
-            uint8_t l_range_end = (uint8_t)atoi(str_tmp);
-            if(l_range_end < 1 || l_range_end > 8) {
-                dap_json_rpc_error_add(*l_json_arr_reply, RANGE_FORMAT_ERROR, "Range must be between 1 and 8");
-                return -1;
-            }
-
             // Parse amount
             str_tmp = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-amount", &str_tmp);
@@ -2205,6 +2276,19 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 return -1;
             }
 
+            // Parse project ID
+            str_tmp = NULL;
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-project", &str_tmp);
+            if(!str_tmp) {
+                dap_json_rpc_error_add(*l_json_arr_reply, PROJECT_ID_ARG_ERROR, "Project ID not specified");
+                return -1;
+            }
+            uint32_t l_project_id = (uint32_t)atoi(str_tmp);
+            if(l_project_id == 0) {
+                dap_json_rpc_error_add(*l_json_arr_reply, PROJECT_ID_FORMAT_ERROR, "Invalid project ID format");
+                return -1;
+            }
+
             // Parse auction hash and convert to hash
             dap_hash_fast_t l_auction_hash = {};
             if (dap_chain_hash_fast_from_str(l_auction_hash_str, &l_auction_hash) != 0) {
@@ -2237,7 +2321,7 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
             // Create auction bid transaction
             int l_ret_code = 0;
             char *l_tx_hash_str = dap_auction_bid_tx_create(l_net, l_enc_key, &l_auction_hash, 
-                                                         l_range_end, l_amount, l_lock_time, l_fee, &l_ret_code);
+                                                         l_amount, l_lock_time, l_project_id, l_fee, &l_ret_code);
             DAP_DELETE(l_enc_key);
             
             // Close wallet
@@ -2250,7 +2334,6 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
                 json_object_object_add(l_json_obj, "tx_hash", json_object_new_string(l_tx_hash_str));
                 json_object_object_add(l_json_obj, "auction_hash", json_object_new_string(l_auction_hash_str));
-                json_object_object_add(l_json_obj, "range_end", json_object_new_int(l_range_end));
                 
                 const char *l_amount_str = dap_uint256_to_char(l_amount, NULL);
                 json_object_object_add(l_json_obj, "amount", json_object_new_string(l_amount_str));
@@ -2307,6 +2390,15 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                         break;
                     case -13:
                         l_error_msg = "Failed to add auction bid transaction to mempool";
+                        break;
+                    case -29:
+                        l_error_msg = "Auction cache not initialized";
+                        break;
+                    case -30:
+                        l_error_msg = "Auction not found in cache";
+                        break;
+                    case -31:
+                        l_error_msg = "Project ID not found in auction";
                         break;
                     default:
                         l_error_msg = "Unknown error occurred";
@@ -2426,6 +2518,15 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                     case -14:
                         l_error_msg = "Failed to get emission rate";
                         break;
+                    case -29:
+                        l_error_msg = "Auction cache not initialized";
+                        break;
+                    case -30:
+                        l_error_msg = "Auction not found in cache";
+                        break;
+                    case -31:
+                        l_error_msg = "Project ID not found in auction";
+                        break;
                     default:
                         l_error_msg = "Unknown error occurred";
                         break;
@@ -2483,6 +2584,46 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                     json_object_object_add(l_auction_obj, "winners", l_winners_array);
                     json_object_object_add(l_auction_obj, "winners_count", 
                         json_object_new_uint64(l_auction->winners_cnt));
+                }
+                
+                // Projects information (if requested and available)
+                if (l_include_projects && l_auction->projects && l_auction->projects_count > 0) {
+                    json_object *l_projects_array = json_object_new_array();
+                    for (uint32_t i = 0; i < l_auction->projects_count; i++) {
+                        json_object *l_project_obj = json_object_new_object();
+                        
+                        // Project name
+                        if (l_auction->projects[i].project_name) {
+                            json_object_object_add(l_project_obj, "project_name", json_object_new_string(l_auction->projects[i].project_name));
+                        } else {
+                            json_object_object_add(l_project_obj, "project_name", json_object_new_string("Unknown"));
+                        }
+                        
+                        // Total amount
+                        char *l_total_amount_str = dap_uint256_uninteger_to_char(l_auction->projects[i].total_amount);
+                        if (l_total_amount_str) {
+                            json_object_object_add(l_project_obj, "total_amount", json_object_new_string(l_total_amount_str));
+                            DAP_DELETE(l_total_amount_str);
+                        } else {
+                            json_object_object_add(l_project_obj, "total_amount", json_object_new_string("0"));
+                        }
+                        
+                        // Total amount in CELL
+                        char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_auction->projects[i].total_amount);
+                        if (l_total_amount_coin_str) {
+                            json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string(l_total_amount_coin_str));
+                            DAP_DELETE(l_total_amount_coin_str);
+                        } else {
+                            json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string("0.0"));
+                        }
+                        
+                        // Bids counts
+                        json_object_object_add(l_project_obj, "bids_count", json_object_new_uint64(l_auction->projects[i].bids_count));
+                        json_object_object_add(l_project_obj, "active_bids_count", json_object_new_uint64(l_auction->projects[i].active_bids_count));
+                        
+                        json_object_array_add(l_projects_array, l_project_obj);
+                    }
+                    json_object_object_add(l_auction_obj, "projects", l_projects_array);
                 }
                 
                 json_object_array_add(l_auctions_array, l_auction_obj);
@@ -2566,8 +2707,6 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                     dap_chain_net_srv_auction_project_t *l_project = &l_auction->projects[i];
                     
                     json_object *l_project_obj = json_object_new_object();
-                    json_object_object_add(l_project_obj, "project_hash",
-                        json_object_new_string(dap_chain_hash_fast_to_str_static(&l_project->project_hash)));
                     
                     if (l_project->project_name) {
                         json_object_object_add(l_project_obj, "project_name",
@@ -2576,6 +2715,15 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                     
                     const char *l_total_amount_str = dap_uint256_to_char(l_project->total_amount, NULL);
                     json_object_object_add(l_project_obj, "total_amount", json_object_new_string(l_total_amount_str));
+                    
+                    // Total amount in CELL
+                    char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_project->total_amount);
+                    if (l_total_amount_coin_str) {
+                        json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string(l_total_amount_coin_str));
+                        DAP_DELETE(l_total_amount_coin_str);
+                    } else {
+                        json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string("0.0"));
+                    }
                     
                     json_object_object_add(l_project_obj, "bids_count", 
                         json_object_new_uint64(l_project->bids_count));

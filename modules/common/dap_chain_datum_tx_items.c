@@ -399,8 +399,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
  * @param a_srv_uid Service UID for auction service
  * @param a_value Bid amount in datoshi
  * @param a_auction_hash Hash of the auction being bid on
- * @param a_range_end End of CellSlot range (1-8), range_start is always 1
  * @param a_lock_time Lock time for the bid tokens
+ * @param a_project_id Project ID for the bid
  * @param a_params Additional TSD parameters
  * @param a_params_size Size of additional parameters
  * @return dap_chain_tx_out_cond_t* Conditional output item or NULL on error
@@ -408,11 +408,11 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(dap_chain_net_srv_uid_t a_srv_uid,
                                                                                   uint256_t a_value,
                                                                                   const dap_hash_fast_t *a_auction_hash,
-                                                                                  uint8_t a_range_end,
                                                                                   dap_time_t a_lock_time,
+                                                                                  uint32_t a_project_id,
                                                                                   const void *a_params, size_t a_params_size)
 {
-    if (IS_ZERO_256(a_value) || !a_auction_hash || a_range_end < 1 || a_range_end > 8)
+    if (IS_ZERO_256(a_value) || !a_auction_hash)
         return NULL;
     
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, 
@@ -426,8 +426,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid
     
     // Set auction bid specific fields
     l_item->subtype.srv_auction_bid.auction_hash = *a_auction_hash;
-    l_item->subtype.srv_auction_bid.range_end = a_range_end;
+    l_item->subtype.srv_auction_bid.range_end = 1; // Default to 1
     l_item->subtype.srv_auction_bid.lock_time = a_lock_time;
+    l_item->subtype.srv_auction_bid.project_id = a_project_id;
     
     // Copy additional parameters if provided
     if (a_params && a_params_size) {
