@@ -242,6 +242,10 @@ if (DARWIN)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
+# Add all DAP SDK include paths globally for Cellframe SDK
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/net/stream/ch/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/net/stream/session/include/")
+
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
 
 # For .so

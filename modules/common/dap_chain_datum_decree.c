@@ -91,7 +91,7 @@ int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_
 dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_owners_num)
 {
     dap_return_val_if_fail(a_decree && a_owners_num, NULL);
-    dap_list_t *l_ret = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER);
+    dap_list_t *l_ret = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER, 0);
     if (a_owners_num)
         *a_owners_num = (uint16_t)dap_list_length(l_ret);
     return l_ret;
