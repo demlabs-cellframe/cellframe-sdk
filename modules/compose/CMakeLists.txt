@@ -11,6 +11,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_COMPOSE_SRCS} HEADERS ${DAP_CH
 target_link_libraries(${PROJECT_NAME} dap_cli_server dap_chain_net dap_chain_net_srv dap_enc_server dap_json_rpc dap_chain_net_srv_xchange dap_chain_net_srv_voting dap_app_cli dap_cli_server)
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/json-c)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/net/app-cli/include)
 
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)

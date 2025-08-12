@@ -64,7 +64,7 @@ macro(cellframe_create_final_library)
         message("[+] Internal modules to combine: ${CELLFRAME_INTERNAL_MODULES}")
         
         # Create final library that combines all internal modules
-        add_library(cellframe_sdk ${CELLFRAME_FINAL_LIB_TYPE})
+        add_library(cellframe_sdk ${CELLFRAME_FINAL_LIB_TYPE} cellframe-sdk.c)
         
         # Set properties for final library
         if(BUILD_SHARED)
@@ -81,6 +81,36 @@ macro(cellframe_create_final_library)
         
         # Link all internal static modules into final library
         target_link_libraries(cellframe_sdk PUBLIC ${CELLFRAME_INTERNAL_MODULES})
+        
+        # Link with all Cellframe libraries (filter out problematic DAP SDK libs)
+        if(DEFINED CELLFRAME_LIBS)
+            # Filter out DAP SDK components that are already in the main dap_sdk library
+            string(REPLACE "dap_app_cli;" "" FILTERED_LIBS "${CELLFRAME_LIBS}")
+            string(REPLACE "dap_core;" "" FILTERED_LIBS "${FILTERED_LIBS}")
+            string(REPLACE "dap_plugin;" "" FILTERED_LIBS "${FILTERED_LIBS}")
+            string(REPLACE "dap_crypto;" "" FILTERED_LIBS "${FILTERED_LIBS}")
+            string(REPLACE "dap_io;" "" FILTERED_LIBS "${FILTERED_LIBS}")
+            
+            if(FILTERED_LIBS)
+                target_link_libraries(cellframe_sdk PUBLIC ${FILTERED_LIBS})
+                message("[+] Cellframe SDK: Linked with filtered libraries: ${FILTERED_LIBS}")
+            endif()
+        endif()
+        
+        # Link with DAP SDK (external if available, otherwise built-in)  
+        if(CELLFRAME_USING_EXTERNAL_DAP_SDK)
+            message("[+] Cellframe SDK: Linking with external DAP SDK (dap_sdk)")
+            target_link_libraries(cellframe_sdk PUBLIC dap_sdk)
+            
+            # For SHARED builds, rely on the main dap_sdk library which contains all components
+            if(BUILD_SHARED)
+                message("[+] Cellframe SDK: Using main DAP SDK library for shared build")
+                # The dap_sdk target already contains all necessary components
+            endif()
+        else()
+            message("[+] Cellframe SDK: Using built-in DAP SDK targets")
+            # Built-in DAP SDK targets will be automatically included
+        endif()
         
         # Also inherit include directories from internal modules
         foreach(module ${CELLFRAME_INTERNAL_MODULES})
@@ -106,19 +136,36 @@ if(CMAKE_C_COMPILER MATCHES "clang")
 endif()
 
 if(NOT DEFINED CELLFRAME_MODULES)
-    include (dap-sdk/cmake/OS_Detection.cmake)
+    # =========================================
+    # DAP SDK INTEGRATION - CONDITIONAL
+    # =========================================
+    # Check if DAP SDK is already configured at parent level
+    if(NOT TARGET dap_sdk)
+        # DAP SDK not found - include our own copy
+        message("[+] Cellframe SDK: Using embedded DAP SDK")
+        
+        include (dap-sdk/cmake/OS_Detection.cmake)
+        
+        if(BUILD_CELLFRAME_SDK_TESTS)
+            set(DAPSDK_MODULES "test-framework")
+        endif()
+
+        add_subdirectory(dap-sdk)
+        set(CELLFRAME_USING_EXTERNAL_DAP_SDK OFF)
+    else()
+        # DAP SDK already available from parent - use it
+        message("[+] Cellframe SDK: Using external DAP SDK (target: dap_sdk)")
+        message("[+] Cellframe SDK: ✅ No DAP SDK duplication - using shared instance")
+        
+        # Set the flag to indicate we're using external DAP SDK
+        set(CELLFRAME_USING_EXTERNAL_DAP_SDK ON)
+    endif()
 
     set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange compose")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
     endif()
-
-    if(BUILD_CELLFRAME_SDK_TESTS)
-        set(DAPSDK_MODULES "test-framework")
-    endif()
-
-    add_subdirectory(dap-sdk)
 
     set(CELLFRAME_SDK_STANDALONE_BUILD ON)
 endif()
@@ -156,7 +203,8 @@ add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(modules/)
 
 
-add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
+# NOTE: Final library will be created by cellframe_create_final_library() macro
+# add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
 
 # init libs
 set(CELLFRAME_LIBS "")
@@ -295,7 +343,8 @@ if (DARWIN)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
-target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+# NOTE: Linking is now handled in cellframe_create_final_library() macro
+# target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
 
 # For .so
 #target_link_libraries(${PROJECT_NAME} -Wl,--whole-archive ${CELLFRAME_LIBS} -Wl,--no-whole-archive)
@@ -331,6 +380,12 @@ if(ENABLE_CPPCHECK_ANALYSIS)
         message(WARNING "cppcheck not found, cppcheck_analysis target unavailable")
     endif()
 endif()
+
+# =========================================
+# INCLUDE DIRECTORIES FOR HEADERS
+# =========================================
+# Add include paths for missing headers
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/net/app-cli/include/")
 
 # =========================================
 # CREATE FINAL CELLFRAME SDK LIBRARY
