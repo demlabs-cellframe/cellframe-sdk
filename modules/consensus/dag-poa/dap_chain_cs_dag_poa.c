@@ -431,7 +431,7 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_cha
     int l_ret_event_verify = s_callback_event_verify(a_dag, a_event, &l_event_hash);
     if (l_ret_event_verify == 0)
         return true;
-    log_it(L_ERROR, "Round auto-complete error! Event %s is not passing consensus verification, ret code %d\n",
+    log_it(L_ERROR, "Round auto-complete error! Event %s is not passing consensus verification, ret code %d",
                           a_event_hash_hex_str, l_ret_event_verify );
     return false;
 }

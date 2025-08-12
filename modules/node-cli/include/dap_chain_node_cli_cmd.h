@@ -261,12 +261,7 @@ typedef enum s_com_stats_err{
     DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR
 }s_com_stats_err_t;
 
-typedef enum s_com_print_log_err{
-    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_OK = 0,
-    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_AFTER,
-    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_LIMIT,
-    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS
-}s_com_print_log_err_t;
+
 typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -414,7 +409,7 @@ int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply, int a_versio
  */
 int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
-
+int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
 int com_tx_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 void json_rpc_tx_create(json_object *a_param, json_object *a_reply, int a_version);
 int com_tx_create_json(int a_argc, char **a_argv, void **reply, int a_version);

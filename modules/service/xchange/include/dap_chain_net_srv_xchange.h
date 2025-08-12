@@ -181,6 +181,7 @@ typedef enum dap_chain_net_srv_xchange_purchase_error_list{
     XCHANGE_PURCHASE_ERROR_SPECIFIED_ORDER_NOT_FOUND,
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_PRICE,
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_EXCHANGE_TX,
+    XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_JSON_OBJECT,
 } dap_chain_net_srv_xchange_purchase_error_t;
 dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out);
