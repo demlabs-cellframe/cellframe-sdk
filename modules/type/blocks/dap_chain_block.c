@@ -422,6 +422,29 @@ dap_chain_datum_t** dap_chain_block_get_datums(const dap_chain_block_t *a_block,
     return l_ret;
 }
 
+dap_chain_datum_tx_t* dap_chain_block_get_tx(const dap_chain_block_t * a_block, size_t a_block_size,
+                                             uint16_t a_datum_type, dap_chain_hash_fast_t * a_datum_hash) {
+    assert(a_block);
+    assert(a_block_size);
+    if( a_block_size<sizeof (a_block->hdr)){
+        log_it(L_ERROR, "Get datums: corrupted block size %zd lesser than block header size %zd", a_block_size, sizeof (a_block->hdr));
+        return NULL;
+    }
+
+    if (a_block->hdr.datum_count == 0)
+        return NULL;
+    size_t l_offset = s_block_get_datum_offset(a_block,a_block_size);
+    dap_chain_datum_t * l_datum =(dap_chain_datum_t *) (a_block->meta_n_datum_n_sign + l_offset);
+    if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+        dap_chain_hash_fast_t l_key_hash;
+        dap_chain_datum_calc_hash(l_datum, &l_key_hash);
+        if (dap_hash_fast_compare(&l_key_hash, a_datum_hash))
+            return (dap_chain_datum_tx_t*)l_datum->data;
+    }
+    return NULL;
+}
+
+
 /**
  * @brief dap_chain_block_meta_add
  * @details Add metadata in block

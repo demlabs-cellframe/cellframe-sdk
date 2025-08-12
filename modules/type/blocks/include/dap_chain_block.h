@@ -121,3 +121,4 @@ dap_hash_fast_t *dap_chain_block_get_prev_hash(const dap_chain_block_t *a_block,
 
 // Create and return datums list
 dap_chain_datum_t** dap_chain_block_get_datums(const dap_chain_block_t * a_block, size_t a_block_size,size_t * a_datums_count );
+dap_chain_datum_tx_t* dap_chain_block_get_tx(const dap_chain_block_t * a_block, size_t a_block_size, size_t * a_datums_count, uint16_t a_datum_type, dap_chain_hash_fast_t * a_datum_hash);

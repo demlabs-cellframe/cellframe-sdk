@@ -50,9 +50,15 @@ void dap_chain_cell_offset_test(void){
     uint64_t atom_size = 0;
     int rc = dap_chain_cell_atom_read_at_offset(cell, off_before, &atom_ptr, &atom_size);
 
+    // Basic sanity: read back exactly what we wrote at the recorded offset
     dap_assert(rc == 0, "read at offset returns rc==0");
     dap_assert(atom_size == msg_size, "atom size matches");
     dap_assert(memcmp(atom_ptr, msg, msg_size)==0, "atom data matches");
+
+    // Verify reverse mapping: given atom pointer -> compute file offset
+    // In mapped mode the pointer must belong to the current mapped volume
+    off_t off_from_ptr = dap_chain_cell_atom_offset_get_by_ptr(cell, atom_ptr);
+    dap_assert(off_from_ptr == off_before, "offset computed from pointer matches recorded offset");
 
     dap_chain_cell_delete(cell);
     s_cleanup_chain(l_chain);
@@ -97,6 +103,10 @@ void dap_chain_cell_offset_big_test(void)
         dap_assert(r==0, "big read rc==0");
         dap_assert(sz==ATOM_SIZE, "big atom size matches");
         dap_assert(memcmp(ptr, buffer, 32)==0, "first bytes match");
+
+        // Check that pointer->offset mapping is stable across volumes
+        off_t off_from_ptr = dap_chain_cell_atom_offset_get_by_ptr(cell, ptr);
+        dap_assert(off_from_ptr == rec_offsets[i], "offset-from-ptr equals original recorded offset");
     }
 
     free(buffer);
