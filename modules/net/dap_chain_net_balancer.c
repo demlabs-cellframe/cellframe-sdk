@@ -33,6 +33,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_client_http.h"
 #include "dap_enc_base64.h"
 #include "dap_notify_srv.h"
+#include "dap_cli_server.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
 
