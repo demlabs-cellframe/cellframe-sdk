@@ -59,10 +59,10 @@ struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, const
     int l_version = dap_cli_server_get_version();
     struct json_object *l_json = json_object_new_object();
     json_object_object_add(l_json, "class" , json_object_new_string("BalancerRequest"));
-    json_object_object_add(l_json, l_version == 1 ? "network_name" : "networkName", json_object_new_string((const char*)a_net->pub.name));
-    json_object_object_add(l_json, l_version == 1 ? "host_address" : "hostAddress", json_object_new_string(a_host_addr ? a_host_addr : "localhost"));
+    json_object_object_add(l_json, l_version == 1 ? "networkName" : "network_name", json_object_new_string((const char*)a_net->pub.name));
+    json_object_object_add(l_json, l_version == 1 ? "hostAddress" : "host_address", json_object_new_string(a_host_addr ? a_host_addr : "localhost"));
     if (a_host_addr)
-        json_object_object_add(l_json, l_version == 1 ? "host_port" : "hostPort", json_object_new_int(a_host_port));
+        json_object_object_add(l_json, l_version == 1 ? "hostPort" : "host_port", json_object_new_int(a_host_port));
     return l_json;
 }
 
@@ -170,7 +170,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
             , "Links from balancer %s:%u in net %s can't be prepared, connection errno %d"
             , a_host_addr, a_host_port, a_request->net->pub.name, a_errno);
     log_it(L_WARNING, "%s", l_err_str);
-    json_object_object_add(l_json, dap_cli_server_get_version() == 1 ? "errorMessage" : "error_message", json_object_new_string(l_err_str));
+    json_object_object_add(l_json, dap_cli_server_get_version() == 1 ? "error_message" :"errorMessage", json_object_new_string(l_err_str));
     dap_notify_server_send_mt(json_object_get_string(l_json));
     json_object_put(l_json);
 }
