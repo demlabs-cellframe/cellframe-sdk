@@ -104,12 +104,12 @@ typedef struct dap_auction_cache_item {
     uint8_t winners_cnt;               // Number of winners in this auction
     uint32_t *winners_ids;             // Array of winner project IDs from event data
     
-    UT_hash_handle hh;                 // Hash table handle by auction_tx_hash
+    UT_hash_handle hh;                 // Hash handle for table keyed by group_name
 } dap_auction_cache_item_t;
 
 // Main auction cache structure
 typedef struct dap_auction_cache {
-    dap_auction_cache_item_t *auctions; // Hash table of auctions by auction_tx_hash
+    dap_auction_cache_item_t *auctions; // Hash table of auctions keyed by group_name
     uint32_t total_auctions;            // Total number of auctions in cache
     uint32_t active_auctions;           // Number of active auctions
     pthread_rwlock_t cache_rwlock;      // Read-write lock for cache access
@@ -192,6 +192,11 @@ int dap_auction_cache_update_auction_status(dap_auction_cache_t *a_cache,
                                            dap_hash_fast_t *a_auction_hash,
                                            dap_auction_status_t a_new_status);
 
+// New: update auction status by group name
+int dap_auction_cache_update_auction_status_by_name(dap_auction_cache_t *a_cache,
+                                                   const char *a_group_name,
+                                                   dap_auction_status_t a_new_status);
+
 int dap_auction_cache_withdraw_bid(dap_auction_cache_t *a_cache,
                                   dap_hash_fast_t *a_bid_hash);
 
@@ -200,9 +205,19 @@ int dap_auction_cache_set_winners(dap_auction_cache_t *a_cache,
                                  uint8_t a_winners_cnt,
                                  uint32_t *a_winners_ids);
 
+// New: set winners by group name
+int dap_auction_cache_set_winners_by_name(dap_auction_cache_t *a_cache,
+                                         const char *a_group_name,
+                                         uint8_t a_winners_cnt,
+                                         uint32_t *a_winners_ids);
+
 // Search functions
+// Find by auction tx hash
 dap_auction_cache_item_t *dap_auction_cache_find_auction(dap_auction_cache_t *a_cache,
                                                          dap_hash_fast_t *a_auction_hash);
+// New: find by group name
+dap_auction_cache_item_t *dap_auction_cache_find_auction_by_name(dap_auction_cache_t *a_cache,
+                                                                 const char *a_group_name);
 
 dap_auction_bid_cache_item_t *dap_auction_cache_find_bid(dap_auction_cache_item_t *a_auction,
                                                          dap_hash_fast_t *a_bid_hash);
