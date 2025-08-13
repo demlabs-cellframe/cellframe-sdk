@@ -780,7 +780,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             DAP_DEL_Z(l_new_tx_recv_allow);
             l_new_tx_recv_allow_size = 0;
-            l_was_tx_recv_block_copied = true;
+            l_was_tx_recv_allow_copied = true;
         } break;
 
         // Blocked tx receiver addres list add, remove or clear
