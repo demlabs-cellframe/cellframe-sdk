@@ -141,10 +141,16 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
             if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
+                    json_object *l_pkeys_remove_array;
+                    if (!json_object_object_get_ex(json_obj_out, "total_pkeys_remove", &l_pkeys_remove_array)) {
+                        l_pkeys_remove_array = json_object_new_array();
+                        json_object_object_add(json_obj_out, "total_pkeys_remove", l_pkeys_remove_array);
+                    }
+
                     char *l_hash_str = (!dap_strcmp(a_hash_out_type,"hex")|| !dap_strcmp(a_hash_out_type, "content_hash"))
                                            ? dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t*) l_tsd->data)
                                            : dap_enc_base58_encode_hash_to_str((dap_chain_hash_fast_t*) l_tsd->data);
-                    json_object_object_add(json_obj_out, "total_pkeys_remove", json_object_new_string(l_hash_str));
+                    json_object_array_add(l_pkeys_remove_array, json_object_new_string(l_hash_str));
                     DAP_DELETE( l_hash_str );
             } else
                     json_object_object_add(json_obj_out, "total_pkeys_remove_with_wrong_size", json_object_new_int(l_tsd->size));
