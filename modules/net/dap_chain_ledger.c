@@ -1191,17 +1191,10 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (i == l_new_signs_total) {
                 log_it(L_WARNING, "TSD param TOTAL_PKEYS_REMOVE has public key hash %s thats not present in list",
                                                     dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
-                DAP_DEL_ARRAY(l_new_pkeys, l_new_signs_total);
-                DAP_DEL_Z(l_new_tx_recv_allow);
-                DAP_DEL_Z(l_new_tx_recv_block);
-                DAP_DEL_Z(l_new_tx_send_allow);
-                DAP_DEL_Z(l_new_tx_send_block);
-                DAP_DEL_Z(l_new_pkeys);
-                DAP_DEL_Z(l_new_pkey_hashes);
-                return DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH;
+                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH);
             }
             // Pkey removing
-            DAP_DELETE(l_new_pkeys[i]);
+            DAP_DEL_Z(l_new_pkeys[i]);
             if (--l_new_signs_total > i) {
                 memmove(l_new_pkeys + i, l_new_pkeys + i + 1, (l_new_signs_total - i - 1) * sizeof(dap_pkey_t *));
                 memmove(l_new_pkey_hashes + i, l_new_pkey_hashes + i + 1, (l_new_signs_total - i - 1) * sizeof(dap_hash_t));
