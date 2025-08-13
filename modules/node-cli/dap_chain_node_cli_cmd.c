@@ -2564,7 +2564,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         return;
     }
     
-    // Создаем основной объект для цепочки и сразу добавляем его в a_json_obj
+    // Creating the main object for the chain and immediately adding it to a_json_obj
     json_object *l_obj_chain = json_object_new_object();
     if (!l_obj_chain) {
         dap_json_rpc_allocation_error(a_json_arr_reply);
@@ -2580,7 +2580,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     }
     json_object_object_add(l_obj_chain, "name", l_obj_chain_name);
     
-    // Фильтрация mempool и добавление информации об удаленных записях
+    // Filtering mempool and adding information about removed records
     int l_removed = 0;
     dap_chain_mempool_filter(a_chain, &l_removed);
     
@@ -2592,7 +2592,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     }
     json_object_object_add(l_obj_chain, "removed", l_jobj_removed);
     
-    // Получаем все объекты из mempool
+    // Getting all objects from mempool
     size_t l_objs_count = 0;
     char * l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     if(!l_gdb_group_mempool) {
@@ -2602,7 +2602,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     }
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     DAP_DELETE(l_gdb_group_mempool);    
-    // Создаем массив для datums
+    // Creating an array for datums
     json_object *l_jobj_datums = json_object_new_array();
     if (!l_jobj_datums) {
         dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -2610,11 +2610,11 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         dap_json_rpc_allocation_error(a_json_arr_reply);
         return;
     }
-    // Добавляем массив datums в объект chain
+    // Adding an array of datums to the chain object
     json_object_object_add(l_obj_chain, "datums", l_jobj_datums);
     if (l_objs_count == 0 || l_objs_count < a_offset)
         goto return_obj_chain;
-    // Добавление информации о пагинации
+    // Adding information about pagination
     size_t l_arr_start = 0;
     if (a_offset) {
         l_arr_start = a_offset;
@@ -2643,7 +2643,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         json_object_object_add(l_obj_chain, "limit", l_jobj_limit);
     }
     
-    // Обработка каждого объекта из mempool
+    // Processing each object from mempool
     for (size_t i = l_arr_start; i < l_arr_end; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t *) l_objs[i].value;
         if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
@@ -2652,7 +2652,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
             continue;
         }
         
-        // Создаем объект для текущего datum
+        // Creating an object for the current datum
         json_object *l_jobj_datum = json_object_new_object();
         if (!l_jobj_datum) {
             dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -2662,7 +2662,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         }
         json_object_array_add(l_jobj_datums, l_jobj_datum);
         
-        // Заполняем информацию о времени создания и хеше
+        // Filling in information about the creation time and hash
         dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
         const char *l_datum_type = dap_chain_datum_type_id_to_str(l_datum->header.type_id);
         
@@ -2674,8 +2674,8 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         char buff_time[DAP_TIME_STR_SIZE];
         dap_time_to_str_rfc822(buff_time, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
         
-        // Добавляем основную информацию о datum
-        // Создаем JSON объекты для типа, хеша и времени создания
+        // Adding the main information about the datum
+        // Creating JSON objects for the type, hash and creation time
         json_object *l_jobj_type = json_object_new_string(l_datum_type);      
         if (!l_jobj_type) {
             json_object_put(l_obj_chain);
@@ -2719,7 +2719,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         }
         json_object_object_add(l_jobj_ts_created, "str", l_jobj_ts_created_str);
         
-        // Проверяем соответствие хеша и ключа
+        // Checking the correspondence of the hash and the key
         if (!dap_hash_fast_compare(&l_datum_real_hash, &l_datum_hash_from_key)) {
             char *l_drh_str = dap_hash_fast_to_str_new(&l_datum_real_hash);
             char *l_wgn = dap_strdup_printf("Key field in DB %s does not match datum's hash %s\n",
@@ -2752,19 +2752,19 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
             continue;
         }
 
-        // Обработка различных типов datum            
+        // Processing different types of datum            
         bool l_datum_is_accepted_addr = false;
         switch (l_datum->header.type_id) {
             case DAP_CHAIN_DATUM_TX: {
                 dap_chain_addr_t l_addr_from;
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
 
-                // Получаем информацию из ledger
+                // Getting information from ledger
                 int l_ledger_rc = DAP_LEDGER_CHECK_INVALID_ARGS;
                 const char *l_main_ticker = dap_ledger_tx_calculate_main_ticker(a_net->pub.ledger, l_tx, &l_ledger_rc);
                 const char *l_ledger_rc_str = dap_ledger_check_error_str(l_ledger_rc);
 
-                // Создаем JSON объекты для main_ticker и ledger_rc
+                // Creating JSON objects for main_ticker and ledger_rc
                 json_object *l_jobj_main_ticker = json_object_new_string(l_main_ticker ? l_main_ticker : "UNKNOWN");
                 if (!l_jobj_main_ticker) {
                     json_object_put(l_obj_chain);
@@ -2782,7 +2782,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 }
                 json_object_object_add(l_jobj_datum, "ledger_rc", l_jobj_ledger_rc);
 
-                // Добавляем информацию о сервисе и действии
+                // Adding information about the service and action
                 dap_chain_srv_uid_t uid;
                 char *service_name;
                 dap_chain_tx_tag_action_type_t action;
@@ -2804,7 +2804,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 }
                 json_object_object_add(l_jobj_datum, "action", l_jobj_action);
 
-                // Добавляем информацию о batching
+                // Adding information about batching
                 json_object *l_jobj_batching = json_object_new_string(
                     !dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT) ? "false" : "true");     
                 if (!l_jobj_batching) {
@@ -2815,10 +2815,10 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 }
                 json_object_object_add(l_jobj_datum, "batching", l_jobj_batching);
                
-                // Получаем подпись транзакции
+                // Getting the transaction signature
                 dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t*)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
                 if (!l_sig) {
-                    // Обработка ситуации, когда подпись не найдена
+                    // Processing the situation when the signature is not found
                     json_object *l_jobj_wgn = json_object_new_string(
                             "An item with a type TX_ITEM_TYPE_SIG for the "
                             "transaction was not found, the transaction may "
@@ -3056,7 +3056,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         json_object_object_add(l_jobj_f, "money", l_jobj_money);
                         if (dap_chain_addr_compare(&l_addr_from, l_dist_addr)) {
                             bool l_in_from_emi = false;
-                            // Получаем item типа IN_EMS
+                            // Getting item of type IN_EMS
                             dap_list_t *l_list_in_ems = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
                             for (dap_list_t *it_ems = l_list_in_ems; it_ems; it_ems = it_ems->next) {
                                 dap_chain_tx_in_ems_t *l_in_ems = (dap_chain_tx_in_ems_t *) it_ems->data;
@@ -3207,13 +3207,13 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         if (a_addr && !l_datum_is_accepted_addr)
             json_object_array_del_idx(l_jobj_datums, json_object_array_length(l_jobj_datums) - 1, 1);
     }
-    // Освобождаем временные ресурсы
+    // Freeing temporary resources
     dap_global_db_objs_delete(l_objs, l_objs_count);
 
     char *l_nets_str = NULL;
 
 return_obj_chain:
-    // Добавляем информацию о total
+    // Adding information about total
     l_nets_str = dap_strdup_printf("%s.%s: %zu", a_net->pub.name, a_chain->name, l_objs_count);
     json_object *l_object_total = json_object_new_string(l_nets_str);
     DAP_DELETE(l_nets_str);
@@ -3224,10 +3224,10 @@ return_obj_chain:
         return;
     }
     
-    // Добавляем total в chain объект
+    // Adding total to chain object
     json_object_object_add(l_obj_chain, "total", l_object_total);
     
-    // Добавляем chain в общий массив JSON объектов
+    // Adding chain to the general array of JSON objects
     json_object_array_add(a_json_obj, l_obj_chain);    
 }
 

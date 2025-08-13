@@ -2158,3 +2158,97 @@ static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, d
     json_object_object_add(l_jobj, "signatures", l_jobj_signatures);
     return  l_jobj;
 }
+
+/**
+ * @brief Aggregation of zerochain data from DAG events
+ */
+ dap_list_t *dap_chain_cs_dag_hardfork_datums_aggregate(dap_chain_t *a_chain)
+ {
+    dap_return_val_if_fail(a_chain, NULL);
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(l_dag);
+    if (!l_dag_pvt) {
+        log_it(L_ERROR, "Invalid DAG private structure");
+        return NULL;
+    }
+    if (!l_dag_pvt->events) {
+        log_it(L_ERROR, "No events in DAG");
+        return NULL;
+    }
+
+    dap_list_t *l_result_list = NULL;
+    size_t l_processed_count = 0;
+    size_t l_successful_count = 0;
+    size_t l_emission_excluded_count = 0;
+    
+    // Locking the mutex for safe access to events
+    pthread_mutex_lock(&l_dag_pvt->events_mutex);
+    
+    // Iterating over all DAG events
+    for (dap_chain_cs_dag_event_item_t *l_event_item = l_dag_pvt->events; 
+        l_event_item; 
+        l_event_item = l_event_item->hh.next) {
+        
+        l_processed_count++;
+        
+        // Checking the ledger return code - should be successful (0)
+        if (l_event_item->ret_code != 0) {
+            debug_if(g_debug_reactor, L_DEBUG, "Event #%"DAP_UINT64_FORMAT_U" skipped: ret_code=%d", 
+                    l_event_item->event_number, l_event_item->ret_code);
+            continue;
+        }
+        
+        // Extracting datum from the event
+        if (!l_event_item->event || l_event_item->event_size == 0) {
+            log_it(L_WARNING, "Event #%"DAP_UINT64_FORMAT_U" has no valid event data", 
+                l_event_item->event_number);
+            continue;
+        }
+        
+        dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_event_item->event, l_event_item->event_size);
+        if (!l_datum) {
+            log_it(L_WARNING, "Failed to extract datum from event #%"DAP_UINT64_FORMAT_U, 
+                l_event_item->event_number);
+            continue;
+        }
+        
+        // Excluding emission datums
+        if (s_is_emission_datum(l_datum)) {
+            l_emission_excluded_count++;
+            debug_if(g_debug_reactor, L_DEBUG, "Event #%"DAP_UINT64_FORMAT_U" excluded: emission datum", 
+                    l_event_item->event_number);
+            continue;
+        }
+        
+        // Creating an element of the list for a successful datum
+        zerochain_datum_item_t *l_datum_item = s_create_datum_item(
+            l_datum,
+            l_event_item->datum_hash,
+            l_event_item->ret_code,
+            l_event_item->event_number,
+            l_event_item->ts_created
+        );
+        
+        if (!l_datum_item) {
+            log_it(L_ERROR, "Failed to create datum item for event #%"DAP_UINT64_FORMAT_U, 
+                l_event_item->event_number);
+            continue;
+        }
+        
+        // Adding to the result list
+        l_result_list = dap_list_append(l_result_list, l_datum_item);
+        l_successful_count++;
+        
+        debug_if(g_debug_reactor, L_DEBUG, "Event #%"DAP_UINT64_FORMAT_U" added: datum_type=0x%04X", 
+                l_event_item->event_number, l_datum->header.type_id);
+    }
+    
+    pthread_mutex_unlock(&l_dag_pvt->events_mutex);
+    
+    // Logging the aggregation statistics
+    log_it(L_INFO, "Zerochain DAG aggregation completed: processed=%zu, successful=%zu, emissions_excluded=%zu",
+        l_processed_count, l_successful_count, l_emission_excluded_count);
+    
+    return l_result_list;
+}
+ 

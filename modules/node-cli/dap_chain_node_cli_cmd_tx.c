@@ -1314,7 +1314,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 return DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_FIND_ERR;
             }
             
-            // Получаем обязательные параметры для формирования транзакции-события
+            // Getting the mandatory parameters for the formation of the event transaction
             const char *l_chain_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
             
@@ -1354,7 +1354,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str);
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str ? l_fee_str : "0");
             
-            // Открываем кошелек и получаем из него ключ
+            // Opening the wallet and getting the key from it
             unsigned int l_wallet_stat = 0;
             const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallets_path, &l_wallet_stat);
@@ -1376,7 +1376,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
             }
             
-            // Получаем цепочку
+            // Getting the chain
             dap_chain_t *l_chain = l_chain_str ? dap_chain_net_get_chain_by_name(l_net, l_chain_str) :
                                    dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
             if (!l_chain) {
@@ -1385,7 +1385,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
             }
             
-            // Подготавливаем данные события
+            // Preparing the event data
             void *l_event_data = NULL;
             size_t l_event_data_size = 0;
             
@@ -1399,7 +1399,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 l_event_data_size = strlen(l_event_data_str) + 1;
             }
             
-            // Создаем транзакцию с событием
+            // Creating a transaction with an event
             char *l_tx_hash_str = dap_chain_mempool_tx_create_event(
                 l_chain,
                 l_key_from,
@@ -1412,7 +1412,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 l_hash_out_type
             );
             
-            // Освобождаем ресурсы
+            // Freeing resources
             DAP_DEL_Z(l_event_data);
             
             if (l_tx_hash_str) {

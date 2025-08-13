@@ -454,9 +454,9 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
         DAP_DELETE(l_in_cond_item);
     }
     
-    // OUT_COND: srv_uid присваивается явно
+    // OUT_COND: srv_uid is assigned explicitly
     dap_chain_srv_uid_t l_srv_uid;
-    // Определения констант для теста
+    // Definitions of constants for the test
     #ifndef DAP_CHAIN_NET_SRV_PAY_ID
     #define DAP_CHAIN_NET_SRV_PAY_ID 1
     #endif

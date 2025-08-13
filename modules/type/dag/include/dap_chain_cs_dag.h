@@ -72,6 +72,16 @@ typedef struct dap_chain_cs_dag
     void * _inheritor;
 } dap_chain_cs_dag_t;
 
+/**
+ * @brief Structure for storing zerochain datums
+ */
+ typedef struct dap_chain_cs_dag_hardfork_datums {
+    dap_chain_datum_t *datum;      ///< Pointer to datum
+    dap_hash_fast_t datum_hash;    ///< Datum hash
+    dap_time_t ts_created;         ///< Creation time
+    struct dap_chain_cs_dag_hardfork_datums *prev, *next;
+} dap_chain_cs_dag_hardfork_datums_t;
+
 typedef enum s_com_dag_err{
     DAP_CHAIN_NODE_CLI_COM_DAG_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,
