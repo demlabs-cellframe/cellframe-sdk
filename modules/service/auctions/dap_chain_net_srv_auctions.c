@@ -104,7 +104,7 @@ int dap_chain_net_srv_auctions_init(void)
     }
     
     dap_cli_server_cmd_add ("auction", com_auction, "Auction commands",
-                "bid -net <network> -auction <hash> -amount <value> -lock <3..24> -project <project_id> -fee <value> -w <wallet>\\n"
+                "bid -net <network> -auction <group_name|hash> -amount <value> -lock <3..24> -project <project_id> -fee <value> -w <wallet>\\n"
                 "\\tPlace a bid on an auction for a specific project\\n"
                 "\\t-project: project ID (uint32) for which the bid is made\\n\\n"
                 "withdraw -net <network> -bid_tx_hash <hash> -fee <value> -w <wallet>\\n"
@@ -130,7 +130,7 @@ int dap_chain_net_srv_auctions_init(void)
                 "\\t-w: wallet name\\n\\n"
                 "  Examples:\\n"
                 "  auction list -net myCellFrame -active_only -projects\\n"
-                "  auction bid -net myCellFrame -auction <hash> -amount 1000 -lock 6 -project 1 -fee 0.1 -w myWallet\\n"
+                "  auction bid -net myCellFrame -auction <group_name> -amount 1000 -lock 6 -project 1 -fee 0.1 -w myWallet\\n"
                 "  auction info -net myCellFrame -auction <hash>\\n"
                 "  auction withdraw -net myCellFrame -bid_tx_hash <hash> -fee 0.1 -w myWallet\\n"
                 "  auction events -net myCellFrame -auction <hash> -limit 10\\n"
@@ -2327,11 +2327,11 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
 
     switch(cmd_num) {
         case CMD_BID: {
-            // Parse auction hash
-            const char *l_auction_hash_str = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-auction", &l_auction_hash_str);
-            if(!l_auction_hash_str) {
-                dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_HASH_ARG_ERROR, "Auction hash not specified");
+            // Parse auction identifier (group_name or hash)
+            const char *l_auction_id_str = NULL;
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-auction", &l_auction_id_str);
+            if(!l_auction_id_str) {
+                dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_HASH_ARG_ERROR, "Auction identifier not specified");
                 return -1;
             }
 
@@ -2395,11 +2395,17 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 return -1;
             }
 
-            // Parse auction hash and convert to hash
+            // Resolve auction: try as hash; if fails, resolve by group_name from cache
             dap_hash_fast_t l_auction_hash = {};
-            if (dap_chain_hash_fast_from_str(l_auction_hash_str, &l_auction_hash) != 0) {
-                dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_HASH_FORMAT_ERROR, "Invalid auction hash format");
-                return -1;
+            bool l_hash_parsed = (dap_chain_hash_fast_from_str(l_auction_id_str, &l_auction_hash) == 0);
+            if (!l_hash_parsed) {
+                // Try resolve by group_name via auction cache
+                dap_auction_cache_item_t *l_by_name = dap_auction_cache_find_auction_by_name(s_auction_cache, l_auction_id_str);
+                if (!l_by_name) {
+                    dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_NOT_FOUND_ERROR, "Auction '%s' not found", l_auction_id_str);
+                    return -1;
+                }
+                l_auction_hash = l_by_name->auction_tx_hash;
             }
 
             // Check auction is active
@@ -2439,6 +2445,8 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 json_object_object_add(l_json_obj, "command", json_object_new_string("bid"));
                 json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
                 json_object_object_add(l_json_obj, "tx_hash", json_object_new_string(l_tx_hash_str));
+                char l_auction_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(&l_auction_hash, l_auction_hash_str, sizeof(l_auction_hash_str));
                 json_object_object_add(l_json_obj, "auction_hash", json_object_new_string(l_auction_hash_str));
                 
                 const char *l_amount_str = dap_uint256_to_char(l_amount, NULL);
