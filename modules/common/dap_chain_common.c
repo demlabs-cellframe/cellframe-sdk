@@ -274,7 +274,7 @@ void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_sta
         json_object_object_add(json_obj_lim, "offset", json_object_new_uint64(a_offset));
     }
     if (a_limit > 0) {
-        if (a_last && (a_and_count > a_limit)) {
+        if (a_last && (*a_and > a_limit)) {
             *a_start = *a_and - a_limit;            
         }
         else {

@@ -153,15 +153,16 @@ int dap_chain_cs_dag_init()
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
-    dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands",
+    dap_cli_server_cmd_add ("dag", s_cli_dag, NULL, "DAG commands",
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
         "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round_id_in_hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head]"
-                            " [-from_hash <event_hash>] [-to_hash <event_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]\n\n"
-            "\tShow event list \n\n"
+        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head]\n"
+                            "\t[-from_hash <event_hash> -to_hash <event_hash>] OR [-from_date <YYMMDD> -to_date <YYMMDD>]\n\n"
+            "\tShow event list. Use either hash range (from_hash + to_hash) or date range (from_date + to_date), not both.\n"
+            "\tDo not use limit/offset with hash/date ranges. Head parameter can be used with ranges \n\n"
         "dag event count -net <net_name> [-chain <chain_name>]\n"
             "\tShow count event \n\n"
         "dag round complete -net <net_name> [-chain <chain_name>] \n"
@@ -1768,7 +1769,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         HASH_ITER(hh, PVT(l_dag)->events, l_event_item, l_event_item_tmp) {
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end || 
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
+                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts <= l_to_time)) {
                                 i_tmp++;
                             } else {
                                 if (l_from_hash_str && !l_hash_flag) {
@@ -1789,7 +1790,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
+                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts <= l_to_time)) {
                                 i_tmp++;
                             } else {
                                 if (l_from_hash_str && !l_hash_flag) {
