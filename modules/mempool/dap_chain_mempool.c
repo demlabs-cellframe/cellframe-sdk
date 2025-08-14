@@ -66,6 +66,7 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_mempool"
 
@@ -1687,8 +1688,18 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         return NULL;
     }
 
-    // Create datum and add to mempool (following mempool pattern)
+    // Pre-validate transaction against ledger rules (e.g., duplicate AUCTION_STARTED)
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_hash_fast_t l_tx_hash = {};
+    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
+    int l_check_rc = dap_ledger_tx_add_check(l_ledger, l_tx, l_tx_size, &l_tx_hash);
+    if (l_check_rc) {
+        log_it(L_WARNING, "Reject event tx before mempool: ledger check failed (%d)", l_check_rc);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Create datum and add to mempool (following mempool pattern)
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     dap_chain_datum_tx_delete(l_tx);
     
