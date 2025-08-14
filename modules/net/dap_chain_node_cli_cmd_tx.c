@@ -2408,92 +2408,216 @@ int json_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd_par
 
 
 int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
-    if (!response || !response->result_json_object) {
-        printf("Response is empty\n");
-        return -1;
-    }
-    struct json_object *j_obj_headr, *limit_obj, *l_arr_pagina, *l_obj_pagina, *offset_obj, *l_arr_orders;
+	if (!response || !response->result_json_object) {
+		printf("Response is empty\n");
+		return -1;
+	}
+	struct json_object *j_obj_headr = NULL, *limit_obj = NULL, *l_arr_pagina = NULL, *l_obj_pagina = NULL,
+			*offset_obj = NULL, *l_arr_orders = NULL;
+	char *l_limit = NULL;
+	char *l_offset = NULL;
+	size_t l_print_count = 0;
 
-    char *l_limit = NULL;
-    char *l_offset = NULL;
-    size_t l_print_count = 0;
+	// Common header for pagination (mainly for 'orders')
+	j_obj_headr = json_object_array_get_idx(response->result_json_object, 0);
+	if (j_obj_headr) {
+		if (json_object_object_get_ex(j_obj_headr, "pagina", &l_arr_pagina) && l_arr_pagina) {
+			l_obj_pagina = json_object_array_get_idx(l_arr_pagina, 0);
+			if (l_obj_pagina) {
+				json_object_object_get_ex(l_obj_pagina, "limit", &limit_obj);
+				json_object_object_get_ex(l_obj_pagina, "offset", &offset_obj);
+				if (limit_obj)
+					l_limit = json_object_get_int64(limit_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(limit_obj)) : dap_strdup_printf("unlimit");
+				if (offset_obj)
+					l_offset = json_object_get_int64(offset_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(offset_obj)) : NULL;
+			}
+		}
+		json_object_object_get_ex(j_obj_headr, "orders", &l_arr_orders);
+	}
 
+	// Branch: orders
+	if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "orders")) {
+		if (json_object_get_type(response->result_json_object) == json_type_array && l_arr_orders) {
+			int result_count = json_object_array_length(l_arr_orders);
+			if (result_count <= 0) {
+				printf("Response array is empty\n");
+				return -3;
+			}
+			printf("______________________________________________________________________________________________"
+				"_________________________________________________________________________________________________"
+				"_________________________\n");
+			printf("   %-67s | %-31s | %s | %-20s | %-20s | %3s | %-10s | %-10s | %-20s |\n",
+					"Order hash", "Time create", "Status",
+					"Proposed coins","Amount coins","%",
+					"Token buy", "Token sell","Rate");
+			for (int i = 0; i < result_count; i++) {
+				struct json_object *json_obj_result = json_object_array_get_idx(l_arr_orders, i);
+				json_object *j_obj_status = NULL, *j_obj_hash = NULL, *j_obj_create = NULL, *j_obj_prop_coin = NULL,
+					*j_obj_amount_coin = NULL, *j_obj_filed_perc = NULL, *j_obj_token_buy = NULL, *j_obj_token_sell = NULL, *j_obj_rate = NULL;
+				if (json_object_object_get_ex(json_obj_result, "order_hash", &j_obj_hash) &&
+					json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_create) &&
+					json_object_object_get_ex(json_obj_result, "status", &j_obj_status) &&
+					json_object_object_get_ex(json_obj_result, "proposed_coins", &j_obj_prop_coin) &&
+					json_object_object_get_ex(json_obj_result, "amount_coins", &j_obj_amount_coin) &&
+					json_object_object_get_ex(json_obj_result, "filled_percent", &j_obj_filed_perc) &&
+					json_object_object_get_ex(json_obj_result, "token_buy", &j_obj_token_buy) &&
+					json_object_object_get_ex(json_obj_result, "token_sell", &j_obj_token_sell) &&
+					json_object_object_get_ex(json_obj_result, "rate", &j_obj_rate)) {
+					printf("   %s  | %s | %s | %-20s | %-20s | %3d | %-10s | %-10s | %-20s |\n",
+						json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create), json_object_get_string(j_obj_status),
+						json_object_get_string(j_obj_prop_coin), json_object_get_string(j_obj_amount_coin), (int)json_object_get_uint64(j_obj_filed_perc),
+						json_object_get_string(j_obj_token_buy), json_object_get_string(j_obj_token_sell), json_object_get_string(j_obj_rate));
+					l_print_count++;
+				}
+			}
+			printf("_______________________________________________________________________|_________________________________|________|______________________|"
+				"______________________|_____|____________|____________|______________________|\n\n");
+			if (l_limit) { printf("\tlimit: %s \n", l_limit); DAP_DELETE(l_limit); }
+			if (l_offset) { printf("\toffset: %s \n", l_offset); DAP_DELETE(l_offset); }
+			printf("\torders printed: %zd\n", l_print_count);
+		} else {
+			return -4;
+		}
+		return 0;
+	}
 
-    j_obj_headr = json_object_array_get_idx(response->result_json_object, 0);
-    json_object_object_get_ex(j_obj_headr, "pagina", &l_arr_pagina);
-    l_obj_pagina = json_object_array_get_idx(l_arr_pagina, 0);    
-    json_object_object_get_ex(l_obj_pagina, "limit", &limit_obj);
-    json_object_object_get_ex(l_obj_pagina, "offset", &offset_obj);
-    
-    l_limit = json_object_get_int64(limit_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(limit_obj)) : dap_strdup_printf("unlimit");
-    l_offset = json_object_get_int64(offset_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(offset_obj)) : NULL;
-    
-    json_object_object_get_ex(j_obj_headr, "orders", &l_arr_orders);
+	// Branch: token_pair
+	if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "token_pair")) {
+		// list all
+		if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list")) {
+			struct json_object *l_obj_pairs = NULL, *l_pairs_arr = NULL, *l_pair_cnt = NULL;
+			int top_len = json_object_array_length(response->result_json_object);
+			for (int i = 0; i < top_len; i++) {
+				struct json_object *el = json_object_array_get_idx(response->result_json_object, i);
+				if (el && json_object_get_type(el) == json_type_object) {
+					if (json_object_object_get_ex(el, "tickers_pair", &l_pairs_arr) ||
+						json_object_object_get_ex(el, "TICKERS PAIR", &l_pairs_arr)) { l_obj_pairs = el; break; }
+				}
+			}
+			if (!l_obj_pairs || !l_pairs_arr || json_object_get_type(l_pairs_arr) != json_type_array) return -5;
+			printf("______________________________\n");
+			printf(" %-10s | %-10s |\n", "Ticker 1", "Ticker 2");
+            for (size_t i = 0; i < (size_t)json_object_array_length(l_pairs_arr); i++) {
+				struct json_object *pair = json_object_array_get_idx(l_pairs_arr, i);
+				struct json_object *t1 = NULL, *t2 = NULL;
+				json_object_object_get_ex(pair, "ticker_1", &t1);
+				json_object_object_get_ex(pair, "ticker_2", &t2);
+				if (t1 && t2) printf(" %-10s | %-10s |\n", json_object_get_string(t1), json_object_get_string(t2));
+			}
+            if (json_object_object_get_ex(l_obj_pairs, "pair_count", &l_pair_cnt) || json_object_object_get_ex(l_obj_pairs, "pair count", &l_pair_cnt))
+                printf("\nTotal pairs: %"DAP_INT64_FORMAT"\n", json_object_get_int64(l_pair_cnt));
+			return 0;
+		}
+		// rate average
+		if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "average")) {
+			int top_len = json_object_array_length(response->result_json_object);
+			for (int i = 0; i < top_len; i++) {
+				struct json_object *el = json_object_array_get_idx(response->result_json_object, i);
+				if (el && json_object_get_type(el) == json_type_object) {
+					struct json_object *avg = NULL, *last = NULL, *last_ts = NULL;
+					if (json_object_object_get_ex(el, "average_rate", &avg) || json_object_object_get_ex(el, "Average rate", &avg)) {
+						json_object_object_get_ex(el, "last_rate", &last); json_object_object_get_ex(el, "Last rate", &last);
+						json_object_object_get_ex(el, "last_rate_time", &last_ts); json_object_object_get_ex(el, "Last rate time", &last_ts);
+						printf("Average rate: %s\n", json_object_get_string(avg));
+						if (last) printf("Last rate: %s\n", json_object_get_string(last));
+						if (last_ts) printf("Last rate time: %s\n", json_object_get_string(last_ts));
+						return 0;
+					}
+				}
+			}
+			return -6;
+		}
+		// rate history
+		if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "history")) {
+			struct json_object *l_arr = NULL;
+			struct json_object *l_summary = NULL;
+			int top_len = json_object_array_length(response->result_json_object);
+			for (int i = 0; i < top_len; i++) {
+				struct json_object *el = json_object_array_get_idx(response->result_json_object, i);
+				if (el && json_object_get_type(el) == json_type_array && !l_arr) l_arr = el;
+				if (el && json_object_get_type(el) == json_type_object) l_summary = el;
+			}
+			if (!l_arr) return -7;
+			printf("__________________________________________________________________________________________________\n");
+			printf(" Hash | Action | Token | Time create\n");
+			printf("__________________________________________________________________________________________________\n");
+            for (size_t i = 0; i < (size_t)json_object_array_length(l_arr); i++) {
+				struct json_object *it = json_object_array_get_idx(l_arr, i);
+				struct json_object *hash = NULL, *action = NULL, *token = NULL, *ts = NULL;
+				json_object_object_get_ex(it, "hash", &hash);
+				json_object_object_get_ex(it, "action", &action);
+				json_object_object_get_ex(it, "token ticker", &token);
+				json_object_object_get_ex(it, "tx created", &ts);
+				if (hash && action && token && ts)
+					printf(" %s | %s | %s | %s\n", json_object_get_string(hash), json_object_get_string(action), json_object_get_string(token), json_object_get_string(ts));
+				else
+					json_print_object(it, 1);
+			}
+			if (l_summary) {
+				struct json_object *tx_cnt = NULL;
+				struct json_object *v1_from = NULL, *v1_to = NULL, *v2_from = NULL, *v2_to = NULL;
+				json_object_object_get_ex(l_summary, "tx_count", &tx_cnt);
+                if (tx_cnt) printf("\nTotal transactions: %"DAP_INT64_FORMAT"\n", json_object_get_int64(tx_cnt));
+				if (json_object_object_get_ex(l_summary, "trading_val_from_coins", &v1_from) || json_object_object_get_ex(l_summary, "trading_val_from_datoshi", &v2_from) ||
+					json_object_object_get_ex(l_summary, "trading_val_to_coins", &v1_to) || json_object_object_get_ex(l_summary, "trading_val_to_datoshi", &v2_to)) {
+					printf("Trading from: %s (%s)\n", v1_from ? json_object_get_string(v1_from) : "-", v2_from ? json_object_get_string(v2_from) : "-");
+					printf("Trading to:   %s (%s)\n", v1_to ? json_object_get_string(v1_to) : "-", v2_to ? json_object_get_string(v2_to) : "-");
+				}
+			}
+			return 0;
+		}
+		return -8;
+	}
 
-             
-    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "orders"))
-        return -2;
-    if (json_object_get_type(response->result_json_object) == json_type_array) {
-        int result_count = json_object_array_length(l_arr_orders);
-        if (result_count <= 0) {
-            printf("Response array is empty\n");
-            return -3;
-        }
-        //printf("ORDERS is %d\n", result_count);
-        printf("______________________________________________________________________________________________"
-            "_________________________________________________________________________________________________"
-            "_________________________\n");
-        printf("   %-67s | %-31s | %s | %-20s | %-20s | %3s | %-10s | %-10s | %-20s |\n",
-                        "Order hash", "Time create", "Status",
-                        "Proposed coins","Amount coins","%",
-                        "Token buy", "Token sell","Rate"
-                    );
+	// Branch: tx_list
+	if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "tx_list")) {
+		struct json_object *l_arr = NULL, *l_total = NULL;
+		int top_len = json_object_array_length(response->result_json_object);
+		for (int i = 0; i < top_len; i++) {
+			struct json_object *el = json_object_array_get_idx(response->result_json_object, i);
+			if (!el) continue;
+			if (!l_arr && json_object_get_type(el) == json_type_array) l_arr = el;
+			else if (json_object_get_type(el) == json_type_object) l_total = el;
+		}
+		if (!l_arr) return -9;
+        char hash_buffer[16];
+		printf("__________________________________________________________________________________________________\n");
+		printf(" Hash | Status | Token | Time create | Owner | Buyer\n");
+		printf("__________________________________________________________________________________________________\n");
+        for (size_t i = 0; i < (size_t)json_object_array_length(l_arr); i++) {
+			struct json_object *it = json_object_array_get_idx(l_arr, i);
+			struct json_object *hash = NULL, *status = NULL, *token = NULL, *ts = NULL, *owner_addr = NULL, *buyer_addr = NULL;
+			json_object_object_get_ex(it, "hash", &hash);
+			json_object_object_get_ex(it, "status", &status);
+			json_object_object_get_ex(it, "ticker", &token);
+			json_object_object_get_ex(it, "ts_created", &ts);
+            json_object_object_get_ex(it, "owner_addr", &owner_addr);
+            json_object_object_get_ex(it, "buyer_addr", &buyer_addr);
+            const char * owner_addr_str = owner_addr && strcmp(json_object_get_string(owner_addr), "null") ? json_object_get_string(owner_addr)+85 : "-------------------";
+            const char * buyer_addr_str = buyer_addr && strcmp(json_object_get_string(buyer_addr), "null") ? json_object_get_string(buyer_addr)+85 : "-------------------";
+			if (hash && token && ts && status) {                
+                const char *full_hash = json_object_get_string(hash);
+                char *hash_short = full_hash;
+                if (full_hash && strlen(full_hash) > 15) {
+                    strncpy(hash_buffer, full_hash + strlen(full_hash) - 15, 15);
+                    hash_buffer[15] = '\0';
+                    hash_short = hash_buffer;
+                } 
+				printf(" %-15s | %-9s | %-10s | %s | %s | %s\n", hash_short, json_object_get_string(status), json_object_get_string(token), json_object_get_string(ts), owner_addr_str, buyer_addr_str);
+			} else {
+				json_print_object(it, 1);
+			}
+		}
+		if (l_total) {
+			struct json_object *cnt = NULL;
+			json_object_object_get_ex(l_total, "total_tx_count", &cnt);
+			if (!cnt) json_object_object_get_ex(l_total, "number of transactions", &cnt);
+            if (cnt) printf("\nTotal transactions: %"DAP_INT64_FORMAT"\n", json_object_get_int64(cnt));
+		}
+		return 0;
+	}
 
-        
-        for (int i = 0; i < result_count; i++) {
-            struct json_object *json_obj_result = json_object_array_get_idx(l_arr_orders, i);
-
-            json_object *j_obj_status, *j_obj_hash, *j_obj_create, *j_obj_prop_coin, *j_obj_lim,
-             *j_obj_amount_coin, *j_obj_filed_perc, *j_obj_token_buy, *j_obj_token_sell, *j_obj_rate, *j_obj_off;
-            if (json_object_object_get_ex(json_obj_result, "order_hash", &j_obj_hash) &&
-                json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_create) &&
-                json_object_object_get_ex(json_obj_result, "status", &j_obj_status) &&
-                json_object_object_get_ex(json_obj_result, "proposed_coins", &j_obj_prop_coin) &&
-                json_object_object_get_ex(json_obj_result, "amount_coins", &j_obj_amount_coin) &&
-                json_object_object_get_ex(json_obj_result, "filled_percent", &j_obj_filed_perc) &&
-                json_object_object_get_ex(json_obj_result, "token_buy", &j_obj_token_buy) &&
-                json_object_object_get_ex(json_obj_result, "token_sell", &j_obj_token_sell) &&
-                json_object_object_get_ex(json_obj_result, "rate", &j_obj_rate))
-            {
-                if (j_obj_status && j_obj_hash && j_obj_create) {
-                    printf("   %s  | %s | %s | %-20s | %-20s | %3d | %-10s | %-10s | %-20s |\n",
-                        json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create), json_object_get_string(j_obj_status),
-                        json_object_get_string(j_obj_prop_coin), json_object_get_string(j_obj_amount_coin),json_object_get_uint64(j_obj_filed_perc),
-                        json_object_get_string(j_obj_token_buy), json_object_get_string(j_obj_token_sell),json_object_get_string(j_obj_rate)
-                    );
-                    l_print_count++;
-                } else {
-                    printf("Missing required fields in array element at index %d\n", i);
-                }
-            }             
-        }
-        printf("_______________________________________________________________________|_________________________________|________|______________________|"
-            "______________________|_____|____________|____________|______________________|\n\n");
-        if (l_limit) {
-            printf("\tlimit: %s \n", l_limit);
-            DAP_DELETE(l_limit);
-        }
-        if (l_offset) {
-            printf("\toffset: %s \n", l_offset);
-            DAP_DELETE(l_offset);
-        }
-        printf("\torders printed: %d\n", l_print_count);
-    } else {
-        //json_print_object(response->result_json_object, 0);
-        return -4;
-    }
-    return 0;
-
+	return -10;
 }
 
 /**
@@ -2529,7 +2653,7 @@ int json_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd
 			// Check for count response (version 1 or 2)
 			if (json_object_object_get_ex(first_obj, "Number of transaction", &count_obj) ||
 			    json_object_object_get_ex(first_obj, "total_tx_count", &count_obj)) {
-				printf("Total transactions count: %lld\n", json_object_get_int64(count_obj));
+                printf("Total transactions count: %"DAP_INT64_FORMAT"\n", json_object_get_int64(count_obj));
 				return 0;
 			}
 		}
