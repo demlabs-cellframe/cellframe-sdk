@@ -2684,6 +2684,10 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 // Basic auction info
                 json_object_object_add(l_auction_obj, "hash", 
                     json_object_new_string(dap_chain_hash_fast_to_str_static(&l_auction->auction_hash)));
+                if (l_auction->group_name) {
+                    json_object_object_add(l_auction_obj, "group_name",
+                        json_object_new_string(l_auction->group_name));
+                }
                 json_object_object_add(l_auction_obj, "status", 
                     json_object_new_string(dap_auction_status_to_str(l_auction->status)));
                 json_object_object_add(l_auction_obj, "created_time", 
