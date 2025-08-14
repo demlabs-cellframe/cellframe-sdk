@@ -475,7 +475,6 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     }
     return true;
 }
-
 int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback)
 {
     
@@ -1837,7 +1836,6 @@ static bool s_pack_ledger_balance_info_json (json_object *a_json_arr_out, dap_le
         json_object_array_add(a_json_arr_out, json_obj_tx);
     return 0;
 }
-
 json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, dap_chain_hash_fast_t *a_threshold_hash, bool a_head, int a_version)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -2326,8 +2324,6 @@ static bool s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_instance_t
     DAP_DELETE(l_gdb_group);
     return true;
 }
-
-
 /**
  * @brief GDB callback for loaded emissions from cache
  * @param a_global_db_context
@@ -2816,7 +2812,6 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
 {
     return s_emission_add_check(a_ledger, a_token_emission, a_token_emission_size, a_emission_hash, NULL, NULL);
 }
-
 static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item)
 {
     if (!PVT(a_ledger)->cached)
@@ -3203,6 +3198,21 @@ static int s_callback_sign_compare(dap_list_t *a_list_elem, dap_list_t *a_sign_e
         return -1;
     }
     return !dap_pkey_compare_with_sign(l_key, l_sign);
+}
+
+inline static bool s_ledger_check_token_ticker(const char *a_ticker)
+{
+    if (!a_ticker)
+        return false;
+    size_t l_len = strlen(a_ticker);
+    if (l_len < 3 || l_len > 10)
+        return false;
+    for (size_t i = 0; i < l_len; i++)
+        if (!isalnum(a_ticker[i]))
+            return false;
+    return true;
+}
+
 
 bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
@@ -3210,26 +3220,6 @@ bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
     return dap_list_find(a_ledger->net->pub.keys, l_sign, s_callback_sign_compare);
 }
-
-inline static bool s_ledger_check_token_ticker(const char *a_ticker)
-{
-    const char *c = a_ticker;
-    for (int i = 0; i < DAP_CHAIN_TICKER_SIZE_MAX; i++, c++)
-        if (*c == '\0')
-            return true;
-    return false;
-}
-
-/*
-services we know now
-0x01 - VPN
-0x02 - xchange
-0x03, 0x13 -  pos_delegate
-0x04 bridge
-0x.05 - custom datum
-0x06 voting
-0x12 - stake_lock 
-*/
 
 const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
 {
@@ -3303,8 +3293,6 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
     if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     return false;
 }
-
-
 bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, char **a_service_name, dap_chain_net_srv_uid_t *a_tag, dap_chain_tx_tag_action_type_t *a_action)
 {
     dap_ledger_service_info_t *l_sinfo_current, *l_sinfo_tmp;
@@ -3750,7 +3738,6 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             // Overflow checked later with overall values sum
             SUM_256_256(l_taxed_value, l_value, &l_taxed_value);
         } break;
-
         case TX_ITEM_TYPE_IN:
         case TX_ITEM_TYPE_IN_COND: { // Not emission types
             uint32_t l_tx_prev_out_idx = (uint32_t)-1;
@@ -4213,7 +4200,6 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             DAP_DEL_Z(l_expected_tax_str);
         }
     }
-
     if (!l_err_num) {
         byte_t *it; size_t l_size;
         TX_ITEM_ITER_TX(it, l_size, a_tx) {
@@ -4807,10 +4793,9 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
  * @param a_ledger
  * @param a_tx
  * @param a_tx_hash
- * @param a_from_threshold
  * @return return 1 OK, -1 error
  */
-int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
+int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
 {
     int l_ret = 0;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -5591,7 +5576,6 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const c
         ? ({ if (a_value_transfer) *a_value_transfer = l_value_transfer; l_list_used_out; })
         : ( dap_list_free_full(l_list_used_out, NULL), NULL );
 }
-
 dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                         uint256_t *a_value_transfer)
 {
@@ -6070,7 +6054,6 @@ static int s_ledger_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_h
     
     return 0;
 }
-
 static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -6140,6 +6123,32 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         log_it(L_WARNING, "Event item or sign not found in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -7;
+    }
+    // Additional pre-apply uniqueness check across already added transactions in ledger cache
+    if (!a_apply && l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED) {
+        pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+        for (dap_ledger_tx_item_t *lit = l_ledger_pvt->ledger_items; lit; lit = lit->hh.next) {
+            byte_t *it_item; size_t it_size;
+            TX_ITEM_ITER_TX(it_item, it_size, lit->tx) {
+                if (*it_item != TX_ITEM_TYPE_EVENT)
+                    continue;
+                dap_chain_tx_item_event_t *existing_event = (dap_chain_tx_item_event_t *)it_item;
+                if (existing_event->version != DAP_CHAIN_TX_EVENT_VERSION)
+                    continue;
+                if (existing_event->event_type != DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED)
+                    continue;
+                if (existing_event->group_name_size != l_event_item->group_name_size)
+                    continue;
+                if (!memcmp(existing_event->group_name, l_event_item->group_name, l_event_item->group_name_size)) {
+                    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+                    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+                    log_it(L_WARNING, "Auction start rejected at check: group '%.*s' already present in pending ledger items",
+                           (int)l_event_item->group_name_size, (const char *)l_event_item->group_name);
+                    return -13;
+                }
+            }
+        }
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     }
     if (dap_chain_datum_tx_verify_sign(a_tx, 1)) {
         log_it(L_WARNING, "Sign verification failed in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
@@ -6342,4 +6351,3 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
      pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
      return l_list;
  }
- 
