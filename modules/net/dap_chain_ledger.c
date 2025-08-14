@@ -63,6 +63,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_datum_tx_event.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -917,8 +918,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         (l_new_tx_recv_block_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
             if (l_new_tx_recv_block_size)
-                l_new_tx_recv_block = DAP_REALLOC(l_new_tx_recv_block,
-                                                          l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_block = DAP_REALLOC_COUNT(l_new_tx_recv_block, l_new_tx_recv_block_size);
             else
                 DAP_DEL_Z(l_new_tx_recv_block);
         } break;
@@ -1010,8 +1010,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         (l_new_tx_send_allow_size - i - 1) * sizeof(dap_chain_addr_t));
             // Memory clearing
             if (l_new_tx_send_allow_size)
-                l_new_tx_send_allow = DAP_REALLOC(l_new_tx_send_allow,
-                                                          l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
+                l_new_tx_send_allow = DAP_REALLOC_COUNT(l_new_tx_send_allow, l_new_tx_send_allow_size);
             else
                 DAP_DEL_Z(l_new_tx_send_allow);
         } break;
@@ -2405,7 +2404,7 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
         log_it(L_NOTICE, "No ledger cache found");
         pthread_mutex_lock(&l_ledger_pvt->load_mutex);
         l_ledger_pvt->load_end = true;
-        pthread_cond_broadcast(&l_ledger_pvt->load_cond );
+        pthread_cond_broadcast(& l_ledger_pvt->load_cond );
         pthread_mutex_unlock(&l_ledger_pvt->load_mutex);
 
     }
@@ -3204,7 +3203,6 @@ static int s_callback_sign_compare(dap_list_t *a_list_elem, dap_list_t *a_sign_e
         return -1;
     }
     return !dap_pkey_compare_with_sign(l_key, l_sign);
-}
 
 bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
@@ -4812,7 +4810,7 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
  * @param a_from_threshold
  * @return return 1 OK, -1 error
  */
-int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
+int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
     int l_ret = 0;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -5940,7 +5938,7 @@ void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged
     }
     l_notifier->callback = a_callback;
     l_notifier->arg = a_arg;
-    PVT(a_ledger)->bridged_tx_notifiers = dap_list_append(PVT(a_ledger)->bridged_tx_notifiers , l_notifier);
+    PVT(a_ledger)->bridged_tx_notifiers = dap_list_append(PVT(a_ledger)->bridged_tx_notifiers, l_notifier);
 }
 
 /**
@@ -6158,6 +6156,15 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     }
     for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
         if (!memcmp(it->group_name, l_event_item->group_name, l_event_item->group_name_size)) {
+            // Enforce uniqueness for auction start events by group_name
+            if (l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED &&
+                    it->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED) {
+                log_it(L_WARNING, "Auction start rejected: group '%.*s' already exists (existing tx %s)",
+                        (int)l_event_item->group_name_size, (const char *)l_event_item->group_name,
+                        dap_chain_hash_fast_to_str_static(&it->tx_hash));
+                pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+                return -13;
+            }
             if (!dap_hash_fast_compare(&it->pkey_hash, &l_event_pkey_hash)) {
                 log_it(L_WARNING, "Group %s already exists with pkey_hash %s not matching event sign pkey hash %s",
                         it->group_name, dap_hash_fast_to_str_static(&it->pkey_hash), dap_hash_fast_to_str_static(&l_event_pkey_hash));
