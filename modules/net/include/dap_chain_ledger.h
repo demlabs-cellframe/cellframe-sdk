@@ -136,13 +136,13 @@ typedef enum dap_chain_tx_tag_action_type {
     DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
     DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
     DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
-    DAP_CHAIN_TX_TAG_ACTION_VOTING_CANCEL =         1 << 11,
+
+    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
+    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
 
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD =    1 << 13,
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE =    1 << 14,
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL =  1 << 15,
-
-    DAP_CHAIN_TX_TAG_ACTION_EVENT =                 1 << 16,
    
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
 } dap_chain_tx_tag_action_type_t;

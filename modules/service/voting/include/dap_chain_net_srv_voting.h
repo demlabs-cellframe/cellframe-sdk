@@ -96,7 +96,8 @@ enum DAP_CHAIN_NET_VOTE_CREATE_ERROR {
     DAP_CHAIN_NET_VOTE_CREATE_WRONG_TIME_FORMAT,
     DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN,
     DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_TOKEN,
-    DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR
+    DAP_CHAIN_NET_VOTE_CREATE_UNKNOWN_ERR,
+    DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS
 };
 int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
                              uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
@@ -147,13 +148,19 @@ enum DAP_CHAIN_NET_VOTE_DUMP_ERROR{
     DAP_CHAIN_NET_VOTE_DUMP_MEMORY_ERR
 
 };
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_hash,
                               uint64_t a_option_idx, dap_chain_net_t *a_net, const char *a_hash_out_type,
                               char **a_hash_tx_out);
 
 dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net);
+dap_list_t* dap_get_options_list_from_str(const char* a_str);
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_vote_hash);
 void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info);
+dap_list_t* dap_get_options_list_from_str(const char* a_str);
 typedef enum {
     DAP_CHAIN_NET_VOTE_CANCEL_OK = 0,
     DAP_CHAIN_NET_VOTE_CANCEL_HASH_NOT_FOUND,
@@ -168,9 +175,13 @@ typedef enum {
     DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS,
     DAP_CHAIN_NET_VOTE_CANCEL_SOURCE_ADDRESS_INVALID,
     DAP_CHAIN_NET_VOTE_CANCEL_NOT_ENOUGH_FUNDS,
+    DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_CREATE_VOTE_ITEM,
     DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_SIGN_TX,
     DAP_CHAIN_NET_VOTE_CANCEL_CAN_NOT_POOL_IN_MEMPOOL,
     DAP_CHAIN_NET_VOTE_CANCEL_UNKNOWN_ERR = 99
 } dap_chain_net_vote_cancel_result_t;
-dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out);
+dap_chain_net_vote_cancel_result_t dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out);
 
+#if defined(__cplusplus)
+}
+#endif
