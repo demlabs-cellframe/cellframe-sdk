@@ -70,6 +70,8 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
 // Forward declaration for optimization function
 static dap_auction_cache_item_t *s_find_auction_by_hash_fast(dap_auction_cache_t *a_cache, const dap_hash_fast_t *a_auction_hash);
 
+
+
 char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
                                      uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_project_id, uint256_t a_fee, int *a_ret_code);
 char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code);
@@ -644,6 +646,72 @@ dap_auction_cache_item_t *dap_auction_cache_find_auction(dap_auction_cache_t *a_
     
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
     return l_auction;
+}
+
+/**
+ * @brief Diagnostic function to verify integrity of dual hash tables
+ * @param a_cache Cache instance  
+ * @return Returns true if integrity check passes
+ */
+static bool s_verify_dual_hash_table_integrity(dap_auction_cache_t *a_cache)
+{
+    if (!a_cache) return false;
+    
+    uint32_t primary_count = 0, secondary_count = 0;
+    dap_auction_cache_item_t *l_auction, *l_tmp;
+    
+    // Count items in primary table (by group_name)
+    HASH_ITER(hh, a_cache->auctions, l_auction, l_tmp) {
+        primary_count++;
+        
+        // Verify that each item in primary table exists in secondary table
+        dap_auction_cache_item_t *l_found = NULL;
+        HASH_FIND(hh_hash, a_cache->auctions_by_hash, &l_auction->auction_tx_hash, sizeof(dap_hash_fast_t), l_found);
+        if (!l_found) {
+            log_it(L_ERROR, "Integrity violation: auction %s found in primary but not in secondary table",
+                   dap_chain_hash_fast_to_str_static(&l_auction->auction_tx_hash));
+            return false;
+        }
+        if (l_found != l_auction) {
+            log_it(L_ERROR, "Integrity violation: different auction objects for same hash");
+            return false;
+        }
+    }
+    
+    // Count items in secondary table (by auction_tx_hash)  
+    HASH_ITER(hh_hash, a_cache->auctions_by_hash, l_auction, l_tmp) {
+        secondary_count++;
+        
+        // Verify that each item in secondary table exists in primary table
+        dap_auction_cache_item_t *l_found = NULL;
+        if (l_auction->group_name) {
+            HASH_FIND_STR(a_cache->auctions, l_auction->group_name, l_found);
+            if (!l_found) {
+                log_it(L_ERROR, "Integrity violation: auction %s found in secondary but not in primary table",
+                       l_auction->group_name);
+                return false;
+            }
+            if (l_found != l_auction) {
+                log_it(L_ERROR, "Integrity violation: different auction objects for same group_name");
+                return false;
+            }
+        }
+    }
+    
+    // Verify counts match
+    if (primary_count != secondary_count) {
+        log_it(L_ERROR, "Integrity violation: table count mismatch - primary: %u, secondary: %u", 
+               primary_count, secondary_count);
+        return false;
+    }
+    
+    if (primary_count != a_cache->total_auctions) {
+        log_it(L_WARNING, "Count mismatch: tables have %u items but total_auctions=%u", 
+               primary_count, a_cache->total_auctions);
+    }
+    
+    log_it(L_DEBUG, "Hash table integrity check passed: %u auctions in both tables", primary_count);
+    return true;
 }
 
 /**
@@ -1516,16 +1584,65 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
     dap_list_t *l_list = NULL;
     pthread_rwlock_rdlock(&s_auction_cache->cache_rwlock);
     
+    // Diagnostic: Log current cache state
+    log_it(L_INFO, "Getting auctions list for network %s, status_filter=%d, include_projects=%s", 
+           a_net->pub.name, a_status_filter, a_include_projects ? "true" : "false");
+    log_it(L_INFO, "Cache state: total_auctions=%u, active_auctions=%u, auctions_table=%s", 
+           s_auction_cache->total_auctions, s_auction_cache->active_auctions,
+           s_auction_cache->auctions ? "present" : "NULL");
+    
+    // Verify cache integrity before iteration
+    if (!s_auction_cache->auctions && s_auction_cache->total_auctions > 0) {
+        log_it(L_ERROR, "Cache corruption detected: NULL auctions table but total_auctions=%u", 
+               s_auction_cache->total_auctions);
+        pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
+        return NULL;
+    }
+    
+    // Early exit if no auctions in cache
+    if (!s_auction_cache->auctions || s_auction_cache->total_auctions == 0) {
+        log_it(L_INFO, "No auctions in cache - returning empty list");
+        pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
+        return NULL;
+    }
+    
+    // Perform comprehensive dual hash table integrity check
+    if (!s_verify_dual_hash_table_integrity(s_auction_cache)) {
+        log_it(L_ERROR, "Dual hash table integrity check failed - aborting list operation");
+        pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
+        return NULL;
+    }
+    
+    uint32_t l_total_found = 0, l_network_matches = 0, l_status_matches = 0;
+    
     dap_auction_cache_item_t *l_cached_auction = NULL, *l_tmp_auction = NULL;
     HASH_ITER(hh, s_auction_cache->auctions, l_cached_auction, l_tmp_auction) {
-        // Filter by network ID
-        if (l_cached_auction->net_id.uint64 != a_net->pub.id.uint64)
+        l_total_found++;
+        
+        // Safety check to prevent segfault
+        if (!l_cached_auction) {
+            log_it(L_ERROR, "NULL auction found during iteration - cache corruption detected");
             continue;
+        }
+        
+        // Filter by network ID
+        if (l_cached_auction->net_id.uint64 != a_net->pub.id.uint64) {
+            log_it(L_DEBUG, "Auction %s: network mismatch (expected %"DAP_UINT64_FORMAT_U", got %"DAP_UINT64_FORMAT_U")",
+                   l_cached_auction->group_name ? l_cached_auction->group_name : "no_name",
+                   a_net->pub.id.uint64, l_cached_auction->net_id.uint64);
+            continue;
+        }
+        l_network_matches++;
         
         // Filter by status if specified
         if (a_status_filter != DAP_AUCTION_STATUS_UNKNOWN && 
-            l_cached_auction->status != a_status_filter)
+            l_cached_auction->status != a_status_filter) {
+            log_it(L_DEBUG, "Auction %s: status mismatch (expected %d, got %d)",
+                   l_cached_auction->group_name ? l_cached_auction->group_name : "no_name",
+                   a_status_filter, l_cached_auction->status);
             continue;
+        }
+        l_status_matches++;
         
         // Create auction structure
         dap_chain_net_srv_auction_t *l_auction = DAP_NEW_Z(dap_chain_net_srv_auction_t);
@@ -1571,6 +1688,11 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
                 uint32_t l_index = 0;
                 dap_auction_project_cache_item_t *l_project, *l_tmp_project;
                 HASH_ITER(hh, l_cached_auction->projects, l_project, l_tmp_project) {
+                    // Safety check to prevent segfault in nested iteration
+                    if (!l_project) {
+                        log_it(L_ERROR, "NULL project found during iteration - project cache corruption detected");
+                        break;
+                    }
                     if (l_index >= l_cached_auction->projects_count)
                         break;
                     
@@ -1597,7 +1719,10 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
     
     pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
     
-    log_it(L_DEBUG, "Retrieved %"DAP_UINT64_FORMAT_U" auctions from cache", dap_list_length(l_list));
+    uint32_t l_final_count = dap_list_length(l_list);
+    log_it(L_INFO, "Auction filtering results: found=%u, network_matches=%u, status_matches=%u, final_list=%u", 
+           l_total_found, l_network_matches, l_status_matches, l_final_count);
+    log_it(L_DEBUG, "Retrieved %u auctions from cache", l_final_count);
     return l_list;
 }
 
@@ -2251,7 +2376,7 @@ static void s_error_handler(enum error_code a_err_code, dap_string_t *a_str_repl
  * @param a_version Protocol version
  * @return Error code
  */
-int com_auction(int argc, char **argv, void **str_reply, int a_version)
+int com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int a_version)
 {
     enum {
         CMD_NONE, CMD_BID, CMD_WITHDRAW, CMD_LIST, CMD_INFO, CMD_EVENTS, CMD_STATS
@@ -2649,6 +2774,14 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
             dap_auction_status_t l_status_filter = l_active_only ? DAP_AUCTION_STATUS_ACTIVE : DAP_AUCTION_STATUS_UNKNOWN;
             dap_list_t *l_auctions_list = dap_chain_net_srv_auctions_get_list(l_net, l_status_filter, l_include_projects);
             
+            // Diagnostic: Check returned list
+            if (!l_auctions_list) {
+                log_it(L_INFO, "CMD_LIST: get_list returned NULL");
+            } else {
+                uint32_t l_list_length = dap_list_length(l_auctions_list);
+                log_it(L_INFO, "CMD_LIST: get_list returned list with %u items", l_list_length);
+            }
+            
             json_object *l_json_obj = json_object_new_object();
             json_object_object_add(l_json_obj, "command", json_object_new_string("list"));
             json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
@@ -2658,10 +2791,21 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
             // Create auctions array
             json_object *l_auctions_array = json_object_new_array();
             uint32_t l_count = 0;
+            uint32_t l_processed = 0;
             
+            log_it(L_INFO, "CMD_LIST: Starting auction processing loop");
             for (dap_list_t *l_item = l_auctions_list; l_item; l_item = dap_list_next(l_item)) {
+                l_processed++;
+                log_it(L_DEBUG, "CMD_LIST: Processing auction item %u", l_processed);
+                
                 dap_chain_net_srv_auction_t *l_auction = (dap_chain_net_srv_auction_t *)l_item->data;
-                if (!l_auction) continue;
+                if (!l_auction) {
+                    log_it(L_WARNING, "CMD_LIST: Item %u has NULL data", l_processed);
+                    continue;
+                }
+                
+                log_it(L_DEBUG, "CMD_LIST: Auction %u: group_name=%s, status=%d", 
+                       l_processed, l_auction->group_name ? l_auction->group_name : "NULL", l_auction->status);
                 
                 json_object *l_auction_obj = json_object_new_object();
                 
@@ -2674,8 +2818,15 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 }
                 json_object_object_add(l_auction_obj, "status", 
                     json_object_new_string(dap_auction_status_to_str(l_auction->status)));
-                json_object_object_add(l_auction_obj, "created_time", 
-                    json_object_new_uint64(l_auction->created_time));
+                
+                // Format times as human-readable strings
+                char created_time_str[DAP_TIME_STR_SIZE], start_time_str[DAP_TIME_STR_SIZE], end_time_str[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(created_time_str, DAP_TIME_STR_SIZE, l_auction->created_time);
+                dap_time_to_str_rfc822(start_time_str, DAP_TIME_STR_SIZE, l_auction->start_time);
+                dap_time_to_str_rfc822(end_time_str, DAP_TIME_STR_SIZE, l_auction->end_time);
+                json_object_object_add(l_auction_obj, "created_time", json_object_new_string(created_time_str));
+                json_object_object_add(l_auction_obj, "start_time", json_object_new_string(start_time_str));
+                json_object_object_add(l_auction_obj, "end_time", json_object_new_string(end_time_str));
                 json_object_object_add(l_auction_obj, "bids_count", 
                     json_object_new_uint64(l_auction->bids_count));
                 json_object_object_add(l_auction_obj, "projects_count", 
@@ -2737,11 +2888,15 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
                 
                 json_object_array_add(l_auctions_array, l_auction_obj);
                 l_count++;
+                log_it(L_DEBUG, "CMD_LIST: Successfully added auction %u to JSON array", l_count);
             }
             
+            log_it(L_INFO, "CMD_LIST: Processed %u items, added %u auctions to JSON array", l_processed, l_count);
             json_object_object_add(l_json_obj, "auctions", l_auctions_array);
             json_object_object_add(l_json_obj, "count", json_object_new_uint64(l_count));
             json_object_array_add(*l_json_arr_reply, l_json_obj);
+            
+            log_it(L_INFO, "CMD_LIST: JSON response prepared with %u auctions", l_count);
             
             // Cleanup
             if (l_auctions_list) {
@@ -2778,12 +2933,15 @@ int com_auction(int argc, char **argv, void **str_reply, int a_version)
             // Basic auction information
             json_object_object_add(l_json_obj, "auction_status", 
                 json_object_new_string(dap_auction_status_to_str(l_auction->status)));
-            json_object_object_add(l_json_obj, "created_time", 
-                json_object_new_uint64(l_auction->created_time));
-            json_object_object_add(l_json_obj, "start_time", 
-                json_object_new_uint64(l_auction->start_time));
-            json_object_object_add(l_json_obj, "end_time", 
-                json_object_new_uint64(l_auction->end_time));
+            
+            // Format times as human-readable strings
+            char info_created_time_str[DAP_TIME_STR_SIZE], info_start_time_str[DAP_TIME_STR_SIZE], info_end_time_str[DAP_TIME_STR_SIZE];
+            dap_time_to_str_rfc822(info_created_time_str, DAP_TIME_STR_SIZE, l_auction->created_time);
+            dap_time_to_str_rfc822(info_start_time_str, DAP_TIME_STR_SIZE, l_auction->start_time);
+            dap_time_to_str_rfc822(info_end_time_str, DAP_TIME_STR_SIZE, l_auction->end_time);
+            json_object_object_add(l_json_obj, "created_time", json_object_new_string(info_created_time_str));
+            json_object_object_add(l_json_obj, "start_time", json_object_new_string(info_start_time_str));
+            json_object_object_add(l_json_obj, "end_time", json_object_new_string(info_end_time_str));
             json_object_object_add(l_json_obj, "bids_count", 
                 json_object_new_uint64(l_auction->bids_count));
             json_object_object_add(l_json_obj, "projects_count", 
