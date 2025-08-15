@@ -67,6 +67,9 @@ enum error_code {
 // Callbacks
 static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
 static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+// Forward declaration for optimization function
+static dap_auction_cache_item_t *s_find_auction_by_hash_fast(dap_auction_cache_t *a_cache, const dap_hash_fast_t *a_auction_hash);
+
 char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
                                      uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_project_id, uint256_t a_fee, int *a_ret_code);
 char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code);
@@ -170,6 +173,7 @@ dap_auction_cache_t *dap_auction_cache_create(void)
     }
     
     l_cache->auctions = NULL;
+    l_cache->auctions_by_hash = NULL;    // Initialize secondary hash table
     l_cache->total_auctions = 0;
     l_cache->active_auctions = 0;
     
@@ -207,13 +211,14 @@ void dap_auction_cache_delete(dap_auction_cache_t *a_cache)
             DAP_DELETE(l_project);
         }
         
+        // Remove auction from both hash tables
+        HASH_DELETE(hh, a_cache->auctions, l_auction);           // Remove from primary table (by group_name)
+        HASH_DELETE(hh_hash, a_cache->auctions_by_hash, l_auction); // Remove from secondary table (by auction_tx_hash)
+        
         // Clean up auction data
         DAP_DELETE(l_auction->group_name);
         DAP_DELETE(l_auction->description);
         DAP_DELETE(l_auction->winners_ids);  // Clean up winners array
-        if (l_auction->group_name) {
-            HASH_DELETE(hh, a_cache->auctions, l_auction);
-        }
         DAP_DELETE(l_auction);
     }
     
@@ -241,18 +246,14 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
                                   dap_chain_tx_event_data_auction_started_t *a_started_data,
                                   dap_time_t a_tx_timestamp)
 {
-    if (!a_cache || !a_auction_hash)
+    if (!a_cache || !a_auction_hash || !a_group_name)
         return -1;
     
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
     
-    // Check if auction already exists
-    dap_auction_cache_item_t *l_existing = NULL, *l_tmp_it = NULL;
-    HASH_ITER(hh, a_cache->auctions, l_existing, l_tmp_it) {
-        if (memcmp(&l_existing->auction_tx_hash, a_auction_hash, sizeof(dap_hash_fast_t)) == 0) {
-            break;
-        }
-    }
+    // Check if auction already exists by group_name (faster than hash iteration)
+    dap_auction_cache_item_t *l_existing = NULL;
+    HASH_FIND_STR(a_cache->auctions, a_group_name, l_existing);
     if (l_existing) {
         pthread_rwlock_unlock(&a_cache->cache_rwlock);
         log_it(L_WARNING, "Auction %s already exists in cache", 
@@ -284,9 +285,7 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
     l_auction->winners_ids = NULL;
     
     // Set group name if provided
-    if (a_group_name) {
-        l_auction->group_name = dap_strdup(a_group_name);
-    }
+    l_auction->group_name = dap_strdup(a_group_name);
     
     // Calculate end time from auction started data if provided
     if (a_started_data) {
@@ -348,10 +347,9 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
                a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS ? "months" : "seconds");
     }
     
-    // Add to cache (key by group_name)
-    if (l_auction->group_name) {
-        HASH_ADD_STR(a_cache->auctions, group_name, l_auction);
-    }
+    // Add to both hash tables for optimal performance
+    HASH_ADD_STR(a_cache->auctions, group_name, l_auction);  // Primary table by group_name
+    HASH_ADD(hh_hash, a_cache->auctions_by_hash, auction_tx_hash, sizeof(dap_hash_fast_t), l_auction);  // Secondary table by hash
     a_cache->total_auctions++;
     a_cache->active_auctions++;
     
@@ -388,13 +386,8 @@ int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
     
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
     
-    // Find auction: prefer by hash when provided, otherwise by name stored in cache from tx context
-    dap_auction_cache_item_t *l_auction = NULL, *l_tmp_auction = NULL;
-    HASH_ITER(hh, a_cache->auctions, l_auction, l_tmp_auction) {
-        if (memcmp(&l_auction->auction_tx_hash, a_auction_hash, sizeof(dap_hash_fast_t)) == 0) {
-            break;
-        }
-    }
+    // Find auction using ultra-fast O(1) hash lookup
+    dap_auction_cache_item_t *l_auction = s_find_auction_by_hash_fast(a_cache, a_auction_hash);
     if (!l_auction) {
         // Attempt to resolve by current tx context group_name if available via thread-local or global event passthrough
         // Fallback: iterate auctions if project hash/name hints are absent (kept minimal)
@@ -502,13 +495,9 @@ int dap_auction_cache_update_auction_status(dap_auction_cache_t *a_cache,
     
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
     
-    // Find auction
-    dap_auction_cache_item_t *l_auction = NULL, *l_tmp_auction = NULL;
-    HASH_ITER(hh, a_cache->auctions, l_auction, l_tmp_auction) {
-        if (memcmp(&l_auction->auction_tx_hash, a_auction_hash, sizeof(dap_hash_fast_t)) == 0) {
-            break;
-        }
-    }
+    // Find auction using ultra-fast O(1) hash lookup
+    dap_auction_cache_item_t *l_auction = s_find_auction_by_hash_fast(a_cache, a_auction_hash);
+    
     if (!l_auction) {
         pthread_rwlock_unlock(&a_cache->cache_rwlock);
         log_it(L_WARNING, "Auction %s not found in cache for status update", 
@@ -597,13 +586,9 @@ int dap_auction_cache_set_winners(dap_auction_cache_t *a_cache,
     
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
     
-    // Find auction
-    dap_auction_cache_item_t *l_auction = NULL, *l_tmp_auction = NULL;
-    HASH_ITER(hh, a_cache->auctions, l_auction, l_tmp_auction) {
-        if (memcmp(&l_auction->auction_tx_hash, a_auction_hash, sizeof(dap_hash_fast_t)) == 0) {
-            break;
-        }
-    }
+    // Find auction using ultra-fast O(1) hash lookup
+    dap_auction_cache_item_t *l_auction = s_find_auction_by_hash_fast(a_cache, a_auction_hash);
+    
     if (!l_auction) {
         pthread_rwlock_unlock(&a_cache->cache_rwlock);
         log_it(L_WARNING, "Auction %s not found in cache for setting multiple winners", 
@@ -651,14 +636,30 @@ dap_auction_cache_item_t *dap_auction_cache_find_auction(dap_auction_cache_t *a_
 {
     if (!a_cache || !a_auction_hash)
         return NULL;
+    
     pthread_rwlock_rdlock(&a_cache->cache_rwlock);
-    dap_auction_cache_item_t *l_auction = NULL, *l_tmp_auction = NULL;
-    HASH_ITER(hh, a_cache->auctions, l_auction, l_tmp_auction) {
-        if (memcmp(&l_auction->auction_tx_hash, a_auction_hash, sizeof(dap_hash_fast_t)) == 0) {
-            break;
-        }
-    }
+    
+    // Direct O(1) hash lookup using optimized secondary table
+    dap_auction_cache_item_t *l_auction = s_find_auction_by_hash_fast(a_cache, a_auction_hash);
+    
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
+    return l_auction;
+}
+
+/**
+ * @brief Fast auction lookup by hash using secondary hash table (O(1) performance)
+ * @param a_cache Cache instance
+ * @param a_auction_hash Hash of auction transaction
+ * @return Returns auction cache item or NULL if not found
+ */
+static dap_auction_cache_item_t *s_find_auction_by_hash_fast(dap_auction_cache_t *a_cache, const dap_hash_fast_t *a_auction_hash)
+{
+    if (!a_cache || !a_auction_hash)
+        return NULL;
+    
+    // Direct O(1) hash lookup using secondary table
+    dap_auction_cache_item_t *l_auction = NULL;
+    HASH_FIND(hh_hash, a_cache->auctions_by_hash, a_auction_hash, sizeof(dap_hash_fast_t), l_auction);
     return l_auction;
 }
 
@@ -1109,13 +1110,8 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
 
         pthread_rwlock_wrlock(&s_auction_cache->cache_rwlock);
 
-        // Find auction in cache under lock protection
-        dap_auction_cache_item_t *l_auction = NULL, *l_tmp_auction = NULL;
-        HASH_ITER(hh, s_auction_cache->auctions, l_auction, l_tmp_auction) {
-            if (memcmp(&l_auction->auction_tx_hash, &l_auction_hash, sizeof(dap_hash_fast_t)) == 0) {
-                break;
-            }
-        }
+        // Find auction in cache using ultra-fast O(1) hash lookup
+        dap_auction_cache_item_t *l_auction = s_find_auction_by_hash_fast(s_auction_cache, &l_auction_hash);
         if (!l_auction) {
             pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
             log_it(L_DEBUG, "Auction %s not found in cache during bid withdrawal",
@@ -1213,12 +1209,8 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
     // 3. Check auction status with thread-safe access
     pthread_rwlock_rdlock(&s_auction_cache->cache_rwlock);
     
-    dap_auction_cache_item_t *l_auction = NULL, *l_tmp_auction = NULL;
-    HASH_ITER(hh, s_auction_cache->auctions, l_auction, l_tmp_auction) {
-        if (memcmp(&l_auction->auction_tx_hash, &l_auction_hash, sizeof(dap_hash_fast_t)) == 0) {
-            break;
-        }
-    }
+    // Find auction using ultra-fast O(1) hash lookup
+    dap_auction_cache_item_t *l_auction = s_find_auction_by_hash_fast(s_auction_cache, &l_auction_hash);
     if (!l_auction) {
         pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
         log_it(L_WARNING, "Auction %s not found in cache", l_auction_hash_str);
@@ -1429,13 +1421,8 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_get_detailed(dap_chain_n
     
     pthread_rwlock_rdlock(&s_auction_cache->cache_rwlock);
     
-    // Find auction in cache
-    dap_auction_cache_item_t *l_cached_auction = NULL, *l_tmp_auction = NULL;
-    HASH_ITER(hh, s_auction_cache->auctions, l_cached_auction, l_tmp_auction) {
-        if (memcmp(&l_cached_auction->auction_tx_hash, a_hash, sizeof(dap_hash_fast_t)) == 0) {
-            break;
-        }
-    }
+    // Find auction in cache using ultra-fast O(1) hash lookup
+    dap_auction_cache_item_t *l_cached_auction = s_find_auction_by_hash_fast(s_auction_cache, a_hash);
     if (!l_cached_auction) {
         pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
         return NULL;
@@ -1956,12 +1943,9 @@ char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_fro
     }
     
     pthread_rwlock_rdlock(&s_auction_cache->cache_rwlock);
-    dap_auction_cache_item_t *l_auction_cache = NULL, *l_tmp_auction = NULL;
-    HASH_ITER(hh, s_auction_cache->auctions, l_auction_cache, l_tmp_auction) {
-        if (memcmp(&l_auction_cache->auction_tx_hash, a_auction_hash, sizeof(dap_hash_fast_t)) == 0) {
-            break;
-        }
-    }
+    
+    // Find auction using ultra-fast O(1) hash lookup
+    dap_auction_cache_item_t *l_auction_cache = s_find_auction_by_hash_fast(s_auction_cache, a_auction_hash);
     
     if (!l_auction_cache) {
         pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);

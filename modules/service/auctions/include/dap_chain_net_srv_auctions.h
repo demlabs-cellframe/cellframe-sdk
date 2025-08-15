@@ -105,11 +105,13 @@ typedef struct dap_auction_cache_item {
     uint32_t *winners_ids;             // Array of winner project IDs from event data
     
     UT_hash_handle hh;                 // Hash handle for table keyed by group_name
+    UT_hash_handle hh_hash;            // Hash handle for table keyed by auction_tx_hash
 } dap_auction_cache_item_t;
 
 // Main auction cache structure
 typedef struct dap_auction_cache {
     dap_auction_cache_item_t *auctions; // Hash table of auctions keyed by group_name
+    dap_auction_cache_item_t *auctions_by_hash; // Hash table for fast lookup by auction_tx_hash
     uint32_t total_auctions;            // Total number of auctions in cache
     uint32_t active_auctions;           // Number of active auctions
     pthread_rwlock_t cache_rwlock;      // Read-write lock for cache access
