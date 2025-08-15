@@ -1328,7 +1328,7 @@ void dap_chain_net_srv_auction_delete(dap_chain_net_srv_auction_t *a_auction)
     if (!a_auction)
         return;
     
-    DAP_DELETE(a_auction->auction_name);
+    DAP_DELETE(a_auction->group_name);
     DAP_DELETE(a_auction->description);
     DAP_DELETE(a_auction->winners_ids);  // Free winners array
     
@@ -1370,7 +1370,7 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_find(dap_chain_net_t *a_
     
     // Fill auction data from cache
     l_auction->auction_hash = l_cached_auction->auction_tx_hash;
-    l_auction->auction_name = l_cached_auction->group_name ? dap_strdup(l_cached_auction->group_name) : NULL;
+    l_auction->group_name = l_cached_auction->group_name ? dap_strdup(l_cached_auction->group_name) : NULL;
     l_auction->status = l_cached_auction->status;
     l_auction->created_time = l_cached_auction->created_time;
     l_auction->start_time = l_cached_auction->start_time;
@@ -1450,7 +1450,7 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_get_detailed(dap_chain_n
     
     // Fill basic auction data
     l_auction->auction_hash = l_cached_auction->auction_tx_hash;
-    l_auction->auction_name = l_cached_auction->group_name ? dap_strdup(l_cached_auction->group_name) : NULL;
+    l_auction->group_name = l_cached_auction->group_name ? dap_strdup(l_cached_auction->group_name) : NULL;
     l_auction->status = l_cached_auction->status;
     l_auction->created_time = l_cached_auction->created_time;
     l_auction->start_time = l_cached_auction->start_time;
@@ -1547,7 +1547,7 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
         
         // Fill basic data
         l_auction->auction_hash = l_cached_auction->auction_tx_hash;
-        l_auction->auction_name = l_cached_auction->group_name ? dap_strdup(l_cached_auction->group_name) : NULL;
+        l_auction->group_name = l_cached_auction->group_name ? dap_strdup(l_cached_auction->group_name) : NULL;
         l_auction->status = l_cached_auction->status;
         l_auction->created_time = l_cached_auction->created_time;
         l_auction->start_time = l_cached_auction->start_time;

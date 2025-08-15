@@ -107,7 +107,12 @@ endif()
 #Service for auctions
 if (CELLFRAME_MODULES MATCHES "srv-auctions")
     add_subdirectory(service/auctions)
+endif()
+
 # Service for emission rights delegate to wallets consensus
+if (CELLFRAME_MODULES MATCHES "srv-emission")
+    add_subdirectory(service/emission)
+endif()
 
 # compose service
 if (CELLFRAME_MODULES MATCHES "compose")

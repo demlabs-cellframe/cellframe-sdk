@@ -133,7 +133,7 @@ typedef struct dap_chain_net_srv_auction_project {
 // Single auction structure (for external API)
 typedef struct dap_chain_net_srv_auction {
     dap_hash_fast_t auction_hash;
-    char *auction_name;                   // Auction name (group_name from cache)
+    char *group_name;                   // Auction name (group_name from cache)
     dap_auction_status_t status;
     dap_time_t created_time;
     dap_time_t start_time;
