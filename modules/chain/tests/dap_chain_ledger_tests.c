@@ -1070,7 +1070,11 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(!dap_ledger_tx_add_check(l_ledger, l_base_tx, l_base_tx_size, &l_hash_btx), "Check can added base tx in ledger");
     dap_assert_PIF(!dap_ledger_tx_add(l_ledger, l_base_tx, &l_hash_btx, false, NULL), "Added base tx in ledger.");
     uint256_t l_balance_example = dap_chain_uint256_from(s_standard_value_tx);
-    uint256_t l_balance = dap_ledger_calc_balance(l_ledger, &l_addr, s_token_ticker);
+    uint256_t l_balance = {};
+    for (int i = 0; i < 5 && IS_ZERO_256(l_balance); ++i) {
+        l_balance = dap_ledger_calc_balance(l_ledger, &l_addr, s_token_ticker);
+        sleep(1);
+    }
 	uint256_t l_fee = dap_chain_uint256_from(s_fee);
 	SUM_256_256(l_balance,l_fee,&l_balance);
     dap_assert_PIF(!compare256(l_balance, l_balance_example), "Checking the availability of the necessary balance "
