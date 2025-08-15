@@ -63,14 +63,16 @@ typedef struct dap_chain_cell_mmap_volume {
 #endif
     off_t size;
     char *base;
-    struct dap_chain_cell_mmap_volume *prev, *next;
 } dap_chain_cell_mmap_volume_t;
 
 typedef struct dap_chain_cell_mmap_data {
 #ifdef DAP_OS_WINDOWS
     HANDLE section;
 #endif
-    dap_chain_cell_mmap_volume_t *volume;
+    dap_chain_cell_mmap_volume_t **volumes;
+    uint16_t volumes_current;
+    uint16_t volumes_count;
+    uint16_t volumes_max;
     char *cursor;
 } dap_chain_cell_mmap_data_t;
 
@@ -125,6 +127,23 @@ int dap_chain_cell_init(void)
     return 0;
 }
 
+DAP_STATIC_INLINE int s_cell_add_new_volume(dap_chain_cell_t *a_cell,  dap_chain_cell_mmap_volume_t *a_new_vol ) {
+    if (a_cell->mapping->volumes_count >= a_cell->mapping->volumes_max) {
+        dap_chain_cell_mmap_volume_t **l_new_volumes = DAP_REALLOC(a_cell->mapping->volumes, sizeof(dap_chain_cell_mmap_volume_t*) * (a_cell->mapping->volumes_max + 1));
+        if (!l_new_volumes) {
+            log_it(L_ERROR, "Memory allocation error");
+            return -1;
+        }
+        a_cell->mapping->volumes = l_new_volumes;
+        a_cell->mapping->volumes_max ++;
+        log_it(L_DEBUG, "Append new volume, max %d", a_cell->mapping->volumes_max);
+    }
+    a_cell->mapping->volumes_count++;
+    a_cell->mapping->volumes_current = a_cell->mapping->volumes_count - 1;
+    a_cell->mapping->volumes[a_cell->mapping->volumes_current] = a_new_vol;
+    return 0;
+}
+
 #ifndef DAP_OS_WINDOWS
 DAP_STATIC_INLINE void s_cell_reclaim_cur_volume(dap_chain_cell_mmap_volume_t *a_vol) {
     if (
@@ -172,7 +191,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
     }
 #else
     if (a_load)
-        s_cell_reclaim_cur_volume(a_cell->mapping->volume);
+        s_cell_reclaim_cur_volume(a_cell->mapping->volumes[a_cell->mapping->volumes_current]);
     l_new_vol->base = mmap( NULL, l_new_vol->size, PROT_READ, MAP_PRIVATE,
                             fileno(a_cell->file_storage), l_volume_offset );
     if ( l_new_vol->base == MAP_FAILED ) {
@@ -190,7 +209,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
     if (a_load)
         madvise(l_new_vol->base, l_new_vol->size, MADV_SEQUENTIAL);
 #endif
-    DL_PREPEND(a_cell->mapping->volume, l_new_vol);
+    s_cell_add_new_volume(a_cell, l_new_vol);
     return 0;
 }
 
@@ -198,17 +217,16 @@ DAP_STATIC_INLINE int s_cell_close(dap_chain_cell_t *a_cell) {
     //pthread_rwlock_wrlock(&a_cell->storage_rwlock);
     if (a_cell->chain->is_mapped) {
         a_cell->mapping->cursor = NULL;
-        int i = 0;
-        dap_chain_cell_mmap_volume_t *l_vol, *l_tmp;
-        DL_FOREACH_SAFE(a_cell->mapping->volume, l_vol, l_tmp) {
-            debug_if(s_debug_more, L_DEBUG, "Unmap volume #%d, %lu bytes", i++, l_vol->size);
+        for (int i = 0; i < a_cell->mapping->volumes_count; i++) {
+            dap_chain_cell_mmap_volume_t *l_vol = a_cell->mapping->volumes[i];
+            debug_if(s_debug_more, L_DEBUG, "Unmap volume #%d, %lld bytes", i, (long long)l_vol->size);
 #ifdef DAP_OS_WINDOWS
             pfnNtUnmapViewOfSection(GetCurrentProcess(), l_vol->base);
 #else
             munmap(l_vol->base, l_vol->size);
 #endif
-            DL_DELETE(a_cell->mapping->volume, l_vol);
             DAP_DELETE(l_vol);
+            a_cell->mapping->volumes[i] = NULL;
         }
 #ifdef DAP_OS_WINDOWS
         NtClose(a_cell->mapping->section);
@@ -329,21 +347,21 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
         dap_chain_cell_file_header_t *l_hdr = DAP_NEW_STACK(dap_chain_cell_file_header_t);
         if (a_cell->chain->is_mapped) {
             dap_return_val_if_pass_err( s_cell_map_new_volume(a_cell, 0, false), -3, "Error on mapping the first volume" );
-            l_hdr = (dap_chain_cell_file_header_t*)a_cell->mapping->volume->base;
+            l_hdr = (dap_chain_cell_file_header_t*)a_cell->mapping->volumes[a_cell->mapping->volumes_current]->base;
         } else {
             fseeko(a_cell->file_storage, 0, SEEK_SET);
             dap_return_val_if_fail_err( fread(l_hdr, 1, sizeof(*l_hdr), a_cell->file_storage) == sizeof(*l_hdr), -4,
                                         "Can't read chain header \"%s\"", a_cell->file_storage_path );
         }
         dap_return_val_if_fail_err( l_hdr->cell_id.uint64 == a_cell->id.uint64, 5,
-                                    "Wrong cell id, %lu != %lu", l_hdr->cell_id.uint64, a_cell->id.uint64);
+                                    "Wrong cell id, %llu != %llu", (unsigned long long)l_hdr->cell_id.uint64, (unsigned long long)a_cell->id.uint64);
         dap_return_val_if_fail_err( l_hdr->signature == DAP_CHAIN_CELL_FILE_SIGNATURE, 5,
                                     "Wrong signature in chain \"%s\", possible file corrupt", a_cell->file_storage_path );
         dap_return_val_if_fail_err( l_hdr->version >= DAP_CHAIN_CELL_FILE_VERSION, -6,
                                     "Too low chain version %d < %d, create a backup", l_hdr->version, DAP_CHAIN_CELL_FILE_VERSION );
         l_pos = sizeof(*l_hdr);
         if (a_cell->chain->is_mapped)
-            a_cell->mapping->cursor = a_cell->mapping->volume->base + l_pos;
+            a_cell->mapping->cursor = a_cell->mapping->volumes[a_cell->mapping->volumes_current]->base + l_pos;
         if (l_full_size == l_pos)
             return 0;
     }
@@ -367,7 +385,8 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     dap_hash_fast_t l_atom_hash;
     if (a_cell->chain->is_mapped) {
         for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += sizeof(uint64_t) + l_el_size ) {
-            l_vol_rest = (off_t)( a_cell->mapping->volume->base + a_cell->mapping->volume->size - a_cell->mapping->cursor - sizeof(uint64_t) );
+            l_vol_rest = (off_t)( a_cell->mapping->volumes[a_cell->mapping->volumes_current]->base + 
+                                 a_cell->mapping->volumes[a_cell->mapping->volumes_current]->size - a_cell->mapping->cursor - sizeof(uint64_t) );
             if ( l_vol_rest <= 0 || l_vol_rest < ( l_el_size = *(uint64_t*)a_cell->mapping->cursor ) )
                 dap_return_val_if_pass_err( s_cell_map_new_volume(a_cell, l_pos, true), -7, "Error on mapping a new volume" );
             if ( !l_el_size || l_el_size > l_full_size - l_pos )
@@ -394,7 +413,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
         }
 #ifndef DAP_OS_WINDOWS
         /* Reclaim the last volume */
-        s_cell_reclaim_cur_volume(a_cell->mapping->volume);
+        s_cell_reclaim_cur_volume(a_cell->mapping->volumes[a_cell->mapping->volumes_current]);
 #endif
     } else { 
         size_t l_read = 0;
@@ -478,10 +497,22 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
             m_ret_err(EEXIST, "Cell \"%s\" is already loaded in chain \"%s : %s\"",
                               a_filename, a_chain->net_name, a_chain->name);
     }
+
     FILE *l_file = fopen(a_filepath, mode);
     if ( !l_file )
         m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot be opened, error %d",
                          a_chain->net_name, a_chain->name, a_filename, errno);
+    if (fseeko(l_file, 0, SEEK_END) != 0)
+        m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot be find end of file, error %d",
+                        a_chain->net_name, a_chain->name, a_filename, errno);
+                                          
+    off_t l_file_size = ftello(l_file);
+    if (l_file_size <= 0 )
+        m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot get file size or file size 0, error %d",
+                        a_chain->net_name, a_chain->name, a_filename, errno);
+                        
+    fseeko(l_file, 0L, SEEK_SET);
+    uint16_t l_mapping_count = l_file_size/DAP_MAPPED_VOLUME_LIMIT + 1;
 
     l_cell = DAP_NEW_Z(dap_chain_cell_t);
     *l_cell = (dap_chain_cell_t) {
@@ -491,6 +522,10 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
         .file_storage   = l_file,
         //.storage_rwlock = PTHREAD_RWLOCK_INITIALIZER
     };
+    l_cell->mapping->volumes = DAP_NEW_Z_COUNT(dap_chain_cell_mmap_volume_t*, l_mapping_count);
+    l_cell->mapping->volumes_count = 0;
+    l_cell->mapping->volumes_max = l_mapping_count;
+
     dap_strncpy(l_cell->file_storage_path, a_filepath, MAX_PATH);
 
     switch (*mode) {
@@ -549,7 +584,8 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
         off_t l_pos = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
         dap_return_val_if_pass_err(l_pos < 0, -1, "Can't get \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X" size, error %d",
                                                      a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64, errno);
-        if ( a_atom_size + sizeof(uint64_t) > (size_t)(a_cell->mapping->volume->base + a_cell->mapping->volume->size - a_cell->mapping->cursor) )
+        if ( a_atom_size + sizeof(uint64_t) > (size_t)(a_cell->mapping->volumes[a_cell->mapping->volumes_current]->base + 
+                                                       a_cell->mapping->volumes[a_cell->mapping->volumes_current]->size - a_cell->mapping->cursor) )
             dap_return_val_if_pass_err(
                 s_cell_map_new_volume(a_cell, l_pos, false), 
                 -2, "Failed to create new map volume for \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
@@ -566,10 +602,11 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
 
     if (a_cell->chain->is_mapped) {
 #ifdef DAP_OS_DARWIN
-        a_cell->mapping->volume->base = mmap( a_cell->mapping->volume->base, a_cell->mapping->volume->size,
-                                              PROT_READ, MAP_PRIVATE | MAP_FIXED, fileno(a_cell->file_storage),
-                                              a_cell->mapping->volume->offset );
-        dap_return_val_if_pass_err( a_cell->mapping->volume->base == MAP_FAILED, -2,
+        a_cell->mapping->volumes[a_cell->mapping->volumes_current]->base = mmap( a_cell->mapping->volumes[a_cell->mapping->volumes_current]->base, 
+                                            a_cell->mapping->volumes[a_cell->mapping->volumes_current]->size,
+                                            PROT_READ, MAP_PRIVATE | MAP_FIXED, fileno(a_cell->file_storage),
+                                            a_cell->mapping->volumes[a_cell->mapping->volumes_current]->offset );
+        dap_return_val_if_pass_err( a_cell->mapping->volumes[a_cell->mapping->volumes_current]->base == MAP_FAILED, -2,
             "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be remapped, errno %d",
             a_cell->file_storage_path, a_cell->id.uint64, errno );
 #elif defined DAP_OS_WINDOWS
