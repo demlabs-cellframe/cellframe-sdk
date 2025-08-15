@@ -74,7 +74,7 @@ json_object* dap_enc_request_command_to_rpc(const char *a_request, const char * 
 bool check_token_in_ledger(json_object *l_json_coins, const char *a_token);
 
 dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  compose_config_t * a_config, 
-                                                  dap_time_t *a_ts_created, char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
+                                                  dap_time_t *a_ts_created, char **a_token_ticker, int32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
 
 json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, 
                                   const char *l_fee_str, const char *addr_base58_to, dap_chain_addr_t *l_addr_from, 
