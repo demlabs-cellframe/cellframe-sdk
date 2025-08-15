@@ -50,25 +50,12 @@
 
 static compose_config_t* s_compose_config_init(const char *a_net_name, const char *a_url_str,
                                  uint16_t a_port, const char *a_cert_path) {
-    dap_return_val_if_pass(!a_net_name, NULL);
+    dap_return_val_if_pass(!a_net_name || !a_url_str || !a_port, NULL);
     compose_config_t *l_config = DAP_NEW_Z_RET_VAL_IF_FAIL(compose_config_t, NULL);
     l_config->net_name = a_net_name;
-    
-    const char *l_url = a_url_str ? a_url_str : s_get_net_url(a_net_name);
-    if (!l_url) {
-        log_it(L_ERROR, "Can't get net url for net name: %s", a_net_name);
-        DAP_DELETE(l_config);
-        return NULL;
-    }
-    l_config->url_str = l_url;
+    l_config->url_str = a_url_str;
 
-    uint16_t l_port = a_port ? a_port : s_get_net_port(a_net_name);
-    if (!l_port) {
-        log_it(L_ERROR, "Can't get net port for net name: %s", a_net_name);
-        DAP_DELETE(l_config);
-        return NULL;
-    }
-    l_config->port = l_port;
+    l_config->port = a_port;
     if (a_cert_path) {
         l_config->enc = true;
         l_config->cert_path = a_cert_path;
@@ -77,7 +64,7 @@ static compose_config_t* s_compose_config_init(const char *a_net_name, const cha
         l_config->cert_path = NULL;
     }
 
-    log_it_fl(L_DEBUG, "a_net_name: %s, a_url_str: %s, a_port: %d, a_cert_path: %s", a_net_name, l_url, l_port, a_cert_path ? a_cert_path : "NULL");
+    log_it_fl(L_DEBUG, "a_net_name: %s, a_url_str: %s, a_port: %d, a_cert_path: %s", a_net_name, a_url_str, a_port, a_cert_path ? a_cert_path : "NULL");
     l_config->response_handler = json_object_new_object();
     if (!l_config->response_handler) {
         log_it(L_ERROR, "Can't create response handler");
@@ -105,18 +92,6 @@ static int s_compose_config_deinit(compose_config_t *a_config) {
     }
     DAP_DELETE(a_config);
     return 0;
-}
-
-static const char* s_get_net_url(const char *a_name) {
-    dap_return_val_if_pass(!a_name, NULL);
-    log_it_fl(L_DEBUG, "a_name: %s", a_name);
-    for (int i = 0; i < NET_COUNT; i++) {
-        if (strcmp(netinfo[i].name, a_name) == 0) {
-            return netinfo[i].url;
-        }
-    }
-    log_it_fl(L_DEBUG, "url for name %s not found, return NULL", a_name);
-    return NULL;
 }
 
 static uint16_t s_get_net_port(const char* name) {
@@ -721,7 +696,7 @@ static json_object* s_request_command_parse(json_object *a_response, compose_con
     return l_result;
 }
 
-static json_object* s_request_command_to_rpc(const char *a_request, compose_config_t *a_config) {
+static json_object* dap_request_command_to_rpc(const char *a_request, compose_config_t *a_config) {
     dap_return_val_if_pass(!a_request || !a_config, NULL);
     log_it_fl(L_DEBUG, "a_request: %s, a_config: %p", a_request, a_config);
 
@@ -778,7 +753,7 @@ static json_object* s_request_command_to_rpc_with_params(compose_config_t *a_con
         return NULL;
     }
 
-    return s_request_command_to_rpc(data, a_config);
+    return dap_request_command_to_rpc(data, a_config);
 }
     
 
@@ -928,7 +903,8 @@ typedef enum {
     TX_CREATE_COMPOSE_FUNDS_ERROR = -7,
     TX_CREATE_COMPOSE_OUT_ERROR = -8,
     TX_CREATE_COMPOSE_OUT_COUNT_ERROR = -9,
-    TX_CREATE_COMPOSE_INVALID_CONFIG = -10
+    TX_CREATE_COMPOSE_IN_COND_ERROR = -10,
+    TX_CREATE_COMPOSE_INVALID_CONFIG = -11
 } tx_create_compose_error_t;
 
 json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_fee_str, const char *addr_base58_to, 
@@ -1026,19 +1002,7 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
         dap_strfreev(l_addr_base58_to_array);
     }
 
-    for (size_t i = 0; l_addr_to && i < l_addr_el_count; ++i) {
-        if (l_addr_to[i] && dap_chain_addr_compare(l_addr_to[i], l_addr_from)) {
-            log_it(L_ERROR, "the transaction cannot be directed to the same address as the source.");
-            s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "The transaction cannot be directed to the same address as the source.");
-            for (size_t j = 0; j < l_addr_el_count; ++j) {
-                    DAP_DELETE(l_addr_to[j]);
-            }
-            DAP_DEL_MULTY(l_addr_to, l_value);
-            return s_compose_config_return_response_handler(l_config);
-        }
-    }
-
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create_compose( l_addr_from, l_addr_to, l_token_ticker, l_value, l_value_fee, l_addr_el_count, l_config);
+    dap_chain_datum_tx_t* l_tx = dap_chain_datum_tx_create_compose( l_addr_from, l_addr_to, l_token_ticker, l_value, l_value_fee, l_addr_el_count, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
@@ -4836,7 +4800,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_order_remove_compose(dap_hash_fast_t *a_
 
     dap_chain_addr_t l_seller_addr = {};
     char *token_ticker = NULL;
-    uint32_t l_prev_cond_idx = 0;
+    int32_t l_prev_cond_idx = 0;
     dap_hash_fast_t l_hash_out = {};
     dap_chain_tx_out_cond_t* l_cond_tx_last = dap_find_last_xchange_tx(a_hash_tx, &l_seller_addr, a_config, NULL, &token_ticker, &l_prev_cond_idx, &l_hash_out);
 
@@ -4929,7 +4893,7 @@ typedef enum dap_chain_net_srv_xchange_purchase_compose_error {
     DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_TX_CREATE
 } dap_chain_net_srv_xchange_purchase_compose_error_t;
 dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  compose_config_t * a_config, 
-                                                  dap_time_t *a_ts_created, char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out) {
+                                                  dap_time_t *a_ts_created, char **a_token_ticker, int32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out) {
     dap_chain_tx_out_cond_t *l_cond_tx = NULL;
     dap_chain_tx_out_cond_t *l_ret = NULL;
     dap_hash_fast_t l_current_hash = {};
@@ -4976,7 +4940,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t
     dap_return_val_if_pass(!a_config || !a_order_hash || !a_wallet_addr || !a_hash_out, NULL);
 
     char *l_token_ticker = NULL;
-    uint32_t l_prev_cond_idx = 0;
+    int32_t l_prev_cond_idx = 0;
     dap_chain_addr_t l_seller_addr = {0};
     dap_hash_fast_t l_hash_out = {0};
     dap_time_t l_ts_created = 0;
@@ -5111,7 +5075,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
         dap_list_free_full(l_list_fee_out, NULL);
         dap_chain_datum_tx_delete(l_tx);
         s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Can't compose the transaction input");
-        DAP_DEETE(l_net_fee_addr);
+        DAP_DELETE(l_net_fee_addr);
         return NULL;
     }
 #endif
@@ -5135,7 +5099,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     if (1 != dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, a_prev_cond_idx, 0)) {
         log_it(L_ERROR, "can't add conditional input");
         dap_chain_datum_tx_delete(l_tx);
-        s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_OUT_COND_ERROR, "Can't add conditional input");
+        s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_IN_COND_ERROR, "Can't add conditional input");
         DAP_DELETE(l_net_fee_addr);
         return NULL;
     }
