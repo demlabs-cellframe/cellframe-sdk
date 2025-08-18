@@ -65,6 +65,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_in_ems;
     dap_list_t *items_vote;
     dap_list_t *items_voting;
+    dap_list_t *items_voting_cancel;
     dap_list_t *items_tsd;
     dap_list_t *items_pkey;
     dap_list_t *items_receipt;
@@ -140,14 +141,14 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_gr
  *
  * return type, or TX_ITEM_TYPE_UNKNOWN
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum_name);
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_type_from_str_short(const char *a_datum_name);
 
 /**
  * Get dap_chain_tx_out_cond_subtype_t by name
  *
  * return subtype, or DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED
  */
-dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const char *a_subtype_str);
+dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(const char *a_subtype_str);
 
 /**
  * Get item size
@@ -215,6 +216,10 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size);
 
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_net_srv_uid_t a_srv_uid,
+                                                                             uint256_t a_value, uint256_t a_value_max_per_unit,
+                                                                             dap_chain_net_srv_price_unit_uid_t a_unit,
+                                                                             const void *a_params, size_t a_params_size);
 /**
  * Create item dap_chain_tx_out_cond_t for eXchange service
  *
@@ -238,9 +243,12 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
                                                                            dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax, dap_pkey_t *a_pkey);
 
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                            uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size);
 // Create cond out
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_net_srv_uid_t a_srv_uid,
-                                                                                  uint256_t a_value, uint64_t a_time_staking,
+                                                                                  uint256_t a_value, uint64_t a_time_unlock,
                                                                                   uint256_t a_reinvest_percent);
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
