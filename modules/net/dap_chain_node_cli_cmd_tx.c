@@ -2264,19 +2264,19 @@ int json_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd_par
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
         return -2;
     
-    if (json_object_get_type(response->result_json_object) == json_type_array) {
+    if (json_object_get_type(response->result_json_object) == json_type_array) {        
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
         }
-        
+                
         struct json_object *json_obj_main = json_object_array_get_idx(response->result_json_object, 0);
         struct json_object *j_object_tokens = NULL;
         
         // Get TOKENS or tokens array
-        if (!json_object_object_get_ex(json_obj_main, "tokens", &j_object_tokens) &&
-            !json_object_object_get_ex(json_obj_main, "TOKENS", &j_object_tokens)) {
+        if (!json_object_object_get_ex(json_obj_main, "TOKENS", &j_object_tokens) &&
+            !json_object_object_get_ex(json_obj_main, "tokens", &j_object_tokens)) {
             printf("TOKENS field not found\n");
             return -4;
         }
