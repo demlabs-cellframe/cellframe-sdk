@@ -937,18 +937,6 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
         dap_strfreev(l_addr_base58_to_array);
     }
 
-    for (size_t i = 0; l_addr_to && i < l_addr_el_count; ++i) {
-        if (l_addr_to[i] && dap_chain_addr_compare(l_addr_to[i], l_addr_from)) {
-            log_it(L_ERROR, "the transaction cannot be directed to the same address as the source.");
-            dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "The transaction cannot be directed to the same address as the source.");
-            for (size_t j = 0; j < l_addr_el_count; ++j) {
-                    DAP_DELETE(l_addr_to[j]);
-            }
-            DAP_DEL_MULTY(l_addr_to, l_value);
-            return s_compose_config_return_response_handler(l_config);
-        }
-    }
-
     dap_chain_datum_tx_t* l_tx = dap_chain_datum_tx_create_compose( l_addr_from, l_addr_to, l_token_ticker, l_value, l_value_fee, l_addr_el_count, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);

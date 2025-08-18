@@ -1529,7 +1529,7 @@ int dap_chain_wallet_shared_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL);
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
-    dap_ledger_service_add(l_uid, "wallet shared", s_tag_check);
+    dap_ledger_service_add(l_uid, "wallet_shared", s_tag_check);
 
     dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
     for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
