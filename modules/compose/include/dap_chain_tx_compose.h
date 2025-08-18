@@ -223,6 +223,11 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_take_tx_create_compose(dap_chain_a
 json_object *dap_wallet_shared_funds_take_compose(const char * a_net_name,dap_chain_addr_t *a_owner_addr,  const char *a_tx_in_hash_str, const char *a_value_str, const char *a_fee_str,
                                                     const char *a_to_addr_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
 
+dap_chain_datum_tx_t *dap_chain_wallet_shared_sign_tx_create_compose(const char *a_tx_in_hash_str, dap_enc_key_t *a_enc_key, compose_config_t *a_config);
+
+json_object *dap_wallet_shared_funds_sign_compose(const char * a_net_name, const char *a_tx_in_hash_str, const char *a_wallet_str, const char *a_wallets_path, const char *a_pass_str, const char *a_cert_str, 
+    const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
+
 
 #ifdef __cplusplus
 }
