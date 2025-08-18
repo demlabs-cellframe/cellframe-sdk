@@ -1331,7 +1331,7 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         {
             // For active auctions, check if time has expired based on cache data
             dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
-            if (l_auction->end_time > 0 && l_current_time >= l_auction->end_time) {
+            if (l_auction->end_time > 0 && l_current_time >= l_auction->end_time + DAP_SEC_PER_DAY) {
                 log_it(L_DEBUG, "Withdrawal allowed: auction %s ended by time", l_auction_hash_str);
                 ret_code = 0;
             }
