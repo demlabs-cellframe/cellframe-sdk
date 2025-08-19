@@ -1103,7 +1103,7 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Specified certificate %s not found", l_cert_str);
             return ERROR_VALUE;
         }
-        if (dap_sign_type_is_depricated(dap_sign_type_from_key_type(l_cert->enc_key->type)))
+        if (dap_sign_type_is_deprecated(dap_sign_type_from_key_type(l_cert->enc_key->type)))
             l_sign_str = "The Bliss, Picnic and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n";
         else
             l_sign_str = "";
@@ -1376,9 +1376,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
 
     for (size_t i = 0; i < l_values_count; i++) {
         json_object *l_jobj_item = json_object_new_object();
-        hold_tx_hashes_t *l_hold_hashes = NULL;
         if (!l_filter_count) {
-            l_hold_hashes = (hold_tx_hashes_t *)l_values[i].value;
             json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_values[i].key));
         } else {
             json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
@@ -1389,7 +1387,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                 continue;
             if (l_net && dap_strcmp((char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_net_name))
                 continue;
-            hold_tx_hashes_t *l_hold_hashes_by_name = dap_global_db_get_sync(l_item->data, l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key, NULL, NULL, NULL);
+            hold_tx_hashes_t *l_hold_hashes_by_name = (hold_tx_hashes_t *)dap_global_db_get_sync(l_item->data, l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key, NULL, NULL, NULL);
             if (l_hold_hashes_by_name) {
                 json_object *l_jobj_owned_tx = json_object_new_array();
                 for (size_t j = 0; j < l_hold_hashes_by_name->tx_count; j++) {
@@ -1511,7 +1509,7 @@ json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_
 {
     json_object *l_json_ret = json_object_new_array();
     char *l_group = dap_strdup_printf("%s.%s", s_wallet_shared_gdb_group, a_net_name);
-    hold_tx_hashes_t *l_item = dap_global_db_get_sync(l_group, dap_hash_fast_to_str_static(a_pkey_hash), NULL, NULL, false);
+    hold_tx_hashes_t *l_item = (hold_tx_hashes_t *)dap_global_db_get_sync(l_group, dap_hash_fast_to_str_static(a_pkey_hash), NULL, NULL, false);
     DAP_DELETE(l_group);
     if (!l_item) {
         return NULL;

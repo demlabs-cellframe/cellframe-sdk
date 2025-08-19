@@ -2205,7 +2205,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     // Check unsupported tesla and bliss algorithm
 
                     for (size_t i = 0; i < l_sign_count; ++i) {
-                        if (dap_sign_type_is_depricated(l_sign_types[i])) {
+                        if (dap_sign_type_is_deprecated(l_sign_types[i])) {
                             if (l_restore_opt || l_restore_legacy_opt) {
                                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
                                                    "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss, Tesla and Picnic signatures are deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
@@ -3775,8 +3775,8 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
     }
 
     json_object *l_jobj_datum = json_object_new_object();
-    if (a_tx_to_json) {
-        dap_chain_net_tx_to_json(l_datum, l_jobj_datum);
+    if (a_tx_to_json && l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+        dap_chain_net_tx_to_json((dap_chain_datum_tx_t *)l_datum->data, l_jobj_datum);
     } else {
         dap_chain_datum_dump_json(*a_json_arr_reply, l_jobj_datum, l_datum, a_hash_out_type, a_net_id, true, a_version);
     }
