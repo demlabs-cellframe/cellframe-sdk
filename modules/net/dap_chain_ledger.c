@@ -2135,6 +2135,8 @@ static void s_threshold_txs_proc( dap_ledger_t *a_ledger)
                     DAP_DELETE(l_tx_item->tx);
                 DAP_DELETE(l_tx_item);
                 l_success = true;
+            } else if (l_res == 0) {
+                a_ledger->net->pub.chains->callback_count_tx_increase(a_ledger->net->pub.chains);
             }
         }
     } while (l_success);
@@ -4958,7 +4960,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     if (l_tx_item)
         HASH_DEL(l_ledger_pvt->ledger_items, l_tx_item);
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    
+
     // Callable callback
     dap_list_t *l_notifier;
     if (l_tx_item) {
