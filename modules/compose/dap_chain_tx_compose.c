@@ -2216,7 +2216,7 @@ static dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
 {
     json_object *l_raw_response = s_request_command_to_rpc_with_params(a_config,
         a_is_ledger ? "ledger" : "mempool", 
-        a_is_ledger ? "info;-hash;%s;-net;%s;-tx_to_json" : "dump;-datum;%s;-net;%s;-tx_to_json", 
+        a_is_ledger ? "info;-hash;%s;-net;%s;-tx_to_json" : "dump;-datum;%s;-net;%s;-chain;main;-tx_to_json", 
         a_tx_str, a_config->net_name);
     if (!l_raw_response) {
         log_it(L_ERROR, "failed to get response from remote node");
@@ -5657,9 +5657,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create_compose(dap_ch
             DAP_DELETE(l_tx_ticker);
             return NULL;
         }
-#endif
     }
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
     json_object *l_json_shared_info = s_request_command_to_rpc_with_params(a_config, "wallet", "shared;info;-tx;%s;-net;%s", dap_hash_fast_to_str_static(a_tx_in_hash), a_config->net_name);
     if (!l_json_shared_info) {
         DAP_DELETE(l_tx_ticker);
@@ -5936,14 +5934,14 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_take_tx_create_compose(dap_chain_a
         return NULL;
     }
     dap_chain_datum_tx_t *l_tx = s_get_datum_info_from_rpc(l_final_tx_hash_str, a_config, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_cond_prev, &l_spent_by_hash_str, &l_tx_ticker, &l_prev_cond_idx, true);
-
     if (!l_tx) {
         s_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_TX_COMPOSE, "Can't get shared info by hash %s", l_final_tx_hash_str);
         log_it(L_ERROR, "Can't get shared info by hash %s", l_final_tx_hash_str);
         DAP_DEL_MULTY(l_final_tx_hash_str, l_tx_ticker);
         return NULL;
     }
-
+    dap_chain_datum_tx_delete(l_tx);
+    l_tx = dap_chain_datum_tx_create();
     if (l_spent_by_hash_str) {
         s_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_TX_COMPOSE, "Out cond wallet shared already spent by %s", l_spent_by_hash_str);
         log_it(L_ERROR, "Out cond wallet shared already spent by %s", l_spent_by_hash_str);
@@ -6171,6 +6169,11 @@ json_object *dap_wallet_shared_funds_sign_compose(dap_chain_net_id_t a_net_id, c
         json_object* l_json_obj_ret = json_object_new_object();
         s_json_compose_error_add(l_json_obj_ret, DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_ERR_CONFIG, "Can't create compose config");
         return l_json_obj_ret;
+    }
+
+    if (a_wallet_str && a_cert_str) {
+        s_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_ERR_INVALID_PARAMS, "Can't specify both wallet and cert");
+        return s_compose_config_return_response_handler(l_config);
     }
 
     dap_enc_key_t *l_enc_key = NULL;
