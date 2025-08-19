@@ -2118,6 +2118,210 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char *
     return 0;
 }
 
+int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
+    if (!response || !response->result_json_object) {
+        printf("Response is empty\n");
+        return -1;
+    }
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list")||!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "tx"))
+        return -2;
+    if (json_object_get_type(response->result_json_object) == json_type_array) {
+        int result_count = json_object_array_length(response->result_json_object);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return -3;
+        }
+        printf("__________________________________________________________________"
+            "______________________________________________________________________________________\n");
+        printf(" TX Hash \t | Date \t\t\t   | Signing Addr\t | Signing Hash    | Node Address \t    | Value Coins | Owner Addr \t\t|\n");
+        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        result_count = json_object_array_length(json_obj_array);
+        struct json_object * json_obj_total = NULL;
+        char hash_buffer[16];
+        for (int i = 0; i < result_count; i++) {
+            struct json_object *json_obj_result = json_object_array_get_idx(json_obj_array, i);
+            if (!json_obj_result) {
+                printf("Failed to get array element at index %d\n", i);
+                continue;
+            }
+
+            json_object *j_obj_tx_hash, *j_obj_date, *j_obj_signing_addr, *j_obj_signing_hash,
+                       *j_obj_node_address, *j_obj_value_coins, *j_obj_owner_addr;
+            if (json_object_object_get_ex(json_obj_result, "tx_hash", &j_obj_tx_hash) &&
+                json_object_object_get_ex(json_obj_result, "date", &j_obj_date) &&
+                json_object_object_get_ex(json_obj_result, "signing_addr", &j_obj_signing_addr) &&
+                json_object_object_get_ex(json_obj_result, "signing_hash", &j_obj_signing_hash) &&
+                json_object_object_get_ex(json_obj_result, "node_address", &j_obj_node_address) &&
+                json_object_object_get_ex(json_obj_result, "value_coins", &j_obj_value_coins) &&
+                json_object_object_get_ex(json_obj_result, "owner_addr", &j_obj_owner_addr))
+            {
+                if (j_obj_tx_hash && j_obj_date && j_obj_signing_addr && j_obj_signing_hash && 
+                    j_obj_node_address && j_obj_value_coins && j_obj_owner_addr) {
+                    
+                    // Shortened hash display (last 15 chars)
+                    const char *full_tx_hash = json_object_get_string(j_obj_tx_hash);
+                    const char *tx_hash_short = full_tx_hash;
+                    if (full_tx_hash && strlen(full_tx_hash) > 15) {
+                        strncpy(hash_buffer, full_tx_hash + strlen(full_tx_hash) - 15, 15);
+                        hash_buffer[15] = '\0';
+                        tx_hash_short = hash_buffer;
+                    }
+                    
+                    // Shortened signing hash display (last 15 chars)
+                    const char *full_signing_hash = json_object_get_string(j_obj_signing_hash);
+                    char signing_hash_buffer[16];
+                    const char *signing_hash_short = full_signing_hash;
+                    if (full_signing_hash && strlen(full_signing_hash) > 15) {
+                        strncpy(signing_hash_buffer, full_signing_hash + strlen(full_signing_hash) - 15, 15);
+                        signing_hash_buffer[15] = '\0';
+                        signing_hash_short = signing_hash_buffer;
+                    }
+                    
+                    // Shortened address display (starting from position 85, like in xchange)
+                    const char *signing_addr_str = j_obj_signing_addr && strcmp(json_object_get_string(j_obj_signing_addr), "null") ? 
+                        json_object_get_string(j_obj_signing_addr)+85 : "-------------------";
+                    const char *node_addr_str = json_object_get_string(j_obj_node_address)+14;
+                    const char *owner_addr_str = j_obj_owner_addr && strcmp(json_object_get_string(j_obj_owner_addr), "null") ? 
+                        json_object_get_string(j_obj_owner_addr)+85 : "-------------------";
+                    
+                    printf(" %-15s | %-13s | %-17s | %-14s | %-17s | %-11s | %-17s |\n",
+                            tx_hash_short,
+                            json_object_get_string(j_obj_date),
+                            signing_addr_str,
+                            signing_hash_short,
+                            node_addr_str,
+                            json_object_get_string(j_obj_value_coins),
+                            owner_addr_str);
+                } else {
+                    printf("Missing required fields in array element at index %d\n", i);
+                }
+            } else {
+                json_obj_total = json_obj_result;
+                continue;
+            }
+        }        
+        printf("_________________|_________________________________|_____________________|_________________|" 
+                      "________________________|_____________|_____________________|\n\n");
+        if (json_obj_total)
+            json_print_object(json_obj_total, 0);
+    } else {
+        json_print_object(response->result_json_object, 0);
+    }
+    return 0;
+}
+
+int json_print_for_srv_stake_order_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
+    if (!response || !response->result_json_object) {
+        printf("Response is empty\n");
+        return -1;
+    }
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "order")||!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
+        return -2;
+    if (json_object_get_type(response->result_json_object) == json_type_array) {
+        int result_count = json_object_array_length(response->result_json_object);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return -3;
+        }
+        printf("______________________________________________________________________________"
+            "__________________________________________________________________________________\n");
+        printf(" Order \t\t | Direction     | Created \t\t\t   | Price Coins \t  | Price Token | Price Unit | Node Addr \t      | Pkey \t\t|\n");
+        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        result_count = json_object_array_length(json_obj_array);
+        struct json_object * json_obj_total = NULL;
+        char hash_buffer[16];
+        for (int i = 0; i < result_count; i++) {
+            struct json_object *json_obj_result = json_object_array_get_idx(json_obj_array, i);
+            if (!json_obj_result) {
+                printf("Failed to get array element at index %d\n", i);
+                continue;
+            }
+
+            json_object *j_obj_order, *j_obj_direction, *j_obj_created, *j_obj_price_coins,
+                       *j_obj_price_token, *j_obj_price_unit, *j_obj_node_addr, *j_obj_pkey;
+            if (json_object_object_get_ex(json_obj_result, "order", &j_obj_order) &&
+                json_object_object_get_ex(json_obj_result, "direction", &j_obj_direction) &&
+                json_object_object_get_ex(json_obj_result, "created", &j_obj_created) &&
+                json_object_object_get_ex(json_obj_result, "price coins", &j_obj_price_coins) &&
+                json_object_object_get_ex(json_obj_result, "price token", &j_obj_price_token) &&
+                json_object_object_get_ex(json_obj_result, "price unit", &j_obj_price_unit) &&
+                json_object_object_get_ex(json_obj_result, "node_addr", &j_obj_node_addr) &&
+                json_object_object_get_ex(json_obj_result, "pkey", &j_obj_pkey))
+            {
+                if (j_obj_order && j_obj_direction && j_obj_created && j_obj_price_coins && 
+                    j_obj_price_token && j_obj_price_unit && j_obj_node_addr && j_obj_pkey) {
+                    
+                    // Shortened order hash display (last 15 chars)
+                    const char *full_order = json_object_get_string(j_obj_order);
+                    const char *order_short = full_order;
+                    if (full_order && strlen(full_order) > 15) {
+                        strncpy(hash_buffer, full_order + strlen(full_order) - 15, 15);
+                        hash_buffer[15] = '\0';
+                        order_short = hash_buffer;
+                    }
+                    
+                    // Shortened pkey display (last 15 chars)
+                    const char *full_pkey = json_object_get_string(j_obj_pkey);
+                    char pkey_buffer[16];
+                    const char *pkey_short = full_pkey;
+                    if (full_pkey && strlen(full_pkey) > 15) {
+                        strncpy(pkey_buffer, full_pkey + strlen(full_pkey) - 15, 15);
+                        pkey_buffer[15] = '\0';
+                        pkey_short = pkey_buffer;
+                    }
+                    
+                    // Shortened node address display (starting from position 85, like in xchange)
+                    const char *node_addr_str = json_object_get_string(j_obj_node_addr);
+                    
+                    printf(" %-15s | %-13s | %-17s | %-20s | %-11s | %-10s | %-13s | %-15s |\n",
+                            order_short,
+                            json_object_get_string(j_obj_direction),
+                            json_object_get_string(j_obj_created),
+                            json_object_get_string(j_obj_price_coins),
+                            json_object_get_string(j_obj_price_token),
+                            json_object_get_string(j_obj_price_unit),
+                            node_addr_str,
+                            pkey_short);
+                } else {
+                    printf("Missing required fields in array element at index %d\n", i);
+                }
+            } else {
+                json_obj_total = json_obj_result;
+                continue;
+            }
+        }        
+        printf("_________________|_______________|_________________________________|______________________|"
+            "_____________|____________|________________________|_________________|\n\n");
+        if (json_obj_total)
+            json_print_object(json_obj_total, 0);
+    } else {
+        json_print_object(response->result_json_object, 0);
+    }
+    return 0;
+}
+
+int json_print_for_srv_stake_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
+    // Check for different srv_stake subcommands
+    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list")) {
+        if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "keys")) {
+            return json_print_for_srv_stake_list_keys(response, cmd_param, cmd_cnt);
+        } else if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "tx")) {
+            return json_print_for_srv_stake_list_tx(response, cmd_param, cmd_cnt);
+        } else if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "order")) {
+            return json_print_for_srv_stake_order_list(response, cmd_param, cmd_cnt);
+        }
+    }
+    
+    // If no specific handler found, use default output
+    if (response && response->result_json_object) {
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+    
+    printf("Unknown srv_stake subcommand or response is empty\n");
+    return -1;
+}
+
 int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
     int res = -1;
     if (!response || !response->result_json_object) {
@@ -2203,7 +2407,8 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
         char *l_limit = NULL;
         char *l_offset = NULL;
         
-        if (json_object_object_get_ex(json_obj_array, "events", &j_object_events) || json_object_object_get_ex(json_obj_array, "EVENTS", &j_object_events))
+        if (json_object_object_get_ex(json_obj_array, "events", &j_object_events) || json_object_object_get_ex(json_obj_array, "EVENTS", &j_object_events)
+           || json_object_object_get_ex(json_obj_array, "TRESHOLD", &j_object_events) || json_object_object_get_ex(json_obj_array, "treshold", &j_object_events))
         {
             result_count = json_object_array_length(j_object_events);
             for (int i = 0; i < result_count; i++) {

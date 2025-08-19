@@ -28,6 +28,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
+#include "dap_json_rpc_response.h"
 
 typedef enum s_com_ledger_err{
     DAP_CHAIN_NODE_CLI_COM_LEDGER_OK = 0,
@@ -126,7 +127,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 /*commands for parsing json response*/
 int json_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
-int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_srv_stake_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 int json_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
