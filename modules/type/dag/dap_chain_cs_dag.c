@@ -133,6 +133,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
 static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
+static uint64_t s_dap_chain_callback_get_count_tx_increase(dap_chain_t *a_chain);
+static uint64_t s_dap_chain_callback_get_count_tx_decrease(dap_chain_t *a_chain);
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
@@ -244,7 +246,8 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_get_txs = s_dap_chain_callback_get_txs;
     // Get tx count
     a_chain->callback_count_tx = s_dap_chain_callback_get_count_tx;
-
+    a_chain->callback_count_tx_increase = s_dap_chain_callback_get_count_tx_increase;
+    a_chain->callback_count_tx_decrease = s_dap_chain_callback_get_count_tx_decrease;
     // Get atom count in chain
     a_chain->callback_count_atom = s_dap_chain_callback_get_count_atom;
     // Get atom list in chain
@@ -424,8 +427,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
     dap_hash_fast_t l_datum_hash;
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
-    if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
-        PVT(a_dag)->tx_count++;
+    // Note: tx_count increment moved to dap_ledger_tx_add() to ensure it only increments for successfully verified transactions
     a_event_item->datum_hash = l_datum_hash;
     a_event_item->ret_code = l_ret;
     a_event_item->event_number = HASH_COUNT(PVT(a_dag)->events) + 1;
@@ -2022,6 +2024,15 @@ static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain)
     return PVT(DAP_CHAIN_CS_DAG(a_chain))->tx_count;
 }
 
+static uint64_t s_dap_chain_callback_get_count_tx_increase(dap_chain_t *a_chain)
+{
+    return PVT(DAP_CHAIN_CS_DAG(a_chain))->tx_count++;
+}
+
+static uint64_t s_dap_chain_callback_get_count_tx_decrease(dap_chain_t *a_chain)
+{
+    return PVT(DAP_CHAIN_CS_DAG(a_chain))->tx_count--;
+}
 
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
 {
