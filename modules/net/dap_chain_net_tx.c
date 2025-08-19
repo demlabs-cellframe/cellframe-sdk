@@ -1417,7 +1417,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             
             if(l_out_cond_item) {
                 SUM_256_256(*a_value_need, l_value, a_value_need);
-                return (const uint8_t*) l_out_cond_item;
+                return (uint8_t *)l_out_cond_item;
             } else {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -10, "Unable to create conditional out for transaction "
                                                     "of type %s described in item %zu.", l_subtype_str, i);
