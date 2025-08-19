@@ -2794,8 +2794,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             int l_result = dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
             
             if (l_result == 0 && a_chain) {
-                uint64_t l_count = a_chain->callback_count_tx_increase(a_chain);
-                log_it(L_ATT, "TX count increased to %"DAP_UINT64_FORMAT_U " in chain %s", l_count, a_chain->name);
+                a_chain->callback_count_tx_increase(a_chain);
             }
             return l_result;
         }
@@ -2855,8 +2854,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
             int l_result = dap_ledger_tx_remove(l_ledger, l_tx, a_datum_hash);
             
             if (l_result == 0 && a_chain) {
-                uint64_t l_count = a_chain->callback_count_tx_decrease(a_chain);
-                log_it(L_ATT, "TX count decreased to %"DAP_UINT64_FORMAT_U " in chain %s", l_count, a_chain->name);
+                a_chain->callback_count_tx_decrease(a_chain);
             }
             return l_result;
         }
