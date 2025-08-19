@@ -1193,11 +1193,6 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                 return NULL;
             }
-            if (l_time_staking < dap_time_now()){
-                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: time staking should higher then current time in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
-                log_it(L_ERROR, "Json TX: time staking should higher then current time in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
-                return NULL;
-            }
 
             uint256_t l_reinvest_percent = uint256_0;
             const char* l_reinvest_percent_str = NULL;
