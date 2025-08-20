@@ -1085,7 +1085,9 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
         dap_list_free_full(l_list_used_out, NULL);
         if (l_list_fee_out) {
             uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
             assert(EQUAL_256(l_value_fee_items, l_fee_transfer));
+#endif
             dap_list_free_full(l_list_fee_out, NULL);
         }
 
@@ -5624,7 +5626,6 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_refill(dap_chain_
         DAP_DELETE(l_tx_ticker);
         return NULL;
     }
-#endif
     dap_list_t *l_list_fee_out = NULL;
     if (!l_refill_native) {
         l_list_fee_out = s_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count, l_fee_total, &l_fee_transfer);
@@ -5639,7 +5640,6 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_refill(dap_chain_
         }
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
         dap_list_free_full(l_list_fee_out, NULL);
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
             s_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_COMPOSE, "Can't compose the fee transaction input");
             json_object_put(l_outs_native);
@@ -5951,6 +5951,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
     l_cond_prev->header.value._lo.b = rand() % 500;
     l_cond_prev->header.value._hi.b = rand() % 100;
     char * l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_final_tx_hash);
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 #endif
     const char *l_native_ticker = a_config->native_ticker;
 

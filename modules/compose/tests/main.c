@@ -342,13 +342,16 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->config.net_name = s_net_name;
     s_data->config.url_str = s_url;
     s_data->config.port = 8081;
-    s_data->config.enc = false;
-    s_data->config.cert_path = NULL;
+    s_data->config.enc_cert_path = NULL;
     s_data->config.response_handler = json_object_new_object();
     s_data->value_fee._hi.a = 0;
     s_data->value_fee._hi.b = 0;
     s_data->value_fee._lo.a = 0;
     s_data->value_fee._lo.b = rand() % 1000;
+    s_data->config.native_ticker = s_ticker_native;
+    s_data->config.net_name = s_net_name;
+    s_data->config.net_id.uint64 = rand();
+
     
     s_chain_datum_tx_create_test();
     s_chain_datum_cond_create_test();
