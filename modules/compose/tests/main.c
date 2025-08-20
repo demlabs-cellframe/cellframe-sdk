@@ -102,7 +102,7 @@ void s_chain_datum_tx_create_test()
 { 
     dap_print_module_name("tx_create_compose");
     dap_chain_addr_t *l_addr_to = &s_data->addr_to;
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(&s_data->addr_from, &l_addr_to, s_ticker_native, &s_data->value, s_data->value_fee, 1, &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_create(&s_data->addr_from, &l_addr_to, s_ticker_native, &s_data->value, s_data->value_fee, 1, &s_data->config);
     dap_assert(l_datum_1, "tx_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -121,7 +121,7 @@ void s_chain_datum_cond_create_test()
     randombytes(pkey->pkey, l_pkey_size);
     dap_chain_net_srv_price_unit_uid_t price_unit;
     price_unit.enm = SERV_UNIT_B;
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_mempool_tx_create_cond_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_cond_create(
         &s_data->addr_from, pkey, s_ticker_native, s_data->value,
         s_data->value_per_unit_max, price_unit,
         s_data->srv_uid, s_data->value_fee, l_rand_data, l_rand_data_size, &s_data->config
@@ -141,7 +141,7 @@ void s_chain_datum_delegate_test()
     pkey->header.type.type = DAP_PKEY_TYPE_SIGN_BLISS;
     pkey->header.size = l_pkey_size;
     randombytes(pkey->pkey, l_pkey_size);
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_create_compose(&s_data->addr_any, s_data->value, s_data->value_fee, &s_data->addr_from, &s_data->node_addr, &s_data->addr_to, s_data->reinvest_percent, NULL, pkey, &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_srv_stake_delegate(&s_data->addr_any, s_data->value, s_data->value_fee, &s_data->addr_from, &s_data->node_addr, &s_data->addr_to, s_data->reinvest_percent, NULL, pkey, &s_data->config);
     dap_assert(l_datum_1, "tx_stake_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -151,7 +151,7 @@ void s_chain_datum_delegate_test()
 void s_chain_datum_stake_lock_test()
 {
     dap_print_module_name("tx_lock_compose");
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_lock_datum_create_compose(&s_data->addr_from, s_ticker_native, s_data->value, s_data->value_fee, s_data->time_staking, s_data->reinvest_percent, s_ticker_delegate, s_data->value_delegate, "0x0123456789abcdef", &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_stake_lock_hold(&s_data->addr_from, s_ticker_native, s_data->value, s_data->value_fee, s_data->time_staking, s_data->reinvest_percent, s_ticker_delegate, s_data->value_delegate, "0x0123456789abcdef", &s_data->config);
     dap_assert(l_datum_1, "tx_lock_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -160,7 +160,7 @@ void s_chain_datum_stake_lock_test()
 void s_chain_datum_stake_unlock_test()
 {
     dap_print_module_name("tx_unlock_compose");
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_unlock_datum_create_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_stake_lock_take(
         &s_data->addr_from, &s_data->hash_1, s_data->idx_1, s_ticker_native, s_data->value, s_data->value_fee, 
         s_ticker_delegate, s_data->value_delegate, &s_data->config);
     dap_assert(l_datum_1, "tx_unlock_compose");
@@ -171,7 +171,7 @@ void s_chain_datum_stake_unlock_test()
 void s_chain_datum_stake_invalidate_test()
 {
     dap_print_module_name("tx_invalidate_compose");
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_invalidate_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_srv_stake_invalidate(
         &s_data->hash_1, s_data->value_fee, &s_data->addr_from, &s_data->config);
     dap_assert(l_datum_1, "tx_invalidate_compose");
     s_datum_sign_and_check(&l_datum_1);
@@ -191,7 +191,7 @@ void s_chain_datum_vote_create_test()
     dap_list_t *l_options_list = NULL;
     for (size_t i = 0; i < sizeof(l_options) / sizeof(const char *); ++i)
         l_options_list = dap_list_append(l_options_list, (void *)l_options[i]);
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_create_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_poll_create(
         l_question, l_options_list, s_data->time_staking, rand() % 10, s_data->value_fee, false, false, &s_data->addr_from, 
         s_ticker_native, &s_data->config);
     dap_assert(l_datum_1, "tx_vote_create_compose");
@@ -205,7 +205,7 @@ void s_chain_datum_vote_voting_test()
 {
     dap_print_module_name("tx_vote_voting_compose");
     dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("tx_voting_compose_cert", s_key_types[rand() % s_sign_type_count], NULL, 0);
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_vote_voting_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_poll_vote(
         l_cert, s_data->value_fee, &s_data->addr_from, s_data->hash_1, s_data->idx_1, &s_data->config);
     dap_assert(l_datum_1, "tx_vote_voting_compose");
     s_datum_sign_and_check(&l_datum_1);
@@ -279,7 +279,7 @@ void s_chain_datum_shared_funds_hold_test()
     randombytes(l_owner_hashes, l_owner_hashes_count * sizeof(dap_hash_fast_t));
     char *l_rand_tag = DAP_NEW_Z_SIZE_RET_IF_FAIL(char, l_owner_hashes_count);
     dap_random_string_fill(l_rand_tag, l_owner_hashes_count);
-    dap_chain_datum_tx_t *l_datum_1 = dap_emitting_tx_create_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_wallet_shared_hold(
         &s_data->addr_from, s_ticker_native, s_data->value, s_data->value_fee,
         l_signs_min, l_owner_hashes, l_owner_hashes_count, l_rand_tag, &s_data->config);
     dap_assert(l_datum_1, "tx_shared_funds_hold_compose");
@@ -299,7 +299,7 @@ void s_chain_datum_shared_funds_take_test()
         dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand(), sizeof(l_rand_data));
         l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
     }
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_wallet_shared_take_tx_create_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_wallet_shared_take(
         &s_data->addr_from, &s_data->addr_to, &s_data->value, 1, s_data->value_fee,
         &s_data->hash_1, l_tsd_list, &s_data->config);
     dap_assert(l_datum_1, "tx_shared_funds_take_compose");
@@ -320,7 +320,7 @@ void s_chain_datum_shared_funds_refill_test()
         l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
     }
 
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_wallet_shared_refilling_tx_create_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_wallet_shared_refill(
         &s_data->addr_from, s_data->value, s_data->value_fee,
         &s_data->hash_1, l_tsd_list, &s_data->config);
     dap_assert(l_datum_1, "tx_shared_funds_refill_compose");
