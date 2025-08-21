@@ -2794,7 +2794,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             int l_result = dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
             
             if (l_result == 0 && a_chain) {
-                a_chain->callback_count_tx_increase(a_chain);
+                uint64_t l_count = a_chain->callback_count_tx_increase(a_chain);
+                log_it(L_ATT, "Net %s chain %s transation count =  %llu, datum hash %s", a_chain->net_name, a_chain->name, l_count , dap_hash_fast_to_str_static(a_datum_hash));
             }
             return l_result;
         }
