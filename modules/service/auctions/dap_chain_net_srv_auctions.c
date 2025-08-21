@@ -1301,7 +1301,8 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             bool l_is_winner = false;
             if (!l_auction->winners_ids && l_auction->winners_cnt > 0) {
                 log_it(L_ERROR, "Inconsistent winner data: count > 0 but no IDs");
-                return -WINNERS_DATA_CORRUPT;
+                ret_code = -10;
+                break;
             }
             if (l_auction->winners_cnt > 0 && l_auction->winners_ids) {
                 for (uint32_t i = 0; i < l_auction->winners_cnt; i++) {
@@ -2100,7 +2101,7 @@ char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_fro
     pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
     
     if (a_lock_time < DAP_SEC_PER_DAY * 3 || a_lock_time > DAP_SEC_PER_DAY * 24) {
-        set_ret_code(a_ret_code, -PROJECT_LOCK_TIME_INVALID);
+        set_ret_code(a_ret_code, -30);
         return NULL;
     }
 
