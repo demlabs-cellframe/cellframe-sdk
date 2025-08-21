@@ -762,10 +762,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         dap_chain_addr_to_str_static(l_add_addr));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
             }
-            // Addr removing
-            if (--l_new_tx_recv_allow_size > i)
-                memmove(l_new_tx_recv_allow + i, l_new_tx_recv_allow + i + 1,
-                        (l_new_tx_recv_allow_size - i - 1) * sizeof(dap_chain_addr_t));
+            // Addr removing: swap with last
+            {
+                size_t l_last_idx = l_new_tx_recv_allow_size - 1;
+                if (i < l_last_idx)
+                    l_new_tx_recv_allow[i] = l_new_tx_recv_allow[l_last_idx];
+                l_new_tx_recv_allow_size = l_last_idx;
+            }
             // Memory clearing
             if (l_new_tx_recv_allow_size)
                 l_new_tx_recv_allow = DAP_REALLOC_COUNT(l_new_tx_recv_allow, l_new_tx_recv_allow_size);
@@ -780,7 +783,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             DAP_DEL_Z(l_new_tx_recv_allow);
             l_new_tx_recv_allow_size = 0;
-            l_was_tx_recv_block_copied = true;
+            l_was_tx_recv_allow_copied = true;
         } break;
 
         // Blocked tx receiver addres list add, remove or clear
@@ -853,10 +856,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         dap_chain_addr_to_str_static(l_add_addr));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
             }
-            // Addr removing
-            if (--l_new_tx_recv_block_size > i)
-                memmove(l_new_tx_recv_block + i, l_new_tx_recv_block + i + 1,
-                        (l_new_tx_recv_block_size - i - 1) * sizeof(dap_chain_addr_t));
+            // Addr removing: swap with last
+            {
+                size_t l_last_idx = l_new_tx_recv_block_size - 1;
+                if (i < l_last_idx)
+                    l_new_tx_recv_block[i] = l_new_tx_recv_block[l_last_idx];
+                l_new_tx_recv_block_size = l_last_idx;
+            }
             // Memory clearing
             if (l_new_tx_recv_block_size)
                 l_new_tx_recv_block = DAP_REALLOC(l_new_tx_recv_block,
@@ -946,10 +952,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         dap_chain_addr_to_str_static(l_add_addr));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
             }
-            // Addr removing
-            if (--l_new_tx_send_allow_size > i)
-                memmove(l_new_tx_send_allow + i, l_new_tx_send_allow + i + 1,
-                        (l_new_tx_send_allow_size - i - 1) * sizeof(dap_chain_addr_t));
+            // Addr removing: swap with last
+            {
+                size_t l_last_idx = l_new_tx_send_allow_size - 1;
+                if (i < l_last_idx)
+                    l_new_tx_send_allow[i] = l_new_tx_send_allow[l_last_idx];
+                l_new_tx_send_allow_size = l_last_idx;
+            }
             // Memory clearing
             if (l_new_tx_send_allow_size)
                 l_new_tx_send_allow = DAP_REALLOC(l_new_tx_send_allow,
@@ -1040,10 +1049,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         dap_chain_addr_to_str_static(l_add_addr));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
             }
-            // Addr removing
-            if (--l_new_tx_send_block_size > i)
-                memmove(l_new_tx_send_block + i, l_new_tx_send_block + i + 1,
-                        (l_new_tx_send_block_size - i - 1) * sizeof(dap_chain_addr_t));
+            // Addr removing: swap with last
+            {
+                size_t l_last_idx = l_new_tx_send_block_size - 1;
+                if (i < l_last_idx)
+                    l_new_tx_send_block[i] = l_new_tx_send_block[l_last_idx];
+                l_new_tx_send_block_size = l_last_idx;
+            }
             // Memory clearing
             if (l_new_tx_send_block_size)
                 l_new_tx_send_block = DAP_REALLOC_COUNT(l_new_tx_send_block, l_new_tx_send_block_size);
@@ -1194,18 +1206,24 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                                                     dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH);
             }
-            // Pkey removing
-            DAP_DELETE(l_new_pkeys[i]);
-            if (--l_new_signs_total > i) {
-                memmove(l_new_pkeys + i, l_new_pkeys + i + 1, (l_new_signs_total - i - 1) * sizeof(dap_pkey_t *));
-                memmove(l_new_pkey_hashes + i, l_new_pkey_hashes + i + 1, (l_new_signs_total - i - 1) * sizeof(dap_hash_t));
+            // Pkey removing: swap with last to avoid O(n) shifts
+            {
+                size_t l_last_idx = l_new_signs_total - 1;
+                DAP_DEL_Z(l_new_pkeys[i]);
+                if (i < l_last_idx) {
+                    l_new_pkeys[i] = l_new_pkeys[l_last_idx];
+                    l_new_pkey_hashes[i] = l_new_pkey_hashes[l_last_idx];
+                }
+                l_new_signs_total = l_last_idx;
             }
             // Memory clearing
             if (l_new_signs_total) {
                 l_new_pkeys = DAP_REALLOC_COUNT(l_new_pkeys, l_new_signs_total);
                 l_new_pkey_hashes = DAP_REALLOC_COUNT(l_new_pkey_hashes, l_new_signs_total);
-            } else
-                DAP_DEL_MULTY(l_new_pkeys, l_new_pkey_hashes);
+            } else {
+                DAP_DEL_Z(l_new_pkeys);
+                DAP_DEL_Z(l_new_pkey_hashes);
+            }
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
@@ -5415,6 +5433,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const c
     while ( compare256(l_value_transfer, a_value_need) == -1 
             && (l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash, true)) )
     {
+        log_it(L_WARNING, "ledger found - %s ", dap_hash_fast_to_str_static(&l_tx_cur_hash));
         // Get all item from transaction by type
         byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
         dap_chain_addr_t l_out_addr = { };
@@ -5462,6 +5481,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const c
                 continue;
             }
             // Check whether used 'out' items
+            log_it(L_WARNING, "ledger add - %s ", dap_hash_fast_to_str_static(&l_tx_cur_hash));
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
             l_list_used_out = dap_list_append(l_list_used_out, l_item);

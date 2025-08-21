@@ -265,12 +265,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             }
             bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
             bool auto_update = false;
-            if((system("systemctl status cellframe-updater.service") == 768) && (system("systemctl status cellframe-updater.timer") == 0))
-                auto_update = true;
-            else
-                auto_update = false;
-            flags = auto_online ? flags | A_ONLN : flags & ~A_ONLN;
-            flags = auto_update ? flags | A_UPDT : flags & ~A_UPDT;
+#if !defined(DAP_OS_IOS) && !defined(DAP_OS_ANDROID)
+            auto_update = (( system("systemctl status cellframe-updater.service") == 768 ) && ( system("systemctl status cellframe-updater.timer") == 0 ));
+#endif
+            flags = auto_online ? ( flags | A_ONLN ) : ( flags & ~A_ONLN );
+            flags = auto_update ? ( flags | A_UPDT ) : ( flags & ~A_UPDT );
             send->header.flags = flags;
             //add sign
             if(sign_s)
@@ -278,8 +277,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY ,
                                              l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_chain_ch_validator_test_t) + sign_s);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-            if(l_sign)
-                DAP_DELETE(l_sign);
+            DAP_DELETE(l_sign);
             DAP_DELETE(send);
         } break;
 
