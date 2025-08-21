@@ -133,6 +133,8 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
 int json_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 int json_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 
 #ifdef __cplusplus
 }

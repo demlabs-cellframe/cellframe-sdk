@@ -2210,6 +2210,149 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
     return 0;
 }
 
+/**
+ * @brief json_print_for_ledger_list
+ * Pretty-printer for 'ledger list' responses.
+ * Handles 'coins' subcommand with flexible JSON formats:
+ *  - Array of token objects (optionally followed by {limit}/{offset})
+ *  - Object mapping ticker to token object
+ * Uses json_object_object_foreach where keys themselves carry semantics (e.g., ticker).
+ *
+ * @param response JSON RPC response object
+ * @param cmd_param CLI command parameters
+ * @param cmd_cnt CLI parameters count
+ * @return int 0 on success, negative on error
+ */
+int json_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
+    if (!response || !response->result_json_object)
+        return -1;
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
+        return -2;
+
+    // coins
+    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "coins")) {
+        if (json_object_get_type(response->result_json_object) != json_type_array)
+            return -3;
+
+        json_object *root0 = json_object_array_get_idx(response->result_json_object, 0);
+        if (!root0)
+            return -4;
+
+        // There are two common formats observed:
+        // 1) Array of token objects [{...token fields...}, {limit:...}, {offset:...}]
+        // 2) Object mapping tickers to token objects { TICKER: {...}, ... }
+        // We will detect and handle both. Field names may vary between versions.
+
+        // Case 1: array of objects where each token is an object with field token_name or subtype/supply, etc.
+        if (json_object_is_type(root0, json_type_array)) {
+            int arr_len = json_object_array_length(root0);
+            if (arr_len <= 0) { printf("No coins found\n"); return 0; }
+
+            printf("__________________________________________________________________________________________________________\n");
+            printf("  Token Ticker   |   Type  | Decimals | Total Supply                        | Current Supply\n");
+            printf("__________________________________________________________________________________________________________\n");
+
+            int printed = 0;
+            for (int i = 0; i < arr_len; i++) {
+                json_object *it = json_object_array_get_idx(root0, i);
+                if (!it || json_object_get_type(it) != json_type_object)
+                    continue;
+
+                // Skip control objects like {limit:...} or {offset:...}
+                json_object *limit = NULL, *offset = NULL;
+                if (json_object_object_get_ex(it, "limit", &limit) || json_object_object_get_ex(it, "offset", &offset))
+                    continue;
+
+                const char *ticker = NULL;
+                const char *type_str = "N/A";
+                const char *supply_total = "N/A";
+                const char *supply_current = "N/A";
+                int decimals = 0;
+
+                json_object *j_ticker = NULL, *j_type = NULL, *j_dec = NULL, *j_supply_total = NULL, *j_supply_current = NULL;
+                // keys vary by version
+                if (json_object_object_get_ex(it, "token_name", &j_ticker) ||
+                    json_object_object_get_ex(it, "-->Token name", &j_ticker))
+                    ticker = json_object_get_string(j_ticker);
+                if (json_object_object_get_ex(it, "subtype", &j_type) ||
+                    json_object_object_get_ex(it, "type", &j_type))
+                    type_str = json_object_get_string(j_type);
+                if (json_object_object_get_ex(it, "decimals", &j_dec) ||
+                    json_object_object_get_ex(it, "Decimals", &j_dec))
+                    decimals = json_object_get_int(j_dec);
+                if (json_object_object_get_ex(it, "supply_total", &j_supply_total) ||
+                    json_object_object_get_ex(it, "Supply total", &j_supply_total))
+                    supply_total = json_object_get_string(j_supply_total);
+                if (json_object_object_get_ex(it, "supply_current", &j_supply_current) ||
+                    json_object_object_get_ex(it, "Supply current", &j_supply_current))
+                    supply_current = json_object_get_string(j_supply_current);
+
+                if (!ticker) {
+                    // try to infer ticker from first key if structure is {TICKER:{...}}
+                    const char *inferred = NULL;
+                    json_object_object_foreach(it, key, val) {
+                        if (json_object_is_type(val, json_type_object)) { inferred = key; break; }
+                    }
+                    ticker = inferred ? inferred : "UNKNOWN";
+                }
+
+                printf("  %-15s|  %-7s|    %-6d|  %-35s|  %-35s|\n",
+                       ticker, type_str, decimals, supply_total, supply_current);
+                printed++;
+            }
+            if (!printed)
+                printf("No coins found\n");
+            return 0;
+        }
+
+        // Case 2: object mapping ticker -> token object
+        if (json_object_is_type(root0, json_type_object)) {
+            printf("__________________________________________________________________________________________________________\n");
+            printf("  Token Ticker   |   Type  | Decimals | Total Supply                        | Current Supply\n");
+            printf("__________________________________________________________________________________________________________\n");
+
+            int printed = 0;
+            json_object_object_foreach(root0, ticker, token_obj) {
+                if (!token_obj || json_object_get_type(token_obj) != json_type_object)
+                    continue;
+                const char *type_str = "N/A";
+                const char *supply_total = "N/A";
+                const char *supply_current = "N/A";
+                int decimals = 0;
+
+                json_object *j_type = NULL, *j_dec = NULL, *j_supply_total = NULL, *j_supply_current = NULL;
+                if (json_object_object_get_ex(token_obj, "subtype", &j_type) ||
+                    json_object_object_get_ex(token_obj, "type", &j_type))
+                    type_str = json_object_get_string(j_type);
+                if (json_object_object_get_ex(token_obj, "decimals", &j_dec) ||
+                    json_object_object_get_ex(token_obj, "Decimals", &j_dec))
+                    decimals = json_object_get_int(j_dec);
+                if (json_object_object_get_ex(token_obj, "supply_total", &j_supply_total) ||
+                    json_object_object_get_ex(token_obj, "Supply total", &j_supply_total))
+                    supply_total = json_object_get_string(j_supply_total);
+                if (json_object_object_get_ex(token_obj, "supply_current", &j_supply_current) ||
+                    json_object_object_get_ex(token_obj, "Supply current", &j_supply_current))
+                    supply_current = json_object_get_string(j_supply_current);
+
+                printf("  %-15s|  %-7s|    %-6d|  %-35s|  %-35s|\n",
+                       ticker, type_str, decimals, supply_total, supply_current);
+                printed++;
+            }
+            if (!printed)
+                printf("No coins found\n");
+            return 0;
+        }
+
+        // Fallback
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    // other ledger list subcmds handled elsewhere or printed raw
+    json_print_object(response->result_json_object, 0);
+    return 0;
+}
+
 int json_print_for_srv_stake_order_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
     if (!response || !response->result_json_object) {
         printf("Response is empty\n");
@@ -2963,5 +3106,121 @@ int json_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd
 	}
 
 	return 0;
+}
+
+/**
+ * @brief json_print_for_global_db
+ * Simple JSON printer for global_db command responses. It tries to format
+ * known subcommands (group_list, get_keys, record get/pin/unpin, read/write/delete/drop_table, flush),
+ * otherwise falls back to printing the JSON object/array as is.
+ *
+ * @param response JSON RPC response object
+ * @param cmd_param Command parameters array
+ * @param cmd_cnt Count of command parameters
+ * @return int 0 on success, negative on error
+ */
+int json_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt)
+{
+    if (!response || !response->result_json_object) {
+        printf("Response is empty\n");
+        return -1;
+    }
+
+    // group_list: can be an array of objects { group_name: count } or an object { group_name: count }
+    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "group_list")) {
+        if (json_object_get_type(response->result_json_object) == json_type_array) {
+            int len = json_object_array_length(response->result_json_object);
+            if (len <= 0) { printf("Response array is empty\n"); return -2; }
+            json_object *obj = json_object_array_get_idx(response->result_json_object, 0);
+            json_object *arr = NULL, *total = NULL;
+            if (obj && json_object_get_type(obj) == json_type_object) {
+                // Support both spaced and underscored keys from different implementations
+                json_object_object_get_ex(obj, "group_list", &arr);
+                if (!arr) json_object_object_get_ex(obj, "group list", &arr);
+                json_object_object_get_ex(obj, "total_count", &total);
+                if (!total) json_object_object_get_ex(obj, "total count", &total);
+
+                if (arr) {
+                    int64_t groups_total = 0;
+                    if (total)
+                        groups_total = json_object_get_int64(total);
+                    else if (json_object_get_type(arr) == json_type_array)
+                        groups_total = (int64_t)json_object_array_length(arr);
+                    else if (json_object_get_type(arr) == json_type_object)
+                        groups_total = (int64_t)json_object_object_length(arr);
+
+                    printf("Groups (total: %" DAP_INT64_FORMAT "):\n", groups_total);
+
+                    if (json_object_get_type(arr) == json_type_array) {
+                        for (size_t i = 0; i < (size_t)json_object_array_length(arr); i++) {
+                            json_object *it = json_object_array_get_idx(arr, (int)i);
+                            if (it && json_object_get_type(it) == json_type_object) {
+                                json_object_object_foreach(it, key, val) {
+                                    printf(" - %s: %" DAP_INT64_FORMAT "\n", key, json_object_get_int64(val));
+                                }
+                            }
+                        }
+                        return 0;
+                    } else if (json_object_get_type(arr) == json_type_object) {
+                        json_object_object_foreach(arr, key, val) {
+                            printf(" - %s: %" DAP_INT64_FORMAT "\n", key, json_object_get_int64(val));
+                        }
+                        return 0;
+                    }
+                }
+            }
+            // fallback
+            json_print_object(response->result_json_object, 0);
+            return 0;
+        }
+    }
+
+    // get_keys: array with one object containing keys_list
+    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "get_keys")) {
+        if (json_object_get_type(response->result_json_object) == json_type_array) {
+            json_object *obj = json_object_array_get_idx(response->result_json_object, 0);
+            json_object *group = NULL, *keys = NULL;
+            if (obj && json_object_get_type(obj) == json_type_object) {
+                json_object_object_get_ex(obj, "group_name", &group);
+                if (!group) json_object_object_get_ex(obj, "group name", &group);
+                json_object_object_get_ex(obj, "keys_list", &keys);
+                if (!keys) json_object_object_get_ex(obj, "keys list", &keys);
+                if (keys && json_object_get_type(keys) == json_type_array) {
+                    printf("Keys in group %s:\n", group ? json_object_get_string(group) : "<unknown>");
+                    for (size_t i = 0; i < (size_t)json_object_array_length(keys); i++) {
+                        json_object *it = json_object_array_get_idx(keys, (int)i);
+                        json_object *k = NULL, *ts = NULL, *type = NULL;
+                        if (it && json_object_get_type(it) == json_type_object) {
+                            json_object_object_get_ex(it, "key", &k);
+                            json_object_object_get_ex(it, "time", &ts);
+                            json_object_object_get_ex(it, "type", &type);
+                            printf(" - %s (%s) [%s]\n",
+                                   k ? json_object_get_string(k) : "<no key>",
+                                   ts ? json_object_get_string(ts) : "-",
+                                   type ? json_object_get_string(type) : "-");
+                        }
+                    }
+                    return 0;
+                }
+            }
+        }
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    // record/get + read just print json
+    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "record") ||
+        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "read") ||
+        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "write") ||
+        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "delete") ||
+        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "drop_table") ||
+        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "flush")) {
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    // Fallback
+    json_print_object(response->result_json_object, 0);
+    return 0;
 }
 
