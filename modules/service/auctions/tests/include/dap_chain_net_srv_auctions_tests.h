@@ -123,9 +123,5 @@ void dap_auctions_test_error_handling(void);
  */
 void dap_auctions_test_thread_safety(void);
 
-// ===== 7. PERFORMANCE TESTS =====
 
-/**
- * @brief Test scalability and performance
- */
-void dap_auctions_test_performance(void);
+
