@@ -2300,7 +2300,7 @@ static dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
 }
 
 json_object *dap_chain_tx_compose_stake_lock_take(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                    uint16_t a_port, const char *a_enc_cert_path, const char *a_chain_id_str, dap_chain_addr_t *a_wallet_addr, const char *a_tx_str,
+                                    uint16_t a_port, const char *a_enc_cert_path, dap_chain_addr_t *a_wallet_addr, const char *a_tx_str,
                                     const char *a_value_fee_str){
 
     compose_config_t *l_config = s_compose_config_init(a_net_id, a_net_name, a_native_ticker, a_url_str, a_port, a_enc_cert_path);

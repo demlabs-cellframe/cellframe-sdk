@@ -85,7 +85,7 @@ json_object *dap_chain_tx_compose_stake_lock_hold(dap_chain_net_id_t a_net_id, c
                                   const char *a_reinvest_percent_str);
 
 json_object *dap_chain_tx_compose_stake_lock_take(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                  uint16_t a_port, const char *a_enc_cert_path, const char *a_chain_id_str, dap_chain_addr_t *a_wallet_addr, 
+                                  uint16_t a_port, const char *a_enc_cert_path, dap_chain_addr_t *a_wallet_addr, 
                                   const char *a_tx_str, const char *a_value_fee_str);
 
 json_object *dap_chain_tx_compose_poll_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
