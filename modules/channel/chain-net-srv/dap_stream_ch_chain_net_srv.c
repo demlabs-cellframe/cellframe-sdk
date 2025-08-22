@@ -39,6 +39,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_ch_chain_net_srv_pkt.h"
 #include "dap_stream_ch_proc.h"
 
+// Usage-Centric Resource Management
+#include "dap_stream_ch_chain_net_srv_memory_manager.h"
+#include "dap_stream_ch_chain_net_srv_timer_utils.h"
+#include "dap_stream_ch_chain_net_srv_usage_manager.h"
+
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
@@ -131,6 +136,14 @@ static void s_service_substate_go_to_error(dap_chain_net_srv_usage_t *a_usage);
 int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv)
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
+    
+    // Initialize Usage-Centric Resource Management
+    if (dap_billing_memory_manager_init() != 0) {
+        log_it(L_ERROR, "Failed to initialize billing memory manager");
+        return -1;
+    }
+    log_it(L_DEBUG, "Billing memory manager initialized");
+    
     dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID, s_stream_ch_new,s_stream_ch_delete, s_stream_ch_packet_in, s_stream_ch_packet_out);
     pthread_mutex_init(&a_srv->grace_mutex, NULL);
 
@@ -142,7 +155,9 @@ int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv)
  */
 void dap_stream_ch_chain_net_srv_deinit(void)
 {
-
+    // Deinitialize Usage-Centric Resource Management
+    dap_billing_memory_manager_deinit();
+    log_it(L_DEBUG, "Billing memory manager deinitialized");
 }
 
 /**
@@ -370,41 +385,57 @@ struct dap_grace_exit_args{
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt(void *a_arg)
 {
     struct dap_grace_exit_args *l_args = (struct dap_grace_exit_args*)a_arg;
-    pthread_mutex_lock(&l_args->net_srv->grace_mutex);
-    // finish grace
-    HASH_DEL(l_args->net_srv->grace_hash_tab, l_args->grace_item);
-    pthread_mutex_unlock(&l_args->net_srv->grace_mutex);
-
+    
+    if (!l_args || !l_args->grace_item || !l_args->grace_item->grace || !l_args->grace_item->grace->usage) {
+        log_it(L_ERROR, "Invalid grace exit args in transaction callback");
+        if (a_arg) DAP_DELETE(a_arg);
+        return;
+    }
+    
+    dap_chain_net_srv_usage_t *usage = l_args->grace_item->grace->usage;
+    
     log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
-    // Stop timer
-    dap_timerfd_delete_unsafe(l_args->grace_item->grace->timer);
-    l_args->grace_item->grace->usage->tx_cond = l_args->tx;
+    
+    // Set transaction reference
+    usage->tx_cond = l_args->tx;
 
     dap_chain_datum_tx_receipt_t *l_new_receipt = NULL;
-    if (l_args->grace_item->grace->usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER) {
+    if (usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER) {
         // Send new receipt with new tx
-        if (l_args->grace_item->grace->usage->receipt_next){
-            DAP_DEL_Z(l_args->grace_item->grace->usage->receipt_next);
-            l_args->grace_item->grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(l_args->grace_item->grace->usage->service, l_args->grace_item->grace->usage->price, NULL, 0, &l_args->grace_item->grace->usage->tx_cond_hash);
-            l_new_receipt = l_args->grace_item->grace->usage->receipt_next;
-        } else if (l_args->grace_item->grace->usage->receipt) {
-            DAP_DEL_Z(l_args->grace_item->grace->usage->receipt);
-            l_args->grace_item->grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_args->grace_item->grace->usage->service, l_args->grace_item->grace->usage->price, NULL, 0, &l_args->grace_item->grace->usage->tx_cond_hash);
-            l_new_receipt = l_args->grace_item->grace->usage->receipt;
+        if (usage->receipt_next){
+            DAP_DEL_Z(usage->receipt_next);
+            usage->receipt_next = dap_chain_net_srv_issue_receipt(usage->service, usage->price, NULL, 0, &usage->tx_cond_hash);
+            l_new_receipt = usage->receipt_next;
+        } else if (usage->receipt) {
+            DAP_DEL_Z(usage->receipt);
+            usage->receipt = dap_chain_net_srv_issue_receipt(usage->service, usage->price, NULL, 0, &usage->tx_cond_hash);
+            l_new_receipt = usage->receipt;
         }
         
-        l_args->grace_item->grace->usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
+        usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
 
-        //start timeout timer
-        l_args->grace_item->grace->usage->receipt_timeout_timer_start_callback(l_args->grace_item->grace->usage);
-        log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_chain_hash_fast_to_str_static(&l_args->grace_item->grace->usage->tx_cond_hash));
-        dap_stream_ch_pkt_write_unsafe(l_args->grace_item->grace->usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST, l_new_receipt, l_new_receipt->size);
+        // Start timeout timer
+        usage->receipt_timeout_timer_start_callback(usage);
+        log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", 
+               dap_chain_hash_fast_to_str_static(&usage->tx_cond_hash));
+        dap_stream_ch_pkt_write_unsafe(usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST, l_new_receipt, l_new_receipt->size);
     } else {
-        s_service_substate_pay_service(l_args->grace_item->grace->usage);
-        s_set_usage_data_to_gdb(l_args->grace_item->grace->usage);
+        s_service_substate_pay_service(usage);
+        s_set_usage_data_to_gdb(usage);
     }
-    DAP_DELETE(l_args->grace_item->grace);
-    DAP_DELETE(l_args->grace_item);
+    
+    // Cleanup grace period safely through Usage Manager
+    dap_usage_manager_result_t cleanup_result = dap_billing_usage_grace_cleanup_safe(
+        usage, 
+        &usage->tx_cond_hash, 
+        "tx_confirmed"
+    );
+    
+    if (cleanup_result != DAP_USAGE_MANAGER_SUCCESS) {
+        log_it(L_WARNING, "Grace cleanup failed in tx callback: %s", 
+               dap_billing_usage_error_to_string(cleanup_result));
+    }
+    
     DAP_DELETE(a_arg);
 }
 
@@ -525,10 +556,18 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     }
 
     l_err.usage_id = l_usage->id;
-    // Create one client
-    l_usage->client = DAP_NEW_Z( dap_chain_net_srv_client_remote_t);
-    if (!l_usage->client) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+    
+    // Configure usage with client data using Usage Manager
+    dap_usage_manager_result_t config_result = dap_billing_usage_configure_client_safe(
+        l_usage, 
+        a_ch, 
+        a_request, 
+        "service_start"
+    );
+    
+    if (config_result != DAP_USAGE_MANAGER_SUCCESS) {
+        log_it(L_ERROR, "Failed to configure usage client: %s", 
+               dap_billing_usage_error_to_string(config_result));
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -537,18 +576,10 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         dap_chain_net_srv_usage_delete(l_srv_session);
         return false;
     }
-    l_usage->client->stream_worker = a_ch->stream_worker;
-    l_usage->client->ch = a_ch;
-    l_usage->client->session_id = a_ch->stream->session->id;
-    l_usage->client->ts_created = time(NULL);
-    l_usage->tx_cond_hash = a_request->hdr.tx_cond;
-    l_usage->ts_created = time(NULL);
+    
+    // Set network and service references (these weren't handled by configure_client)
     l_usage->net = l_net;
     l_usage->service = l_srv;
-    l_usage->client_pkey_hash = a_request->hdr.client_pkey_hash;
-    l_usage->receipt_timeout_timer_start_callback = s_start_receipt_timeout_timer;
-    l_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE;
-    l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE;
 
     dap_chain_net_srv_price_t * l_price = NULL;
     bool l_specific_order_free = false;
@@ -722,20 +753,49 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 {
     dap_return_val_if_pass(!a_grace_item || !a_grace_item->grace, false);
 
-    dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(a_grace_item->grace->usage->service->uid);
-    pthread_mutex_lock(&l_srv->grace_mutex);
-    HASH_DEL(l_srv->grace_hash_tab, a_grace_item);
-    pthread_mutex_unlock(&l_srv->grace_mutex);
+    dap_chain_net_srv_usage_t *usage = a_grace_item->grace->usage;
+    if (!usage) {
+        log_it(L_ERROR, "Grace item has no usage reference");
+        return false;
+    }
 
-    if (!dap_ledger_tx_find_by_hash(a_grace_item->grace->usage->net->pub.ledger, &a_grace_item->grace->usage->tx_cond_hash)){
+    // Check if transaction is found in ledger
+    if (!dap_ledger_tx_find_by_hash(usage->net->pub.ledger, &usage->tx_cond_hash)) {
         log_it(L_ERROR, "Grace period is over. Can't find tx for paying.");
-        a_grace_item->grace->usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
-        s_service_substate_go_to_error(a_grace_item->grace->usage);
-    } else 
-        s_service_substate_pay_service(a_grace_item->grace->usage);
+        usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
+        
+        // Cleanup grace period safely through Usage Manager
+        dap_usage_manager_result_t cleanup_result = dap_billing_usage_grace_cleanup_safe(
+            usage, 
+            &usage->tx_cond_hash, 
+            "grace_period_timeout"
+        );
+        
+        if (cleanup_result != DAP_USAGE_MANAGER_SUCCESS) {
+            log_it(L_WARNING, "Grace cleanup failed during timeout: %s", 
+                   dap_billing_usage_error_to_string(cleanup_result));
+        }
+        
+        s_service_substate_go_to_error(usage);
+    } else {
+        // Transaction found, proceed with payment
+        log_it(L_DEBUG, "Grace period completed, transaction found, proceeding with payment");
+        
+        // Cleanup grace period safely
+        dap_usage_manager_result_t cleanup_result = dap_billing_usage_grace_cleanup_safe(
+            usage, 
+            &usage->tx_cond_hash, 
+            "grace_period_success"
+        );
+        
+        if (cleanup_result != DAP_USAGE_MANAGER_SUCCESS) {
+            log_it(L_WARNING, "Grace cleanup failed during success: %s", 
+                   dap_billing_usage_error_to_string(cleanup_result));
+        }
+        
+        s_service_substate_pay_service(usage);
+    }
 
-    DAP_DEL_Z(a_grace_item->grace);
-    DAP_DEL_Z(a_grace_item);
     return false;
 }
 
@@ -1598,79 +1658,61 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
 
 static void s_service_substate_go_to_waiting_prev_tx(dap_chain_net_srv_usage_t *a_usage)
 {
-    dap_chain_net_srv_grace_t *l_grace  = DAP_NEW_Z(dap_chain_net_srv_grace_t);
-    if (!l_grace) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-        s_service_substate_go_to_error(a_usage);
-        return;
-    }
-    l_grace->ch_uuid = a_usage->client->ch->uuid;
-    l_grace->stream_worker = a_usage->client->ch->stream_worker;
-    l_grace->usage = a_usage;
-    
-    // create and start grace-object 
-    dap_chain_net_srv_grace_usage_t *l_item = DAP_NEW_Z(dap_chain_net_srv_grace_usage_t);
-    if (!l_item) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-        s_service_substate_go_to_error(a_usage);
-        return;
-    }
-    l_item->grace = l_grace;
-    l_item->tx_cond_hash = a_usage->tx_cond_hash;
-
+    // Set the substate first
     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING;
-    char *l_user_key = dap_chain_hash_fast_to_str_static(&l_grace->usage->client_pkey_hash);
-
-    pthread_mutex_lock(&a_usage->service->grace_mutex);
-    HASH_ADD(hh, a_usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
-    pthread_mutex_unlock(&a_usage->service->grace_mutex);
-    l_grace->timer = dap_timerfd_start_on_worker(l_grace->stream_worker->worker, l_grace->usage->service->grace_period * 1000,
-                                                           (dap_timerfd_callback_t)s_grace_period_finish, l_item);
-    log_it(L_INFO, "Start grace timer %s for user %s.", l_grace->timer ? "successfuly." : "failed.", l_user_key);
+    
+    // Create grace period using Usage-Centric Resource Management
+    dap_usage_manager_result_t result = dap_billing_usage_grace_create_safe(
+        a_usage,
+        &a_usage->tx_cond_hash,
+        a_usage->service->grace_period,
+        "waiting_prev_tx"
+    );
+    
+    char *l_user_key = dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash);
+    
+    if (result != DAP_USAGE_MANAGER_SUCCESS) {
+        log_it(L_ERROR, "Failed to create grace period for user %s: %s", 
+               l_user_key, dap_billing_usage_error_to_string(result));
+        a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+        s_service_substate_go_to_error(a_usage);
+        return;
+    }
+    
+    log_it(L_INFO, "Grace period started successfully for user %s", l_user_key);
 }
 
 static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a_usage)
 {
-    
-    dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
-    if (!l_grace) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-        s_service_substate_go_to_error(a_usage);
-        return;
-    }
-    l_grace->ch_uuid = a_usage->client->ch->uuid;
-    l_grace->stream_worker = a_usage->client->ch->stream_worker;
-    l_grace->usage = a_usage;
-
-    // create and start grace-object 
-    dap_chain_net_srv_grace_usage_t *l_item = DAP_NEW_Z(dap_chain_net_srv_grace_usage_t);
-    if (!l_item) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
-        s_service_substate_go_to_error(a_usage);
-        return;
-    }
-    l_item->grace = l_grace;
-    l_item->tx_cond_hash = a_usage->tx_cond_hash;
-
+    // Set the substate first
     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT;
-    char *l_user_key = dap_chain_hash_fast_to_str_static(&l_grace->usage->client_pkey_hash);
-
-    pthread_mutex_lock(&a_usage->service->grace_mutex);
-    HASH_ADD(hh, a_usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
-    pthread_mutex_unlock(&a_usage->service->grace_mutex);
-    l_grace->timer = dap_timerfd_start_on_worker(l_grace->stream_worker->worker, l_grace->usage->service->grace_period * 1000,
-                                                           (dap_timerfd_callback_t)s_grace_period_finish, l_item);
     
-    log_it(L_INFO, "Start grace timer %s for user %s.", l_grace->timer ? "successfuly." : "failed.", l_user_key);
+    // Create grace period using Usage-Centric Resource Management
+    dap_usage_manager_result_t result = dap_billing_usage_grace_create_safe(
+        a_usage,
+        &a_usage->tx_cond_hash,
+        a_usage->service->grace_period,
+        "waiting_new_tx"
+    );
+    
+    char *l_user_key = dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash);
+    
+    if (result != DAP_USAGE_MANAGER_SUCCESS) {
+        log_it(L_ERROR, "Failed to create grace period for user %s: %s", 
+               l_user_key, dap_billing_usage_error_to_string(result));
+        a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+        s_service_substate_go_to_error(a_usage);
+        return;
+    }
+    
+    log_it(L_INFO, "Grace period started successfully for user %s", l_user_key);
+    
+    // Send error response to client
     dap_stream_ch_chain_net_srv_pkt_error_t l_err;
     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
     dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
     if (a_usage->service->callbacks.response_error)
-        a_usage->service->callbacks.response_error(a_usage->service,a_usage->id, a_usage->client, &l_err,sizeof (l_err));
+        a_usage->service->callbacks.response_error(a_usage->service, a_usage->id, a_usage->client, &l_err, sizeof (l_err));
 }
 
 static void s_service_substate_go_to_error(dap_chain_net_srv_usage_t *a_usage)

@@ -27,6 +27,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "rand/dap_rand.h"
 #include "dap_chain_net_srv_stream_session.h"
 
+// Usage-Centric Resource Management
+#include "dap_stream_ch_chain_net_srv_usage_manager.h"
+
 #define LOG_TAG "dap_stream_ch_chain_net_srv_session"
 
 /**
@@ -87,6 +90,17 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
         l_ret->net = a_net;
         l_ret->service = a_srv;
         pthread_rwlock_init(&l_ret->rwlock,NULL);
+        
+        // Initialize usage with Usage-Centric Resource Management
+        dap_usage_manager_result_t init_result = dap_billing_usage_init_safe(l_ret, "usage_add");
+        if (init_result != DAP_USAGE_MANAGER_SUCCESS) {
+            log_it(L_ERROR, "Failed to initialize usage management: %s", 
+                   dap_billing_usage_error_to_string(init_result));
+            pthread_rwlock_destroy(&l_ret->rwlock);
+            DAP_DEL_Z(l_ret);
+            return NULL;
+        }
+        
         a_srv_session->usage_active = l_ret;
         log_it( L_NOTICE, "Added service %s:0x%016"DAP_UINT64_FORMAT_X" , usage id: %u", l_ret->net->pub.name, a_srv->uid.uint64, l_ret->id);
         return l_ret;
@@ -107,33 +121,46 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
     if (!a_srv_session || !a_srv_session->usage_active)
         return;
 
-    dap_chain_net_srv_grace_usage_t *l_item = NULL;
-    pthread_mutex_lock(&a_srv_session->usage_active->service->grace_mutex);
-    HASH_FIND(hh, a_srv_session->usage_active->service->grace_hash_tab, &a_srv_session->usage_active->tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
-    if (l_item){
-        log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
-        // Stop timer
-        dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
-        // finish grace
-        HASH_DEL(a_srv_session->usage_active->service->grace_hash_tab, l_item);
-        DAP_DELETE(l_item->grace);
-        DAP_DELETE(l_item);
+    dap_chain_net_srv_usage_t *usage = a_srv_session->usage_active;
+    
+    // Cleanup grace period if active, using Usage Manager
+    dap_usage_manager_result_t grace_cleanup_result = dap_billing_usage_grace_cleanup_safe(
+        usage, 
+        &usage->tx_cond_hash, 
+        "usage_delete"
+    );
+    
+    if (grace_cleanup_result != DAP_USAGE_MANAGER_SUCCESS && grace_cleanup_result != DAP_USAGE_MANAGER_ERROR_NOT_FOUND) {
+        log_it(L_WARNING, "Grace cleanup failed during usage delete: %s", 
+               dap_billing_usage_error_to_string(grace_cleanup_result));
     }
-    pthread_mutex_unlock(&a_srv_session->usage_active->service->grace_mutex);
 
-    if ( a_srv_session->usage_active->receipt )
-        DAP_DEL_Z( a_srv_session->usage_active->receipt );
-    if ( a_srv_session->usage_active->receipt_next )
-        DAP_DEL_Z( a_srv_session->usage_active->receipt_next);
-    if (!dap_hash_fast_is_blank(&a_srv_session->usage_active->static_order_hash) && a_srv_session->usage_active->price)
-        DAP_DEL_Z( a_srv_session->usage_active->price);
-    if ( a_srv_session->usage_active->client ){
-        for (dap_chain_net_srv_client_remote_t * l_srv_client = a_srv_session->usage_active->client, * tmp = NULL; l_srv_client; ){
+    // Cleanup all usage resources using Usage Manager
+    dap_usage_manager_result_t cleanup_result = dap_billing_usage_cleanup_safe(usage, "usage_delete");
+    if (cleanup_result != DAP_USAGE_MANAGER_SUCCESS) {
+        log_it(L_WARNING, "Usage cleanup failed: %s", 
+               dap_billing_usage_error_to_string(cleanup_result));
+    }
+
+    // Clean up receipts
+    if ( usage->receipt )
+        DAP_DEL_Z( usage->receipt );
+    if ( usage->receipt_next )
+        DAP_DEL_Z( usage->receipt_next);
+    if (!dap_hash_fast_is_blank(&usage->static_order_hash) && usage->price)
+        DAP_DEL_Z( usage->price);
+        
+    // Clean up client chain
+    if ( usage->client ){
+        for (dap_chain_net_srv_client_remote_t * l_srv_client = usage->client, * tmp = NULL; l_srv_client; ){
             tmp = l_srv_client;
             l_srv_client = l_srv_client->next;
             DAP_DELETE( tmp);
         }
     }
+    
+    // Clean up rwlock and usage itself
+    pthread_rwlock_destroy(&usage->rwlock);
     DAP_DEL_Z(a_srv_session->usage_active);
 }
 
