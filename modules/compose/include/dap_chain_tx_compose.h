@@ -79,7 +79,7 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
                                         const char *a_srv_uid_str);
 
 json_object *dap_chain_tx_compose_stake_lock_hold(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                  uint16_t a_port, const char *a_enc_cert_path, const char *a_chain_id_str, const char *a_ticker_str, 
+                                  uint16_t a_port, const char *a_enc_cert_path, dap_chain_id_t a_chain_id, const char *a_ticker_str, 
                                   dap_chain_addr_t *a_wallet_addr, const char *a_coins_str, 
                                   const char *a_time_staking_str, const char *a_cert_str, const char *a_value_fee_str, 
                                   const char *a_reinvest_percent_str);
@@ -176,7 +176,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_t *a_wallet_addr, const char *a_main_ticker,
                                                          uint256_t a_value, uint256_t a_value_fee, dap_time_t a_time_staking, 
                                                          uint256_t a_reinvest_percent, const char *a_delegated_ticker_str, 
-                                                         uint256_t a_delegated_value, const char *a_chain_id_str, 
+                                                         uint256_t a_delegated_value, dap_chain_id_t a_chain_id, 
                                                          compose_config_t *a_config);
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_take(dap_chain_addr_t *a_wallet_addr, dap_hash_fast_t *a_stake_tx_hash, 
