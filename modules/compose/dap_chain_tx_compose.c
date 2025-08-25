@@ -40,7 +40,6 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_common.h"
-
 #include <json-c/json.h>
 #define LOG_TAG "dap_chain_tx_compose"
 
