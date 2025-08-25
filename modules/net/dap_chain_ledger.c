@@ -2538,6 +2538,8 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     if ( l_ledger_pvt->cached )
         // load ledger cache from GDB
         dap_ledger_load_cache(l_ledger);
+#else
+    l_ledger_pvt->blockchain_time = dap_time_now();
 #endif
 
     dap_chain_t *l_default_tx_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
