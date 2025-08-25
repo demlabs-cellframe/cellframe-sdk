@@ -1229,6 +1229,11 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(l_srv_uid, l_value, l_time_staking, l_reinvest_percent);
             // Save value for using in In item
             if(l_out_cond_item) {
+                uint64_t l_flags = 0;
+                if (s_json_get_int64_uint64(a_json_item_obj, "flags", &l_flags, true)) {
+                    l_out_cond_item->subtype.srv_stake_lock.flags = l_flags;
+                }
+
                 return (uint8_t *)l_out_cond_item;
             } else {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create conditional out for transaction "
@@ -1290,6 +1295,10 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             // Save value for using in In item
             if(l_out_cond_item) {
                 SUM_256_256(*a_value_need, l_value, a_value_need);
+                uint64_t l_flags = 0;
+                if (s_json_get_int64_uint64(a_json_item_obj, "flags", &l_flags, true)) {
+                    l_out_cond_item->subtype.srv_stake_pos_delegate.flags = l_flags;
+                }
                 return (uint8_t *)l_out_cond_item;
             } else {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create conditional out for transaction "
