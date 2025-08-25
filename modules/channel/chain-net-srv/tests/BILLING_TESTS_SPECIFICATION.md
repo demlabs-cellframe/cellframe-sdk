@@ -122,12 +122,12 @@ context = "timer_test";
 ```
 **Сценарий:**
 ```
-1. СОЗДАНИЕ: timer = dap_billing_timer_create_safe(worker, 1000, callback, arg, "test")
+1. СОЗДАНИЕ: timer = dap_billing_timer_create_safe(worker, 1000, callback, arg)
 2. ПРОВЕРКА: timer != NULL
 3. ПРОВЕРКА: timer->timeout == 1000
 4. ПРОВЕРКА: timer->callback установлен
 5. ПРОВЕРКА: timer активен
-6. УДАЛЕНИЕ: dap_billing_timer_delete_safe(timer, "cleanup")
+6. УДАЛЕНИЕ: dap_billing_timer_delete_safe(timer)
 7. ПРОВЕРКА: timer корректно удален
 ```
 
@@ -136,11 +136,11 @@ context = "timer_test";
 **Сценарий:**
 ```
 1. СОЗДАНИЕ GRACE: grace_item с mock usage
-2. СОЗДАНИЕ ТАЙМЕРА: result = dap_billing_grace_timer_create_safe(grace_item, 5000, "grace_timer")
+2. СОЗДАНИЕ ТАЙМЕРА: result = dap_billing_grace_timer_create_safe(grace_item, 5000)
 3. ПРОВЕРКА: result == true
 4. ПРОВЕРКА: grace_item->grace->timer != NULL
 5. ПРОВЕРКА: таймер корректно настроен
-6. ОЧИСТКА: dap_billing_grace_timer_cleanup_safe(grace_item, "cleanup")
+6. ОЧИСТКА: dap_billing_grace_timer_cleanup_safe(grace_item)
 7. ПРОВЕРКА: grace_item->grace->timer == NULL
 ```
 
@@ -155,11 +155,11 @@ context = "timer_test";
 **Сценарий:**
 ```
 1. ПОДГОТОВКА: usage объект
-2. ИНИЦИАЛИЗАЦИЯ: result = dap_billing_usage_init_safe(&usage, "test_init")
+2. ИНИЦИАЛИЗАЦИЯ: result = dap_billing_usage_init_safe(&usage)
 3. ПРОВЕРКА: result == DAP_USAGE_MANAGER_SUCCESS
 4. ПРОВЕРКА: usage состояние корректно
 5. ПРОВЕРКА: rwlock инициализирован
-6. ОЧИСТКА: dap_billing_usage_cleanup_safe(&usage, "cleanup")
+6. ОЧИСТКА: dap_billing_usage_cleanup_safe(&usage)
 ```
 
 ### **4.2 УПРАВЛЕНИЕ GRACE PERIODS**
@@ -175,7 +175,7 @@ timeout_seconds = 60;
 **Сценарий:**
 ```
 1. СОЗДАНИЕ GRACE:
-   ├─ result = dap_billing_usage_grace_create_safe(&usage, &tx_hash, 60, "test_grace")
+   ├─ result = dap_billing_usage_grace_create_safe(&usage, &tx_hash, 60)
    ├─ ПРОВЕРКА: result == SUCCESS
    └─ ПРОВЕРКА: grace объект создан и привязан к usage
 
@@ -185,7 +185,7 @@ timeout_seconds = 60;
    └─ ПРОВЕРКА: usage в состоянии GRACE
 
 3. ОЧИСТКА GRACE:
-   ├─ result = dap_billing_usage_grace_cleanup_safe(&usage, &tx_hash, "cleanup")
+   ├─ result = dap_billing_usage_grace_cleanup_safe(&usage, &tx_hash)
    ├─ ПРОВЕРКА: result == SUCCESS
    ├─ ПРОВЕРКА: grace удален из hash table
    └─ ПРОВЕРКА: таймер остановлен
@@ -257,7 +257,7 @@ grace_timeout_sec = 60;
 1. ИМИТАЦИЯ ОШИБКИ:
    ├─ grace таймер истек
    ├─ транзакция не найдена
-   └─ s_grace_period_finish() вызван
+   └─ dap_billing_grace_period_finish() вызван
 
 2. ПРОВЕРКА ERROR СОСТОЯНИЯ:
    ├─ usage->service_substate == ERROR
@@ -385,7 +385,7 @@ packet_data = {
 2. ИМИТАЦИЯ ТАЙМАУТА:
    ├─ время grace истекло
    ├─ tx не появился в ledger
-   └─ s_grace_period_finish() вызван автоматически
+   └─ dap_billing_grace_period_finish() вызван автоматически
 
 3. ПРОВЕРКА РЕЗУЛЬТАТА:
    ├─ usage->service_substate == ERROR

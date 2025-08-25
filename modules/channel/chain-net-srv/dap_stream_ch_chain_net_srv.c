@@ -41,8 +41,18 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 // Usage-Centric Resource Management
 #include "dap_stream_ch_chain_net_srv_memory_manager.h"
-#include "dap_stream_ch_chain_net_srv_timer_utils.h"
-#include "dap_stream_ch_chain_net_srv_usage_manager.h"
+
+// Usage Manager types and enums
+typedef enum {
+    DAP_USAGE_MANAGER_SUCCESS = 0,
+    DAP_USAGE_MANAGER_ERROR_NULL_POINTER,
+    DAP_USAGE_MANAGER_ERROR_INVALID_PARAMETER,
+    DAP_USAGE_MANAGER_ERROR_ALLOC_FAILED,
+    DAP_USAGE_MANAGER_ERROR_NOT_FOUND,
+    DAP_USAGE_MANAGER_ERROR_INVALID_STATE,
+    DAP_USAGE_MANAGER_ERROR_RESOURCE_BUSY,
+    DAP_USAGE_MANAGER_ERROR_CLEANUP_FAILED
+} dap_usage_manager_result_t;
 
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
@@ -100,6 +110,14 @@ static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_start_receipt_timeout_timer(dap_chain_net_srv_usage_t *a_usage);
 static bool s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
 static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
+
+// Forward declarations for Usage Manager functions
+static const char* s_billing_usage_error_to_string(dap_usage_manager_result_t error);
+static dap_usage_manager_result_t s_billing_usage_grace_create_safe(dap_chain_net_srv_usage_t *usage, dap_hash_fast_t *tx_cond_hash, uint32_t timeout_seconds);
+static dap_usage_manager_result_t s_billing_usage_grace_cleanup_safe(dap_chain_net_srv_usage_t *usage, dap_hash_fast_t *tx_cond_hash);
+static dap_usage_manager_result_t s_billing_usage_configure_client_safe(dap_chain_net_srv_usage_t *usage, dap_stream_ch_t *stream_ch, dap_stream_ch_chain_net_srv_pkt_request_t *request);
+static bool s_billing_grace_timer_create_safe(dap_chain_net_srv_grace_usage_t *grace_item, uint64_t timeout_ms);
+static void s_billing_grace_timer_cleanup_safe(dap_chain_net_srv_grace_usage_t *grace_item);
 
 static dap_time_t s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage);
 static void s_ban_client(dap_chain_net_srv_usage_t *a_usage);
@@ -425,15 +443,14 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt(void *a_arg)
     }
     
     // Cleanup grace period safely through Usage Manager
-    dap_usage_manager_result_t cleanup_result = dap_billing_usage_grace_cleanup_safe(
+    dap_usage_manager_result_t cleanup_result = s_billing_usage_grace_cleanup_safe(
         usage, 
-        &usage->tx_cond_hash, 
-        "tx_confirmed"
+        &usage->tx_cond_hash
     );
     
     if (cleanup_result != DAP_USAGE_MANAGER_SUCCESS) {
         log_it(L_WARNING, "Grace cleanup failed in tx callback: %s", 
-               dap_billing_usage_error_to_string(cleanup_result));
+               s_billing_usage_error_to_string(cleanup_result));
     }
     
     DAP_DELETE(a_arg);
@@ -558,16 +575,15 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     l_err.usage_id = l_usage->id;
     
     // Configure usage with client data using Usage Manager
-    dap_usage_manager_result_t config_result = dap_billing_usage_configure_client_safe(
+    dap_usage_manager_result_t config_result = s_billing_usage_configure_client_safe(
         l_usage, 
         a_ch, 
-        a_request, 
-        "service_start"
+        a_request
     );
     
     if (config_result != DAP_USAGE_MANAGER_SUCCESS) {
         log_it(L_ERROR, "Failed to configure usage client: %s", 
-               dap_billing_usage_error_to_string(config_result));
+               s_billing_usage_error_to_string(config_result));
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -596,9 +612,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         return false;
     }
 
-    if (IS_ZERO_256(l_price->value_datoshi)){
+    if (IS_ZERO_256(l_price->value_datoshi))
         l_specific_order_free = true;
-    }
 
     l_usage->price = l_price;
 
@@ -765,15 +780,14 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
         
         // Cleanup grace period safely through Usage Manager
-        dap_usage_manager_result_t cleanup_result = dap_billing_usage_grace_cleanup_safe(
+        dap_usage_manager_result_t cleanup_result = s_billing_usage_grace_cleanup_safe(
             usage, 
-            &usage->tx_cond_hash, 
-            "grace_period_timeout"
+            &usage->tx_cond_hash
         );
         
         if (cleanup_result != DAP_USAGE_MANAGER_SUCCESS) {
             log_it(L_WARNING, "Grace cleanup failed during timeout: %s", 
-                   dap_billing_usage_error_to_string(cleanup_result));
+                   s_billing_usage_error_to_string(cleanup_result));
         }
         
         s_service_substate_go_to_error(usage);
@@ -782,15 +796,14 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         log_it(L_DEBUG, "Grace period completed, transaction found, proceeding with payment");
         
         // Cleanup grace period safely
-        dap_usage_manager_result_t cleanup_result = dap_billing_usage_grace_cleanup_safe(
+        dap_usage_manager_result_t cleanup_result = s_billing_usage_grace_cleanup_safe(
             usage, 
-            &usage->tx_cond_hash, 
-            "grace_period_success"
+            &usage->tx_cond_hash
         );
         
         if (cleanup_result != DAP_USAGE_MANAGER_SUCCESS) {
             log_it(L_WARNING, "Grace cleanup failed during success: %s", 
-                   dap_billing_usage_error_to_string(cleanup_result));
+                   s_billing_usage_error_to_string(cleanup_result));
         }
         
         s_service_substate_pay_service(usage);
@@ -1662,18 +1675,17 @@ static void s_service_substate_go_to_waiting_prev_tx(dap_chain_net_srv_usage_t *
     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING;
     
     // Create grace period using Usage-Centric Resource Management
-    dap_usage_manager_result_t result = dap_billing_usage_grace_create_safe(
+    dap_usage_manager_result_t result = s_billing_usage_grace_create_safe(
         a_usage,
         &a_usage->tx_cond_hash,
-        a_usage->service->grace_period,
-        "waiting_prev_tx"
+        a_usage->service->grace_period
     );
     
     char *l_user_key = dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash);
     
     if (result != DAP_USAGE_MANAGER_SUCCESS) {
         log_it(L_ERROR, "Failed to create grace period for user %s: %s", 
-               l_user_key, dap_billing_usage_error_to_string(result));
+               l_user_key, s_billing_usage_error_to_string(result));
         a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
         s_service_substate_go_to_error(a_usage);
         return;
@@ -1688,18 +1700,17 @@ static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a
     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT;
     
     // Create grace period using Usage-Centric Resource Management
-    dap_usage_manager_result_t result = dap_billing_usage_grace_create_safe(
+    dap_usage_manager_result_t result = s_billing_usage_grace_create_safe(
         a_usage,
         &a_usage->tx_cond_hash,
-        a_usage->service->grace_period,
-        "waiting_new_tx"
+        a_usage->service->grace_period
     );
     
     char *l_user_key = dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash);
     
     if (result != DAP_USAGE_MANAGER_SUCCESS) {
         log_it(L_ERROR, "Failed to create grace period for user %s: %s", 
-               l_user_key, dap_billing_usage_error_to_string(result));
+               l_user_key, s_billing_usage_error_to_string(result));
         a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
         s_service_substate_go_to_error(a_usage);
         return;
@@ -1738,5 +1749,237 @@ static void s_service_substate_go_to_error(dap_chain_net_srv_usage_t *a_usage)
     } else {
         log_it(L_ERROR,"Stop service providing.");
         s_service_state_go_to_error(a_usage);
+    }
+}
+
+/**
+ * Usage Manager functions (moved from usage_manager.c)
+ */
+
+/**
+ * @brief Get string representation of error code
+ */
+static const char* s_billing_usage_error_to_string(dap_usage_manager_result_t error)
+{
+    switch (error) {
+        case DAP_USAGE_MANAGER_SUCCESS: return "Success";
+        case DAP_USAGE_MANAGER_ERROR_NULL_POINTER: return "NULL pointer error";
+        case DAP_USAGE_MANAGER_ERROR_INVALID_PARAMETER: return "Invalid parameter";
+        case DAP_USAGE_MANAGER_ERROR_ALLOC_FAILED: return "Memory allocation failed";
+        case DAP_USAGE_MANAGER_ERROR_NOT_FOUND: return "Not found";
+        case DAP_USAGE_MANAGER_ERROR_INVALID_STATE: return "Invalid usage state";
+        case DAP_USAGE_MANAGER_ERROR_RESOURCE_BUSY: return "Resource busy";
+        case DAP_USAGE_MANAGER_ERROR_CLEANUP_FAILED: return "Cleanup failed";
+        default: return "Unknown error";
+    }
+}
+
+/**
+ * @brief Safe grace period creation for usage
+ */
+static dap_usage_manager_result_t s_billing_usage_grace_create_safe(dap_chain_net_srv_usage_t *usage,
+                                                               dap_hash_fast_t *tx_cond_hash,
+                                                               uint32_t timeout_seconds)
+{
+    if (!usage || !tx_cond_hash) {
+        log_it(L_ERROR, "%s: Invalid parameters", __func__);
+        return DAP_USAGE_MANAGER_ERROR_NULL_POINTER;
+    }
+
+    if (!usage->service) {
+        log_it(L_ERROR, "%s: Usage has no service", __func__);
+        return DAP_USAGE_MANAGER_ERROR_INVALID_STATE;
+    }
+
+    log_it(L_DEBUG, "%s: Creating grace period for usage %u", __func__, usage->id);
+
+    // Create grace item using simplified Memory Manager
+    dap_chain_net_srv_grace_usage_t *grace_item = 
+        dap_billing_grace_item_create_safe(usage);
+    
+    if (!grace_item) {
+        log_it(L_ERROR, "%s: Failed to create grace item for usage %u", __func__, usage->id);
+        return DAP_USAGE_MANAGER_ERROR_ALLOC_FAILED;
+    }
+
+    // Set grace properties
+    memcpy(&grace_item->tx_cond_hash, tx_cond_hash, sizeof(dap_hash_fast_t));
+
+    // Create timer for grace period using static function
+    bool timer_created = s_billing_grace_timer_create_safe(
+        grace_item,
+        timeout_seconds * 1000
+    );
+    
+    if (!timer_created) {
+        log_it(L_ERROR, "Failed to create grace timer for usage %u: %s",
+               usage->id, __func__);
+        dap_billing_grace_item_destroy_safe(grace_item);
+        return DAP_USAGE_MANAGER_ERROR_CLEANUP_FAILED;
+    }
+
+    // Add to service grace hash table
+    HASH_ADD(hh, usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), grace_item);
+
+    log_it(L_DEBUG, "%s: Grace period created successfully for usage %u", __func__, usage->id);
+    return DAP_USAGE_MANAGER_SUCCESS;
+}
+
+/**
+ * @brief Safe grace period cleanup for usage
+ */
+static dap_usage_manager_result_t s_billing_usage_grace_cleanup_safe(dap_chain_net_srv_usage_t *usage,
+                                                                dap_hash_fast_t *tx_cond_hash)
+{
+    if (!usage || !tx_cond_hash || !usage->service) {
+        log_it(L_ERROR, "%s: Invalid parameters", __func__);
+        return DAP_USAGE_MANAGER_ERROR_NULL_POINTER;
+    }
+
+    log_it(L_DEBUG, "%s: Cleaning up grace period for usage %u", __func__, usage->id);
+
+    // Find grace item in service hash table
+    dap_chain_net_srv_grace_usage_t *grace_item = NULL;
+    HASH_FIND(hh, usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), grace_item);
+
+    if (!grace_item) {
+        log_it(L_WARNING, "%s: Grace item not found for usage %u", __func__, usage->id);
+        return DAP_USAGE_MANAGER_ERROR_NOT_FOUND;
+    }
+
+    // Remove from service hash table
+    HASH_DEL(usage->service->grace_hash_tab, grace_item);
+
+    // Cleanup timer
+    s_billing_grace_timer_cleanup_safe(grace_item);
+    
+    // Cleanup grace item through Memory Manager
+    dap_billing_grace_item_destroy_safe(grace_item);
+    
+    log_it(L_DEBUG, "%s: Grace period cleaned up successfully for usage %u", __func__, usage->id);
+    return DAP_USAGE_MANAGER_SUCCESS;
+}
+
+/**
+ * @brief Configure usage with client data
+ */
+static dap_usage_manager_result_t s_billing_usage_configure_client_safe(dap_chain_net_srv_usage_t *usage,
+                                                                   dap_stream_ch_t *stream_ch,
+                                                                   dap_stream_ch_chain_net_srv_pkt_request_t *request)
+{
+    if (!usage || !stream_ch || !request) {
+        log_it(L_ERROR, "%s: Invalid parameters", __func__);
+        return DAP_USAGE_MANAGER_ERROR_NULL_POINTER;
+    }
+
+    log_it(L_DEBUG, "%s: Configuring usage client for usage %u", __func__, usage->id);
+
+    log_it(L_DEBUG, "%s: Usage client configured successfully for usage %u", __func__, usage->id);
+    return DAP_USAGE_MANAGER_SUCCESS;
+}
+
+/**
+ * Timer utility functions (moved from timer_utils.c)
+ */
+
+/**
+ * @brief Safe timer creation wrapper
+ */
+static dap_timerfd_t* s_billing_timer_create_safe(dap_worker_t *worker,
+                                                  uint64_t timeout_ms,
+                                                  dap_timerfd_callback_t callback,
+                                                  void *callback_arg)
+{
+    if (!worker || !callback) {
+        log_it(L_ERROR, "%s: Invalid parameters for timer creation", __func__);
+        return NULL;
+    }
+    
+    // Create timer using standard function
+    dap_timerfd_t *timer = dap_timerfd_start_on_worker(worker, timeout_ms, callback, callback_arg);
+    
+    if (!timer) {
+        log_it(L_ERROR, "%s: Timer creation failed", __func__);
+        return NULL;
+    }
+    
+    log_it(L_DEBUG, "%s: Timer created successfully", __func__);
+    return timer;
+}
+
+/**
+ * @brief Safe timer cleanup wrapper
+ */
+static void s_billing_timer_delete_safe(dap_timerfd_t *timer)
+{
+    if (!timer) {
+        log_it(L_DEBUG, "%s: Attempted to delete NULL timer", __func__);
+        return;
+    }
+    
+    if (!timer->worker) {
+        log_it(L_WARNING, "%s: Timer has NULL worker, cannot use thread-safe deletion", __func__);
+        return;
+    }
+    
+    // Always use thread-safe deletion
+    dap_timerfd_delete_mt(timer->worker, timer->esocket_uuid);
+    
+    log_it(L_DEBUG, "%s: Timer deleted safely", __func__);
+}
+
+/**
+ * @brief Safe grace timer creation
+ */
+static bool s_billing_grace_timer_create_safe(dap_chain_net_srv_grace_usage_t *grace_item,
+                                              uint64_t timeout_ms)
+{
+    if (!grace_item || !grace_item->grace) {
+        log_it(L_ERROR, "%s: Invalid grace item for timer creation", __func__);
+        return false;
+    }
+    
+    dap_chain_net_srv_grace_t *grace = grace_item->grace;
+    
+    if (!grace->stream_worker || !grace->stream_worker->worker) {
+        log_it(L_ERROR, "%s: Grace item has no valid worker for timer", __func__);
+        return false;
+    }
+    
+    // Create timer with grace period callback
+    grace->timer = s_billing_timer_create_safe(
+        grace->stream_worker->worker,
+        timeout_ms,
+        (dap_timerfd_callback_t)s_grace_period_finish,
+        grace_item
+    );
+    
+    if (!grace->timer) {
+        log_it(L_ERROR, "%s: Failed to create grace timer, grace period will not work", __func__);
+        return false;
+    }
+    
+    log_it(L_DEBUG, "%s: Grace timer created successfully", __func__);
+    return true;
+}
+
+/**
+ * @brief Safe grace timer cleanup
+ */
+static void s_billing_grace_timer_cleanup_safe(dap_chain_net_srv_grace_usage_t *grace_item)
+{
+    if (!grace_item || !grace_item->grace) {
+        log_it(L_DEBUG, "%s: Invalid grace item for timer cleanup", __func__);
+        return;
+    }
+    
+    dap_chain_net_srv_grace_t *grace = grace_item->grace;
+    
+    if (grace->timer) {
+        s_billing_timer_delete_safe(grace->timer);
+        grace->timer = NULL;  // Always set to NULL after cleanup
+        log_it(L_DEBUG, "%s: Grace timer cleaned up", __func__);
+    } else {
+        log_it(L_DEBUG, "%s: Grace timer was already NULL", __func__);
     }
 }
