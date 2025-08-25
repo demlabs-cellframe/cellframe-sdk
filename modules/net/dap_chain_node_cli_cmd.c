@@ -4031,7 +4031,7 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
             dap_chain_atom_iter_t *l_atom_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id,
                                                                                           NULL);
             dap_chain_atom_ptr_t l_atom;
-            uint64_t l_atom_size = 0;
+            size_t l_atom_size = 0;
             for (l_atom = l_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
                  l_atom && l_atom_size;
                  l_atom = l_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size)) {

@@ -33,6 +33,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_client_http.h"
 #include "dap_enc_base64.h"
 #include "dap_notify_srv.h"
+#include "dap_cli_server.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
 
@@ -55,6 +56,7 @@ static dap_balancer_request_info_t* s_request_info_items = NULL;
  */
 struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, const char* a_host_addr, uint16_t a_host_port)
 {
+    int l_version = dap_cli_server_get_version();
     struct json_object *l_json = json_object_new_object();
     int l_version = dap_cli_server_get_version();
     json_object_object_add(l_json, "class", json_object_new_string("BalancerRequest"));
