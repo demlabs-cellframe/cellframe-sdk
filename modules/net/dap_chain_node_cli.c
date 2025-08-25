@@ -433,10 +433,9 @@ int dap_chain_node_cli_parser_init(void) {
     dap_cli_server_cmd_add("tx_history", NULL, json_print_for_tx_history_all, "---","---");
     dap_cli_server_cmd_add("token", NULL, json_print_for_token_list, "---","---");
     dap_cli_server_cmd_add("global_db", NULL, json_print_for_global_db, "---","---");
-    dap_cli_server_cmd_add("ledger", NULL, json_print_for_ledger_list, "---","---");
-    
-    //dap_cli_server_cmd_add("mempool", NULL, json_print_for_mempool_list, "---","---");
-    //dap_cli_server_cmd_add("srv_xchange", NULL, json_print_for_srv_xchange_list, "---","---");
+    dap_cli_server_cmd_add("ledger", NULL, json_print_for_ledger_list, "---","---");    
+    dap_cli_server_cmd_add("mempool", NULL, json_print_for_mempool_list, "---","---");
+    dap_cli_server_cmd_add("srv_xchange", NULL, json_print_for_srv_xchange_list, "---","---");
     
     return 0;
 }
