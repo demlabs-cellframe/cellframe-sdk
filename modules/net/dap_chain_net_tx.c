@@ -609,11 +609,8 @@ static bool s_json_get_uint256(struct json_object *a_json, const char *a_key, ui
     if(!a_out || !l_uint256_str)
         return false;
     uint256_t l_value = dap_chain_balance_scan(l_uint256_str);
-    if(!IS_ZERO_256(l_value)) {
-        memcpy(a_out, &l_value, sizeof(uint256_t));
-        return true;
-    }
-    return false;
+    memcpy(a_out, &l_value, sizeof(uint256_t));
+    return true;
 }
 
 // service names: srv_stake, srv_vpn, srv_xchange
@@ -628,8 +625,7 @@ static bool s_json_get_srv_uid(struct json_object *a_json, const char *a_key_ser
     if(l_id && sscanf(l_id,"0x%016"DAP_UINT64_FORMAT_x, &l_srv_id) == 1) {
         *a_out = l_srv_id;
         return true;
-    }
-    else {
+    } else {
         // Read service as name
         const char *l_service = s_json_get_text(a_json, a_key_service);
         if(l_service) {
