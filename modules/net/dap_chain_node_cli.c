@@ -80,7 +80,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\tPerforms deletion of the entire group in the database.\n\n"
             "global_db get_keys -group <group_name>\n"
                 "\tGets all record keys from a specified group.\n\n"
-            "Note: you can add [-json] to print raw JSON for any subcommand.\n"
+            "Note: you can add [-h] to print human-friendly tables for supported subcommands.\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -321,28 +321,28 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, NULL, "Transaction history (for address or by hash)",
-            "tx_history  {-addr <addr> | {-w <wallet_name> | -tx <tx_hash>} -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head] [-json]\n"
-            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head] [-json]\n"
-            "tx_history -count -net <net_name> [-json]\n");
+            "tx_history  {-addr <addr> | {-w <wallet_name> | -tx <tx_hash>} -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head] [-h]\n"
+            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head] [-h]\n"
+            "tx_history -count -net <net_name> [-h]\n");
 
 	// Ledger info
     dap_cli_server_cmd_add("ledger", com_ledger, NULL, "Ledger information",
-            "ledger list coins -net <net_name> [-limit] [-offset] [-json]\n"
+            "ledger list coins -net <net_name> [-limit] [-offset] [-h]\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, NULL, "Token info",
-            "token list -net <net_name> [-full] [-json]\n"
-            "token info -net <net_name> -name <token_ticker> [-json]\n");
+            "token list -net <net_name> [-full] [-h]\n"
+            "token info -net <net_name> -name <token_ticker> [-h]\n");
 
     // Update srv_stake help with flags
     // Note: The detailed srv_stake help resides in service init; here we advertise common flags
     dap_cli_server_cmd_add("srv_stake", NULL, json_print_for_srv_stake_all, "Delegated stake service view",
-            "srv_stake list keys -net <net_name> [-limit] [-offset] [-head] [-full] [-json]\n"
-            "srv_stake list tx   -net <net_name> [-limit] [-offset] [-head] [-full] [-json]\n"
-            "srv_stake list order -net <net_name> [-limit] [-offset] [-head] [-full] [-json]\n");
+            "srv_stake list keys -net <net_name> [-limit] [-offset] [-head] [-full] [-h]\n"
+            "srv_stake list tx   -net <net_name> [-limit] [-offset] [-head] [-full] [-h]\n"
+            "srv_stake list order -net <net_name> [-limit] [-offset] [-head] [-full] [-h]\n");
 
     // Log
     dap_cli_server_cmd_add ("print_log", com_print_log, NULL, "Print log info",
