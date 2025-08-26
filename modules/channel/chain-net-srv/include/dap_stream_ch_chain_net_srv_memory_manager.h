@@ -27,13 +27,11 @@ typedef enum {
     DAP_MEMORY_MANAGER_ERROR_ALLOCATION_FAILED    ///< Memory allocation failed
 } dap_memory_manager_result_t;
 
-// Simple memory management functions
-int dap_billing_memory_manager_init(void);
-void dap_billing_memory_manager_deinit(void);
-
 // Grace object factory functions
 dap_chain_net_srv_grace_usage_t* dap_billing_grace_item_create_safe(dap_chain_net_srv_usage_t *usage);
-dap_memory_manager_result_t dap_billing_grace_item_destroy_safe(dap_chain_net_srv_grace_usage_t *grace_item);
+dap_memory_manager_result_t dap_billing_grace_item_destroy_safe(dap_chain_net_srv_grace_usage_t **grace_item);
+
+
 
 #ifdef __cplusplus
 }

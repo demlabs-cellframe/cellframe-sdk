@@ -155,11 +155,7 @@ int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv)
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
     
-    // Initialize Usage-Centric Resource Management
-    if (dap_billing_memory_manager_init() != 0) {
-        log_it(L_ERROR, "Failed to initialize billing memory manager");
-        return -1;
-    }
+    // Memory management simplified - no init needed
     log_it(L_DEBUG, "Billing memory manager initialized");
     
     dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID, s_stream_ch_new,s_stream_ch_delete, s_stream_ch_packet_in, s_stream_ch_packet_out);
@@ -173,9 +169,8 @@ int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv)
  */
 void dap_stream_ch_chain_net_srv_deinit(void)
 {
-    // Deinitialize Usage-Centric Resource Management
-    dap_billing_memory_manager_deinit();
-    log_it(L_DEBUG, "Billing memory manager deinitialized");
+    // Memory management simplified - no deinit needed
+    log_it(L_DEBUG, "Memory management cleaned up automatically");
 }
 
 /**
@@ -1814,7 +1809,7 @@ static dap_usage_manager_result_t s_billing_usage_grace_create_safe(dap_chain_ne
     if (!timer_created) {
         log_it(L_ERROR, "Failed to create grace timer for usage %u: %s",
                usage->id, __func__);
-        dap_billing_grace_item_destroy_safe(grace_item);
+        dap_billing_grace_item_destroy_safe(&grace_item);
         return DAP_USAGE_MANAGER_ERROR_CLEANUP_FAILED;
     }
 
@@ -1854,7 +1849,7 @@ static dap_usage_manager_result_t s_billing_usage_grace_cleanup_safe(dap_chain_n
     s_billing_grace_timer_cleanup_safe(grace_item);
     
     // Cleanup grace item through Memory Manager
-    dap_billing_grace_item_destroy_safe(grace_item);
+    dap_billing_grace_item_destroy_safe(&grace_item);
     
     log_it(L_DEBUG, "%s: Grace period cleaned up successfully for usage %u", __func__, usage->id);
     return DAP_USAGE_MANAGER_SUCCESS;

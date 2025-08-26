@@ -12,22 +12,7 @@
 
 #define LOG_TAG "billing_memory_manager"
 
-/**
- * @brief Initialize the memory manager system
- */
-int dap_billing_memory_manager_init(void)
-{
-    log_it(L_INFO, "Billing Memory Manager initialized successfully");
-    return 0;
-}
 
-/**
- * @brief Cleanup and deinitialize the memory manager
- */
-void dap_billing_memory_manager_deinit(void)
-{
-    log_it(L_INFO, "Billing Memory Manager deinitialized");
-}
 
 /**
  * @brief Create a grace item safely
@@ -59,9 +44,9 @@ dap_chain_net_srv_grace_usage_t* dap_billing_grace_item_create_safe(dap_chain_ne
 /**
  * @brief Destroy a grace item safely
  */
-dap_memory_manager_result_t dap_billing_grace_item_destroy_safe(dap_chain_net_srv_grace_usage_t *grace_item)
+dap_memory_manager_result_t dap_billing_grace_item_destroy_safe(dap_chain_net_srv_grace_usage_t **grace_item)
 {
-    if (!grace_item) {
+    if (!grace_item || !*grace_item) {
         log_it(L_ERROR, "%s: Attempted to destroy invalid grace item", __func__);
         return DAP_MEMORY_MANAGER_ERROR_NULL_POINTER;
     }
@@ -69,13 +54,14 @@ dap_memory_manager_result_t dap_billing_grace_item_destroy_safe(dap_chain_net_sr
     log_it(L_DEBUG, "%s: Destroying grace item", __func__);
     
     // Cleanup internal grace object if exists
-    if (grace_item->grace) {
-        DAP_DELETE(grace_item->grace);
+    if ((*grace_item)->grace) {
+        DAP_DEL_Z((*grace_item)->grace);
     }
     
-    // Simple cleanup using DAP_DELETE
-    DAP_DELETE(grace_item);
+    // Simple cleanup using DAP_DELETE and nullify pointer
+    DAP_DEL_Z(*grace_item);
     
     log_it(L_DEBUG, "%s: Successfully destroyed grace item", __func__);
     return DAP_MEMORY_MANAGER_SUCCESS;
 }
+
