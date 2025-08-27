@@ -1847,7 +1847,7 @@ enum cli_hold_compose_error {
 };
 
 json_object *dap_chain_tx_compose_stake_lock_hold(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                    uint16_t a_port, const char *a_enc_cert_path, const char *a_chain_id_str, const char *a_ticker_str, dap_chain_addr_t *a_wallet_addr, const char *a_coins_str, const char *a_time_staking_str,
+                                    uint16_t a_port, const char *a_enc_cert_path, dap_chain_id_t a_chain_id, const char *a_ticker_str, dap_chain_addr_t *a_wallet_addr, const char *a_coins_str, const char *a_time_staking_str,
                                     const char *a_cert_str, const char *a_value_fee_str, const char *a_reinvest_percent_str) {
     
     compose_config_t *l_config = s_compose_config_init(a_net_id, a_net_name, a_native_ticker, a_url_str, a_port, a_enc_cert_path);
@@ -1987,7 +1987,7 @@ json_object *dap_chain_tx_compose_stake_lock_hold(dap_chain_net_id_t a_net_id, c
     dap_chain_datum_tx_t *l_tx = dap_chain_tx_compose_datum_stake_lock_hold(a_wallet_addr,
                                                            a_ticker_str, l_value, l_value_fee,
                                                            l_time_staking, l_reinvest_percent,
-                                                           l_delegated_ticker_str, l_value_delegated, a_chain_id_str, l_config);
+                                                           l_delegated_ticker_str, l_value_delegated, a_chain_id, l_config);
 
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
@@ -2016,7 +2016,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_
                                                     uint256_t a_value, uint256_t a_value_fee,
                                                     dap_time_t a_time_unlock, uint256_t a_reinvest_percent,
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value,
-                                                    const char * a_chain_id_str, compose_config_t *a_config)
+                                                    dap_chain_id_t a_chain_id, compose_config_t *a_config)
 {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // check valid param
@@ -2098,10 +2098,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_
 
     // add 'in_ems' item
     {
-        dap_chain_id_t l_chain_id = { };
-        dap_chain_id_parse(a_chain_id_str, &l_chain_id);
         dap_hash_fast_t l_blank_hash = {};
-        dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, a_delegated_ticker_str);
+        dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(a_chain_id, &l_blank_hash, a_delegated_ticker_str);
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
         DAP_DEL_Z(l_in_ems);
     }
@@ -2300,7 +2298,7 @@ static dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
 }
 
 json_object *dap_chain_tx_compose_stake_lock_take(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                    uint16_t a_port, const char *a_enc_cert_path, const char *a_chain_id_str, dap_chain_addr_t *a_wallet_addr, const char *a_tx_str,
+                                    uint16_t a_port, const char *a_enc_cert_path, dap_chain_addr_t *a_wallet_addr, const char *a_tx_str,
                                     const char *a_value_fee_str){
 
     compose_config_t *l_config = s_compose_config_init(a_net_id, a_net_name, a_native_ticker, a_url_str, a_port, a_enc_cert_path);
