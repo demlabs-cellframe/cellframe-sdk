@@ -31,6 +31,7 @@ struct tests_data {
     dap_hash_fast_t hash_1;
     dap_chain_net_srv_uid_t srv_uid;
     dap_chain_tx_out_cond_t cond_out;
+    dap_chain_id_t chain_id;
     compose_config_t config;
     time_t time_staking;
 };
@@ -151,7 +152,10 @@ void s_chain_datum_delegate_test()
 void s_chain_datum_stake_lock_test()
 {
     dap_print_module_name("tx_lock_compose");
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_stake_lock_hold(&s_data->addr_from, s_ticker_native, s_data->value, s_data->value_fee, s_data->time_staking, s_data->reinvest_percent, s_ticker_delegate, s_data->value_delegate, "0x0123456789abcdef", &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_stake_lock_hold(
+        &s_data->addr_from, s_ticker_native, s_data->value, s_data->value_fee, 
+        s_data->time_staking, s_data->reinvest_percent, s_ticker_delegate, s_data->value_delegate, 
+        s_data->chain_id, &s_data->config);
     dap_assert(l_datum_1, "tx_lock_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
