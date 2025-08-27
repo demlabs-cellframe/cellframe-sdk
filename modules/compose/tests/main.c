@@ -369,7 +369,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_vote_create_test();
     s_chain_datum_vote_voting_test();
     s_chain_datum_shared_funds_hold_test();
-    // s_chain_datum_shared_funds_take_test();
+    s_chain_datum_shared_funds_take_test();
     s_chain_datum_shared_funds_refill_test();
     // s_chain_datum_shared_funds_sign_test();  no need for now
     if (s_data->config.response_handler) {
@@ -381,7 +381,7 @@ void s_chain_datum_tx_ser_deser_test()
 }
 
 int main(void){
-    dap_log_level_set(L_WARNING);
+    dap_log_level_set(L_DEBUG);
     dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
     srand(time(NULL));
     s_chain_datum_tx_ser_deser_test();

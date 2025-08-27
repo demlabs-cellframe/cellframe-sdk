@@ -5944,12 +5944,19 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
 #else
     char *l_tx_ticker = dap_strdup("BUZ");
     dap_hash_fast_t l_final_tx_hash = {};
-    int l_prev_cond_idx = rand() % 100;
+    dap_chain_net_srv_uid_t l_srv_uid = {};
+    uint256_t l_value_out = {};
     randombytes(&l_final_tx_hash, sizeof(dap_hash_fast_t));
-    dap_chain_tx_out_cond_t *l_cond_prev = DAP_NEW_Z(dap_chain_tx_out_cond_t);
-    l_cond_prev->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
-    l_cond_prev->header.value._lo.b = rand() % 500;
-    l_cond_prev->header.value._hi.b = rand() % 100;
+    randombytes(&l_srv_uid, sizeof(dap_chain_net_srv_uid_t));
+    randombytes(&l_value_out, sizeof(uint256_t));
+    int l_prev_cond_idx = rand();
+    size_t l_owner_hashes_count = rand() % 10 + 1;
+    size_t l_signs_min = rand() % l_owner_hashes_count + 1;
+    dap_hash_fast_t *l_owner_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_hash_fast_t, l_owner_hashes_count * sizeof(dap_hash_fast_t), NULL);
+    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count, NULL);
+    dap_random_string_fill(l_rand_tag, l_owner_hashes_count);
+    randombytes(l_owner_hashes, l_owner_hashes_count * sizeof(dap_hash_fast_t));
+    dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_item_out_cond_create_wallet_shared(l_srv_uid, l_value_out, l_signs_min, l_owner_hashes, l_owner_hashes_count, l_rand_tag);
     char * l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_final_tx_hash);
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 #endif
