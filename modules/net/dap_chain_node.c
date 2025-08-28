@@ -73,7 +73,7 @@ static const uint64_t s_cmp_delta_event = 0;
 static const uint64_t s_cmp_delta_atom = 10;
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 static const char s_states_group[] = ".nodes.states";
-static bool s_node_list_auto_clean = false;
+static bool s_node_list_auto_clean = true;
 
 /**
  * @brief get states info about current
