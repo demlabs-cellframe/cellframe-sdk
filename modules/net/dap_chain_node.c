@@ -88,6 +88,7 @@ static const uint64_t s_cmp_delta_event = 0;
 static const uint64_t s_cmp_delta_atom = 10;
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 static const char s_states_group[] = ".nodes.states";
+static bool s_node_list_auto_clean = false;
 
 /**
  * @brief get states info about current
@@ -216,13 +217,11 @@ dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream
     return l_ret;
 }
 
-void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_arg) {
-    const char *l_net_name = (const char*)a_arg;
-    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL) {
-        log_it(L_DEBUG, "Delete node list hole %s key %s", a_obj->group, a_obj->key);
-        dap_global_db_driver_delete(a_obj, 1);
-        return;
+void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
+    if (!s_node_list_auto_clean) {
+        log_it(L_DEBUG, "Current node don't configured to auto clean node list");
     }
+    const char *l_net_name = (const char*)a_arg;
     log_it(L_DEBUG, "Start check node list %s group %s key", a_obj->group, a_obj->key);
 
     if (!a_obj->value) {
@@ -297,7 +296,7 @@ void dap_chain_node_list_cluster_del_callback(dap_store_obj_t *a_obj, void *a_ar
         dap_global_db_set_sync(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, a_obj->flags & DAP_GLOBAL_DB_RECORD_PINNED);
     } else {
         log_it(L_DEBUG, "Node %s [ %s : %u ] is not active, delete them from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
-        dap_global_db_driver_delete(a_obj, 1);
+        dap_global_db_del_ex(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, NULL, NULL);
     }
     
     DAP_DELETE(l_node_info_states);
@@ -312,7 +311,7 @@ int dap_chain_node_list_clean_init() {
                 log_it(L_ERROR, "Cluster for nodelist group \"%s\" not found", l_net->pub.gdb_nodes);
                 return -1;
             }
-            l_cluster->del_callback = dap_chain_node_list_cluster_del_callback;
+            l_cluster->del_callback = s_node_list_autoclean_callback;
             l_cluster->del_arg = l_net->pub.name;
             log_it(L_DEBUG, "Node list clean inited for net %s", l_net->pub.name);
         }
@@ -327,6 +326,7 @@ int dap_chain_node_init()
         // log_it(L_ERROR, "Can't activate timer on node states update");
         return -1;
     }
+    s_node_list_auto_clean = dap_config_get_item_bool_default(g_config, "global_db", "node_list_auto_clean", s_node_list_auto_clean);
     return 0;
 }
 
