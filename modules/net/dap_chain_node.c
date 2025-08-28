@@ -88,7 +88,7 @@ static const uint64_t s_cmp_delta_event = 0;
 static const uint64_t s_cmp_delta_atom = 10;
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 static const char s_states_group[] = ".nodes.states";
-static bool s_node_list_auto_clean = true;
+static bool s_node_list_auto_update = true;
 
 /**
  * @brief get states info about current
@@ -218,7 +218,7 @@ dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream
 }
 
 void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
-    if (!s_node_list_auto_clean) {
+    if (!s_node_list_auto_update) {
         log_it(L_DEBUG, "Current node not configured to auto clean node list");
         return;
     }
@@ -327,7 +327,7 @@ int dap_chain_node_init()
         // log_it(L_ERROR, "Can't activate timer on node states update");
         return -1;
     }
-    s_node_list_auto_clean = dap_config_get_item_bool_default(g_config, "global_db", "node_list_auto_clean", s_node_list_auto_clean);
+    s_node_list_auto_update = dap_config_get_item_bool_default(g_config, "global_db", "node_list_auto_update", s_node_list_auto_update);
     return 0;
 }
 
