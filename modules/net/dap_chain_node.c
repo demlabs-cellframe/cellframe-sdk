@@ -205,6 +205,7 @@ dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream
 void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
     if (!s_node_list_auto_clean) {
         log_it(L_DEBUG, "Current node not configured to auto clean node list");
+        return;
     }
     const char *l_net_name = (const char*)a_arg;
     log_it(L_DEBUG, "Start check node list %s group %s key", a_obj->group, a_obj->key);
