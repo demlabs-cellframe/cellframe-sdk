@@ -3252,15 +3252,17 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 int json_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt)
 {
 	// Raw JSON flag
+    bool l_table_mode = false;
 	for (int i = 0; i < cmd_cnt; i++) {
 		const char *p = cmd_param[i];
 		if (!p) continue;
-		if (!strcmp(p, "-h")) { /* table mode */ break; }
+		if (!strcmp(p, "-h")) { l_table_mode = true; break; }
 	}
 	if (!response || !response->result_json_object) {
 		printf("Response is empty\n");
 		return -1;
 	}
+    if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
 	if (json_object_get_type(response->result_json_object) == json_type_array) {
 		int result_count = json_object_array_length(response->result_json_object);
 		if (result_count <= 0) {
