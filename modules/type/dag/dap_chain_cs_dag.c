@@ -160,7 +160,7 @@ int dap_chain_cs_dag_init()
         "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round_id_in_hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
         "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head] [-h]\n"
-                            "\t[-from_hash <event_hash> -to_hash <event_hash>] OR [-from_date <YYMMDD> -to_date <YYMMDD>]\n\n"
+                            "\tOR [-from_hash <event_hash> -to_hash <event_hash>] OR [-from_date <YYMMDD> -to_date <YYMMDD>]\n\n"
             "\tShow event list. Use either hash range (from_hash + to_hash) or date range (from_date + to_date), not both.\n"
             "\tDo not use limit/offset with hash/date ranges. Head parameter can be used with ranges \n\n"
         "dag event count -net <net_name> [-chain <chain_name>]\n"

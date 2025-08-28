@@ -2134,13 +2134,16 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char *
     }
     // Raw JSON flag
     bool table_mode = false; 
+    bool l_full = false;
     for (int i = 0; i < cmd_cnt; i++) { 
         const char *p = cmd_param[i]; 
         if (!p) continue; 
         if (!strcmp(p, "-h")) { 
             table_mode = true; 
-            break; 
         } 
+        if (!strcmp(p, "-full") || !strcmp(p, "--full") || !strcmp(p, "full")) {
+            l_full = true;
+        }
     }
     if (!table_mode) { json_print_object(response->result_json_object, 0); return 0; }
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list")||!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "keys"))
@@ -2151,14 +2154,14 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char *
             printf("Response array is empty\n");
             return -3;
         }
-        if (table_mode) {
+        if (l_full) {
             printf("_________________________________________________________________________________________________________________"
                    "_________________________________________________________________________________________________________________\n");
-            printf(" Node addres \t\t\t\t\t\t\t\t\t\t| Pkey hash \t\t\t\t\t\t\t\t\t\t\t\t| Stake val | Eff val | Rel weight | Sover addr \t\t\t\t\t\t\t\t\t\t\t\t   | Sover tax  |\n");
+            printf(" Node addres \t\t| Pkey hash \t\t\t\t\t\t\t\t| Stake val | Eff val | Rel weight | Sover addr \t\t\t\t\t\t\t\t\t\t\t\t   | Sover tax  |\n");
         } else {
             printf("__________________________________________________________________________________________________"
                    "_______________________________________________________________________\n");
-            printf(" Node addres \t\t| Pkey hash \t\t\t\t\t\t\t\t\t\t| Stake val | Eff val | Rel weight | Sover addr \t   | Sover tax  |\n");
+            printf(" Node addres \t\t| Pkey hash \t\t\t\t\t\t\t\t| Stake val | Eff val | Rel weight | Sover addr \t   | Sover tax  |\n");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         result_count = json_object_array_length(json_obj_array);
@@ -2187,7 +2190,7 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char *
                     const char *pkey_hash_full = json_object_get_string(j_obj_pkey_hash);
                     const char *sover_addr_full = json_object_get_string(j_obj_sovereign_addr);
                     const char *sovereign_addr_str = (sover_addr_full && strcmp(sover_addr_full, "null")) ?
-                                                     (table_mode ? sover_addr_full : sover_addr_full + 85) : "-------------------";
+                                                     (l_full ? sover_addr_full : sover_addr_full + 85) : "-------------------";
                     printf("%s \t| %s\t|    %4d   |   %4d  |   %4d     |%s    |   %s \t|",
                             node_addr_full, pkey_hash_full,
                             json_object_get_int(j_obj_stake_value),
@@ -2205,7 +2208,7 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char *
             }
             printf("\n");
         }        
-        if (!table_mode) {
+        if (!l_full) {
             printf("________________________|_______________________________________________________________________|__"
                    "_________|_________|____________|_______________________|____________|\n\n");
         }
@@ -2224,24 +2227,27 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
     }
     // Raw JSON flag
     bool table_mode = false; 
+    bool l_full = false;
     for (int i = 0; i < cmd_cnt; i++) { 
         const char *p = cmd_param[i]; 
         if (!p) continue; 
         if (!strcmp(p, "-h")) { 
-            table_mode = true; 
-            break; 
+            table_mode = true;
         } 
-    }
-    if (!table_mode) { return 0; }
+        if (!strcmp(p, "-full") || !strcmp(p, "--full") || !strcmp(p, "full")) {
+            l_full = true;
+        }
+    }    
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list")||!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "tx"))
         return -2;
+    if (!table_mode) { json_print_object(response->result_json_object, 0); return 0; }
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
         }
-        if (table_mode) {
+        if (l_full) {
             printf("_________________________________________________________________________________________________________________"
                 "_________________________________________________________________________________________________________________"
                 "_________________________________________________________________________________________________________________\n");
@@ -2278,7 +2284,7 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
                     // Hash display (full or shortened)
                     const char *full_tx_hash = json_object_get_string(j_obj_tx_hash);
                     const char *tx_hash_short = full_tx_hash;
-                    if (!table_mode && full_tx_hash && strlen(full_tx_hash) > 15) {
+                    if (!l_full && full_tx_hash && strlen(full_tx_hash) > 15) {
                         strncpy(hash_buffer, full_tx_hash + strlen(full_tx_hash) - 15, 15);
                         hash_buffer[15] = '\0';
                         tx_hash_short = hash_buffer;
@@ -2288,7 +2294,7 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
                     const char *full_signing_hash = json_object_get_string(j_obj_signing_hash);
                     char signing_hash_buffer[16];
                     const char *signing_hash_short = full_signing_hash;
-                    if (!table_mode && full_signing_hash && strlen(full_signing_hash) > 15) {
+                    if (!l_full && full_signing_hash && strlen(full_signing_hash) > 15) {
                         strncpy(signing_hash_buffer, full_signing_hash + strlen(full_signing_hash) - 15, 15);
                         signing_hash_buffer[15] = '\0';
                         signing_hash_short = signing_hash_buffer;
@@ -2299,10 +2305,10 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
                     const char *owner_addr_full = j_obj_owner_addr ? json_object_get_string(j_obj_owner_addr) : NULL;
                     const char *node_addr_full = json_object_get_string(j_obj_node_address);
                     const char *signing_addr_str = (signing_addr_full && strcmp(signing_addr_full, "null")) ?
-                                                    (table_mode ? signing_addr_full : signing_addr_full + 85) : "-------------------";
+                                                    (l_full ? signing_addr_full : signing_addr_full + 85) : "-------------------";
                     const char *node_addr_str = node_addr_full + 14;
                     const char *owner_addr_str = (owner_addr_full && strcmp(owner_addr_full, "null")) ?
-                                                  (table_mode ? owner_addr_full : owner_addr_full + 85) : "-------------------";
+                                                  (l_full ? owner_addr_full : owner_addr_full + 85) : "-------------------";
                     
                     printf(" %-15s | %-13s | %-17s | %-14s | %-17s | %-11s | %-17s |\n",
                             tx_hash_short,
@@ -2320,7 +2326,7 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
                 continue;
             }
         } 
-        if (!table_mode) {
+        if (!l_full) {
             printf("_________________|_________________________________|_____________________|_________________|" 
                       "________________________|_____________|_____________________|\n\n");
         }
@@ -2348,17 +2354,16 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
 int json_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
     if (!response || !response->result_json_object)
         return -1;
-    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
-        return -2;
-    // Raw JSON output flag: --json or -json or json
+    // Table mode flag: -h. If not present, print raw JSON by default
+    bool l_table_mode = false;
     for (int i = 0; i < cmd_cnt; i++) {
         const char *p = cmd_param[i];
         if (!p) continue;
-        if (!strcmp(p, "--json") || !strcmp(p, "-json") || !strcmp(p, "json")) {
-            json_print_object(response->result_json_object, 0);
-            return 0;
-        }
+        if (!strcmp(p, "-h")) { l_table_mode = true; break; }
     }
+    if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
+    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
+        return -2;
 
     // coins
     if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "coins")) {
@@ -2380,7 +2385,7 @@ int json_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_pa
             if (arr_len <= 0) { printf("No coins found\n"); return 0; }
 
             printf("__________________________________________________________________________________________________________\n");
-            printf("  Token Ticker   |   Type  | Decimals | Total Supply                        | Current Supply\n");
+            printf("  Token Ticker   |   Type  | Decimals | Total Supply                                   | Current Supply\n");
             printf("__________________________________________________________________________________________________________\n");
 
             int printed = 0;
@@ -2427,7 +2432,7 @@ int json_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_pa
                     ticker = inferred ? inferred : "UNKNOWN";
                 }
 
-                printf("  %-15s|  %-7s|    %-6d|  %-35s|  %-35s|\n",
+                printf("  %-15s|  %-7s|    %-6d|  %-45s|  %-45s|\n",
                        ticker, type_str, decimals, supply_total, supply_current);
                 printed++;
             }
@@ -2439,7 +2444,7 @@ int json_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_pa
         // Case 2: object mapping ticker -> token object
         if (json_object_is_type(root0, json_type_object)) {
             printf("__________________________________________________________________________________________________________\n");
-            printf("  Token Ticker   |   Type  | Decimals | Total Supply                        | Current Supply\n");
+            printf("  Token Ticker   |   Type  | Decimals | Total Supply                                   | Current Supply\n");
             printf("__________________________________________________________________________________________________________\n");
 
             int printed = 0;
@@ -2465,7 +2470,7 @@ int json_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_pa
                     json_object_object_get_ex(token_obj, "Supply current", &j_supply_current))
                     supply_current = json_object_get_string(j_supply_current);
 
-                printf("  %-15s|  %-7s|    %-6d|  %-35s|  %-35s|\n",
+                printf("  %-15s|  %-7s|    %-6d|  %-45s|  %-45s|\n",
                        ticker, type_str, decimals, supply_total, supply_current);
                 printed++;
             }
@@ -2599,7 +2604,13 @@ int json_print_for_srv_stake_all(dap_json_rpc_response_t* response, char ** cmd_
             table_mode_all = true; break; 
         } 
     }
-    if (!table_mode_all) { return 0; }
+    if (!table_mode_all) { 
+        // If no specific handler found, use default output
+        if (response && response->result_json_object) {
+            json_print_object(response->result_json_object, 0);
+            return 0;
+        }
+    }
     // Check for different srv_stake subcommands
     if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list")) {
         if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "keys")) {
@@ -2609,13 +2620,8 @@ int json_print_for_srv_stake_all(dap_json_rpc_response_t* response, char ** cmd_
         } else if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "order")) {
             return json_print_for_srv_stake_list(response, cmd_param, cmd_cnt);
         }
-    }
+    }    
     
-    // If no specific handler found, use default output
-    if (response && response->result_json_object) {
-        json_print_object(response->result_json_object, 0);
-        return 0;
-    }
     
     printf("Unknown srv_stake subcommand or response is empty\n");
     return -1;
@@ -2966,18 +2972,21 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
     if (!response || !response->result_json_object) {
         printf("Response is empty\n");
         return -1;
-    }
+    }   
     // Raw JSON flag
     bool table_mode_sx = false; 
+    bool l_full = false;
     for (int i = 0; i < cmd_cnt; i++) { 
         const char *p = cmd_param[i]; 
         if (!p) continue; 
         if (!strcmp(p, "-h")) { 
             table_mode_sx = true; 
-            break; 
         } 
+        if (!strcmp(p, "-full") || !strcmp(p, "--full") || !strcmp(p, "full")) {
+            l_full = true;
+        }
     }
-    if (!table_mode_sx) { return 0; }
+    if (!table_mode_sx) { json_print_object(response->result_json_object, 0); return 0; }
     struct json_object *j_obj_headr = NULL, *limit_obj = NULL, *l_arr_pagina = NULL, *l_obj_pagina = NULL,
 			*offset_obj = NULL, *l_arr_orders = NULL;
 	char *l_limit = NULL;
@@ -2999,7 +3008,9 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 			}
 		}
 		if(!json_object_object_get_ex(j_obj_headr, "orders", &l_arr_orders) &&
-			!json_object_object_get_ex(j_obj_headr, "ORDERS", &l_arr_orders)) {
+			!json_object_object_get_ex(j_obj_headr, "ORDERS", &l_arr_orders)&&
+			!json_object_object_get_ex(j_obj_headr, "TICKERS PAIR", &l_arr_orders) &&
+			!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "tx_list")) {
 			return -2;
 		}
 	}
@@ -3012,7 +3023,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 				printf("Response array is empty\n");
 				return -3;
 			}
-            if (table_mode_sx) {
+            if (l_full) {
 			    printf("______________________________________________________________________________________________"
 			    	"_________________________________________________________________________________________________"
 			    	"_________________________\n");
@@ -3044,7 +3055,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 					const char *full_hash = json_object_get_string(j_obj_hash);
 					char hash_buffer[16];
 					const char *hash_print = full_hash;
-					if (!table_mode_sx && full_hash && strlen(full_hash) > 15) {
+					if (!l_full && full_hash && strlen(full_hash) > 15) {
 						strncpy(hash_buffer, full_hash + strlen(full_hash) - 15, 15);
 						hash_buffer[15] = '\0';
 						hash_print = hash_buffer;
@@ -3079,7 +3090,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 						json_object_object_get_ex(el, "TICKERS PAIR", &l_pairs_arr)) { l_obj_pairs = el; break; }
 				}
 			}
-			if (!l_obj_pairs || !l_pairs_arr || json_object_get_type(l_pairs_arr) != json_type_array) return -5;
+            if (!l_obj_pairs || !l_pairs_arr || json_object_get_type(l_pairs_arr) != json_type_array) return -5;
 			printf("______________________________\n");
 			printf(" %-10s | %-10s |\n", "Ticker 1", "Ticker 2");
             for (size_t i = 0; i < (size_t)json_object_array_length(l_pairs_arr); i++) {
@@ -3183,7 +3194,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 			const char * owner_addr_str = "-------------------";
 			const char * buyer_addr_str = "-------------------";
 			if (owner_addr_full && strcmp(owner_addr_full, "null")) {
-				if (!table_mode_sx && strlen(owner_addr_full) > 15) {
+				if (!l_full && strlen(owner_addr_full) > 15) {
 					strncpy(owner_short, owner_addr_full + strlen(owner_addr_full) - 15, 15);
 					owner_short[15] = '\0';
 					owner_addr_str = owner_short;
@@ -3192,7 +3203,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 				}
 			}
 			if (buyer_addr_full && strcmp(buyer_addr_full, "null")) {
-				if (!table_mode_sx && strlen(buyer_addr_full) > 15) {
+				if (!l_full && strlen(buyer_addr_full) > 15) {
 					strncpy(buyer_short, buyer_addr_full + strlen(buyer_addr_full) - 15, 15);
 					buyer_short[15] = '\0';
 					buyer_addr_str = buyer_short;
@@ -3204,7 +3215,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 				const char *full_hash = json_object_get_string(hash);
 				char hash_buffer2[16];
 				const char *hash_print = full_hash;
-				if (!table_mode_sx && full_hash && strlen(full_hash) > 15) {
+				if (!l_full && full_hash && strlen(full_hash) > 15) {
 					strncpy(hash_buffer2, full_hash + strlen(full_hash) - 15, 15);
 					hash_buffer2[15] = '\0';
 					hash_print = hash_buffer2;

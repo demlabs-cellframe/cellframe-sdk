@@ -337,13 +337,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "token list -net <net_name> [-full] [-h]\n"
             "token info -net <net_name> -name <token_ticker> [-h]\n");
 
-    // Update srv_stake help with flags
-    // Note: The detailed srv_stake help resides in service init; here we advertise common flags
-    dap_cli_server_cmd_add("srv_stake", NULL, json_print_for_srv_stake_all, "Delegated stake service view",
-            "srv_stake list keys -net <net_name> [-limit] [-offset] [-head] [-full] [-h]\n"
-            "srv_stake list tx   -net <net_name> [-limit] [-offset] [-head] [-full] [-h]\n"
-            "srv_stake list order -net <net_name> [-limit] [-offset] [-head] [-full] [-h]\n");
-
     // Log
     dap_cli_server_cmd_add ("print_log", com_print_log, NULL, "Print log info",
                 "print_log [ts_after <timestamp>] [limit <line_numbers>]\n" );
