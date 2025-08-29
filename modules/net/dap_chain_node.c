@@ -89,6 +89,7 @@ static const uint64_t s_cmp_delta_atom = 10;
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
 static const char s_states_group[] = ".nodes.states";
 static bool s_node_list_auto_update = true;
+static size_t s_node_list_record_ttl = 3600 * 3;
 
 /**
  * @brief get states info about current
@@ -271,7 +272,7 @@ void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
     }
 
     // check is node active for last two hours
-    if (l_info_state_timestamp > (dap_nanotime_now() - dap_nanotime_from_sec(7200)) 
+    if (l_info_state_timestamp > (dap_nanotime_now() - dap_nanotime_from_sec(s_node_list_record_ttl)) 
         && l_node_info_states && l_node_info_states->info_v1.downlinks_count > 0) {
             l_state_active = true;
             log_it(L_DEBUG, "Node %s [ %s : %u ] is active in nodes.states, rewrite to node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
@@ -328,6 +329,7 @@ int dap_chain_node_init()
         return -1;
     }
     s_node_list_auto_update = dap_config_get_item_bool_default(g_config, "global_db", "node_list_auto_update", s_node_list_auto_update);
+    s_node_list_record_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_record_ttl", s_node_list_record_ttl);
     return 0;
 }
 
