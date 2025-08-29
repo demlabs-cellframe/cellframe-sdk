@@ -327,6 +327,7 @@ int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply, int a_versio
 int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 int com_tx_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
 
 int com_tx_create_json(int a_argc, char **a_argv, void **reply, int a_version);
 int com_tx_cond_create(int a_argc, char **a_argv, void **reply, int a_version);

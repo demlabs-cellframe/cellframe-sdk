@@ -104,12 +104,14 @@ typedef struct dap_auction_cache_item {
     uint8_t winners_cnt;               // Number of winners in this auction
     uint32_t *winners_ids;             // Array of winner project IDs from event data
     
-    UT_hash_handle hh;                 // Hash table handle by auction_tx_hash
+    UT_hash_handle hh;                 // Hash handle for table keyed by group_name
+    UT_hash_handle hh_hash;            // Hash handle for table keyed by auction_tx_hash
 } dap_auction_cache_item_t;
 
 // Main auction cache structure
 typedef struct dap_auction_cache {
-    dap_auction_cache_item_t *auctions; // Hash table of auctions by auction_tx_hash
+    dap_auction_cache_item_t *auctions; // Hash table of auctions keyed by group_name
+    dap_auction_cache_item_t *auctions_by_hash; // Hash table for fast lookup by auction_tx_hash
     uint32_t total_auctions;            // Total number of auctions in cache
     uint32_t active_auctions;           // Number of active auctions
     pthread_rwlock_t cache_rwlock;      // Read-write lock for cache access
@@ -133,6 +135,7 @@ typedef struct dap_chain_net_srv_auction_project {
 // Single auction structure (for external API)
 typedef struct dap_chain_net_srv_auction {
     dap_hash_fast_t auction_hash;
+    char *group_name;                   // Auction name (group_name from cache)
     dap_auction_status_t status;
     dap_time_t created_time;
     dap_time_t start_time;
@@ -183,7 +186,6 @@ int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
                               dap_hash_fast_t *a_bid_hash,
                               dap_chain_addr_t *a_bidder_addr,
                               uint256_t a_bid_amount,
-                              uint8_t a_range_end,
                               dap_time_t a_lock_time,
                               dap_hash_fast_t *a_project_hash,
                               const char *a_project_name);
@@ -191,6 +193,11 @@ int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
 int dap_auction_cache_update_auction_status(dap_auction_cache_t *a_cache,
                                            dap_hash_fast_t *a_auction_hash,
                                            dap_auction_status_t a_new_status);
+
+// New: update auction status by group name
+int dap_auction_cache_update_auction_status_by_name(dap_auction_cache_t *a_cache,
+                                                   const char *a_group_name,
+                                                   dap_auction_status_t a_new_status);
 
 int dap_auction_cache_withdraw_bid(dap_auction_cache_t *a_cache,
                                   dap_hash_fast_t *a_bid_hash);
@@ -200,9 +207,19 @@ int dap_auction_cache_set_winners(dap_auction_cache_t *a_cache,
                                  uint8_t a_winners_cnt,
                                  uint32_t *a_winners_ids);
 
+// New: set winners by group name
+int dap_auction_cache_set_winners_by_name(dap_auction_cache_t *a_cache,
+                                         const char *a_group_name,
+                                         uint8_t a_winners_cnt,
+                                         uint32_t *a_winners_ids);
+
 // Search functions
+// Find by auction tx hash
 dap_auction_cache_item_t *dap_auction_cache_find_auction(dap_auction_cache_t *a_cache,
                                                          dap_hash_fast_t *a_auction_hash);
+// New: find by group name
+dap_auction_cache_item_t *dap_auction_cache_find_auction_by_name(dap_auction_cache_t *a_cache,
+                                                                 const char *a_group_name);
 
 dap_auction_bid_cache_item_t *dap_auction_cache_find_bid(dap_auction_cache_item_t *a_auction,
                                                          dap_hash_fast_t *a_bid_hash);
@@ -246,6 +263,12 @@ void dap_auction_cache_event_callback(void *a_arg,
 // Helper functions
 const char *dap_auction_status_to_str(dap_auction_status_t a_status);
 dap_auction_status_t dap_auction_status_from_event_type(uint16_t a_event_type);
+
+// Transaction creation functions 
+char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_auction_hash, 
+                                uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_project_id, uint256_t a_fee, int *a_ret_code);
+
+char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, int *a_ret_code);
 
 #ifdef __cplusplus
 }
