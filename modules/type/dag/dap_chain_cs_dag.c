@@ -47,6 +47,7 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
+#include "dap_json.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_chain_node_cli.h"
@@ -1323,7 +1324,7 @@ static void s_json_dag_pack_event(json_object * a_json_out, dap_chain_cs_dag_eve
  */
 static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     enum {
         SUBCMD_EVENT_LIST,
         SUBCMD_EVENT_DUMP,

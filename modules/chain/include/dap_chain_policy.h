@@ -27,6 +27,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_common.h"
 #include "dap_chain.h"
 
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
+
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE                      BIT(0)
 
 #define DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS    0x1
@@ -51,9 +54,9 @@ int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_ne
 //TODO: put under rwlock and unify
 void dap_chain_policy_update_last_num(dap_chain_net_id_t a_net_id, uint32_t a_num);
 uint32_t dap_chain_policy_get_last_num(dap_chain_net_id_t a_net_id);
-json_object *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num);
-json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy);
-json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version);
+dap_json_t *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num);
+dap_json_t *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy);
+dap_json_t *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version);
 bool dap_chain_policy_is_exist(dap_chain_net_id_t a_net_id, uint32_t a_num);
 bool dap_chain_policy_is_activated(dap_chain_net_id_t a_net_id, uint32_t a_policy_num);
 

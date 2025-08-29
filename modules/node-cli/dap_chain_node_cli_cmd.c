@@ -62,6 +62,7 @@
 #include "dap_global_db_driver.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_json.h"
 #include "dap_net.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_cell.h"
@@ -392,7 +393,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
  */
 int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
         CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST
@@ -1674,7 +1675,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
  */
 int com_version(int argc, char ** argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     (void) argc;
     (void) argv;
 #ifndef DAP_VERSION
@@ -3108,7 +3109,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     DAP_DELETE(l_gdb_group_mempool);
 }
 
-static int mempool_delete_for_chain(dap_chain_t *a_chain, const char * a_datum_hash_str, json_object **a_json_arr_reply) {
+static int mempool_delete_for_chain(dap_chain_t *a_chain, const char * a_datum_hash_str, dap_json_t **a_json_arr_reply) {
         char * l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
         uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str,
                                                      NULL, NULL, NULL);
@@ -3141,7 +3142,7 @@ typedef enum cmd_mempool_delete_err_list{
  */
 int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     if (!a_net || !a_datum_hash) {
         dap_json_rpc_error_add(*a_json_arr_reply, COM_MEMPOOL_DELETE_ERR_DATUM_NOT_FOUND_IN_ARGUMENT, "Net or datum hash not specified");
         return COM_MEMPOOL_DELETE_ERR_DATUM_NOT_FOUND_IN_ARGUMENT;
@@ -3222,7 +3223,7 @@ typedef enum cmd_mempool_check_err_list {
  */
 int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
 
     if (!a_net || !a_datum_hash) {
         dap_json_rpc_error_add(*a_json_arr_reply, COM_MEMPOOL_CHECK_ERR_CAN_NOT_FIND_NET, "Error! Both -net <network_name> "
@@ -3382,7 +3383,7 @@ typedef enum cmd_mempool_proc_list_error{
  */
 int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     // If full or light it doesnt work
     if(dap_chain_net_get_role(a_net).enums>= NODE_ROLE_FULL){
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_COM_MEMPOOL_PROC_LIST_ERROR_NODE_ROLE_NOT_FULL,
@@ -3558,7 +3559,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
  */
 int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, void **a_str_reply)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     if (!a_net || !a_chain) {
         dap_json_rpc_error_add(*a_json_arr_reply, -2, "The net and chain argument is not set");
         return -2;
@@ -3614,7 +3615,7 @@ typedef enum _cmd_mempool_dump_error_list{
 }_cmd_mempool_dump_error_list_t;
 
 int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_group_gdb, const char *a_datum_hash,
-                                 const char *a_hash_out_type, json_object **a_json_arr_reply, int a_version)
+                                 const char *a_hash_out_type, dap_json_t **a_json_arr_reply, int a_version)
 {
     size_t l_datum_size = 0;
     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(a_group_gdb, a_datum_hash,
@@ -3637,7 +3638,7 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
     return 0;
 }
 
-int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, json_object **a_json_arr_reply, int a_version)
+int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, dap_json_t **a_json_arr_reply, int a_version)
 {
     if (!a_net || !a_datum_hash || !a_hash_out_type) {
         dap_json_rpc_error_add(*a_json_arr_reply, COM_DUMP_ERROR_NULL_IS_ARGUMENT_FUNCTION, "The following arguments are not set: network,"
@@ -3665,7 +3666,7 @@ int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
 
 int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     int arg_index = 1;
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
@@ -4114,7 +4115,7 @@ typedef enum cmd_mempool_add_ca_error_list{
  */
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     if (!a_net || !a_chain || !a_cert){
         dap_json_rpc_error_add(*a_json_arr_reply, COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND, "The network or certificate attribute was not passed.");
         return COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND;
@@ -5046,7 +5047,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
  */
 int com_stats(int argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     enum {
         CMD_NONE, CMD_STATS_CPU
     };
@@ -5240,7 +5241,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version)
  */
 int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     int arg_index = 1;
     const char *l_filename = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "filename", &l_filename);
@@ -5370,7 +5371,7 @@ typedef struct _pvt_net_nodes_list {
 
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     //default init
     const char		*return_message	=	NULL;
     const char		*l_gdb_path		=	NULL;
@@ -6233,7 +6234,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
 
 int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     enum {
         CMD_NONE, CMD_PRINT, CMD_EXPORT, CMD_CLEAR_LOG
     };

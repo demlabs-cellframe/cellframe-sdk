@@ -22,6 +22,7 @@
 */
 #include <pthread.h>
 #include "dap_common.h"
+#include "dap_json.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_srv.h"
@@ -638,7 +639,7 @@ static int blocks_sort_rev(const void *a, const void *b) {
  */
 static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     //char ** a_str_reply = (char **) reply;    
     enum {
         SUBCMD_UNDEFINED =0,

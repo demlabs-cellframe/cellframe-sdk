@@ -32,6 +32,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_json.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 #include "dap_cli_server.h"
@@ -3269,7 +3270,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     int l_arg_index = 1;
     dap_chain_net_t *l_chain_net = NULL;
     dap_chain_t *l_chain = NULL;
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
         
     if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_chain_net, CHAIN_TYPE_ANCHOR))
         return -3;

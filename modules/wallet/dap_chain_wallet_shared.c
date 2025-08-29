@@ -27,6 +27,7 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_wallet.h"
+#include "dap_json.h"
 #include "dap_chain_mempool.h"
 #include "dap_cli_server.h"
 #include "dap_chain_net_tx.h"
@@ -615,7 +616,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json
 
 #undef m_sign_fail
 
-static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
     const char *l_token_str = NULL, 
                 *l_value_str = NULL, 
@@ -754,7 +755,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
     return DAP_NO_ERROR;
 }
 
-static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
     const char *l_token_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL, *l_tx_in_hash_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_value_str);
@@ -832,7 +833,7 @@ static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object 
     return DAP_NO_ERROR;
 }
 
-static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
     const char *l_tx_in_hash_str = NULL, *l_addr_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
     
@@ -951,7 +952,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     return DAP_NO_ERROR;
 }
 
-static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
     const char *l_tx_in_hash_str = NULL, *l_wallet_str = NULL, *l_cert_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_in_hash_str);
@@ -1027,7 +1028,7 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
     return DAP_NO_ERROR;
 }
 
-static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
     const char *l_tx_hash_str = NULL, *l_wallet_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_hash_str);
@@ -1100,7 +1101,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
  */
 int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     int l_arg_index = 2;
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;

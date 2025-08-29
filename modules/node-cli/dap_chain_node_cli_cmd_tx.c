@@ -40,6 +40,7 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_node_cli_cmd_tx.h"
+#include "dap_json.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
@@ -1180,7 +1181,7 @@ static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger,
  * @return 0 on success, error code on failure
  */
 static int s_ledger_trace_chain(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_hash_from, dap_chain_hash_fast_t *a_hash_to, 
-                               const char *a_hash_out_type, size_t a_max_depth, json_object **a_json_arr_reply)
+                               const char *a_hash_out_type, size_t a_max_depth, dap_json_t **a_json_arr_reply)
 {
     // Validate input parameters
     if (!a_ledger || !a_hash_from || !a_hash_to || !a_json_arr_reply) {
@@ -1542,7 +1543,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
  */
 int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     enum { CMD_NONE, CMD_LIST, CMD_INFO, CMD_TX };
     int arg_index = 1;
     const char *l_net_str = NULL;
@@ -1761,7 +1762,7 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
  */
 int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object**)reply;
+    dap_json_t **a_json_arr_reply = (json_object**)reply;
     int l_arg_index = 1;
     const char *l_net_name = NULL; // optional parameter
     const char *l_chain_name = NULL; // optional parameter
@@ -2443,7 +2444,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
  */
 int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     const char * l_tx_hash_str = NULL;
     dap_chain_net_t * l_net = NULL;
     dap_chain_t * l_chain = NULL;
@@ -2523,7 +2524,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, int a_version)
  */
 int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;

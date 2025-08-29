@@ -42,6 +42,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_xchange.h"
+#include "dap_json.h"
 #include "dap_cli_server.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_node_cli.h"
@@ -1234,7 +1235,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
  * @param a_str_reply
  * @return
  */
-static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, int a_version)
+static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a_json_arr_reply, int a_version)
 {
     enum {
         CMD_NONE, CMD_CREATE, CMD_REMOVE, CMD_UPDATE, CMD_HISTORY, CMD_STATUS
