@@ -451,8 +451,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
  * @param a_srv_uid Service UID for auction service
  * @param a_value Bid amount in datoshi
  * @param a_auction_hash Hash of the auction being bid on
- * @param a_range_end End of CellSlot range (1-8), range_start is always 1
  * @param a_lock_time Lock time for the bid tokens
+ * @param a_project_id Project ID for the bid
  * @param a_params Additional TSD parameters
  * @param a_params_size Size of additional parameters
  * @return dap_chain_tx_out_cond_t* Conditional output item or NULL on error
@@ -460,11 +460,11 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(dap_chain_net_srv_uid_t a_srv_uid,
                                                                                   uint256_t a_value,
                                                                                   const dap_hash_fast_t *a_auction_hash,
-                                                                                  uint8_t a_range_end,
                                                                                   dap_time_t a_lock_time,
+                                                                                  uint32_t a_project_id,
                                                                                   const void *a_params, size_t a_params_size)
 {
-    if (IS_ZERO_256(a_value) || !a_auction_hash || a_range_end < 1 || a_range_end > 8)
+    if (IS_ZERO_256(a_value) || !a_auction_hash)
         return NULL;
     
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, 
@@ -478,8 +478,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid
     
     // Set auction bid specific fields
     l_item->subtype.srv_auction_bid.auction_hash = *a_auction_hash;
-    l_item->subtype.srv_auction_bid.range_end = a_range_end;
+    l_item->subtype.srv_auction_bid.range_end = 1; // Default to 1
     l_item->subtype.srv_auction_bid.lock_time = a_lock_time;
+    l_item->subtype.srv_auction_bid.project_id = a_project_id;
     
     // Copy additional parameters if provided
     if (a_params && a_params_size) {
@@ -919,12 +920,14 @@ int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event
     return 0;
 }
 
-byte_t *dap_chain_tx_event_data_auction_started_create(size_t *a_data_size, uint32_t a_multiplier, dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
+byte_t *dap_chain_tx_event_data_auction_started_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
+                                                       dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
 {
     size_t l_data_size = sizeof(dap_chain_tx_event_data_auction_started_t) + a_projects_cnt * sizeof(uint32_t);
     dap_chain_tx_event_data_auction_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_auction_started_t, l_data_size, NULL);
     
     l_data->multiplier = a_multiplier;
+    l_data->duration = a_duration;
     l_data->time_unit = a_time_unit;
     l_data->calculation_rule_id = a_calculation_rule_id;
     l_data->projects_cnt = a_projects_cnt;

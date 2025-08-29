@@ -39,12 +39,10 @@
 #include "json.h"
 #include "dap_chain_net_srv.h"
 #include "dap_enc_base64.h"
-<<<<<<< HEAD
 #include "json_object.h"
-=======
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
->>>>>>> master
+
 
 #define LOG_TAG "dap_chain_net_tx"
 
@@ -1746,7 +1744,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
 
             int64_t l_event_type_int;
-            if (!s_json_get_int64(l_json_item_obj, "event_type", &l_event_type_int)) {
+            if (!s_json_get_int64_uint64(l_json_item_obj, "event_type", &l_event_type_int, false)) {
                 log_it(L_ERROR, "Json TX: bad event_type in TX_ITEM_TYPE_EVENT");
                 char *l_str_err = dap_strdup_printf("For item %zu of type 'event' the 'event_type' is missing or invalid.", i);
                 json_object *l_jobj_err = json_object_new_string(l_str_err);
@@ -2714,6 +2712,15 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
     json_object_object_add(json_obj_out, "ts_created", json_object_new_int64(a_tx->header.ts_created));
     json_object_object_add(json_obj_out, "datum_type", json_object_new_string("tx"));
 
+    // Use the new unified function
+    dap_chain_net_id_t l_net_id = {.uint64 = 0};
+    //dap_chain_datum_dump_tx_items(json_arr_items, a_tx, "hex", l_net_id, 2, NULL);
+    
+    json_object *l_json_arr_reply = NULL;
+    dap_hash_fast_t l_hash_tmp = { };
+    byte_t *item; size_t l_size;
+    char *l_hash_str = NULL;
+    
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
         json_object* json_obj_item = json_object_new_object();
         json_object_object_add(json_obj_item,"type", json_object_new_string(dap_chain_datum_tx_item_type_to_str_short(*item)));
