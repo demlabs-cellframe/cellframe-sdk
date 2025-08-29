@@ -478,7 +478,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->addr), a_link->uplink.client->link_info.uplink_addr, a_error);
-        json_object_object_add(l_json, l_version == 1 ? "errorMessage" : "error_message", json_object_new_string(l_err_str));
+        json_object_object_add(l_json, dap_cli_server_get_version() == 1 ? "errorMessage" : "error_message", json_object_new_string(l_err_str));
         dap_notify_server_send(json_object_get_string(l_json));
         json_object_put(l_json);
     }

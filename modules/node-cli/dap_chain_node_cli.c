@@ -274,7 +274,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
     );
 
-
     dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool", dap_chain_node_cli_cmd_id_from_str("mempool"),
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"

@@ -115,19 +115,19 @@ const char* dap_compose_get_net_url(const char* name) {
             return netinfo[i].url;
         }
     }
-    log_it_fl(L_DEBUG, "url for name %s not found, return NULL", name);
+    log_it_fl(L_DEBUG, "URL for name %s not found, return NULL", name);
     return NULL;
 }
 
 uint16_t dap_compose_get_net_port(const char* name) {
     dap_return_val_if_pass(!name, 0);
-    log_it_fl(L_DEBUG, "name: %s", name);
+    log_it_fl(L_DEBUG, "Name: %s", name);
     for (int i = 0; i < NET_COUNT; i++) {
         if (strcmp(netinfo[i].name, name) == 0) {
             return netinfo[i].port;
         }
     }
-    log_it_fl(L_DEBUG, "port for name %s not found, return 0", name);
+    log_it_fl(L_DEBUG, "Port for name %s not found, return 0", name);
     return 0;
 }
 
@@ -136,13 +136,13 @@ static const char* s_get_native_ticker(const char* name) {
     return "BUZ";
 #endif
     dap_return_val_if_pass(!name, NULL);
-    log_it_fl(L_DEBUG, "name: %s", name);
+    log_it_fl(L_DEBUG, "Name: %s", name);
     for (int i = 0; i < NET_COUNT; i++) {
         if (strcmp(netinfo[i].name, name) == 0) {
             return netinfo[i].native_ticker;
         }
     }
-    log_it_fl(L_DEBUG, "native ticker for name %s not found, return NULL", name);
+    log_it_fl(L_DEBUG, "Native ticker for name %s not found, return NULL", name);
     return NULL;
 }
 
@@ -152,14 +152,14 @@ dap_chain_net_id_t dap_get_net_id(const char* name) {
     randombytes(&empty_id, sizeof(empty_id));
 #else
     dap_return_val_if_pass(!name, empty_id);
-    log_it_fl(L_DEBUG, "name: %s", name);
+    log_it_fl(L_DEBUG, "Name: %s", name);
     for (int i = 0; i < NET_COUNT; i++) {
         if (strcmp(netinfo[i].name, name) == 0) {
             return netinfo[i].net_id;
         }
     }
 #endif
-    log_it_fl(L_DEBUG, "net id for name %s not found, return empty id", name);
+    log_it_fl(L_DEBUG, "Net id for name %s not found, return empty id", name);
     return empty_id;
 }
 
@@ -2189,11 +2189,7 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_chain_addr_t *a_w
     // add 'out_cond' and 'out_ext' items
     {
         uint256_t l_value_pack = {}, l_native_pack = {}; // how much coin add to 'out_ext' items
-        dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-                                                        l_uid, a_value, a_time_unlock, a_reinvest_percent,
-                                                        DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME |
-                                                        DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT
-);
+        dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(l_uid, a_value, a_time_unlock, a_reinvest_percent);
         if (l_tx_out_cond) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
             dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out_cond);
@@ -4954,7 +4950,7 @@ dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
                                      "Failed to get hash from string");
             return NULL;
         }
-        l_tx = s_get_datum_info_from_rpc(l_spent_by_hash, a_config, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_cond_tx, &l_spent_by_hash, a_token_ticker, a_prev_cond_idx);
+        l_tx = s_get_datum_info_from_rpc(l_spent_by_hash, a_config, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_cond_tx, &l_spent_by_hash, a_token_ticker, (int *)a_prev_cond_idx);
 
         if (!l_tx) {
             log_it(L_ERROR, "Failed to get datum info from remote node");

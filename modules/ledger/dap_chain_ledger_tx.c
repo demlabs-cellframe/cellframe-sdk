@@ -417,17 +417,38 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 if (l_girdled_ems)
                     l_main_ticker = l_delegated_item->delegated_from;
 
-                dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_stake_lock, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, NULL);
-                if (!l_tx_stake_lock_out_cond) {
-                    debug_if(g_debug_ledger, L_WARNING, "No OUT_COND of stake_lock subtype for IN_EMS [%s]", l_tx_in_ems->header.ticker);
+                // Universal service detection for girdled emissions
+                // Support multiple services that can use delegated m-tokens
+                static const uint16_t l_supported_service_subtypes[] = {
+                    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,
+                    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID
+                };
+                static const size_t l_subtypes_count = sizeof(l_supported_service_subtypes) / sizeof(l_supported_service_subtypes[0]);
+                
+                dap_chain_tx_out_cond_t *l_tx_service_out_cond = NULL;
+                uint16_t l_detected_subtype = 0;
+                
+                // Find any supported service OUT_COND in the transaction
+                for (size_t i = 0; i < l_subtypes_count; i++) {
+                    uint16_t l_subtype = l_supported_service_subtypes[i];
+                    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx_stake_lock, l_subtype, NULL);
+                    if (l_cond) {
+                        l_tx_service_out_cond = l_cond;
+                        l_detected_subtype = l_subtype;
+                        break;
+                    }
+                }
+                UNUSED(l_detected_subtype);
+                if (!l_tx_service_out_cond) {
+                    debug_if(g_debug_ledger, L_WARNING, "No supported service OUT_COND found for IN_EMS [%s] (checked: stake_lock, auction_bid)", l_tx_in_ems->header.ticker);
                     l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_NO_OUT_COND_FOR_IN_EMS;
                     break;
                 }
                 uint256_t l_value_expected ={};
-                if (MULT_256_COIN(l_tx_stake_lock_out_cond->header.value, l_delegated_item->emission_rate, &l_value_expected)) {
+                if (MULT_256_COIN(l_tx_service_out_cond->header.value, l_delegated_item->emission_rate, &l_value_expected)) {
                     if (g_debug_ledger) {
                         char *l_emission_rate_str = dap_chain_balance_coins_print(l_delegated_item->emission_rate);
-                        const char *l_locked_value_str; dap_uint256_to_char(l_tx_stake_lock_out_cond->header.value, &l_locked_value_str);
+                        const char *l_locked_value_str; dap_uint256_to_char(l_tx_service_out_cond->header.value, &l_locked_value_str);
                         log_it( L_WARNING, "Multiplication overflow for %s emission: locked value %s emission rate %s",
                                                                 l_tx_in_ems->header.ticker, l_locked_value_str, l_emission_rate_str);
                         DAP_DEL_Z(l_emission_rate_str);

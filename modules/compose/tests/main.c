@@ -138,14 +138,14 @@ void s_chain_datum_cond_create_test()
 
 void s_chain_datum_delegate_test()
 {
-    dap_print_module_name("tx_delegate_compose");
+    dap_print_module_name("tx_stake_compose");
     size_t l_pkey_size = rand() % 1024 + 1;
     dap_pkey_t *pkey = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_pkey_t, l_pkey_size + sizeof(dap_pkey_t));
     pkey->header.type.type = DAP_PKEY_TYPE_SIG_BLISS;
     pkey->header.size = l_pkey_size;
     randombytes(pkey->pkey, l_pkey_size);
     dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_create_compose(&s_data->addr_any, s_data->value, s_data->value_fee, &s_data->addr_from, &s_data->node_addr, &s_data->addr_to, s_data->reinvest_percent, NULL, pkey, &s_data->config);
-    dap_assert(l_datum_1, "tx_delegate_compose");
+    dap_assert(l_datum_1, "tx_stake_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
     DAP_DELETE(pkey);
@@ -306,8 +306,8 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
-    // s_chain_datum_vote_create_test();
-    // s_chain_datum_vote_voting_test();
+    s_chain_datum_vote_create_test();
+    s_chain_datum_vote_voting_test();
 
     if (s_data->config.response_handler) {
         json_object_put(s_data->config.response_handler);

@@ -47,7 +47,7 @@ typedef enum s_net_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR,    
     DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,
     DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED
-}s_net_tx_create_json_err_t;
+} s_com_tx_create_json_err_t;
 
 typedef enum s_type_of_tx {
     DAP_CHAIN_NET_TX_NORMAL = 0,
@@ -123,7 +123,7 @@ dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap
 
 dap_list_t * dap_chain_net_get_tx_all_from_tx(dap_chain_net_t * a_net, dap_hash_fast_t * l_tx_hash);
 
-dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_srv_uid_t a_srv_uid,
+dap_chain_datum_tx_spends_items_t *dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t *a_net, const dap_chain_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type);
 void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_items);

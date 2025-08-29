@@ -2409,8 +2409,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             size_t l_arr_start = 0;            
             size_t l_arr_end = 0;
             json_object* json_obj_order = json_object_new_object();
+            json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
-            dap_chain_set_offset_limit_json(json_arr_orders_out, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
+            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
+            json_object_object_add(json_obj_order, "pagina", json_arr_orders_limit);
 
             size_t i_tmp = 0;
             // Print all txs

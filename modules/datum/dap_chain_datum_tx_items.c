@@ -312,7 +312,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
                                                                                     uint256_t a_value, uint256_t a_value_max_per_unit,
                                                                                     dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                                     const void *a_params, size_t a_params_size)
@@ -393,13 +393,13 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     return l_item;
 }
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_delegate(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
-                                                                                  dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
-                                                                                  uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size, uint32_t a_flags)
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                           dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                           uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size)
 {
     if (IS_ZERO_256(a_value))
         return NULL;
-
+    
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
@@ -407,10 +407,12 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_deleg
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
     l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
-    l_item->subtype.srv_stake_pos_delegate.flags = a_flags;
-    if (a_params && a_params_size) {
-        l_item->tsd_size = (uint32_t)a_params_size;
-        memcpy(l_item->tsd, a_params, a_params_size);
+    l_item->tsd_size = a_params_size;
+    if (l_item->tsd_size) {
+        memcpy(l_item->tsd, a_params, l_item->tsd_size);
+        if (dap_tsd_find((byte_t *)a_params, a_params_size, DAP_CHAIN_TX_OUT_COND_TSD_PKEY)) {
+            l_item->subtype.srv_stake_pos_delegate.flags = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_item->subtype.srv_stake_pos_delegate.flags);
+        }
     }
     return l_item;
 }
@@ -426,8 +428,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_deleg
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_srv_uid_t a_srv_uid,
                                                                                 uint256_t a_value, uint64_t a_time_unlock,
-                                                                                uint256_t a_reinvest_percent,
-                                                                                uint32_t a_flags)
+                                                                                uint256_t a_reinvest_percent)
 {
     if (IS_ZERO_256(a_value))
         return NULL;
@@ -436,9 +437,56 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;
     l_item->header.srv_uid = a_srv_uid;
-    l_item->subtype.srv_stake_lock.flags = a_flags;
+    l_item->subtype.srv_stake_lock.flags = DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME | DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT;
     l_item->subtype.srv_stake_lock.reinvest_percent = a_reinvest_percent;
     l_item->subtype.srv_stake_lock.time_unlock = a_time_unlock;
+    return l_item;
+}
+
+/**
+ * @brief dap_chain_datum_tx_item_out_cond_create_srv_auction_bid
+ * Create conditional output transaction item for auction bid
+ * 
+ * @param a_srv_uid Service UID for auction service
+ * @param a_value Bid amount in datoshi
+ * @param a_auction_hash Hash of the auction being bid on
+ * @param a_lock_time Lock time for the bid tokens
+ * @param a_project_id Project ID for the bid
+ * @param a_params Additional TSD parameters
+ * @param a_params_size Size of additional parameters
+ * @return dap_chain_tx_out_cond_t* Conditional output item or NULL on error
+ */
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(dap_chain_srv_uid_t a_srv_uid,
+                                                                                  uint256_t a_value,
+                                                                                  const dap_hash_fast_t *a_auction_hash,
+                                                                                  dap_time_t a_lock_time,
+                                                                                  uint32_t a_project_id,
+                                                                                  const void *a_params, size_t a_params_size)
+{
+    if (IS_ZERO_256(a_value) || !a_auction_hash)
+        return NULL;
+    
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, 
+                                                                      sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    
+    // Set header fields
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID;
+    l_item->header.srv_uid = a_srv_uid;
+    
+    // Set auction bid specific fields
+    l_item->subtype.srv_auction_bid.auction_hash = *a_auction_hash;
+    l_item->subtype.srv_auction_bid.range_end = 1; // Default to 1
+    l_item->subtype.srv_auction_bid.lock_time = a_lock_time;
+    l_item->subtype.srv_auction_bid.project_id = a_project_id;
+    
+    // Copy additional parameters if provided
+    if (a_params && a_params_size) {
+        l_item->tsd_size = (uint32_t)a_params_size;
+        memcpy(l_item->tsd, a_params, a_params_size);
+    }
+    
     return l_item;
 }
 
@@ -628,4 +676,36 @@ int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event
         }
     }
     return 0;
+}
+
+byte_t *dap_chain_tx_event_data_auction_started_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
+                                                       dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
+{
+    size_t l_data_size = sizeof(dap_chain_tx_event_data_auction_started_t) + a_projects_cnt * sizeof(uint32_t);
+    dap_chain_tx_event_data_auction_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_auction_started_t, l_data_size, NULL);
+    
+    l_data->multiplier = a_multiplier;
+    l_data->duration = a_duration;
+    l_data->time_unit = a_time_unit;
+    l_data->calculation_rule_id = a_calculation_rule_id;
+    l_data->projects_cnt = a_projects_cnt;
+    memcpy(l_data->project_ids, a_project_ids, a_projects_cnt * sizeof(uint32_t));
+    
+    if (a_data_size)
+        *a_data_size = l_data_size;
+    
+    return (byte_t *)l_data;
+}
+
+byte_t *dap_chain_tx_event_data_auction_ended_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[])
+{
+    size_t l_data_size = sizeof(dap_chain_tx_event_data_ended_t) + a_winners_cnt * sizeof(uint32_t);
+    dap_chain_tx_event_data_ended_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_ended_t, l_data_size, NULL);
+    l_data->winners_cnt = a_winners_cnt;
+    memcpy(l_data->winners_ids, a_winners_ids, a_winners_cnt * sizeof(uint32_t));
+    
+    if (a_data_size)
+        *a_data_size = l_data_size;
+    
+    return (byte_t *)l_data;
 }
