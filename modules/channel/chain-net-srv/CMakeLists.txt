@@ -11,6 +11,10 @@ target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain_common dap_c
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
+if(BUILD_CELLFRAME_SDK_TESTS)
+    add_subdirectory(tests)
+endif()
+
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_STREAM_CH_CHAIN_NET_SRV_HDRS}")
 INSTALL(TARGETS ${PROJECT_NAME} 
