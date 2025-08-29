@@ -49,10 +49,6 @@
 #include "dap_json_rpc_errors.h"
 #include "dap_chain_wallet.h"
 #include "dap_enc_base64.h"
-<<<<<<< HEAD
-=======
-
->>>>>>> d7b7ea6b6e4ce4a0f531f2db950f68ceb47fb77c
 #include "dap_chain_wallet_cache.h"
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
