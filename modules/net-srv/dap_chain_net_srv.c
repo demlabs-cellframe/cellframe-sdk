@@ -354,7 +354,6 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                 }
             } else if(!dap_strcmp( l_order_str, "dump" )) {
                 bool l_need_sign = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-need_sign", NULL);
-                // Select with specified service uid
                 if ( l_order_hash_str ){
                     dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
                     json_obj_net_srv = json_object_new_object();                    
@@ -386,7 +385,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                         for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
                             json_object* json_obj_order = json_object_new_object();
                             dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
-                            dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, false, a_version);
+                            dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, l_need_sign, a_version);
                             json_object_array_add(json_arr_out, json_obj_order);
                         }
                         json_object_object_add(json_obj_net_srv, "orders", json_arr_out);

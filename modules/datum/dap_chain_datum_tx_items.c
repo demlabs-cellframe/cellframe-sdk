@@ -313,9 +313,9 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
  * return item, NULL Error
  */
 dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
-    uint256_t a_value, uint256_t a_value_max_per_unit,
-    dap_chain_net_srv_price_unit_uid_t a_unit,
-    const void *a_params, size_t a_params_size)
+                                                                                    uint256_t a_value, uint256_t a_value_max_per_unit,
+                                                                                    dap_chain_net_srv_price_unit_uid_t a_unit,
+                                                                                    const void *a_params, size_t a_params_size)
 {
     if (!a_key_hash || IS_ZERO_256(a_value))
         return NULL;
@@ -393,7 +393,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     return l_item;
 }
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_delegate(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                   dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
                                                                                   uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size, uint32_t a_flags)
 {

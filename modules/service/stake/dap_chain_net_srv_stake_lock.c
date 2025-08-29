@@ -399,8 +399,6 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
 
     l_time_unlock = dap_time_from_str_simplified(l_time_staking_str);
-    if (!l_time_unlock)
-        return TIME_ERROR;
     if (l_time_unlock < dap_time_now())
         return TIME_ERROR;
 
