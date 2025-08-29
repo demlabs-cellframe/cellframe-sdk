@@ -24,10 +24,25 @@
 
 #pragma once
 #include <stdint.h>
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_common.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_common.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_tx.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_token.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
@@ -164,17 +179,17 @@ DAP_STATIC_INLINE const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
     return l_ret;
 }
 
-void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
-bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
+void dap_datum_token_dump_tsd_to_json(dap_json_t * json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
+bool dap_chain_datum_dump_tx_json(dap_json_t* a_json_arr_reply,
                              dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
-                             json_object* json_obj_out,
+                             dap_json_t* json_obj_out,
                              const char *a_hash_out_type,
                              dap_hash_fast_t *a_tx_hash,
                              dap_chain_net_id_t a_net_id,
                              int a_version);
-json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
-void dap_chain_datum_dump_json(json_object* a_json_arr_reply,json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose, int a_version);
+dap_json_t * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
+void dap_chain_datum_dump_json(dap_json_t* a_json_arr_reply,json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose, int a_version);
 
 #ifdef __cplusplus
 }

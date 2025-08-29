@@ -25,18 +25,57 @@
 
 #pragma once
 #include <stdint.h>
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include <stdbool.h>
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_common.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_hash.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_list.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_math_ops.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_common.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_token.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_tx.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_tx_items.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_decree.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_anchor.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_net.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x07
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
@@ -351,7 +390,7 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
  *
  */
 
-json_object * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only);
+dap_json_t * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only);
 
 /**
  * Check token ticker existance
@@ -368,14 +407,14 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t * a_ledger, 
 int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
 int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
 int dap_ledger_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
-json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version);
-json_object *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version);
+dap_json_t *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version);
+dap_json_t *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version);
 
 // Get all token-declarations
 dap_list_t* dap_ledger_token_decl_all(dap_ledger_t *a_ledger);
 
-json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, dap_hash_fast_t *a_threshold_hash, bool a_head, int a_version);
-json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, bool a_head, int a_version);
+dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, dap_hash_fast_t *a_threshold_hash, bool a_head, int a_version);
+dap_json_t *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, bool a_head, int a_version);
 
 size_t dap_ledger_token_get_auth_signs_valid(dap_ledger_t *a_ledger, const char *a_token_ticker);
 size_t dap_ledger_token_get_auth_signs_total(dap_ledger_t *a_ledger, const char *a_token_ticker);
@@ -535,7 +574,7 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
 dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash);
 int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
-dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, json_object* a_changed_addrs);
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, dap_json_t* a_changed_addrs);
 dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
 uint256_t dap_ledger_coin_get_uncoloured_value(dap_ledger_t *a_ledger, dap_hash_fast_t *a_voting_hash,

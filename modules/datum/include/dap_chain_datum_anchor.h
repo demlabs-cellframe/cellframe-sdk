@@ -22,12 +22,33 @@
 #pragma once
 
 #include "dap_chain_common.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_common.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_math_ops.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_time.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_list.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_tsd.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include <stdint.h>
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 
 
 typedef struct dap_chain_datum_anchor{
@@ -57,7 +78,7 @@ int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor
 void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_signs,
                                        size_t a_certs_size, const char *a_hash_out_type);
 
-void dap_chain_datum_anchor_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version);
+void dap_chain_datum_anchor_certs_dump_json(dap_json_t * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version);
 
 #ifdef __cplusplus
 }

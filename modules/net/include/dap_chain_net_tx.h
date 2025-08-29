@@ -24,10 +24,19 @@
 #pragma once
 
 #include "dap_chain_net.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_tx_items.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 
 
 #include "dap_json_rpc_errors.h"
+
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 
 typedef enum s_net_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_OK = 0,
@@ -145,10 +154,10 @@ bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, da
  * 
  * @return s_com_tx_create_json_err_t status code
  */
-int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
+int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_json_obj_error, 
     dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 
-int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_errors, 
+int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_jobj_errors, 
     dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 
 /**
@@ -158,7 +167,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
  * 
  * @return s_com_tx_create_json_err_t status code
  */
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json);
 
 #ifdef __cplusplus
 }

@@ -23,6 +23,7 @@
 */
 
 #include "dap_common.h"
+#include "dap_json.h"
 #include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_chain_ledger.h"
@@ -808,7 +809,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
  */
 static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     enum {
         CMD_NONE, CMD_HOLD, CMD_TAKE
     };
