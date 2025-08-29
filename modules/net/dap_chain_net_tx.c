@@ -726,6 +726,7 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
                                                                     "wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                                 break;
                             }
+                            UNUSED(l_token);
                         } else {
                             log_it(L_WARNING, "Invalid 'in' item, can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                             if (a_jobj_arr_errors)

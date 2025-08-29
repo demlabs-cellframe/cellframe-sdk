@@ -240,19 +240,6 @@ void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
     dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, NULL, TX_ITEM_TYPE_IN, NULL);
     if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))
         l_is_first = true;
-    char l_tmp_buf[DAP_TIME_STR_SIZE];
-    const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-            ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
-            : dap_chain_hash_fast_to_str_static(a_tx_hash);
-    json_object* json_arr_items = json_object_new_array();
-    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
-    l_is_first ?
-        json_object_object_add(json_obj_out, a_version == 1 ? "first transaction" : "first_transaction", json_object_new_string("emit")):
-        json_object_object_add(json_obj_out, a_version == 1 ? "first transaction" : "first_transaction", json_object_new_string(a_version == 1 ? "" : "empty"));
-    json_object_object_add(json_obj_out, "hash", json_object_new_string(l_hash_str));
-    json_object_object_add(json_obj_out, a_version == 1 ?  "tx created" : "tx_created", json_object_new_string(l_tmp_buf));
-    json_object_object_add(json_obj_out, a_version == 1 ?  "token ticker" : "token_ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(a_version == 1 ? "" : "empty"));
-    //json_object_array_add(json_arr_items, json_obj_tx);
 
     dap_hash_fast_t l_hash_tmp = { };
     byte_t *item; size_t l_size;
