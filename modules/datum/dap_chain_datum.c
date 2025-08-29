@@ -227,6 +227,8 @@ void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
                                   int a_version,
                                   json_object* a_json_arr_reply)
 {
+    //json_object_array_add(json_arr_items, json_obj_tx);
+
     dap_hash_fast_t l_hash_tmp = { };
     byte_t *item; size_t l_size;
     char l_tmp_buf[DAP_TIME_STR_SIZE];
@@ -312,17 +314,17 @@ void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
         case TX_ITEM_TYPE_RECEIPT_OLD:{
             dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)item;
             const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_receipt_old->receipt_info.value_datoshi, &l_coins_str);
-            json_object_object_add(json_obj_item,"item type", json_object_new_string("RECEIPT"));
+            json_object_object_add(json_obj_item,"item_type", json_object_new_string("RECEIPT"));
             json_object_object_add(json_obj_item,"size", json_object_new_uint64(l_receipt_old->size));
-            json_object_object_add(json_obj_item,"ext size", json_object_new_uint64(l_receipt_old->exts_size));
-            json_object_object_add(json_obj_item,"INFO", json_object_new_string(""));
+            json_object_object_add(json_obj_item,"ext_size", json_object_new_uint64(l_receipt_old->exts_size));
+            json_object_object_add(json_obj_item,"info", json_object_new_string(""));
             json_object_object_add(json_obj_item,"units", json_object_new_uint64(l_receipt_old->receipt_info.units));
             json_object_object_add(json_obj_item,"uid", json_object_new_uint64(l_receipt_old->receipt_info.srv_uid.uint64));
-            json_object_object_add(json_obj_item,"units type", json_object_new_string(dap_chain_srv_unit_enum_to_str(l_receipt_old->receipt_info.units_type.enm)));
+            json_object_object_add(json_obj_item,"units_type", json_object_new_string(dap_chain_srv_unit_enum_to_str(l_receipt_old->receipt_info.units_type.enm)));
             json_object_object_add(json_obj_item,"coins", json_object_new_string(l_coins_str));
             json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
 
-            json_object_object_add(json_obj_item,"Exts",json_object_new_string(""));                         
+            json_object_object_add(json_obj_item,"exts",json_object_new_string(""));                         
             switch (l_receipt_old->exts_size) {
             case (sizeof(dap_sign_t) * 2): {
                 dap_sign_t *l_client = (dap_sign_t*)(l_receipt_old->exts_n_signs  + sizeof(dap_sign_t));
@@ -581,7 +583,7 @@ void s_token_dump_decl_json(json_object  *a_obj_out, dap_chain_datum_token_t *a_
     json_object_object_add(a_obj_out, a_version == 1 ? "type" : "token_type", json_object_new_string("DECL"));
     switch (a_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:{
-            json_object_object_add(a_obj_out, "subtype",json_object_new_string("PRIVATE"));
+            json_object_object_add(a_obj_out,"subtype",json_object_new_string("PRIVATE"));
             json_object_object_add(a_obj_out,"decimals",json_object_new_uint64(a_token->header_private_decl.decimals));
             json_object_object_add(a_obj_out, a_version == 1 ? "auth signs valid" : "auth_sig_valid", json_object_new_uint64(a_token->signs_valid));
             json_object_object_add(a_obj_out, a_version == 1 ? "auth signs total" : "auth_sig_total", json_object_new_uint64(a_token->signs_total));
