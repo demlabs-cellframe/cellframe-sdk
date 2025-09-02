@@ -116,8 +116,7 @@ static void generate_test_amount(uint32_t a_seed, uint256_t *a_amount)
 {
     if (!a_amount) return;
     
-    *a_amount = uint256_0;
-    a_amount->lo = a_seed * 1000000; // Some reasonable amount
+    *a_amount = GET_256_FROM_64(a_seed * 1000000); // Some reasonable amount
 }
 
 /**
