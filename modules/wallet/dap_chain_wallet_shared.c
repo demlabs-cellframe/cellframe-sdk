@@ -33,6 +33,7 @@
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_list.h"
+#include "dap_chain_wallet_cache.h"
 
 
 enum emit_delegation_error {
@@ -226,7 +227,9 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
     // list of transaction with 'out' items to sell
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_token_ticker, &l_owner_addr, &l_list_used_out, l_value, &l_value_transfer))
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
                                                                        &l_owner_addr, l_value, &l_value_transfer);
     if (!l_list_used_out)
         m_tx_fail(ERROR_FUNDS, "Nothing to pay for share (not enough funds)");
@@ -238,7 +241,9 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction input");
 
     if (!l_share_native) {
-        dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        dap_list_t *l_list_fee_out = NULL;
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer))
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                           &l_owner_addr, l_fee_total, &l_fee_transfer);
         if (!l_list_fee_out)
             m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
@@ -313,7 +318,9 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(json_object *a
     // list of transaction with 'out' items to sell
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_tx_ticker,
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_tx_ticker, &l_owner_addr, &l_list_used_out, l_value, &l_value_transfer))
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_tx_ticker,
                                                                        &l_owner_addr, l_value, &l_value_transfer);
     if (!l_list_used_out)
         m_tx_fail(ERROR_FUNDS, "Nothing to pay for refill (not enough funds)");
@@ -325,7 +332,9 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(json_object *a
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction input");
 
     if (!l_refill_native) {
-        dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
+        dap_list_t *l_list_fee_out = NULL;
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_net->pub.native_ticker, &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer))
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
                                                                           &l_owner_addr, l_fee_total, &l_fee_transfer);
         if (!l_list_fee_out)
             m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
@@ -467,8 +476,10 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_create(json_object *a_js
 
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-    dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
-                            &l_owner_addr, l_fee_total, &l_fee_transfer);
+    dap_list_t *l_list_fee_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_net->pub.native_ticker, &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer))
+        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
+                        &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out)
         m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
     // add 'in' items to pay fee
