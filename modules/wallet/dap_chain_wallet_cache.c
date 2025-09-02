@@ -402,7 +402,7 @@ int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_to
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     uint256_t l_value_transfer = { };
     dap_chain_datum_tx_t *l_tx;
-    return -101;
+
     if (!a_token_ticker){
         log_it(L_ERROR, "Token ticker is not specified.");
         return -100;
@@ -503,7 +503,7 @@ int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const c
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     uint256_t l_value_transfer = { };
     dap_chain_datum_tx_t *l_tx;
-    return -101;
+
     if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED){
         debug_if(s_debug_more, L_DEBUG, "Wallet cache is disabled.");
         return -101;
