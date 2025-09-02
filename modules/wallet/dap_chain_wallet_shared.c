@@ -999,7 +999,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-to_addr", &l_addr_str);
     if (!l_addr_str) {
-        DAP_DELETE(l_enc_key);
+        dap_enc_key_delete(l_enc_key);
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -to_addr");
         return ERROR_PARAM;
     }
@@ -1009,6 +1009,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
 
     if (l_addr_el_count != l_value_el_count) {
         DAP_DELETE(l_to_addr);
+        dap_enc_key_delete(l_enc_key);
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "num of '-to_addr' and '-value' should be equal");
         return ERROR_VALUE;
     }
@@ -1016,11 +1017,15 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     l_value = DAP_NEW_Z_COUNT(uint256_t, l_value_el_count);
     if (!l_value) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, c_error_memory_alloc);
+        DAP_DELETE(l_to_addr);
+        dap_enc_key_delete(l_enc_key);
         return ERROR_MEMORY;
     }
     char **l_value_array = dap_strsplit(l_value_str, ",", l_value_el_count);
     if (!l_value_array) {
         DAP_DELETE(l_value);
+        DAP_DELETE(l_to_addr);
+        dap_enc_key_delete(l_enc_key);
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Can't read '-to_addr' arg");
         return ERROR_PARAM;
     }
@@ -1028,7 +1033,9 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
         l_value[i] = dap_chain_balance_scan(l_value_array[i]);
         if(IS_ZERO_256(l_value[i])) {
             DAP_DELETE(l_value);
+            DAP_DELETE(l_to_addr);
             dap_strfreev(l_value_array);
+            dap_enc_key_delete(l_enc_key);
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -value <256 bit integer> and not equal zero");
             return ERROR_VALUE;
         }
@@ -1038,7 +1045,8 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
     // Create emission from conditional transaction
     
     dap_chain_datum_tx_t *l_tx = dap_chain_wallet_shared_taking_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_to_addr, l_value, l_addr_el_count, l_fee, &l_tx_in_hash, l_tsd_list);
-    DAP_DEL_MULTY(l_value, l_to_addr, l_enc_key);
+    DAP_DEL_MULTY(l_value, l_to_addr);
+    dap_enc_key_delete(l_enc_key);
     dap_list_free_full(l_tsd_list, NULL);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for shared funds");
