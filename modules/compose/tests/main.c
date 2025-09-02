@@ -293,22 +293,52 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->value_fee._lo.a = 0;
     s_data->value_fee._lo.b = rand() % 1000;
     
+    dap_test_msg("Test 1: Testing compose ordinary transactions");
     s_chain_datum_tx_create_test();
+    dap_pass_msg("OK");
+    dap_test_msg("Test 2: Testing compose cond transactions");
     s_chain_datum_cond_create_test();
+    dap_pass_msg("OK");
+    dap_test_msg("Test 3: Testing compose stake lock transactions");
     s_chain_datum_stake_lock_test();
+    dap_pass_msg("OK");
+    dap_test_msg("Test 4: Testing compose delegate transactions");
     s_chain_datum_delegate_test();
+    dap_pass_msg("OK");
+    dap_test_msg("Test 5: Testing compose stake unlock transactions");
     s_chain_datum_stake_unlock_test();
+    dap_pass_msg("OK");
+    dap_test_msg("Test 6: Testing compose stake invalidate transactions");
     s_chain_datum_stake_invalidate_test();
+    dap_pass_msg("OK");
+    dap_test_msg("Test 7: Testing compose exchange create transactions");
     s_chain_datum_exchange_create_test();
+    dap_pass_msg("OK");
+    dap_test_msg("Test 8: Testing compose exchange purchase transactions with delegate");
     s_chain_datum_exchange_purchase_test(s_ticker_native, s_ticker_delegate);
+    dap_pass_msg("OK");
+    dap_test_msg("Test 9: Testing compose exchange purchase transactions with native token");
     s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_native);
+    dap_pass_msg("OK");
+    dap_test_msg("Test 10: Testing compose exchange purchase transactions with custom token");
     s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_custom);
+    dap_pass_msg("OK");
+    dap_test_msg("Test 11: Testing compose exchange invalidate transactions with delegate");
     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
+    dap_pass_msg("OK");
+    dap_test_msg("Test 12: Testing compose exchange invalidate transactions with native token");
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
+    dap_pass_msg("OK");
+    dap_test_msg("Test 13: Testing compose exchange invalidate transactions with custom token");
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
+    dap_pass_msg("OK");
+    dap_test_msg("Test 14: Testing compose poll create transactions");
     s_chain_datum_vote_create_test();
+    dap_pass_msg("OK");
+    dap_test_msg("Test 15: Testing compose poll vote transactions");
     s_chain_datum_vote_voting_test();
-
+    dap_pass_msg("OK");
+    
     if (s_data->config.response_handler) {
         json_object_put(s_data->config.response_handler);
     }

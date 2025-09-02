@@ -1991,9 +1991,7 @@ void dap_auctions_test_verificators(void)
     generate_test_hash(3001, &l_project_hash);
     
     // Simulate updater adding bid to cache (simplified for testing)
-    uint256_t l_bid_amount_256;
-    l_bid_amount_256.hi = 0;
-    l_bid_amount_256.lo = l_bid_cond->bid_amount;
+    uint256_t l_bid_amount_256 = GET_256_FROM_64(l_bid_cond->bid_amount);
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_tx_hash, 
                                        &l_bidder_addr, l_bid_amount_256, 
                                        l_bid_cond->lock_time, &l_project_hash, "Test Project");
@@ -2439,9 +2437,7 @@ void dap_auctions_test_error_handling(void)
     memset(&l_bid_hash, 0x03, sizeof(l_bid_hash));
     memset(&l_project_hash, 0x04, sizeof(l_project_hash));
     
-    uint256_t l_bid_amount;
-    l_bid_amount.hi = 0;
-    l_bid_amount.lo = 1000000;
+    uint256_t l_bid_amount = GET_256_FROM_64(1000000);
     
     // This may succeed or fail, but should handle gracefully
     int l_bid_result = dap_auction_cache_add_bid(l_cache, &l_test_hash, &l_bid_hash, 
@@ -2726,8 +2722,7 @@ void dap_auctions_test_thread_safety(void)
         l_bid_hash.raw[0] = 0x60 + i; // Unique bid hash
         l_project_hash.raw[0] = 0x70 + i; // Unique project hash
         *(uint8_t*)&l_bidder_addr = 0x80 + i; // Unique bidder addr
-        l_bid_amount.hi = 0;
-        l_bid_amount.lo = 1000000 + i * 100000;
+        l_bid_amount = GET_256_FROM_64(1000000 + i * 100000);
         
         // Simulate thread adding bid
         int l_bid_result = dap_auction_cache_add_bid(l_cache, &l_bid_auction_hash, &l_bid_hash, 
