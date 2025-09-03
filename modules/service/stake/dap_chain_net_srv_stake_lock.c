@@ -82,6 +82,119 @@ enum error_code {
     FEE_FORMAT_ERROR            = 43,
 };
 
+// Unified error code system for consistent error handling
+#define DAP_STAKE_ERROR_BASE -2000
+
+typedef enum dap_stake_error {
+    DAP_STAKE_ERROR_NONE = 0,
+
+    // General errors
+    DAP_STAKE_ERROR_INVALID_ARGUMENT = DAP_STAKE_ERROR_BASE - 1,
+    DAP_STAKE_ERROR_OUT_OF_MEMORY = DAP_STAKE_ERROR_BASE - 2,
+    DAP_STAKE_ERROR_NULL_POINTER = DAP_STAKE_ERROR_BASE - 3,
+    DAP_STAKE_ERROR_INVALID_STATE = DAP_STAKE_ERROR_BASE - 4,
+
+    // Network and configuration errors
+    DAP_STAKE_ERROR_NETWORK_INVALID = DAP_STAKE_ERROR_BASE - 100,
+    DAP_STAKE_ERROR_NETWORK_NOT_FOUND = DAP_STAKE_ERROR_BASE - 101,
+    DAP_STAKE_ERROR_CONFIG_INVALID = DAP_STAKE_ERROR_BASE - 102,
+
+    // Token and coin errors
+    DAP_STAKE_ERROR_TOKEN_INVALID = DAP_STAKE_ERROR_BASE - 200,
+    DAP_STAKE_ERROR_TOKEN_NOT_FOUND = DAP_STAKE_ERROR_BASE - 201,
+    DAP_STAKE_ERROR_COINS_INVALID_FORMAT = DAP_STAKE_ERROR_BASE - 202,
+    DAP_STAKE_ERROR_INSUFFICIENT_FUNDS = DAP_STAKE_ERROR_BASE - 203,
+
+    // Address and wallet errors
+    DAP_STAKE_ERROR_ADDRESS_INVALID = DAP_STAKE_ERROR_BASE - 300,
+    DAP_STAKE_ERROR_WALLET_NOT_FOUND = DAP_STAKE_ERROR_BASE - 301,
+    DAP_STAKE_ERROR_WALLET_ACCESS_DENIED = DAP_STAKE_ERROR_BASE - 302,
+    DAP_STAKE_ERROR_CERTIFICATE_INVALID = DAP_STAKE_ERROR_BASE - 303,
+
+    // Transaction errors
+    DAP_STAKE_ERROR_TRANSACTION_INVALID = DAP_STAKE_ERROR_BASE - 400,
+    DAP_STAKE_ERROR_TRANSACTION_NOT_FOUND = DAP_STAKE_ERROR_BASE - 401,
+    DAP_STAKE_ERROR_TRANSACTION_ALREADY_USED = DAP_STAKE_ERROR_BASE - 402,
+    DAP_STAKE_ERROR_TRANSACTION_CREATE_FAILED = DAP_STAKE_ERROR_BASE - 403,
+
+    // Time and staking specific errors
+    DAP_STAKE_ERROR_TIME_INVALID = DAP_STAKE_ERROR_BASE - 500,
+    DAP_STAKE_ERROR_TIME_TOO_EARLY = DAP_STAKE_ERROR_BASE - 501,
+    DAP_STAKE_ERROR_TIME_TOO_LATE = DAP_STAKE_ERROR_BASE - 502,
+    DAP_STAKE_ERROR_STAKE_INVALID = DAP_STAKE_ERROR_BASE - 503,
+
+    // Arithmetic and calculation errors
+    DAP_STAKE_ERROR_CALCULATION_OVERFLOW = DAP_STAKE_ERROR_BASE - 600,
+    DAP_STAKE_ERROR_CALCULATION_UNDERFLOW = DAP_STAKE_ERROR_BASE - 601,
+    DAP_STAKE_ERROR_CALCULATION_INVALID = DAP_STAKE_ERROR_BASE - 602,
+
+    // Security and cryptographic errors
+    DAP_STAKE_ERROR_SIGNATURE_INVALID = DAP_STAKE_ERROR_BASE - 700,
+    DAP_STAKE_ERROR_SIGNATURE_MISMATCH = DAP_STAKE_ERROR_BASE - 701,
+    DAP_STAKE_ERROR_KEY_INVALID = DAP_STAKE_ERROR_BASE - 702,
+    DAP_STAKE_ERROR_ENCRYPTION_FAILED = DAP_STAKE_ERROR_BASE - 703,
+
+    // Ledger and consensus errors
+    DAP_STAKE_ERROR_LEDGER_UPDATE_FAILED = DAP_STAKE_ERROR_BASE - 800,
+    DAP_STAKE_ERROR_CONSENSUS_REJECTED = DAP_STAKE_ERROR_BASE - 801,
+    DAP_STAKE_ERROR_DOUBLE_SPENDING = DAP_STAKE_ERROR_BASE - 802
+} dap_stake_error_t;
+
+// Error context for detailed error reporting
+typedef struct dap_stake_error_info {
+    dap_stake_error_t code;
+    const char *message;
+    const char *function;
+    int line;
+    void *context_data;
+} dap_stake_error_info_t;
+
+// Helper functions for error handling
+static inline void s_stake_log_error(dap_stake_error_t error_code, const char *context) {
+    const char *error_messages[] = {
+        [DAP_STAKE_ERROR_NONE] = "No error",
+        [DAP_STAKE_ERROR_INVALID_ARGUMENT] = "Invalid argument provided",
+        [DAP_STAKE_ERROR_OUT_OF_MEMORY] = "Out of memory",
+        [DAP_STAKE_ERROR_NULL_POINTER] = "Null pointer encountered",
+        [DAP_STAKE_ERROR_INVALID_STATE] = "Invalid system state",
+        [DAP_STAKE_ERROR_NETWORK_INVALID] = "Invalid network configuration",
+        [DAP_STAKE_ERROR_NETWORK_NOT_FOUND] = "Network not found",
+        [DAP_STAKE_ERROR_CONFIG_INVALID] = "Invalid configuration",
+        [DAP_STAKE_ERROR_TOKEN_INVALID] = "Invalid token",
+        [DAP_STAKE_ERROR_TOKEN_NOT_FOUND] = "Token not found",
+        [DAP_STAKE_ERROR_COINS_INVALID_FORMAT] = "Invalid coin format",
+        [DAP_STAKE_ERROR_INSUFFICIENT_FUNDS] = "Insufficient funds",
+        [DAP_STAKE_ERROR_ADDRESS_INVALID] = "Invalid address",
+        [DAP_STAKE_ERROR_WALLET_NOT_FOUND] = "Wallet not found",
+        [DAP_STAKE_ERROR_WALLET_ACCESS_DENIED] = "Wallet access denied",
+        [DAP_STAKE_ERROR_CERTIFICATE_INVALID] = "Invalid certificate",
+        [DAP_STAKE_ERROR_TRANSACTION_INVALID] = "Invalid transaction",
+        [DAP_STAKE_ERROR_TRANSACTION_NOT_FOUND] = "Transaction not found",
+        [DAP_STAKE_ERROR_TRANSACTION_ALREADY_USED] = "Transaction already used",
+        [DAP_STAKE_ERROR_TRANSACTION_CREATE_FAILED] = "Transaction creation failed",
+        [DAP_STAKE_ERROR_TIME_INVALID] = "Invalid time",
+        [DAP_STAKE_ERROR_TIME_TOO_EARLY] = "Time too early",
+        [DAP_STAKE_ERROR_TIME_TOO_LATE] = "Time too late",
+        [DAP_STAKE_ERROR_STAKE_INVALID] = "Invalid stake",
+        [DAP_STAKE_ERROR_CALCULATION_OVERFLOW] = "Calculation overflow",
+        [DAP_STAKE_ERROR_CALCULATION_UNDERFLOW] = "Calculation underflow",
+        [DAP_STAKE_ERROR_CALCULATION_INVALID] = "Invalid calculation",
+        [DAP_STAKE_ERROR_SIGNATURE_INVALID] = "Invalid signature",
+        [DAP_STAKE_ERROR_SIGNATURE_MISMATCH] = "Signature mismatch",
+        [DAP_STAKE_ERROR_KEY_INVALID] = "Invalid key",
+        [DAP_STAKE_ERROR_ENCRYPTION_FAILED] = "Encryption failed",
+        [DAP_STAKE_ERROR_LEDGER_UPDATE_FAILED] = "Ledger update failed",
+        [DAP_STAKE_ERROR_CONSENSUS_REJECTED] = "Consensus rejected",
+        [DAP_STAKE_ERROR_DOUBLE_SPENDING] = "Double spending detected"
+    };
+
+    const char *message = (error_code >= 0 && error_code < sizeof(error_messages)/sizeof(error_messages[0]))
+        ? error_messages[error_code]
+        : "Unknown error";
+
+    log_it(L_ERROR, "Stake error %d (%s): %s", error_code, context, message);
+}
+
 typedef struct dap_ledger_token_emission_for_stake_lock_item {
     dap_chain_hash_fast_t	datum_token_emission_for_stake_lock_hash;
     dap_chain_hash_fast_t	tx_used_out;
@@ -567,6 +680,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
     if (NULL == (l_owner_key = dap_chain_wallet_get_key(l_wallet, 0))) {
         dap_chain_wallet_close(l_wallet);
+        s_stake_log_error(DAP_STAKE_ERROR_KEY_INVALID, "get wallet key");
         return OWNER_KEY_ERROR;
     }
 
@@ -579,42 +693,42 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         l_owner_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sign);
     // CRITICAL: Enhanced signature validation to prevent forgery
     if (!l_owner_sign) {
-        log_it(L_ERROR, "No signature found in transaction");
+        s_stake_log_error(DAP_STAKE_ERROR_SIGNATURE_INVALID, "signature validation");
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         DAP_DELETE(l_owner_pkey);
         return OWNER_KEY_ERROR;
     }
-    if (l_owner_pkey_size == 0 ) { 
-        log_it(L_ERROR, "Invalid public key size: %zu", l_owner_pkey_size);
+    if (l_owner_pkey_size == 0 ) {
+        s_stake_log_error(DAP_STAKE_ERROR_KEY_INVALID, "public key size validation");
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         DAP_DELETE(l_owner_pkey);
         return OWNER_KEY_ERROR;
     }
-    if (l_owner_sign->header.sign_pkey_size == 0 ) { 
-        log_it(L_ERROR, "Invalid signature public key size: %u", l_owner_sign->header.sign_pkey_size);
+    if (l_owner_sign->header.sign_pkey_size == 0 ) {
+        s_stake_log_error(DAP_STAKE_ERROR_SIGNATURE_INVALID, "signature key size validation");
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         DAP_DELETE(l_owner_pkey);
         return OWNER_KEY_ERROR;
     }
     if (l_owner_pkey_size != l_owner_sign->header.sign_pkey_size) {
-        log_it(L_ERROR, "Public key size mismatch: %zu vs %u", l_owner_pkey_size, l_owner_sign->header.sign_pkey_size);
+        s_stake_log_error(DAP_STAKE_ERROR_SIGNATURE_MISMATCH, "key size mismatch");
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         DAP_DELETE(l_owner_pkey);
         return OWNER_KEY_ERROR;
     }
     if (!l_owner_sign->pkey_n_sign || !l_owner_pkey) {
-        log_it(L_ERROR, "Null pointer in signature or public key data");
+        s_stake_log_error(DAP_STAKE_ERROR_NULL_POINTER, "signature data validation");
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         DAP_DELETE(l_owner_pkey);
         return OWNER_KEY_ERROR;
     }
     if (memcmp(l_owner_sign->pkey_n_sign, l_owner_pkey, l_owner_pkey_size) != 0) {
-        log_it(L_ERROR, "Public key mismatch in signature validation");
+        s_stake_log_error(DAP_STAKE_ERROR_SIGNATURE_MISMATCH, "signature validation");
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         DAP_DELETE(l_owner_pkey);
