@@ -2074,8 +2074,12 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                                     l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
                                     l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
                                     l_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
-                                    MULT_256_256(l_tax, GET_256_FROM_64(100), &l_tax);
-                                    l_error = false;
+                                    if (MULT_256_256(l_tax, GET_256_FROM_64(100), &l_tax)) {
+                                        log_it(L_ERROR, "Tax calculation multiplication overflow");
+                                        l_error = true;
+                                    } else {
+                                        l_error = false;
+                                    }
                                 }
                             }
                         }                   
@@ -2286,7 +2290,11 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             l_sovereign_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
             l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
             l_sovereign_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
-            MULT_256_256(l_sovereign_tax, GET_256_FROM_64(100), &l_sovereign_tax);
+            if (MULT_256_256(l_sovereign_tax, GET_256_FROM_64(100), &l_sovereign_tax)) {
+                log_it(L_ERROR, "Sovereign tax calculation multiplication overflow");
+                DAP_DEL_MULTY(l_order, l_pkey);
+                return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_COND_TX_NO_ADDR_OR_KEY_ERR;
+            }
 #if EXTENDED_SRV_DEBUG
             {
                 char *l_tax_str = dap_chain_balance_to_coins(l_sovereign_tax);
@@ -2897,14 +2905,20 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     char *l_balance = dap_chain_balance_to_coins(a_stake->locked_value);
     char *l_effective_weight = dap_chain_balance_to_coins(a_stake->value);
     uint256_t l_rel_weight, l_tmp;
-    MULT_256_256(a_stake->value, GET_256_FROM_64(100), &l_tmp);
+    if (MULT_256_256(a_stake->value, GET_256_FROM_64(100), &l_tmp)) {
+        log_it(L_ERROR, "Stake value multiplication overflow in print function");
+        return;
+    }
     DIV_256_COIN(l_tmp, a_total_weight, &l_rel_weight);
     char *l_rel_weight_str = dap_chain_balance_to_coins(l_rel_weight);
         // snprintf(l_active_str, 32, "\tActive: %s\n", a_stake->is_active ? "true" : "false");
     const char *l_sov_addr_str = dap_chain_addr_is_blank(&a_stake->sovereign_addr) ?
                 "null" : dap_chain_addr_to_str_static(&a_stake->sovereign_addr);
     uint256_t l_sov_tax_percent = uint256_0;
-    MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent);
+    if (MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent)) {
+        log_it(L_ERROR, "Sovereign tax percent multiplication overflow in print function");
+        return;
+    }
     char *l_sov_tax_str = dap_chain_balance_to_coins(l_sov_tax_percent);
     char l_node_addr[32];
     snprintf(l_node_addr, 32, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
@@ -3466,7 +3480,11 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
                 uint256_t l_percent_max = dap_chain_net_srv_stake_get_percent_max(l_net->pub.id);
                 const char *l_percent_max_str = NULL;
                 if (!IS_ZERO_256(l_percent_max)) {
-                    MULT_256_256(l_percent_max, GET_256_FROM_64(100), &l_percent_max);
+                    if (MULT_256_256(l_percent_max, GET_256_FROM_64(100), &l_percent_max)) {
+                        log_it(L_ERROR, "Percent max multiplication overflow");
+                        json_object_put(l_json_obj_keys_count);
+                        return;
+                    }
                     dap_uint256_to_char(l_percent_max, &l_percent_max_str);
                 }
                 json_object_object_add(l_json_obj_keys_count, "each_validator_max_related_weight", json_object_new_string(IS_ZERO_256(l_percent_max) ? "100" : l_percent_max_str));
