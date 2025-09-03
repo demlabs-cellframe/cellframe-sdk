@@ -112,6 +112,234 @@ static dap_list_t *s_srv_stake_list = NULL;
 
 static bool s_debug_more = false;
 
+// Centralized stake configuration structure
+typedef struct dap_stake_config {
+    bool debug_mode;
+    uint256_t min_delegation_amount;
+    uint256_t max_tax_rate;
+    uint64_t weight_limit_delta;
+    uint32_t max_orders_per_validator;
+    uint32_t max_stake_age_days;
+    char *default_ticker;
+    double emergency_stop_threshold;
+    bool enable_transaction_logging;
+    uint32_t max_concurrent_stakes;
+} dap_stake_config_t;
+
+// Default configuration values
+#define DAP_STAKE_CONFIG_DEFAULT_MIN_DELEGATION "1.0"
+#define DAP_STAKE_CONFIG_DEFAULT_MAX_TAX_RATE "100.0"
+#define DAP_STAKE_CONFIG_DEFAULT_WEIGHT_DELTA 1000000000000ULL
+#define DAP_STAKE_CONFIG_DEFAULT_MAX_ORDERS 1000
+#define DAP_STAKE_CONFIG_DEFAULT_MAX_AGE_DAYS 365
+#define DAP_STAKE_CONFIG_DEFAULT_EMERGENCY_THRESHOLD 0.95
+#define DAP_STAKE_CONFIG_DEFAULT_MAX_CONCURRENT 10000
+
+// Configuration validation functions
+static int s_validate_stake_config_value(const char *a_value_str, const char *a_param_name,
+                                       double a_min, double a_max) {
+    if (!a_value_str || !a_param_name) {
+        log_it(L_ERROR, "NULL parameter in config validation");
+        return -1;
+    }
+
+    // Check for malicious characters
+    for (size_t i = 0; a_value_str[i]; i++) {
+        char c = a_value_str[i];
+        if (!isdigit(c) && c != '.' && c != '-' && c != '+') {
+            log_it(L_ERROR, "Invalid character '%c' in %s configuration", c, a_param_name);
+            return -2;
+        }
+    }
+
+    char *endptr;
+    double value = strtod(a_value_str, &endptr);
+
+    if (*endptr != '\0') {
+        log_it(L_ERROR, "Invalid number format in %s: %s", a_param_name, a_value_str);
+        return -3;
+    }
+
+    if (value < a_min || value > a_max) {
+        log_it(L_ERROR, "%s value %.2f out of range [%.2f, %.2f]",
+               a_param_name, value, a_min, a_max);
+        return -4;
+    }
+
+    return 0;
+}
+
+static int s_validate_stake_config_uint(const char *a_value_str, const char *a_param_name,
+                                      uint64_t a_min, uint64_t a_max) {
+    if (!a_value_str || !a_param_name) {
+        log_it(L_ERROR, "NULL parameter in uint config validation");
+        return -1;
+    }
+
+    char *endptr;
+    uint64_t value = strtoull(a_value_str, &endptr, 10);
+
+    if (*endptr != '\0') {
+        log_it(L_ERROR, "Invalid unsigned integer format in %s: %s", a_param_name, a_value_str);
+        return -2;
+    }
+
+    if (value < a_min || value > a_max) {
+        log_it(L_ERROR, "%s value %llu out of range [%llu, %llu]",
+               a_param_name, value, a_min, a_max);
+        return -3;
+    }
+
+    return 0;
+}
+
+// Load and validate stake configuration
+static int s_load_stake_config(dap_config_t *a_config, dap_stake_config_t *a_stake_config) {
+    if (!a_config || !a_stake_config) {
+        log_it(L_ERROR, "NULL config or stake config in load function");
+        return DAP_STAKE_ERROR_NULL_POINTER;
+    }
+
+    // Load with validation - debug mode
+    a_stake_config->debug_mode = dap_config_get_item_bool_default(a_config, "stake", "debug_more", false);
+
+    // Load and validate min delegation amount
+    const char *min_delegation_str = dap_config_get_item_str_default(a_config, "stake", "min_delegation",
+                                                                   DAP_STAKE_CONFIG_DEFAULT_MIN_DELEGATION);
+    if (s_validate_stake_config_value(min_delegation_str, "min_delegation", 0.0, 1000000.0) != 0) {
+        a_stake_config->min_delegation_amount = dap_chain_balance_coins_scan(DAP_STAKE_CONFIG_DEFAULT_MIN_DELEGATION);
+        log_it(L_WARNING, "Using default min_delegation_amount due to invalid config");
+    } else {
+        a_stake_config->min_delegation_amount = dap_chain_balance_coins_scan(min_delegation_str);
+    }
+
+    // Load and validate max tax rate
+    const char *max_tax_str = dap_config_get_item_str_default(a_config, "stake", "max_tax_rate",
+                                                            DAP_STAKE_CONFIG_DEFAULT_MAX_TAX_RATE);
+    if (s_validate_stake_config_value(max_tax_str, "max_tax_rate", 0.0, 100.0) != 0) {
+        a_stake_config->max_tax_rate = dap_chain_balance_coins_scan(DAP_STAKE_CONFIG_DEFAULT_MAX_TAX_RATE);
+        log_it(L_WARNING, "Using default max_tax_rate due to invalid config");
+    } else {
+        a_stake_config->max_tax_rate = dap_chain_balance_coins_scan(max_tax_str);
+    }
+
+    // Load and validate weight limit delta
+    const char *weight_delta_str = dap_config_get_item_str_default(a_config, "stake", "weight_limit_delta",
+                                                                 "1000000000000");
+    if (s_validate_stake_config_uint(weight_delta_str, "weight_limit_delta", 1, UINT64_MAX) != 0) {
+        a_stake_config->weight_limit_delta = DAP_STAKE_CONFIG_DEFAULT_WEIGHT_DELTA;
+        log_it(L_WARNING, "Using default weight_limit_delta due to invalid config");
+    } else {
+        a_stake_config->weight_limit_delta = strtoull(weight_delta_str, NULL, 10);
+    }
+
+    // Load and validate max orders per validator
+    const char *max_orders_str = dap_config_get_item_str_default(a_config, "stake", "max_orders_per_validator",
+                                                               "1000");
+    if (s_validate_stake_config_uint(max_orders_str, "max_orders_per_validator", 1, 10000) != 0) {
+        a_stake_config->max_orders_per_validator = DAP_STAKE_CONFIG_DEFAULT_MAX_ORDERS;
+        log_it(L_WARNING, "Using default max_orders_per_validator due to invalid config");
+    } else {
+        a_stake_config->max_orders_per_validator = strtoul(max_orders_str, NULL, 10);
+    }
+
+    // Load and validate max stake age
+    const char *max_age_str = dap_config_get_item_str_default(a_config, "stake", "max_stake_age_days",
+                                                            "365");
+    if (s_validate_stake_config_uint(max_age_str, "max_stake_age_days", 1, 3650) != 0) {
+        a_stake_config->max_stake_age_days = DAP_STAKE_CONFIG_DEFAULT_MAX_AGE_DAYS;
+        log_it(L_WARNING, "Using default max_stake_age_days due to invalid config");
+    } else {
+        a_stake_config->max_stake_age_days = strtoul(max_age_str, NULL, 10);
+    }
+
+    // Load other configuration parameters
+    a_stake_config->emergency_stop_threshold = DAP_STAKE_CONFIG_DEFAULT_EMERGENCY_THRESHOLD;
+    a_stake_config->enable_transaction_logging = dap_config_get_item_bool_default(a_config, "stake", "transaction_logging", true);
+    a_stake_config->max_concurrent_stakes = DAP_STAKE_CONFIG_DEFAULT_MAX_CONCURRENT;
+    a_stake_config->default_ticker = dap_strdup("CELL");
+
+    log_it(L_INFO, "Stake configuration loaded successfully");
+    return 0;
+}
+
+// Validate configuration consistency
+static int s_validate_config_consistency(dap_stake_config_t *a_config) {
+    if (!a_config) {
+        return DAP_STAKE_ERROR_NULL_POINTER;
+    }
+
+    // Check that min delegation is reasonable
+    uint256_t reasonable_max = dap_chain_balance_coins_scan("1000000.0"); // 1M coins
+    if (compare256(a_config->min_delegation_amount, reasonable_max) > 0) {
+        log_it(L_WARNING, "Min delegation amount seems unreasonably high");
+    }
+
+    // Check that max tax rate is within bounds
+    uint256_t hundred = dap_chain_balance_coins_scan("100.0");
+    if (compare256(a_config->max_tax_rate, hundred) > 0) {
+        log_it(L_ERROR, "Max tax rate cannot exceed 100%");
+        return DAP_STAKE_ERROR_CONFIG_INVALID;
+    }
+
+    return 0;
+}
+
+// Global configuration instance
+static dap_stake_config_t *g_stake_config = NULL;
+
+// Initialize stake configuration
+static int s_init_stake_config(dap_config_t *a_config) {
+    if (g_stake_config) {
+        log_it(L_WARNING, "Stake config already initialized");
+        return 0;
+    }
+
+    g_stake_config = DAP_NEW(dap_stake_config_t);
+    if (!g_stake_config) {
+        log_it(L_ERROR, "Failed to allocate stake config");
+        return DAP_STAKE_ERROR_OUT_OF_MEMORY;
+    }
+
+    int result = s_load_stake_config(a_config, g_stake_config);
+    if (result != 0) {
+        DAP_DELETE(g_stake_config);
+        g_stake_config = NULL;
+        return result;
+    }
+
+    result = s_validate_config_consistency(g_stake_config);
+    if (result != 0) {
+        DAP_DELETE(g_stake_config);
+        g_stake_config = NULL;
+        return result;
+    }
+
+    return 0;
+}
+
+// Get stake configuration (with lazy initialization)
+static dap_stake_config_t *s_get_stake_config(void) {
+    if (!g_stake_config) {
+        log_it(L_ERROR, "Stake config not initialized");
+        return NULL;
+    }
+    return g_stake_config;
+}
+
+// Get policy cutoff date (timestamp when old policy rules apply)
+static dap_time_t s_get_policy_cutoff_date(void) {
+    // Default: Jan 26 2024 00:00:00 GMT
+    const char *cutoff_str = dap_config_get_item_str_default(g_config, "stake", "policy_cutoff_date", "1706227200");
+    char *endptr;
+    uint64_t cutoff = strtoull(cutoff_str, &endptr, 10);
+    if (*endptr != '\0' || cutoff == 0) {
+        log_it(L_WARNING, "Invalid policy_cutoff_date configuration, using default");
+        return 1706227200ULL;
+    }
+    return (dap_time_t)cutoff;
+}
+
 static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
     // keydelegation open: have STAK_POS_DELEGATE out
@@ -190,7 +418,22 @@ int dap_chain_net_srv_stake_pos_delegate_init()
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
-    s_debug_more = dap_config_get_item_bool_default(g_config, "stake", "debug_more", s_debug_more);
+
+    // Initialize stake configuration with validation
+    int config_result = s_init_stake_config(g_config);
+    if (config_result != 0) {
+        log_it(L_ERROR, "Failed to initialize stake configuration: %d", config_result);
+        return config_result;
+    }
+
+    // Update legacy debug flag from validated config
+    dap_stake_config_t *config = s_get_stake_config();
+    if (config) {
+        s_debug_more = config->debug_mode;
+    } else {
+        s_debug_more = dap_config_get_item_bool_default(g_config, "stake", "debug_more", false);
+    }
+
     return 0;
 }
 
@@ -355,7 +598,8 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             log_it(L_ERROR, "Blank hash of prev tx in tx_in_cond");
             return -7;
         }
-        if (a_tx_in->header.ts_created < 1706227200) // Jan 26 2024 00:00:00 GMT, old policy rules
+        dap_time_t policy_cutoff = s_get_policy_cutoff_date();
+        if (a_tx_in->header.ts_created < policy_cutoff) // Old policy rules before cutoff date
             return 0;
         dap_chain_net_srv_stake_item_t *l_stake = NULL;
         HASH_FIND(ht, l_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);
@@ -407,7 +651,12 @@ static bool s_srv_stake_is_poa_cert(dap_chain_net_t *a_net, dap_enc_key_t *a_key
     return l_is_poa_cert;
 }
 
-#define LIMIT_DELTA UINT64_C(1000000000000) // 1.0e-6
+// Get weight limit delta from configuration or use default
+static uint64_t s_get_weight_limit_delta(void) {
+    dap_stake_config_t *config = s_get_stake_config();
+    return config ? config->weight_limit_delta : DAP_STAKE_CONFIG_DEFAULT_WEIGHT_DELTA;
+}
+
 static bool s_weights_truncate(dap_chain_net_srv_stake_t *l_srv_stake, const uint256_t a_limit)
 {
     uint256_t l_sum = uint256_0;
@@ -419,7 +668,8 @@ static bool s_weights_truncate(dap_chain_net_srv_stake_t *l_srv_stake, const uin
     uint256_t l_sum_others = l_sum;
     for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next) {
         uint256_t l_weight_with_delta;
-        SUBTRACT_256_256(it->value, GET_256_FROM_64(LIMIT_DELTA), &l_weight_with_delta);
+        uint64_t weight_delta = s_get_weight_limit_delta();
+        SUBTRACT_256_256(it->value, GET_256_FROM_64(weight_delta), &l_weight_with_delta);
         if (compare256(l_weight_with_delta, l_weight_max) == 1) {
             SUBTRACT_256_256(l_sum_others, it->value, &l_sum_others);
             it->value = uint256_0;
@@ -438,7 +688,6 @@ static bool s_weights_truncate(dap_chain_net_srv_stake_t *l_srv_stake, const uin
     }
     return l_exceeds_count;
 }
-#undef LIMIT_DELTA
 
 static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id)
 {
