@@ -582,14 +582,14 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         DAP_DELETE(l_owner_pkey);
         return OWNER_KEY_ERROR;
     }
-    if (l_owner_pkey_size == 0 || l_owner_pkey_size > 8192) { // Max reasonable public key size
+    if (l_owner_pkey_size == 0 ) { 
         log_it(L_ERROR, "Invalid public key size: %zu", l_owner_pkey_size);
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         DAP_DELETE(l_owner_pkey);
         return OWNER_KEY_ERROR;
     }
-    if (l_owner_sign->header.sign_pkey_size == 0 || l_owner_sign->header.sign_pkey_size > 8192) { // Max reasonable public key size
+    if (l_owner_sign->header.sign_pkey_size == 0 ) { 
         log_it(L_ERROR, "Invalid signature public key size: %u", l_owner_sign->header.sign_pkey_size);
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
@@ -618,8 +618,9 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         return OWNER_KEY_ERROR;
     }
     DAP_DELETE(l_owner_pkey);
+    // CRITICAL: Use blockchain time instead of system time to prevent time manipulation attacks
     if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME &&
-            l_tx_out_cond->subtype.srv_stake_lock.time_unlock > dap_time_now()) {
+            l_tx_out_cond->subtype.srv_stake_lock.time_unlock > dap_ledger_get_blockchain_time(l_ledger)) {
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         return NOT_ENOUGH_TIME;
