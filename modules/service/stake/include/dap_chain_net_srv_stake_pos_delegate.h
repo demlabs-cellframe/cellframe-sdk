@@ -28,6 +28,7 @@
 #include "dap_math_ops.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_chain_datum_decree.h"
+#include <pthread.h>
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
@@ -64,6 +65,7 @@ typedef struct dap_chain_net_srv_stake {
     dap_chain_net_srv_stake_item_t *itemlist;
     dap_chain_net_srv_stake_item_t *tx_itemlist;
     dap_chain_net_srv_stake_cache_item_t *cache;
+    pthread_rwlock_t rwlock; // Thread-safe access to hash tables
 } dap_chain_net_srv_stake_t;
 
 

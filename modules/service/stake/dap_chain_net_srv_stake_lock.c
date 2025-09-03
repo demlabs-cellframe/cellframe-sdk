@@ -574,8 +574,44 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
                                                             l_cond_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
     if (l_tx_sign)
         l_owner_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sign);
-    if (!l_owner_sign || l_owner_pkey_size != l_owner_sign->header.sign_pkey_size ||
-            memcmp(l_owner_sign->pkey_n_sign, l_owner_pkey, l_owner_pkey_size)) {
+    // CRITICAL: Enhanced signature validation to prevent forgery
+    if (!l_owner_sign) {
+        log_it(L_ERROR, "No signature found in transaction");
+        dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_owner_key);
+        DAP_DELETE(l_owner_pkey);
+        return OWNER_KEY_ERROR;
+    }
+    if (l_owner_pkey_size == 0 || l_owner_pkey_size > 8192) { // Max reasonable public key size
+        log_it(L_ERROR, "Invalid public key size: %zu", l_owner_pkey_size);
+        dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_owner_key);
+        DAP_DELETE(l_owner_pkey);
+        return OWNER_KEY_ERROR;
+    }
+    if (l_owner_sign->header.sign_pkey_size == 0 || l_owner_sign->header.sign_pkey_size > 8192) { // Max reasonable public key size
+        log_it(L_ERROR, "Invalid signature public key size: %u", l_owner_sign->header.sign_pkey_size);
+        dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_owner_key);
+        DAP_DELETE(l_owner_pkey);
+        return OWNER_KEY_ERROR;
+    }
+    if (l_owner_pkey_size != l_owner_sign->header.sign_pkey_size) {
+        log_it(L_ERROR, "Public key size mismatch: %zu vs %u", l_owner_pkey_size, l_owner_sign->header.sign_pkey_size);
+        dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_owner_key);
+        DAP_DELETE(l_owner_pkey);
+        return OWNER_KEY_ERROR;
+    }
+    if (!l_owner_sign->pkey_n_sign || !l_owner_pkey) {
+        log_it(L_ERROR, "Null pointer in signature or public key data");
+        dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_owner_key);
+        DAP_DELETE(l_owner_pkey);
+        return OWNER_KEY_ERROR;
+    }
+    if (memcmp(l_owner_sign->pkey_n_sign, l_owner_pkey, l_owner_pkey_size) != 0) {
+        log_it(L_ERROR, "Public key mismatch in signature validation");
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
         DAP_DELETE(l_owner_pkey);
@@ -1294,8 +1330,10 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                                                const char *a_delegated_ticker_str, uint256_t a_delegated_value,int *result)
 {
     // check valid param
-    if (!a_net | !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || dap_hash_fast_is_blank(a_stake_tx_hash))
-        *result = -1;
+    if (!a_net || !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || dap_hash_fast_is_blank(a_stake_tx_hash)) {
+        if (result) *result = -1;
+        return NULL;
+    }
 
     const char *l_native_ticker = a_net->pub.native_ticker;
     bool l_main_native = !dap_strcmp(a_main_ticker, l_native_ticker);

@@ -209,6 +209,12 @@ int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
     dap_chain_net_srv_stake_t *l_srv_stake = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_t, -1);
     l_srv_stake->net_id = a_net_id;
     l_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
+    // Initialize thread-safe rwlock for hash table operations
+    if (pthread_rwlock_init(&l_srv_stake->rwlock, NULL) != 0) {
+        log_it(L_ERROR, "Failed to initialize rwlock for stake service");
+        DAP_DELETE(l_srv_stake);
+        return -2;
+    }
     dap_list_t *l_list_last = dap_list_last(s_srv_stake_list);
     s_srv_stake_list = dap_list_append(s_srv_stake_list, l_srv_stake);
     if (l_list_last == dap_list_last(s_srv_stake_list)) {
@@ -243,6 +249,8 @@ static void s_stake_net_clear(dap_chain_net_t *a_net)
         HASH_DEL(l_srv_stake->cache, l_cache_item);
         DAP_DELETE(l_cache_item);
     }
+    // Cleanup thread-safe rwlock
+    pthread_rwlock_destroy(&l_srv_stake->rwlock);
 }
 
 void dap_chain_net_srv_stake_pos_delegate_deinit()
@@ -271,7 +279,12 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             log_it(L_WARNING, "Conditional out and conditional in have different headers");         \
             return -3;                                                                              \
         }                                                                                           \
-        if (l_tx_new_cond->tsd_size < a_cond->tsd_size ||                                          \
+        if (l_tx_new_cond->tsd_size != a_cond->tsd_size) {                                         \
+            log_it(L_WARNING, "Conditional out and conditional in have different TSD sizes: %u vs %u", \
+                   l_tx_new_cond->tsd_size, a_cond->tsd_size);                                     \
+            return -4;                                                                              \
+        }                                                                                           \
+        if (l_tx_new_cond->tsd_size > 0 && l_tx_new_cond->tsd && a_cond->tsd &&                   \
                 memcmp(l_tx_new_cond->tsd, a_cond->tsd, a_cond->tsd_size)) {                        \
             log_it(L_WARNING, "Conditional out and conditional in have different TSD sections");    \
             return -4;                                                                              \
@@ -451,6 +464,12 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     if (!l_srv_stake)
         return log_it(L_ERROR, "Can't delegate key: no stake service found by net id %"DAP_UINT64_FORMAT_U" from address %s",
                                 a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
+    
+    // CRITICAL: Acquire write lock for hash table modifications
+    if (pthread_rwlock_wrlock(&l_srv_stake->rwlock) != 0) {
+        log_it(L_ERROR, "Failed to acquire write lock for stake delegation");
+        return;
+    }
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     bool l_found = false;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
@@ -493,6 +512,9 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
     log_it(L_NOTICE, "Added key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
+    
+    // CRITICAL: Release write lock after hash table modifications
+    pthread_rwlock_unlock(&l_srv_stake->rwlock);
     s_stake_recalculate_weights(a_signing_addr->net_id);
 }
 
@@ -503,11 +525,18 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     if (!l_srv_stake)
         return log_it(L_ERROR, "Can't invalidate key: no stake service found by net id%"DAP_UINT64_FORMAT_U" from address %s",
                                 a_signing_addr->net_id.uint64, dap_chain_addr_to_str_static(a_signing_addr));
+    
+    // CRITICAL: Acquire write lock for hash table modifications
+    if (pthread_rwlock_wrlock(&l_srv_stake->rwlock) != 0) {
+        log_it(L_ERROR, "Failed to acquire write lock for stake invalidation");
+        return;
+    }
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &a_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
-    if (!l_stake)
+    if (!l_stake) {
+        pthread_rwlock_unlock(&l_srv_stake->rwlock);
         return log_it(L_INFO, "No delegated stake found by addr %s to invalidate", dap_chain_addr_to_str_static(a_signing_addr));
-    dap_return_if_fail(l_stake);
+    }
     dap_chain_esbocs_remove_validator_from_clusters(l_stake->signing_addr.net_id, &l_stake->node_addr);
     HASH_DEL(l_srv_stake->itemlist, l_stake);
     HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
@@ -515,6 +544,9 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     log_it(L_NOTICE, "Removed key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
     DAP_DELETE(l_stake);
+    
+    // CRITICAL: Release write lock after hash table modifications
+    pthread_rwlock_unlock(&l_srv_stake->rwlock);
     s_stake_recalculate_weights(a_signing_addr->net_id);
 }
 
