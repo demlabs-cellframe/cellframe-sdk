@@ -415,7 +415,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
-        CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST
+        CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST, CMD_CLEAN
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -436,6 +436,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             cmd_name = CMD_GET_KEYS;
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "group_list", NULL))
             cmd_name = CMD_GROUP_LIST;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "clean", NULL))
+            cmd_name = CMD_CLEAN;
 
     switch (cmd_name) {
     case CMD_FLUSH:
@@ -696,54 +698,24 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-key", &l_key_str);
 
-        if(!l_group_str) {
+        if(!l_group_str || !l_key_str) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,
-                                            "%s requires parameter 'group' to be valid", a_argv[0]);
+                                            "%s requires parameter 'group' and 'key' to be valid", a_argv[0]);
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
 
-        if(!l_key_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_KEY_PROVIDED,
-                                            "No key provided, entire table %s will be altered", l_group_str);
-
-            size_t l_objs_count = 0;
-            dap_global_db_obj_t* l_obj = dap_global_db_get_all_sync(l_group_str, &l_objs_count);
-
-            if (!l_obj || !l_objs_count)
-            {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP,
-                                            "No data in group %s.", l_group_str);
+        if (!dap_global_db_driver_is(l_group_str, l_key_str)) {
+                dap_json_rpc_error_add(*a_json_arr_reply, -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP,
+                                            "Key %s not found in group %s", l_key_str, l_group_str);
                 return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_NO_DATA_IN_GROUP;
-            }
-            size_t i, j = 0;
-            for (i = 0; i < l_objs_count; ++i) {
-                if (!l_obj[i].key)
-                    continue;
-                if (dap_global_db_group_match_mask(l_group_str, "local.*")) {
-                    dap_store_obj_t* l_read_obj = dap_global_db_get_raw_sync(l_group_str, l_obj[i].key);
-                    if (!dap_global_db_driver_delete(l_read_obj, 1)) {
-                        ++j;
-                    }
-                } else {
-                    if (!dap_global_db_del_sync(l_group_str, l_obj[i].key)) {
-                        ++j;
-                    }
-                }
-            }
-            dap_global_db_objs_delete(l_obj, l_objs_count);
-            json_object* json_obj_del = json_object_new_object();
-            json_object_object_add(json_obj_del, a_version == 1 ? "Removed records" : "records_removed",json_object_new_uint64(j));
-            json_object_object_add(json_obj_del, a_version == 1 ? "of records" : "records_total",json_object_new_uint64(i));
-            json_object_object_add(json_obj_del, a_version == 1 ? "in table" : "table",json_object_new_string(l_group_str));
-            json_object_array_add(*a_json_arr_reply, json_obj_del);
-            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         }
 
         bool l_del_success = false;
 
         if (dap_global_db_group_match_mask(l_group_str, "local.*")) {
-            dap_store_obj_t* l_read_obj = dap_global_db_get_raw_sync(l_group_str, l_key_str);
+            dap_store_obj_t *l_read_obj = dap_global_db_get_raw_sync(l_group_str, l_key_str);
             l_del_success = !dap_global_db_driver_delete(l_read_obj, 1);
+            dap_store_obj_free_one(l_read_obj);
         } else {
             l_del_success = !dap_global_db_del_sync(l_group_str, l_key_str);
         }
@@ -839,6 +811,28 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         dap_list_free_full(l_group_list, NULL);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
+    case CMD_CLEAN: {
+        const char *l_group_str = NULL;
+        bool l_pinned = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pinned", NULL);
+        bool l_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
+        if ((!l_all && !l_group_str) || (l_all && l_group_str)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "%s requires parameter 'group' or 'all' to be valid", a_argv[0]);
+            return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
+        }
+        if (l_group_str) {
+            return dap_global_db_group_clean(l_group_str, l_pinned);
+        }
+        if (l_all) {
+            dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
+            for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list)) {
+                dap_global_db_group_clean((const char *)(l_list->data), l_pinned);
+            }
+            dap_list_free_full(l_group_list, NULL);
+            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
+        }
+    }
+    
     default:
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR,"parameters are not valid");
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
