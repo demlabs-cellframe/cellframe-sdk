@@ -975,6 +975,21 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
 
+            /**
+             * Validate mutually exclusive flag groups usage
+             * Groups: {-limit/-offset/-head}, {-from_date/-to_date}, {-from_hash/-to_hash}
+             * Only one group can be used at a time, same as in s_cli_dag
+             */
+            bool l_has_loh = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
+            bool l_has_dates = (l_from_date_str != NULL) || (l_to_date_str != NULL);
+            bool l_has_hashes = (l_from_hash_str != NULL) || (l_to_hash_str != NULL);
+            int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_dates ? 1 : 0) + (l_has_hashes ? 1 : 0);
+            if (l_groups_cnt > 1) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
+                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-from_date/-to_date} or {-from_hash/-to_hash}");
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+            }
+
             if (l_signed_flag && l_first_signed_flag) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Choose only one option from 'singed' and 'first_signed'");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
