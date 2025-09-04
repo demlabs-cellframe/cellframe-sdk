@@ -2072,7 +2072,7 @@ int  json_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_
 
 		printf("________________________________________________________________________________________________________________"
             "__________\n");
-		printf("  Hash \t\t\t\t\t\t\t\t     | Datum type \t| Time create \t\t\t  |\n");
+		printf("  Hash \t\t\t\t\t\t\t\t     | %-22s | %-24s |\n","Datum type", "Time create");
 
 		if (j_arr_datums && json_object_get_type(j_arr_datums) == json_type_array) {
 			int datums_count = json_object_array_length(j_arr_datums);
@@ -2106,14 +2106,14 @@ int  json_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_
 					}
 				}
 
-				printf("  %s | %-16s | %-24s |\n", hash_str, type_str, created_str);
+				printf("  %s | %-22s | %-24s |\n", hash_str, type_str, created_str);
 			}
 		} else {
 			printf("  No datums\n");
 		}
 
 		printf("_____________________________________________________________________"
-            "|__________________|_________________________________|\n\n");
+            "|________________________|__________________________|\n\n");
 
 		if (j_obj_total)
 			printf("  total: %s\n", json_object_get_string(j_obj_total));
@@ -2136,8 +2136,6 @@ int json_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char *
         l_full = true;
     }    
     if (!table_mode) { json_print_object(response->result_json_object, 0); return 0; }
-    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list")||!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "keys"))
-        return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
@@ -2223,9 +2221,7 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
     }
     if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full")) {
         l_full = true;
-    }    
-    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list")||!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "tx"))
-        return -2;
+    }
     if (!table_mode) { json_print_object(response->result_json_object, 0); return 0; }
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
@@ -2483,8 +2479,6 @@ int json_print_for_srv_stake_list(dap_json_rpc_response_t* response, char ** cmd
     if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full")) {
         l_full = true;
     }
-    if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "order")||!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
-        return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
@@ -2622,7 +2616,7 @@ int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_par
         return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
-        if (result_count <= 0) {
+        if (result_count <= 1) {
             printf("Response array is empty\n");
             return -3;
         }
@@ -2979,14 +2973,14 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 			    printf("______________________________________________________________________________________________"
 			    	"_________________________________________________________________________________________________"
 			    	"_________________________\n");
-			    printf("   %-67s | %-31s | %s | %-20s | %-22s | %3s | %-10s | %-10s | %-20s |\n",
+			    printf("   %-67s | %-31s | %s | %-22s | %-22s | %3s | %-10s | %-10s | %-22s |\n",
 			    		"Order hash", "Time create", "Status",
 			    		"Proposed coins","Amount coins","%",
 			    		"Token buy", "Token sell","Rate");
             } else {
                 printf("______________________________________________________________________________________________"
 			    	"_______________________________________________________________________\n");
-			    printf("   %-16s | %-31s | %s | %-20s | %-22s | %3s | %-10s | %-10s | %-20s |\n",
+			    printf("   %-16s | %-31s | %s | %-22s | %-22s | %3s | %-10s | %-10s | %-22s |\n",
 			    		"Order hash", "Time create", "Status",
 			    		"Proposed coins","Amount coins","%",
 			    		"Token buy", "Token sell","Rate");
@@ -3012,10 +3006,23 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 						hash_buffer[15] = '\0';
 						hash_print = hash_buffer;
 					}
-					printf("   %s  | %s | %s | %-20s | %-22s | %3d | %-10s | %-10s | %-20s |\n",
+					/* Prepare 22-char fixed-width prints (always take last 22 chars) */
+					const char *prop_full = json_object_get_string(j_obj_prop_coin);
+					const char *amount_full = json_object_get_string(j_obj_amount_coin);
+					const char *rate_full = json_object_get_string(j_obj_rate);
+					char prop_buf[23];
+					char amount_buf[23];
+					char rate_buf[23];
+					const char *prop_print = prop_full ? prop_full : "-";
+					const char *amount_print = amount_full ? amount_full : "-";
+					const char *rate_print = rate_full ? rate_full : "-";
+					if (prop_print && strlen(prop_print) > 22) { strncpy(prop_buf, prop_print + strlen(prop_print) - 22, 22); prop_buf[22] = '\0'; prop_print = prop_buf; }
+					if (amount_print && strlen(amount_print) > 22) { strncpy(amount_buf, amount_print + strlen(amount_print) - 22, 22); amount_buf[22] = '\0'; amount_print = amount_buf; }
+					if (rate_print && strlen(rate_print) > 22) { strncpy(rate_buf, rate_print + strlen(rate_print) - 22, 22); rate_buf[22] = '\0'; rate_print = rate_buf; }
+					printf("   %s  | %s | %s | %-22s | %-22s | %3d | %-10s | %-10s | %-22s |\n",
 						hash_print, json_object_get_string(j_obj_create), json_object_get_string(j_obj_status),
-						json_object_get_string(j_obj_prop_coin), json_object_get_string(j_obj_amount_coin), (int)json_object_get_uint64(j_obj_filed_perc),
-						json_object_get_string(j_obj_token_buy), json_object_get_string(j_obj_token_sell), json_object_get_string(j_obj_rate));
+						prop_print, amount_print, (int)json_object_get_uint64(j_obj_filed_perc),
+						json_object_get_string(j_obj_token_buy), json_object_get_string(j_obj_token_sell), rate_print);
 					l_print_count++;
 				}
 			}
@@ -3517,17 +3524,6 @@ int json_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_para
                 }
             }
         }
-        json_print_object(response->result_json_object, 0);
-        return 0;
-    }
-
-    // record/get + read just print json
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "record") ||
-        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "read") ||
-        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "write") ||
-        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "delete") ||
-        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "drop_table") ||
-        s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "flush")) {
         json_print_object(response->result_json_object, 0);
         return 0;
     }
