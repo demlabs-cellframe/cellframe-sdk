@@ -600,17 +600,23 @@ void dap_chain_net_srv_stake_pkey_update(dap_chain_net_t *a_net, dap_pkey_t *a_p
 {
     dap_return_if_pass(!a_net || !a_pkey);
     struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
-    if (!l_srv_stake)
-        return log_it(L_ERROR, "Can't update pkey: no stake service found by net id %"DAP_UINT64_FORMAT_U, a_net->pub.id.uint64);
+    if (!l_srv_stake) {
+        log_it(L_ERROR, "Can't update pkey: no stake service found by net id %"DAP_UINT64_FORMAT_U, a_net->pub.id.uint64);
+        return;
+    }
     dap_hash_fast_t l_pkey_hash = {};
     dap_pkey_get_hash(a_pkey, &l_pkey_hash);
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
-    if (!l_stake)
-        return log_it(L_WARNING, "No delegated found to update pkey %s", dap_hash_fast_to_str_static(&l_pkey_hash);
-    if (l_stake->pkey)
-        return log_it(L_INFO, "pkey %s to update already exist", dap_hash_fast_to_str_static(&l_pkey_hash);
-    l_stake->pkey = DAP_DUP_SIZE(a_pkey, dap_pkey_get_size(a_pkey);
+    if (!l_stake) {
+        log_it(L_WARNING, "No delegated found to update pkey %s", dap_hash_fast_to_str_static(&l_pkey_hash));
+        return;
+    }
+    if (l_stake->pkey) {
+        log_it(L_INFO, "pkey %s to update already exist", dap_hash_fast_to_str_static(&l_pkey_hash));
+        return;
+    }
+    l_stake->pkey = DAP_DUP_SIZE(a_pkey, dap_pkey_get_size(a_pkey));
 }
 
 void dap_chain_net_srv_stake_set_allowed_min_value(dap_chain_net_id_t a_net_id, uint256_t a_value)
@@ -4513,4 +4519,5 @@ void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net)
      for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
         if (!dap_hash_fast_is_blank(&it->tx_hash))
             s_stake_add_tx(a_net, it);
- }
+    return;
+}
