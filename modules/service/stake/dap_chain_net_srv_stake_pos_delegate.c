@@ -408,7 +408,10 @@ static bool s_weights_truncate(struct srv_stake *l_srv_stake, const uint256_t a_
 {
     uint256_t l_sum = uint256_0;
     for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
-        SUM_256_256(l_sum, it->value, &l_sum);
+        if (SUM_256_256(l_sum, it->value, &l_sum)) {
+            log_it(L_ERROR, "Arithmetic overflow in weights calculation");
+            return false;
+        }
     uint256_t l_weight_max;
     MULT_256_COIN(l_sum, a_limit, &l_weight_max);
     size_t l_exceeds_count = 0;
@@ -849,7 +852,10 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_enc_
     dap_chain_addr_t l_net_fee_addr;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
-        SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
+        if (SUM_256_256(l_fee_total, l_net_fee, &l_fee_total)) {
+            log_it(L_ERROR, "Fee calculation overflow in stake operation");
+            return NULL;
+        }
 
     dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                             &l_owner_addr, l_fee_total, &l_fee_transfer);
@@ -970,7 +976,10 @@ static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_
     dap_chain_addr_t l_net_fee_addr;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
-        SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
+        if (SUM_256_256(l_fee_total, l_net_fee, &l_fee_total)) {
+            log_it(L_ERROR, "Fee calculation overflow in stake update operation");
+            return NULL;
+        }
     dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                             &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
@@ -1365,7 +1374,10 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     dap_chain_addr_t l_net_fee_addr;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
-        SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
+        if (SUM_256_256(l_fee_total, l_net_fee, &l_fee_total)) {
+            log_it(L_ERROR, "Fee calculation overflow in stake invalidate operation");
+            return NULL;
+        }
     dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                             &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
@@ -3173,9 +3185,15 @@ uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id, 
     for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next) {
         if (it->signing_addr.net_id.uint64 != a_net_id.uint64)
             continue;
-        SUM_256_256(l_total_weight, it->value, &l_total_weight);
+        if (SUM_256_256(l_total_weight, it->value, &l_total_weight)) {
+            log_it(L_ERROR, "Total weight calculation overflow");
+            return uint256_0;
+        }
         if (a_locked_weight)
-            SUM_256_256(*a_locked_weight, it->locked_value, a_locked_weight);
+            if (SUM_256_256(*a_locked_weight, it->locked_value, a_locked_weight)) {
+                log_it(L_ERROR, "Locked weight calculation overflow");
+                return uint256_0;
+            }
     }
     return l_total_weight;
 }
@@ -3882,15 +3900,24 @@ int s_sum_value_reward (dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_t
     for(dap_list_t *it = l_list_out_items; it; it = it->next) {
         if (a_type == TX_ITEM_TYPE_OUT) {
             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)it->data;
-            SUM_256_256(*a_value, l_tx_out->header.value, a_value);
+            if (SUM_256_256(*a_value, l_tx_out->header.value, a_value)) {
+                log_it(L_ERROR, "Value sum calculation overflow in reward processing");
+                return -1;
+            }
         }
         if (a_type == TX_ITEM_TYPE_OUT_EXT) {
             dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)it->data;
-            SUM_256_256(*a_value, l_tx_out->header.value, a_value);
+            if (SUM_256_256(*a_value, l_tx_out->header.value, a_value)) {
+                log_it(L_ERROR, "Value sum calculation overflow in reward processing");
+                return -1;
+            }
         }
         if (a_type == TX_ITEM_TYPE_OUT_STD) {
             dap_chain_tx_out_std_t *l_tx_out = (dap_chain_tx_out_std_t *)it->data;
-            SUM_256_256(*a_value, l_tx_out->value, a_value);
+            if (SUM_256_256(*a_value, l_tx_out->value, a_value)) {
+                log_it(L_ERROR, "Value sum calculation overflow in reward processing");
+                return -1;
+            }
         }
     }
     dap_list_free(l_list_out_items);
@@ -4055,7 +4082,10 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
                                     
                 if (dap_json_object_length(json_obj_sign))
                     dap_json_array_add(json_arr_sign_out, json_obj_sign);                   
-                SUM_256_256(l_value_total_calc, l_value_reward, &l_value_total_calc);
+                if (SUM_256_256(l_value_total_calc, l_value_reward, &l_value_total_calc)) {
+                    log_it(L_ERROR, "Total reward calculation overflow");
+                    return -1;
+                }
                 l_value_reward = uint256_0;
                 dap_json_array_add(json_obj_reward, json_block_hash);
                 dap_json_array_add(json_obj_reward, json_arr_sign_out);                       
@@ -4070,7 +4100,10 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
 
         const char  *l_coins_out_str, *l_value_str;
         dap_json_t* json_value_out = dap_json_object_new();
-        SUM_256_256(l_value_total, l_value_out, &l_value_total);
+        if (SUM_256_256(l_value_total, l_value_out, &l_value_total)) {
+            log_it(L_ERROR, "Value total calculation overflow");
+            return -1;
+        }
         l_value_str = dap_uint256_to_char(l_value_out, &l_coins_out_str);
         dap_json_object_add_string(json_value_out, a_version == 1 ? "Rewards value (tx_out)" : "reward_value_tx_out", l_value_str));
         dap_json_object_add_string(json_value_out, a_version == 1 ? "Rewards coins (tx_out)" : "reward_coins_tx_out", l_coins_out_str));
@@ -4119,7 +4152,10 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         }
         l_order_fee_count++;
         uint256_t t = uint256_0;
-        SUM_256_256(l_order->price, l_average, &t);
+        if (SUM_256_256(l_order->price, l_average, &t)) {
+            log_it(L_ERROR, "Order price average calculation overflow");
+            return NULL;
+        }
         l_average = t;
     }
 

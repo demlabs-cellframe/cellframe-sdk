@@ -1158,9 +1158,17 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
     dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_net->pub.id);
     dap_list_t *l_list_fee_out = NULL;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
-    SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
+    if (SUM_256_256(l_net_fee, a_value_fee, &l_total_fee)) {
+        log_it(L_ERROR, "Fee calculation overflow in stake lock operation");
+        *res = -3;
+        return NULL;
+    }
     if (l_main_native)
-        SUM_256_256(l_value_need, l_total_fee, &l_value_need);
+        if (SUM_256_256(l_value_need, l_total_fee, &l_value_need)) {
+            log_it(L_ERROR, "Value calculation overflow in stake lock operation");
+            *res = -3;
+            return NULL;
+        }
     else if (!IS_ZERO_256(l_total_fee)) {
         l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
@@ -1215,7 +1223,11 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
                                                             DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME |
                                                             DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT);
             if (l_tx_out_cond) {
-                SUM_256_256(l_value_pack, a_value, &l_value_pack);
+                if (SUM_256_256(l_value_pack, a_value, &l_value_pack)) {
+                    log_it(L_ERROR, "Value pack calculation overflow");
+                    *res = -3;
+                    return NULL;
+                }
                 dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out_cond);
                 DAP_DELETE(l_tx_out_cond);
             } else {
@@ -1233,9 +1245,17 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
                     break;
                 }
                 if (l_main_native)
-                    SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+                    if (SUM_256_256(l_value_pack, l_net_fee, &l_value_pack)) {
+                        log_it(L_ERROR, "Network fee pack calculation overflow");
+                        l_err = -3;
+                        break;
+                    }
                 else
-                    SUM_256_256(l_native_pack, l_net_fee, &l_native_pack);
+                    if (SUM_256_256(l_native_pack, l_net_fee, &l_native_pack)) {
+                        log_it(L_ERROR, "Native pack calculation overflow");
+                        l_err = -3;
+                        break;
+                    }
             }
             // Validator's fee
             if (!IS_ZERO_256(a_value_fee)) {
@@ -1245,9 +1265,17 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
                     break;
                 }
                 if (l_main_native)
-                    SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
+                    if (SUM_256_256(l_value_pack, a_value_fee, &l_value_pack)) {
+                        log_it(L_ERROR, "Validator fee pack calculation overflow");
+                        l_err = -3;
+                        break;
+                    }
                 else
-                    SUM_256_256(l_native_pack, a_value_fee, &l_native_pack);
+                    if (SUM_256_256(l_native_pack, a_value_fee, &l_native_pack)) {
+                        log_it(L_ERROR, "Native validator fee pack calculation overflow");
+                        l_err = -3;
+                        break;
+                    }
             }
             // coin back
             SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
@@ -1313,7 +1341,11 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
     dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_net->pub.id);
     dap_list_t *l_list_fee_out = NULL, *l_list_used_out = NULL;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
-    SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
+    if (SUM_256_256(l_net_fee, a_value_fee, &l_total_fee)) {
+        log_it(L_ERROR, "Fee calculation overflow in stake lock operation");
+        *result = -3;
+        return NULL;
+    }
     if (!IS_ZERO_256(l_total_fee)) {
         if (!l_main_native) {
             l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
@@ -1370,7 +1402,11 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                     l_err = -5;
                     break;
                 }
-                SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+                if (SUM_256_256(l_value_pack, l_net_fee, &l_value_pack)) {
+                    log_it(L_ERROR, "Unlock network fee pack calculation overflow");
+                    l_err = -5;
+                    break;
+                }
             }
             // Validator's fee
             if (!IS_ZERO_256(a_value_fee)) {
@@ -1378,7 +1414,11 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                     l_err = -6;
                     break;
                 }
-                SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
+                if (SUM_256_256(l_value_pack, a_value_fee, &l_value_pack)) {
+                    log_it(L_ERROR, "Unlock validator fee pack calculation overflow");
+                    l_err = -5;
+                    break;
+                }
             }
 
             if (l_main_native) {
