@@ -108,7 +108,7 @@ int dap_chain_net_srv_auctions_init(void)
     }
     
     dap_cli_server_cmd_add ("auction", com_auction, "Auction commands",
-                "bid -net <network> -auction <group_name|hash> -amount <value> -lock <3..24> -project <project_id> -fee <value> -w <wallet>\n"
+                "bid -net <network> -auction <group_name|hash> -amount <value> -lock_period <3..24> -project <project_id> -fee <value> -w <wallet>\n"
                 "\tPlace a bid on an auction for a specific project\n"
                 "\t-project: project ID (uint32) for which the bid is made\n\n"
                 "withdraw -net <network> -bid_tx_hash <hash> -fee <value> -w <wallet>\n"
@@ -127,15 +127,16 @@ int dap_chain_net_srv_auctions_init(void)
                 "\tGet auction statistics\n\n"
                 "  Examples:\n"
                 "  auction list -net myCellFrame -active_only -projects\n"
-                "  auction bid -net myCellFrame -auction <group_name> -amount 1000 -lock 6 -project 1 -fee 0.1 -w myWallet\n"
+                "  auction bid -net myCellFrame -auction <group_name> -amount 1000 -lock_period 6 -project 1 -fee 0.1 -w myWallet\n"
                 "  auction info -net myCellFrame -auction <hash>\n"
                 "  auction withdraw -net myCellFrame -bid_tx_hash <hash> -fee 0.1 -w myWallet\n"
                 "  auction events -net myCellFrame -auction <hash> -limit 10\n"
                 "  auction stats -net myCellFrame\n"
                 "  Notes:\n"
-                "  - Lock period (3-24 months): how long your tokens are locked\n"
-                "  - Each bid has lock period (3-24 months)\n\n");
-
+                "  - Each bid has lock period (3-24 months) set by -lock_period option.\n"
+                "    This period is used AFTER the auction ends to lock the bid amount for the winner projects only for provided time.\n"
+                "    For loosed projects bid can be withdrawn immediatly after the auction ends.\n"
+                "    It's no way to unlock the bid amount before the auction ends.\n\n");
     log_it(L_NOTICE, "Auction service initialized successfully with cache monitoring");
     return 0;
 }
@@ -2316,7 +2317,7 @@ static void s_error_handler(enum error_code a_err_code, dap_string_t *a_str_repl
             dap_string_append_printf(a_str_reply, "Invalid amount format");
             break;
         case LOCK_ARG_ERROR:
-            dap_string_append_printf(a_str_reply, "auction bid command requires parameter -lock");
+            dap_string_append_printf(a_str_reply, "auction bid command requires parameter -lock_period");
             break;
         case LOCK_FORMAT_ERROR:
             dap_string_append_printf(a_str_reply, "Lock period must be between 3 and 24 months");
@@ -2463,7 +2464,7 @@ int com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int a_versio
 
             // Parse lock period
             str_tmp = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-lock", &str_tmp);
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-lock_period", &str_tmp);
             if(!str_tmp) {
                 dap_json_rpc_error_add(*l_json_arr_reply, LOCK_ARG_ERROR, "Lock period not specified");
                 return -1;
