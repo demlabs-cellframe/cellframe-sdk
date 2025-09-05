@@ -57,7 +57,6 @@ enum error_code {
     AUCTION_DURATION_ARG_ERROR = 23,
     AUCTION_DURATION_FORMAT_ERROR = 24,
     AUCTION_END_TIME_ERROR = 25,
-    AUCTION_CREATE_ERROR = 26,
     PROJECT_ID_ARG_ERROR = 27,
     PROJECT_ID_FORMAT_ERROR = 28,
     AUCTION_CACHE_NOT_INITIALIZED = 29,
@@ -126,13 +125,6 @@ int dap_chain_net_srv_auctions_init(void)
                 "\t-limit: maximum number of events to return\n\n"
                 "stats -net <network>\n"
                 "\tGet auction statistics\n\n"
-                "create -net <network> -name <auction_name> -duration <duration_hours> -projects <project_list> -fee <value> -w <wallet>\n"
-                "\tCreate a new auction\n"
-                "\t-name: auction name (string)\n"
-                "\t-duration: auction duration in hours\n"
-                "\t-projects: comma-separated list of project IDs or names\n"
-                "\t-fee: transaction fee\n"
-                "\t-w: wallet name\n\n"
                 "  Examples:\n"
                 "  auction list -net myCellFrame -active_only -projects\n"
                 "  auction bid -net myCellFrame -auction <group_name> -amount 1000 -lock 6 -project 1 -fee 0.1 -w myWallet\n"
@@ -140,12 +132,9 @@ int dap_chain_net_srv_auctions_init(void)
                 "  auction withdraw -net myCellFrame -bid_tx_hash <hash> -fee 0.1 -w myWallet\n"
                 "  auction events -net myCellFrame -auction <hash> -limit 10\n"
                 "  auction stats -net myCellFrame\n"
-                "  auction create -net myCellFrame -name 'Test Auction' -duration 168 -projects '1,2,part3' -fee 0.1 -w myWallet\n\n"
                 "  Notes:\n"
                 "  - Lock period (3-24 months): how long your tokens are locked\n"
-                "  - Each bid has lock period (3-24 months)\n\n"
-                "  auction_created - Auction successfully created\n"
-                "  auction_cancelled - Auction cancelled\n\n");
+                "  - Each bid has lock period (3-24 months)\n\n");
 
     log_it(L_NOTICE, "Auction service initialized successfully with cache monitoring");
     return 0;
@@ -2355,9 +2344,6 @@ static void s_error_handler(enum error_code a_err_code, dap_string_t *a_str_repl
             break;
         case COMMAND_NOT_RECOGNIZED:
             dap_string_append_printf(a_str_reply, "Command '%s' not recognized", a_args);
-            break;
-        case AUCTION_CREATE_ERROR:
-            dap_string_append_printf(a_str_reply, "Error creating auction transaction: %s", a_args ? a_args : "unknown error");
             break;
         case PROJECT_ID_ARG_ERROR:
             dap_string_append_printf(a_str_reply, "auction bid command requires parameter -project");
