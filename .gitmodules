@@ -1,4 +1,5 @@
 [submodule "dap-sdk"]
 	path = dap-sdk
 	url = ../../dap/dap-sdk.git
-	branch = develop
+	branch = release-6.0
+
