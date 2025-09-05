@@ -1161,12 +1161,11 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, l_tx_hash);
             json_object_object_add(json_datum, "token_ticker", json_object_new_string(l_ticker));
             bool l_all_outs_unspent = true;
-            byte_t *l_item; size_t l_size; int index, l_out_idx = -1;
+            byte_t *l_item; size_t l_size; int index, l_out_idx = 0;
             json_object* json_arr_items = json_object_new_array();
             TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, index, l_datum_tx) {
                 dap_hash_fast_t l_spender = { };
-                ++l_out_idx;
-                if ( dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_out_idx, NULL) ) {
+                if ( dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_out_idx, &l_spender) ) {
                     l_all_outs_unspent = false;
                     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                     dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
@@ -1175,6 +1174,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                     json_object_object_add(l_json_obj_datum, "spent_by_tx", json_object_new_string(l_hash_str));
                     json_object_array_add(json_arr_items, l_json_obj_datum);
                 }
+                ++l_out_idx;
             }
             json_object_object_add(json_datum, "all_outs_unspent", json_object_new_boolean(l_all_outs_unspent));
             if (l_all_outs_unspent) {

@@ -63,17 +63,11 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     for (size_t i = 0; i < l_signs_count; ++i) {
         int l_rand_data = rand();
         // Use valid TSD types instead of random values
-        int l_tsd_type = (i % 2 == 0) ? DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_DATA : DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TIMESTAMP;
-        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, l_tsd_type, sizeof(l_rand_data));
-        if (l_tsd->header.size != sizeof(dap_time_t)) {
-            log_it(L_WARNING, "Invalid expire time size");
-            DAP_DEL_Z(l_tsd);
-            continue;
-        }
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand(), sizeof(l_rand_data));
         dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
         DAP_DEL_Z(l_tsd);
     }
-    l_signs_count = rand() % KEY_COUNT + 3;
+    l_signs_count = rand() % KEY_COUNT + 1;
     dap_test_msg("add %zu signs", l_signs_count);
     for (size_t i = 0; i < l_signs_count; ++i)
         dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum_1 sign create");
@@ -108,7 +102,7 @@ void s_chain_datum_tx_create_test()
 { 
     dap_print_module_name("tx_create_compose");
     dap_chain_addr_t *l_addr_to = &s_data->addr_to;
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(&s_data->addr_from, &l_addr_to, s_ticker_native, &s_data->value, &s_data->time_staking, s_data->value_fee, 1, &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_datum_tx_create_compose(&s_data->addr_from, &l_addr_to, s_ticker_native, &s_data->value, s_data->value_fee, 1, &s_data->config);
     dap_assert(l_datum_1, "tx_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);

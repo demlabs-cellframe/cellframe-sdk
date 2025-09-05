@@ -191,6 +191,7 @@ typedef struct dap_chain_net_pvt{
 #define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
 static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
+static size_t s_node_list_ttl = 3600 * 2;
 
 static const char *c_net_states[] = {
     [NET_STATE_LOADING]             = "NET_STATE_LOADING",
@@ -280,6 +281,7 @@ int dap_chain_net_init()
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
+    s_node_list_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_ttl", s_node_list_ttl);
     char l_path[MAX_PATH + 1], *l_end = NULL;
     int l_pos = snprintf(l_path, MAX_PATH, "%s/network/", dap_config_path());
     if (l_pos >= MAX_PATH - 4)
@@ -482,7 +484,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->addr), a_link->uplink.client->link_info.uplink_addr, a_error);
-        json_object_object_add(l_json, "error_message", json_object_new_string(l_err_str));
+        json_object_object_add(l_json, dap_cli_server_get_version() == 1 ? "errorMessage" : "error_message", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
     }
@@ -2182,7 +2184,7 @@ static void *s_net_load(void *a_arg)
     snprintf(l_net->pub.gdb_nodes, sizeof(l_net->pub.gdb_nodes), "%s.%s", l_net->pub.gdb_groups_prefix, s_gdb_nodes_postfix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                         l_net->pub.gdb_nodes, 7200, true,
+                                                         l_net->pub.gdb_nodes, s_node_list_ttl, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
@@ -2275,13 +2277,13 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
     char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
     if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL) {
-        log_it(L_NOTICE, "Removed node %s from network %s at %s\n",
+        log_it(L_NOTICE, "Removed node %s from network %s at %s",
                                  a_obj->key, l_net->pub.name, l_ts);
         return;
     }
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
     assert(dap_chain_node_info_get_size(l_node_info) == a_obj->value_len);
-    log_it(L_NOTICE, "Added node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s\n",
+    log_it(L_NOTICE, "Added node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s",
                              NODE_ADDR_FP_ARGS_S(l_node_info->address),
                              l_node_info->ext_host, l_node_info->ext_port,
                              l_net->pub.name, l_ts);
@@ -2784,6 +2786,12 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             if (l_tx_size != l_datum_data_size) {
                 log_it(L_WARNING, "Corrupted transaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
+            }
+            dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, 0);
+            if (l_sig && dap_sign_type_is_depricated(l_sig->header.type)){
+                dap_chain_addr_t l_addr = {};
+                dap_chain_addr_fill_from_sign(&l_addr, l_sig, a_chain->net_id);
+                log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_chain_hash_fast_to_str_static(a_datum_hash));
             }
             return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
         }
