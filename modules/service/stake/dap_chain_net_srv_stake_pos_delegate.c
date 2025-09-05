@@ -112,6 +112,64 @@ static dap_list_t *s_srv_stake_list = NULL;
 
 static bool s_debug_more = false;
 
+// Unified error code system for consistent error handling
+#define DAP_STAKE_ERROR_BASE -2000
+
+typedef enum dap_stake_error {
+    DAP_STAKE_ERROR_NONE = 0,
+
+    // General errors
+    DAP_STAKE_ERROR_INVALID_ARGUMENT = DAP_STAKE_ERROR_BASE - 1,
+    DAP_STAKE_ERROR_OUT_OF_MEMORY = DAP_STAKE_ERROR_BASE - 2,
+    DAP_STAKE_ERROR_NULL_POINTER = DAP_STAKE_ERROR_BASE - 3,
+    DAP_STAKE_ERROR_INVALID_STATE = DAP_STAKE_ERROR_BASE - 4,
+
+    // Network and configuration errors
+    DAP_STAKE_ERROR_NETWORK_INVALID = DAP_STAKE_ERROR_BASE - 100,
+    DAP_STAKE_ERROR_NETWORK_NOT_FOUND = DAP_STAKE_ERROR_BASE - 101,
+    DAP_STAKE_ERROR_CONFIG_INVALID = DAP_STAKE_ERROR_BASE - 102,
+
+    // Token and coin errors
+    DAP_STAKE_ERROR_TOKEN_INVALID = DAP_STAKE_ERROR_BASE - 200,
+    DAP_STAKE_ERROR_TOKEN_NOT_FOUND = DAP_STAKE_ERROR_BASE - 201,
+    DAP_STAKE_ERROR_COINS_INVALID_FORMAT = DAP_STAKE_ERROR_BASE - 202,
+    DAP_STAKE_ERROR_INSUFFICIENT_FUNDS = DAP_STAKE_ERROR_BASE - 203,
+
+    // Address and wallet errors
+    DAP_STAKE_ERROR_ADDRESS_INVALID = DAP_STAKE_ERROR_BASE - 300,
+    DAP_STAKE_ERROR_WALLET_NOT_FOUND = DAP_STAKE_ERROR_BASE - 301,
+    DAP_STAKE_ERROR_WALLET_ACCESS_DENIED = DAP_STAKE_ERROR_BASE - 302,
+    DAP_STAKE_ERROR_CERTIFICATE_INVALID = DAP_STAKE_ERROR_BASE - 303,
+
+    // Transaction errors
+    DAP_STAKE_ERROR_TRANSACTION_INVALID = DAP_STAKE_ERROR_BASE - 400,
+    DAP_STAKE_ERROR_TRANSACTION_NOT_FOUND = DAP_STAKE_ERROR_BASE - 401,
+    DAP_STAKE_ERROR_TRANSACTION_ALREADY_USED = DAP_STAKE_ERROR_BASE - 402,
+    DAP_STAKE_ERROR_TRANSACTION_CREATE_FAILED = DAP_STAKE_ERROR_BASE - 403,
+
+    // Time and staking specific errors
+    DAP_STAKE_ERROR_TIME_INVALID = DAP_STAKE_ERROR_BASE - 500,
+    DAP_STAKE_ERROR_TIME_TOO_EARLY = DAP_STAKE_ERROR_BASE - 501,
+    DAP_STAKE_ERROR_TIME_TOO_LATE = DAP_STAKE_ERROR_BASE - 502,
+    DAP_STAKE_ERROR_STAKE_INVALID = DAP_STAKE_ERROR_BASE - 503,
+
+    // Arithmetic and calculation errors
+    DAP_STAKE_ERROR_CALCULATION_OVERFLOW = DAP_STAKE_ERROR_BASE - 600,
+    DAP_STAKE_ERROR_CALCULATION_UNDERFLOW = DAP_STAKE_ERROR_BASE - 601,
+    DAP_STAKE_ERROR_CALCULATION_INVALID = DAP_STAKE_ERROR_BASE - 602,
+
+    // Security and cryptographic errors
+    DAP_STAKE_ERROR_SIGNATURE_INVALID = DAP_STAKE_ERROR_BASE - 700,
+    DAP_STAKE_ERROR_SIGNATURE_MISMATCH = DAP_STAKE_ERROR_BASE - 701,
+    DAP_STAKE_ERROR_KEY_INVALID = DAP_STAKE_ERROR_BASE - 702,
+    DAP_STAKE_ERROR_ENCRYPTION_FAILED = DAP_STAKE_ERROR_BASE - 703,
+
+    // Ledger and consensus errors
+    DAP_STAKE_ERROR_LEDGER_UPDATE_FAILED = DAP_STAKE_ERROR_BASE - 800,
+    DAP_STAKE_ERROR_CONSENSUS_REJECTED = DAP_STAKE_ERROR_BASE - 801,
+    DAP_STAKE_ERROR_DOUBLE_SPENDING = DAP_STAKE_ERROR_BASE - 802
+} dap_stake_error_t;
+
 // Centralized stake configuration structure
 typedef struct dap_stake_config {
     bool debug_mode;
@@ -185,7 +243,7 @@ static int s_validate_stake_config_uint(const char *a_value_str, const char *a_p
     }
 
     if (value < a_min || value > a_max) {
-        log_it(L_ERROR, "%s value %llu out of range [%llu, %llu]",
+        log_it(L_ERROR, "%s value %lu out of range [%lu, %lu]",
                a_param_name, value, a_min, a_max);
         return -3;
     }
@@ -207,20 +265,20 @@ static int s_load_stake_config(dap_config_t *a_config, dap_stake_config_t *a_sta
     const char *min_delegation_str = dap_config_get_item_str_default(a_config, "stake", "min_delegation",
                                                                    DAP_STAKE_CONFIG_DEFAULT_MIN_DELEGATION);
     if (s_validate_stake_config_value(min_delegation_str, "min_delegation", 0.0, 1000000.0) != 0) {
-        a_stake_config->min_delegation_amount = dap_chain_balance_coins_scan(DAP_STAKE_CONFIG_DEFAULT_MIN_DELEGATION);
+        a_stake_config->min_delegation_amount = dap_chain_balance_scan(DAP_STAKE_CONFIG_DEFAULT_MIN_DELEGATION);
         log_it(L_WARNING, "Using default min_delegation_amount due to invalid config");
     } else {
-        a_stake_config->min_delegation_amount = dap_chain_balance_coins_scan(min_delegation_str);
+        a_stake_config->min_delegation_amount = dap_chain_balance_scan(min_delegation_str);
     }
 
     // Load and validate max tax rate
     const char *max_tax_str = dap_config_get_item_str_default(a_config, "stake", "max_tax_rate",
                                                             DAP_STAKE_CONFIG_DEFAULT_MAX_TAX_RATE);
     if (s_validate_stake_config_value(max_tax_str, "max_tax_rate", 0.0, 100.0) != 0) {
-        a_stake_config->max_tax_rate = dap_chain_balance_coins_scan(DAP_STAKE_CONFIG_DEFAULT_MAX_TAX_RATE);
+        a_stake_config->max_tax_rate = dap_chain_balance_scan(DAP_STAKE_CONFIG_DEFAULT_MAX_TAX_RATE);
         log_it(L_WARNING, "Using default max_tax_rate due to invalid config");
     } else {
-        a_stake_config->max_tax_rate = dap_chain_balance_coins_scan(max_tax_str);
+        a_stake_config->max_tax_rate = dap_chain_balance_scan(max_tax_str);
     }
 
     // Load and validate weight limit delta
@@ -270,15 +328,17 @@ static int s_validate_config_consistency(dap_stake_config_t *a_config) {
     }
 
     // Check that min delegation is reasonable
-    uint256_t reasonable_max = dap_chain_balance_coins_scan("1000000.0"); // 1M coins
+    uint256_t reasonable_max;
+    reasonable_max = dap_chain_balance_scan("1000000.0"); // 1M coins
     if (compare256(a_config->min_delegation_amount, reasonable_max) > 0) {
         log_it(L_WARNING, "Min delegation amount seems unreasonably high");
     }
 
     // Check that max tax rate is within bounds
-    uint256_t hundred = dap_chain_balance_coins_scan("100.0");
+    uint256_t hundred;
+    hundred = dap_chain_balance_scan("100.0");
     if (compare256(a_config->max_tax_rate, hundred) > 0) {
-        log_it(L_ERROR, "Max tax rate cannot exceed 100%");
+        log_it(L_ERROR, "Max tax rate cannot exceed 100%%");
         return DAP_STAKE_ERROR_CONFIG_INVALID;
     }
 
@@ -3732,7 +3792,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
                     if (MULT_256_256(l_percent_max, GET_256_FROM_64(100), &l_percent_max)) {
                         log_it(L_ERROR, "Percent max multiplication overflow");
                         json_object_put(l_json_obj_keys_count);
-                        return;
+                        return DAP_CHAIN_NODE_CLI_SRV_STAKE_PARAM_ERR;
                     }
                     dap_uint256_to_char(l_percent_max, &l_percent_max_str);
                 }

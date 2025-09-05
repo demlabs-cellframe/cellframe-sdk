@@ -80,6 +80,7 @@ enum error_code {
     HASH_TYPE_ARG_ERROR         = 41,
     FEE_ARG_ERROR               = 42,
     FEE_FORMAT_ERROR            = 43,
+    CALCULATION_ERROR          = 44,
 };
 
 // Unified error code system for consistent error handling
@@ -151,48 +152,120 @@ typedef struct dap_stake_error_info {
 
 // Helper functions for error handling
 static inline void s_stake_log_error(dap_stake_error_t error_code, const char *context) {
-    const char *error_messages[] = {
-        [DAP_STAKE_ERROR_NONE] = "No error",
-        [DAP_STAKE_ERROR_INVALID_ARGUMENT] = "Invalid argument provided",
-        [DAP_STAKE_ERROR_OUT_OF_MEMORY] = "Out of memory",
-        [DAP_STAKE_ERROR_NULL_POINTER] = "Null pointer encountered",
-        [DAP_STAKE_ERROR_INVALID_STATE] = "Invalid system state",
-        [DAP_STAKE_ERROR_NETWORK_INVALID] = "Invalid network configuration",
-        [DAP_STAKE_ERROR_NETWORK_NOT_FOUND] = "Network not found",
-        [DAP_STAKE_ERROR_CONFIG_INVALID] = "Invalid configuration",
-        [DAP_STAKE_ERROR_TOKEN_INVALID] = "Invalid token",
-        [DAP_STAKE_ERROR_TOKEN_NOT_FOUND] = "Token not found",
-        [DAP_STAKE_ERROR_COINS_INVALID_FORMAT] = "Invalid coin format",
-        [DAP_STAKE_ERROR_INSUFFICIENT_FUNDS] = "Insufficient funds",
-        [DAP_STAKE_ERROR_ADDRESS_INVALID] = "Invalid address",
-        [DAP_STAKE_ERROR_WALLET_NOT_FOUND] = "Wallet not found",
-        [DAP_STAKE_ERROR_WALLET_ACCESS_DENIED] = "Wallet access denied",
-        [DAP_STAKE_ERROR_CERTIFICATE_INVALID] = "Invalid certificate",
-        [DAP_STAKE_ERROR_TRANSACTION_INVALID] = "Invalid transaction",
-        [DAP_STAKE_ERROR_TRANSACTION_NOT_FOUND] = "Transaction not found",
-        [DAP_STAKE_ERROR_TRANSACTION_ALREADY_USED] = "Transaction already used",
-        [DAP_STAKE_ERROR_TRANSACTION_CREATE_FAILED] = "Transaction creation failed",
-        [DAP_STAKE_ERROR_TIME_INVALID] = "Invalid time",
-        [DAP_STAKE_ERROR_TIME_TOO_EARLY] = "Time too early",
-        [DAP_STAKE_ERROR_TIME_TOO_LATE] = "Time too late",
-        [DAP_STAKE_ERROR_STAKE_INVALID] = "Invalid stake",
-        [DAP_STAKE_ERROR_CALCULATION_OVERFLOW] = "Calculation overflow",
-        [DAP_STAKE_ERROR_CALCULATION_UNDERFLOW] = "Calculation underflow",
-        [DAP_STAKE_ERROR_CALCULATION_INVALID] = "Invalid calculation",
-        [DAP_STAKE_ERROR_SIGNATURE_INVALID] = "Invalid signature",
-        [DAP_STAKE_ERROR_SIGNATURE_MISMATCH] = "Signature mismatch",
-        [DAP_STAKE_ERROR_KEY_INVALID] = "Invalid key",
-        [DAP_STAKE_ERROR_ENCRYPTION_FAILED] = "Encryption failed",
-        [DAP_STAKE_ERROR_LEDGER_UPDATE_FAILED] = "Ledger update failed",
-        [DAP_STAKE_ERROR_CONSENSUS_REJECTED] = "Consensus rejected",
-        [DAP_STAKE_ERROR_DOUBLE_SPENDING] = "Double spending detected"
-    };
+    const char *message = "Unknown error";
 
-    const char *message = (error_code >= 0 && error_code < sizeof(error_messages)/sizeof(error_messages[0]))
-        ? error_messages[error_code]
-        : "Unknown error";
+    switch (error_code) {
+        case DAP_STAKE_ERROR_NONE:
+            message = "No error";
+            break;
+        case DAP_STAKE_ERROR_INVALID_ARGUMENT:
+            message = "Invalid argument provided";
+            break;
+        case DAP_STAKE_ERROR_OUT_OF_MEMORY:
+            message = "Out of memory";
+            break;
+        case DAP_STAKE_ERROR_NULL_POINTER:
+            message = "Null pointer encountered";
+            break;
+        case DAP_STAKE_ERROR_INVALID_STATE:
+            message = "Invalid system state";
+            break;
+        case DAP_STAKE_ERROR_NETWORK_INVALID:
+            message = "Invalid network configuration";
+            break;
+        case DAP_STAKE_ERROR_NETWORK_NOT_FOUND:
+            message = "Network not found";
+            break;
+        case DAP_STAKE_ERROR_CONFIG_INVALID:
+            message = "Invalid configuration";
+            break;
+        case DAP_STAKE_ERROR_TOKEN_INVALID:
+            message = "Invalid token";
+            break;
+        case DAP_STAKE_ERROR_TOKEN_NOT_FOUND:
+            message = "Token not found";
+            break;
+        case DAP_STAKE_ERROR_COINS_INVALID_FORMAT:
+            message = "Invalid coin format";
+            break;
+        case DAP_STAKE_ERROR_INSUFFICIENT_FUNDS:
+            message = "Insufficient funds";
+            break;
+        case DAP_STAKE_ERROR_ADDRESS_INVALID:
+            message = "Invalid address";
+            break;
+        case DAP_STAKE_ERROR_WALLET_NOT_FOUND:
+            message = "Wallet not found";
+            break;
+        case DAP_STAKE_ERROR_WALLET_ACCESS_DENIED:
+            message = "Wallet access denied";
+            break;
+        case DAP_STAKE_ERROR_CERTIFICATE_INVALID:
+            message = "Invalid certificate";
+            break;
+        case DAP_STAKE_ERROR_TRANSACTION_INVALID:
+            message = "Invalid transaction";
+            break;
+        case DAP_STAKE_ERROR_TRANSACTION_NOT_FOUND:
+            message = "Transaction not found";
+            break;
+        case DAP_STAKE_ERROR_TRANSACTION_ALREADY_USED:
+            message = "Transaction already used";
+            break;
+        case DAP_STAKE_ERROR_TRANSACTION_CREATE_FAILED:
+            message = "Transaction creation failed";
+            break;
+        case DAP_STAKE_ERROR_TIME_INVALID:
+            message = "Invalid time";
+            break;
+        case DAP_STAKE_ERROR_TIME_TOO_EARLY:
+            message = "Time too early";
+            break;
+        case DAP_STAKE_ERROR_TIME_TOO_LATE:
+            message = "Time too late";
+            break;
+        case DAP_STAKE_ERROR_STAKE_INVALID:
+            message = "Invalid stake";
+            break;
+        case DAP_STAKE_ERROR_CALCULATION_OVERFLOW:
+            message = "Calculation overflow";
+            break;
+        case DAP_STAKE_ERROR_CALCULATION_UNDERFLOW:
+            message = "Calculation underflow";
+            break;
+        case DAP_STAKE_ERROR_CALCULATION_INVALID:
+            message = "Invalid calculation";
+            break;
+        case DAP_STAKE_ERROR_SIGNATURE_INVALID:
+            message = "Invalid signature";
+            break;
+        case DAP_STAKE_ERROR_SIGNATURE_MISMATCH:
+            message = "Signature mismatch";
+            break;
+        case DAP_STAKE_ERROR_KEY_INVALID:
+            message = "Invalid key";
+            break;
+        case DAP_STAKE_ERROR_ENCRYPTION_FAILED:
+            message = "Encryption failed";
+            break;
+        case DAP_STAKE_ERROR_LEDGER_UPDATE_FAILED:
+            message = "Ledger update failed";
+            break;
+        case DAP_STAKE_ERROR_CONSENSUS_REJECTED:
+            message = "Consensus rejected";
+            break;
+        case DAP_STAKE_ERROR_DOUBLE_SPENDING:
+            message = "Double spending detected";
+            break;
+        default:
+            message = "Unknown error";
+            break;
+    }
 
+    // Define LOG_TAG for this module
+    #define LOG_TAG "STAKE"
     log_it(L_ERROR, "Stake error %d (%s): %s", error_code, context, message);
+    #undef LOG_TAG
 }
 
 typedef struct dap_ledger_token_emission_for_stake_lock_item {
@@ -720,7 +793,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         DAP_DELETE(l_owner_pkey);
         return OWNER_KEY_ERROR;
     }
-    if (!l_owner_sign->pkey_n_sign || !l_owner_pkey) {
+    if (!l_owner_pkey) {
         s_stake_log_error(DAP_STAKE_ERROR_NULL_POINTER, "signature data validation");
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_owner_key);
