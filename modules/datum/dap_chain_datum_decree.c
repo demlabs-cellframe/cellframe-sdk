@@ -205,7 +205,7 @@ dap_chain_policy_t *dap_chain_datum_decree_get_policy(dap_chain_datum_decree_t *
     return (l_tsd  && dap_chain_policy_get_size((dap_chain_policy_t *)l_tsd->data) == l_tsd->size) ? (dap_chain_policy_t *)l_tsd->data : NULL;
 }
 
-void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type, int a_version)
+void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type, int a_version)
 {
     char *l_type_str;
     switch(a_decree->header.type)

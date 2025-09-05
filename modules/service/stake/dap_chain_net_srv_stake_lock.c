@@ -850,7 +850,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, int a
         dap_string_append_printf(output_line, "\nContribution successfully made");
         json_object_object_add(json_obj_out, "status", json_object_new_string(output_line->str));
     }
-    json_object_array_add(*a_json_arr_reply, json_obj_out);
+    dap_json_array_add(*a_json_arr_reply, json_obj_out);
     dap_string_free(output_line, true);
 
     return DAP_CHAIN_NODE_CLI_COM_STAKE_LOCK_OK;

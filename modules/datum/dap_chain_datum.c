@@ -622,7 +622,7 @@ void s_token_dump_update_json(json_object  *a_obj_out, dap_chain_datum_token_t *
  * @param a_obj_out
  * @param a_datum
  */
-void dap_chain_datum_dump_json(json_object* a_json_arr_reply, json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose, int a_version)
+void dap_chain_datum_dump_json(dap_json_t* a_json_arr_reply, dap_json_t *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose, int a_version)
 {
     if( a_datum == NULL){
         dap_json_rpc_error_add(a_json_arr_reply, -1,"==Datum is NULL");
