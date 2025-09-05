@@ -23,7 +23,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #include "dap_common.h"
 #include "utlist.h"
-#include "rand/dap_rand.h"
+#include "../../../../dap-sdk/crypto/src/rand/dap_rand.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv_order.h"

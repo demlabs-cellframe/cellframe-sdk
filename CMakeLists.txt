@@ -161,7 +161,7 @@ if(NOT DEFINED CELLFRAME_MODULES)
         set(CELLFRAME_USING_EXTERNAL_DAP_SDK ON)
     endif()
 
-    set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange compose")
+    set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-voting srv-bridge srv-xchange compose")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -172,9 +172,10 @@ endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
 
-if (CELLFRAME_MODULES MATCHES "srv-stake")
-     add_definitions("-DDAP_SRV_STAKE_USED")
-endif()
+# srv-stake temporarily disabled due to XKCP build issues
+# if (CELLFRAME_MODULES MATCHES "srv-stake")
+#     add_definitions("-DDAP_SRV_STAKE_USED")
+# endif()
 
 option(DAP_INT128_SUPPORT "Use 128-bit varaibles, if supported" ON) # Enabled by default
 
@@ -386,6 +387,14 @@ endif()
 # =========================================
 # Add include paths for missing headers
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/net/app-cli/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/core/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/crypto/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/crypto/XKCP/lib/high/Keccak/FIPS202/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/io/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/net/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/net/server/json_rpc/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/modules/include/")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/dap-sdk/core/json-c/")
 
 # =========================================
 # CREATE FINAL CELLFRAME SDK LIBRARY

@@ -24,7 +24,7 @@
 
 #include "dap_common.h"
 #include "dap_json.h"
-#include "dap_hash.h"
+#include "../../../../dap-sdk/crypto/include/dap_hash.h"
 #include "dap_time.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_srv_stake_lock.h"
