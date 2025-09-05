@@ -415,7 +415,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
-        CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST, CMD_CLEAN
+        CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST, CMD_CLEAR
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -436,8 +436,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             cmd_name = CMD_GET_KEYS;
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "group_list", NULL))
             cmd_name = CMD_GROUP_LIST;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "clean", NULL))
-            cmd_name = CMD_CLEAN;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "clear", NULL))
+            cmd_name = CMD_CLEAR;
 
     switch (cmd_name) {
     case CMD_FLUSH:
@@ -811,7 +811,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         dap_list_free_full(l_group_list, NULL);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
-    case CMD_CLEAN: {
+    case CMD_CLEAR: {
         const char *l_group_str = NULL;
         bool l_pinned = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pinned", NULL);
         bool l_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
@@ -821,12 +821,12 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
         if (l_group_str) {
-            return dap_global_db_group_clean(l_group_str, l_pinned);
+            return dap_global_db_group_clear(l_group_str, l_pinned);
         }
         if (l_all) {
             dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
             for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list)) {
-                dap_global_db_group_clean((const char *)(l_list->data), l_pinned);
+                dap_global_db_group_clear((const char *)(l_list->data), l_pinned);
             }
             dap_list_free_full(l_group_list, NULL);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
