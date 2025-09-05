@@ -2150,7 +2150,7 @@ static void *s_net_load(void *a_arg)
     l_gdb_groups_mask = dap_strdup_printf("%s.service.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->orders_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                           l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                          l_gdb_groups_mask, 7200, true,
+                                                          l_gdb_groups_mask, s_node_list_ttl, true,
                                                           DAP_GDB_MEMBER_ROLE_GUEST,
                                                           DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->orders_cluster) {
