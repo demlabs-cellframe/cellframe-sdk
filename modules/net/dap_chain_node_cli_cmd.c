@@ -822,6 +822,11 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     case CMD_GROUP_LIST: {
+        bool l_req_size = false;
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-size", NULL) ) {
+            l_req_size = true;
+        }
+
         json_object* json_group_list = json_object_new_object();
         dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
         size_t l_count = 0;
@@ -829,8 +834,22 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         json_object* json_obj_list = NULL;
         for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list), ++l_count) {
             json_obj_list = json_object_new_object();
-            json_object_object_add(json_obj_list, (char*)l_list->data,
-                                   json_object_new_uint64(dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, false)));
+            json_object* json_obj_list_data = NULL;
+            if (l_req_size) {
+                json_object* json_arr_obj = json_object_new_array();
+                json_object* json_obj_count_list = json_object_new_object();
+                json_object_object_add(json_obj_count_list, "count", json_object_new_uint64(dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, false)));
+                json_object_array_add(json_arr_obj, json_obj_count_list);
+                json_object* json_obj_size_list = json_object_new_object();
+                uint64_t l_size = dap_global_db_driver_size((char*)l_list->data, NULL, false);
+                double size_mb = (double)l_size / (1024.0 * 1024.0);
+                json_object_object_add(json_obj_size_list, "size_mb", json_object_new_double(size_mb));
+                json_object_array_add(json_arr_obj, json_obj_size_list);
+                json_obj_list_data = json_arr_obj;
+            } else {
+                json_obj_list_data = json_object_new_uint64(dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, false));
+            }
+            json_object_object_add(json_obj_list, (char*)l_list->data, json_obj_list_data);
             json_object_array_add(json_arr_group, json_obj_list);
         }
         json_object_object_add(json_group_list, a_version == 1 ? "group list" : "group_list", json_arr_group);
