@@ -57,6 +57,7 @@
 #include "json_object.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_srv_dex.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_datum_tx_voting.h"
@@ -2976,6 +2977,10 @@ const char* dap_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,dap_ch
     return l_item ? l_item->cache_data.token_ticker : NULL;
 }
 
+const char *dap_ledger_tx_get_token_ticker(dap_ledger_t *a_ledger, dap_ledger_datum_iter_t *a_iter) {
+    return a_iter ? ((dap_ledger_tx_item_t*)(a_iter->cur_ledger_tx_item))->cache_data.token_ticker : NULL;
+}
+
 /**
  * @brief Get list of all tickets for ledger and address. If address is NULL returns all the tockens present in system
  * @param a_ledger
@@ -3074,6 +3079,16 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     dap_return_val_if_fail(a_ledger && a_tx, l_hash);
     dap_chain_datum_tx_t *l_prev_tx = a_tx;
     byte_t *l_iter = a_tx->tx_items;
+    // SRV_DEX special-case: head is defined by order_root_hash in OUT_COND
+    // - blank order_root_hash => this tx is the head (fresh ORDER or buyer-leftover)
+    // - non-blank            => root recorded in payload (seller UPDATE)
+    if (a_cond_type == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+        dap_chain_tx_out_cond_t *l_oc = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
+        if (l_oc)
+            return dap_hash_fast_is_blank(&l_oc->subtype.srv_dex.order_root_hash)
+                    ? (dap_hash_fast_t){}
+                    : l_oc->subtype.srv_dex.order_root_hash;
+    }
     while (( l_iter = dap_chain_datum_tx_item_get(l_prev_tx, NULL, l_iter, TX_ITEM_TYPE_IN_COND, NULL) )) {
         l_hash_tmp =  ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
         if ( dap_hash_fast_is_blank(&l_hash_tmp) )
@@ -3090,8 +3105,62 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
 {
     dap_chain_hash_fast_t l_hash = { };
     dap_return_val_if_fail(a_ledger && a_tx_hash && !dap_hash_fast_is_blank(a_tx_hash), l_hash);
-    dap_chain_datum_tx_t *l_tx = NULL;
     l_hash = *a_tx_hash;
+    // Special handling for SRV_DEX to avoid jumping to buyer-leftover EXCHANGE chain
+    if (a_cond_type == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+        dap_ledger_tx_item_t *l_item = NULL;
+        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_hash, &l_item, false);
+        if (!l_tx)
+            return (dap_hash_fast_t){};
+        int l_out_idx = 0;
+        dap_chain_tx_out_cond_t *l_oc = dap_chain_datum_tx_out_cond_get(l_tx, a_cond_type, &l_out_idx);
+        if (!l_oc)
+            return a_unspent_only ? (dap_hash_fast_t){} : l_hash;
+        // Determine chain root: blank => this tx is the root
+        dap_hash_fast_t l_root = dap_hash_fast_is_blank(&l_oc->subtype.srv_dex.order_root_hash) ? l_hash : l_oc->subtype.srv_dex.order_root_hash;
+        // Traverse while the current chain out is spent and the spender creates an UPDATE for the same root
+        for (;;) {
+            dap_hash_fast_t l_spender = l_item ? l_item->cache_data.tx_hash_spent_fast[l_out_idx] : (dap_hash_fast_t){};
+            if (dap_hash_fast_is_blank(&l_spender))
+                break; // current out is unspent => current hash is the tail
+            // Load spender tx
+            l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_spender, &l_item, false);
+            if (!l_tx) {
+                // Spender not found in cache, return current known hash
+                break;
+            }
+            // Find SRV_DEX UPDATE out that continues the same root and its output index
+            int l_idx = -1, l_found_idx = -1;
+            byte_t *it; size_t sz = 0;
+            TX_ITEM_ITER_TX(it, sz, l_tx) {
+                switch (*it) {
+                case TX_ITEM_TYPE_OUT_STD:
+                case TX_ITEM_TYPE_OUT_EXT:
+                    l_idx++; break;
+                case TX_ITEM_TYPE_OUT_COND: {
+                    dap_chain_tx_out_cond_t *oc = (dap_chain_tx_out_cond_t*)it; l_idx++;
+                    if (oc->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+                        if (!dap_hash_fast_compare(&oc->subtype.srv_dex.order_root_hash, &l_root)
+                            && oc->subtype.srv_dex.tx_type == DEX_TX_TYPE_UPDATE) {
+                            l_found_idx = l_idx;
+                        }
+                    }
+                } break;
+                default: break; }
+            }
+            if (l_found_idx < 0) {
+                // No continuation UPDATE for this root in spender tx => chain ended at previous hash
+                break;
+            }
+            // Continue traversal from spender UPDATE out
+            l_hash = l_spender;
+            l_out_idx = l_found_idx;
+            // loop continues
+        }
+        return l_hash;
+    }
+    // Default behavior for other condition types
+    dap_chain_datum_tx_t *l_tx = NULL;
     dap_ledger_tx_item_t *l_item = NULL;
     while (( l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_hash, &l_item, false) )) {
         int l_out_num = 0;
@@ -5172,6 +5241,10 @@ bool dap_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_
     dap_ledger_tx_item_t *l_item_out = NULL;
     /*dap_chain_datum_tx_t *l_tx =*/ dap_ledger_tx_find_datum_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
     return l_item_out ? s_ledger_tx_hash_is_used_out_item(l_item_out, a_idx_out, a_out_spender) : true;
+}
+
+bool dap_ledger_tx_is_used_out_item(dap_ledger_t *a_ledger, dap_ledger_datum_iter_t *a_iter, int a_idx_out, dap_hash_fast_t *a_out_spender) {
+    return a_iter ? s_ledger_tx_hash_is_used_out_item((dap_ledger_tx_item_t*)(a_iter->cur_ledger_tx_item), a_idx_out, a_out_spender) : true;
 }
 
 /**

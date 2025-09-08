@@ -335,6 +335,84 @@ void dap_chain_net_srv_xchange_deinit()
 static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
+    /* ======================================================================
+     * LEGACY BRIDGE SRV_XCHANGE -> SRV_DEX (guarded)
+     * Allow an "owner migration" transaction when ALL conditions hold:
+     *   - Exactly one IN_COND that spends an SRV_XCHANGE conditional output
+     *   - Exactly one OUT_COND of subtype SRV_DEX
+     *   - No seller payouts in buy token (no OUT_STD/OUT_EXT to seller addr with buy_token)
+     *   - No XCHANGE service fee payouts (only validator/network fees are allowed)
+     *   - SRV_DEX nets and buy_token must match the original SRV_XCHANGE out
+     *   - SRV_XCHANGE order root must be older than srv_dex.migrate_cutoff_ts (if configured)
+     *   - Feature is gated by srv_dex.migration_enable
+     * ====================================================================== */
+    if (a_owner && a_tx_in && a_tx_out_cond) {
+        bool l_migration_enable = dap_config_get_item_bool_default(g_config, "srv_dex", "migration_enable", false);
+        dap_time_t l_cutoff_ts = dap_config_get_item_uint64_default(g_config, "srv_dex", "migrate_cutoff_ts", 0ULL);
+        if (l_migration_enable) {
+            // Count relevant inputs/outputs
+            int l_in_cond_q = 0, l_out_cond_q = 0, l_out_cond_dex_q = 0;
+            dap_chain_tx_out_cond_t *l_dex_out = NULL;
+            byte_t *it; size_t sz; TX_ITEM_ITER_TX(it, sz, a_tx_in) {
+                if (*it == TX_ITEM_TYPE_IN_COND) l_in_cond_q++;
+                else if (*it == TX_ITEM_TYPE_OUT_COND) {
+                    dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t*)it;
+                    l_out_cond_q++;
+                    if (l_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+                        l_out_cond_dex_q++;
+                        l_dex_out = l_out_cond;
+                    }
+                }
+            }
+            if (l_in_cond_q == 1 && l_out_cond_q == 1 && l_out_cond_dex_q == 1 && l_dex_out) {
+                // Find previous XCHANGE conditional out and its order root (for timestamp)
+                dap_chain_tx_in_cond_t *l_in0 = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
+                if (!l_in0) return -1;
+                dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_in0->header.tx_prev_hash);
+                if (!l_prev_tx) return -1;
+                dap_chain_tx_out_cond_t *l_prev_out = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, NULL);
+                if (!l_prev_out) return -1;
+                // Networks and tokens must match
+                const char *l_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in0->header.tx_prev_hash);
+                if (!l_sell_ticker) return -1;
+                if (l_prev_out->subtype.srv_xchange.sell_net_id.uint64 != l_dex_out->subtype.srv_dex.sell_net_id.uint64) return -2;
+                if (l_prev_out->subtype.srv_xchange.buy_net_id.uint64  != l_dex_out->subtype.srv_dex.buy_net_id.uint64)  return -2;
+                if (dap_strcmp(l_prev_out->subtype.srv_xchange.buy_token, l_dex_out->subtype.srv_dex.buy_token)) return -2;
+                // Forbid seller payouts and any XCHANGE service fee payouts
+                const char *l_buy_ticker = l_prev_out->subtype.srv_xchange.buy_token;
+                const dap_chain_addr_t *l_seller = &l_prev_out->subtype.srv_xchange.seller_addr;
+                bool l_payout_to_seller=false, l_srv_fee_present=false;
+                // Resolve XCHANGE service fee address to detect and forbid service payouts
+                uint16_t l_srv_fee_type = 0;
+                uint256_t l_srv_fee_val = uint256_0;
+                dap_chain_addr_t l_srv_fee_addr = { };
+                bool l_srv_fee_used = dap_chain_net_srv_xchange_get_fee(a_ledger->net->pub.id, &l_srv_fee_val, &l_srv_fee_addr, &l_srv_fee_type);
+                byte_t *ito; size_t szo=0; TX_ITEM_ITER_TX(ito, szo, a_tx_in) {
+                    if (*ito == TX_ITEM_TYPE_OUT_EXT) {
+                        dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)ito;
+                        if (!dap_strcmp(l_out_ext->token, l_buy_ticker) && !dap_chain_addr_compare(&l_out_ext->addr, l_seller))
+                            l_payout_to_seller=true;
+                        if (l_srv_fee_used && !dap_chain_addr_compare(&l_out_ext->addr, &l_srv_fee_addr))
+                            l_srv_fee_present=true;
+                    } else if (*ito == TX_ITEM_TYPE_OUT_STD) {
+                        dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t*)ito;
+                        if (!dap_strcmp(l_out_std->token, l_buy_ticker) && !dap_chain_addr_compare(&l_out_std->addr, l_seller))
+                            l_payout_to_seller=true;
+                        if (l_srv_fee_used && !dap_chain_addr_compare(&l_out_std->addr, &l_srv_fee_addr))
+                            l_srv_fee_present=true;
+                    }
+                }
+                if (l_payout_to_seller || l_srv_fee_present) return -3;
+                // Time cutoff: SRV_XCHANGE root must be older than cutoff (if configured)
+                dap_hash_fast_t l_root_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE);
+                dap_chain_datum_tx_t *l_root_tx = dap_hash_fast_is_blank(&l_root_hash) ? l_prev_tx : dap_ledger_tx_find_by_hash(a_ledger, &l_root_hash);
+                if (!l_root_tx) return -4;
+                if ( l_cutoff_ts && l_root_tx->header.ts_created > l_cutoff_ts ) return -5; // too new for migration
+                // All checks passed — allow migration bridge
+                return 0;
+            }
+        }
+    }
     if (a_owner)
         return 0;
     if(!a_tx_in || !a_tx_out_cond)
@@ -442,7 +520,7 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
      * out_ext.fee_addr(fee_ticker).value >= fee_value
      */
     if (l_service_fee_used) {
-        if (l_service_fee_type == SERIVCE_FEE_NATIVE_PERCENT || l_service_fee_type == SERVICE_FEE_OWN_PERCENT)
+        if (l_service_fee_type == SERVICE_FEE_NATIVE_PERCENT || l_service_fee_type == SERVICE_FEE_OWN_PERCENT)
             MULT_256_COIN(l_service_fee_val, l_sell_val, &l_service_fee_val);
         if (compare256(l_fee_val, l_service_fee_val) < 0)
             return -7;
@@ -683,7 +761,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     bool l_service_fee_used = dap_chain_net_srv_xchange_get_fee(a_price->net->pub.id, &l_service_fee, &l_service_fee_addr, &l_service_fee_type);
     if (l_service_fee_used) {
         switch (l_service_fee_type) {
-        case SERIVCE_FEE_NATIVE_PERCENT:
+        case SERVICE_FEE_NATIVE_PERCENT:
             MULT_256_COIN(l_service_fee, a_datoshi_buy, &l_service_fee);
         case SERVICE_FEE_NATIVE_FIXED:
             SUM_256_256(l_total_fee, l_service_fee, &l_total_fee);

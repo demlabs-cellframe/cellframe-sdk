@@ -747,6 +747,9 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_wallet_shared, l_item);
                 break;
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_dex, l_item);
+                break;
             default:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_unknonwn, l_item);
                 break;
@@ -795,4 +798,35 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t
         return (dap_chain_tx_tsd_t *)l_item;
     }
     return NULL;
+}
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_dex(dap_chain_net_srv_uid_t a_srv_uid,
+                                                                         dap_chain_net_id_t a_sell_net_id,
+                                                                         uint256_t a_value_sell,
+                                                                         dap_chain_net_id_t a_buy_net_id,
+                                                                         const char *a_token_buy,
+                                                                         uint256_t a_rate,
+                                                                         const dap_chain_addr_t *a_seller_addr,
+                                                                         const dap_chain_hash_fast_t *a_order_root_hash,
+                                                                         uint8_t a_min_fill_pct,
+                                                                         uint8_t a_version,
+                                                                         uint32_t a_flags,
+                                                                         uint8_t a_type,
+                                                                         const void *a_params,
+                                                                         uint32_t a_params_size)
+{
+    if (!a_token_buy || !a_seller_addr || IS_ZERO_256(a_value_sell) || IS_ZERO_256(a_rate))
+        return NULL;
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    *l_item = (dap_chain_tx_out_cond_t){
+        .header = { .item_type = TX_ITEM_TYPE_OUT_COND, .value = a_value_sell, .subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, .srv_uid = a_srv_uid },
+        .subtype = { .srv_dex = {
+            .sell_net_id = a_sell_net_id, .buy_net_id = a_buy_net_id, .rate = a_rate, .buy_token = { 0 }, .seller_addr = *a_seller_addr,
+            .min_fill = a_min_fill_pct, .version = a_version, .flags = a_flags, .tx_type = a_type } },
+        .tsd_size = a_params_size };
+    strncpy(l_item->subtype.srv_dex.buy_token, a_token_buy, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    if (a_order_root_hash)
+        l_item->subtype.srv_dex.order_root_hash = *a_order_root_hash;
+    if (a_params_size) memcpy(l_item->tsd, a_params, a_params_size);
+    return l_item;
 }

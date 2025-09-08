@@ -350,6 +350,8 @@ dap_chain_datum_token_emission_t *dap_ledger_token_emission_find(dap_ledger_t *a
 
 const char* dap_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,dap_chain_hash_fast_t *a_tx_hash);
 
+const char *dap_ledger_tx_get_token_ticker(dap_ledger_t *a_ledger, dap_ledger_datum_iter_t *a_iter);
+
 void dap_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
         char *** a_tickers, size_t * a_tickers_size);
 
@@ -391,6 +393,7 @@ uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_nanotime_t a_ts_f
  */
 bool dap_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out, dap_hash_fast_t *a_out_spender);
 
+bool dap_ledger_tx_is_used_out_item(dap_ledger_t *a_ledger, dap_ledger_datum_iter_t *a_iter, int a_idx_out, dap_hash_fast_t *a_out_spender);
 /**
  * Retun true if reward was collected before
  */

@@ -20,7 +20,7 @@ endif()
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
-    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange compose")
+    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-dex compose")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -173,6 +173,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
     message("[+] Module 'srv-xchange'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange)
+endif()
+
+# Enable service DEX v2
+if (CELLFRAME_MODULES MATCHES "srv-dex")
+    message("[+] Module 'srv-dex'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_dex)
 endif()
 
 # Enable service of stake token
