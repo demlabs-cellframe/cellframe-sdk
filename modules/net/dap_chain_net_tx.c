@@ -1316,7 +1316,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
         } break;
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
             uint256_t l_value = { };
-            if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+            if(!s_json_get_uint256(a_json_item_obj, "value", &l_value)) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Bad value in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
