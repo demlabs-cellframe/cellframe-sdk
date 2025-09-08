@@ -2648,10 +2648,16 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
 
             size_t i_tmp = 0;
             size_t l_orders_count = 0;
+            dap_list_t *l_first = dap_list_first(l_list);
 
+            /**
+             * Safe iteration over orders.
+             * When iterating in reverse, set iterator to NULL after reaching the head
+             * (recognized by prev->next == NULL) to avoid infinite looping.
+             */
             // Print all txs
-            for (dap_list_t *it = l_head ? dap_list_last(l_list) : dap_list_first(l_list);
-                    it; it = l_head ? it->prev : it->next) {
+            for (dap_list_t *it = l_head ? dap_list_last(l_list) : l_first;
+                    it; it = l_head ? (it->prev && it->prev->next ? it->prev : NULL) : it->next) {
                 dap_chain_datum_tx_t *l_tx = NULL;
                 char l_buy_token[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
                 char l_sell_token[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
@@ -2798,7 +2804,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 json_object_array_add(json_arr_orders_out, l_json_obj_order);
                 DAP_DELETE(l_owner_addr);
                 l_printed_orders_count++; 
-                if (l_head && (it->prev->next == NULL)) break;              
             }
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 dap_list_free(l_list);
