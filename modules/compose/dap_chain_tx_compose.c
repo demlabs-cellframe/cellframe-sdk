@@ -40,7 +40,6 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_common.h"
-
 #include <json-c/json.h>
 #define LOG_TAG "dap_chain_tx_compose"
 
@@ -697,7 +696,7 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     *a_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
     randombytes(*a_addr_fee, sizeof(dap_chain_addr_t));
-    a_net_fee->_lo.b = rand() % 500;
+    a_net_fee->_lo.b = rand() % 500 + 1;
 #else
     dap_return_val_if_pass(!a_net_fee || !a_addr_fee || !a_config || !a_config->net_name, false);
     *a_addr_fee = NULL;
@@ -3700,7 +3699,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     randombytes(&l_owner_addr, sizeof(l_owner_addr));
     dap_chain_tx_out_cond_t *l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
     l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
-    l_tx_out_cond->header.value._lo.b = rand() % 500;
+    l_tx_out_cond->header.value._lo.b = rand() % 500 + 1;
     l_tx_out_cond->header.value._hi.b = rand() % 100;
 #endif
     uint256_t l_fee_transfer = {}; // how many coins to transfer
@@ -4692,7 +4691,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
     a_cond_tx->header.ts_expires = 0;
     strcpy(a_cond_tx->subtype.srv_xchange.buy_token, a_price->token_buy);
     a_cond_tx->subtype.srv_xchange.buy_net_id.uint64 = rand() % 100;
-    a_cond_tx->subtype.srv_xchange.sell_net_id.uint64 = rand() % 100;
+    a_cond_tx->subtype.srv_xchange.sell_net_id.uint64 = rand() % 100 + 1;
     a_cond_tx->subtype.srv_xchange.rate = a_price->rate;
     a_cond_tx->subtype.srv_xchange.seller_addr = *a_wallet_addr;
     a_cond_tx->tsd_size = 0;
