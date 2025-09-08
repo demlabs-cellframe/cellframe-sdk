@@ -818,9 +818,9 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         bool l_pinned = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pinned", NULL);
         bool l_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
         size_t l_arg_count = (size_t)l_all;
-        l_arg_count += dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
-        l_arg_count += dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-mask", &l_mask);
-        if (l_arg_count != 1) {
+        l_arg_count += !!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
+        l_arg_count += !!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-mask", &l_mask);
+        if ((!l_group_str && !l_mask && !l_all) || l_arg_count != 1) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "%s requires parameter 'group' or 'all' or 'mask' to be valid", a_argv[0]);
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
