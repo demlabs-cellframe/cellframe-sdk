@@ -79,10 +79,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\tPerforms deletion of the entire group in the database.\n\n"
             "global_db get_keys -group <group_name>\n"
                 "\tGets all record keys from a specified group.\n\n"
-            "global_db clear -group <group_name> | -all [-pinned]\n"
-                "\tRemove all hole records from a specified group.\n"
-                "\t-pinned: remove pinned records too\n"
-                "\t-all: clean all groups\n"
+            "global_db clear -group <group_name> | -mask <mask> | -all [-pinned]\n"
+                "\tRemove all hole records from a specified group or all groups by mask.\n"
+                "\t-mask <mask>: clear groups by mask\n"
+                "\t-all: clear all groups\n"
+                "\t-pinned: remove pinned records too\n\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );

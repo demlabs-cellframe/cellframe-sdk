@@ -812,25 +812,44 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     case CMD_CLEAR: {
-        const char *l_group_str = NULL;
+        const char
+            *l_group_str = NULL,
+            *l_mask = NULL;
         bool l_pinned = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pinned", NULL);
         bool l_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
-        if ((!l_all && !l_group_str) || (l_all && l_group_str)) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "%s requires parameter 'group' or 'all' to be valid", a_argv[0]);
+        size_t l_arg_count = (size_t)l_all;
+        l_arg_count += dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
+        l_arg_count += dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-mask", &l_mask);
+        if (l_arg_count != 1) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "%s requires parameter 'group' or 'all' or 'mask' to be valid", a_argv[0]);
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
+        json_object *l_json_arr_clear = json_object_new_array();
+        size_t l_total_count = 0;
         if (l_group_str) {
-            return dap_global_db_group_clear(l_group_str, l_pinned);
+            json_object *l_json_obj_clear = json_object_new_object();
+            json_object_object_add(l_json_obj_clear, l_group_str, json_object_new_uint64(dap_global_db_group_clear(l_group_str, l_pinned)));
+            json_object_array_add(l_json_arr_clear, l_json_obj_clear);
+            l_total_count = 1;
         }
-        if (l_all) {
-            dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
+        if (l_all || l_mask) {
+            dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask(l_mask ? l_mask : "*");
             for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list)) {
-                dap_global_db_group_clear((const char *)(l_list->data), l_pinned);
+                size_t l_count = dap_global_db_group_clear((const char *)(l_list->data), l_pinned);
+                if (l_count) {
+                    json_object *l_json_obj_clear = json_object_new_object();
+                    json_object_object_add(l_json_obj_clear, (const char *)(l_list->data), json_object_new_uint64(l_count));
+                    json_object_array_add(l_json_arr_clear, l_json_obj_clear);
+                    ++l_total_count;
+                }
             }
             dap_list_free_full(l_group_list, NULL);
-            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         }
+        json_object *l_json_obj_clear = json_object_new_object();
+        json_object_object_add(l_json_obj_clear, "group_list_clear", l_json_arr_clear);
+        json_object_object_add(l_json_obj_clear, "total_count", json_object_new_uint64(l_total_count));
+        json_object_array_add(*a_json_arr_reply, l_json_obj_clear);
+        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     
     default:
