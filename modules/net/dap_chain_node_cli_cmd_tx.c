@@ -2071,8 +2071,8 @@ int  json_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_
 		}
 
 		printf("________________________________________________________________________________________________________________"
-            "__________\n");
-		printf("  Hash \t\t\t\t\t\t\t\t     | %-22s | %-24s |\n","Datum type", "Time create");
+            "________________\n");
+		printf("  Hash \t\t\t\t\t\t\t\t     | %-22s | %-31s |\n","Datum type", "Time create");
 
 		if (j_arr_datums && json_object_get_type(j_arr_datums) == json_type_array) {
 			int datums_count = json_object_array_length(j_arr_datums);
@@ -2106,14 +2106,14 @@ int  json_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_
 					}
 				}
 
-				printf("  %s | %-22s | %-24s |\n", hash_str, type_str, created_str);
+				printf("  %s | %-22s | %-31s |\n", hash_str, type_str, created_str);
 			}
 		} else {
 			printf("  No datums\n");
 		}
 
 		printf("_____________________________________________________________________"
-            "|________________________|__________________________|\n\n");
+            "|________________________|_________________________________|\n\n");
 
 		if (j_obj_total)
 			printf("  total: %s\n", json_object_get_string(j_obj_total));
@@ -2233,11 +2233,11 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
             printf("_________________________________________________________________________________________________________________"
                 "_________________________________________________________________________________________________________________"
                 "_________________________________________________________________________________________________________________\n");
-            printf(" TX Hash \t\t\t\t\t\t\t    | Date \t\t\t      | Signing Addr\t\t\t\t\t\t\t\t\t\t\t\t | Signing Hash \t\t\t\t\t\t      | Node Address \t       | Value Coins | Owner Addr \t\t\t\t\t\t\t\t\t\t\t\t|\n");
+            printf(" TX Hash \t\t\t\t\t\t\t    | Date \t\t\t      | Signing Addr\t\t\t\t\t\t\t\t\t\t\t\t\t | Signing Hash \t\t\t\t\t      | Node Address \t       | %-25s | Owner Addr \t\t\t\t\t\t\t\t\t\t\t\t\t\t|\n", "Value Coins");
         } else {
             printf("_________________________________________________________________________________________________________________"
                 "________________________________________\n");
-            printf(" TX Hash \t | Date \t\t\t   | Signing Addr\t | Signing Hash    | Node Address \t    | Value Coins | Owner Addr \t\t|\n");
+            printf(" TX Hash \t | Date \t\t\t   | Signing Addr\t | Signing Hash    | Node Address \t    | %-10s | Owner Addr \t\t|\n", "Value Coins");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         result_count = json_object_array_length(json_obj_array);
@@ -2292,13 +2292,21 @@ int json_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** 
                     const char *owner_addr_str = (owner_addr_full && strcmp(owner_addr_full, "null")) ?
                                                   (l_full ? owner_addr_full : owner_addr_full + 85) : "-------------------";
                     
-                    printf(" %-15s | %-13s | %-17s | %-14s | %-17s | %-11s | %-17s |\n",
+                    int value_coins_width = l_full ? 25 : 11;
+                    const char *value_coins_full = json_object_get_string(j_obj_value_coins);
+                    const char *value_coins_str = (value_coins_full && strcmp(value_coins_full, "null"))
+                        ? (strlen(value_coins_full) > (size_t)value_coins_width
+                            ? value_coins_full + (strlen(value_coins_full) - value_coins_width)
+                            : value_coins_full)
+                        : "-";
+
+                    printf(" %-15s | %-13s | %-17s | %-14s | %-17s | %-*s | %-17s |\n",
                             tx_hash_short,
                             json_object_get_string(j_obj_date),
                             signing_addr_str,
                             signing_hash_short,
                             node_addr_str,
-                            json_object_get_string(j_obj_value_coins),
+                            value_coins_width, value_coins_str,
                             owner_addr_str);
                 } else {
                     printf("Missing required fields in array element at index %d\n", i);
@@ -2690,7 +2698,7 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
             return -3;
         }
         printf("________________________________________________________________________________________________________________\n");
-        printf("   # \t| Hash \t\t\t\t\t\t\t\t     | Time create \t\t\t|\n");
+        printf(" %7s | Hash \t\t\t\t\t\t\t\t     | Time create \t\t\t|\n","#");
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         struct json_object *j_object_events = NULL;
         char *l_limit = NULL;
@@ -2713,7 +2721,7 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
                     json_object_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
                 {
                     if (j_obj_event_number && j_obj_hash && j_obj_create) {
-                        printf("   %s \t| %s | %s\t|",
+                        printf(" %7s | %s | %s\t|",
                                 json_object_get_string(j_obj_event_number), json_object_get_string(j_obj_hash), json_object_get_string(j_obj_create));
                     } else {
                         printf("Missing required fields in array element at index %d\n", i);
@@ -2933,7 +2941,7 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
     }
     
     if (!table_mode_sx) { json_print_object(response->result_json_object, 0); return 0; }
-    struct json_object *j_obj_headr = NULL, *limit_obj = NULL, *l_arr_pagina = NULL, *l_obj_pagina = NULL,
+    struct json_object *j_obj_headr = NULL, *limit_obj = NULL, *l_arr_pages = NULL, *l_obj_pages = NULL,
 			*offset_obj = NULL, *l_arr_orders = NULL;
 	char *l_limit = NULL;
 	char *l_offset = NULL;
@@ -2942,11 +2950,11 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 	// Common header for pagination (mainly for 'orders')
 	j_obj_headr = json_object_array_get_idx(response->result_json_object, 0);
 	if (j_obj_headr) {
-		if (json_object_object_get_ex(j_obj_headr, "pagina", &l_arr_pagina) && l_arr_pagina) {
-			l_obj_pagina = json_object_array_get_idx(l_arr_pagina, 0);
-			if (l_obj_pagina) {
-				json_object_object_get_ex(l_obj_pagina, "limit", &limit_obj);
-				json_object_object_get_ex(l_obj_pagina, "offset", &offset_obj);
+		if (json_object_object_get_ex(j_obj_headr, "pages", &l_arr_pages) && l_arr_pages) {
+			l_obj_pages = json_object_array_get_idx(l_arr_pages, 0);
+			if (l_obj_pages) {
+				json_object_object_get_ex(l_obj_pages, "limit", &limit_obj);
+				json_object_object_get_ex(l_obj_pages, "offset", &offset_obj);
 				if (limit_obj)
 					l_limit = json_object_get_int64(limit_obj) ? dap_strdup_printf("%"DAP_INT64_FORMAT,json_object_get_int64(limit_obj)) : dap_strdup_printf("unlimit");
 				if (offset_obj)
@@ -2971,24 +2979,24 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 			}
             if (l_full) {
 			    printf("______________________________________________________________________________________________"
-			    	"_________________________________________________________________________________________________"
-			    	"_________________________\n");
-			    printf("   %-67s | %-31s | %s | %-22s | %-22s | %3s | %-10s | %-10s | %-22s |\n",
+			    	"_________________________________________________________________________________________________________"
+			    	"_________________________________________________________________________________________________________\n");
+			    printf("   %-67s | %-31s | %s | %-22s | %-22s | %3s | %-10s | %-10s | %-22s | %-104s |\n",
 			    		"Order hash", "Time create", "Status",
 			    		"Proposed coins","Amount coins","%",
-			    		"Token buy", "Token sell","Rate");
+			    		"Token buy", "Token sell","Rate", "Owner addr");
             } else {
-                printf("______________________________________________________________________________________________"
-			    	"_______________________________________________________________________\n");
-			    printf("   %-16s | %-31s | %s | %-22s | %-22s | %3s | %-10s | %-10s | %-22s |\n",
+                printf("_____________________________________________________________________________________________"
+			    	"____________________________________________________________________________________________________\n");
+			    printf("   %-16s | %-31s | %s | %-22s | %-22s | %3s | %-10s | %-10s | %-22s | %-19s |\n",
 			    		"Order hash", "Time create", "Status",
 			    		"Proposed coins","Amount coins","%",
-			    		"Token buy", "Token sell","Rate");
+			    		"Token buy", "Token sell","Rate", "Owner addr");
             }
 			for (int i = 0; i < result_count; i++) {
 				struct json_object *json_obj_result = json_object_array_get_idx(l_arr_orders, i);
 				json_object *j_obj_status = NULL, *j_obj_hash = NULL, *j_obj_create = NULL, *j_obj_prop_coin = NULL,
-					*j_obj_amount_coin = NULL, *j_obj_filed_perc = NULL, *j_obj_token_buy = NULL, *j_obj_token_sell = NULL, *j_obj_rate = NULL;
+					*j_obj_amount_coin = NULL, *j_obj_filed_perc = NULL, *j_obj_token_buy = NULL, *j_obj_token_sell = NULL, *j_obj_rate = NULL, *j_obj_owner_addr = NULL;
 				if (json_object_object_get_ex(json_obj_result, "order_hash", &j_obj_hash) &&
 					json_object_object_get_ex(json_obj_result, "ts_created", &j_obj_create) &&
 					json_object_object_get_ex(json_obj_result, "status", &j_obj_status) &&
@@ -2997,7 +3005,8 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 					json_object_object_get_ex(json_obj_result, "filled_percent", &j_obj_filed_perc) &&
 					json_object_object_get_ex(json_obj_result, "token_buy", &j_obj_token_buy) &&
 					json_object_object_get_ex(json_obj_result, "token_sell", &j_obj_token_sell) &&
-					json_object_object_get_ex(json_obj_result, "rate", &j_obj_rate)) {
+					json_object_object_get_ex(json_obj_result, "rate", &j_obj_rate) &&
+					json_object_object_get_ex(json_obj_result, "owner_addr", &j_obj_owner_addr)) {
 					const char *full_hash = json_object_get_string(j_obj_hash);
 					char hash_buffer[16];
 					const char *hash_print = full_hash;
@@ -3010,19 +3019,21 @@ int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** c
 					const char *prop_full = json_object_get_string(j_obj_prop_coin);
 					const char *amount_full = json_object_get_string(j_obj_amount_coin);
 					const char *rate_full = json_object_get_string(j_obj_rate);
+					const char *owner_addr_full = j_obj_owner_addr ? json_object_get_string(j_obj_owner_addr) : NULL;
 					char prop_buf[23];
 					char amount_buf[23];
 					char rate_buf[23];
 					const char *prop_print = prop_full ? prop_full : "-";
 					const char *amount_print = amount_full ? amount_full : "-";
 					const char *rate_print = rate_full ? rate_full : "-";
+					const char *owner_addr_print = (owner_addr_full && strcmp(owner_addr_full, "null")) ? (l_full ? owner_addr_full : owner_addr_full + 85) : "-------------------";
 					if (prop_print && strlen(prop_print) > 22) { strncpy(prop_buf, prop_print + strlen(prop_print) - 22, 22); prop_buf[22] = '\0'; prop_print = prop_buf; }
 					if (amount_print && strlen(amount_print) > 22) { strncpy(amount_buf, amount_print + strlen(amount_print) - 22, 22); amount_buf[22] = '\0'; amount_print = amount_buf; }
 					if (rate_print && strlen(rate_print) > 22) { strncpy(rate_buf, rate_print + strlen(rate_print) - 22, 22); rate_buf[22] = '\0'; rate_print = rate_buf; }
-					printf("   %s  | %s | %s | %-22s | %-22s | %3d | %-10s | %-10s | %-22s |\n",
+					printf("   %s  | %s | %s | %-22s | %-22s | %3d | %-10s | %-10s | %-22s | %-s |\n",
 						hash_print, json_object_get_string(j_obj_create), json_object_get_string(j_obj_status),
 						prop_print, amount_print, (int)json_object_get_uint64(j_obj_filed_perc),
-						json_object_get_string(j_obj_token_buy), json_object_get_string(j_obj_token_sell), rate_print);
+						json_object_get_string(j_obj_token_buy), json_object_get_string(j_obj_token_sell), rate_print, owner_addr_print);
 					l_print_count++;
 				}
 			}

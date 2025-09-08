@@ -323,7 +323,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("tx_history", com_tx_history, NULL, "Transaction history (for address or by hash)",
             "tx_history  {-addr <addr> | {-w <wallet_name> } -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head] [-h]\n"
             "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head] [-h]\n"
-            "tx_history -tx <tx_hash> -net <net_name> [-chain <chain_name>] [-limit] \n"
+            "tx_history -tx <tx_hash> -net <net_name> [-chain <chain_name>] \n"
             "tx_history -count -net <net_name> [-h]\n");
 
 	// Ledger info
