@@ -2372,9 +2372,11 @@ int json_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_pa
             int arr_len = json_object_array_length(root0);
             if (arr_len <= 0) { printf("No coins found\n"); return 0; }
 
-            printf("__________________________________________________________________________________________________________\n");
-            printf("  Token Ticker   |   Type  | Decimals | Total Supply                                   | Current Supply\n");
-            printf("__________________________________________________________________________________________________________\n");
+            printf("__________________________________________________________________________________________________________"
+                "____________________________\n");
+            printf("  Token Ticker   |   Type  | Decimals | Total Supply                                  | Current Supply\n");
+            printf("__________________________________________________________________________________________________________"
+                "____________________________\n");
 
             int printed = 0;
             for (int i = 0; i < arr_len; i++) {
@@ -2698,7 +2700,7 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
             return -3;
         }
         printf("________________________________________________________________________________________________________________\n");
-        printf(" %7s | Hash \t\t\t\t\t\t\t\t     | Time create \t\t\t|\n","#");
+        printf(" %7s | Hash \t\t\t\t\t\t\t      | Time create \t\t        |\n","#");
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         struct json_object *j_object_events = NULL;
         char *l_limit = NULL;
@@ -2737,7 +2739,7 @@ int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param
                 }             
                 printf("\n");
             }
-            printf("________|____________________________________________________________________|__________________________________|\n\n");
+            printf("_________|____________________________________________________________________|_________________________________|\n\n");
         } else {
             printf("EVENTS is empty\n");
             return -4;
@@ -3330,32 +3332,7 @@ int json_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd
 		// Handle transaction history list (should have 2 elements: transactions array + summary)
 		if (result_count >= 2) {
 			json_object *tx_array = json_object_array_get_idx(response->result_json_object, 0);
-			json_object *summary_obj = json_object_array_get_idx(response->result_json_object, 1);
-
-			// Print summary information
-			if (summary_obj) {
-				json_object *network_obj = NULL, *chain_obj = NULL;
-				json_object *tx_sum_obj = NULL, *accepted_obj = NULL, *rejected_obj = NULL;
-				
-				json_object_object_get_ex(summary_obj, "network", &network_obj);
-				json_object_object_get_ex(summary_obj, "chain", &chain_obj);
-				json_object_object_get_ex(summary_obj, "tx_sum", &tx_sum_obj);
-				json_object_object_get_ex(summary_obj, "accepted_tx", &accepted_obj);
-				json_object_object_get_ex(summary_obj, "rejected_tx", &rejected_obj);
-
-				printf("\n=== Transaction History ===\n");
-				if (network_obj && chain_obj) {
-					printf("Network: %s, Chain: %s\n", 
-						   json_object_get_string(network_obj),
-						   json_object_get_string(chain_obj));
-				}
-				if (tx_sum_obj && accepted_obj && rejected_obj) {
-					printf("Total: %d transactions (Accepted: %d, Rejected: %d)\n\n",
-						   json_object_get_int(tx_sum_obj),
-						   json_object_get_int(accepted_obj),
-						   json_object_get_int(rejected_obj));
-				}
-			}
+			json_object *summary_obj = json_object_array_get_idx(response->result_json_object, 1);			
 
 			// Print transactions table header
 			printf("_________________________________________________________________________________________________________________"
@@ -3414,6 +3391,32 @@ int json_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd
                     DAP_DELETE(l_offset);
                 }
 			}
+
+            // Print summary information
+			if (summary_obj) {
+				json_object *network_obj = NULL, *chain_obj = NULL;
+				json_object *tx_sum_obj = NULL, *accepted_obj = NULL, *rejected_obj = NULL;
+				
+				json_object_object_get_ex(summary_obj, "network", &network_obj);
+				json_object_object_get_ex(summary_obj, "chain", &chain_obj);
+				json_object_object_get_ex(summary_obj, "tx_sum", &tx_sum_obj);
+				json_object_object_get_ex(summary_obj, "accepted_tx", &accepted_obj);
+				json_object_object_get_ex(summary_obj, "rejected_tx", &rejected_obj);
+
+				printf("\n=== Transaction History ===\n");
+				if (network_obj && chain_obj) {
+					printf("Network: %s, Chain: %s\n", 
+						   json_object_get_string(network_obj),
+						   json_object_get_string(chain_obj));
+				}
+				if (tx_sum_obj && accepted_obj && rejected_obj) {
+					printf("Total: %d transactions (Accepted: %d, Rejected: %d)\n\n",
+						   json_object_get_int(tx_sum_obj),
+						   json_object_get_int(accepted_obj),
+						   json_object_get_int(rejected_obj));
+				}
+			}
+
 		} else {
 			// Single transaction or unknown format - fallback to JSON print
 			json_print_object(response->result_json_object, 0);
