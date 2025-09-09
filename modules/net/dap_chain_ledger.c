@@ -59,6 +59,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -761,10 +762,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         dap_chain_addr_to_str_static(l_add_addr));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
             }
-            // Addr removing
-            if (--l_new_tx_recv_allow_size > i)
-                memmove(l_new_tx_recv_allow + i, l_new_tx_recv_allow + i + 1,
-                        (l_new_tx_recv_allow_size - i - 1) * sizeof(dap_chain_addr_t));
+            // Addr removing: swap with last
+            {
+                size_t l_last_idx = l_new_tx_recv_allow_size - 1;
+                if (i < l_last_idx)
+                    l_new_tx_recv_allow[i] = l_new_tx_recv_allow[l_last_idx];
+                l_new_tx_recv_allow_size = l_last_idx;
+            }
             // Memory clearing
             if (l_new_tx_recv_allow_size)
                 l_new_tx_recv_allow = DAP_REALLOC_COUNT(l_new_tx_recv_allow, l_new_tx_recv_allow_size);
@@ -779,7 +783,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             DAP_DEL_Z(l_new_tx_recv_allow);
             l_new_tx_recv_allow_size = 0;
-            l_was_tx_recv_block_copied = true;
+            l_was_tx_recv_allow_copied = true;
         } break;
 
         // Blocked tx receiver addres list add, remove or clear
@@ -852,10 +856,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         dap_chain_addr_to_str_static(l_add_addr));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
             }
-            // Addr removing
-            if (--l_new_tx_recv_block_size > i)
-                memmove(l_new_tx_recv_block + i, l_new_tx_recv_block + i + 1,
-                        (l_new_tx_recv_block_size - i - 1) * sizeof(dap_chain_addr_t));
+            // Addr removing: swap with last
+            {
+                size_t l_last_idx = l_new_tx_recv_block_size - 1;
+                if (i < l_last_idx)
+                    l_new_tx_recv_block[i] = l_new_tx_recv_block[l_last_idx];
+                l_new_tx_recv_block_size = l_last_idx;
+            }
             // Memory clearing
             if (l_new_tx_recv_block_size)
                 l_new_tx_recv_block = DAP_REALLOC(l_new_tx_recv_block,
@@ -945,10 +952,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         dap_chain_addr_to_str_static(l_add_addr));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
             }
-            // Addr removing
-            if (--l_new_tx_send_allow_size > i)
-                memmove(l_new_tx_send_allow + i, l_new_tx_send_allow + i + 1,
-                        (l_new_tx_send_allow_size - i - 1) * sizeof(dap_chain_addr_t));
+            // Addr removing: swap with last
+            {
+                size_t l_last_idx = l_new_tx_send_allow_size - 1;
+                if (i < l_last_idx)
+                    l_new_tx_send_allow[i] = l_new_tx_send_allow[l_last_idx];
+                l_new_tx_send_allow_size = l_last_idx;
+            }
             // Memory clearing
             if (l_new_tx_send_allow_size)
                 l_new_tx_send_allow = DAP_REALLOC(l_new_tx_send_allow,
@@ -1039,10 +1049,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                         dap_chain_addr_to_str_static(l_add_addr));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
             }
-            // Addr removing
-            if (--l_new_tx_send_block_size > i)
-                memmove(l_new_tx_send_block + i, l_new_tx_send_block + i + 1,
-                        (l_new_tx_send_block_size - i - 1) * sizeof(dap_chain_addr_t));
+            // Addr removing: swap with last
+            {
+                size_t l_last_idx = l_new_tx_send_block_size - 1;
+                if (i < l_last_idx)
+                    l_new_tx_send_block[i] = l_new_tx_send_block[l_last_idx];
+                l_new_tx_send_block_size = l_last_idx;
+            }
             // Memory clearing
             if (l_new_tx_send_block_size)
                 l_new_tx_send_block = DAP_REALLOC_COUNT(l_new_tx_send_block, l_new_tx_send_block_size);
@@ -1193,18 +1206,24 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                                                     dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH);
             }
-            // Pkey removing
-            DAP_DELETE(l_new_pkeys[i]);
-            if (--l_new_signs_total > i) {
-                memmove(l_new_pkeys + i, l_new_pkeys + i + 1, (l_new_signs_total - i - 1) * sizeof(dap_pkey_t *));
-                memmove(l_new_pkey_hashes + i, l_new_pkey_hashes + i + 1, (l_new_signs_total - i - 1) * sizeof(dap_hash_t));
+            // Pkey removing: swap with last to avoid O(n) shifts
+            {
+                size_t l_last_idx = l_new_signs_total - 1;
+                DAP_DEL_Z(l_new_pkeys[i]);
+                if (i < l_last_idx) {
+                    l_new_pkeys[i] = l_new_pkeys[l_last_idx];
+                    l_new_pkey_hashes[i] = l_new_pkey_hashes[l_last_idx];
+                }
+                l_new_signs_total = l_last_idx;
             }
             // Memory clearing
             if (l_new_signs_total) {
                 l_new_pkeys = DAP_REALLOC_COUNT(l_new_pkeys, l_new_signs_total);
                 l_new_pkey_hashes = DAP_REALLOC_COUNT(l_new_pkey_hashes, l_new_signs_total);
-            } else
-                DAP_DEL_MULTY(l_new_pkeys, l_new_pkey_hashes);
+            } else {
+                DAP_DEL_Z(l_new_pkeys);
+                DAP_DEL_Z(l_new_pkey_hashes);
+            }
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {

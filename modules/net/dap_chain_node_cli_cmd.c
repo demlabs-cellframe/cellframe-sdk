@@ -111,7 +111,6 @@
 #include "dap_chain_policy.h"
 #include "dap_time.h"
 
-
 #include "dap_chain_net_tx.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
@@ -412,6 +411,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
  */
 int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
+    
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
@@ -1712,7 +1712,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             s_wallet_list(c_wallets_path, json_arr_out, NULL, a_version);
             if (json_object_array_length(json_arr_out) == 0) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR,
-                    "Сouldn't find any wallets");
+                    "Couldn't find any wallets");
             }
             break;
         // wallet info
@@ -4031,7 +4031,7 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
             dap_chain_atom_iter_t *l_atom_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id,
                                                                                           NULL);
             dap_chain_atom_ptr_t l_atom;
-            uint64_t l_atom_size = 0;
+            size_t l_atom_size = 0;
             for (l_atom = l_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
                  l_atom && l_atom_size;
                  l_atom = l_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size)) {
@@ -6740,6 +6740,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_CERT_OR_WALLET_FEE;
         }
     } else {
+        size_t l_time_el_count = 0;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_ticker);
         if (!l_token_ticker) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_TOKEN, "tx_create requires parameter '-token'");
@@ -6762,9 +6763,11 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         }
         l_addr_el_count = dap_str_symbol_count(addr_base58_to, ',') + 1;
         l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
+        if (l_time_str)
+            l_time_el_count = dap_str_symbol_count(l_time_str, ',') + 1;
 
-        if (l_addr_el_count != l_value_el_count) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE, "num of '-to_addr' and '-value' should be equal");
+        if ((l_addr_el_count != l_value_el_count) || (l_time_str && l_time_el_count != l_value_el_count)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE, "num of '-to_addr', '-value' and '-lock_before' should be equal");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE;
         }
 
@@ -6919,14 +6922,35 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             }
         }
     }
-
-    dap_time_t l_time_lock = 0;
+    dap_time_t *l_time_unlock = NULL;
     if (l_time_str) {
-        if (!(l_time_lock = dap_time_from_str_simplified(l_time_str)) && !(l_time_lock = dap_time_from_str_rfc822(l_time_str))) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT,
-                                    "Wrong time format. Parameter -lock_before must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +0300\"");
+        l_time_unlock = DAP_NEW_Z_COUNT(dap_time_t, l_value_el_count);
+        if (!l_time_unlock) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_MEMORY_ERR, "Can't allocate memory");
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+            DAP_DEL_MULTY(l_addr_to, l_value);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_MEMORY_ERR;
+        }
+        char **l_time_unlock_array = dap_strsplit(l_time_str, ",", l_value_el_count);
+        if (!l_time_unlock_array) {
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+            DAP_DEL_MULTY(l_addr_to, l_value, l_time_unlock);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT, "Can't read '-lock_before' arg");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT;
         }
+        for (size_t i = 0; i < l_value_el_count; ++i) {
+            if (l_time_unlock_array[i] && !dap_strcmp(l_time_unlock_array[i], "0")) {
+                l_time_unlock[i] = 0;
+                continue;
+            }
+            if (!(l_time_unlock[i] = dap_time_from_str_simplified(l_time_str)) && !(l_time_unlock[i] = dap_time_from_str_rfc822(l_time_str))) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT, "Wrong time format. Parameter -lock_before must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +0300\"");
+                DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+                DAP_DEL_MULTY(l_addr_to, l_value, l_time_unlock);       
+                return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT;
+            }
+        }
+        dap_strfreev(l_time_unlock_array);
     }
 
     json_object *l_jobj_transfer_status = NULL;
@@ -6940,7 +6964,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
     } else {
         char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
-                                                          l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count, l_time_lock);
+                                                          l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count, l_time_unlock);
         if (l_tx_hash_str) {
             l_jobj_transfer_status = json_object_new_string("Ok");
             l_jobj_tx_hash = json_object_new_string(l_tx_hash_str);
