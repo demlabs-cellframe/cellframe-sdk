@@ -109,7 +109,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                                                const char *a_delegated_ticker_str, uint256_t a_delegated_value,int *res);
 // Callbacks
 static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 
 static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
     size_t l_strlen = (size_t)strlen(str);
@@ -992,7 +992,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply)
 {
     dap_chain_datum_tx_t									*l_burning_tx       = NULL;
     dap_chain_datum_tx_receipt_t							*l_receipt          = NULL;
@@ -1034,17 +1034,13 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
                 IS_ZERO_256(l_value_delegated))
             return -6;
         size_t l_receipt_size = 0;
-        l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT, &l_receipt_size);
-        if (!l_receipt) l_receipt_old = (dap_chain_datum_tx_receipt_old_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
-        if (l_receipt || l_receipt_old) {
-            // Checking politics
-            if (dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
-                (!l_receipt || l_receipt->receipt_info.version < 2)){
-                log_it(L_ERROR, "Receipt version must be >= 2.");
-                return -17;
+        l_receipt_old = (dap_chain_datum_tx_receipt_old_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
+        if (l_receipt_old) {
+            if (!a_check_for_apply) { // It's mempool process, so we don't accept f*cking legacy!
+                log_it(L_WARNING, "Legacy stakes are not accepted from mempool anymore! Dismiss unstake tx %s", dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
+                return -69;
             }
-
-            if (dap_chain_datum_tx_receipt_check_size(l_receipt ? l_receipt : (dap_chain_datum_tx_receipt_t*)l_receipt_old, l_receipt_size))
+            if (dap_chain_datum_tx_receipt_check_size((dap_chain_datum_tx_receipt_t *)l_receipt_old, l_receipt_size))
                 return -13;
             if (!dap_chain_net_srv_uid_compare_scalar((l_receipt ? l_receipt->receipt_info.srv_uid : l_receipt_old->receipt_info.srv_uid), DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
                 return -7;
@@ -1105,8 +1101,8 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         }
 
         if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
-            // !!! A terrible legacy crutch, TODO !!!
-            if (SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
+            // A terrible legacy crutch, not applied to new txs anymore.
+            if (!l_receipt_old || SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
                     !EQUAL_256(l_blank_out_value, l_value_delegated)) {
                 log_it(L_ERROR, "Burning and delegated value mismatch");
                 return -12;
