@@ -832,6 +832,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         size_t l_count = 0;
         json_object* json_arr_group = json_object_new_array();
         json_object* json_obj_list = NULL;
+        uint64_t l_total_size = 0;
         for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list), ++l_count) {
             json_obj_list = json_object_new_object();
             json_object* json_obj_list_data = NULL;
@@ -842,6 +843,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 json_object_array_add(json_arr_obj, json_obj_count_list);
                 json_object* json_obj_size_list = json_object_new_object();
                 uint64_t l_size = dap_global_db_driver_size((char*)l_list->data, NULL, false);
+                l_total_size += l_size;
                 double size_mb = (double)l_size / (1024.0 * 1024.0);
                 json_object_object_add(json_obj_size_list, "size_mb", json_object_new_double(size_mb));
                 json_object_array_add(json_arr_obj, json_obj_size_list);
@@ -854,6 +856,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         }
         json_object_object_add(json_group_list, a_version == 1 ? "group list" : "group_list", json_arr_group);
         json_object_object_add(json_group_list, a_version == 1 ? "total count" : "total_count", json_object_new_uint64(l_count));
+        json_object_object_add(json_group_list, a_version == 1 ? "total size" : "total_logical_size", json_object_new_uint64(l_total_size));
+        json_object_object_add(json_group_list, a_version == 1 ? "total size" : "total_physical_size", json_object_new_uint64(dap_global_db_driver_physical_size()));
         json_object_array_add(*a_json_arr_reply, json_group_list);
         dap_list_free_full(l_group_list, NULL);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
