@@ -41,6 +41,7 @@
 #include "dap_chain_node_client.h"
 
 #include "dap_json.h"
+#define _XOPEN_SOURCE
 #include <time.h>
 
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
@@ -3668,9 +3669,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
         return NULL;
     }
 
-    dap_json_t *l_sig_b64_obj = NULL;
-    dap_json_object_get_ex(l_sig_item, "sig_b64", &l_sig_b64_obj);
-    const char *l_sign_b64_str = l_sig_b64_obj ? dap_json_get_string(l_sig_b64_obj) : NULL;
+    // Calculate string length for the already declared l_sign_b64_str variable
     int64_t l_sign_b64_strlen = l_sign_b64_str ? strlen(l_sign_b64_str) : 0;
     int64_t l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
