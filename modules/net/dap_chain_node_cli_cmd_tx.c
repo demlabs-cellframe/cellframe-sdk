@@ -570,7 +570,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             case TX_ITEM_TYPE_OUT_COND:
                 l_value = ((dap_chain_tx_out_cond_t *)it->data)->header.value;
                 if (((dap_chain_tx_out_cond_t *)it->data)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                    SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
+                    // SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
                     l_dst_token = l_native_ticker;
                 } else
                     l_dst_token = l_src_token;
@@ -583,8 +583,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     (!l_recv_from_cond || (l_noaddr_token && (dap_strcmp(l_noaddr_token, l_dst_token) || l_found_out_to_same_addr_from_out_cond))))
                 continue;   // sent to self (coinback)
 
-            if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
-                SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
+            // if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
+            //     SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
             
             //tag
             const char *l_service_name = NULL;
