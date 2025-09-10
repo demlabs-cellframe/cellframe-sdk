@@ -191,6 +191,7 @@ typedef struct dap_chain_net_pvt{
 #define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
 static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
+static size_t s_node_list_ttl = 3600 * 2;
 
 static const char *c_net_states[] = {
     [NET_STATE_LOADING]             = "NET_STATE_LOADING",
@@ -280,6 +281,7 @@ int dap_chain_net_init()
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
+    s_node_list_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_ttl", s_node_list_ttl);
     char l_path[MAX_PATH + 1], *l_end = NULL;
     int l_pos = snprintf(l_path, MAX_PATH, "%s/network/", dap_config_path());
     if (l_pos >= MAX_PATH - 4)
@@ -2182,7 +2184,7 @@ static void *s_net_load(void *a_arg)
     snprintf(l_net->pub.gdb_nodes, sizeof(l_net->pub.gdb_nodes), "%s.%s", l_net->pub.gdb_groups_prefix, s_gdb_nodes_postfix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                         l_net->pub.gdb_nodes, 7200, true,
+                                                         l_net->pub.gdb_nodes, s_node_list_ttl, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
