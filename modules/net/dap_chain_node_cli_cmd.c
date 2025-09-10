@@ -414,7 +414,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
     
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
-        CMD_NONE, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
+        CMD_NONE, CMD_ADD, CMD_FLUSH, CMD_SHRINK, CMD_RECORD, CMD_WRITE, CMD_READ,
         CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST
     };
     int arg_index = 1;
@@ -422,6 +422,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
     // find 'cells' as first parameter only
     if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "flush", NULL))
         cmd_name = CMD_FLUSH;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "shrink", NULL))
+            cmd_name = CMD_SHRINK;
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "record", NULL))
             cmd_name = CMD_RECORD;
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "write", NULL))
@@ -466,6 +468,24 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         default:
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_COMMIT_TO_DISK,
                                                         "Can't commit data base caches to disk completed.\n"
+                                                        "Reboot the node.\n\n");
+            break;
+        }
+        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
+    }
+    case CMD_SHRINK:
+    {
+        json_object* json_obj_shrink = NULL;
+        int res_shrink = dap_global_db_shrink_sync();
+        switch (res_shrink) {
+        case 0:
+            json_obj_shrink = json_object_new_object();
+            json_object_object_add(json_obj_shrink, a_version == 1 ? "command status" : "command_status", json_object_new_string("Shrink/compact database completed.\n\n"));
+            json_object_array_add(*a_json_arr_reply, json_obj_shrink);
+            break;
+        default:
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_COMMIT_TO_DISK,
+                                                        "Can't shrink/compact database.\n"
                                                         "Reboot the node.\n\n");
             break;
         }
