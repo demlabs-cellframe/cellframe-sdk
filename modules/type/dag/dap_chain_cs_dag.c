@@ -159,8 +159,13 @@ int dap_chain_cs_dag_init()
             "\tdoesn't changes after sign add to event. \n\n"
         "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round_id_in_hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
+<<<<<<< HEAD
         "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head] [-h]\n"
                             "\tOR [-from_hash <event_hash> -to_hash <event_hash>] OR [-from_date <YYMMDD> -to_date <YYMMDD>]\n\n"
+=======
+        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head]\n"
+                            "\t[-from_hash <event_hash> -to_hash <event_hash>] OR [-from_date <YYMMDD> -to_date <YYMMDD>]\n\n"
+>>>>>>> f6a97c9cf098f43d4e1787bf7bfbf6c5246bc381
             "\tShow event list. Use either hash range (from_hash + to_hash) or date range (from_date + to_date), not both.\n"
             "\tDo not use limit/offset with hash/date ranges. Head parameter can be used with ranges \n\n"
         "dag event count -net <net_name> [-chain <chain_name>]\n"
@@ -1819,7 +1824,11 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         HASH_ITER(hh, PVT(l_dag)->events, l_event_item, l_event_item_tmp) {
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end || 
+<<<<<<< HEAD
                                 (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time)) {
+=======
+                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts <= l_to_time)) {
+>>>>>>> f6a97c9cf098f43d4e1787bf7bfbf6c5246bc381
                                 i_tmp++;
                             } else {
                                 if (l_to_hash_str && !l_hash_flag) {
@@ -1840,7 +1849,11 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
+<<<<<<< HEAD
                                 (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time)) {
+=======
+                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts <= l_to_time)) {
+>>>>>>> f6a97c9cf098f43d4e1787bf7bfbf6c5246bc381
                                 i_tmp++;
                             } else {
                                 if (l_to_hash_str && !l_hash_flag) {
