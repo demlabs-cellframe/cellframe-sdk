@@ -995,7 +995,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner)
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply)
 {
     dap_chain_datum_tx_t									*l_burning_tx       = NULL;
     dap_chain_datum_tx_receipt_old_t						*l_receipt        = NULL;
@@ -1038,7 +1038,11 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         size_t l_receipt_size = 0;
         l_receipt = (dap_chain_datum_tx_receipt_old_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
         if (l_receipt) {
-
+            if (!a_check_for_apply) { // It's mempool process, so we don't accept f*cking legacy!
+                log_it(L_WARNING, "Legacy stakes are not accepted from mempool anymore! Dismiss unstake tx %s",
+                                   dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
+                return -    DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN;
+            }
             if (dap_chain_datum_tx_receipt_check_size((dap_chain_datum_tx_receipt_t*)l_receipt, l_receipt_size))
                 return -13;
             if (!dap_chain_net_srv_uid_compare_scalar(l_receipt->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
@@ -1100,8 +1104,8 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         }
 
         if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
-            // !!! A terrible legacy crutch, TODO !!!
-            if (SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
+            // A terrible legacy crutch, not applied to new txs anymore.
+            if (!l_receipt_old || SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
                     !EQUAL_256(l_blank_out_value, l_value_delegated)) {
                 log_it(L_ERROR, "Burning and delegated value mismatch");
                 return -12;
