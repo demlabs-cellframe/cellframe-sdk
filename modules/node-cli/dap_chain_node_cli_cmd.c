@@ -118,7 +118,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
  * @return dap_chain_node_info_t*
  */
 static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_address,
-        json_object* a_json_arr_reply)
+        dap_json_t* a_json_arr_reply)
 {
     dap_chain_node_info_t* l_res = dap_chain_node_info_read(a_net, a_address);
     if (!l_res && a_json_arr_reply)
@@ -199,7 +199,7 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
  * @return int 0 Ok, -1 error
  */
 static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t * a_addr, bool a_is_full,
-        const char *a_alias, json_object* a_json_arr_reply)
+        const char *a_alias, dap_json_t* a_json_arr_reply)
 {
     int l_ret = 0;
 
@@ -427,7 +427,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         case 0:
             json_obj_flush = json_object_new_object();
             json_object_object_add(json_obj_flush, a_version == 1 ? "command status" : "command_status", json_object_new_string("Commit data base and filesystem caches to disk completed.\n\n"));
-            json_object_array_add(*a_json_arr_reply, json_obj_flush);
+            dap_json_array_add(*a_json_arr_reply, json_obj_flush);
             break;
         case -1:
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_CAN_NOT_OPEN_DIR,
@@ -556,7 +556,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 break;
             }
         }
-        json_object_array_add(*a_json_arr_reply, json_obj_rec);
+        dap_json_array_add(*a_json_arr_reply, json_obj_rec);
         DAP_DELETE(l_value);
         return l_ret;
     }
@@ -594,7 +594,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         if (!dap_global_db_set_sync(l_group_str, l_key_str, l_value_str, strlen(l_value_str) +1 , false)) {
             json_object* json_obj_write = json_object_new_object();
             json_object_object_add(json_obj_write, a_version == 1 ? "write status" : "write_status",json_object_new_string("Data has been successfully written to the database"));
-            json_object_array_add(*a_json_arr_reply, json_obj_write);
+            dap_json_array_add(*a_json_arr_reply, json_obj_write);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_WRITING_FILED,
@@ -666,7 +666,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                                               l_group_str, l_key_str);
         }
         DAP_DELETE(l_value_out);
-        json_object_array_add(*a_json_arr_reply, json_obj_read);
+        dap_json_array_add(*a_json_arr_reply, json_obj_read);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     case CMD_DELETE:
@@ -716,7 +716,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             json_object_object_add(json_obj_del, a_version == 1 ? "Removed records" : "records_removed",json_object_new_uint64(j));
             json_object_object_add(json_obj_del, a_version == 1 ? "of records" : "records_total",json_object_new_uint64(i));
             json_object_object_add(json_obj_del, a_version == 1 ? "in table" : "table",json_object_new_string(l_group_str));
-            json_object_array_add(*a_json_arr_reply, json_obj_del);
+            dap_json_array_add(*a_json_arr_reply, json_obj_del);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         }
 
@@ -734,7 +734,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             json_object_object_add(json_obj_del, a_version == 1 ? "Record key" : "record_key",json_object_new_string(l_key_str));
             json_object_object_add(json_obj_del, a_version == 1 ? "Group name" : "group_name",json_object_new_string(l_group_str));
             json_object_object_add(json_obj_del, "status", json_object_new_string("deleted"));
-            json_object_array_add(*a_json_arr_reply, json_obj_del);
+            dap_json_array_add(*a_json_arr_reply, json_obj_del);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DELETE_FAILD,
@@ -756,7 +756,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         {
             json_object* json_obj_drop = json_object_new_object();
             json_object_object_add(json_obj_drop, a_version == 1 ? "Dropped table" : "table_dropped",json_object_new_string(l_group_str));
-            json_object_array_add(*a_json_arr_reply, json_obj_drop);
+            dap_json_array_add(*a_json_arr_reply, json_obj_drop);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
         } else {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_DROP_FAILED,"Failed to drop table %s", l_group_str);
@@ -799,7 +799,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         json_object* json_keys_list = json_object_new_object();
         json_object_object_add(json_keys_list, a_version == 1 ? "group name" : "group_name",json_object_new_string(l_group_str));
         json_object_object_add(json_keys_list, a_version == 1 ? "keys list" : "keys_list", json_arr_keys);
-        json_object_array_add(*a_json_arr_reply, json_keys_list);
+        dap_json_array_add(*a_json_arr_reply, json_keys_list);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     case CMD_GROUP_LIST: {
@@ -816,7 +816,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         }
         json_object_object_add(json_group_list, a_version == 1 ? "group list" : "group_list", json_arr_group);
         json_object_object_add(json_group_list, a_version == 1 ? "total count" : "total_count", json_object_new_uint64(l_count));
-        json_object_array_add(*a_json_arr_reply, json_group_list);
+        dap_json_array_add(*a_json_arr_reply, json_group_list);
         dap_list_free_full(l_group_list, NULL);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
@@ -864,7 +864,7 @@ static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
  */
 int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_LIST, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
         CMD_BAN, CMD_UNBAN, CMD_BANLIST, CMD_ADD_RPC, CMD_LIST_RPC, CMD_DUMP_RPC, CMD_DEL_RPC
@@ -1018,7 +1018,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 json_object* json_obj_out = json_object_new_object();
                 if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
                 json_object_object_add(json_obj_out, "successfully_added_node", json_object_new_string(l_addr_str));
-                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(*a_json_arr_reply, json_obj_out);
             }
             return l_res;
         }
@@ -1048,7 +1048,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 json_obj_out = json_object_new_object();
                 if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
                 json_object_object_add(json_obj_out, "status", json_object_new_string("Successfully added"));
-                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(*a_json_arr_reply, json_obj_out);
                  return DAP_CHAIN_NODE_CLI_COM_NODE_OK;
             case 2: dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_NO_SERVER_ERR,
                                                                                                 "No server");break;
@@ -1108,7 +1108,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             json_object* json_obj_out = json_object_new_object();
             if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
             json_object_object_add(json_obj_out, "successfully_added_node", json_object_new_string(l_addr_str));
-            json_object_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_array_add(*a_json_arr_reply, json_obj_out);
         }
         return l_res;
     }
@@ -1129,7 +1129,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 json_object* json_obj_out = json_object_new_object();
                 if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
                 json_object_object_add(json_obj_out, "successfully_deleted_node", json_object_new_string(l_addr_str));
-                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(*a_json_arr_reply, json_obj_out);
             }
             return l_res;
         }
@@ -1141,7 +1141,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 json_obj_out = json_object_new_object();
                 if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
                 json_object_object_add(json_obj_out, "status", json_object_new_string("Successfully deleted"));
-                json_object_array_add(*a_json_arr_reply, json_obj_out); 
+                dap_json_array_add(*a_json_arr_reply, json_obj_out); 
             return DAP_CHAIN_NODE_CLI_COM_NODE_OK;
             default: dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_DELL_CANT_PROCESS_REQUEST_ERR,
                                        "Can't process request, error %d", l_res);
@@ -1176,7 +1176,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             if (!json_obj_out)
                 return DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
             json_object_object_add(json_obj_out, "successfully_deleted_node", json_object_new_string(l_addr_str));
-            json_object_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_array_add(*a_json_arr_reply, json_obj_out);
         }
         return l_res;
     }
@@ -1192,7 +1192,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR, "No records\n");
             return -DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR;
         }
-        json_object_array_add(*a_json_arr_reply, json_obj_out);
+        dap_json_array_add(*a_json_arr_reply, json_obj_out);
         return 0;
     }
     case CMD_DUMP: {
@@ -1200,13 +1200,13 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
         dap_string_t *l_string_reply = dap_chain_node_states_info_read(l_net, l_node_info->address);
         json_object_object_add(json_obj_out, "status_dump", json_object_new_string(l_string_reply->str));
-        json_object_array_add(*a_json_arr_reply, json_obj_out);
+        dap_json_array_add(*a_json_arr_reply, json_obj_out);
         dap_string_free(l_string_reply, true);
         return 0;
     }
     case CMD_DUMP_RPC: {
         json_object* json_obj_out = dap_chain_node_rpc_states_info_read(l_node_info->address);
-        json_object_array_add(*a_json_arr_reply, json_obj_out);
+        dap_json_array_add(*a_json_arr_reply, json_obj_out);
         return 0;
     }
         // add alias
@@ -1220,7 +1220,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                     json_object* json_obj_out = json_object_new_object();
                     if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
                     json_object_object_add(json_obj_out, "status_alias", json_object_new_string("alias mapped successfully"));
-                    json_object_array_add(*a_json_arr_reply, json_obj_out);
+                    dap_json_array_add(*a_json_arr_reply, json_obj_out);
                 }
             }
             else {
@@ -1471,7 +1471,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         json_object* json_obj_out = json_object_new_object();
         if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
         json_object_object_add(json_obj_out, "status_handshake", json_object_new_string("Connection established"));
-        json_object_array_add(*a_json_arr_reply, json_obj_out);
+        dap_json_array_add(*a_json_arr_reply, json_obj_out);
     } break;
 
     case CMD_CONNECTIONS: {
@@ -1484,7 +1484,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 break;
             }
             json_object *l_jobj_links = dap_cluster_get_links_info_json(l_links_cluster);
-            json_object_array_add(*a_json_arr_reply, l_jobj_links);
+            dap_json_array_add(*a_json_arr_reply, l_jobj_links);
         } else {
             const char *l_guuid_str = NULL;
             dap_cluster_t *l_cluster = NULL;
@@ -1506,7 +1506,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 }
             }
             json_object *l_jobj_links = dap_cluster_get_links_info_json(l_cluster);
-            json_object_array_add(*a_json_arr_reply, l_jobj_links);
+            dap_json_array_add(*a_json_arr_reply, l_jobj_links);
         }
     } break;
 
@@ -1574,7 +1574,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
         json_object_object_add(json_obj_out, "datum_placed_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                     json_object_new_string("not placed"));
-        json_object_array_add(*a_json_arr_reply, json_obj_out);
+        dap_json_array_add(*a_json_arr_reply, json_obj_out);
         DAP_DELETE(l_key_str_out);
     } break;
 
@@ -1642,19 +1642,19 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         if (!json_obj_out) return json_object_put(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
         json_object_object_add(json_obj_out, "datum_placed_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                     json_object_new_string("not placed"));
-        json_object_array_add(*a_json_arr_reply, json_obj_out);
+        dap_json_array_add(*a_json_arr_reply, json_obj_out);
         DAP_DELETE(l_key_str_out);
     } break;
 
     case CMD_BANLIST: {
         json_object* json_obj_out = dap_http_ban_list_client_dump(NULL);
-        json_object_array_add(*a_json_arr_reply, json_obj_out);
+        dap_json_array_add(*a_json_arr_reply, json_obj_out);
     } break;
 
     case CMD_BALANCER: {
         //balancer link list
         json_object *l_links_list = dap_chain_net_balancer_get_node_str(l_net);
-        json_object_array_add(*a_json_arr_reply, l_links_list);
+        dap_json_array_add(*a_json_arr_reply, l_links_list);
     } break;
 
     default:
@@ -1686,7 +1686,7 @@ int com_version(int argc, char ** argv, void **a_str_reply, int a_version)
     char *l_vers = dap_strdup_printf("%s version "DAP_VERSION"\n", dap_get_appname());
     json_object_object_add(json_obj_out, "status", json_object_new_string(l_vers));
     DAP_DELETE(l_vers);
-    json_object_array_add(*a_json_arr_reply, json_obj_out);
+    dap_json_array_add(*a_json_arr_reply, json_obj_out);
     return 0;
 }
 
@@ -1827,7 +1827,7 @@ static void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out
  */
 int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, 
                 CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT, CMD_WALLET_OUTPUTS, CMD_WALLET_FIND, CMD_WALLET_SHARED };
@@ -2463,9 +2463,9 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
     }
 
     if (json_arr_out) {
-            json_object_array_add(*a_json_arr_reply, json_arr_out);
+            dap_json_array_add(*a_json_arr_reply, json_arr_out);
         } else {
-            json_object_array_add(*a_json_arr_reply, json_object_new_string("empty"));
+            dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string("empty"));
         }
     return 0;
 }
@@ -3180,7 +3180,7 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
         l_jobj_status = json_object_new_string("datum was found but could not be deleted");
     }
     json_object_object_add(l_jobj_ret, "status", l_jobj_status);
-    json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+    dap_json_array_add(*a_json_arr_reply, l_jobj_ret);
     if (res) {
         return COM_MEMPOOL_DELETE_ERR_DATUM_NOT_FOUND;
     }
@@ -3344,7 +3344,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         json_object_object_add(l_jobj_datum, "datum", l_datum_obj_inf);
         if (!l_found_in_chains)
             DAP_DELETE(l_datum);
-        json_object_array_add(*a_json_arr_reply, l_jobj_datum);
+        dap_json_array_add(*a_json_arr_reply, l_jobj_datum);
         return 0;
     } else {
         l_find_bool = json_object_new_boolean(FALSE);
@@ -3354,7 +3354,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
         }
         json_object_object_add(l_jobj_datum, "find", l_find_bool);
-        json_object_array_add(*a_json_arr_reply, l_jobj_datum);
+        dap_json_array_add(*a_json_arr_reply, l_jobj_datum);
         return COM_MEMPOOL_CHECK_ERR_DATUM_NOT_FIND;
     }
 }
@@ -3545,7 +3545,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     }
     DAP_DELETE(l_gdb_group_mempool);
     json_object_object_add(l_jobj_res, "verify", l_jobj_verify);
-    json_object_array_add(*a_json_arr_reply, l_jobj_res);
+    dap_json_array_add(*a_json_arr_reply, l_jobj_res);
     return ret;
 }
 
@@ -3604,7 +3604,7 @@ int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, void **a
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
     json_object_object_add(l_ret, "result", l_obj_result);
-    json_object_array_add(*a_json_arr_reply, l_obj_result);
+    dap_json_array_add(*a_json_arr_reply, l_obj_result);
     return 0;
 }
 
@@ -3634,7 +3634,7 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
 
     json_object *l_jobj_datum = json_object_new_object();
     dap_chain_datum_dump_json(*a_json_arr_reply, l_jobj_datum, l_datum, a_hash_out_type, a_net_id, true, a_version);
-    json_object_array_add(*a_json_arr_reply, l_jobj_datum);
+    dap_json_array_add(*a_json_arr_reply, l_jobj_datum);
     return 0;
 }
 
@@ -3703,7 +3703,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                 dap_json_rpc_allocation_error(*a_json_arr_reply);
                 return -1;
             }
-            json_object_array_add(*a_json_arr_reply, l_jobj_str_err);
+            dap_json_array_add(*a_json_arr_reply, l_jobj_str_err);
             return -2;
         }
     }
@@ -3751,7 +3751,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                     dap_json_rpc_allocation_error(*a_json_arr_reply);
                     return -1;
                 }
-                json_object_array_add(*a_json_arr_reply, l_jobj_err);
+                dap_json_array_add(*a_json_arr_reply, l_jobj_err);
                 return -3;
             }
             json_object *l_jobj_chains = json_object_new_array();
@@ -3775,7 +3775,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                 }
             }
             json_object_object_add(obj_ret, "chains", l_jobj_chains);
-            json_object_array_add(*a_json_arr_reply, obj_ret);
+            dap_json_array_add(*a_json_arr_reply, obj_ret);
             ret = 0;
         } break;
         case SUBCMD_PROC: {
@@ -3876,7 +3876,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                 }
             }
             json_object_object_add(obj_ret, "chains", l_jobj_chains);
-            json_object_array_add(*a_json_arr_reply, obj_ret);
+            dap_json_array_add(*a_json_arr_reply, obj_ret);
             ret = 0;
         } break;
     }
@@ -4177,7 +4177,7 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
             dap_json_rpc_allocation_error(*a_json_arr_reply);
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
         }
-        json_object_array_add(*a_json_arr_reply, l_obj_message);
+        dap_json_array_add(*a_json_arr_reply, l_obj_message);
         return 0;
     } else {
         char *l_msg = dap_strdup_printf("Can't place certificate \"%s\" to mempool", a_cert->name);
@@ -4191,7 +4191,7 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
             dap_json_rpc_allocation_error(*a_json_arr_reply);
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
         }
-        json_object_array_add(*a_json_arr_reply, l_obj_msg);
+        dap_json_array_add(*a_json_arr_reply, l_obj_msg);
         return COM_MEMPOOL_ADD_CA_ERROR_CAN_NOT_PLACE_CERTIFICATE;
     }
 }
@@ -4230,7 +4230,7 @@ int com_chain_ca_copy( int a_argc,  char ** a_argv, void **a_str_reply, int a_ve
  */
 int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     int arg_index = 1;
     // Read params
     const char * l_ca_name = NULL;
@@ -4352,7 +4352,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 // Decree commands handlers
 int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND, CMD_INFO };
     int arg_index = 1;
     const char *l_net_str = NULL;
@@ -4464,7 +4464,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                         json_object_object_add(json_obj_chain, "chain", json_object_new_string(l_chain->name));
                         json_object_array_add(json_obj_chains, json_obj_chain);
                     }
-                    json_object_array_add(*a_json_arr_reply, json_obj_out);                    
+                    dap_json_array_add(*a_json_arr_reply, json_obj_out);                    
                     return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_INVALID_CHAIN_PARAM_ERR;
             }
         } else {
@@ -4790,7 +4790,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
         json_object_object_add(json_obj_status, "datum_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                 json_object_new_string("not_placed"));
-        json_object_array_add(*a_json_arr_reply, json_obj_status);
+        dap_json_array_add(*a_json_arr_reply, json_obj_status);
         break;
     }
     case CMD_SIGN:{
@@ -4879,7 +4879,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                     if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
                     json_object_object_add(json_obj_status, "datum_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                             json_object_new_string("not_placed"));
-                    json_object_array_add(*a_json_arr_reply, json_obj_status);
+                    dap_json_array_add(*a_json_arr_reply, json_obj_status);
                 } else {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_WRONG_DATUM_TYPE_ERR,
                                             "Error! Wrong datum type. decree sign only decree datum");
@@ -4977,7 +4977,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
         json_object_object_add(json_obj_status, "datum_status", l_key_str_out ? json_object_new_string(l_key_str_out) :
                                                                                 json_object_new_string("not_placed"));
-        json_object_array_add(*a_json_arr_reply, json_obj_status);
+        dap_json_array_add(*a_json_arr_reply, json_obj_status);
         break;
     }
     case CMD_FIND: {
@@ -5002,7 +5002,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         json_object_object_add(json_obj_status, "find_status", l_decree ? (l_applied ? json_object_new_string("applied") :
                                                                                        json_object_new_string("not_applied")) :
                                                                                 json_object_new_string("not_found"));
-        json_object_array_add(*a_json_arr_reply, json_obj_status);
+        dap_json_array_add(*a_json_arr_reply, json_obj_status);
     } break;
     case CMD_INFO: {
         json_object* json_obj_out = json_object_new_object();
@@ -5025,7 +5025,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         }
         json_object_object_add(json_obj_out, "owners_total", json_object_new_int(dap_ledger_decree_get_num_of_owners(l_net->pub.ledger)));
         json_object_object_add(json_obj_out, "min_owners", json_object_new_int(dap_ledger_decree_get_min_num_of_signers(l_net->pub.ledger)));
-        json_object_array_add(*a_json_arr_reply, json_obj_out);
+        dap_json_array_add(*a_json_arr_reply, json_obj_out);
     } break;
     default:
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_NOT_FOUND_COM_ERR,
@@ -5086,7 +5086,7 @@ int com_stats(int argc, char **a_argv, void **a_str_reply, int a_version)
         json_object_object_add(json_obj_total, a_version == 1 ? "Total" : "total", json_object_new_string(l_str_delimiter));
         json_object_array_add(json_arr_cpu_out, json_obj_total);
         DAP_DELETE(l_str_delimiter);
-        json_object_array_add(*a_json_arr_reply, json_arr_cpu_out);
+        dap_json_array_add(*a_json_arr_reply, json_arr_cpu_out);
         break;
     }
 #else
@@ -5502,7 +5502,7 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         l_out_mes = dap_strdup_printf("Successful removal: %s", successful & REMOVED_GDB && successful & REMOVED_CHAINS ? "gdb, chains" : successful & REMOVED_GDB ? "gdb" : successful & REMOVED_CHAINS ? "chains" : "");
         json_object_object_add(json_obj_out, "status", json_object_new_string(l_out_mes));
         DAP_DELETE(l_out_mes);
-        json_object_array_add(*a_json_arr_reply,json_obj_out);
+        dap_json_array_add(*a_json_arr_reply,json_obj_out);
     } else {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_REMOVE_NOTHING_TO_DEL_ERR, 
                                                     "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
@@ -6223,9 +6223,9 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
     dap_json_rpc_request_send(l_client_internal, l_request, &l_response, NULL);
 
     if (l_response) {
-        json_object_array_add(*a_json_arr_reply, l_response);
+        dap_json_array_add(*a_json_arr_reply, l_response);
     } else {
-        json_object_array_add(*a_json_arr_reply, json_object_new_string("Empty reply"));
+        dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string("Empty reply"));
     }
     DAP_DEL_Z(node_info);
     dap_json_rpc_request_free(l_request);
@@ -6326,7 +6326,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
     switch(l_cmd_num) {
         case CMD_PRINT : {
             if (l_res) {
-                json_object_array_add(*a_json_arr_reply, json_object_new_string(l_res));
+                dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string(l_res));
                 DAP_DELETE(l_res);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open source file %s or wrong line number %d", l_file_full_path, l_num_line);
@@ -6344,7 +6344,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             int res = dap_log_export_string_to_file(l_res, l_dest_str);
             switch (res) {
                 case 0: {
-                    json_object_array_add(*a_json_arr_reply, json_object_new_string("Export success"));
+                    dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string("Export success"));
                     break;
                 }
                 case -1: {
@@ -6368,7 +6368,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             int res = dap_log_clear_file(l_file_full_path);
             switch (res) {
                 case 0: {
-                    json_object_array_add(*a_json_arr_reply, json_object_new_string("Log file has been cleared"));
+                    dap_json_array_add(*a_json_arr_reply, json_object_new_string("Log file has been cleared"));
                     break;
                 }
                 case -1: {
@@ -6476,7 +6476,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
 
     if (l_cmd == CMD_LIST) {
         json_object *l_answer = dap_chain_policy_list(l_net->pub.id, a_version);
-        json_object_array_add(*a_json_arr_reply, l_answer);
+        dap_json_array_add(*a_json_arr_reply, l_answer);
         return 0;
     }
 
@@ -6508,9 +6508,9 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
         json_object *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, l_policy_num);
         if (l_answer) {
             json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_is_activated(l_net->pub.id, l_policy_num) ? "true" : "false"));
-            json_object_array_add(*a_json_arr_reply, l_answer);
+            dap_json_array_add(*a_json_arr_reply, l_answer);
         } else {
-            json_object_array_add(*a_json_arr_reply, json_object_new_string("Detailed information not exist"));
+            dap_json_array_add(*a_json_arr_reply, json_object_new_string("Detailed information not exist"));
         }
         return 0;
     }
@@ -6573,7 +6573,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
 
     // if cmd none - only print preaparing result
     if (!l_execute) {
-        json_object *l_answer = dap_chain_policy_json_collect(l_policy);
+        dap_json_t *l_answer = dap_chain_policy_json_collect(l_policy);
         if (!l_answer) {
             dap_json_rpc_error_add(*a_json_arr_reply, -15, "Can't collect policy info");
             DAP_DELETE(l_policy);
@@ -6584,7 +6584,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
         json_object_object_add(l_answer, a_version == 1 ? "Current time" : "current_time", json_object_new_string(l_time));
         json_object_object_add(l_answer, a_version == 1 ? "Notification" : "notification", json_object_new_string("It's policy draft, check and use 'execute' command to apply"));
         if (l_answer) {
-            json_object_array_add(*a_json_arr_reply, l_answer);
+            dap_json_array_add(*a_json_arr_reply, l_answer);
         } else {
             dap_json_rpc_error_add(*a_json_arr_reply, -11, "Policy draft creation failed");
             DAP_DELETE(l_policy);
@@ -6613,7 +6613,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
 
     char l_approve_str[128];
     snprintf(l_approve_str, sizeof(l_approve_str), "Policy decree %s successfully created", l_decree_hash_str);
-    json_object_array_add(*a_json_arr_reply, json_object_new_string(l_approve_str));
+    dap_json_array_add(*a_json_arr_reply, json_object_new_string(l_approve_str));
     DAP_DELETE(l_decree_hash_str);
 
     return 0;

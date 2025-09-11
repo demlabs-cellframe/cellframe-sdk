@@ -31,9 +31,9 @@
 #include "dap_chain_net_srv_voting.h"
 #include "dap_chain_net_tx.h"
 #include "dap_net.h"
-#include "../../../dap-sdk/module/net/app-cli/include/dap_app_cli.h"
+#include "dap_app_cli.h"
 #include "dap_json_rpc.h"
-#include "../../../dap-sdk/module/net/app-cli/include/dap_app_cli_net.h"
+#include "dap_app_cli_net.h"
 #include "dap_cli_server.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_order.h"
@@ -43,10 +43,7 @@
 #include "dap_json.h"
 #define _XOPEN_SOURCE
 #include <time.h>
-
-#ifdef DAP_CHAIN_TX_COMPOSE_TEST
-#include "../../dap-sdk/crypto/src/rand/dap_rand.h"
-#endif
+#include "rand/dap_rand.h"
 
 #define LOG_TAG "dap_chain_tx_compose"
 
@@ -3073,12 +3070,17 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     }
 
     if (l_expiration_str) {
-        struct tm tm;
-        strptime(l_expiration_str, "%a, %d %b %Y %H:%M:%S %z", &tm);
-        dap_time_t l_expiration_time = mktime(&tm);
-        if (l_expiration_time && dap_time_now() > l_expiration_time) {
-            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ALREADY_EXPIRED, "This voting already expired\n");
-            return NULL;
+        // Try to parse expiration time manually since strptime may not be available
+        struct tm tm = {0};
+        // Parse format: "Wed, 21 Oct 2015 07:28:00 GMT"
+        if (sscanf(l_expiration_str, "%*[^,], %d %*s %d %d:%d:%d", &tm.tm_mday, &tm.tm_year, &tm.tm_hour, &tm.tm_min, &tm.tm_sec) >= 5) {
+            tm.tm_year -= 1900; // tm_year is years since 1900
+            tm.tm_mon--; // tm_mon is 0-based
+            dap_time_t l_expiration_time = mktime(&tm);
+            if (l_expiration_time && dap_time_now() > l_expiration_time) {
+                dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ALREADY_EXPIRED, "This voting already expired\n");
+                return NULL;
+            }
         }
     }
     dap_hash_fast_t l_pkey_hash = {0};
@@ -4978,6 +4980,7 @@ dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
     dap_hash_fast_t l_current_hash = *a_order_hash;
     dap_json_t *response = NULL;
     dap_json_t *l_final_response = NULL;
+    dap_json_t *l_response_array = NULL;
     bool l_found_last = false;
     bool l_first_tx = true; // Flag to identify the first transaction
 
@@ -5077,6 +5080,7 @@ dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
             // Store the final response for processing
             l_final_response = response;
             break;
+            
         }
 
         // Look for the conditional output index in spent_outs
@@ -5111,7 +5115,7 @@ dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
         return NULL;
     }
     
-    dap_json_t *l_response_array = dap_json_array_get_idx(l_final_response, 0);
+    l_response_array = dap_json_array_get_idx(l_final_response, 0);
     if (!l_response_array) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_INVALID_RESPONSE_FORMAT, "Can't get the first element from the response array");
         dap_json_object_free(l_final_response);
@@ -5190,12 +5194,18 @@ dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
                 // Set seller address from the first transaction
                 l_cond_tx->subtype.srv_xchange.seller_addr = *a_seller_addr;
                 *a_prev_cond_idx = l_counter_idx;
-            } 
+            }
             l_counter_idx++;
         } else if (dap_strcmp(item_type, "out") == 0 || dap_strcmp(item_type, "out_ext") == 0 || dap_strcmp(item_type, "old_out") == 0) {
             l_counter_idx++;
+        } else {
+            l_counter_idx++;
         }
     }
+    } // End of while (!l_found_last) loop
+
+    // Use the final response for extracting final data
+    l_response_array = l_final_response;
 
     if (!l_cond_tx) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_COND_TX, "No transaction output condition found");
@@ -5252,6 +5262,8 @@ dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
     dap_json_object_free(l_final_response);
     *a_hash_out = l_current_hash;
     return l_cond_tx;
+}
+}
 }
 
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t *a_order_hash, uint256_t a_value,
@@ -5389,7 +5401,6 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
             }
         }
     }
-
     dap_json_object_free(l_outs);
 
     // Create empty transaction
@@ -5534,3 +5545,5 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
 
     return l_tx;
 }
+
+

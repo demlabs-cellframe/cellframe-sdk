@@ -143,9 +143,9 @@ if(NOT DEFINED CELLFRAME_MODULES)
     if(NOT TARGET dap_sdk)
         # DAP SDK not found - include our own copy
         message("[+] Cellframe SDK: Using embedded DAP SDK")
-        
+
         include (dap-sdk/cmake/OS_Detection.cmake)
-        
+
         if(BUILD_CELLFRAME_SDK_TESTS)
             set(DAPSDK_MODULES "test-framework")
         endif()
@@ -156,12 +156,12 @@ if(NOT DEFINED CELLFRAME_MODULES)
         # DAP SDK already available from parent - use it
         message("[+] Cellframe SDK: Using external DAP SDK (target: dap_sdk)")
         message("[+] Cellframe SDK: ✅ No DAP SDK duplication - using shared instance")
-        
+
         # Set the flag to indicate we're using external DAP SDK
         set(CELLFRAME_USING_EXTERNAL_DAP_SDK ON)
     endif()
 
-    set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-voting srv-bridge srv-xchange compose")
+    set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange compose")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -172,10 +172,10 @@ endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
 
-# srv-stake temporarily disabled due to XKCP build issues
-# if (CELLFRAME_MODULES MATCHES "srv-stake")
-#     add_definitions("-DDAP_SRV_STAKE_USED")
-# endif()
+# srv-stake enabled
+if (CELLFRAME_MODULES MATCHES "srv-stake")
+    add_definitions("-DDAP_SRV_STAKE_USED")
+endif()
 
 option(DAP_INT128_SUPPORT "Use 128-bit varaibles, if supported" ON) # Enabled by default
 
@@ -199,7 +199,7 @@ if (BUILD_WITH_ZIP)
     include_directories(3rdparty/libzip/lib)
 endif()
 
-add_subdirectory(3rdparty/monero_crypto)
+# monero_crypto removed - not needed
 
 add_subdirectory(modules/)
 
@@ -385,19 +385,59 @@ endif()
 # =========================================
 # INCLUDE DIRECTORIES FOR HEADERS
 # =========================================
-# Add include paths for missing headers
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/net/app-cli/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/core/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/crypto/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/crypto/XKCP/lib/high/Keccak/FIPS202/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/io/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/net/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/net/server/json_rpc/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/modules/include/")
-include_directories("${CMAKE_CURRENT_BINARY_DIR}/dap-sdk/core/json-c/")
+# Add include paths for missing headers (UPDATED PATHS)
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/net/app-cli/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/core/include/")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/dap-sdk/module/core/json-c/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/crypto/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/crypto/XKCP/lib/high/Keccak/FIPS202/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/io/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/net/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/net/server/json_rpc/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/global-db/include/")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/dap-sdk/module/core/json-c/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/3rdparty/uthash/src/")
+
+# Cellframe SDK modules includes
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/chain/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/wallet/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/ledger/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/net/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/mempool/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/datum/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/node/include/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/node-cli/include/")
+
+# DAP SDK src includes (for headers in src/ directories)
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/crypto/src/rand/")
 
 # =========================================
 # CREATE FINAL CELLFRAME SDK LIBRARY
 # =========================================
 # Combine all internal static modules into one final library
 cellframe_create_final_library()
+
+# =========================================
+# INSTALL TARGETS
+# =========================================
+# Install library
+install(TARGETS cellframe_sdk
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
+
+# Install headers
+install(DIRECTORY modules/
+        DESTINATION include/cellframe-sdk
+        FILES_MATCHING PATTERN "*.h")
+
+# Install DAP SDK headers (only if using embedded DAP SDK)
+if(NOT CELLFRAME_USING_EXTERNAL_DAP_SDK)
+    install(DIRECTORY dap-sdk/module/core/include/
+            DESTINATION include/dap-sdk/core
+            FILES_MATCHING PATTERN "*.h")
+
+    install(DIRECTORY dap-sdk/module/crypto/include/
+            DESTINATION include/dap-sdk/crypto
+            FILES_MATCHING PATTERN "*.h")
+endif()

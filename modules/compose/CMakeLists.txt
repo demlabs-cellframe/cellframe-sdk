@@ -8,11 +8,14 @@ message("[+] Module 'compose'")
 # Use universal Cellframe library macro
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_COMPOSE_SRCS} HEADERS ${DAP_CHAIN_COMPOSE_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_sdk dap_cli_server dap_chain_net dap_chain_net_srv dap_enc_server dap_json_rpc dap_chain_net_srv_xchange dap_chain_net_srv_voting dap_app_cli dap_cli_server)
+target_link_libraries(${PROJECT_NAME} dap_sdk dap_cli_server dap_chain_net dap_chain_net_srv dap_enc_server dap_json_rpc dap_chain_net_srv_xchange dap_chain_net_srv_voting)
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/module/io/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/module/core/include)
-${DAP_SDK_PATH_BUILD}
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/module/net/app-cli/include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/module/net/client/include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../chain/include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/module/crypto/include)
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
     message("[+] Enable compose tests")

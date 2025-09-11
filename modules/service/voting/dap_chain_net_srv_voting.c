@@ -534,7 +534,7 @@ dap_list_t* dap_get_options_list_from_str(const char* a_str)
 
 static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object **json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **json_arr_reply = (dap_json_t **)a_str_reply;
     enum {CMD_NONE=0, CMD_CREATE, CMD_VOTE, CMD_LIST, CMD_DUMP};
 
     const char* l_net_str = NULL;
@@ -651,14 +651,14 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
         switch (res) {
         case DAP_CHAIN_NET_VOTE_CREATE_OK: {
-                json_object* json_obj_inf = json_object_new_object();
+                dap_json_t* json_obj_inf = dap_json_object_new();
                 if (a_version == 1) {
-                    json_object_object_add(json_obj_inf, "Datum add successfully", json_object_new_string(l_hash_ret));
+                    dap_json_object_add_string(json_obj_inf, "Datum add successfully", l_hash_ret);
                 } else {
-                    json_object_object_add(json_obj_inf, "status", json_object_new_string("success"));
-                    json_object_object_add(json_obj_inf, "tx_hash", json_object_new_string(l_hash_ret));
+                    dap_json_object_add_string(json_obj_inf, "status", "success");
+                    dap_json_object_add_string(json_obj_inf, "tx_hash", l_hash_ret);
                 }
-                json_object_array_add(*json_arr_reply, json_obj_inf);
+                dap_json_array_add(*json_arr_reply, json_obj_inf);
                 DAP_DELETE(l_hash_ret);
                 return DAP_CHAIN_NET_VOTE_CREATE_OK;
         }
