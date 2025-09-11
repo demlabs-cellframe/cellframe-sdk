@@ -42,6 +42,7 @@ extern "C" {
  * with the console kelvin-node-cli
  */
 int dap_chain_node_cli_init(dap_config_t * g_config);
+int dap_chain_node_cli_parser_init(void);
 
 /**
  * Deinitialization of the server side

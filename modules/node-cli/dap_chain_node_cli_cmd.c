@@ -2613,36 +2613,26 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     }
     // Добавляем массив datums в объект chain
     json_object_object_add(l_obj_chain, "datums", l_jobj_datums);
-    if (l_objs_count == 0 || l_objs_count < a_offset)
+    if (l_objs_count == 0 || l_objs_count <= a_offset)
         goto return_obj_chain;
     // Добавление информации о пагинации
     size_t l_arr_start = 0;
-    if (a_offset) {
-        l_arr_start = a_offset;
-        json_object *l_jobj_offset = json_object_new_uint64(a_offset);
-        if (!l_jobj_offset) {
-            dap_global_db_objs_delete(l_objs, l_objs_count);
-            json_object_put(l_obj_chain);
-            dap_json_rpc_allocation_error(a_json_arr_reply);
-            return;
-        }
-        json_object_object_add(l_obj_chain, "offset", l_jobj_offset);
+    size_t l_arr_end = 0; 
+
+    json_object *l_json_pages = json_object_new_array();
+    if (!l_json_pages) {
+        dap_global_db_objs_delete(l_objs, l_objs_count);
+        json_object_put(l_jobj_datums);
+        json_object_put(l_obj_chain);
+        dap_json_rpc_allocation_error(a_json_arr_reply);
+        return;
     }
-    
-    size_t l_arr_end = l_objs_count;
-    if (a_limit) {
-        l_arr_end = a_offset + a_limit;
-        if (l_arr_end > l_objs_count)
-            l_arr_end = l_objs_count;
-        json_object *l_jobj_limit = json_object_new_uint64(l_arr_end);
-        if (!l_jobj_limit) {
-            dap_global_db_objs_delete(l_objs, l_objs_count);
-            json_object_put(l_obj_chain);
-            dap_json_rpc_allocation_error(a_json_arr_reply);
-            return;
-        }
-        json_object_object_add(l_obj_chain, "limit", l_jobj_limit);
-    }
+    dap_chain_set_offset_limit_json(l_json_pages, &l_arr_start, &l_arr_end, a_limit, a_offset, l_objs_count, false);
+    if (l_arr_end > l_objs_count)
+        l_arr_end = l_objs_count;
+    if (l_arr_start > l_objs_count)
+        l_arr_start = l_objs_count;
+    json_object_object_add(l_obj_chain, "pages", l_json_pages);
     
     // Обработка каждого объекта из mempool
     for (size_t i = l_arr_start; i < l_arr_end; i++) {

@@ -80,7 +80,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "global_db drop_table -group <group_name>\n"
                 "\tPerforms deletion of the entire group in the database.\n\n"
             "global_db get_keys -group <group_name>\n"
-                "\tGets all record keys from a specified group.\n"
+                "\tGets all record keys from a specified group.\n\n"
+            "Note: you can add [-h] to print human-friendly tables for supported subcommands.\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -275,7 +276,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     );
 
     dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool", dap_chain_node_cli_cmd_id_from_str("mempool"),
-                           "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
+                           "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset] [-h]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
                            "mempool check -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
                            "\tCheck mempool entrie for presence in selected chain network\n"
@@ -336,13 +337,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)", dap_chain_node_cli_cmd_id_from_str("tx_history"),
-            "tx_history  {-addr <addr> | {-w <wallet_name> | -tx <tx_hash>} -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head]\n"
-            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head]\n"
-            "tx_history -count -net <net_name>\n");
+            "tx_history  {-addr <addr> | {-w <wallet_name> } -net <net_name>} [-chain <chain_name>] [-limit] [-offset] [-head] [-h]\n"
+            "tx_history -all -net <net_name> [-chain <chain_name>] [-limit] [-offset] [-head] [-h]\n"
+            "tx_history -tx <tx_hash> -net <net_name> [-chain <chain_name>] \n"
+            "tx_history -count -net <net_name> [-h]\n");
 
 	// Ledger info
     dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information", dap_chain_node_cli_cmd_id_from_str("ledger"),
-            "ledger list coins -net <net_name> [-limit] [-offset]\n"
+            "ledger list coins -net <net_name> [-limit] [-offset] [-h]\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
@@ -357,8 +359,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info", dap_chain_node_cli_cmd_id_from_str("token"),
-            "token list -net <net_name>\n"
-            "token info -net <net_name> -name <token_ticker>\n");
+            "token list -net <net_name> [-full] [-h]\n"
+            "token info -net <net_name> -name <token_ticker> [-h]\n");
 
     // Statisticss
     dap_cli_server_cmd_add("stats", com_stats, "Print statistics", dap_chain_node_cli_cmd_id_from_str("stats"),
@@ -458,6 +460,18 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit", dap_chain_node_cli_cmd_id_from_str("exit"),
                 "exit\n" );
     dap_notify_srv_set_callback_new(dap_notify_new_client_send_info);
+    return 0;
+}
+int dap_chain_node_cli_parser_init(void) {
+    dap_cli_server_cmd_add("block", NULL, json_print_for_block_list, "---","---");
+    dap_cli_server_cmd_add("srv_stake", NULL, json_print_for_srv_stake_all, "---","---");
+    dap_cli_server_cmd_add("dag", NULL, json_print_for_dag_list, "---","---");
+    dap_cli_server_cmd_add("tx_history", NULL, json_print_for_tx_history_all, "---","---");
+    dap_cli_server_cmd_add("token", NULL, json_print_for_token_list, "---","---");
+    dap_cli_server_cmd_add("global_db", NULL, json_print_for_global_db, "---","---");
+    dap_cli_server_cmd_add("ledger", NULL, json_print_for_ledger_list, "---","---");    
+    dap_cli_server_cmd_add("mempool", NULL, json_print_for_mempool_list, "---","---");
+    dap_cli_server_cmd_add("srv_xchange", NULL, json_print_for_srv_xchange_list, "---","---");
     return 0;
 }
 

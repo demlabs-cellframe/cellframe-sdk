@@ -28,6 +28,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
+#include "dap_json_rpc_response.h"
 
 typedef struct dap_chain_tx_hash_processed_ht{
     dap_chain_hash_fast_t hash;
@@ -99,6 +100,17 @@ int com_ledger(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
  *
  */
 int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
+
+/*commands for parsing json response*/
+int json_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_srv_stake_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+int json_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 
 #ifdef __cplusplus
 }
