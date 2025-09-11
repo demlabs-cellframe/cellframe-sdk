@@ -113,7 +113,7 @@ static dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, da
                                                int *res);
 // Callbacks
 static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_cond);
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply);
 
 static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
     size_t l_strlen = (size_t)strlen(str);
@@ -1105,7 +1105,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
 
         if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
             // A terrible legacy crutch, not applied to new txs anymore.
-            if (!l_receipt_old || SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
+            if (!l_receipt || SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
                     !EQUAL_256(l_blank_out_value, l_value_delegated)) {
                 log_it(L_ERROR, "Burning and delegated value mismatch");
                 return -12;

@@ -818,7 +818,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
                     break;
                 }
-                l_err_num = l_verificator->callback_in_verify(a_ledger, a_tx, a_tx_hash, l_tx_prev_out_cond, l_owner);
+                l_err_num = l_verificator->callback_in_verify(a_ledger, a_tx, a_tx_hash, l_tx_prev_out_cond, l_owner, a_check_for_apply);
                 if (l_err_num != DAP_LEDGER_CHECK_OK && !dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true)) {
                     debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional input %s",
                                                         l_err_num, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
