@@ -86,17 +86,36 @@ typedef struct dap_chain_wallet_balance {
 #### Создание кошелька
 
 ```c
-// Создание нового кошелька
-dap_chain_wallet_t* dap_chain_wallet_create(const char *a_name,
-                                          dap_chain_net_t *a_net);
+// Инициализация wallet модуля
+int dap_chain_wallet_init(void);
 
-// Создание кошелька с ключом
-dap_chain_wallet_t* dap_chain_wallet_create_with_key(const char *a_name,
-                                                   dap_chain_net_t *a_net,
-                                                   dap_enc_key_type_t a_key_type);
+// Деинициализация wallet модуля
+void dap_chain_wallet_deinit(void);
 
-// Удаление кошелька
-void dap_chain_wallet_delete(dap_chain_wallet_t *a_wallet);
+// Получение пути к кошелькам
+const char* dap_chain_wallet_get_path(dap_config_t * a_config);
+
+// Создание кошелька с seed и мультиподписью
+dap_chain_wallet_t * dap_chain_wallet_create_with_seed_multi(
+    const char * a_wallet_name, const char * a_wallets_path,
+    const dap_sign_type_t *a_sig_types, size_t a_sig_count,
+    const void* a_seed, size_t a_seed_size, const char *a_pass);
+
+// Создание кошелька с seed (inline функция)
+dap_chain_wallet_t * dap_chain_wallet_create_with_seed(
+    const char * a_wallet_name, const char * a_wallets_path,
+    dap_sign_type_t a_sig_type, const void* a_seed,
+    size_t a_seed_size, const char *a_pass);
+
+// Создание кошелька с паролем
+dap_chain_wallet_t * dap_chain_wallet_create_with_pass(
+    const char * a_wallet_name, const char * a_wallets_path,
+    const void* a_pass, size_t a_pass_sz);
+
+// Создание простого кошелька
+dap_chain_wallet_t *dap_chain_wallet_create(
+    const char * a_wallet_name, const char * a_wallets_path,
+    dap_sign_type_t a_sig_type, const char *a_pass);
 ```
 
 #### Управление ключами
@@ -517,6 +536,114 @@ bool dap_chain_wallet_sync_state(dap_chain_wallet_t *a_wallet) {
     // Обновление балансов
     return dap_chain_wallet_update_balances_from_chain(a_wallet, chain);
 }
+```
+
+### Открытие и сохранение кошельков
+
+```c
+// Открытие кошелька из файла
+dap_chain_wallet_t *dap_chain_wallet_open_file(
+    const char * a_file_name, const char *a_pass, unsigned int *a_out_stat);
+
+// Открытие кошелька по имени
+dap_chain_wallet_t *dap_chain_wallet_open(
+    const char * a_wallet_name, const char * a_wallets_path,
+    unsigned int * a_out_stat);
+
+// Открытие кошелька с расширенными параметрами
+dap_chain_wallet_t *dap_chain_wallet_open_ext(
+    const char * a_wallet_name, const char * a_wallets_path, const char *pass);
+
+// Сохранение кошелька
+int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass);
+
+// Сохранение в файл
+int dap_chain_wallet_save_file( dap_chain_wallet_t * a_wallet);
+
+// Закрытие кошелька
+void dap_chain_wallet_close(dap_chain_wallet_t *a_wallet);
+```
+
+### Работа с адресами и ключами
+
+```c
+// Получение адреса кошелька
+dap_chain_addr_t* dap_chain_wallet_get_addr(
+    dap_chain_wallet_t * a_wallet, dap_chain_net_id_t a_net_id);
+
+// Получение количества сертификатов
+size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet);
+
+// Получение публичного ключа
+dap_pkey_t * dap_chain_wallet_get_pkey(
+    dap_chain_wallet_t * a_wallet, uint32_t a_key_idx);
+
+// Получение ключа шифрования
+dap_enc_key_t *dap_chain_wallet_get_key(
+    dap_chain_wallet_t *a_wallet, uint32_t a_key_idx);
+
+// Получение баланса
+uint256_t dap_chain_wallet_get_balance(
+    dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id,
+    const char *a_token_ticker);
+```
+
+### Активация и деактивация
+
+```c
+// Активация кошелька
+int dap_chain_wallet_activate(
+    const char *a_name, ssize_t a_name_len, const char *a_path,
+    const char *a_pass, ssize_t a_pass_len, unsigned a_ttl);
+
+// Деактивация кошелька
+int dap_chain_wallet_deactivate(
+    const char *a_name, ssize_t a_name_len);
+```
+
+### Вспомогательные функции
+
+```c
+// Проверка подписи кошелька
+const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet);
+
+// Получение имени адреса из кэша
+const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr);
+
+// Получение информации о кошельке в JSON
+json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path);
+
+// Получение хеша публичного ключа
+int dap_chain_wallet_get_pkey_hash(
+    dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_out_hash);
+
+// Получение публичного ключа в виде строки
+char *dap_chain_wallet_get_pkey_str(
+    dap_chain_wallet_t *a_wallet, const char *a_str_type);
+
+// Получение локальных адресов
+dap_list_t* dap_chain_wallet_get_local_addr();
+```
+
+### Callback функции
+
+```c
+// Добавление callback для открытия кошелька
+int dap_chain_wallet_add_wallet_opened_notify(
+    dap_chain_wallet_opened_callback_t a_callback, void *a_arg);
+
+// Добавление callback для создания кошелька
+int dap_chain_wallet_add_wallet_created_notify(
+    dap_chain_wallet_opened_callback_t a_callback, void *a_arg);
+```
+
+### Конвертация из сертификатов
+
+```c
+// Конвертация сертификатов в адрес
+dap_chain_addr_t *dap_cert_to_addr(
+    dap_cert_t **a_certs, size_t a_count, size_t a_key_start_index,
+    dap_chain_net_id_t a_net_id);
 ```
 
 ## Заключение

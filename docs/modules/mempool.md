@@ -646,6 +646,184 @@ log_info("Mempool: %zu transactions, %zu bytes, avg fee: %.8f",
 Решение: Оптимизация приоритетов и комиссий
 ```
 
+### Дополнительные функции создания транзакций
+
+#### `dap_chain_mempool_base_tx_create()`
+
+Создает базовую транзакцию с поддержкой эмиссии токенов.
+
+```c
+char *dap_chain_mempool_base_tx_create(
+    dap_chain_t *a_chain,                    // Цепочка
+    dap_chain_hash_fast_t *a_emission_hash,  // Хеш эмиссии
+    dap_chain_id_t a_emission_chain_id,      // ID цепочки эмиссии
+    uint256_t a_emission_value,              // Сумма эмиссии
+    const char *a_ticker,                    // Тикер токена
+    dap_chain_addr_t *a_addr_to,             // Адрес получателя
+    dap_enc_key_t *a_private_key,            // Приватный ключ
+    const char *a_hash_out_type,             // Тип выходного хеша
+    uint256_t a_value_fee                    // Комиссия
+);
+```
+
+**Особенности:**
+- Поддержка эмиссии новых токенов
+- Автоматическая валидация параметров эмиссии
+- Интеграция с системой эмиссий токенов
+
+#### `dap_chain_mempool_tx_coll_fee_create()`
+
+Создает транзакцию сбора комиссий от коллектора блоков.
+
+```c
+char *dap_chain_mempool_tx_coll_fee_create(
+    dap_chain_cs_blocks_t *a_blocks,         // Коллектор блоков
+    dap_enc_key_t *a_key_from,               // Ключ отправителя
+    const dap_chain_addr_t* a_addr_to,       // Адрес получателя
+    dap_list_t *a_block_list,                // Список блоков
+    uint256_t a_value_fee,                   // Сумма комиссии
+    const char *a_hash_out_type              // Тип выходного хеша
+);
+```
+
+**Использование:**
+- Автоматический сбор комиссий от майнинга
+- Распределение вознаграждений валидаторам
+- Управление экономикой сети
+
+#### `dap_chain_mempool_tx_reward_create()`
+
+Создает транзакцию вознаграждения за найденные блоки.
+
+```c
+char *dap_chain_mempool_tx_reward_create(
+    dap_chain_cs_blocks_t *a_blocks,         // Коллектор блоков
+    dap_enc_key_t *a_sign_key,               // Ключ для подписи
+    dap_chain_addr_t *a_addr_to,             // Адрес получателя вознаграждения
+    dap_list_t *a_block_list,                // Список блоков
+    uint256_t a_value_fee,                   // Комиссия
+    const char *a_hash_out_type              // Тип выходного хеша
+);
+```
+
+**Особенности:**
+- Расчет вознаграждений на основе сложности
+- Поддержка различных алгоритмов консенсуса
+- Автоматическое распределение наград
+
+### Функции управления и фильтрации
+
+#### `dap_chain_mempool_filter()`
+
+Фильтрует и очищает mempool от устаревших или конфликтующих транзакций.
+
+```c
+void dap_chain_mempool_filter(
+    dap_chain_t *a_chain,    // Цепочка для фильтрации
+    int *a_removed          // Количество удаленных транзакций
+);
+```
+
+**Алгоритм работы:**
+1. Проверка конфликтов транзакций
+2. Удаление устаревших транзакций
+3. Освобождение памяти
+4. Обновление статистики
+
+#### `dap_chain_mempool_datum_get()`
+
+Получает datum из mempool по хешу эмиссии.
+
+```c
+dap_chain_datum_t *dap_chain_mempool_datum_get(
+    dap_chain_t *a_chain,              // Цепочка
+    const char *a_emission_hash_str    // Хеш эмиссии в строковом формате
+);
+```
+
+#### `dap_chain_mempool_emission_get()`
+
+Получает информацию об эмиссии токена из mempool.
+
+```c
+dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(
+    dap_chain_t *a_chain,              // Цепочка
+    const char *a_emission_hash_str    // Хеш эмиссии
+);
+```
+
+#### `dap_chain_mempool_datum_emission_extract()`
+
+Извлекает информацию об эмиссии из бинарных данных.
+
+```c
+dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(
+    dap_chain_t *a_chain,     // Цепочка
+    byte_t *a_data,          // Бинарные данные
+    size_t a_size            // Размер данных
+);
+```
+
+### Массовые операции
+
+#### `dap_chain_mempool_tx_create_massive()`
+
+Создает большое количество однотипных транзакций для тестирования.
+
+```c
+int dap_chain_mempool_tx_create_massive(
+    dap_chain_t * a_chain,                      // Цепочка
+    dap_enc_key_t *a_key_from,                  // Ключ отправителя
+    const dap_chain_addr_t* a_addr_from,        // Адрес отправителя
+    const dap_chain_addr_t* a_addr_to,          // Адрес получателя
+    const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX], // Тикер токена
+    uint256_t a_value,                          // Сумма перевода
+    uint256_t a_value_fee,                      // Комиссия
+    size_t a_tx_num                             // Количество транзакций
+);
+```
+
+**Использование:**
+- Нагрузочное тестирование сети
+- Генерация тестовых данных
+- Симуляция высокой активности
+
+### Операции с datum
+
+#### `dap_chain_mempool_datum_add()`
+
+Добавляет datum в mempool с указанным типом выходного хеша.
+
+```c
+char *dap_chain_mempool_datum_add(
+    const dap_chain_datum_t *a_datum,    // Datum для добавления
+    dap_chain_t *a_chain,               // Цепочка
+    const char *a_hash_out_type         // Тип выходного хеша
+);
+```
+
+**Возвращает:**
+- Хеш добавленного datum в указанном формате
+- NULL при ошибке
+
+### Утилиты для управления памятью
+
+#### `dap_datum_mempool_clean()`
+
+Очищает содержимое mempool без освобождения структуры.
+
+```c
+void dap_datum_mempool_clean(dap_datum_mempool_t *datum);
+```
+
+#### `dap_datum_mempool_free()`
+
+Полностью освобождает память, занятую mempool.
+
+```c
+void dap_datum_mempool_free(dap_datum_mempool_t *datum);
+```
+
 ## Заключение
 
 Модуль `dap_chain_mempool` предоставляет надежную и эффективную систему управления неподтвержденными транзакциями в сети CellFrame. Его архитектура обеспечивает высокую производительность, надежность и интеграцию со всей экосистемой блокчейн платформы.

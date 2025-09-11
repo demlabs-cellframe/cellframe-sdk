@@ -920,6 +920,145 @@ if (voting) {
 }
 ```
 
+### `dap_xchange_tx_create_request_compose()`
+
+Создает запрос на обмен токенов на основе цены продавца.
+
+```c
+dap_chain_datum_tx_t* dap_xchange_tx_create_request_compose(
+    dap_chain_net_srv_xchange_price_t *a_price,        // Цена продавца
+    dap_chain_addr_t *a_seller_addr,                   // Адрес продавца
+    const char *a_native_ticker,                       // Нативный тикер
+    compose_config_t *a_config                         // Конфигурация compose
+);
+```
+
+### `dap_chain_mempool_tx_create_cond_compose()`
+
+Создает условную транзакцию в mempool с заданными условиями.
+
+```c
+dap_chain_datum_tx_t* dap_chain_mempool_tx_create_cond_compose(
+    dap_chain_addr_t *a_wallet_addr,                         // Адрес кошелька
+    dap_pkey_t *a_key_cond,                                 // Ключ условия
+    const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],   // Тикер токена
+    uint256_t a_value,                                      // Сумма
+    uint256_t a_value_per_unit_max,                         // Максимальная сумма за единицу
+    dap_chain_net_srv_price_unit_uid_t a_unit,              // Единица измерения цены
+    dap_chain_net_srv_uid_t a_srv_uid,                      // UID сервиса
+    uint256_t a_value_fee,                                  // Комиссия
+    const void *a_cond,                                     // Условие
+    size_t a_cond_size,                                     // Размер условия
+    compose_config_t *a_config                              // Конфигурация compose
+);
+```
+
+### `dap_stake_lock_datum_create_compose()`
+
+Создает datum для блокировки токенов в staking с возможностью делегирования.
+
+```c
+dap_chain_datum_tx_t* dap_stake_lock_datum_create_compose(
+    dap_chain_addr_t *a_wallet_addr,          // Адрес кошелька
+    const char *a_main_ticker,               // Основной тикер
+    uint256_t a_value,                       // Сумма блокировки
+    uint256_t a_value_fee,                   // Комиссия
+    dap_time_t a_time_staking,               // Время staking
+    uint256_t a_reinvest_percent,            // Процент реинвестирования
+    const char *a_delegated_ticker_str,      // Делегированный тикер
+    uint256_t a_delegated_value,             // Делегированная сумма
+    const char *a_chain_id_str,              // ID цепочки
+    compose_config_t *a_config               // Конфигурация compose
+);
+```
+
+### `dap_stake_unlock_datum_create_compose()`
+
+Создает datum для разблокировки ранее застейканных токенов.
+
+```c
+dap_chain_datum_tx_t* dap_stake_unlock_datum_create_compose(
+    dap_chain_addr_t *a_wallet_addr,          // Адрес кошелька
+    dap_hash_fast_t *a_stake_tx_hash,        // Хеш staking транзакции
+    uint32_t a_prev_cond_idx,                // Индекс предыдущего условия
+    const char *a_main_ticker,               // Основной тикер
+    uint256_t a_value,                       // Сумма разблокировки
+    uint256_t a_value_fee,                   // Комиссия
+    const char *a_delegated_ticker_str,      // Делегированный тикер
+    uint256_t a_delegated_value,             // Делегированная сумма
+    compose_config_t *a_config               // Конфигурация compose
+);
+```
+
+### `dap_chain_net_vote_create_compose()`
+
+Создает голосование в сети с заданными параметрами.
+
+```c
+dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(
+    const char *a_question,                    // Вопрос голосования
+    dap_list_t *a_options,                    // Список вариантов
+    dap_time_t a_expire_vote,                 // Время окончания
+    uint64_t a_max_vote,                      // Максимальное количество голосов
+    uint256_t a_fee,                          // Комиссия
+    bool a_delegated_key_required,            // Требуется делегированный ключ
+    bool a_vote_changing_allowed,             // Разрешено менять голос
+    dap_chain_addr_t *a_wallet_addr,          // Адрес кошелька
+    const char *a_token_ticker,               // Тикер токена
+    compose_config_t *a_config                // Конфигурация compose
+);
+```
+
+### `dap_stake_tx_create_compose()`
+
+Создает транзакцию staking с поддержкой делегирования и налогов.
+
+```c
+dap_chain_datum_tx_t* dap_stake_tx_create_compose(
+    dap_chain_addr_t *a_wallet_addr,          // Адрес кошелька
+    uint256_t a_value,                       // Сумма staking
+    uint256_t a_fee,                         // Комиссия
+    dap_chain_addr_t *a_signing_addr,        // Адрес для подписи
+    dap_chain_node_addr_t *a_node_addr,      // Адрес узла
+    dap_chain_addr_t *a_sovereign_addr,      // Суверенный адрес
+    uint256_t a_sovereign_tax,               // Суверенный налог
+    dap_chain_datum_tx_t *a_prev_tx,         // Предыдущая транзакция
+    dap_pkey_t *a_pkey,                      // Приватный ключ
+    compose_config_t *a_config               // Конфигурация compose
+);
+```
+
+### `dap_chain_net_srv_xchange_purchase_compose()`
+
+Создает транзакцию покупки через сервис обмена с возвратом хеша.
+
+```c
+dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(
+    dap_hash_fast_t *a_order_hash,            // Хеш ордера
+    uint256_t a_value,                       // Сумма покупки
+    uint256_t a_fee,                         // Комиссия
+    dap_chain_addr_t *a_wallet_addr,          // Адрес кошелька
+    char **a_hash_out,                       // Выходной хеш
+    compose_config_t *a_config               // Конфигурация compose
+);
+```
+
+### `dap_xchange_tx_create_exchange_compose()`
+
+Создает транзакцию обмена с условными выходами.
+
+```c
+dap_chain_datum_tx_t* dap_xchange_tx_create_exchange_compose(
+    dap_chain_net_srv_xchange_price_t *a_price,      // Цена обмена
+    dap_chain_addr_t *a_buyer_addr,                  // Адрес покупателя
+    uint256_t a_datoshi_buy,                         // Сумма покупки в датоси
+    uint256_t a_datoshi_fee,                         // Комиссия в датоси
+    dap_chain_tx_out_cond_t* a_cond_tx,              // Условная транзакция
+    uint32_t a_prev_cond_idx,                        // Индекс предыдущего условия
+    compose_config_t *a_config                       // Конфигурация compose
+);
+```
+
 ## Заключение
 
 Модуль `dap_chain_tx_compose` предоставляет полный набор функций для создания различных типов транзакций в экосистеме CellFrame. Его гибкий API позволяет разработчикам создавать сложные финансовые операции, управлять staking'ом, участвовать в голосованиях и взаимодействовать с сервисами сети.
