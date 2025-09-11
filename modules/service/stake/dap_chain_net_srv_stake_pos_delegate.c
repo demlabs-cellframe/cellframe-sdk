@@ -847,8 +847,10 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_enc_
     uint256_t l_net_fee, l_fee_total = a_fee;
     dap_chain_addr_t l_net_fee_addr;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
-    if (l_net_fee_used)
-        SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
+    if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total)) {
+        log_it(L_ERROR, "Fee calculation overflow");
+        return NULL;
+    }
 
     dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                             &l_owner_addr, l_fee_total, &l_fee_transfer);
@@ -968,8 +970,10 @@ static dap_chain_datum_tx_t *s_stake_tx_update(dap_chain_net_t *a_net, dap_hash_
     uint256_t l_net_fee, l_fee_total = a_fee;
     dap_chain_addr_t l_net_fee_addr;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
-    if (l_net_fee_used)
-        SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
+    if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total)) {
+        log_it(L_ERROR, "Fee calculation overflow");
+        return NULL;
+    }
     dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                             &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
@@ -1363,8 +1367,10 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     uint256_t l_net_fee, l_fee_total = a_fee;
     dap_chain_addr_t l_net_fee_addr;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
-    if (l_net_fee_used)
-        SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
+    if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total)) {
+        log_it(L_ERROR, "Fee calculation overflow");
+        return NULL;
+    }
     dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                             &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
