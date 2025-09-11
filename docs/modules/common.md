@@ -444,6 +444,80 @@ bool dap_chain_datum_copy_data_safe(dap_chain_datum_t* a_dest,
 }
 ```
 
+### Вспомогательные функции
+
+#### Конвертация числовых типов
+
+```c
+// Конвертация из uint64_t в uint128_t
+DAP_STATIC_INLINE uint128_t dap_chain_uint128_from(uint64_t a_from) {
+    uint128_t l_ret;
+    l_ret.lo = a_from;
+    l_ret.hi = 0;
+    return l_ret;
+}
+
+// Конвертация из uint256_t в uint128_t
+uint128_t dap_chain_uint128_from_uint256(uint256_t a_from);
+
+// Конвертация из uint64_t в uint256_t
+DAP_STATIC_INLINE uint256_t dap_chain_uint256_from(uint64_t a_from) {
+    return GET_256_FROM_64(a_from);
+}
+
+// Конвертация из uint128_t в uint256_t
+DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from) {
+    return GET_256_FROM_128(a_from);
+}
+```
+
+#### Работа с балансами
+
+```c
+// Конвертация баланса в coins (uint64_t)
+DAP_STATIC_INLINE uint64_t dap_chain_balance_to_coins_uint64(uint256_t val) {
+    DIV_256_COIN(val, dap_chain_coins_to_balance("1000000000000000000.0"), &val);
+    return val._lo.a;
+}
+
+// Макросы для работы с балансами
+#define dap_chain_balance_print dap_uint256_uninteger_to_char
+#define dap_chain_balance_scan(a_balance) \
+    (strchr(a_balance, '.') && !strchr(a_balance, '+')) ? \
+    dap_uint256_scan_decimal(a_balance) : dap_uint256_scan_uninteger(a_balance)
+#define dap_chain_balance_to_coins dap_uint256_decimal_to_char
+#define dap_chain_coins_to_balance dap_uint256_scan_decimal
+#define dap_chain_uint256_to dap_uint256_to_uint64
+```
+
+#### Работа с хешами
+
+```c
+// Конвертация медленного хеша в строку (с автоматическим выделением памяти)
+static inline char *dap_chain_hash_slow_to_str_new(dap_chain_hash_slow_t *a_hash) {
+    const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 + 2;
+    char *ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
+    dap_chain_hash_slow_to_str(a_hash, ret, c_hash_str_size);
+    return ret;
+}
+
+// Проверка качества медленного хеша
+static inline dap_chain_hash_slow_kind_t dap_chain_hash_slow_kind_check(
+    dap_chain_hash_slow_t *a_hash, const uint8_t a_valuable_head) {
+    uint8_t i;
+    uint8_t l_hash_first = a_hash->raw[0];
+    uint8_t *l_hash_data = a_hash->raw;
+    for (i = 1; i < a_valuable_head; ++i) {
+        if (l_hash_data[i] != l_hash_first)
+            return HASH_USELESS;
+    }
+    if (l_hash_first == 0)
+        return HASH_GOLD;
+    else
+        return HASH_SILVER;
+}
+```
+
 ## Заключение
 
 Common Module предоставляет фундаментальную функциональность для работы с данными в CellFrame SDK. Он включает базовые структуры, утилиты для сериализации/десериализации и вспомогательные функции, необходимые для всех остальных модулей системы.
