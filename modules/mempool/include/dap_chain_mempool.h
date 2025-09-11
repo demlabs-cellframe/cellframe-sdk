@@ -141,3 +141,5 @@ char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
                                       size_t a_event_data_size,
                                       uint256_t a_fee_value,
                                       const char *a_hash_out_type);
+
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);

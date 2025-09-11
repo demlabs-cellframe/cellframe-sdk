@@ -1914,9 +1914,8 @@ char *dap_auction_bid_withdraw_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *
     dap_chain_addr_fill_from_key(&l_addr, a_key_to, a_net->pub.id);
 
     if (!IS_ZERO_256(l_value_delegated)) {
-        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_delegated_ticker_str, &l_addr, &l_list_used_out, l_value_delegated, &l_value_transfer) == -101)
-            l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker_str,
-                                                                                 &l_addr, l_value_delegated, &l_value_transfer);
+        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker_str,
+                                                                                &l_addr, l_value_delegated, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");
             set_ret_code(a_ret_code, -13);
@@ -2154,11 +2153,8 @@ char *dap_auction_bid_tx_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_fro
     // 2. Find UTXOs to cover the total cost (native tokens)
     dap_list_t *l_list_used_out = NULL;
     uint256_t l_value_transfer = {};
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, &l_addr_from, 
-                                                    &l_list_used_out, l_total_cost, &l_value_transfer) == -101) {
-        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+    l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                               &l_addr_from, l_total_cost, &l_value_transfer);
-    }
     if (!l_list_used_out) {
         log_it(L_ERROR, "Not enough funds to place bid");
         set_ret_code(a_ret_code, -3);
