@@ -67,7 +67,8 @@ enum error_code {
 
 // Callbacks
 static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
-static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner);
+static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,
+                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_check_for_apply);
 // Forward declaration for optimization function
 static dap_auction_cache_item_t *s_find_auction_by_hash_fast(dap_auction_cache_t *a_cache, const dap_hash_fast_t *a_auction_hash);
 
@@ -1162,8 +1163,9 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
         byte_t *l_iter2 = NULL;
         while ((l_item = dap_chain_datum_tx_item_get(a_tx_in, &l_item_idx, l_iter2, TX_ITEM_TYPE_SIG, &l_item_size)) != NULL) {
             dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t*)l_item;
-            if (l_sig->header.sig_size > 0) {
-                dap_chain_addr_fill_from_sign(&l_bidder_addr, (dap_sign_t*)l_sig, a_ledger->net->pub.id);
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_sig);
+            if (l_sign) {
+                dap_chain_addr_fill_from_sign(&l_bidder_addr, l_sign, a_ledger->net->pub.id);
                 l_bidder_found = true;
                 break;
             }
@@ -1229,7 +1231,8 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
  * @param a_owner Whether the transaction is from the owner (who created the lock)
  * @return Returns 0 on success, negative error code otherwise
  */
-static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner)
+static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,
+                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_check_for_apply)
 {
     if (!a_prev_cond) {
         log_it(L_WARNING, "NULL conditional output specified");
