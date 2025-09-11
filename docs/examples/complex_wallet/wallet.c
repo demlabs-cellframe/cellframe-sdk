@@ -347,3 +347,5 @@ void wallet_cleanup() {
 
     printf("✅ Wallet cleanup completed\n");
 }
+
+

@@ -814,14 +814,50 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(json_object *a_outputs_array,
 
 ```c
 #include "dap_chain_tx_compose.h"
+#include "dap_common.h"
+#include "dap_chain_wallet.h"
+#include <stdio.h>
+
+// Инициализация
+if (dap_common_init("compose_example", NULL) != 0) {
+    fprintf(stderr, "Failed to initialize DAP SDK\n");
+    return EXIT_FAILURE;
+}
+
+if (dap_chain_wallet_init() != 0) {
+    fprintf(stderr, "Failed to initialize wallet module\n");
+    dap_common_deinit();
+    return EXIT_FAILURE;
+}
+
+if (dap_compose_init() != 0) {
+    fprintf(stderr, "Failed to initialize compose module\n");
+    dap_chain_wallet_deinit();
+    dap_common_deinit();
+    return EXIT_FAILURE;
+}
 
 // Настройка конфигурации
 compose_config_t config = {
     .net_name = "KelVPN",
     .url_str = "http://rpc.cellframe.net",
     .port = 8081,
-    .enc = false
+    .enc = false,
+    .cert_path = NULL,
+    .response_handler = NULL
 };
+
+// Создание адреса отправителя (пример)
+dap_chain_wallet_t *wallet = NULL; // Предполагается, что кошелек уже создан
+dap_chain_addr_t *sender_addr = dap_chain_wallet_get_addr(wallet, 0); // Получаем адрес
+
+if (!sender_addr) {
+    fprintf(stderr, "Failed to get wallet address\n");
+    dap_compose_deinit();
+    dap_chain_wallet_deinit();
+    dap_common_deinit();
+    return EXIT_FAILURE;
+}
 
 // Создание транзакции перевода
 json_object *tx = dap_tx_create_compose(
@@ -829,18 +865,33 @@ json_object *tx = dap_tx_create_compose(
     "KEL",              // токен
     "100.0",            // сумма
     "0.001",            // комиссия
-    "base58_address",   // адрес получателя
-    &sender_addr,       // адрес отправителя
+    "CELLXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",   // адрес получателя (пример)
+    sender_addr,        // адрес отправителя
     config.url_str,     // URL узла
     config.port,        // порт
     NULL                // сертификат
 );
 
 if (tx) {
+    printf("✓ Transaction created successfully\n");
     // Отправка транзакции в сеть
-    // ...
+    json_object *response = dap_request_command_to_rpc(tx, &config);
+    if (response) {
+        printf("✓ Transaction sent successfully\n");
+        json_object_put(response);
+    } else {
+        printf("✗ Failed to send transaction\n");
+    }
     json_object_put(tx);
+} else {
+    printf("✗ Failed to create transaction\n");
 }
+
+// Очистка
+DAP_FREE(sender_addr);
+dap_compose_deinit();
+dap_chain_wallet_deinit();
+dap_common_deinit();
 ```
 
 ### Создание ордера на обмен
