@@ -4,7 +4,7 @@
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
-#include <json-c/json.h>
+#include "dap_json.h"
 
 #define LOG_TAG "dap_tx_compose_tests"
 #define KEY_COUNT 10
@@ -51,9 +51,9 @@ static size_t s_sign_type_count = sizeof(s_key_types) / sizeof(s_key_types[0]);
 
 static struct tests_data *s_data = NULL;
 
-int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_arr_errors, 
+int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_jobj_arr_errors,
         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json);
 
 void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 {
@@ -79,11 +79,11 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
     dap_assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1, "Protection to add item after signs");
     DAP_DEL_Z(l_out_count);
-    json_object *l_datum_1_json = json_object_new_object();
-    json_object *l_error_json = json_object_new_array();
+    dap_json_t *l_datum_1_json = dap_json_object_new();
+    dap_json_t *l_error_json = dap_json_array_new();
     dap_test_msg("convert to json");
     int l_json_result = dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
-    if (l_json_result == 0 && json_object_object_length(l_datum_1_json) > 0) {
+    if (l_json_result == 0 && dap_json_object_size(l_datum_1_json) > 0) {
         dap_test_msg("dap_chain_net_tx_to_json PASS.");
         printf("\n");
         
@@ -109,8 +109,8 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         dap_test_msg("dap_chain_net_tx_to_json FAILED.");
     }
     
-    json_object_put(l_datum_1_json);
-    json_object_put(l_error_json);
+    dap_json_delete(l_datum_1_json);
+    dap_json_delete(l_error_json);
 }
 
 void s_chain_datum_tx_create_test()
@@ -322,7 +322,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->config.port = 8081;
     s_data->config.enc = false;
     s_data->config.cert_path = NULL;
-    s_data->config.response_handler = json_object_new_object();
+    s_data->config.response_handler = dap_json_object_new();
     s_data->value_fee._hi.a = 0;
     s_data->value_fee._hi.b = 0;
     s_data->value_fee._lo.a = 0;
@@ -345,7 +345,7 @@ void s_chain_datum_tx_ser_deser_test()
     // s_chain_datum_vote_voting_test();
 
     if (s_data->config.response_handler) {
-        json_object_put(s_data->config.response_handler);
+        dap_json_delete(s_data->config.response_handler);
     }
     DAP_DEL_Z(s_data);
     for (size_t i = 0; i < KEY_COUNT; ++i)

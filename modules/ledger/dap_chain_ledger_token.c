@@ -24,6 +24,7 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "dap_chain_ledger_pvt.h"
+#include "dap_json.h"
 
 #define LOG_TAG "dap_ledger_token"
 
@@ -1692,9 +1693,9 @@ uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char 
     return l_token_item->emission_rate;
 }
 
-json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_version)
+dap_json_t *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_version)
 {
-    json_object *json_obj_datum = json_object_new_object();
+    dap_json_t *json_obj_datum = dap_json_object_new();
     const char *l_type_str = NULL;
     switch (a_token_item->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
@@ -1707,62 +1708,66 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
             l_type_str = "PUBLIC"; break;
         default: l_type_str = "UNKNOWN"; break;
     }
-    json_object_object_add(json_obj_datum, a_version == 1 ? "-->Token name" : "token_name", json_object_new_string(a_token_item->ticker));
-    json_object_object_add(json_obj_datum, a_version == 1 ? "type" : "subtype", json_object_new_string(l_type_str));
+    dap_json_object_add_string(json_obj_datum, a_version == 1 ? "-->Token name" : "token_name", a_token_item->ticker);
+    dap_json_object_add_string(json_obj_datum, a_version == 1 ? "type" : "subtype", l_type_str);
     if (a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE && a_token_item->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC) {
         dap_chain_datum_token_flags_dump_to_json(json_obj_datum, "flags", a_token_item->flags);
-        json_object_object_add(json_obj_datum, "description", a_token_item->description ?
-                               json_object_new_string(a_token_item->description) :
-                               json_object_new_string("The token description is not set"));
+        dap_json_object_add_string(json_obj_datum, "description", a_token_item->description ?
+                               a_token_item->description :
+                               "The token description is not set");
     }
-    json_object_object_add(json_obj_datum, a_version == 1 ? "Supply current" : "supply_current", json_object_new_string(dap_uint256_to_char(a_token_item->current_supply, NULL)));
-    json_object_object_add(json_obj_datum, a_version == 1 ? "Supply total" : "supply_total", json_object_new_string(dap_uint256_to_char(a_token_item->total_supply, NULL)));
-    json_object_object_add(json_obj_datum, a_version == 1 ? "Decimals" : "decimals", json_object_new_string("18"));
-    json_object_object_add(json_obj_datum, a_version == 1 ? "Auth signs valid" : "auth_sig_valid", json_object_new_int(a_token_item->auth_signs_valid));
-    json_object_object_add(json_obj_datum, a_version == 1 ? "Auth signs total" : "auth_sig_total", json_object_new_int(a_token_item->auth_signs_total));
-    json_object *l_json_arr_pkeys = json_object_new_array();
+    dap_json_object_add_string(json_obj_datum, a_version == 1 ? "Supply current" : "supply_current", dap_uint256_to_char(a_token_item->current_supply, NULL));
+    dap_json_object_add_string(json_obj_datum, a_version == 1 ? "Supply total" : "supply_total", dap_uint256_to_char(a_token_item->total_supply, NULL));
+    dap_json_object_add_string(json_obj_datum, a_version == 1 ? "Decimals" : "decimals", "18");
+    dap_json_object_add_int(json_obj_datum, a_version == 1 ? "Auth signs valid" : "auth_sig_valid", a_token_item->auth_signs_valid);
+    dap_json_object_add_int(json_obj_datum, a_version == 1 ? "Auth signs total" : "auth_sig_total", a_token_item->auth_signs_total);
+    dap_json_t *l_json_arr_pkeys = dap_json_array_new();
     for (uint16_t i = 0; i < a_token_item->auth_signs_total; i++) {
-        json_object *l_json_obj_out = json_object_new_object();
-        json_object_object_add(l_json_obj_out, "line", json_object_new_int(i));
-        json_object_object_add(l_json_obj_out, a_version == 1 ? "hash" : "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(a_token_item->auth_pkey_hashes + i)));
-        json_object_object_add(l_json_obj_out, "pkey_type", json_object_new_string(dap_pkey_type_to_str(a_token_item->auth_pkeys[i]->header.type)));
-        json_object_object_add(l_json_obj_out, a_version == 1 ? "bytes" : "pkey_size", json_object_new_int(a_token_item->auth_pkeys[i]->header.size));
-        json_object_array_add(l_json_arr_pkeys, l_json_obj_out);
+        dap_json_t *l_json_obj_out = dap_json_object_new();
+        dap_json_object_add_int(l_json_obj_out, "line", i);
+        dap_json_object_add_string(l_json_obj_out, a_version == 1 ? "hash" : "pkey_hash", dap_hash_fast_to_str_static(a_token_item->auth_pkey_hashes + i));
+        dap_json_object_add_string(l_json_obj_out, "pkey_type", dap_pkey_type_to_str(a_token_item->auth_pkeys[i]->header.type));
+        dap_json_object_add_int(l_json_obj_out, a_version == 1 ? "bytes" : "pkey_size", a_token_item->auth_pkeys[i]->header.size);
+        dap_json_array_add(l_json_arr_pkeys, l_json_obj_out);
     }
-    json_object *l_json_arr_tx_recv_allow = json_object_new_array();
+    dap_json_t *l_json_arr_tx_recv_allow = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_recv_allow_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_recv_allow[i];
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        json_object_array_add(l_json_arr_tx_recv_allow, json_object_new_string(l_addr_str));
+        dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
+        dap_json_array_add(l_json_arr_tx_recv_allow, l_addr_obj);
     }
-    json_object *l_json_arr_tx_recv_block = json_object_new_array();
+    dap_json_t *l_json_arr_tx_recv_block = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_recv_block_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_recv_block[i];
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        json_object_array_add(l_json_arr_tx_recv_block, json_object_new_string(l_addr_str));
+        dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
+        dap_json_array_add(l_json_arr_tx_recv_block, l_addr_obj);
     }
-    json_object *l_json_arr_tx_send_allow = json_object_new_array();
+    dap_json_t *l_json_arr_tx_send_allow = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_send_allow_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_send_allow[i];
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        json_object_array_add(l_json_arr_tx_send_allow, json_object_new_string(l_addr_str));
+        dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
+        dap_json_array_add(l_json_arr_tx_send_allow, l_addr_obj);
     }
-    json_object *l_json_arr_tx_send_block = json_object_new_array();
+    dap_json_t *l_json_arr_tx_send_block = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_send_block_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_send_block[i];
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        json_object_array_add(l_json_arr_tx_send_block, json_object_new_string(l_addr_str));
+        dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
+        dap_json_array_add(l_json_arr_tx_send_block, l_addr_obj);
     }
-    json_object_object_add(json_obj_datum, a_version == 1 ? "Signatures public keys" : "sig_pkeys", l_json_arr_pkeys);
-    a_token_item->tx_recv_allow_size ? json_object_object_add(json_obj_datum, "tx_recv_allow", l_json_arr_tx_recv_allow) :
-        json_object_put(l_json_arr_tx_recv_allow);
-    a_token_item->tx_recv_block_size ? json_object_object_add(json_obj_datum, "tx_recv_block", l_json_arr_tx_recv_block) :
-        json_object_put(l_json_arr_tx_recv_block);
-    a_token_item->tx_send_allow_size ? json_object_object_add(json_obj_datum, "tx_send_allow", l_json_arr_tx_send_allow) :
-        json_object_put(l_json_arr_tx_send_allow);
-    a_token_item->tx_send_block_size ? json_object_object_add(json_obj_datum, "tx_send_block", l_json_arr_tx_send_block) :
-        json_object_put(l_json_arr_tx_send_block);
-    json_object_object_add(json_obj_datum, a_version == 1 ? "Total emissions" : "total_emissions", json_object_new_int(HASH_COUNT(a_token_item->token_emissions)));
+    dap_json_object_add_array(json_obj_datum, a_version == 1 ? "Signatures public keys" : "sig_pkeys", l_json_arr_pkeys);
+    a_token_item->tx_recv_allow_size ? dap_json_object_add_array(json_obj_datum, "tx_recv_allow", l_json_arr_tx_recv_allow) :
+        dap_json_object_free(l_json_arr_tx_recv_allow);
+    a_token_item->tx_recv_block_size ? dap_json_object_add_array(json_obj_datum, "tx_recv_block", l_json_arr_tx_recv_block) :
+        dap_json_object_free(l_json_arr_tx_recv_block);
+    a_token_item->tx_send_allow_size ? dap_json_object_add_array(json_obj_datum, "tx_send_allow", l_json_arr_tx_send_allow) :
+        dap_json_object_free(l_json_arr_tx_send_allow);
+    a_token_item->tx_send_block_size ? dap_json_object_add_array(json_obj_datum, "tx_send_block", l_json_arr_tx_send_block) :
+        dap_json_object_free(l_json_arr_tx_send_block);
+    dap_json_object_add_int(json_obj_datum, a_version == 1 ? "Total emissions" : "total_emissions", HASH_COUNT(a_token_item->token_emissions));
     return json_obj_datum;
 }
 
@@ -1771,24 +1776,24 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
  * @param a_ledger
  * @return
  */
-json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version)
+dap_json_t *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version)
 {
-    json_object * json_obj_datum;
-    json_object * json_arr_out = json_object_new_array();
+    dap_json_t * json_obj_datum;
+    dap_json_t * json_arr_out = dap_json_array_new();
     dap_ledger_token_item_t *l_token_item, *l_tmp_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     size_t l_arr_start = 0;
     if (a_offset > 0) {
         l_arr_start = a_offset;
-        json_object* json_obj_tx = json_object_new_object();
-        json_object_object_add(json_obj_tx, "offset", json_object_new_int(l_arr_start));
-        json_object_array_add(json_arr_out, json_obj_tx);
+        dap_json_t* json_obj_tx = dap_json_object_new();
+        dap_json_object_add_int(json_obj_tx, "offset", l_arr_start);
+        dap_json_array_add(json_arr_out, json_obj_tx);
     }
     size_t l_arr_end = HASH_COUNT(PVT(a_ledger)->tokens);
     if (a_limit) {
-        json_object* json_obj_tx = json_object_new_object();
-        json_object_object_add(json_obj_tx, "limit", json_object_new_int(a_limit));
-        json_object_array_add(json_arr_out, json_obj_tx);
+        dap_json_t* json_obj_tx = dap_json_object_new();
+        dap_json_object_add_int(json_obj_tx, "limit", a_limit);
+        dap_json_array_add(json_arr_out, json_obj_tx);
         l_arr_end = l_arr_start + a_limit;
         if (l_arr_end > HASH_COUNT(PVT(a_ledger)->tokens)) {
             l_arr_end = HASH_COUNT(PVT(a_ledger)->tokens);
@@ -1801,7 +1806,7 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
             continue;
         }
         json_obj_datum = s_token_item_to_json(l_token_item, a_version);
-        json_object_array_add(json_arr_out, json_obj_datum);
+        dap_json_array_add(json_arr_out, json_obj_datum);
         i++;
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
@@ -1814,13 +1819,13 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
  * @param a_token_ticker
  * @return
  */
-json_object *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version)
+dap_json_t *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version)
 {
     dap_ledger_token_item_t *l_token_item = NULL;
     HASH_FIND_STR(PVT(a_ledger)->tokens, a_token_ticker, l_token_item);
     if (l_token_item)
         return s_token_item_to_json(l_token_item, a_version);
-    return json_object_new_null();
+    return NULL;
 }
 
 /**

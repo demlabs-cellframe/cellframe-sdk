@@ -27,7 +27,7 @@
 #include <stdio.h>
 
 #include "dap_common.h"
-#include "../../../../dap-sdk/crypto/include/dap_enc_base58.h"
+#include "dap_enc_base58.h"
 #include "dap_math_ops.h"
 #include "dap_math_convert.h"
 #include "dap_enc_key.h"

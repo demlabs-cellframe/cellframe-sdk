@@ -33,6 +33,7 @@
 #include "dap_chain_net_balancer.h"
 #include "dap_cli_server.h"
 #include "dap_chain_srv.h"
+#include "dap_json.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_datum_service_state.h"
 #include "dap_chain_node_client.h"
@@ -551,7 +552,7 @@ dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t
     return ret;
 }
 
-int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, json_object * a_changed_addrs)
+int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t * a_changed_addrs)
 {
     if (dap_strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR))
         return log_it(L_ERROR, "Can't prepare harfork for chain type %s is not supported", dap_chain_get_cs_type(a_chain)), -2;
@@ -1345,7 +1346,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
     return l_ret;
 }
 
-int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object *a_json_arr_reply, int *a_arg_index,
+int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(dap_json_t *a_json_arr_reply, int *a_arg_index,
                                                            int a_argc, char **a_argv,
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net,
                                                            dap_chain_type_t a_default_chain_type)

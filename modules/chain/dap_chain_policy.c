@@ -27,6 +27,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_decree.h"
 #include "dap_list.h"
 #include "uthash.h"
+#include "dap_json.h"
 
 #define LOG_TAG "dap_chain_policy"
 
@@ -392,17 +393,17 @@ DAP_INLINE uint32_t dap_chain_policy_get_last_num(dap_chain_net_id_t a_net_id)
 }
 
 
-json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version)
+dap_json_t *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version)
 {
     struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
     dap_return_val_if_pass(!l_net_item, NULL);
-    json_object *l_ret = json_object_new_object();
+    dap_json_t *l_ret = dap_json_object_new();
 
     dap_string_t *l_active_str = dap_string_new("");
     dap_string_t *l_inactive_str = dap_string_new("");
     if (l_net_item->last_num)
         dap_string_append_printf(l_active_str, "%s CN-%u ", s_policy_is_deactivated(l_net_item, l_net_item->last_num) ? "<" : "<=", l_net_item->last_num);
-    json_object_object_add(l_ret, a_version == 1 ? "cumulative active" : "cumulative_active", json_object_new_string(l_active_str->str));
+    dap_json_object_add_string(l_ret, a_version == 1 ? "cumulative active" : "cumulative_active", l_active_str->str);
     dap_string_erase(l_active_str, 0, -1);
     struct policy_activate_table
         *l_temp = NULL,
@@ -415,8 +416,8 @@ json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version)
                 dap_string_append_printf(l_inactive_str, "CN-%u ", l_current->policy->num);
         }
     }
-    json_object_object_add(l_ret, a_version == 1 ? "conditional active" : "conditional_active", json_object_new_string(l_active_str->str));
-    json_object_object_add(l_ret, a_version == 1 ? "conditional inactive" : "conditional_inactive", json_object_new_string(l_inactive_str->str));
+    dap_json_object_add_string(l_ret, a_version == 1 ? "conditional active" : "conditional_active", l_active_str->str);
+    dap_json_object_add_string(l_ret, a_version == 1 ? "conditional inactive" : "conditional_inactive", l_inactive_str->str);
     
     dap_string_free(l_active_str, true);
     dap_string_erase(l_inactive_str, 0, -1);
@@ -427,76 +428,76 @@ json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version)
     HASH_ITER(hh, l_net_item->deactivate, l_current_deactivate, l_temp_deactivate) {
         dap_string_append_printf(l_inactive_str, "CN-%u ", l_current_deactivate->num);
     }
-    json_object_object_add(l_ret, "deactivated", json_object_new_string(l_inactive_str->str));
+    dap_json_object_add_string(l_ret, "deactivated", l_inactive_str->str);
     // add config deactvated info
     dap_string_erase(l_inactive_str, 0, -1);
     if (l_net_item->exceptions)
         for (uint32_t i = 0; i < l_net_item->exceptions[0]; ++i) {
             dap_string_append_printf(l_inactive_str, "CN-%u ", l_net_item->exceptions[i + 1]);
         }
-    json_object_object_add(l_ret, "exceptions", json_object_new_string(l_inactive_str->str));
+    dap_json_object_add_string(l_ret, "exceptions", l_inactive_str->str);
     dap_string_free(l_inactive_str, true);
     return l_ret;
 }
 
-json_object *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num)
+dap_json_t *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num)
 {
     dap_chain_policy_activate_t *l_policy_activate = s_policy_activate_find(a_net_id, a_num);
     if (!l_policy_activate) {
         return NULL;
     }
-    json_object *l_ret = json_object_new_object();
-    json_object_object_add(l_ret, "num", json_object_new_uint64(l_policy_activate->num));
+    dap_json_t *l_ret = dap_json_object_new();
+    dap_json_object_add_uint64(l_ret, "num", l_policy_activate->num);
     if (l_policy_activate->ts_start) {
         char l_time[DAP_TIME_STR_SIZE] = {};
         dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, l_policy_activate->ts_start);
-        json_object_object_add(l_ret, "ts_start", json_object_new_string(l_time));
+        dap_json_object_add(l_ret, "ts_start", dap_json_object_new_string(l_time));
     } else {
-        json_object_object_add(l_ret, "ts_start", json_object_new_int(0));
+        dap_json_object_add(l_ret, "ts_start", dap_json_object_new_int(0));
     }
-    json_object_object_add(l_ret, "block_start", json_object_new_uint64(l_policy_activate->block_start));
+    dap_json_object_add(l_ret, "block_start", dap_json_object_new_uint64(l_policy_activate->block_start));
     if (l_policy_activate->block_start) {
         dap_chain_t *l_chain = dap_chain_find_by_id(a_net_id, l_policy_activate->chain_id);
         if (!l_chain) {
-            json_object_object_add(l_ret, "chain", json_object_new_string("NULL"));
+            dap_json_object_add(l_ret, "chain", dap_json_object_new_string("NULL"));
         } else {
             char l_chain_id[32] = { };
             snprintf(l_chain_id, sizeof(l_chain_id) - 1, "0x%016"DAP_UINT64_FORMAT_x, l_policy_activate->chain_id.uint64);
-            json_object_object_add(l_ret, "chain", json_object_new_string(l_chain_id));
+            dap_json_object_add(l_ret, "chain", dap_json_object_new_string(l_chain_id));
         }
     } else {
-        json_object_object_add(l_ret, "chain", json_object_new_string(""));
+        dap_json_object_add(l_ret, "chain", dap_json_object_new_string(""));
     }
-    json_object_object_add(l_ret, "description", json_object_new_string("WIKI"));
+    dap_json_object_add(l_ret, "description", dap_json_object_new_string("WIKI"));
     return l_ret;
 }
 
-json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy)
+dap_json_t *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy)
 {
     dap_return_val_if_pass(!a_policy, NULL);
-    json_object *l_ret = json_object_new_object();
+    dap_json_t *l_ret = dap_json_object_new();
 
-    json_object_object_add(l_ret, "version", json_object_new_uint64(a_policy->version));
-    json_object_object_add(l_ret, "type", json_object_new_string(dap_chain_policy_to_str(a_policy)));
+    dap_json_object_add(l_ret, "version", dap_json_object_new_uint64(a_policy->version));
+    dap_json_object_add(l_ret, "type", dap_json_object_new_string(dap_chain_policy_to_str(a_policy)));
     if (DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE)) {
         dap_chain_policy_activate_t *l_policy_activate = (dap_chain_policy_activate_t *)a_policy->data;
-        json_object_object_add(l_ret, "num", json_object_new_uint64(l_policy_activate->num));
+        dap_json_object_add(l_ret, "num", dap_json_object_new_uint64(l_policy_activate->num));
         if (l_policy_activate->ts_start) {
             char l_time[DAP_TIME_STR_SIZE] = {};
             dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, l_policy_activate->ts_start);
-            json_object_object_add(l_ret, "ts_start", json_object_new_string(l_time));
+            dap_json_object_add(l_ret, "ts_start", dap_json_object_new_string(l_time));
         } else {
-            json_object_object_add(l_ret, "ts_start", json_object_new_int(0));
+            dap_json_object_add(l_ret, "ts_start", dap_json_object_new_int(0));
         }
-        json_object_object_add(l_ret, "block_start", json_object_new_uint64(l_policy_activate->block_start));
+        dap_json_object_add(l_ret, "block_start", dap_json_object_new_uint64(l_policy_activate->block_start));
         if (l_policy_activate->block_start) {
                 char l_chain_id[32] = { };
                 snprintf(l_chain_id, sizeof(l_chain_id) - 1, "0x%016"DAP_UINT64_FORMAT_x, l_policy_activate->chain_id.uint64);
-                json_object_object_add(l_ret, "chain", json_object_new_string(l_chain_id));
+                dap_json_object_add(l_ret, "chain", dap_json_object_new_string(l_chain_id));
         } else {
-            json_object_object_add(l_ret, "chain", json_object_new_string(""));
+            dap_json_object_add(l_ret, "chain", dap_json_object_new_string(""));
         }
-        json_object_object_add(l_ret, "description", json_object_new_string("WIKI"));
+        dap_json_object_add(l_ret, "description", dap_json_object_new_string("WIKI"));
     } else {
         dap_chain_policy_deactivate_t *l_policy_deactivate = (dap_chain_policy_deactivate_t *)a_policy->data;
         if (l_policy_deactivate->count) {
@@ -504,10 +505,10 @@ json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy)
             for (size_t i = 0; i < l_policy_deactivate->count; ++i) {
                 dap_string_append_printf(l_nums_list, "CN-%u ", l_policy_deactivate->nums[i]);
             }
-            json_object_object_add(l_ret, "deactivate", json_object_new_string(l_nums_list->str));
+            dap_json_object_add(l_ret, "deactivate", dap_json_object_new_string(l_nums_list->str));
             dap_string_free(l_nums_list, true);
         } else {
-            json_object_object_add(l_ret, "deactivate", json_object_new_string(""));
+            dap_json_object_add(l_ret, "deactivate", dap_json_object_new_string(""));
         }
     }
     return l_ret;

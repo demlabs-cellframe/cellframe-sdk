@@ -24,6 +24,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 
 #include "dap_guuid.h"
+#include "dap_json.h"
 #include "dap_chain_srv.h"
 
 #define LOG_TAG "chain_srv"
@@ -262,14 +263,14 @@ void dap_chain_srv_hardfork_complete_all(dap_chain_net_id_t a_net_id)
  * @param a_net_id
  * @return JSON object with array of fees for services having ones
  */
-json_object *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id)
+dap_json_t *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id)
 {
-    json_object *ret = json_object_new_array();
+    dap_json_t *ret = dap_json_array_new();
     int err = pthread_rwlock_rdlock(&s_srv_list_lock);
     assert(!err);
     for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
         if (s_net_service_find(it, a_net_id) && it->callbacks.get_fee_descr)
-            json_object_array_add(ret, it->callbacks.get_fee_descr(a_net_id));
+            dap_json_array_add(ret, it->callbacks.get_fee_descr(a_net_id));
     }
     pthread_rwlock_unlock(&s_srv_list_lock);
     return ret;

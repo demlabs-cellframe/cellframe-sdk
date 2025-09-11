@@ -31,7 +31,7 @@
  #include "dap_chain_wallet.h"
  #include "dap_chain_net_srv_xchange.h"
 
- #include <json-c/json.h>
+ #include "dap_json.h"
 
 #define NET_COUNT 6
 

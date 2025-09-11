@@ -31,6 +31,7 @@
 #include "dap_global_db.h"
 #include "dap_chain_net_srv_countries.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_json.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"
 #define ORDER_CURRENT_VERSION 3
@@ -587,7 +588,7 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
 
 
 
-void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, json_object *a_json_obj_out,
+void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, dap_json_t *a_json_obj_out,
                                             const char *a_hash_out_type, const char *a_native_ticker, bool a_need_sign, int a_version)
 {
     if (a_order && a_json_obj_out ){

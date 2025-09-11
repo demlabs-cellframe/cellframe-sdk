@@ -33,6 +33,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_dns_server.h"
 #include "dap_client_http.h"
 #include "dap_enc_base64.h"
+#include "dap_json.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_node_rpc.h"
 
@@ -616,7 +617,7 @@ void dap_chain_net_balancer_request(void *a_arg)
  * @param a_net - net to report
  * @return if error NULL, other - report
  */
-json_object *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
+dap_json_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
 {
 // sanity check
     dap_return_val_if_pass(!a_net, NULL);

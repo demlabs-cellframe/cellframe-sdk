@@ -24,25 +24,12 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #pragma once
 #include "dap_chain_net.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
+#include "dap_json.h"
 #include "dap_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_string.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_net_srv.h"
 
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 
 typedef struct dap_chain_net_srv_order {
     uint16_t version;

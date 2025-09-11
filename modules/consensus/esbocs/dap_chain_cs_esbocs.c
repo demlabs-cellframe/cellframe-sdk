@@ -23,8 +23,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #include "dap_common.h"
 #include "utlist.h"
-#include "../../../../dap-sdk/crypto/src/rand/dap_rand.h"
-#include "../../../../dap-sdk/net/stream/ch/include/dap_stream_ch_proc.h"
+#include "dap_rand.h"
+#include "dap_stream_ch_proc.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_common.h"
@@ -821,7 +821,7 @@ int dap_chain_esbocs_set_hardfork_state(dap_chain_t *a_chain, bool a_state)
     return 0;
 }
 
-int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object *a_changed_addrs)
+int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs)
 {
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     uint64_t l_last_num = a_chain->callback_count_atom(a_chain);

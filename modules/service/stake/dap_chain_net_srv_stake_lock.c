@@ -24,7 +24,7 @@
 
 #include "dap_common.h"
 #include "dap_json.h"
-#include "../../../../dap-sdk/crypto/include/dap_hash.h"
+#include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_srv_stake_lock.h"
@@ -841,14 +841,14 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, int a
             } return 1;
     }
 
-    json_object* json_obj_out = json_object_new_object();
+    dap_json_t* json_obj_out = dap_json_object_new();
     if (STAKE_NO_ERROR != errorCode) {
         s_error_handler(errorCode, output_line);
-        json_object_object_add(json_obj_out, "status", json_object_new_string(output_line->str));
-    } 
+        dap_json_object_add_string(json_obj_out, "status", output_line->str);
+    }
     else {
         dap_string_append_printf(output_line, "\nContribution successfully made");
-        json_object_object_add(json_obj_out, "status", json_object_new_string(output_line->str));
+        dap_json_object_add_string(json_obj_out, "status", output_line->str);
     }
     dap_json_array_add(*a_json_arr_reply, json_obj_out);
     dap_string_free(output_line, true);
@@ -1163,12 +1163,13 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         *res = -3;
         return NULL;
     }
-    if (l_main_native)
+    if (l_main_native) {
         if (SUM_256_256(l_value_need, l_total_fee, &l_value_need)) {
             log_it(L_ERROR, "Value calculation overflow in stake lock operation");
             *res = -3;
             return NULL;
         }
+    }
     else if (!IS_ZERO_256(l_total_fee)) {
         l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
@@ -1244,12 +1245,13 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
                     log_it(L_ERROR, "Cant add network fee output");
                     break;
                 }
-                if (l_main_native)
+                if (l_main_native) {
                     if (SUM_256_256(l_value_pack, l_net_fee, &l_value_pack)) {
                         log_it(L_ERROR, "Network fee pack calculation overflow");
                         l_err = -3;
                         break;
                     }
+                }
                 else
                     if (SUM_256_256(l_native_pack, l_net_fee, &l_native_pack)) {
                         log_it(L_ERROR, "Native pack calculation overflow");
@@ -1264,12 +1266,13 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
                     l_err = -4;
                     break;
                 }
-                if (l_main_native)
+                if (l_main_native) {
                     if (SUM_256_256(l_value_pack, a_value_fee, &l_value_pack)) {
                         log_it(L_ERROR, "Validator fee pack calculation overflow");
                         l_err = -3;
                         break;
                     }
+                }
                 else
                     if (SUM_256_256(l_native_pack, a_value_fee, &l_native_pack)) {
                         log_it(L_ERROR, "Native validator fee pack calculation overflow");

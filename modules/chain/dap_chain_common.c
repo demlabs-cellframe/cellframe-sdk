@@ -28,6 +28,7 @@
 #ifdef DAP_OS_WINDOWS
 #include <time.h>
 #endif
+#include "dap_json.h"
 #include "dap_chain_common.h"
 
 #define LOG_TAG "dap_chain_common"
@@ -259,10 +260,10 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     return memcmp(a_addr->checksum.raw, l_checksum.raw, sizeof(l_checksum.raw));
 }
 
-void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count,
+void dap_chain_set_offset_limit_json(dap_json_t * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count,
                                      bool a_last)
 {
-    json_object* json_obj_lim = json_object_new_object();
+    dap_json_t* json_obj_lim = dap_json_object_new();
     *a_and = a_and_count;
     if (a_offset > 0) {
         if ((a_last) && (a_and_count > a_offset)) {
@@ -270,7 +271,7 @@ void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_sta
         } else {
             *a_start = a_offset;
         }
-        json_object_object_add(json_obj_lim, "offset", json_object_new_uint64(a_offset));
+        dap_json_object_add_uint64(json_obj_lim, "offset", a_offset);
     }
     if (a_limit > 0) {
         if (a_last && (a_and_count > a_limit)) {
@@ -279,10 +280,10 @@ void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_sta
         else {
             *a_and = *a_start + a_limit;
         }
-        json_object_object_add(json_obj_lim, "limit", json_object_new_uint64(a_limit));
+        dap_json_object_add_uint64(json_obj_lim, "limit", a_limit);
     }
     else
-        json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
-    json_object_array_add(a_json_obj_out, json_obj_lim);
+        dap_json_object_add_string(json_obj_lim, "limit", "unlimit");
+    dap_json_array_add(a_json_obj_out, json_obj_lim);
 }
 

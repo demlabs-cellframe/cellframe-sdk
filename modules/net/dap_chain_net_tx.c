@@ -672,7 +672,7 @@ static dap_pkey_t* s_json_get_pkey(struct json_object *a_json)
 }
 
 
-static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_json_item_objs, json_object *a_jobj_arr_errors, dap_chain_net_t * a_net) {
+static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_json_item_objs, dap_json_t *a_jobj_arr_errors, dap_chain_net_t * a_net) {
     // First iteration in input file. Check the tx will be multichannel or not
     int check = 0;
     int res = DAP_CHAIN_NET_TX_NORMAL;
@@ -1514,7 +1514,7 @@ static int s_dap_chain_net_tx_add_in_and_back(dap_tx_creator_tokenizer_t *a_valu
 #define dap_chain_datum_tx_add_new_generic(a_tx, type, a_item) \
     ({ type* item = a_item; item ? ( dap_chain_datum_tx_add_item(a_tx, item), DAP_DELETE(item), 1 ) : -1; })
 
-int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error,
+int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_json_obj_error,
                                         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
 
@@ -2669,7 +2669,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 }
 
 
-int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_arr_errors, 
+int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_jobj_arr_errors, 
     dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
 
@@ -2881,12 +2881,13 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
 }
 
 
-int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json)
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
 {
     if(!a_tx || !a_out_json)
         return log_it(L_ERROR, "Empty transaction"), DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS;
 
-    json_object* json_obj_out = a_out_json;
+    // Create a new json_object and assign it to the dap_json_t pointer
+    json_object* json_obj_out = json_object_new_object();
     json_object* l_json_arr_reply = NULL;
     dap_hash_fast_t l_hash_tmp = { };
     byte_t *item; size_t l_size;
@@ -3080,8 +3081,10 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
 
     json_object_object_add(json_obj_out, "items", json_arr_items);
 
-    if(a_out_json)
-        a_out_json = json_obj_out;
+    if(a_out_json) {
+        // Cast json_object to dap_json_t for assignment
+        *(dap_json_t **)a_out_json = (dap_json_t *)json_obj_out;
+    }
 
     return 0;
 }
