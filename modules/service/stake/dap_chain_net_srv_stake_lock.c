@@ -292,7 +292,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 {
     const char *l_net_str = NULL, *l_ticker_str = NULL, *l_coins_str = NULL,
             *l_wallet_str = NULL, *l_cert_str = NULL, *l_chain_str = NULL,
-            *l_time_staking_str = NULL, *l_reinvest_percent_str = NULL, *l_value_fee_str = NULL;
+            *l_time_unlock_str = NULL, *l_reinvest_percent_str = NULL, *l_value_fee_str = NULL;
 
     const char *l_wallets_path								=	dap_chain_wallet_get_path(g_config);
     char 	l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
@@ -380,25 +380,24 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return FEE_FORMAT_ERROR;
 
     // Read time staking
-    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
-    ||	!l_time_staking_str)
+    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_unlock_str)
+    ||	!l_time_unlock_str)
         return TIME_ERROR;
 
-    if (dap_strlen(l_time_staking_str) != 6)
+    if (dap_strlen(l_time_unlock_str) != 6)
         return TIME_ERROR;
 
-    char l_time_staking_month_str[3] = {l_time_staking_str[2], l_time_staking_str[3], 0};
-    int l_time_staking_month = atoi(l_time_staking_month_str);
-    if (l_time_staking_month < 1 || l_time_staking_month > 12)
+    char l_time_unlock_month_str[3] = {l_time_unlock_str[2], l_time_unlock_str[3], 0};
+    int l_time_unlock_month = atoi(l_time_unlock_month_str);
+    if (l_time_unlock_month < 1 || l_time_unlock_month > 12)
         return TIME_ERROR;
 
-    char l_time_staking_day_str[3] = {l_time_staking_str[4], l_time_staking_str[5], 0};
-    int l_time_staking_day = atoi(l_time_staking_day_str);
-    if (l_time_staking_day < 1 || l_time_staking_day > 31)
+    char l_time_unlock_day_str[3] = {l_time_unlock_str[4], l_time_unlock_str[5], 0};
+    int l_time_unlock_day = atoi(l_time_unlock_day_str);
+    if (l_time_unlock_day < 1 || l_time_unlock_day > 31)
         return TIME_ERROR;
 
-
-    l_time_unlock = dap_time_from_str_simplified(l_time_staking_str);
+    l_time_unlock = dap_time_from_str_simplified(l_time_unlock_str);
     if (l_time_unlock < dap_time_now())
         return TIME_ERROR;
 
@@ -1206,9 +1205,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         {
             uint256_t l_value_pack = {}, l_native_pack = {}; // how much coin add to 'out_ext' items
             dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-                                                            l_uid, a_value, a_time_unlock, a_reinvest_percent,
-                                                            DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME |
-                                                            DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT);
+                                                            l_uid, a_value, a_time_unlock, a_reinvest_percent);
             if (l_tx_out_cond) {
                 SUM_256_256(l_value_pack, a_value, &l_value_pack);
                 dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out_cond);

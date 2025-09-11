@@ -524,7 +524,7 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
     // 4. OUT_COND with SRV_STAKE_LOCK subtype
     l_srv_uid.uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID;
     dap_chain_tx_out_cond_t *l_out_cond_lock = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-        l_srv_uid, dap_chain_uint256_from(500), 3600, dap_chain_uint256_from(5), 0);
+        l_srv_uid, dap_chain_uint256_from(500), 3600, dap_chain_uint256_from(5));
     if (l_out_cond_lock) {
         l_out_cond_lock->header.item_type = TX_ITEM_TYPE_OUT_COND;
         dap_chain_datum_tx_add_item(&l_tx, l_out_cond_lock);

@@ -34,8 +34,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_client_http.h"
 #include "dap_enc_base64.h"
 #include "dap_notify_srv.h"
-#include "dap_chain_node_rpc.h"
 #include "dap_cli_server.h"
+#include "dap_chain_node_rpc.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
 
@@ -196,7 +196,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
             , "Links from balancer %s:%u in net %s can't be prepared, connection errno %d"
             , a_host_addr, a_host_port, a_request->net->pub.name, a_errno);
     log_it(L_WARNING, "%s", l_err_str);
-    json_object_object_add(l_json, dap_cli_server_get_version() == 1 ? "errorMessage" : "error_message", json_object_new_string(l_err_str));
+    json_object_object_add(l_json, dap_cli_server_get_version() == 1 ? "error_message" : "errorMessage", json_object_new_string(l_err_str));
     dap_notify_server_send(json_object_get_string(l_json));
     json_object_put(l_json);
 }

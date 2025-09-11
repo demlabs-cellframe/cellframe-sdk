@@ -214,15 +214,20 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
                                                                            dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax, dap_pkey_t *a_pkey);
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_delegate(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                             dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
-                                                                            uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size, uint32_t a_flags);
-
+                                                                            uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size);
 // Create cond out
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_srv_uid_t a_srv_uid,
                                                                                   uint256_t a_value, uint64_t a_time_unlock,
-                                                                                  uint256_t a_reinvest_percent,
-                                                                                  uint32_t a_flags);
+                                                                                  uint256_t a_reinvest_percent);
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(dap_chain_srv_uid_t a_srv_uid,
+                                                                                  uint256_t a_value,
+                                                                                  const dap_hash_fast_t *a_auction_hash,
+                                                                                  dap_time_t a_lock_time,
+                                                                                  uint32_t a_project_id,
+                                                                                  const void *a_params, size_t a_params_size);
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,

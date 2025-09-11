@@ -86,6 +86,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_in_ems;
     dap_list_t *items_vote;
     dap_list_t *items_voting;
+    dap_list_t *items_voting_cancel;
     dap_list_t *items_tsd;
     dap_list_t *items_pkey;
     dap_list_t *items_receipt;

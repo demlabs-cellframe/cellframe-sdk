@@ -72,8 +72,16 @@ cmake_install.cmake
 # Editor's temp files
 *~
 .idea/
+.context/
+.mcp/
+.cache/
+.slc/
+.clangd
+slc
+
+
 
 # OS files
 .DS_Store
-.vscode
+.vscode/
 .devcontainer

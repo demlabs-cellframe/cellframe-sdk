@@ -1,27 +1,27 @@
 /*
- * Authors:
- * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
- * Alexander Lysikov <alexander.lysikov@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2019
- * All rights reserved.
+* Authors:
+* Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
+* Alexander Lysikov <alexander.lysikov@demlabs.net>
+* DeM Labs Inc.   https://demlabs.net
+* Kelvin Project https://github.com/kelvinblockchain
+* Copyright  (c) 2019
+* All rights reserved.
 
- This file is part of DAP (Distributed Applications Platform) the open source project
+This file is part of DAP (Distributed Applications Platform) the open source project
 
- DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
+DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
- DAP is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+DAP is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
- */
+You should have received a copy of the GNU General Public License
+along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #pragma once
 
@@ -103,10 +103,10 @@ typedef enum s_com_tx_wallet_err{
 } s_com_tx_wallet_err_t;
 
 /**
- * com_tx_create command
- *
- * Create transaction
- */
+* com_tx_create command
+*
+* Create transaction
+*/
 typedef enum s_com_tx_create_err{
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -339,82 +339,79 @@ extern "C" {
 #endif
 
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, void **a_str_reply,
-                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_chain_type);
+                            dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_chain_type);
 
 
 /**
- * global_db command
- */
+* global_db command
+*/
 int com_global_db(int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 /**
- * Node command
- */
+* Node command
+*/
 int com_node(int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 
 #ifndef DAP_OS_ANDROID
 /**
- * Traceroute command
- *
- * return 0 OK, -1 Err
- */
+* Traceroute command
+*
+* return 0 OK, -1 Err
+*/
 int com_traceroute(int a_argc,  char** argv, void **a_str_reply, int a_version);
 
 /**
- * Tracepath command
- *
- * return 0 OK, -1 Err
- */
+* Tracepath command
+*
+* return 0 OK, -1 Err
+*/
 int com_tracepath(int a_argc,  char** argv, void **a_str_reply, int a_version);
 
 /**
- * Ping command
- *
- * return 0 OK, -1 Err
- */
+* Ping command
+*
+* return 0 OK, -1 Err
+*/
 int com_ping(int a_argc,  char** argv, void **a_str_reply, int a_version);
 #endif
 /**
- * Help command
- */
+* Help command
+*/
 int com_help(int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 
 int com_version(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 /**
- * Token declaration
- */
+* Token declaration
+*/
 int com_token_decl(int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 
 int com_token_update(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 /**
- * Token declaration add sign
- */
+* Token declaration add sign
+*/
 int com_token_decl_sign ( int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 
 /*
- * Token update sign
- */
+* Token update sign
+*/
 int com_token_update_sign(int argc, char ** argv, void **a_str_reply, int a_version);
 
 /**
- * Token emission
- */
+* Token emission
+*/
 int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 
 /**
- * com_tx_create command
- *
- * Wallet info
- */
+* com_tx_create command
+*
+* Wallet info
+*/
 int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
-int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
 int com_tx_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 void json_rpc_tx_create(json_object *a_param, json_object *a_reply, int a_version);
 int com_tx_create_json(int a_argc, char **a_argv, void **reply, int a_version);
-int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
-
 int com_tx_cond_create(int a_argc, char **a_argv, void **reply, int a_version);
 
 typedef enum dap_chain_node_cli_cmd {
@@ -467,6 +464,7 @@ typedef enum dap_chain_node_cli_cmd {
     DAP_CHAIN_NODE_CLI_CMD_ID_EXIT,
     DAP_CHAIN_NODE_CLI_CMD_ID_FILE,
     DAP_CHAIN_NODE_CLI_CMD_ID_PLUGINS,
+    DAP_CHAIN_NODE_CLI_CMD_ID_AUCTION,
     DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL
 } dap_chain_node_cli_cmd_t;
 
@@ -477,10 +475,10 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply, int a_vers
 
 
 /**
- * tx_verify command
- *
- * Verifing transaction
- */
+* tx_verify command
+*
+* Verifing transaction
+*/
 
 int com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
 typedef enum s_com_tx_node_err{
@@ -610,10 +608,10 @@ typedef enum s_com_decree_err{
 char *dap_chain_node_cli_com_tx_history_err(int a_code);
 
 /**
- * tx_history command
- *
- * Transaction history for an address
- */
+* tx_history command
+*
+* Transaction history for an address
+*/
 int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
 
 // Print statistics
@@ -624,16 +622,17 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
 
 /**
- * decree command
- *
- */
+* decree command
+*
+*/
 int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 /**
- * Place public CA into the mempool
- */
+* Place public CA into the mempool
+*/
 int com_chain_ca_pub( int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 int com_chain_ca_copy( int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 int com_signer(int a_argc, char **a_argv, void **a_str_reply, int a_version);
@@ -641,12 +640,12 @@ int com_signer(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 /**
- * Handler coomand find
- * @param a_argc
- * @param a_argv
- * @param a_str_reply
- * @return
- */
+* Handler coomand find
+* @param a_argc
+* @param a_argv
+* @param a_str_reply
+* @return
+*/
 int cmd_find(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
@@ -656,8 +655,8 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version);
 int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
 
 /**
- * Policy management
- */
+* Policy management
+*/
 int com_policy(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 #ifdef __cplusplus

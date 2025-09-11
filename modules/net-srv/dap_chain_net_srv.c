@@ -353,6 +353,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                     l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR ;
                 }
             } else if(!dap_strcmp( l_order_str, "dump" )) {
+                // Select with specified service uid
                 bool l_need_sign = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-need_sign", NULL);
                 if ( l_order_hash_str ){
                     dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
