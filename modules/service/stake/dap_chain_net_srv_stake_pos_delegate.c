@@ -432,7 +432,9 @@ static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_t
  */
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback, s_stake_deleted_callback);
+    dap_ledger_verificator_add_with_cond_match(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, 
+                                               s_stake_verificator_callback, s_stake_updater_callback, s_stake_deleted_callback,
+                                               s_stake_cond_out_match_callback);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
             "\t\t=== Commands for work with orders ===\n"
     "srv_stake order create [fee] -net <net_name> -value <value> -cert <priv_cert_name> [-H {hex(default) | base58}]\n"
@@ -564,6 +566,43 @@ void dap_chain_net_srv_stake_pos_delegate_deinit()
     s_srv_stake_list = NULL;
 }
 
+// Custom conditional output matching callback for staking
+// Allows adding additional fields to the conditional output while preserving base structure
+static int s_stake_cond_out_match_callback(dap_chain_tx_out_cond_t *a_prev_cond, dap_chain_tx_out_cond_t *a_new_cond)
+{
+    // Check basic header compatibility
+    if (a_new_cond->header.subtype != a_prev_cond->header.subtype ||
+            a_new_cond->header.ts_expires != a_prev_cond->header.ts_expires ||
+            !dap_chain_net_srv_uid_compare(a_new_cond->header.srv_uid, a_prev_cond->header.srv_uid)) {
+        log_it(L_WARNING, "Staking: Conditional out and conditional in have different headers");
+        return -3;
+    }
+
+    // For staking, allow TSD section to be extended (new size >= old size)
+    if (a_new_cond->tsd_size < a_prev_cond->tsd_size) {
+        log_it(L_WARNING, "Staking: New conditional output TSD size %u is smaller than original %u", 
+               a_new_cond->tsd_size, a_prev_cond->tsd_size);
+        return -4;
+    }
+
+    // Check that original TSD data is preserved (if exists)
+    if (a_prev_cond->tsd_size > 0 && a_prev_cond->tsd && a_new_cond->tsd &&
+            memcmp(a_new_cond->tsd, a_prev_cond->tsd, a_prev_cond->tsd_size)) {
+        log_it(L_WARNING, "Staking: Original TSD section data has been modified");
+        return -4;
+    }
+
+    // Check staking-specific fields preservation
+    if (dap_chain_addr_is_blank(&a_new_cond->subtype.srv_stake_pos_delegate.signing_addr) ||
+            a_new_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {
+        log_it(L_WARNING, "Staking: Address or key fields are blank in new conditional tx");
+        return -5;
+    }
+
+    // All checks passed - conditional outputs match correctly with allowed extensions
+    return 0;
+}
+
 static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                          dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
@@ -571,34 +610,7 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
     dap_return_val_if_fail(l_srv_stake, -2);
 
-#define m_cond_check()                                                                              \
-(                                                                                                   \
-    {                                                                                               \
-        if (l_tx_new_cond->header.subtype != a_cond->header.subtype ||                              \
-                l_tx_new_cond->header.ts_expires != a_cond->header.ts_expires ||                    \
-                !dap_chain_net_srv_uid_compare(l_tx_new_cond->header.srv_uid,                       \
-                                               a_cond->header.srv_uid)                              \
-                ) {                                                                                 \
-            log_it(L_WARNING, "Conditional out and conditional in have different headers");         \
-            return -3;                                                                              \
-        }                                                                                           \
-        if (l_tx_new_cond->tsd_size != a_cond->tsd_size) {                                         \
-            log_it(L_WARNING, "Conditional out and conditional in have different TSD sizes: %u vs %u", \
-                   l_tx_new_cond->tsd_size, a_cond->tsd_size);                                     \
-            return -4;                                                                              \
-        }                                                                                           \
-        if (l_tx_new_cond->tsd_size > 0 && l_tx_new_cond->tsd && a_cond->tsd &&                   \
-                memcmp(l_tx_new_cond->tsd, a_cond->tsd, a_cond->tsd_size)) {                        \
-            log_it(L_WARNING, "Conditional out and conditional in have different TSD sections");    \
-            return -4;                                                                              \
-        }                                                                                           \
-        if (dap_chain_addr_is_blank(&l_tx_new_cond->subtype.srv_stake_pos_delegate.signing_addr) || \
-                l_tx_new_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {       \
-            log_it(L_WARNING, "Not blank address or key fields in order conditional tx");           \
-            return -5;                                                                              \
-        }                                                                                           \
-    }                                                                                               \
-)
+// Removed old m_cond_check() macro - replaced with s_stake_cond_out_match_callback() function
     int l_out_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_new_cond = dap_chain_datum_tx_out_cond_get(
                                                 a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_idx);
@@ -611,7 +623,11 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             log_it(L_ERROR, "Condition not found in conditional tx");
             return -13;
         }
-        m_cond_check();
+        // Use custom conditional output matching callback
+        int l_match_result = s_stake_cond_out_match_callback(a_cond, l_tx_new_cond);
+        if (l_match_result != 0) {
+            return l_match_result;
+        }
 
         if (compare256(l_tx_new_cond->header.value, a_cond->header.value)) {
             log_it(L_WARNING, "Conditional out and conditional in have different values");
@@ -625,8 +641,11 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     }
     // Delegation value update (dynamic weight feature)
     if (l_tx_new_cond) {
-
-        m_cond_check();
+        // Use custom conditional output matching callback
+        int l_match_result = s_stake_cond_out_match_callback(a_cond, l_tx_new_cond);
+        if (l_match_result != 0) {
+            return l_match_result;
+        }
 
         if (!dap_chain_addr_compare(&l_tx_new_cond->subtype.srv_stake_pos_delegate.signing_addr,
                                     &a_cond->subtype.srv_stake_pos_delegate.signing_addr)) {

@@ -68,6 +68,7 @@ typedef struct dap_ledger_verificator {
     dap_ledger_verificator_callback_t callback;
     dap_ledger_updater_callback_t callback_added;
     dap_ledger_delete_callback_t callback_deleted;
+    dap_ledger_cond_out_match_callback_t cond_out_match_callback;  // Optional custom matching callback
     UT_hash_handle hh;
 } dap_ledger_verificator_t;
 
@@ -5582,6 +5583,38 @@ int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_le
     l_new_verificator->callback = a_callback;
     l_new_verificator->callback_added = a_callback_added;
     l_new_verificator->callback_deleted = a_callback_deleted;
+    l_new_verificator->cond_out_match_callback = NULL;  // No custom matching callback in basic version
+    pthread_rwlock_wrlock(&s_verificators_rwlock);
+    HASH_ADD_INT(s_verificators, subtype, l_new_verificator);
+    pthread_rwlock_unlock(&s_verificators_rwlock);
+    return 0;
+}
+
+// Add new verificator callback with optional conditional output matching callback. Returns 1 if callback replaced, -1 error, overwise returns 0
+int dap_ledger_verificator_add_with_cond_match(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback, 
+                                     dap_ledger_updater_callback_t a_callback_added, dap_ledger_delete_callback_t a_callback_deleted,
+                                     dap_ledger_cond_out_match_callback_t a_cond_match_callback)
+{
+    dap_ledger_verificator_t *l_new_verificator = NULL;
+    int l_tmp = (int)a_subtype;
+    pthread_rwlock_rdlock(&s_verificators_rwlock);
+    HASH_FIND_INT(s_verificators, &l_tmp, l_new_verificator);
+    pthread_rwlock_unlock(&s_verificators_rwlock);
+    if (l_new_verificator) {
+        l_new_verificator->callback = a_callback;
+        l_new_verificator->cond_out_match_callback = a_cond_match_callback;
+        return 1;
+    }
+    l_new_verificator = DAP_NEW(dap_ledger_verificator_t);
+    if (!l_new_verificator) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return -1;
+    }
+    l_new_verificator->subtype = (int)a_subtype;
+    l_new_verificator->callback = a_callback;
+    l_new_verificator->callback_added = a_callback_added;
+    l_new_verificator->callback_deleted = a_callback_deleted;
+    l_new_verificator->cond_out_match_callback = a_cond_match_callback;
     pthread_rwlock_wrlock(&s_verificators_rwlock);
     HASH_ADD_INT(s_verificators, subtype, l_new_verificator);
     pthread_rwlock_unlock(&s_verificators_rwlock);
