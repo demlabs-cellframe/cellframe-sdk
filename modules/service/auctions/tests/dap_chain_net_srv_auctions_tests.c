@@ -1083,7 +1083,7 @@ void dap_auctions_test_bid_transactions(void)
     dap_test_msg("Test 1: Testing valid bid transaction creation");
     
     // NOTE: This test demonstrates the interface but requires full network/ledger setup for actual execution
-    // For now, we test the parameter validation logic that would occur in dap_auction_bid_tx_create()
+    // For now, we test the parameter validation logic that would occur in dap_chain_net_srv_auction_bid_create()
     
     // Test parameter validation
     dap_assert_PIF(!IS_ZERO_256(l_bid_amount), "Bid amount should not be zero");
@@ -1136,7 +1136,7 @@ void dap_auctions_test_bid_transactions(void)
     dap_test_msg("Test 3: Testing conditional output structure");
     
     // Test the structure that would be created for auction bid conditional output
-    // This simulates what dap_auction_bid_tx_create() would create
+    // This simulates what dap_chain_net_srv_auction_bid_create() would create
     
     // Simulate conditional output creation parameters
     struct {
