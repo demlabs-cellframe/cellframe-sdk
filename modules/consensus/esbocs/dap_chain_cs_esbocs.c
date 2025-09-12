@@ -2153,10 +2153,7 @@ static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_ch
         return NULL;
     }
     
-    // Count emergency validators to prevent excessive emergency rights
-    size_t emergency_count = 0;
     for (dap_list_t *it = PVT(a_esbocs)->emergency_validator_addrs; it; it = it->next) {
-        emergency_count++;
         dap_chain_addr_t *l_authorized_pkey = it->data;
         
         // Enhanced validation: check both hash comparison and address validity
@@ -2166,13 +2163,13 @@ static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_ch
         }
         
         if (dap_hash_fast_compare(&l_authorized_pkey->data.hash_fast, &a_signing_addr->data.hash_fast)) {
-            log_it(L_INFO, "Emergency validator rights confirmed for address (validator %zu of %zu)", 
-                   emergency_count, emergency_count);
+            log_it(L_INFO, "Emergency validator rights confirmed for address %s with pkey_hash %s",
+                 dap_chain_addr_to_str_static(a_signing_addr), dap_chain_hash_fast_to_str_static(&l_authorized_pkey->data.hash_fast));
             return it;
         }
     }
     
-    log_it(L_WARNING, "Emergency rights denied - address not in authorized list of %zu validators", emergency_count);
+    log_it(L_WARNING, "Emergency rights denied - address %s not in authorized list", dap_chain_addr_to_str_static(a_signing_addr));
     return NULL;
 }
 
