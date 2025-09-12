@@ -77,7 +77,13 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
         log_it(L_ERROR, "Can't add item, datum already signed");
         return -1;
     }
-    size_t new_size = dap_chain_datum_tx_get_size(*a_tx) + size;
+    // Security fix: check for integer overflow before size calculation
+    size_t current_size = dap_chain_datum_tx_get_size(*a_tx);
+    if (current_size > SIZE_MAX - size) {
+        log_it(L_ERROR, "Integer overflow in transaction size calculation");
+        return -3;
+    }
+    size_t new_size = current_size + size;
     dap_chain_datum_tx_t *tx_new = DAP_REALLOC_RET_VAL_IF_FAIL( *a_tx, new_size, -2 );
     memcpy((uint8_t*) tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
