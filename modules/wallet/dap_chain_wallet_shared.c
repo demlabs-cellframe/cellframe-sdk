@@ -1159,6 +1159,10 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_tx_hash, false);
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_final_tx_hash);
+    if (!l_tx) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find final datum %s", dap_hash_fast_to_str_static(&l_final_tx_hash));
+        return ERROR_TX_MISMATCH;
+    }
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
     if (!l_cond) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find final tx_out_cond");
@@ -1465,12 +1469,12 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, U
     }
 }
 
-static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_hash_fast_t *a_hash, tx_role_t a_role)
+static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_hash_fast_t *a_pkey_hash, tx_role_t a_role)
 {
     size_t l_tx_hashes_count = 0;
     size_t l_shared_hashes_size = 0;
-    const char *l_hash_str = dap_hash_fast_to_str_static(a_hash);
-    hold_tx_hashes_t *l_shared_hashes = (hold_tx_hashes_t *)dap_global_db_get_sync(a_group, l_hash_str, &l_shared_hashes_size, 0, false);
+    const char *l_pkey_hash_str = dap_hash_fast_to_str_new(a_pkey_hash);
+    hold_tx_hashes_t *l_shared_hashes = (hold_tx_hashes_t *)dap_global_db_get_sync(a_group, l_pkey_hash_str, &l_shared_hashes_size, 0, false);
     if (!l_shared_hashes) {
         l_shared_hashes_size = sizeof(hold_tx_hashes_t) + sizeof(hold_tx_hash_item_t);
         l_shared_hashes = DAP_NEW_Z_SIZE_RET_IF_FAIL(hold_tx_hashes_t, l_shared_hashes_size);
@@ -1481,10 +1485,9 @@ static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_h
     l_shared_hashes->tx[l_shared_hashes->tx_count].hash = dap_chain_node_datum_tx_calc_hash(a_tx);
     l_shared_hashes->tx[l_shared_hashes->tx_count].role = a_role;
     l_shared_hashes->tx_count++;
-    log_it(L_DEBUG, "Added tx hash as %s to shared hashes: %s", a_role == TX_ROLE_CREATOR ? "creator" : "owner", dap_hash_fast_to_str_static(&l_shared_hashes->tx[l_shared_hashes->tx_count - 1].hash));
-    
-    dap_global_db_set_sync(a_group, l_hash_str, l_shared_hashes, l_shared_hashes_size, false);
-    DAP_DELETE(l_shared_hashes);
+    log_it(L_DEBUG, "Added pkey hash %s as %s to shared hashes: %s", l_pkey_hash_str,a_role == TX_ROLE_CREATOR ? "creator" : "owner", dap_hash_fast_to_str_static(&l_shared_hashes->tx[l_shared_hashes->tx_count - 1].hash));
+    dap_global_db_set_sync(a_group, l_pkey_hash_str, l_shared_hashes, l_shared_hashes_size, false);
+    DAP_DEL_MULTY(l_pkey_hash_str, l_shared_hashes);
 }
 
 int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_net_name)
