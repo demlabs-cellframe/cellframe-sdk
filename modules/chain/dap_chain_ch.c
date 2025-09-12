@@ -112,6 +112,9 @@ typedef struct dap_chain_ch {
     uint32_t timer_shots;
     int sent_breaks;
     struct legacy_sync_context *legacy_sync_context;
+    
+    // Security fix: add rwlock for sync context access (more efficient for frequent reads)
+    pthread_rwlock_t sync_rwlock;
 } dap_chain_ch_t;
 
 #define DAP_CHAIN_CH(a) ((dap_chain_ch_t *) ((a)->internal) )
@@ -210,7 +213,16 @@ void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg)
     if (!(a_ch->internal = DAP_NEW_Z(dap_chain_ch_t))) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
-    };
+    }
+    
+    // Security fix: initialize sync rwlock
+    dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
+    if (pthread_rwlock_init(&l_ch_chain->sync_rwlock, NULL) != 0) {
+        log_it(L_ERROR, "Failed to initialize sync rwlock");
+        DAP_DELETE(a_ch->internal);
+        a_ch->internal = NULL;
+        return;
+    }
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     l_ch_chain->_inheritor = a_ch;
 
@@ -231,6 +243,10 @@ static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg)
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     s_ch_chain_go_idle(l_ch_chain);
     debug_if(s_debug_more, L_DEBUG, "[stm_ch_chain:%p] --- deleted chain:%p", a_ch, l_ch_chain);
+    
+    // Security fix: destroy sync rwlock
+    pthread_rwlock_destroy(&l_ch_chain->sync_rwlock);
+    
     DAP_DEL_Z(a_ch->internal);
 
 #ifdef  DAP_SYS_DEBUG
@@ -838,8 +854,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     DAP_DELETE(l_context);
                     break;
                 }
+                // Security fix: synchronize write access to sync_context
+                pthread_rwlock_wrlock(&l_ch_chain->sync_rwlock);
                 l_ch_chain->sync_context = l_context;
                 l_ch_chain->idle_ack_counter = s_sync_ack_window_size;
+                pthread_rwlock_unlock(&l_ch_chain->sync_rwlock);
                 dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
                 l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_uuid);
                 break;
@@ -1053,7 +1072,12 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_context->db_list = l_db_list;
         l_context->remote_addr = *(dap_stream_node_addr_t *)l_chain_pkt->data;
         l_context->request_hdr = l_chain_pkt->hdr;
+        
+        // Security fix: synchronize write access to legacy_sync_context
+        pthread_rwlock_wrlock(&l_ch_chain->sync_rwlock);
         l_ch_chain->legacy_sync_context = l_context;
+        pthread_rwlock_unlock(&l_ch_chain->sync_rwlock);
+        
         l_context->state = DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB;
         debug_if(s_debug_legacy, L_DEBUG, "Sync out gdb proc, requested %" DAP_UINT64_FORMAT_U " records from address " NODE_ADDR_FP_STR " (unverified)",
                                                 l_db_list->items_number, NODE_ADDR_FP_ARGS_S(l_context->remote_addr));
