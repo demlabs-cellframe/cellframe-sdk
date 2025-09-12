@@ -38,7 +38,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #ifdef __GLIBC__
-#include <strings.h>  // For explicit_bzero on glibc systems
+// explicit_bzero is now provided by dap_common.h for cross-platform compatibility
 #endif
 #include <sys/stat.h>
 #ifdef DAP_OS_UNIX
