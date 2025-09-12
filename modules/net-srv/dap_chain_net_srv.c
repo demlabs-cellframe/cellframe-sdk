@@ -133,7 +133,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
     if (l_report) {
         json_object* json_obj_net_srv = dap_json_object_new();
         char *l_report_str = dap_chain_net_srv_ch_create_statistic_report();
-        json_object_object_add(json_obj_net_srv, "report", json_object_new_string(l_report_str));
+        dap_json_object_add_object(json_obj_net_srv, "report", json_object_new_string(l_report_str));
         DAP_DELETE(l_report_str);
 
         dap_json_array_add(*json_arr_reply, json_obj_net_srv);
@@ -337,7 +337,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                                                         &l_orders, &l_orders_num) )
                 {
                     json_obj_net_srv = dap_json_object_new();
-                    json_object_object_add(json_obj_net_srv, "count", json_object_new_uint64(l_orders_num));
+                    dap_json_object_add_object(json_obj_net_srv, "count", json_object_new_uint64(l_orders_num));
                     json_object* json_arr_out = dap_json_array_new();
                     for (dap_list_t *l_temp = l_orders; l_temp; l_temp = l_temp->next){
                         json_object* json_obj_order = dap_json_object_new();
@@ -345,7 +345,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                         dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, false, a_version);
                         dap_json_array_add(json_arr_out, json_obj_order);
                     }
-                    json_object_object_add(json_obj_net_srv, "orders", json_arr_out);
+                    dap_json_object_add_object(json_obj_net_srv, "orders", json_arr_out);
                     l_ret = 0;
                     dap_list_free_full(l_orders, NULL);
                 } else {
@@ -381,7 +381,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
 
                     if( !dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_num) ){
                         json_obj_net_srv = dap_json_object_new();
-                        json_object_object_add(json_obj_net_srv, "count", json_object_new_uint64(l_orders_num));
+                        dap_json_object_add_object(json_obj_net_srv, "count", json_object_new_uint64(l_orders_num));
                         json_object* json_arr_out = dap_json_array_new();
                         for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
                             json_object* json_obj_order = dap_json_object_new();
@@ -389,7 +389,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                             dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, false, a_version);
                             dap_json_array_add(json_arr_out, json_obj_order);
                         }
-                        json_object_object_add(json_obj_net_srv, "orders", json_arr_out);
+                        dap_json_object_add_object(json_obj_net_srv, "orders", json_arr_out);
                         l_ret = 0;
                     } else {
                         dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR,"Can't get orders: some internal error or wrong params");
@@ -403,7 +403,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                     json_obj_net_srv = dap_json_object_new();                    
                     l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
                     if (!l_ret)
-                        json_object_object_add(json_obj_net_srv, "order_hash", json_object_new_string(l_order_hash_str));
+                        dap_json_object_add_object(json_obj_net_srv, "order_hash", json_object_new_string(l_order_hash_str));
                     else {
                         dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_CANT_FIND_HASH_ERR, "Can't find order with hash %s\n", l_order_hash_str);
                         l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_CANT_FIND_HASH_ERR;
@@ -530,7 +530,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                         l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_units, l_region_str, l_continent_num, l_key);
                     if (l_order_new_hash_str) {
                         json_obj_net_srv = dap_json_object_new();
-                        json_object_object_add(json_obj_net_srv, "order_hash", json_object_new_string(l_order_new_hash_str));
+                        dap_json_object_add_object(json_obj_net_srv, "order_hash", json_object_new_string(l_order_new_hash_str));
                         DAP_DELETE(l_order_new_hash_str);
                     } else {
                         dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_ORDER_ERR,
@@ -594,10 +594,10 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
             }
             json_obj_net_srv = dap_json_object_new();
 
-            json_object_object_add(json_obj_net_srv, a_version == 1 ? "provider" : "sig_inf_provider", json_object_new_string(l_provider_pkey_hash_str));
-            json_object_object_add(json_obj_net_srv, a_version == 1 ? "client" : "sig_inf_client", json_object_new_string(l_client_pkey_hash_str));
-            json_object_object_add(json_obj_net_srv, "sec", json_object_new_uint64((uint64_t)l_remain_service->limits_ts));
-            json_object_object_add(json_obj_net_srv, "bytes", json_object_new_uint64((uint64_t)l_remain_service->limits_bytes));
+            dap_json_object_add_object(json_obj_net_srv, a_version == 1 ? "provider" : "sig_inf_provider", json_object_new_string(l_provider_pkey_hash_str));
+            dap_json_object_add_object(json_obj_net_srv, a_version == 1 ? "client" : "sig_inf_client", json_object_new_string(l_client_pkey_hash_str));
+            dap_json_object_add_object(json_obj_net_srv, "sec", json_object_new_uint64((uint64_t)l_remain_service->limits_ts));
+            dap_json_object_add_object(json_obj_net_srv, "bytes", json_object_new_uint64((uint64_t)l_remain_service->limits_bytes));
             DAP_DELETE(l_remain_service);
         } else {
             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UNKNOWN,

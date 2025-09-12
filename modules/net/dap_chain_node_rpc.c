@@ -226,19 +226,19 @@ json_object *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
     }
     char l_ts[80] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_timestamp);
-    json_object_object_add(json_node_obj, "Record timestamp", json_object_new_string(l_ts));
-    json_object_object_add(json_node_obj, "Record version", json_object_new_uint64(l_node_info->version));
-    json_object_object_add(json_node_obj, "Node addr", json_object_new_string(l_node_addr_str));
-    json_object_object_add(json_node_obj, "Location", json_object_new_int64(l_node_info->location));
-    json_object_object_add(json_node_obj, "Cli thread count", json_object_new_uint64(l_node_info->cli_thread_count));
-    json_object_object_add(json_node_obj, "Links count", json_object_new_uint64(l_node_info->links_count));
-    json_object_object_add(json_node_obj, "Procs", json_object_new_uint64(l_node_info->system_info.procs));
-    json_object_object_add(json_node_obj, "Free ram", json_object_new_uint64(l_node_info->system_info.freeram));
-    json_object_object_add(json_node_obj, "Total ram", json_object_new_uint64(l_node_info->system_info.totalram));
+    dap_json_object_add_object(json_node_obj, "Record timestamp", json_object_new_string(l_ts));
+    dap_json_object_add_object(json_node_obj, "Record version", json_object_new_uint64(l_node_info->version));
+    dap_json_object_add_object(json_node_obj, "Node addr", json_object_new_string(l_node_addr_str));
+    dap_json_object_add_object(json_node_obj, "Location", json_object_new_int64(l_node_info->location));
+    dap_json_object_add_object(json_node_obj, "Cli thread count", json_object_new_uint64(l_node_info->cli_thread_count));
+    dap_json_object_add_object(json_node_obj, "Links count", json_object_new_uint64(l_node_info->links_count));
+    dap_json_object_add_object(json_node_obj, "Procs", json_object_new_uint64(l_node_info->system_info.procs));
+    dap_json_object_add_object(json_node_obj, "Free ram", json_object_new_uint64(l_node_info->system_info.freeram));
+    dap_json_object_add_object(json_node_obj, "Total ram", json_object_new_uint64(l_node_info->system_info.totalram));
     dap_json_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[0]));
     dap_json_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[1]));
     dap_json_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[2]));
-    json_object_object_add(json_node_obj, "Loads", json_node_loads_arr);
+    dap_json_object_add_object(json_node_obj, "Loads", json_node_loads_arr);
     return json_node_obj;
 }
 
@@ -318,10 +318,10 @@ json_object *dap_chain_node_rpc_list()
         dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
         char *l_addr = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_info->address));
-        json_object_object_add(json_node_obj, "address", json_object_new_string(l_addr));
-        json_object_object_add(json_node_obj, "IPv4", json_object_new_string(l_node_info->ext_host));
-        json_object_object_add(json_node_obj, "port", json_object_new_uint64(l_node_info->ext_port));
-        json_object_object_add(json_node_obj, "timestamp", json_object_new_string(l_ts));
+        dap_json_object_add_object(json_node_obj, "address", json_object_new_string(l_addr));
+        dap_json_object_add_object(json_node_obj, "IPv4", json_object_new_string(l_node_info->ext_host));
+        dap_json_object_add_object(json_node_obj, "port", json_object_new_uint64(l_node_info->ext_port));
+        dap_json_object_add_object(json_node_obj, "timestamp", json_object_new_string(l_ts));
         dap_json_array_add(json_node_list_arr, json_node_obj);
         DAP_DELETE(l_addr);
     }
@@ -331,8 +331,8 @@ json_object *dap_chain_node_rpc_list()
         dap_json_object_free(json_node_list_arr);
         return NULL;
     }
-    json_object_object_add(json_node_list_obj, "got_nodes", json_object_new_uint64(l_nodes_count));
-    json_object_object_add(json_node_list_obj, "NODES", json_node_list_arr);
+    dap_json_object_add_object(json_node_list_obj, "got_nodes", json_object_new_uint64(l_nodes_count));
+    dap_json_object_add_object(json_node_list_obj, "NODES", json_node_list_arr);
     return json_node_list_obj;
 }
 

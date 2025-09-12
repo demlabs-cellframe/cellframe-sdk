@@ -975,7 +975,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
 
     json_object *json_obj_out = dap_json_object_new();
     char *l_str_reply_tmp = dap_strdup_printf("Datum %s with token %s is%s placed in datum pool", l_key_str_out, l_ticker, l_placed ? "" : " not");
-    json_object_object_add(json_obj_out, "result", json_object_new_string(l_str_reply_tmp));
+    dap_json_object_add_object(json_obj_out, "result", json_object_new_string(l_str_reply_tmp));
     DAP_DELETE(l_str_reply_tmp);
     dap_json_array_add(*a_json_arr_reply, json_obj_out);
     DAP_DELETE(l_key_str);
@@ -1369,7 +1369,7 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
     json_object* json_obj_out = dap_json_object_new();
-    json_object_object_add(json_obj_out, "result", json_object_new_string(l_str_reply_tmp));
+    dap_json_object_add_object(json_obj_out, "result", json_object_new_string(l_str_reply_tmp));
     dap_json_array_add(*a_json_arr_reply, json_obj_out);
     return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
 }
