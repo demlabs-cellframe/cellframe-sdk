@@ -506,3 +506,4 @@ json_object *batch_tx = dap_tx_create_batch_compose(
 **Следующий шаг: [Staking Application](../staking_app/) - управление ставками**
 
 
+
