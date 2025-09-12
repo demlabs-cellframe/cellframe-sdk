@@ -570,6 +570,11 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         return -2;
     }
 
+    // Security fix: check for integer overflow in allocation size calculation
+    if (a_tx_num > SIZE_MAX / sizeof(dap_global_db_obj_t)) {
+        log_it(L_ERROR, "Integer overflow in mempool allocation: tx_num %zu too large", a_tx_num);
+        return -1;
+    }
     dap_global_db_obj_t * l_objs = DAP_NEW_Z_SIZE(dap_global_db_obj_t, a_tx_num * sizeof (dap_global_db_obj_t));
     uint256_t l_net_fee = {}, l_total_fee = {};
     dap_chain_addr_t l_addr_fee = {};
