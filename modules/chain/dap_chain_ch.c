@@ -223,7 +223,6 @@ void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg)
         a_ch->internal = NULL;
         return;
     }
-    dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     l_ch_chain->_inheritor = a_ch;
 
 #ifdef  DAP_SYS_DEBUG

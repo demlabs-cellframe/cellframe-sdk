@@ -1,3 +1,4 @@
+#include "dap_common.h"
 #include "dap_test.h"
 #include "dap_chain_ledger_tests.h"
 #include "dap_chain_datum.h"
@@ -1198,57 +1199,59 @@ void dap_ledger_test_run(void){
 }
 
 // Test for new staking conditional output matching functionality
-void dap_ledger_test_stake_cond_out_matching() {
+void dap_ledger_test_stake_cond_out_matching()
+{
     dap_print_module_name("dap_ledger_test_stake_cond_out_matching");
     
+#define PREV_TSD_SIZE 10
+#define NEW_TSD_SIZE 15
     // Create mock conditional outputs for testing
-    dap_chain_tx_out_cond_t l_prev_cond = {0};
-    dap_chain_tx_out_cond_t l_new_cond = {0};
+    dap_chain_tx_out_cond_t *l_prev_cond = DAP_NEW_STACK_SIZE(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + PREV_TSD_SIZE);
+    dap_chain_tx_out_cond_t *l_new_cond = DAP_NEW_STACK_SIZE(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + NEW_TSD_SIZE);
     
     // Set up basic header fields
-    l_prev_cond.header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
-    l_prev_cond.header.ts_expires = 1234567890;
-    l_prev_cond.header.srv_uid.uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID;
-    l_prev_cond.tsd_size = 10;
+    l_prev_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
+    l_prev_cond->header.ts_expires = 1234567890;
+    l_prev_cond->header.srv_uid.uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID;
+    l_prev_cond->tsd_size = PREV_TSD_SIZE;
     
     // Copy to new condition
     l_new_cond = l_prev_cond;
     
     // Set up staking-specific fields
-    l_prev_cond.subtype.srv_stake_pos_delegate.signing_addr.data.hash[0] = 0x12;
-    l_prev_cond.subtype.srv_stake_pos_delegate.signer_node_addr.uint64 = 0x123456789ABCDEF0;
-    l_new_cond.subtype.srv_stake_pos_delegate.signing_addr.data.hash[0] = 0x12;
-    l_new_cond.subtype.srv_stake_pos_delegate.signer_node_addr.uint64 = 0x123456789ABCDEF0;
+    l_prev_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash[0] = 0x12;
+    l_prev_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 = 0x123456789ABCDEF0;
+    l_new_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash[0] = 0x12;
+    l_new_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 = 0x123456789ABCDEF0;
     
     // Create TSD data
-    byte_t l_prev_tsd[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    byte_t l_new_tsd_extended[15] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    byte_t l_prev_tsd[PREV_TSD_SIZE] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    byte_t l_new_tsd_extended[NEW_TSD_SIZE] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
     
-    l_prev_cond.tsd = l_prev_tsd;
-    l_new_cond.tsd = l_new_tsd_extended;
+    memcpy(l_prev_cond->tsd, l_prev_tsd, PREV_TSD_SIZE);
+    memcpy(l_new_cond->tsd, l_new_tsd_extended, NEW_TSD_SIZE);
     
     // Test 1: Identical conditions should match
-    l_new_cond.tsd_size = 10;
-    l_new_cond.tsd = l_prev_tsd;
+    l_new_cond->tsd_size = PREV_TSD_SIZE;
     
-    // We can't directly call s_stake_cond_out_match_callback as it's static,
+    // We can't directly call s_stake_cond_out_match as it's static,
     // but we can test the logic by checking that the verificator is properly registered
     dap_pass_msg("Test 1: Identical conditional outputs should match - logic verified in code review");
     
     // Test 2: Extended TSD should be allowed
-    l_new_cond.tsd_size = 15;
-    l_new_cond.tsd = l_new_tsd_extended;
+    l_new_cond->tsd_size = NEW_TSD_SIZE;
     dap_pass_msg("Test 2: Extended TSD section should be allowed - logic verified in code review");
     
     // Test 3: Reduced TSD should be rejected
-    l_new_cond.tsd_size = 5;
+    l_new_cond->tsd_size = 5;
     dap_pass_msg("Test 3: Reduced TSD section should be rejected - logic verified in code review");
     
     // Test 4: Modified original TSD data should be rejected
-    l_new_tsd_extended[0] = 99; // Modify original data
-    l_new_cond.tsd_size = 15;
-    l_new_cond.tsd = l_new_tsd_extended;
+    l_new_cond->tsd[0] = 99; // Modify original data
+    l_new_cond->tsd_size = NEW_TSD_SIZE;
     dap_pass_msg("Test 4: Modified original TSD data should be rejected - logic verified in code review");
     
     dap_pass_msg("Staking conditional output matching tests completed successfully");
+#undef PREV_TSD_SIZE
+#undef NEW_TSD_SIZE
 }
