@@ -23,10 +23,10 @@
 
 #pragma once
 
-#include "dap_common.h"
+#include "dap_common.h"  // Contains dap_stream_node_addr_t definition
 #include "dap_hash.h"
-#include "dap_stream_node_addr.h"
 #include "dap_time.h"
+#include "uthash.h"
 
 #ifdef __cplusplus
 extern "C" {
