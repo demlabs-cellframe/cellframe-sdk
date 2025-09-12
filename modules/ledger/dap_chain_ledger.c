@@ -387,7 +387,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             && dap_chain_addr_compare(&l_dst_addr, &l_src_addr) )
             continue;   // send to self
         if ( dap_chain_addr_compare(&l_src_addr, a_addr)) {
-            json_object * l_json_obj_datum = json_object_new_object();
+            json_object * l_json_obj_datum = dap_json_object_new();
             if (!l_header_printed) {
                 s_tx_header_print(l_json_obj_datum, l_tx, a_hash_out_type, &l_tx_hash);
                 l_header_printed = true;
@@ -399,10 +399,10 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             json_object_object_add(l_json_obj_datum, "send", json_object_new_string(dap_uint256_to_char(l_value, NULL)));
             json_object_object_add(l_json_obj_datum, "to_addr", json_object_new_string(l_dst_addr_str));
             json_object_object_add(l_json_obj_datum, "token", l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN"));
-            json_object_array_add(json_arr_out, l_json_obj_datum);
+            dap_json_array_add(json_arr_out, l_json_obj_datum);
         }
         if ( dap_chain_addr_compare(&l_dst_addr, a_addr) ) {
-            json_object * l_json_obj_datum = json_object_new_object();
+            json_object * l_json_obj_datum = dap_json_object_new();
             if (!l_header_printed) {
                s_tx_header_print(l_json_obj_datum, l_tx, a_hash_out_type, &l_tx_hash);
                l_header_printed = true;
@@ -418,14 +418,14 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             json_object_object_add(l_json_obj_datum, "token", l_dst_token ? json_object_new_string(l_dst_token) :
                                   (l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN")));
             json_object_object_add(l_json_obj_datum, "from", json_object_new_string(l_src_addr_str));
-            json_object_array_add(json_arr_out, l_json_obj_datum);
+            dap_json_array_add(json_arr_out, l_json_obj_datum);
         }
     }
 }
 
 dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only)
 {
-    json_object * json_arr_out = json_object_new_array();
+    json_object * json_arr_out = dap_json_array_new();
     if (!json_arr_out) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
@@ -443,9 +443,9 @@ dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_add
     // if no history
     if(!json_arr_out)
     {
-        json_object * json_obj_addr = json_object_new_object();
+        json_object * json_obj_addr = dap_json_object_new();
         json_object_object_add(json_obj_addr, "status", json_object_new_string("empty"));
-        json_object_array_add(json_arr_out, json_obj_addr);
+        dap_json_array_add(json_arr_out, json_obj_addr);
     }
     return json_arr_out;
 }
@@ -453,7 +453,7 @@ dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_add
 
 static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_ledger_tx_item_t *a_tx_item, int a_version)
 {
-    json_object *json_obj_tx = json_object_new_object();
+    json_object *json_obj_tx = dap_json_object_new();
     if (!json_obj_tx) 
         return 1;
     char l_tx_prev_hash_str[DAP_HASH_FAST_STR_SIZE]={0};
@@ -463,16 +463,16 @@ static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_
     json_object_object_add(json_obj_tx, a_version == 1 ? "Ledger thresholded tx_hash_fast" : "tx_hash", json_object_new_string(l_tx_prev_hash_str));
     json_object_object_add(json_obj_tx, "time_created", json_object_new_string(l_time));
     json_object_object_add(json_obj_tx, "tx_item_size", json_object_new_int(a_tx_item->tx->header.tx_items_size));
-    json_object_array_add(a_json_arr_out, json_obj_tx);
+    dap_json_array_add(a_json_arr_out, json_obj_tx);
     return 0;
 }
 static bool s_pack_ledger_balance_info_json (json_object *a_json_arr_out, dap_ledger_wallet_balance_t *a_balance_item, int a_version)
 {
-    json_object* json_obj_tx = json_object_new_object();   
+    json_object* json_obj_tx = dap_json_object_new();   
     json_object_object_add(json_obj_tx, a_version == 1 ? "Ledger balance key" : "balance_key", json_object_new_string(a_balance_item->key));
     json_object_object_add(json_obj_tx, "token_ticker", json_object_new_string(a_balance_item->token_ticker));
     json_object_object_add(json_obj_tx, "balance", json_object_new_string(dap_uint256_to_char(a_balance_item->balance, NULL)));
-    json_object_array_add(a_json_arr_out, json_obj_tx);
+    dap_json_array_add(a_json_arr_out, json_obj_tx);
     return 0;
 }
 
@@ -480,7 +480,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_tx_item = NULL, *l_tx_tmp;
-    json_object *json_arr_out = json_object_new_array();
+    json_object *json_arr_out = dap_json_array_new();
     if (!json_arr_out)
         return NULL;
     uint32_t l_counter = 0;
@@ -490,19 +490,19 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
 
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     if (a_threshold_hash) {
-        json_object *json_obj_tx = json_object_new_object();
+        json_object *json_obj_tx = dap_json_object_new();
         if (!json_obj_tx) {
             pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-            json_object_put(json_arr_out);
+            dap_dap_json_object_free(json_arr_out);
             return NULL;
         }
         HASH_FIND(hh, l_ledger_pvt->threshold_txs, a_threshold_hash, sizeof(dap_hash_t), l_tx_item);
         if (l_tx_item) {
             json_object_object_add(json_obj_tx, a_version == 1 ? "Hash was found in ledger tx threshold" : "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(a_threshold_hash)));
-            json_object_array_add(json_arr_out, json_obj_tx);
+            dap_json_array_add(json_arr_out, json_obj_tx);
         } else {
             json_object_object_add(json_obj_tx, a_version == 1 ? "Hash wasn't found in ledger" : "tx_hash", json_object_new_string("empty"));
-            json_object_array_add(json_arr_out, json_obj_tx);
+            dap_json_array_add(json_arr_out, json_obj_tx);
         }
     } else {
         size_t i_tmp = 0;
@@ -516,7 +516,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
             i_tmp++;
             if (s_pack_ledger_threshold_info_json(json_arr_out, l_tx_item, a_version)) {
                 pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-                json_object_put(json_arr_out);
+                dap_dap_json_object_free(json_arr_out);
                 return NULL;
             }            
             l_counter++;
@@ -529,16 +529,16 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
                     continue;
                 if (s_pack_ledger_threshold_info_json(json_arr_out, l_tx_item, a_version)) {
                     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-                    json_object_put(json_arr_out);
+                    dap_dap_json_object_free(json_arr_out);
                     return NULL;
                 }
                 l_counter++;
             }
         }
         if (!l_counter) {
-            json_object* json_obj_tx = json_object_new_object();
+            json_object* json_obj_tx = dap_json_object_new();
             json_object_object_add(json_obj_tx, "status", json_object_new_string("0 items in ledger tx threshold"));
-            json_object_array_add(json_arr_out, json_obj_tx);
+            dap_json_array_add(json_arr_out, json_obj_tx);
         }
         pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
     }
@@ -549,7 +549,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
 dap_json_t *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, bool a_head, int a_version)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    json_object * json_arr_out = json_object_new_array();
+    json_object * json_arr_out = dap_json_array_new();
     pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
     uint32_t l_counter = 0;
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
@@ -578,9 +578,9 @@ dap_json_t *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size
             }
     }
     if (!l_counter){
-        json_object* json_obj_tx = json_object_new_object();
+        json_object* json_obj_tx = dap_json_object_new();
         json_object_object_add(json_obj_tx, a_version == 1 ? "No items in ledger balance_accounts" : "info_status", json_object_new_string("empty"));
-        json_object_array_add(json_arr_out, json_obj_tx);
+        dap_json_array_add(json_arr_out, json_obj_tx);
     } 
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
     return json_arr_out;

@@ -82,7 +82,7 @@ int dap_chain_net_balancer_init()
  */
 struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, const char* a_host_addr, uint16_t a_host_port)
 {
-    struct json_object *l_json = json_object_new_object();
+    struct json_object *l_json = dap_json_object_new();
     json_object_object_add(l_json, "class"          , json_object_new_string("BalancerRequest"));
     json_object_object_add(l_json, "networkName"    , json_object_new_string((const char*)a_net->pub.name));
     json_object_object_add(l_json, "hostAddress"    , json_object_new_string(a_host_addr ? a_host_addr : "localhost"));
@@ -177,7 +177,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
             continue;
         l_json = s_balancer_states_json_collect(a_net, a_host_addr, a_host_port);
         dap_notify_server_send(json_object_get_string(l_json));
-        json_object_put(l_json);
+        dap_dap_json_object_free(l_json);
     }
 }
 
@@ -197,7 +197,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
     log_it(L_WARNING, "%s", l_err_str);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
     dap_notify_server_send(json_object_get_string(l_json));
-    json_object_put(l_json);
+    dap_dap_json_object_free(l_json);
 }
 
 /**
@@ -622,9 +622,9 @@ dap_json_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
 // sanity check
     dap_return_val_if_pass(!a_net, NULL);
 // func work
-    json_object *l_jobj_out = json_object_new_object();
+    json_object *l_jobj_out = dap_json_object_new();
     if (!l_jobj_out) return dap_json_rpc_allocation_put(l_jobj_out);
-    json_object *l_jobj_list_array = json_object_new_array();
+    json_object *l_jobj_list_array = dap_json_array_new();
     if (!l_jobj_list_array) return dap_json_rpc_allocation_put(l_jobj_out);
     json_object_object_add(l_jobj_out, "links_list", l_jobj_list_array);
     dap_net_links_t *l_links_info_list = s_get_node_addrs(a_net, 0, NULL, false);  // TODO
@@ -632,7 +632,7 @@ dap_json_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;
-        json_object *l_jobj_link = json_object_new_object();
+        json_object *l_jobj_link = dap_json_object_new();
         if (!l_jobj_link) return dap_json_rpc_allocation_put(l_jobj_out);
         char * l_node_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
         json_object_object_add(l_jobj_link, "node_addr", json_object_new_string(l_node_addr));
@@ -644,7 +644,7 @@ dap_json_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
         if(i + 1 == s_max_links_response_count && i + 1 < l_node_num) {
             json_object_object_add(l_jobj_link, "status", json_object_new_string("Not send in http balancer response"));
         }
-        json_object_array_add(l_jobj_list_array, l_jobj_link);
+        dap_json_array_add(l_jobj_list_array, l_jobj_link);
     }
     json_object_object_add(l_jobj_out, "links total", json_object_new_uint64(l_node_num));
     DAP_DELETE(l_links_info_list);

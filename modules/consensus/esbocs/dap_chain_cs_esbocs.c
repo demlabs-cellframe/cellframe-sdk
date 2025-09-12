@@ -847,7 +847,7 @@ int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_list_free_full(l_esbocs->hardfork_trusted_addrs, NULL);
     l_esbocs->hardfork_trusted_addrs = NULL;
-    json_object_put(l_esbocs->hardfork_changed_addrs);
+    dap_dap_json_object_free(l_esbocs->hardfork_changed_addrs);
     l_esbocs->hardfork_changed_addrs = NULL;
     l_esbocs->hardfork_generation = l_esbocs->hardfork_from = 0;
     l_esbocs->hardfork_state = false;
@@ -3244,14 +3244,14 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_emergency_validator(dap_cha
 
 static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *a_validator_addrs, int a_version)
 {
-    json_object *json_arr_validators = json_object_new_array();
+    json_object *json_arr_validators = dap_json_array_new();
     size_t i=1;
     for (dap_list_t *it = a_validator_addrs; it; it = it->next, i++) {
-        json_object *json_obj_validator = json_object_new_object();
+        json_object *json_obj_validator = dap_json_object_new();
         dap_chain_addr_t *l_addr = it->data;
         json_object_object_add(json_obj_validator, a_version == 1 ? "#" : "num", json_object_new_uint64(i));
         json_object_object_add(json_obj_validator, a_version == 1 ? "addr hash" : "addr_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_addr->data.hash_fast)));
-        json_object_array_add(json_arr_validators, json_obj_validator);
+        dap_json_array_add(json_arr_validators, json_obj_validator);
     }
     json_object_object_add(json_obj_out, a_version == 1 ? "Current emergency validators list" : "current_emergency_validators_list", json_arr_validators);
 }
@@ -3363,10 +3363,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                                                     l_chain_net, l_chain, l_value, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
-                json_object * json_obj_out = json_object_new_object();
+                json_object * json_obj_out = dap_json_object_new();
                 json_object_object_add(json_obj_out,"status", json_object_new_string("Minimum validators count has been set"));
                 json_object_object_add(json_obj_out, a_version == 1 ? "decree hash" : "decree_hash", json_object_new_string(l_decree_hash_str));
-                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(*a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR,"Minimum validators count setting failed");
@@ -3374,31 +3374,31 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR;
             }
         } else{
-            json_object * json_obj_out = json_object_new_object();
+            json_object * json_obj_out = dap_json_object_new();
             json_object_object_add(json_obj_out, a_version == 1 ? "Minimum validators count" : "min_validators_count", json_object_new_uint64(l_esbocs_pvt->min_validators_count));
-            json_object_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
 
     case SUBCMD_CHECK_SIGNS_STRUCTURE: {
-        json_object * json_obj_out = json_object_new_object();
+        json_object * json_obj_out = dap_json_object_new();
         if (!l_subcommand_show) {
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_signs_check(l_chain_net, l_chain, l_subcommand_add, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
                 json_object_object_add(json_obj_out, a_version == 1 ? "Checking signs structure has been" : "sig_check_status", l_subcommand_add ? json_object_new_string("enabled") : json_object_new_string("disabled"));
                 json_object_object_add(json_obj_out, a_version == 1 ? "Decree hash" : "decree_hash", json_object_new_string(l_decree_hash_str));
-                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(*a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,"Checking signs structure setting failed");
                 DAP_DEL_Z(l_decree);
-                json_object_put(json_obj_out);
+                dap_dap_json_object_free(json_obj_out);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
         } else{
             json_object_object_add(json_obj_out, a_version == 1 ? "Checking signs structure is" : "sig_check_status", l_esbocs_pvt->check_signs_structure ? json_object_new_string("enabled") : json_object_new_string("disabled"));
-            json_object_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
 
@@ -3422,11 +3422,11 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_emergency_validator(l_chain_net, l_chain, &l_pkey_hash, l_sig_type, l_subcommand_add, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
-                json_object * json_obj_out = json_object_new_object();
+                json_object * json_obj_out = dap_json_object_new();
                 json_object_object_add(json_obj_out, a_version == 1 ? "Emergency validator" : "emergency_validator", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
                 json_object_object_add(json_obj_out, "status", l_subcommand_add ? json_object_new_string("added") : json_object_new_string("deleted"));
                 json_object_object_add(json_obj_out, a_version == 1 ? "Decree hash" : "decree_hash", json_object_new_string(l_decree_hash_str));
-                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(*a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR,
@@ -3435,9 +3435,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR;
             }
         } else{
-            json_object * json_obj_out = json_object_new_object();
+            json_object * json_obj_out = dap_json_object_new();
             s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs, a_version);
-            json_object_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
 
@@ -3477,27 +3477,27 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
         const char *l_penalty_group = s_get_penalty_group(l_net->pub.id);
         size_t l_penalties_count = 0;
-        json_object * l_json_obj_banlist = json_object_new_object();
-        json_object * l_json_arr_banlist = json_object_new_array();
+        json_object * l_json_obj_banlist = dap_json_object_new();
+        json_object * l_json_arr_banlist = dap_json_array_new();
         dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
         for (size_t i = 0; i < l_penalties_count; i++) {
             dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(l_objs[i].key);
-            json_object* l_ban_validator =  json_object_new_object();
+            json_object* l_ban_validator =  dap_json_object_new();
             json_object_object_add(l_ban_validator, "node_addr", json_object_new_string(dap_chain_addr_to_str_static(l_validator_addr)));
-            json_object_array_add(l_json_arr_banlist, l_ban_validator);
+            dap_json_array_add(l_json_arr_banlist, l_ban_validator);
         }
         if (!json_object_array_length(l_json_arr_banlist)) {
             json_object_object_add(l_json_obj_banlist, a_version == 1 ? "BANLIST" : "banlist", json_object_new_string("empty"));
         } else {
             json_object_object_add(l_json_obj_banlist, a_version == 1 ? "BANLIST" : "banlist", l_json_arr_banlist);
         }
-        json_object_array_add(*a_json_arr_reply, l_json_obj_banlist);   
+        dap_json_array_add(*a_json_arr_reply, l_json_obj_banlist);   
 
-        json_object* l_json_obj_status = json_object_new_object();
+        json_object* l_json_obj_status = dap_json_object_new();
         json_object_object_add(l_json_obj_status, "ban_list_count", json_object_new_int(l_penalties_count));
         json_object_object_add(l_json_obj_status, "sync_attempt", json_object_new_uint64(l_session->cur_round.sync_attempt));
         json_object_object_add(l_json_obj_status, "round_id", json_object_new_uint64(l_session->cur_round.id));
-        json_object_array_add(*a_json_arr_reply, l_json_obj_status);
+        dap_json_array_add(*a_json_arr_reply, l_json_obj_status);
         if (l_session->esbocs->last_submitted_candidate_timestamp) {
             char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
             dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_submitted_candidate_timestamp);

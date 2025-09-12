@@ -247,7 +247,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t* a_json_arr_reply,
     dap_json_object_add(json_obj_out, "hash", dap_dap_json_object_new_string(l_hash_str));
     dap_json_object_add(json_obj_out, a_version == 1 ?  "tx created" : "tx_created", dap_dap_json_object_new_string(l_tmp_buf));
     dap_json_object_add(json_obj_out, a_version == 1 ?  "token ticker" : "token_ticker", a_ticker ? dap_dap_json_object_new_string(a_ticker) : dap_dap_json_object_new_string(a_version == 1 ? "" : "empty"));
-    //json_object_array_add(json_arr_items, json_obj_tx);
+    //dap_json_array_add(json_arr_items, json_obj_tx);
 
     dap_hash_fast_t l_hash_tmp = { };
     byte_t *item; size_t l_size;

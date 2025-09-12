@@ -190,12 +190,12 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, int a_ver
                                                 "Can't place datum custom \"%s\" to mempool", l_datum_hash_str);
             }
             else {
-                json_object* json_obj_out = json_object_new_object();
+                json_object* json_obj_out = dap_json_object_new();
                 char *l_status = dap_strdup_printf("Datum custom %s was successfully placed to mempool", l_datum_hash_str);
                 json_object_object_add(json_obj_out, "status", json_object_new_string(l_status));
                 DAP_DELETE(l_status); 
                 DAP_DELETE(l_ret);
-                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(*a_json_arr_reply, json_obj_out);
                 return 0;
             }
         }

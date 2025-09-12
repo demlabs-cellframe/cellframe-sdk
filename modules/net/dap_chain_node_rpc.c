@@ -209,13 +209,13 @@ json_object *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
 {
     dap_nanotime_t l_timestamp = 0;
     size_t l_data_size = 0;
-    json_object* json_node_obj = json_object_new_object();
+    json_object* json_node_obj = dap_json_object_new();
     if (!json_node_obj) {
         return NULL;
     }
-    json_object* json_node_loads_arr = json_object_new_array();
+    json_object* json_node_loads_arr = dap_json_array_new();
     if (!json_node_loads_arr) {
-        json_object_put(json_node_obj);
+        dap_dap_json_object_free(json_node_obj);
         return NULL;
     }
     const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
@@ -235,9 +235,9 @@ json_object *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
     json_object_object_add(json_node_obj, "Procs", json_object_new_uint64(l_node_info->system_info.procs));
     json_object_object_add(json_node_obj, "Free ram", json_object_new_uint64(l_node_info->system_info.freeram));
     json_object_object_add(json_node_obj, "Total ram", json_object_new_uint64(l_node_info->system_info.totalram));
-    json_object_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[0]));
-    json_object_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[1]));
-    json_object_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[2]));
+    dap_json_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[0]));
+    dap_json_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[1]));
+    dap_json_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[2]));
     json_object_object_add(json_node_obj, "Loads", json_node_loads_arr);
     return json_node_obj;
 }
@@ -299,7 +299,7 @@ json_object *dap_chain_node_rpc_list()
     if(!l_nodes_count || !l_objs)
         return NULL;
 
-    json_object* json_node_list_arr = json_object_new_array();
+    json_object* json_node_list_arr = dap_json_array_new();
     if (!json_node_list_arr)
         return NULL;
 
@@ -309,9 +309,9 @@ json_object *dap_chain_node_rpc_list()
             log_it(L_ERROR, "Node address is empty");
             continue;
         }
-        json_object* json_node_obj = json_object_new_object();
+        json_object* json_node_obj = dap_json_object_new();
         if (!json_node_obj) {
-            json_object_put(json_node_list_arr);
+            dap_dap_json_object_free(json_node_list_arr);
             return NULL;
         }
         char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
@@ -322,13 +322,13 @@ json_object *dap_chain_node_rpc_list()
         json_object_object_add(json_node_obj, "IPv4", json_object_new_string(l_node_info->ext_host));
         json_object_object_add(json_node_obj, "port", json_object_new_uint64(l_node_info->ext_port));
         json_object_object_add(json_node_obj, "timestamp", json_object_new_string(l_ts));
-        json_object_array_add(json_node_list_arr, json_node_obj);
+        dap_json_array_add(json_node_list_arr, json_node_obj);
         DAP_DELETE(l_addr);
     }
     dap_global_db_objs_delete(l_objs, l_nodes_count);
-    json_object* json_node_list_obj = json_object_new_object();
+    json_object* json_node_list_obj = dap_json_object_new();
     if (!json_node_list_obj) {
-        json_object_put(json_node_list_arr);
+        dap_dap_json_object_free(json_node_list_arr);
         return NULL;
     }
     json_object_object_add(json_node_list_obj, "got_nodes", json_object_new_uint64(l_nodes_count));

@@ -302,7 +302,7 @@ void dap_chain_datum_token_certs_dump_to_json(dap_json_t *a_json_obj_out, byte_t
         dap_json_object_add(l_json_obj_out, a_version == 1 ? "hash" : "sig_pkey_hash", dap_json_object_new_string(l_hash_str));
         dap_json_object_add(l_json_obj_out, a_version == 1 ? "sign_type" : "sig_type", dap_json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
         dap_json_object_add(l_json_obj_out, a_version == 1 ? "bytes" : "sig_size", dap_json_object_new_int(l_sign->header.sign_size));
-        json_object_array_add(json_arr_seg, l_json_obj_out);
+        dap_json_array_add(json_arr_seg, l_json_obj_out);
         DAP_DEL_Z(l_hash_str);
     }
     dap_json_object_add(a_json_obj_out, "status", json_arr_seg);
