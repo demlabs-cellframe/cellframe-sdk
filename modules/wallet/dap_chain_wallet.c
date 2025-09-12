@@ -37,9 +37,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/types.h>
-#ifdef __GLIBC__
-// explicit_bzero is now provided by dap_common.h for cross-platform compatibility
-#endif
+
 #include <sys/stat.h>
 #ifdef DAP_OS_UNIX
 #include <sys/uio.h>
@@ -288,8 +286,8 @@ struct timespec l_now;
     if (l_prec && (l_now.tv_sec > l_prec->exptm.tv_sec) )               /* Record is expired ? */
     {
                                                                         /* Reset password field */
-        // Use explicit_bzero for secure password clearing to prevent compiler optimization
-        explicit_bzero(l_prec->pass, sizeof(l_prec->pass));
+        // Use dap_secure_bzero for secure password clearing to prevent compiler optimization
+        dap_secure_bzero(l_prec->pass, sizeof(l_prec->pass));
         l_prec->pass_len = 0;
         l_prec = NULL; //log_it(L_ERROR, "Wallet's credential has been expired, need re-Activation ");
     }
