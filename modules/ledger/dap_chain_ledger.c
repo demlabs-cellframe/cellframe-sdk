@@ -453,7 +453,7 @@ dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_add
 
 static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_ledger_tx_item_t *a_tx_item, int a_version)
 {
-    json_object *json_obj_tx = dap_json_object_new();
+    dap_json_t *json_obj_tx = dap_json_object_new();
     if (!json_obj_tx) 
         return 1;
     char l_tx_prev_hash_str[DAP_HASH_FAST_STR_SIZE]={0};
@@ -480,7 +480,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_tx_item = NULL, *l_tx_tmp;
-    json_object *json_arr_out = dap_json_array_new();
+    dap_json_t *json_arr_out = dap_json_array_new();
     if (!json_arr_out)
         return NULL;
     uint32_t l_counter = 0;
@@ -490,7 +490,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
 
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     if (a_threshold_hash) {
-        json_object *json_obj_tx = dap_json_object_new();
+        dap_json_t *json_obj_tx = dap_json_object_new();
         if (!json_obj_tx) {
             pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
             dap_json_object_free(json_arr_out);

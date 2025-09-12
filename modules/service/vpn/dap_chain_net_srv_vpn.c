@@ -2213,9 +2213,9 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
         DAP_DELETE(l_remain_limits_gdb_group);
 
         // Create JSON responce
-        json_object *l_json_response = dap_json_object_new();
+        dap_json_t *l_json_response = dap_json_object_new();
 
-        json_object *l_new_data = json_object_new_uint64(l_net_id.uint64);
+        dap_json_t *l_new_data = json_object_new_uint64(l_net_id.uint64);
         dap_json_object_add_object(l_json_response, "net_id", l_new_data);
 
         l_new_data = json_object_new_uint64((uint64_t)DAP_CHAIN_NET_SRV_VPN_ID);

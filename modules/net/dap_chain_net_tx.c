@@ -569,7 +569,7 @@ static const char* s_json_get_text(struct json_object *a_json, const char *a_key
 {
     if(!a_json || !a_key)
         return NULL;
-    struct json_object *l_json = json_object_object_get(a_json, a_key);
+    struct dap_json_t *l_json = json_object_object_get(a_json, a_key);
     if(l_json && json_object_is_type(l_json, json_type_string)) {
         // Read text
         return json_object_get_string(l_json);
@@ -581,7 +581,7 @@ static bool s_json_get_int64_uint64(struct json_object *a_json, const char *a_ke
 {
     if(!a_json || !a_key || !a_out)
         return false;
-    struct json_object *l_json = json_object_object_get(a_json, a_key);
+    struct dap_json_t *l_json = json_object_object_get(a_json, a_key);
     if(l_json) {
         if(a_is_uint64) {
             *(uint64_t*)a_out = json_object_get_uint64(l_json);
@@ -677,11 +677,11 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
     int check = 0;
     int res = DAP_CHAIN_NET_TX_NORMAL;
     for(size_t i = 0; i < a_items_count; ++i) {
-        struct json_object *l_json_item_obj = json_object_array_get_idx(a_json_item_objs, i);
+        struct dap_json_t *l_json_item_obj = json_object_array_get_idx(a_json_item_objs, i);
         if(!l_json_item_obj || !json_object_is_type(l_json_item_obj, json_type_object)) {
             continue;
         }
-        struct json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
+        struct dap_json_t *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
         if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
@@ -1371,7 +1371,7 @@ static const uint8_t * s_dap_chain_net_tx_create_tsd_item(json_object *a_json_it
 
 const uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj, json_object *a_jobj_arr_errors, dap_chain_datum_tx_t *a_tx, dap_list_t **a_sign_list)
 {
-    json_object *l_jobj_sign = json_object_object_get(a_json_item_obj, "sig_b64");
+    dap_json_t *l_jobj_sign = json_object_object_get(a_json_item_obj, "sig_b64");
     if (!l_jobj_sign) {
         *a_sign_list = dap_list_append(*a_sign_list, a_json_item_obj);
         return NULL;
@@ -1486,7 +1486,7 @@ static int s_dap_chain_net_tx_add_in_and_back(dap_tx_creator_tokenizer_t *a_valu
 
     if(!l_list_used_out) {
         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
-        json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds in previous tx "
+        dap_json_t *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds in previous tx "
                                             "to transfer");
         if (a_jobj_errors) dap_json_array_add(a_jobj_errors, l_jobj_err);
         // Go to the next item
@@ -1518,8 +1518,8 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
 
-    json_object *l_json = a_tx_json;
-    json_object *l_jobj_errors = a_json_obj_error ? a_json_obj_error : NULL;
+    dap_json_t *l_json = a_tx_json;
+    dap_json_t *l_jobj_errors = a_json_obj_error ? a_json_obj_error : NULL;
 
     if (!a_tx_json)
         return log_it(L_ERROR, "Empty json"), DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
@@ -1539,7 +1539,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     bool l_reward = false;
 
     // Read items from json file
-    struct json_object *l_json_items = json_object_object_get(l_json, "items");
+    struct dap_json_t *l_json_items = json_object_object_get(l_json, "items");
     size_t l_items_count;
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
         dap_json_object_free(l_json);
@@ -1554,7 +1554,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
 
-    struct json_object *l_json_timestamp = json_object_object_get(l_json, "ts_created");
+    struct dap_json_t *l_json_timestamp = json_object_object_get(l_json, "ts_created");
     if (l_json_timestamp)
         l_tx->header.ts_created = json_object_get_int64(l_json_timestamp);
     else
@@ -1577,11 +1577,11 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     bool l_signed = false;
 
     for(int i = l_items_count - 1; i >= 0  && !l_signed; --i) {
-        struct json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
+        struct dap_json_t *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
         if(!l_json_item_obj || !json_object_is_type(l_json_item_obj, json_type_object)) {
             continue;
         }   
-        struct json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
+        struct dap_json_t *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
         if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %du without type", i);
             continue;
@@ -1593,11 +1593,11 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     if(a_net){ // if composition is not offline
         // First iteration in input file. Check the tx will be multichannel or not
         for(size_t i = 0; i < l_items_count; ++i) {
-            struct json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
+            struct dap_json_t *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
             if(!l_json_item_obj || !json_object_is_type(l_json_item_obj, json_type_object)) {
                 continue;
             }
-            struct json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
+            struct dap_json_t *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
             if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
                 log_it(L_WARNING, "Item %zu without type", i);
                 continue;
@@ -1639,7 +1639,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                     log_it(L_WARNING, "Invalid 'in' item, wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                                     char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
                                                                         "wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
-                                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                                    dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                                     if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                                     break;
                                 }
@@ -1653,14 +1653,14 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                 log_it(L_WARNING, "Invalid 'in' item, can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                                 char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
                                                                     "can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
-                                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                                dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                             }
                         } else {
                             log_it(L_WARNING, "Invalid 'in' item, bad prev_hash %s", l_prev_hash_str);
                             char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
                                                                 "bad prev_hash %s", l_prev_hash_str);
-                            json_object *l_jobj_err = json_object_new_string(l_str_err);
+                            dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                             if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                         }
                     }
@@ -1743,11 +1743,11 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
 
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
-        struct json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
+        struct dap_json_t *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
         if(!l_json_item_obj || !json_object_is_type(l_json_item_obj, json_type_object)) {
             continue;
         }
-        struct json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
+        struct dap_json_t *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
         if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
@@ -1776,7 +1776,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                     // Create IN item
                     dap_chain_tx_in_t *l_in_item = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, (uint32_t) l_out_prev_idx);
                     if (!l_in_item) {
-                        json_object *l_jobj_err = json_object_new_string("Unable to create in for transaction.");
+                        dap_json_t *l_jobj_err = json_object_new_string("Unable to create in for transaction.");
                         if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                     }
                     l_item = (const uint8_t*) l_in_item;
@@ -1784,7 +1784,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                     log_it(L_WARNING, "Invalid 'in' item, bad prev_hash %s", l_prev_hash_str);
                     char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in' item, "
                                                         "bad prev_hash %s", l_prev_hash_str);
-                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                     if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 }
             }
@@ -1823,7 +1823,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                 log_it(L_WARNING, "Invalid 'in_cond' item, wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                                 char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_cond' item, "
                                                                     "wrong type of item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
-                                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                                dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                                 break;
                             }                                                         
@@ -1831,7 +1831,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                             log_it(L_WARNING, "Invalid 'in_cond' item, can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
                             char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_cond' item, "
                                                                 "can't find item with index %"DAP_UINT64_FORMAT_U" in previous tx %s", l_out_prev_idx, l_prev_hash_str);
-                            json_object *l_jobj_err = json_object_new_string(l_str_err);
+                            dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                             if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                         }  
                     }
@@ -1844,7 +1844,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                     log_it(L_WARNING, "Invalid 'in_cond' item, bad prev_hash %s", l_prev_hash_str);
                     char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_cond' item, "
                                                         "bad prev_hash %s", l_prev_hash_str);
-                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                     if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 }
             }
@@ -1868,7 +1868,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                     log_it(L_WARNING, "Invalid 'in_ems' item, bad token");
                     l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_ems' item, bad token");
                 }
-                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
             }
         } break;
@@ -1897,7 +1897,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                     log_it(L_WARNING, "Invalid 'in_reward' item, bad block_hash %s", l_block_hash_str);
                     char *l_str_err = dap_strdup_printf("Unable to create in for transaction. Invalid 'in_reward' item, "
                                                         "bad block_hash %s", l_block_hash_str);
-                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                     if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 }
             }
@@ -1938,7 +1938,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                             else
                                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_native_token);
                             if (!l_out_item) {
-                                json_object *l_jobj_err = json_object_new_string("Failed to create transaction out. "
+                                dap_json_t *l_jobj_err = json_object_new_string("Failed to create transaction out. "
                                                                                 "There may not be enough funds in the wallet.");
                                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                             }
@@ -1954,7 +1954,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                             else
                                 l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_create(l_addr, l_value);
                             if (!l_out_item) {
-                                json_object *l_jobj_err = json_object_new_string("Failed to create transaction out. "
+                                dap_json_t *l_jobj_err = json_object_new_string("Failed to create transaction out. "
                                                                                 "There may not be enough funds in the wallet.");
                                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                             }
@@ -1994,7 +1994,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                         l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, 0);
                                 }
                                 if (!l_out_item) {
-                                    json_object *l_jobj_err = json_object_new_string("Failed to create a out ext"
+                                    dap_json_t *l_jobj_err = json_object_new_string("Failed to create a out ext"
                                                                         "for a transaction. There may not be enough funds "
                                                                         "on the wallet or the wrong ticker token "
                                                                         "is indicated.");
@@ -2013,7 +2013,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                     l_out_item = (const uint8_t *)dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
                                 }
                                 if (!l_out_item) {
-                                    json_object *l_jobj_err = json_object_new_string("Failed to create a out ext"
+                                    dap_json_t *l_jobj_err = json_object_new_string("Failed to create a out ext"
                                                                         "for a transaction. There may not be enough funds "
                                                                         "on the wallet or the wrong ticker token "
                                                                         "is indicated.");
@@ -2033,7 +2033,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                     char *l_str_err = dap_strdup_printf("For item %zu of type 'out', 'out_ext' or 'out_std' the "
                                                         "string representation of the address could not be converted, "
                                                         "or the size of the output sum is 0.", i);
-                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                     DAP_DELETE(l_str_err);
                     if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                     continue;
@@ -2097,7 +2097,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                 } else {
                     char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
                                                         "can of type %s described in item %zu.\n", l_subtype_str, i);
-                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                     DAP_DELETE(l_str_err);
                     if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 }
@@ -2148,7 +2148,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                 } else {
                     char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
                                                          "can of type %s described in item %zu.", l_subtype_str, i);
-                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                     DAP_DELETE(l_str_err);
                     if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 }
@@ -2231,7 +2231,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                 } else {
                     char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
                                                          "can of type %s described in item %zu.", l_subtype_str, i);
-                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                     DAP_DELETE(l_str_err);
                     if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 }
@@ -2291,7 +2291,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                 } else {
                     char *l_err_str = dap_strdup_printf("Unable to create conditional out for transaction "
                                                         "can of type %s described in item %zu.", l_subtype_str, i);
-                    json_object *l_jobj_err = json_object_new_string(l_err_str);
+                    dap_json_t *l_jobj_err = json_object_new_string(l_err_str);
                     DAP_DELETE(l_err_str);
                     if (l_jobj_errors)
                         dap_json_array_add(l_jobj_errors, l_jobj_err);
@@ -2316,7 +2316,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                     } else {
                         char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
                                                             "can of type %s described in item %zu.", l_subtype_str, i);
-                        json_object *l_jobj_err = json_object_new_string(l_str_err);
+                        dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                         if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                         DAP_DELETE(l_str_err);
                     }
@@ -2329,7 +2329,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                 log_it(L_WARNING, "Undefined subtype: '%s' of 'out_cond' item %zu ", l_subtype_str, i);
                 char *l_str_err = dap_strdup_printf("Specified unknown sub type %s of conditional out on item %zu.",
                                                     l_subtype_str, i);
-                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                 DAP_DELETE(l_str_err);
                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 break;
@@ -2337,7 +2337,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
         }
             break;
         case TX_ITEM_TYPE_SIG: {
-            json_object *l_jobj_sign = json_object_object_get(l_json_item_obj, "sig_b64");
+            dap_json_t *l_jobj_sign = json_object_object_get(l_json_item_obj, "sig_b64");
             if (!l_jobj_sign) {
                 l_sign_list = dap_list_append(l_sign_list, l_json_item_obj);
                 break;
@@ -2414,7 +2414,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
             if (!l_item) {
                 char *l_str_err = dap_strdup_printf("Unable to create receipt out for transaction "
                                                     "described by item %zu.", i);
-                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                 DAP_DELETE(l_str_err);
                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
             }
@@ -2463,7 +2463,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     if(a_net){
         l_list = l_in_list;
         while(l_list) {
-            struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
+            struct dap_json_t *l_json_item_obj = (struct json_object*) l_list->data;
 
             const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr_from");
             const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
@@ -2476,7 +2476,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                         "to binary.", l_json_item_addr_str);
                     char *l_str_err = dap_strdup_printf("Invalid element 'to', unable to convert string representation "
                                                         "of addr_from: '%s' to binary.", l_json_item_addr_str);
-                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                     DAP_DELETE(l_str_err);
                     if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                     // Go to the next item
@@ -2488,7 +2488,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                 log_it(L_WARNING, "Invalid 'in' item, incorrect addr_from: '%s'", l_json_item_addr_str ? l_json_item_addr_str : "[null]");
                 char *l_str_err = dap_strdup_printf("Invalid 'in' item, incorrect addr_from: '%s'",
                                             l_json_item_addr_str ? l_json_item_addr_str : "[null]");
-                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                dap_json_t *l_jobj_err = json_object_new_string(l_str_err);
                 DAP_DELETE(l_str_err);
                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 // Go to the next item
@@ -2497,7 +2497,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
             }
             if(!l_json_item_token) {
                 log_it(L_WARNING, "Invalid 'in' item, not found token name");
-                json_object *l_jobj_err = json_object_new_string("Invalid 'in' item, not found token name");
+                dap_json_t *l_jobj_err = json_object_new_string("Invalid 'in' item, not found token name");
                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 // Go to the next item
                 l_list = dap_list_next(l_list);
@@ -2505,7 +2505,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
             }
             if(IS_ZERO_256(l_value_need)) {
                 log_it(L_WARNING, "Invalid 'in' item, not found value in out items");
-                json_object *l_jobj_err = json_object_new_string("Invalid 'in' item, not found value in out items");
+                dap_json_t *l_jobj_err = json_object_new_string("Invalid 'in' item, not found value in out items");
                 if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                 // Go to the next item
                 l_list = dap_list_next(l_list);
@@ -2527,7 +2527,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                                                                                 l_addr_from, l_value_need_check, &l_value_transfer);
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
-                        json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds in previous tx "
+                        dap_json_t *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds in previous tx "
                                                             "to transfer");
                         if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                         // Go to the next item
@@ -2540,7 +2540,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                                                                                 l_addr_from, l_value_need, &l_value_transfer);
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
-                        json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds "
+                        dap_json_t *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds "
                                                                             "in previous tx to transfer");
                         if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                         // Go to the next item
@@ -2552,7 +2552,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                                                                                         l_addr_from, l_value_need_fee, &l_value_transfer_fee);
                     if(!l_list_used_out_fee && !l_unstake) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
-                        json_object *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds "
+                        dap_json_t *l_jobj_err = json_object_new_string("Can't create in transaction. Not enough funds "
                                                                             "in previous tx to transfer");
                         if (l_jobj_errors) dap_json_array_add(l_jobj_errors, l_jobj_err);
                         // Go to the next item
@@ -2600,7 +2600,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     // Add signs
     l_list = l_sign_list;
     while(l_list) {
-        struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
+        struct dap_json_t *l_json_item_obj = (struct json_object*) l_list->data;
         dap_enc_key_t * l_enc_key  = NULL;
 
         //get wallet or cert
@@ -2620,7 +2620,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
         } else if (l_cert && l_cert->enc_key) {
             l_enc_key = l_cert->enc_key;
         } else {
-            json_object *l_jobj_err = json_object_new_string("Can't create sign for transactions.");
+            dap_json_t *l_jobj_err = json_object_new_string("Can't create sign for transactions.");
             dap_json_array_add(l_jobj_errors, l_jobj_err);
             log_it(L_ERROR, "Json TX: Item sign has no wallet or cert of they are invalid ");
             l_list = dap_list_next(l_list);
@@ -2686,8 +2686,8 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
     }
 
     // Read items and net from json file
-    struct json_object *l_json_items = json_object_object_get(a_tx_json, "items");
-    struct json_object *l_json_net = json_object_object_get(a_tx_json, "net");
+    struct dap_json_t *l_json_items = json_object_object_get(a_tx_json, "items");
+    struct dap_json_t *l_json_net = json_object_object_get(a_tx_json, "net");
     size_t l_items_count;
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
@@ -2708,7 +2708,7 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
 
-    struct json_object *l_json_timestamp = json_object_object_get(a_tx_json, "ts_created");
+    struct dap_json_t *l_json_timestamp = json_object_object_get(a_tx_json, "ts_created");
     if (l_json_timestamp)
         l_tx->header.ts_created = json_object_get_int64(l_json_timestamp);
     else
@@ -2732,11 +2732,11 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
         
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
-        struct json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
+        struct dap_json_t *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
         if(!l_json_item_obj || !json_object_is_type(l_json_item_obj, json_type_object)) {
             continue;
         }
-        struct json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
+        struct dap_json_t *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
         if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
@@ -2809,7 +2809,7 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
     l_list = l_sign_list;
 
     while(l_list) {
-        struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
+        struct dap_json_t *l_json_item_obj = (struct json_object*) l_list->data;
         dap_enc_key_t * l_enc_key  = NULL;
         
         //get wallet or cert
@@ -3038,7 +3038,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
             dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_datum_tx_voting_parse_tsd(a_tx);
             dap_json_object_add_object(json_obj_item,"type", json_object_new_string("voting"));
             dap_json_object_add_object(json_obj_item,"voting_question", json_object_new_string(l_voting_params->question));
-            json_object *l_json_array = dap_json_array_new();
+            dap_json_t *l_json_array = dap_json_array_new();
             dap_json_object_add_object(json_obj_item, "token", json_object_new_string(l_voting_params->token_ticker));
             dap_list_t *l_temp = l_voting_params->options;
             uint8_t l_index = 0;

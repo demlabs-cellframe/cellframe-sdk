@@ -82,7 +82,7 @@ int dap_chain_net_balancer_init()
  */
 struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, const char* a_host_addr, uint16_t a_host_port)
 {
-    struct json_object *l_json = dap_json_object_new();
+    struct dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_object(l_json, "class"          , json_object_new_string("BalancerRequest"));
     dap_json_object_add_object(l_json, "networkName"    , json_object_new_string((const char*)a_net->pub.name));
     dap_json_object_add_object(l_json, "hostAddress"    , json_object_new_string(a_host_addr ? a_host_addr : "localhost"));
@@ -189,7 +189,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
  */
 static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request, const char *a_host_addr, uint16_t a_host_port, int a_errno)
 {
-    struct json_object *l_json = s_balancer_states_json_collect(a_request->net, a_host_addr, a_host_port);
+    struct dap_json_t *l_json = s_balancer_states_json_collect(a_request->net, a_host_addr, a_host_port);
     char l_err_str[256] = { '\0' };
     snprintf(l_err_str, sizeof(l_err_str)
             , "Links from balancer %s:%u in net %s can't be prepared, connection errno %d"
@@ -622,9 +622,9 @@ dap_json_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
 // sanity check
     dap_return_val_if_pass(!a_net, NULL);
 // func work
-    json_object *l_jobj_out = dap_json_object_new();
+    dap_json_t *l_jobj_out = dap_json_object_new();
     if (!l_jobj_out) return dap_json_rpc_allocation_put(l_jobj_out);
-    json_object *l_jobj_list_array = dap_json_array_new();
+    dap_json_t *l_jobj_list_array = dap_json_array_new();
     if (!l_jobj_list_array) return dap_json_rpc_allocation_put(l_jobj_out);
     dap_json_object_add_object(l_jobj_out, "links_list", l_jobj_list_array);
     dap_net_links_t *l_links_info_list = s_get_node_addrs(a_net, 0, NULL, false);  // TODO
@@ -632,7 +632,7 @@ dap_json_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;
-        json_object *l_jobj_link = dap_json_object_new();
+        dap_json_t *l_jobj_link = dap_json_object_new();
         if (!l_jobj_link) return dap_json_rpc_allocation_put(l_jobj_out);
         char * l_node_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
         dap_json_object_add_object(l_jobj_link, "node_addr", json_object_new_string(l_node_addr));

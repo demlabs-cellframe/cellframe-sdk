@@ -612,10 +612,10 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_jso
 
 static int block_list_sort_by_date(const void *a, const void *b, bool a_forward)
 {
-    struct json_object *obj_a = (struct json_object*)a,
+    struct dap_json_t *obj_a = (struct json_object*)a,
                        *obj_b = (struct json_object*)b;
 
-    struct json_object *timestamp_a = json_object_object_get(obj_a, "timestamp"), 
+    struct dap_json_t *timestamp_a = json_object_object_get(obj_a, "timestamp"), 
                        *timestamp_b = json_object_object_get(obj_b, "timestamp");
     int l_fwd = a_forward ? 1 : -1;
     return timestamp_a > timestamp_b ? a_forward : timestamp_a < timestamp_b ? -a_forward : 0;
@@ -1145,7 +1145,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             // Remove the timestamp and change block num
             size_t l_length = json_object_array_length(json_arr_bl_cache_out);
             for (size_t i = 0; i < l_length; i++) {
-                struct json_object *obj = json_object_array_get_idx(json_arr_bl_cache_out, i);
+                struct dap_json_t *obj = json_object_array_get_idx(json_arr_bl_cache_out, i);
                 json_object_object_del(obj, "timestamp");
                 if (json_object_object_get_ex(obj, "block", NULL)) 
                     dap_json_object_add_object(obj, "block", json_object_new_uint64(i));
@@ -2380,7 +2380,7 @@ static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_cha
 
 static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version) {
    dap_chain_block_t *l_block = (dap_chain_block_t *) a_atom_ptr;
-    json_object *l_obj_ret = dap_json_object_new();
+    dap_json_t *l_obj_ret = dap_json_object_new();
     char l_time_buf[DAP_TIME_STR_SIZE], l_hexbuf[32] = { '\0' };
     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%04X", l_block->hdr.version);
 
@@ -2394,9 +2394,9 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
 
     // Dump Metadata
     size_t l_offset = 0;
-    json_object *l_jobj_metadata = dap_json_array_new();
+    dap_json_t *l_jobj_metadata = dap_json_array_new();
     for (uint32_t i = 0; i < l_block->hdr.meta_count; i++) {
-        json_object *json_obj_meta = dap_json_object_new();
+        dap_json_t *json_obj_meta = dap_json_object_new();
         dap_chain_block_meta_t *l_meta = (dap_chain_block_meta_t *) (l_block->meta_n_datum_n_sign + l_offset);
         switch (l_meta->hdr.type) {
             case DAP_CHAIN_BLOCK_META_GENESIS:
@@ -2434,10 +2434,10 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
         l_offset += sizeof(l_meta->hdr) + l_meta->hdr.data_size;
     }
     dap_json_object_add_object(l_obj_ret, "metadata", l_jobj_metadata);
-    json_object *l_jobj_datums = dap_json_array_new();
+    dap_json_t *l_jobj_datums = dap_json_array_new();
     for (uint16_t i = 0; i < l_block->hdr.datum_count; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*)(l_block->meta_n_datum_n_sign + l_offset);
-        json_object *l_jobj_datum = dap_json_object_new();
+        dap_json_t *l_jobj_datum = dap_json_object_new();
         size_t l_datum_size =  dap_chain_datum_size(l_datum);
         dap_json_object_add_object(l_jobj_datum, a_version == 1 ? "datum size " : "datum_size",json_object_new_uint64(l_datum_size));
         if (l_datum_size < sizeof (l_datum->header) ){
@@ -2459,7 +2459,7 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
         l_offset += l_datum_size;
     }
     dap_json_object_add_object(l_obj_ret, "datums", l_jobj_datums);
-    json_object *l_jobj_signatures = dap_json_array_new();
+    dap_json_t *l_jobj_signatures = dap_json_array_new();
     size_t l_block_signs = dap_chain_block_get_signs_count(l_block, a_atom_size);
     for (uint32_t i = 0; i < l_block_signs; i++) {
         json_object* json_obj_sign = dap_json_object_new();

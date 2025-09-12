@@ -3244,10 +3244,10 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_emergency_validator(dap_cha
 
 static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *a_validator_addrs, int a_version)
 {
-    json_object *json_arr_validators = dap_json_array_new();
+    dap_json_t *json_arr_validators = dap_json_array_new();
     size_t i=1;
     for (dap_list_t *it = a_validator_addrs; it; it = it->next, i++) {
-        json_object *json_obj_validator = dap_json_object_new();
+        dap_json_t *json_obj_validator = dap_json_object_new();
         dap_chain_addr_t *l_addr = it->data;
         dap_json_object_add_object(json_obj_validator, a_version == 1 ? "#" : "num", json_object_new_uint64(i));
         dap_json_object_add_object(json_obj_validator, a_version == 1 ? "addr hash" : "addr_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_addr->data.hash_fast)));

@@ -1187,7 +1187,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, *a_json_arr_reply);
     }
     case CMD_LIST_RPC: {
-        json_object *json_obj_out = dap_chain_node_rpc_list();
+        dap_json_t *json_obj_out = dap_chain_node_rpc_list();
         if (!json_obj_out) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR, "No records\n");
             return -DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR;
@@ -1483,7 +1483,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                                             "Not found links cluster for net %s", l_net->pub.name);
                 break;
             }
-            json_object *l_jobj_links = dap_cluster_get_links_info_json(l_links_cluster);
+            dap_json_t *l_jobj_links = dap_cluster_get_links_info_json(l_links_cluster);
             dap_json_array_add(*a_json_arr_reply, l_jobj_links);
         } else {
             const char *l_guuid_str = NULL;
@@ -1505,7 +1505,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                     break;
                 }
             }
-            json_object *l_jobj_links = dap_cluster_get_links_info_json(l_cluster);
+            dap_json_t *l_jobj_links = dap_cluster_get_links_info_json(l_cluster);
             dap_json_array_add(*a_json_arr_reply, l_jobj_links);
         }
     } break;
@@ -1653,7 +1653,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 
     case CMD_BALANCER: {
         //balancer link list
-        json_object *l_links_list = dap_chain_net_balancer_get_node_str(l_net);
+        dap_json_t *l_links_list = dap_chain_net_balancer_get_node_str(l_net);
         dap_json_array_add(*a_json_arr_reply, l_links_list);
     } break;
 
@@ -1966,7 +1966,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             dap_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
             if (l_wallet) {
                 //Get sign for wallet
-                json_object *l_jobj_sings = NULL;
+                dap_json_t *l_jobj_sings = NULL;
                 dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
                 if (l_w_internal->certs_count == 1) {
                     l_jobj_sings = json_object_new_string(
@@ -1991,10 +1991,10 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             if (l_addr_tokens_size) {
                 json_object * j_arr_balance = dap_json_array_new();
                 for(size_t i = 0; i < l_addr_tokens_size; i++) {
-                    json_object *l_jobj_token = dap_json_object_new();
-                    json_object *l_jobj_ticker = json_object_new_string(l_addr_tokens[i]);
+                    dap_json_t *l_jobj_token = dap_json_object_new();
+                    dap_json_t *l_jobj_ticker = json_object_new_string(l_addr_tokens[i]);
                     const char *l_description =  dap_ledger_get_description_by_ticker(l_ledger, l_addr_tokens[i]);
-                    json_object *l_jobj_description = l_description ? json_object_new_string(l_description)
+                    dap_json_t *l_jobj_description = l_description ? json_object_new_string(l_description)
                                                                     : json_object_new_null();
                     dap_json_object_add_object(l_jobj_token, "ticker", l_jobj_ticker);
                     dap_json_object_add_object(l_jobj_token, "description", l_jobj_description);
@@ -2013,17 +2013,17 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             }
             dap_ledger_locked_out_t *l_locked_outs = dap_ledger_get_locked_values(l_ledger, l_addr);
             if (l_locked_outs) {
-                json_object *j_arr_locked_balance = dap_json_array_new();
+                dap_json_t *j_arr_locked_balance = dap_json_array_new();
                 dap_ledger_locked_out_t *it, *tmp;
                 LL_FOREACH_SAFE(l_locked_outs, it, tmp) {
-                    json_object *l_jobj_token = dap_json_object_new();
-                    json_object *l_jobj_ticker = json_object_new_string(it->ticker);
+                    dap_json_t *l_jobj_token = dap_json_object_new();
+                    dap_json_t *l_jobj_ticker = json_object_new_string(it->ticker);
                     const char *l_description =  dap_ledger_get_description_by_ticker(l_ledger, it->ticker);
-                    json_object *l_jobj_description = l_description ? json_object_new_string(l_description)
+                    dap_json_t *l_jobj_description = l_description ? json_object_new_string(l_description)
                                                                     : json_object_new_null();
                     dap_json_object_add_object(l_jobj_token, "ticker", l_jobj_ticker);
                     dap_json_object_add_object(l_jobj_token, "description", l_jobj_description);
-                    json_object *j_balance_data = dap_json_object_new();
+                    dap_json_t *j_balance_data = dap_json_object_new();
                     const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(it->value, &l_balance_coins);
                     dap_json_object_add_object(j_balance_data, "coins", json_object_new_string(l_balance_coins));
                     dap_json_object_add_object(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
@@ -2135,11 +2135,11 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                     l_outs_list = dap_chain_wallet_get_list_tx_outs(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum);
             }
             dap_json_object_add_object(json_obj_wall, "wallet_addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
-            struct json_object *l_json_outs_arr = dap_json_array_new();
+            struct dap_json_t *l_json_outs_arr = dap_json_array_new();
             if (!l_json_outs_arr)
                 return dap_json_object_free(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
             for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next) {
-                json_object *json_obj_item = dap_json_object_new();
+                dap_json_t *json_obj_item = dap_json_object_new();
                 if (!json_obj_item)
                     return dap_json_object_free(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
                 dap_chain_tx_used_out_item_t *l_item = l_temp->data;
@@ -2222,7 +2222,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                         json_object_new_string("is activated") : json_object_new_string("is deactivated"));
                         // Notify about wallet
                         s_new_wallet_info_notify(l_wallet_name);
-                        struct json_object *l_json_wallets = wallet_list_json_collect(a_version);
+                        struct dap_json_t *l_json_wallets = wallet_list_json_collect(a_version);
                         dap_notify_server_send(json_object_get_string(l_json_wallets));
                         dap_json_object_free(l_json_wallets);
                         break;
@@ -2453,7 +2453,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                     dap_chain_wallet_close(l_wallet);
                     // Notify about wallet
                     s_new_wallet_info_notify(l_wallet_name);
-                    struct json_object *l_json_wallets = wallet_list_json_collect(a_version);
+                    struct dap_json_t *l_json_wallets = wallet_list_json_collect(a_version);
                     dap_notify_server_send(json_object_get_string(l_json_wallets));
                     dap_json_object_free(l_json_wallets);
                     break;
@@ -2565,7 +2565,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         return;
     }
     int l_removed = 0;
-    json_object *l_obj_chain = dap_json_object_new();
+    dap_json_t *l_obj_chain = dap_json_object_new();
     json_object *l_obj_chain_name  = json_object_new_string(a_chain->name);
     if (!l_obj_chain_name || !l_obj_chain) {
         dap_json_object_free(l_obj_chain);
@@ -2574,7 +2574,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     }
     dap_json_object_add_object(l_obj_chain, "name", l_obj_chain_name);
     dap_chain_mempool_filter(a_chain, &l_removed);
-    json_object *l_jobj_removed = json_object_new_int(l_removed);
+    dap_json_t *l_jobj_removed = json_object_new_int(l_removed);
     if (!l_jobj_removed) {
         dap_json_object_free(l_obj_chain);
         dap_json_rpc_allocation_error(a_json_arr_reply);
@@ -2598,7 +2598,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         size_t l_arr_start = 0;
         if (l_offset) {
             l_arr_start = l_offset;
-            json_object *l_jobj_offset = json_object_new_uint64(l_offset);
+            dap_json_t *l_jobj_offset = json_object_new_uint64(l_offset);
             dap_json_object_add_object(l_obj_chain, "offset", l_jobj_offset);
         }
         size_t l_arr_end = l_objs_count;
@@ -2606,7 +2606,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
             l_arr_end = l_offset + a_limit;
             if (l_arr_end > l_objs_count)
                 l_arr_end = l_objs_count;
-            json_object *l_jobj_limit = json_object_new_uint64(l_arr_end);
+            dap_json_t *l_jobj_limit = json_object_new_uint64(l_arr_end);
             dap_json_object_add_object(l_obj_chain, "limit", l_jobj_limit);
         }
         for (size_t i = l_arr_start; i < l_arr_end; i++) {
@@ -2625,11 +2625,11 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
             dap_chain_hash_fast_from_str(l_objs[i].key, &l_datum_hash_from_key);
             char buff_time[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(buff_time, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
-            json_object *l_jobj_type = json_object_new_string(l_datum_type);
-            json_object *l_jobj_hash = json_object_new_string(l_objs[i].key);
-            json_object *l_jobj_ts_created = dap_json_object_new();
-            json_object *l_jobj_ts_created_time_stamp = json_object_new_uint64(l_ts_create);
-            json_object *l_jobj_ts_created_str = json_object_new_string(buff_time);
+            dap_json_t *l_jobj_type = json_object_new_string(l_datum_type);
+            dap_json_t *l_jobj_hash = json_object_new_string(l_objs[i].key);
+            dap_json_t *l_jobj_ts_created = dap_json_object_new();
+            dap_json_t *l_jobj_ts_created_time_stamp = json_object_new_uint64(l_ts_create);
+            dap_json_t *l_jobj_ts_created_str = json_object_new_string(buff_time);
             if (!l_jobj_type || !l_jobj_hash || !l_jobj_ts_created || !l_jobj_ts_created_str ||
                 !l_jobj_ts_created_time_stamp) {
                 dap_json_object_free(l_jobj_type);
@@ -2645,7 +2645,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
             }
             dap_json_object_add_object(l_jobj_ts_created, "time_stamp", l_jobj_ts_created_time_stamp);
             dap_json_object_add_object(l_jobj_ts_created, "str", l_jobj_ts_created_str);
-            json_object *l_jobj_datum = dap_json_object_new();
+            dap_json_t *l_jobj_datum = dap_json_object_new();
             if (!l_jobj_datum) {
                 dap_json_object_free(l_jobj_type);
                 dap_json_object_free(l_jobj_hash);
@@ -2674,7 +2674,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     return;
                 }
-                json_object *l_jobj_warning = json_object_new_string(l_wgn);
+                dap_json_t *l_jobj_warning = json_object_new_string(l_wgn);
                 DAP_DELETE(l_wgn);
                 if (!l_jobj_warning) {
                     dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -2706,9 +2706,9 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                                                                   &l_ledger_rc);
                         const char *l_ledger_rc_str = dap_ledger_check_error_str(l_ledger_rc);
 
-                        json_object *l_jobj_main_ticker = json_object_new_string(
+                        dap_json_t *l_jobj_main_ticker = json_object_new_string(
                                 l_main_ticker ? l_main_ticker : "UNKNOWN");
-                        json_object *l_jobj_ledger_rc = json_object_new_string(l_ledger_rc_str);
+                        dap_json_t *l_jobj_ledger_rc = json_object_new_string(l_ledger_rc_str);
 
                         if (!l_jobj_main_ticker || !l_jobj_ledger_rc) {
                             dap_json_object_free(l_jobj_datum);
@@ -2740,7 +2740,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         dap_list_t *l_list_in_ems = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
                         dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t*)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
                         if (!l_sig) {
-                            json_object *l_jobj_wgn = json_object_new_string(
+                            dap_json_t *l_jobj_wgn = json_object_new_string(
                                     "An item with a type TX_ITEM_TYPE_SIG for the "
                                     "transaction was not found, the transaction may "
                                     "be corrupted.");
@@ -2754,7 +2754,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         }
                         dap_list_t *l_list_in_reward = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
                         if (l_list_in_reward) {
-                            /*json_object *l_obj_in_reward_arary = dap_json_array_new();
+                            /*dap_json_t *l_obj_in_reward_arary = dap_json_array_new();
                             if (!l_obj_in_reward_arary) {
                                 dap_list_free(l_list_in_reward);
                                 dap_json_object_free(l_jobj_datum);
@@ -2767,7 +2767,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             for (dap_list_t *it = l_list_in_reward; it; it = it->next) {
                                 dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;
                                 char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
-                                json_object *l_jobj_block_hash = json_object_new_string(l_block_hash);
+                                dap_json_t *l_jobj_block_hash = json_object_new_string(l_block_hash);
                                 if (!l_jobj_block_hash) {
                                     DAP_DELETE(l_block_hash);
                                     dap_json_object_free(l_obj_in_reward_arary);
@@ -2784,7 +2784,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             }*/
                            dap_list_free(l_list_in_reward);
                         } else {
-                            json_object *l_jobj_addr_from = json_object_new_string(dap_chain_addr_to_str_static(&l_addr_from));
+                            dap_json_t *l_jobj_addr_from = json_object_new_string(dap_chain_addr_to_str_static(&l_addr_from));
                             if (!l_jobj_addr_from) {
                                 dap_json_object_free(l_jobj_datum);
                                 dap_json_object_free(l_jobj_datums);
@@ -2796,17 +2796,17 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             dap_json_object_add_object(l_jobj_datum, "from", l_jobj_addr_from);
                         }
                         dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
-                        json_object *l_jobj_to_list = dap_json_array_new();
-                        json_object *l_jobj_change_list = dap_json_array_new();
-                        json_object *l_jobj_to_from_emi = dap_json_array_new();
-                        json_object *l_jobj_fee_list = dap_json_array_new();
-                        json_object *l_jobj_stake_lock_list = dap_json_array_new();
-                        json_object *l_jobj_xchange_list = dap_json_array_new();
-                        json_object *l_jobj_stake_pos_delegate_list = dap_json_array_new();
-                        json_object *l_jobj_emit_delegate_list = dap_json_array_new();
-                        json_object *l_jobj_pay_list = dap_json_array_new();
-                        json_object *l_jobj_tx_vote = dap_json_array_new();
-                        json_object *l_jobj_tx_voting = dap_json_array_new();
+                        dap_json_t *l_jobj_to_list = dap_json_array_new();
+                        dap_json_t *l_jobj_change_list = dap_json_array_new();
+                        dap_json_t *l_jobj_to_from_emi = dap_json_array_new();
+                        dap_json_t *l_jobj_fee_list = dap_json_array_new();
+                        dap_json_t *l_jobj_stake_lock_list = dap_json_array_new();
+                        dap_json_t *l_jobj_xchange_list = dap_json_array_new();
+                        dap_json_t *l_jobj_stake_pos_delegate_list = dap_json_array_new();
+                        dap_json_t *l_jobj_emit_delegate_list = dap_json_array_new();
+                        dap_json_t *l_jobj_pay_list = dap_json_array_new();
+                        dap_json_t *l_jobj_tx_vote = dap_json_array_new();
+                        dap_json_t *l_jobj_tx_voting = dap_json_array_new();
                         if (!l_jobj_to_list || !l_jobj_change_list || !l_jobj_fee_list || !l_jobj_stake_lock_list ||
                             !l_jobj_xchange_list || !l_jobj_stake_pos_delegate_list || !l_jobj_emit_delegate_list || !l_jobj_pay_list) {
                             dap_json_object_free(l_jobj_to_list);
@@ -2904,7 +2904,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                 default:
                                     break;
                             }
-                            json_object *l_jobj_money = dap_json_object_new();
+                            dap_json_t *l_jobj_money = dap_json_object_new();
                             if (!l_jobj_money) {
                                 dap_json_object_free(l_jobj_to_list);
                                 dap_json_object_free(l_jobj_change_list);
@@ -2921,7 +2921,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             dap_json_object_add_object(l_jobj_money, "value", json_object_new_string(l_value_str));
                             dap_json_object_add_object(l_jobj_money, "coins", json_object_new_string(l_value_coins_str));
                             if (l_dist_token) {
-                                json_object *l_jobj_token = json_object_new_string(l_dist_token);
+                                dap_json_t *l_jobj_token = json_object_new_string(l_dist_token);
                                 if (!l_jobj_token) {
                                     dap_json_object_free(l_jobj_to_list);
                                     dap_json_object_free(l_jobj_change_list);
@@ -2942,7 +2942,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                 if (!datum_is_accepted_addr && l_wallet_addr) {
                                     datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
                                 }
-                                json_object *l_jobj_f = dap_json_object_new();
+                                dap_json_t *l_jobj_f = dap_json_object_new();
                                 if (!l_jobj_f) {
                                     dap_json_object_free(l_jobj_to_list);
                                     dap_json_object_free(l_jobj_change_list);
@@ -2967,7 +2967,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                             char l_ems_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                                             dap_hash_fast_to_str(&l_ems_hash, l_ems_hash_str,
                                                                  DAP_CHAIN_HASH_FAST_STR_SIZE);
-                                            json_object *l_obj_ems_hash = json_object_new_string(l_ems_hash_str);
+                                            dap_json_t *l_obj_ems_hash = json_object_new_string(l_ems_hash_str);
                                             if (!l_obj_ems_hash) {
                                                 dap_json_object_free(l_jobj_to_list);
                                                 dap_json_object_free(l_jobj_change_list);
@@ -3023,16 +3023,16 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         }
                         for (dap_list_t *it = l_vote_list; it; it = it->next) {
                             dap_chain_tx_vote_t *l_vote = it->data;
-                            json_object *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json(l_vote, a_version);
+                            dap_json_t *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json(l_vote, a_version);
                             dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_vote->voting_hash);
                             char *l_answer_text_str = l_tx ? dap_chain_datum_tx_voting_get_answer_text_by_idx(l_tx, l_vote->answer_idx) : NULL;
-                            json_object *l_answer_text = json_object_new_string(l_answer_text_str ? l_answer_text_str : a_version == 1 ? "{UNDEFINED}" : "UNDEFINED");
+                            dap_json_t *l_answer_text = json_object_new_string(l_answer_text_str ? l_answer_text_str : a_version == 1 ? "{UNDEFINED}" : "UNDEFINED");
                             DAP_DEL_Z(l_answer_text_str);
                             dap_json_object_add_object(l_jobj_vote, "answer_text", l_answer_text);
                             dap_json_array_add(l_jobj_tx_vote, l_jobj_vote);
                         }
                         for (dap_list_t *it = l_voting_list; it; it = it->next) {
-                            json_object *l_jobj_voting = dap_chain_datum_tx_item_voting_tsd_to_json(l_tx, a_version);
+                            dap_json_t *l_jobj_voting = dap_chain_datum_tx_item_voting_tsd_to_json(l_tx, a_version);
                             dap_json_array_add(l_jobj_tx_voting, l_jobj_voting);
                         }
                         dap_json_object_add_object(l_jobj_datum, "to", l_jobj_to_list);
@@ -3096,7 +3096,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
 
     dap_global_db_objs_delete(l_objs, l_objs_count);
     char *l_nets_str = dap_strdup_printf("%s.%s: %zu", a_net->pub.name, a_chain->name, l_objs_count);
-    json_object *l_object_total = json_object_new_string(l_nets_str);
+    dap_json_t *l_object_total = json_object_new_string(l_nets_str);
     DAP_DELETE(l_nets_str);
     if (!l_object_total) {
         dap_json_object_free(l_obj_chain);
@@ -3148,10 +3148,10 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
         return COM_MEMPOOL_DELETE_ERR_DATUM_NOT_FOUND_IN_ARGUMENT;
     }
     int res = 0;
-    json_object *l_jobj_ret = dap_json_object_new();
-    json_object *l_jobj_net = json_object_new_string(a_net->pub.name);
-    json_object *l_jobj_chain = NULL;
-    json_object *l_jobj_datum_hash = json_object_new_string(a_datum_hash);
+    dap_json_t *l_jobj_ret = dap_json_object_new();
+    dap_json_t *l_jobj_net = json_object_new_string(a_net->pub.name);
+    dap_json_t *l_jobj_chain = NULL;
+    dap_json_t *l_jobj_datum_hash = json_object_new_string(a_datum_hash);
     if (!a_chain) {
         dap_chain_t * l_chain = s_get_chain_with_datum(a_net, a_datum_hash);
         if (l_chain) {
@@ -3169,9 +3169,9 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
     dap_json_object_add_object(l_jobj_ret, "chain", l_jobj_chain);
     dap_json_object_add_object(l_jobj_ret, a_version == 1 ? "hash" : "datum_hash", l_jobj_datum_hash);
     dap_json_object_add_string(l_jobj_ret, "action", "delete");
-    json_object *l_jobj_ret_code = json_object_new_int(res);
+    dap_json_t *l_jobj_ret_code = json_object_new_int(res);
     dap_json_object_add_object(l_jobj_ret, a_version == 1 ? "retCode" : "ret_code", l_jobj_ret_code);
-    json_object *l_jobj_status = NULL;
+    dap_json_t *l_jobj_status = NULL;
     if (!res) {
         l_jobj_status = json_object_new_string("deleted");
     } else if (res == 1) {
@@ -3274,9 +3274,9 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             }
         }
     }
-    json_object *l_jobj_datum = dap_json_object_new();
-    json_object *l_datum_hash = json_object_new_string(a_datum_hash);
-    json_object *l_net_obj = json_object_new_string(a_net->pub.name);
+    dap_json_t *l_jobj_datum = dap_json_object_new();
+    dap_json_t *l_datum_hash = json_object_new_string(a_datum_hash);
+    dap_json_t *l_net_obj = json_object_new_string(a_net->pub.name);
     if (!l_jobj_datum || !l_datum_hash || !l_net_obj){
         dap_json_object_free(l_jobj_datum);
         dap_json_object_free(l_datum_hash);
@@ -3302,7 +3302,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
     dap_json_t *l_find_bool;
     if (l_datum) {
         l_find_bool = json_object_new_boolean(TRUE);
-        json_object *l_find_chain_or_mempool = json_object_new_string(l_found_in_chains ? "chain" : "mempool");
+        dap_json_t *l_find_chain_or_mempool = json_object_new_string(l_found_in_chains ? "chain" : "mempool");
         if (!l_find_chain_or_mempool || !l_find_bool) {
             dap_json_object_free(l_find_chain_or_mempool);
             dap_json_object_free(l_find_bool);
@@ -3315,9 +3315,9 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         if (l_found_in_chains) {
             char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            json_object *l_obj_atom = dap_json_object_new();
-            json_object *l_jobj_atom_hash = json_object_new_string(l_atom_hash_str);
-            json_object *l_jobj_atom_err = json_object_new_string(dap_ledger_check_error_str(l_ret_code));
+            dap_json_t *l_obj_atom = dap_json_object_new();
+            dap_json_t *l_jobj_atom_hash = json_object_new_string(l_atom_hash_str);
+            dap_json_t *l_jobj_atom_err = json_object_new_string(dap_ledger_check_error_str(l_ret_code));
             if (!l_obj_atom || !l_jobj_atom_hash || !l_jobj_atom_err) {
                 dap_json_object_free(l_jobj_datum);
                 dap_json_object_free(l_obj_atom);
@@ -3331,7 +3331,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             dap_json_object_add_object(l_jobj_datum, "atom", l_obj_atom);
         }        
 
-        json_object *l_datum_obj_inf = dap_json_object_new();
+        dap_json_t *l_datum_obj_inf = dap_json_object_new();
         dap_chain_datum_dump_json(*a_json_arr_reply, l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id, true, a_version);
         if (!l_datum_obj_inf) {
             if (!l_found_in_chains)
@@ -3436,12 +3436,12 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
     const char *l_type = NULL;
     DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
-    json_object *l_jobj_res = dap_json_object_new();
-    json_object *l_jobj_datum = dap_json_object_new();
-    json_object *l_jobj_hash = json_object_new_string(a_datum_hash);
-    json_object *l_jobj_type = json_object_new_string(l_type);
-    json_object *l_jobj_ts_created = dap_json_object_new();
-    json_object *l_jobj_ts_created_time_stamp = json_object_new_uint64(l_ts_create);
+    dap_json_t *l_jobj_res = dap_json_object_new();
+    dap_json_t *l_jobj_datum = dap_json_object_new();
+    dap_json_t *l_jobj_hash = json_object_new_string(a_datum_hash);
+    dap_json_t *l_jobj_type = json_object_new_string(l_type);
+    dap_json_t *l_jobj_ts_created = dap_json_object_new();
+    dap_json_t *l_jobj_ts_created_time_stamp = json_object_new_uint64(l_ts_create);
     int l_res = dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_ts_create);
     if (l_res < 0 || !l_jobj_ts_created || !l_jobj_ts_created_time_stamp || !l_jobj_type ||
         !l_jobj_hash || !l_jobj_datum || !l_jobj_res) {
@@ -3454,8 +3454,8 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         dap_json_rpc_allocation_error(*a_json_arr_reply);
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
-    json_object *l_jobj_ts_created_str = json_object_new_string(buf);
-    json_object *l_jobj_data_size = json_object_new_uint64(l_datum->header.data_size);
+    dap_json_t *l_jobj_ts_created_str = json_object_new_string(buf);
+    dap_json_t *l_jobj_data_size = json_object_new_uint64(l_datum->header.data_size);
     if (!l_jobj_ts_created_str || !l_jobj_data_size) {
         dap_json_object_free(l_jobj_res);
         dap_json_object_free(l_jobj_datum);
@@ -3475,7 +3475,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     dap_json_object_add_object(l_jobj_datum, "ts_created", l_jobj_ts_created);
     dap_json_object_add_object(l_jobj_datum, "data_size", l_jobj_data_size);
     dap_json_object_add_object(l_jobj_res, "datum", l_jobj_datum);
-    json_object *l_jobj_verify = dap_json_object_new();
+    dap_json_t *l_jobj_verify = dap_json_object_new();
     if (!l_jobj_verify) {
         dap_json_object_free(l_jobj_res);
         dap_json_rpc_allocation_error(*a_json_arr_reply);
@@ -3483,8 +3483,8 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     }
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_chain, l_datum, &l_datum_hash);
     if (l_verify_datum){
-        json_object *l_jobj_verify_err = json_object_new_string(dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
-        json_object *l_jobj_verify_status = json_object_new_boolean(FALSE);
+        dap_json_t *l_jobj_verify_err = json_object_new_string(dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
+        dap_json_t *l_jobj_verify_status = json_object_new_boolean(FALSE);
         if (!l_jobj_verify_status || !l_jobj_verify_err) {
             dap_json_object_free(l_jobj_verify_status);
             dap_json_object_free(l_jobj_verify_err);
@@ -3499,7 +3499,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     } else {
         if (l_chain->callback_add_datums) {
             if (l_chain->callback_add_datums(l_chain, &l_datum, 1) == 0) {
-                json_object *l_jobj_verify_status = json_object_new_boolean(FALSE);
+                dap_json_t *l_jobj_verify_status = json_object_new_boolean(FALSE);
                 if (!l_jobj_verify_status) {
                     dap_json_object_free(l_jobj_verify_status);
                     dap_json_object_free(l_jobj_verify);
@@ -3510,7 +3510,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
                 dap_json_object_add_object(l_jobj_verify, a_version == 1 ? "isProcessed" : "processed", l_jobj_verify_status);
                 ret = DAP_COM_MEMPOOL_PROC_LIST_ERROR_FALSE_VERIFY;
             } else {
-                json_object *l_jobj_verify_status = json_object_new_boolean(TRUE);
+                dap_json_t *l_jobj_verify_status = json_object_new_boolean(TRUE);
                 if (!l_jobj_verify_status) {
                     dap_json_object_free(l_jobj_verify);
                     dap_json_object_free(l_jobj_res);
@@ -3519,7 +3519,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
                 }
                 dap_json_object_add_object(l_jobj_verify, a_version == 1 ? "isProcessed" : "processed", l_jobj_verify_status);
                 if (false) { //dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash)){
-                    json_object *l_jobj_wrn_text = json_object_new_string("Can't delete datum from mempool!");
+                    dap_json_t *l_jobj_wrn_text = json_object_new_string("Can't delete datum from mempool!");
                     if (!l_jobj_wrn_text) {
                         dap_json_object_free(l_jobj_verify);
                         dap_json_object_free(l_jobj_res);
@@ -3528,7 +3528,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
                     }
                     dap_json_object_add_object(l_jobj_verify, "warning", l_jobj_wrn_text);
                 } else {
-                    json_object *l_jobj_text = json_object_new_string("Removed datum from mempool.");
+                    dap_json_t *l_jobj_text = json_object_new_string("Removed datum from mempool.");
                     if (!l_jobj_text) {
                         dap_json_object_free(l_jobj_verify);
                         dap_json_object_free(l_jobj_res);
@@ -3565,7 +3565,7 @@ int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, void **a
         return -2;
     }
 
-    json_object *l_ret = dap_json_object_new();
+    dap_json_t *l_ret = dap_json_object_new();
     if (!l_ret){
         dap_json_rpc_allocation_error(*a_json_arr_reply);
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
@@ -3578,7 +3578,7 @@ int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, void **a
             dap_json_rpc_allocation_error(*a_json_arr_reply);
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
         }
-        json_object *l_warn_obj = json_object_new_string(l_warn_str);
+        dap_json_t *l_warn_obj = json_object_new_string(l_warn_str);
         DAP_DELETE(l_warn_str);
         if (!l_warn_obj){
             dap_json_object_free(l_ret);
@@ -3596,7 +3596,7 @@ int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, void **a
         dap_json_rpc_allocation_error(*a_json_arr_reply);
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
-    json_object *l_obj_result = json_object_new_string(l_str_result);
+    dap_json_t *l_obj_result = json_object_new_string(l_str_result);
     DAP_DEL_Z(l_str_result);
     if (!l_obj_result) {
         dap_json_object_free(l_ret);
@@ -3632,7 +3632,7 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
         return COM_DUMP_ERROR_CAN_NOT_FIND_DATUM;
     }
 
-    json_object *l_jobj_datum = dap_json_object_new();
+    dap_json_t *l_jobj_datum = dap_json_object_new();
     dap_chain_datum_dump_json(*a_json_arr_reply, l_jobj_datum, l_datum, a_hash_out_type, a_net_id, true, a_version);
     dap_json_array_add(*a_json_arr_reply, l_jobj_datum);
     return 0;
@@ -3697,7 +3697,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                 dap_json_rpc_allocation_error(*a_json_arr_reply);
                 return -1;
             }
-            json_object *l_jobj_str_err = json_object_new_string(l_str_err);
+            dap_json_t *l_jobj_str_err = json_object_new_string(l_str_err);
             DAP_DELETE(l_str_err);
             if (!l_jobj_str_err) {
                 dap_json_rpc_allocation_error(*a_json_arr_reply);
@@ -3735,8 +3735,8 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                                            "parameter something like this mempool list -net <net_name>");
                 return -5;
             }
-            json_object *obj_ret = dap_json_object_new();
-            json_object *obj_net = json_object_new_string(l_net->pub.name);
+            dap_json_t *obj_ret = dap_json_object_new();
+            dap_json_t *obj_net = json_object_new_string(l_net->pub.name);
             if (!obj_ret || !obj_net) {
                 dap_json_object_free(obj_ret);
                 dap_json_object_free(obj_net);
@@ -3746,7 +3746,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             dap_json_object_add_object(obj_ret, "net", obj_net);
             const char *l_wallet_addr = NULL;
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_wallet_addr) && !l_wallet_addr) {
-                json_object *l_jobj_err = json_object_new_string("Parameter '-addr' require <addr>");
+                dap_json_t *l_jobj_err = json_object_new_string("Parameter '-addr' require <addr>");
                 if (!l_jobj_err) {
                     dap_json_rpc_allocation_error(*a_json_arr_reply);
                     return -1;
@@ -3754,7 +3754,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                 dap_json_array_add(*a_json_arr_reply, l_jobj_err);
                 return -3;
             }
-            json_object *l_jobj_chains = dap_json_array_new();
+            dap_json_t *l_jobj_chains = dap_json_array_new();
             if (!l_jobj_chains) {
                 dap_json_object_free(obj_ret);
                 dap_json_rpc_allocation_error(*a_json_arr_reply);
@@ -3815,8 +3815,8 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         } break;
         case SUBCMD_COUNT: {
             char *l_mempool_group;
-            json_object *obj_ret = dap_json_object_new();
-            json_object *obj_net = json_object_new_string(l_net->pub.name);
+            dap_json_t *obj_ret = dap_json_object_new();
+            dap_json_t *obj_net = json_object_new_string(l_net->pub.name);
             if (!obj_ret || !obj_net) {
                 dap_json_object_free(obj_ret);
                 dap_json_object_free(obj_net);
@@ -3824,7 +3824,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                 return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
             }
             dap_json_object_add_object(obj_ret, "net", obj_net);
-            json_object *l_jobj_chains = dap_json_array_new();
+            dap_json_t *l_jobj_chains = dap_json_array_new();
             if (!l_jobj_chains) {
                 dap_json_object_free(obj_ret);
                 dap_json_rpc_allocation_error(*a_json_arr_reply);
@@ -3836,9 +3836,9 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                 dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
                 dap_global_db_objs_delete(l_objs, l_objs_count);
                 DAP_DELETE(l_mempool_group);
-                json_object *l_jobj_chain = dap_json_object_new();
-                json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
-                json_object *l_jobj_count = json_object_new_uint64(l_objs_count);
+                dap_json_t *l_jobj_chain = dap_json_object_new();
+                dap_json_t *l_jobj_chain_name = json_object_new_string(l_chain->name);
+                dap_json_t *l_jobj_count = json_object_new_uint64(l_objs_count);
                 if (!l_jobj_chain || !l_jobj_chain_name || !l_jobj_count) {
                     dap_json_object_free(l_jobj_chains);
                     dap_json_object_free(l_jobj_chain);
@@ -3858,9 +3858,9 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
                     dap_global_db_objs_delete(l_objs, l_objs_count);
                     DAP_DELETE(l_mempool_group);
-                    json_object *l_jobj_chain = dap_json_object_new();
-                    json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
-                    json_object *l_jobj_count = json_object_new_uint64(l_objs_count);
+                    dap_json_t *l_jobj_chain = dap_json_object_new();
+                    dap_json_t *l_jobj_chain_name = json_object_new_string(l_chain->name);
+                    dap_json_t *l_jobj_count = json_object_new_uint64(l_objs_count);
                     if (!l_jobj_chain || !l_jobj_chain_name || !l_jobj_count) {
                         dap_json_object_free(l_jobj_chains);
                         dap_json_object_free(l_jobj_chain);
@@ -3891,8 +3891,8 @@ typedef enum _s_where_search{
 }_s_where_search_t;
 
 void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, uint16_t a_decree_type, _s_where_search_t a_where, const char *a_hash_out_type, int a_version) {
-    json_object *l_common_decree_arr = dap_json_array_new();
-    json_object *l_service_decree_arr = dap_json_array_new();
+    dap_json_t *l_common_decree_arr = dap_json_array_new();
+    dap_json_t *l_service_decree_arr = dap_json_array_new();
     if (a_where == ALL || a_where == CHAINS) {
         dap_chain_cell_t *l_cell, *l_iter_tmp;
         HASH_ITER(hh, a_chain->cells, l_cell, l_iter_tmp) {
@@ -3913,18 +3913,18 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
                     if (l_datum[i].header.type_id != DAP_CHAIN_DATUM_DECREE) continue;
                     dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *) l_datum[i].data;
                     if (l_decree->header.sub_type == a_decree_type) {
-                        json_object *l_jobj_atom = dap_json_object_new();
-                        json_object *l_jobj_atom_create = json_object_new_string(l_buff_ts);
-                        json_object *l_jobj_atom_hash = json_object_new_string(
+                        dap_json_t *l_jobj_atom = dap_json_object_new();
+                        dap_json_t *l_jobj_atom_create = json_object_new_string(l_buff_ts);
+                        dap_json_t *l_jobj_atom_hash = json_object_new_string(
                                 !dap_strcmp(a_hash_out_type, "base58") ?
                                 dap_enc_base58_encode_hash_to_str_static(l_atom_iter->cur_hash) :
                                 dap_hash_fast_to_str_static(l_atom_iter->cur_hash));
                         dap_json_object_add_object(l_jobj_atom, a_version == 1 ? "hash" : "atom_hash", l_jobj_atom_hash);
                         dap_json_object_add_object(l_jobj_atom, "created", l_jobj_atom_create);
-                        json_object *l_jobj_decree = dap_json_object_new();
+                        dap_json_t *l_jobj_decree = dap_json_object_new();
                         size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
                         dap_chain_datum_decree_dump_json(l_jobj_decree, l_decree, l_decree_size, a_hash_out_type, a_version);
-                        json_object *l_obj_source = dap_json_object_new();
+                        dap_json_t *l_obj_source = dap_json_object_new();
                         dap_json_object_add_object(l_obj_source, "atom", l_jobj_atom);
                         dap_json_object_add_object(l_jobj_decree, "source", l_obj_source);
                         (l_decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON) ?
@@ -3945,7 +3945,7 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
             if (l_datum->header.type_id != DAP_CHAIN_DATUM_DECREE) continue;
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *) l_datum->data;
             if (l_decree->header.sub_type == a_decree_type) {
-                json_object *l_jobj_decree = dap_json_object_new();
+                dap_json_t *l_jobj_decree = dap_json_object_new();
                 size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
                 dap_chain_datum_decree_dump_json(l_jobj_decree, l_decree, l_decree_size, a_hash_out_type, a_version);
                 dap_json_object_add_string(l_jobj_decree, "source", "mempool");
@@ -4013,8 +4013,8 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply, int a_version) {
                 dap_json_rpc_error_add(*a_json_reply, DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH, "Failed to convert the value '%s' to a hash.", l_atom_hash_str);
                 return DAP_CHAIN_NODE_CLI_FIND_ERR_PARSE_HASH;
             }
-            json_object *l_obj_atom = dap_json_object_new();
-            json_object *l_obj_atom_hash = json_object_new_string(l_atom_hash_str);
+            dap_json_t *l_obj_atom = dap_json_object_new();
+            dap_json_t *l_obj_atom_hash = json_object_new_string(l_atom_hash_str);
             dap_json_object_add_object(l_obj_atom, a_version == 1 ? "hash" : "atom_hash", l_obj_atom_hash);
             dap_chain_atom_ptr_t l_atom_ptr = NULL;
             size_t l_atom_size = 0;
@@ -4026,12 +4026,12 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply, int a_version) {
                     if (l_atom_ptr) break;
                 }
             }
-            json_object *l_obj_source = NULL;
-            json_object *l_jobj_find = NULL;
+            dap_json_t *l_obj_source = NULL;
+            dap_json_t *l_jobj_find = NULL;
             if (l_atom_ptr) {
                 l_obj_source = dap_json_object_new();
-                json_object *l_obj_net = json_object_new_string(l_net->pub.name);
-                json_object *l_obj_chain = json_object_new_string(l_chain->name);
+                dap_json_t *l_obj_net = json_object_new_string(l_net->pub.name);
+                dap_json_t *l_obj_chain = json_object_new_string(l_chain->name);
                 dap_json_object_add_object(l_obj_source, "net", l_obj_net);
                 dap_json_object_add_object(l_obj_source, "chain", l_obj_chain);
                 l_jobj_find = json_object_new_boolean(TRUE);
@@ -4073,16 +4073,16 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply, int a_version) {
                     return DAP_CHAIN_NODE_CLI_FIND_ERR_UNKNOWN_PARAMETR_WHERE;
                 }
             }
-            json_object *l_obj = dap_json_object_new();
+            dap_json_t *l_obj = dap_json_object_new();
             dap_json_object_add_object(l_obj, a_version == 1 ? "type" : "decree_type", json_object_new_string(l_type_decre_str));
-            json_object *l_jobj_chains = dap_json_object_new();
+            dap_json_t *l_jobj_chains = dap_json_object_new();
             if (l_chain) {
-                json_object *l_jobj_data = dap_json_object_new();
+                dap_json_t *l_jobj_data = dap_json_object_new();
                 _cmd_find_type_decree_in_chain(l_jobj_data, l_chain, l_subtype_decree, l_where, l_hash_out_type, a_version);
                 dap_json_object_add_object(l_jobj_chains, l_chain->name, l_jobj_data);
             } else {
                 for (l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
-                    json_object *l_jobj_data = dap_json_object_new();
+                    dap_json_t *l_jobj_data = dap_json_object_new();
                     _cmd_find_type_decree_in_chain(l_jobj_data, l_chain, l_subtype_decree, l_where, l_hash_out_type, a_version);
                     dap_json_object_add_object(l_jobj_chains, l_chain->name, l_jobj_data);
                 }
@@ -4170,7 +4170,7 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
             dap_json_rpc_allocation_error(*a_json_arr_reply);
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
         }
-        json_object *l_obj_message = json_object_new_string(l_msg);
+        dap_json_t *l_obj_message = json_object_new_string(l_msg);
         DAP_DELETE(l_msg);
         DAP_DELETE(l_hash_str);
         if (!l_obj_message) {
@@ -4185,7 +4185,7 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
             dap_json_rpc_allocation_error(*a_json_arr_reply);
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
         }
-        json_object *l_obj_msg = json_object_new_string(l_msg);
+        dap_json_t *l_obj_msg = json_object_new_string(l_msg);
         DAP_DELETE(l_msg);
         if (!l_obj_msg) {
             dap_json_rpc_allocation_error(*a_json_arr_reply);
@@ -5161,7 +5161,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         }
         DAP_DEL_Z(l_tmp_str);
     }
-    struct json_object *l_json = dap_json_array_new();
+    struct dap_json_t *l_json = dap_json_array_new();
     dap_list_t *l_groups_list = l_parsed_groups_list
             ? l_parsed_groups_list
             : dap_global_db_driver_get_groups_by_mask("*");
@@ -5178,8 +5178,8 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             log_it(L_INFO, "Exporting group %s, number of records: %zu", l_group_name, l_store_obj_count);
         }
 
-        struct json_object *l_json_group = dap_json_array_new();
-        struct json_object *l_json_group_inner = dap_json_object_new();
+        struct dap_json_t *l_json_group = dap_json_array_new();
+        struct dap_json_t *l_json_group_inner = dap_json_object_new();
         dap_json_object_add_object(l_json_group_inner, "group", json_object_new_string(l_group_name));
 
         for (size_t i = 0; i < l_store_obj_count; ++i) {
@@ -5196,7 +5196,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             }
             dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
             dap_enc_base64_encode(l_sign, dap_sign_get_size(l_sign), l_sign_str, DAP_ENC_DATA_TYPE_B64);
-            struct json_object *jobj = dap_json_object_new();
+            struct dap_json_t *jobj = dap_json_object_new();
             dap_json_object_add_object(jobj, "key",     json_object_new_string(l_store_obj[i].key));
             dap_json_object_add_object(jobj, "value",   json_object_new_string(l_value_enc_str));
             dap_json_object_add_object(jobj, "value_len", json_object_new_int64((int64_t)l_store_obj[i].value_len));
@@ -5259,7 +5259,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
     }
     char l_path[MAX_PATH + 1];
     snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
-    struct json_object *l_json = json_object_from_file(l_path);
+    struct dap_json_t *l_json = json_object_from_file(l_path);
     if (!l_json) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Import error occured: code %d", errno);
@@ -5272,15 +5272,15 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         return -1;
     }
     for (size_t i = 0, l_groups_count = json_object_array_length(l_json); i < l_groups_count; ++i) {
-        struct json_object *l_group_obj = json_object_array_get_idx(l_json, i);
+        struct dap_json_t *l_group_obj = json_object_array_get_idx(l_json, i);
         if (!l_group_obj) {
             continue;
         }
-        struct json_object *l_json_group_name = json_object_object_get(l_group_obj, "group");
+        struct dap_json_t *l_json_group_name = json_object_object_get(l_group_obj, "group");
         const char *l_group_name = json_object_get_string(l_json_group_name);
         // proc group name
         log_it(L_INFO, "Group %zu: %s", i, l_group_name);
-        struct json_object *l_json_records = json_object_object_get(l_group_obj, "records");
+        struct dap_json_t *l_json_records = json_object_object_get(l_group_obj, "records");
         size_t l_records_count = json_object_array_length(l_json_records);
         dap_store_obj_t *l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
         if(!l_group_store) {
@@ -5321,9 +5321,9 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
             l_group_store[j].value  = (uint8_t*)l_val;
             if (l_record_size > 5) {
-                json_object *l_jobj_crc = json_object_object_get(l_record, "crc");
-                json_object *l_jobj_sign = json_object_object_get(l_record, "sign");
-                json_object *l_jobj_flags = json_object_object_get(l_record, "flags");
+                dap_json_t *l_jobj_crc = json_object_object_get(l_record, "crc");
+                dap_json_t *l_jobj_sign = json_object_object_get(l_record, "sign");
+                dap_json_t *l_jobj_flags = json_object_object_get(l_record, "flags");
                 uint8_t l_flags = (uint8_t)json_object_get_uint64(l_jobj_flags);
                 uint64_t l_crc = json_object_get_uint64(l_jobj_crc);
                 const char *l_sign_str = json_object_get_string(l_jobj_sign);
@@ -6067,9 +6067,9 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
 }
 
 struct json_object *wallet_list_json_collect(int a_version){
-    struct json_object *l_json = dap_json_object_new();
+    struct dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", "WalletList");
-    struct json_object *l_j_wallets = dap_json_array_new();
+    struct dap_json_t *l_j_wallets = dap_json_array_new();
     s_wallet_list(dap_chain_wallet_get_path(g_config), l_j_wallets, NULL, a_version);
     dap_json_object_add_object(l_json, "wallets", l_j_wallets);
     return l_json;
@@ -6077,14 +6077,14 @@ struct json_object *wallet_list_json_collect(int a_version){
 
 
 struct json_object *wallets_info_json_collect(int a_version) {
-    struct json_object *l_json = dap_json_object_new();
+    struct dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", "WalletsInfo");
-    struct json_object *l_json_wallets = dap_json_object_new();
-    struct json_object *l_wallet_list = wallet_list_json_collect(a_version);
-    struct json_object *l_wallet_list_arr = json_object_object_get(l_wallet_list, "wallets");
+    struct dap_json_t *l_json_wallets = dap_json_object_new();
+    struct dap_json_t *l_wallet_list = wallet_list_json_collect(a_version);
+    struct dap_json_t *l_wallet_list_arr = json_object_object_get(l_wallet_list, "wallets");
     size_t l_count = json_object_array_length(l_wallet_list_arr);
     for (size_t i = 0; i < l_count; i++) {
-        struct json_object *l_json_wallet = json_object_array_get_idx(l_wallet_list_arr, i),
+        struct dap_json_t *l_json_wallet = json_object_array_get_idx(l_wallet_list_arr, i),
                 *l_json_wallet_name = json_object_object_get(l_json_wallet, "Wallet");
         if ( !l_json_wallet_name )
             continue;
@@ -6104,20 +6104,20 @@ struct json_object *wallets_info_json_collect(int a_version) {
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
     int l_version = dap_config_get_item_int32_default(g_config, "cli-server", "version", 1);
-    struct json_object *l_json_nets = dap_chain_net_list_json_collect(l_version);
+    struct dap_json_t *l_json_nets = dap_chain_net_list_json_collect(l_version);
     dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets));
     dap_json_object_free(l_json_nets);
-    struct json_object *l_json_nets_info = dap_chain_nets_info_json_collect(l_version);
+    struct dap_json_t *l_json_nets_info = dap_chain_nets_info_json_collect(l_version);
     dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_nets_info));
     dap_json_object_free(l_json_nets_info);
-    struct json_object *l_json_wallets = wallet_list_json_collect(l_version);
+    struct dap_json_t *l_json_wallets = wallet_list_json_collect(l_version);
     dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets));
     dap_json_object_free(l_json_wallets);
-    struct json_object *l_json_wallets_info = wallets_info_json_collect(l_version);
+    struct dap_json_t *l_json_wallets_info = wallets_info_json_collect(l_version);
     dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_wallets_info));
     dap_json_object_free(l_json_wallets_info);
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        struct json_object *l_json_net_states = dap_chain_net_states_json_collect(l_net, l_version);
+        struct dap_json_t *l_json_net_states = dap_chain_net_states_json_collect(l_net, l_version);
         dap_events_socket_write_f(a_es->worker, a_es->uuid, "%s\r\n", json_object_to_json_string(l_json_net_states));
         dap_json_object_free(l_json_net_states);
     }
@@ -6125,9 +6125,9 @@ void dap_notify_new_client_send_info(dap_events_socket_t *a_es, UNUSED_ARG void 
 
 static void s_new_wallet_info_notify(const char *a_wallet_name)
 {
-    struct json_object *l_json = dap_json_object_new();
+    struct dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", "WalletInfo");
-    struct json_object *l_json_wallet_info = dap_json_object_new();
+    struct dap_json_t *l_json_wallet_info = dap_json_object_new();
     dap_json_object_add_object(l_json_wallet_info, a_wallet_name, dap_chain_wallet_info_to_json(a_wallet_name, dap_chain_wallet_get_path(g_config)));
     dap_json_object_add_object(l_json, "wallet", l_json_wallet_info);
     dap_notify_server_send(json_object_get_string(l_json));
@@ -6475,7 +6475,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
     }
 
     if (l_cmd == CMD_LIST) {
-        json_object *l_answer = dap_chain_policy_list(l_net->pub.id, a_version);
+        dap_json_t *l_answer = dap_chain_policy_list(l_net->pub.id, a_version);
         dap_json_array_add(*a_json_arr_reply, l_answer);
         return 0;
     }
@@ -6505,7 +6505,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
     }
 
     if (l_cmd == CMD_FIND) {
-        json_object *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, l_policy_num);
+        dap_json_t *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, l_policy_num);
         if (l_answer) {
             dap_json_object_add_object(l_answer, "active", json_object_new_string(dap_chain_policy_is_activated(l_net->pub.id, l_policy_num) ? "true" : "false"));
             dap_json_array_add(*a_json_arr_reply, l_answer);
