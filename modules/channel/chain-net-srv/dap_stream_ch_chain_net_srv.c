@@ -815,7 +815,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                 l_request = DAP_NEW_Z_SIZE(pkt_test_t, sizeof(pkt_test_t) + l_request->data_size);
                 if (!l_request) {
                     log_it(L_ERROR, "Memory allocation failed for packet");
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_MEMORY;
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_MEMORY_ALLOCATION_ERROR;
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
                     return false;
                 }
