@@ -3373,7 +3373,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 continue;
             }
             char l_addr_buf[128] = {'\0'};
-            sprintf(l_addr_buf, NODE_ADDR_FP_STR,  NODE_ADDR_FP_ARGS_S(l_node_info->address));
+            // Security fix: use safe sprintf
+            snprintf(l_addr_buf, sizeof(l_addr_buf), NODE_ADDR_FP_STR,  NODE_ADDR_FP_ARGS_S(l_node_info->address));
             json_object* l_ban_validator =  json_object_new_object();
             json_object_object_add(l_ban_validator, "node_addr", json_object_new_string(l_addr_buf));
             json_object_array_add(l_json_arr_banlist, l_ban_validator);
