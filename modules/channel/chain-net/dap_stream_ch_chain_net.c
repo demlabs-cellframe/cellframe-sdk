@@ -43,6 +43,7 @@
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "dap_chain_node_access_control.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_stream.h"
@@ -112,6 +113,15 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
 {
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     if(l_ch_chain_net) {
+        // Security check: verify node access control
+        if (a_ch->stream && !dap_stream_node_addr_is_blank(&a_ch->stream->node)) {
+            dap_node_access_result_t l_access = dap_chain_node_access_check(&a_ch->stream->node);
+            if (l_access != DAP_NODE_ACCESS_ALLOW) {
+                log_it(L_WARNING, "Node " NODE_ADDR_FP_STR " access denied (blacklisted/not whitelisted)",
+                       NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+                return false;
+            }
+        }
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
         if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST)
             return log_it(L_ATT, "Receive test data packet with hash %s", 
