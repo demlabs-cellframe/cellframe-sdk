@@ -866,7 +866,22 @@ json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ti
         return s_compose_config_return_response_handler(l_config);
     }
 
-    l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
+    // Security fix: validate element count to prevent overflow attacks
+    size_t l_symbol_count = dap_str_symbol_count(l_value_str, ',');
+    if (l_symbol_count > SIZE_MAX - 1) {
+        log_it(L_ERROR, "Too many values in value string");
+        dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_INVALID_PARAMS, "Too many values in value string");
+        return s_compose_config_return_response_handler(l_config);
+    }
+    l_value_el_count = l_symbol_count + 1;
+    
+    // Additional security: limit maximum number of transaction outputs
+    #define MAX_TX_OUTPUTS 1000
+    if (l_value_el_count > MAX_TX_OUTPUTS) {
+        log_it(L_ERROR, "Too many transaction outputs: %zu (max: %d)", l_value_el_count, MAX_TX_OUTPUTS);
+        dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_INVALID_PARAMS, "Too many transaction outputs");
+        return s_compose_config_return_response_handler(l_config);
+    }
 
     if (addr_base58_to)
         l_addr_el_count = dap_str_symbol_count(addr_base58_to, ',') + 1;
