@@ -711,7 +711,7 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
                         dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
                         byte_t *l_prev_item = l_prev_tx ? dap_chain_datum_tx_item_get_nth(l_prev_tx, TX_ITEM_TYPE_OUT_ALL, l_out_prev_idx) : NULL;
                         if (l_prev_item){
-                            const char* l_token = NULL;
+                            const char* l_token __attribute__((unused)) = NULL;
                             if (*l_prev_item == TX_ITEM_TYPE_OUT){
                                 l_token = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
                             } else if(*l_prev_item == TX_ITEM_TYPE_OUT_EXT){

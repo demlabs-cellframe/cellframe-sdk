@@ -45,6 +45,8 @@ typedef struct dap_node_access_entry {
     dap_node_access_result_t access_type;
     dap_time_t created;
     dap_time_t expires;  // 0 for permanent
+    dap_time_t first_seen;  // First violation timestamp
+    dap_time_t last_seen;   // Last violation timestamp
     char reason[128];
     uint32_t violation_count;
     UT_hash_handle hh;
