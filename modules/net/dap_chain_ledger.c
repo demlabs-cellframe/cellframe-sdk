@@ -60,6 +60,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_mempool.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -5427,6 +5428,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val_mempool_check(dap_ledger_t *a_l
                                                        uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check)
 {
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+    dap_list_t *l_list_mempool_out = NULL; // list of transaction with 'out' items
     dap_chain_hash_fast_t l_tx_cur_hash = { };
     uint256_t l_value_transfer = { };
     dap_chain_datum_tx_t *l_tx;
@@ -5480,12 +5482,15 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val_mempool_check(dap_ledger_t *a_l
             default:
                 continue;
             }
-            if (a_mempool_check && dap_chain_mempool_out_is_used(a_ledger->net, &l_tx_cur_hash, l_out_idx_tmp))
-                continue;
             // Check whether used 'out' items
             log_it(L_WARNING, "ledger add - %s ", dap_hash_fast_to_str_static(&l_tx_cur_hash));
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
+            
+            if (a_mempool_check && dap_chain_mempool_out_is_used(a_ledger->net, &l_tx_cur_hash, l_out_idx_tmp)) {
+                l_list_mempool_out = dap_list_append(l_list_mempool_out, l_item);
+                continue;
+            }
             l_list_used_out = dap_list_append(l_list_used_out, l_item);
             SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
             // already accumulated the required value, finish the search for 'out' items
@@ -5494,9 +5499,14 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val_mempool_check(dap_ledger_t *a_l
             }
         }
     }
-    return compare256(l_value_transfer, a_value_need) >= 0 && l_list_used_out
-        ? ({ if (a_value_transfer) *a_value_transfer = l_value_transfer; l_list_used_out; })
-        : ( dap_list_free_full(l_list_used_out, NULL), NULL );
+    if (compare256(l_value_transfer, a_value_need) >= 0 && l_list_used_out) {
+        if (a_value_transfer) *a_value_transfer = l_value_transfer;
+        return l_list_used_out;
+    }
+    dap_list_free_full(l_list_used_out, NULL);
+    l_list_used_out = dap_chain_mempool_get_list_tx_outs_with_val(a_ledger, a_token_ticker, a_addr_from, a_value_need, a_value_transfer, l_list_mempool_out);
+    dap_list_free_full(l_list_mempool_out, NULL);
+    return l_list_used_out;
 }
 
 dap_list_t *dap_ledger_get_list_tx_outs_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,

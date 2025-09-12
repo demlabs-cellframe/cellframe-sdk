@@ -112,3 +112,4 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
                                          uint256_t a_value_fee, const char *a_hash_out_type);
 
 bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);
+dap_list_t *dap_chain_mempool_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from, uint256_t a_value_need, uint256_t *a_value_transfer, dap_list_t *a_mempool_out);

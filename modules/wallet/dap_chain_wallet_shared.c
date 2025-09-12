@@ -53,6 +53,8 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_wallet_shared"
 
+#define TAG_SIZE_MAX 256
+
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner)
 {
     size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
@@ -670,6 +672,11 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
 
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tag", &l_tag_str);
+
+    if (l_tag_str && strlen(l_tag_str) > TAG_SIZE_MAX) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Tag size should not be greater than %zu", TAG_SIZE_MAX);
+        return ERROR_VALUE;
+    }
 
     const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
