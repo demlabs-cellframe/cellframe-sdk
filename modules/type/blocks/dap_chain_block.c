@@ -159,6 +159,11 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
             return a_block_size;
         }
         // update offset and current datum pointer
+        // Security fix: check for integer overflow before offset addition
+        if (l_offset > SIZE_MAX - l_datum_size) {
+            log_it(L_ERROR, "Integer overflow in block datum offset calculation");
+            return a_block_size;
+        }
         l_offset += l_datum_size;
         l_datum =(dap_chain_datum_t *) (l_block->meta_n_datum_n_sign + l_offset);
     }

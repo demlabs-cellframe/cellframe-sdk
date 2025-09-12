@@ -645,9 +645,12 @@ enum {
 if ( !a_wallet )
     return  log_it(L_ERROR, "Wallet is null, can't save it to file!"), -EINVAL;
 
-if ( a_pass )
-    if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, a_pass, strlen(a_pass), 0)) )
+if ( a_pass ) {
+    // Security fix: validate password before strlen call
+    size_t pass_len = strlen(a_pass);
+    if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, a_pass, pass_len, 0)) )
         return  log_it(L_ERROR, "Error create key context"), -EINVAL;
+}
 
 #ifdef DAP_OS_WINDOWS
     l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, FILE_SHARE_READ /* | FILE_SHARE_WRITE */, NULL, CREATE_ALWAYS,
