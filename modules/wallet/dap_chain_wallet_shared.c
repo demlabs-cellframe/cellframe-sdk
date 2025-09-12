@@ -1197,7 +1197,10 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
         TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
             if (*l_item == TX_ITEM_TYPE_IN_COND) {
                 dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
-                if (dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_final_tx_hash)) {
+                if (
+                    dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_final_tx_hash) &&
+                    dap_chain_datum_tx_item_get_tsd_by_type(l_tx_mempool, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF)
+                ) {
                     l_found_matching_input = true;
                     break;
                 }
