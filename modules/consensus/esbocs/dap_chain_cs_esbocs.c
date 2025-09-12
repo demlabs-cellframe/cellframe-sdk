@@ -2147,11 +2147,32 @@ DAP_STATIC_INLINE bool s_block_is_emergency(dap_chain_block_t *a_block, size_t a
 
 static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr)
 {
-    for (dap_list_t *it = PVT(a_esbocs)->emergency_validator_addrs; it; it = it->next) {
-        dap_chain_addr_t *l_authorized_pkey = it->data;
-        if (dap_hash_fast_compare(&l_authorized_pkey->data.hash_fast, &a_signing_addr->data.hash_fast))
-            return it;
+    // Additional security check: ensure emergency validator list is not empty
+    if (!PVT(a_esbocs)->emergency_validator_addrs) {
+        log_it(L_WARNING, "Emergency validator list is empty - emergency operations disabled");
+        return NULL;
     }
+    
+    // Count emergency validators to prevent excessive emergency rights
+    size_t emergency_count = 0;
+    for (dap_list_t *it = PVT(a_esbocs)->emergency_validator_addrs; it; it = it->next) {
+        emergency_count++;
+        dap_chain_addr_t *l_authorized_pkey = it->data;
+        
+        // Enhanced validation: check both hash comparison and address validity
+        if (!l_authorized_pkey || dap_chain_addr_is_blank(l_authorized_pkey)) {
+            log_it(L_WARNING, "Invalid emergency validator address in list");
+            continue;
+        }
+        
+        if (dap_hash_fast_compare(&l_authorized_pkey->data.hash_fast, &a_signing_addr->data.hash_fast)) {
+            log_it(L_INFO, "Emergency validator rights confirmed for address (validator %zu of %zu)", 
+                   emergency_count, emergency_count);
+            return it;
+        }
+    }
+    
+    log_it(L_WARNING, "Emergency rights denied - address not in authorized list of %zu validators", emergency_count);
     return NULL;
 }
 
@@ -2942,6 +2963,15 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     if (l_signs_count < l_esbocs_pvt->min_validators_count) {
         log_it(L_ERROR, "Corrupted block  %s: not enough signs: %zu of %hu", dap_hash_fast_to_str_static(a_block_hash),
                                     l_signs_count, l_esbocs_pvt->min_validators_count);
+        DAP_DELETE(l_signs);
+        return -1;
+    }
+    
+    // Add maximum validator count check to prevent flooding attacks
+    #define MAX_VALIDATORS_COUNT 1000  // Reasonable upper bound
+    if (l_signs_count > MAX_VALIDATORS_COUNT) {
+        log_it(L_ERROR, "Block %s has too many signatures: %zu (max allowed: %d)", 
+               dap_hash_fast_to_str_static(a_block_hash), l_signs_count, MAX_VALIDATORS_COUNT);
         DAP_DELETE(l_signs);
         return -1;
     }

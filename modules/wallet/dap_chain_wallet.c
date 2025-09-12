@@ -37,6 +37,9 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/types.h>
+#ifdef __GLIBC__
+#include <strings.h>  // For explicit_bzero on glibc systems
+#endif
 #include <sys/stat.h>
 #ifdef DAP_OS_UNIX
 #include <sys/uio.h>
@@ -285,7 +288,9 @@ struct timespec l_now;
     if (l_prec && (l_now.tv_sec > l_prec->exptm.tv_sec) )               /* Record is expired ? */
     {
                                                                         /* Reset password field */
-        memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
+        // Use explicit_bzero for secure password clearing to prevent compiler optimization
+        explicit_bzero(l_prec->pass, sizeof(l_prec->pass));
+        l_prec->pass_len = 0;
         l_prec = NULL; //log_it(L_ERROR, "Wallet's credential has been expired, need re-Activation ");
     }
     else if ( l_prec && !l_prec->pass_len )                             /* Is record has been deactivated ? */
