@@ -1542,7 +1542,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     struct json_object *l_json_items = json_object_object_get(l_json, "items");
     size_t l_items_count;
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
-        dap_dap_json_object_free(l_json);
+        dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
 
@@ -1550,7 +1550,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     // Create transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     if(!l_tx) {
-        dap_dap_json_object_free(l_json);
+        dap_json_object_free(l_json);
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
 
@@ -2655,7 +2655,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     }
 
     dap_list_free(l_sign_list);
-    dap_dap_json_object_free(l_json);
+    dap_json_object_free(l_json);
 
     *a_out_tx = l_tx;
 
@@ -2899,7 +2899,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
 
     json_object_object_add(json_obj_out, "datum_hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_out, "ts_created", json_object_new_int64(a_tx->header.ts_created));
-    json_object_object_add(json_obj_out, "datum_type", json_object_new_string("tx"));
+    dap_json_object_add_string(json_obj_out, "datum_type", "tx");
 
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
         json_object* json_obj_item = dap_json_object_new();
@@ -3020,7 +3020,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
 
         case TX_ITEM_TYPE_OUT_STD: {
             const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_std_t *)item)->value, &l_coins_str );
-            json_object_object_add(json_obj_item, "type", json_object_new_string("out_std"));
+            dap_json_object_add_string(json_obj_item, "type", "out_std");
             json_object_object_add(json_obj_item, "addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_std_t *)item)->addr)));
             json_object_object_add(json_obj_item, "token", json_object_new_string(((dap_chain_tx_out_std_t *)item)->token));
             json_object_object_add(json_obj_item, "value", json_object_new_string(l_value_str));

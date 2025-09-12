@@ -788,7 +788,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 if (a_version == 1) {
                     json_object_object_add(json_obj_inf, "Datum add successfully to mempool", json_object_new_string(l_hash_tx));
                 } else {
-                    json_object_object_add(json_obj_inf, "status", json_object_new_string("success"));
+                    dap_json_object_add_string(json_obj_inf, "status", "success");
                     json_object_object_add(json_obj_inf, "tx_hash", json_object_new_string(l_hash_tx));
                 }
                 dap_json_array_add(*json_arr_reply, json_obj_inf);
@@ -884,9 +884,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             json_object* json_obj_no_polls = dap_json_object_new();
             if (l_token_str)
                 json_object_object_add(json_obj_no_polls, "token", json_object_new_string(l_token_str));
-            json_object_object_add(json_obj_no_polls, "error", json_object_new_string("No polls found"));
+            dap_json_object_add_string(json_obj_no_polls, "error", "No polls found");
             dap_json_array_add(*json_arr_reply, json_obj_no_polls);
-            dap_dap_json_object_free(json_arr_voting_out);
+            dap_json_object_free(json_arr_voting_out);
         } else {
             dap_json_array_add(*json_arr_reply, json_arr_voting_out);
         }

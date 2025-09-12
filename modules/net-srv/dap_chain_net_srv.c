@@ -262,11 +262,11 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                                 dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
                             DAP_DELETE(l_new_order_hash_str);
                             json_obj_net_srv = dap_json_object_new();
-                            json_object_object_add(json_obj_net_srv, "status", json_object_new_string("updated"));
+                            dap_json_object_add_string(json_obj_net_srv, "status", "updated");
 
                         } else {
                             json_obj_net_srv = dap_json_object_new();
-                            json_object_object_add(json_obj_net_srv, "status", json_object_new_string("not updated"));
+                            dap_json_object_add_string(json_obj_net_srv, "status", "not updated");
                         }                            
                         DAP_DELETE(l_order);
                     }

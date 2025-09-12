@@ -1760,13 +1760,13 @@ dap_json_t *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_ve
     }
     dap_json_object_add_array(json_obj_datum, a_version == 1 ? "Signatures public keys" : "sig_pkeys", l_json_arr_pkeys);
     a_token_item->tx_recv_allow_size ? dap_json_object_add_array(json_obj_datum, "tx_recv_allow", l_json_arr_tx_recv_allow) :
-        dap_dap_json_object_free(l_json_arr_tx_recv_allow);
+        dap_json_object_free(l_json_arr_tx_recv_allow);
     a_token_item->tx_recv_block_size ? dap_json_object_add_array(json_obj_datum, "tx_recv_block", l_json_arr_tx_recv_block) :
-        dap_dap_json_object_free(l_json_arr_tx_recv_block);
+        dap_json_object_free(l_json_arr_tx_recv_block);
     a_token_item->tx_send_allow_size ? dap_json_object_add_array(json_obj_datum, "tx_send_allow", l_json_arr_tx_send_allow) :
-        dap_dap_json_object_free(l_json_arr_tx_send_allow);
+        dap_json_object_free(l_json_arr_tx_send_allow);
     a_token_item->tx_send_block_size ? dap_json_object_add_array(json_obj_datum, "tx_send_block", l_json_arr_tx_send_block) :
-        dap_dap_json_object_free(l_json_arr_tx_send_block);
+        dap_json_object_free(l_json_arr_tx_send_block);
     dap_json_object_add_int(json_obj_datum, a_version == 1 ? "Total emissions" : "total_emissions", HASH_COUNT(a_token_item->token_emissions));
     return json_obj_datum;
 }

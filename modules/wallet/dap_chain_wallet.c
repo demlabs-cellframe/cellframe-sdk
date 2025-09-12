@@ -228,7 +228,7 @@ char *c_wallets_path;
             dap_notify_server_send(l_json_str);
             DAP_DELETE(l_json_str);
         }
-        dap_dap_json_object_free(l_json);
+        dap_json_object_free(l_json);
     }
 
     dap_chain_wallet_close( l_wallet);

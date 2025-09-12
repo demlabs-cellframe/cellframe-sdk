@@ -847,7 +847,7 @@ int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_list_free_full(l_esbocs->hardfork_trusted_addrs, NULL);
     l_esbocs->hardfork_trusted_addrs = NULL;
-    dap_dap_json_object_free(l_esbocs->hardfork_changed_addrs);
+    dap_json_object_free(l_esbocs->hardfork_changed_addrs);
     l_esbocs->hardfork_changed_addrs = NULL;
     l_esbocs->hardfork_generation = l_esbocs->hardfork_from = 0;
     l_esbocs->hardfork_state = false;
@@ -3393,7 +3393,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,"Checking signs structure setting failed");
                 DAP_DEL_Z(l_decree);
-                dap_dap_json_object_free(json_obj_out);
+                dap_json_object_free(json_obj_out);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
         } else{

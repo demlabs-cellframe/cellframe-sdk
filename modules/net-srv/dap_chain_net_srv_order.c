@@ -602,9 +602,9 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         json_object_object_add(a_json_obj_out, "version", json_object_new_uint64(a_order->version));
 
         switch ( a_order->direction) {
-        case SERV_DIR_UNDEFINED:    json_object_object_add(a_json_obj_out, "direction", json_object_new_string("SERV_DIR_UNDEFINED"));   break;
-        case SERV_DIR_SELL:         json_object_object_add(a_json_obj_out, "direction", json_object_new_string("SERV_DIR_SELL"));        break;
-        case SERV_DIR_BUY:          json_object_object_add(a_json_obj_out, "direction", json_object_new_string("SERV_DIR_BUY"));         break;
+        case SERV_DIR_UNDEFINED:    dap_json_object_add_string(a_json_obj_out, "direction", "SERV_DIR_UNDEFINED");   break;
+        case SERV_DIR_SELL:         dap_json_object_add_string(a_json_obj_out, "direction", "SERV_DIR_SELL");        break;
+        case SERV_DIR_BUY:          dap_json_object_add_string(a_json_obj_out, "direction", "SERV_DIR_BUY");         break;
         }
         char buf_time[DAP_TIME_STR_SIZE];
         dap_time_to_str_rfc822(buf_time, DAP_TIME_STR_SIZE, a_order->ts_created);
