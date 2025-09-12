@@ -432,9 +432,7 @@ static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_t
  */
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
-    dap_ledger_verificator_add_with_cond_match(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, 
-                                               s_stake_verificator_callback, s_stake_updater_callback, s_stake_deleted_callback,
-                                               s_stake_cond_out_match_callback);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback, s_stake_deleted_callback);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
             "\t\t=== Commands for work with orders ===\n"
     "srv_stake order create [fee] -net <net_name> -value <value> -cert <priv_cert_name> [-H {hex(default) | base58}]\n"
@@ -568,7 +566,7 @@ void dap_chain_net_srv_stake_pos_delegate_deinit()
 
 // Custom conditional output matching callback for staking
 // Allows adding additional fields to the conditional output while preserving base structure
-static int s_stake_cond_out_match_callback(dap_chain_tx_out_cond_t *a_prev_cond, dap_chain_tx_out_cond_t *a_new_cond)
+static int s_stake_cond_out_match(dap_chain_tx_out_cond_t *a_prev_cond, dap_chain_tx_out_cond_t *a_new_cond)
 {
     // Check basic header compatibility
     if (a_new_cond->header.subtype != a_prev_cond->header.subtype ||
@@ -589,14 +587,14 @@ static int s_stake_cond_out_match_callback(dap_chain_tx_out_cond_t *a_prev_cond,
     if (a_prev_cond->tsd_size > 0 && a_prev_cond->tsd && a_new_cond->tsd &&
             memcmp(a_new_cond->tsd, a_prev_cond->tsd, a_prev_cond->tsd_size)) {
         log_it(L_WARNING, "Staking: Original TSD section data has been modified");
-        return -4;
+        return -5;
     }
 
     // Check staking-specific fields preservation
     if (dap_chain_addr_is_blank(&a_new_cond->subtype.srv_stake_pos_delegate.signing_addr) ||
             a_new_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {
         log_it(L_WARNING, "Staking: Address or key fields are blank in new conditional tx");
-        return -5;
+        return -9;
     }
 
     // All checks passed - conditional outputs match correctly with allowed extensions
@@ -610,7 +608,7 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
     dap_return_val_if_fail(l_srv_stake, -2);
 
-// Removed old m_cond_check() macro - replaced with s_stake_cond_out_match_callback() function
+// Removed old m_cond_check() macro - replaced with s_stake_cond_out_match() function
     int l_out_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_new_cond = dap_chain_datum_tx_out_cond_get(
                                                 a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_idx);
@@ -624,7 +622,7 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             return -13;
         }
         // Use custom conditional output matching callback
-        int l_match_result = s_stake_cond_out_match_callback(a_cond, l_tx_new_cond);
+        int l_match_result = s_stake_cond_out_match(a_cond, l_tx_new_cond);
         if (l_match_result != 0) {
             return l_match_result;
         }
@@ -642,7 +640,7 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     // Delegation value update (dynamic weight feature)
     if (l_tx_new_cond) {
         // Use custom conditional output matching callback
-        int l_match_result = s_stake_cond_out_match_callback(a_cond, l_tx_new_cond);
+        int l_match_result = s_stake_cond_out_match(a_cond, l_tx_new_cond);
         if (l_match_result != 0) {
             return l_match_result;
         }
