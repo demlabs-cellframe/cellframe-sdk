@@ -1536,6 +1536,7 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
         log_it(L_ERROR, "%s: mempool group not found\n", a_net->pub.name);
         return false;
     }
+    log_it(L_DEBUG, "check used out: %s %d", dap_hash_fast_to_str_static(a_out_hash), a_out_idx);
     size_t l_objs_count = 0;
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
@@ -1551,6 +1552,9 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
             }
             dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t*)l_item;
             if (l_tx_in->header.tx_out_prev_idx == a_out_idx && dap_hash_fast_compare(&l_tx_in->header.tx_prev_hash, a_out_hash)) {
+                dap_hash_fast_t l_tx_hash = {};
+                dap_chain_datum_calc_hash(l_datum, &l_tx_hash);
+                log_it(L_DEBUG, "is used by %s", dap_hash_fast_to_str_static(&l_tx_hash));
                 dap_global_db_objs_delete(l_objs, l_objs_count);
                 return true;
             }
