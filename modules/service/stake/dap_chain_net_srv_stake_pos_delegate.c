@@ -2122,7 +2122,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                 if (l_order->srv_uid.uint64 == DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS) {
                     if (l_order->direction == SERV_DIR_SELL) {
                         dap_json_object_add_string(l_json_obj_order, "message", 
-                        dap_dap_json_object_new_string("Value in this order type means minimum value of m-tokens for validator acceptable for key delegation with supplied tax");
+                        dap_json_object_new_string("Value in this order type means minimum value of m-tokens for validator acceptable for key delegation with supplied tax");
                         // forming order info record
                         bool l_approved = false;
                         for (uint16_t k = 0; k < l_delegated_hashes_count && !l_approved; ++k) {
@@ -2152,7 +2152,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                         dap_json_object_add_string(l_json_obj_order, "external_params", l_json_obj_ext_params);
                     } else { // l_order->direction = SERV_DIR_BUY
                         dap_json_object_add_string(l_json_obj_order, "message", 
-                          dap_dap_json_object_new_string("Value in this order type means value of m-tokens locked in conditional transaction attached to the order");
+                          dap_json_object_new_string("Value in this order type means value of m-tokens locked in conditional transaction attached to the order");
                         bool l_error = true;
                         dap_chain_addr_t l_addr = {};
                         uint256_t l_tax = uint256_0;
@@ -2190,7 +2190,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                     }
                 } else
                         dap_json_object_add_string(l_json_obj_order, "message", 
-                          dap_dap_json_object_new_string("Value in this order type means minimum fee for validator acceptable for process transactions");
+                          dap_json_object_new_string("Value in this order type means minimum fee for validator acceptable for process transactions");
                 dap_json_array_add(l_json_arr_reply, l_json_obj_order);
             }
             dap_global_db_objs_delete(l_orders, l_orders_count);
@@ -2200,7 +2200,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         dap_global_db_objs_delete(l_delegated_hashes, l_delegated_hashes_count);
         size_t json_array_lenght = dap_json_array_length(l_json_arr_reply);
         if (!json_array_lenght)
-            dap_json_array_add(l_json_arr_reply, dap_dap_json_object_new_string( "No orders found");
+            dap_json_array_add(l_json_arr_reply, dap_json_object_new_string( "No orders found");
         else {
             //sort by time
             json_object_array_sort(l_json_arr_reply, json_object_compare_by_timestamp);
@@ -3413,7 +3413,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
             DAP_DELETE(l_decree);
             char l_approve_str[128];
             snprintf(l_approve_str, sizeof(l_approve_str), "Approve decree %s successfully created", l_decree_hash_str);
-            dap_json_array_add(*a_json_arr_reply, dap_dap_json_object_new_string(l_approve_str);
+            dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string(l_approve_str);
             DAP_DELETE(l_decree_hash_str);
         } break;
 
@@ -3496,7 +3496,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
             }
             DAP_DELETE(l_decree);
             char *l_approve_str = dap_strdup_printf("pkey update decree %s successfully created", l_decree_hash_str);
-            dap_json_array_add(*a_json_arr_reply, dap_dap_json_object_new_string(l_approve_str);
+            dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string(l_approve_str);
             DAP_DEL_MULTY(l_decree_hash_str, l_approve_str);
         } break;
 
@@ -4062,7 +4062,7 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
         }
         dap_json_t* json_obj_hash = dap_json_object_new();
         dap_json_object_add_string(json_obj_hash, "tx_hash",
-                                        dap_dap_json_object_new_string(dap_chain_hash_fast_to_str_static(&l_ttx_hash));
+                                        dap_json_object_new_string(dap_chain_hash_fast_to_str_static(&l_ttx_hash));
         dap_json_array_add(json_obj_reward, json_obj_hash);
         dap_json_t* json_arr_sign_out = NULL;
         dap_json_t* json_block_hash = NULL;
@@ -4087,7 +4087,7 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
                 char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str);
                 dap_json_t* json_obj_sign = dap_json_object_new();
-                dap_json_object_add_string(json_obj_sign, "pkey_hash",dap_dap_json_object_new_string(l_pkey_hash_str);
+                dap_json_object_add_string(json_obj_sign, "pkey_hash",dap_json_object_new_string(l_pkey_hash_str);
                 dap_pkey_t * l_block_sign_pkey = dap_pkey_get_from_sign(l_sign);
                 l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash, l_block_sign_pkey);
                 DAP_DELETE(l_block_sign_pkey);
@@ -4229,24 +4229,24 @@ static dap_json_t *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_n
                 *l_jobj_ret     = dap_json_object_new();
                 
     const char *l_coins_str;
-    dap_json_object_add_string( l_jobj_min,     "balance",  dap_dap_json_object_new_string(dap_uint256_to_char(l_min, &l_coins_str)) );
-    dap_json_object_add_string( l_jobj_min,     "coin",     dap_dap_json_object_new_string(l_coins_str) );
+    dap_json_object_add_string( l_jobj_min,     "balance",  dap_json_object_new_string(dap_uint256_to_char(l_min, &l_coins_str)) );
+    dap_json_object_add_string( l_jobj_min,     "coin",     dap_json_object_new_string(l_coins_str) );
 
-    dap_json_object_add_string( l_jobj_max,     "balance",  dap_dap_json_object_new_string(dap_uint256_to_char(l_max, &l_coins_str)) );
-    dap_json_object_add_string( l_jobj_max,     "coin",     dap_dap_json_object_new_string(l_coins_str) );
+    dap_json_object_add_string( l_jobj_max,     "balance",  dap_json_object_new_string(dap_uint256_to_char(l_max, &l_coins_str)) );
+    dap_json_object_add_string( l_jobj_max,     "coin",     dap_json_object_new_string(l_coins_str) );
 
-    dap_json_object_add_string( l_jobj_average, "balance",  dap_dap_json_object_new_string(dap_uint256_to_char(l_average, &l_coins_str)) );
-    dap_json_object_add_string( l_jobj_average, "coin",     dap_dap_json_object_new_string(l_coins_str) );
+    dap_json_object_add_string( l_jobj_average, "balance",  dap_json_object_new_string(dap_uint256_to_char(l_average, &l_coins_str)) );
+    dap_json_object_add_string( l_jobj_average, "coin",     dap_json_object_new_string(l_coins_str) );
     
-    dap_json_object_add_string( l_jobj_median, "balance",   dap_dap_json_object_new_string(dap_uint256_to_char(l_median, &l_coins_str)) );
-    dap_json_object_add_string( l_jobj_median, "coin",      dap_dap_json_object_new_string(l_coins_str) );
+    dap_json_object_add_string( l_jobj_median, "balance",   dap_json_object_new_string(dap_uint256_to_char(l_median, &l_coins_str)) );
+    dap_json_object_add_string( l_jobj_median, "coin",      dap_json_object_new_string(l_coins_str) );
 
-    dap_json_object_add_string(l_jobj_ret, "service",   dap_dap_json_object_new_string("validators");
+    dap_json_object_add_string(l_jobj_ret, "service",   dap_json_object_new_string("validators");
     dap_json_object_add_string(l_jobj_ret, "min",       l_jobj_min);
     dap_json_object_add_string(l_jobj_ret, "max",       l_jobj_max);
     dap_json_object_add_string(l_jobj_ret, "average",   l_jobj_average);
     dap_json_object_add_string(l_jobj_ret, "median",    l_jobj_median);
-    dap_json_object_add_string(l_jobj_ret, "token",     dap_dap_json_object_new_string(l_native_token);
+    dap_json_object_add_string(l_jobj_ret, "token",     dap_json_object_new_string(l_native_token);
 
     return l_jobj_ret;
 }

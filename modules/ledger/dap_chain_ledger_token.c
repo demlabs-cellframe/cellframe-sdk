@@ -1734,28 +1734,28 @@ dap_json_t *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_ve
     for (size_t i = 0; i < a_token_item->tx_recv_allow_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_recv_allow[i];
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        dap_json_t *l_addr_obj = dap_dap_json_object_new_string(l_addr_str);
+        dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
         dap_json_array_add(l_json_arr_tx_recv_allow, l_addr_obj);
     }
     dap_json_t *l_json_arr_tx_recv_block = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_recv_block_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_recv_block[i];
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        dap_json_t *l_addr_obj = dap_dap_json_object_new_string(l_addr_str);
+        dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
         dap_json_array_add(l_json_arr_tx_recv_block, l_addr_obj);
     }
     dap_json_t *l_json_arr_tx_send_allow = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_send_allow_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_send_allow[i];
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        dap_json_t *l_addr_obj = dap_dap_json_object_new_string(l_addr_str);
+        dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
         dap_json_array_add(l_json_arr_tx_send_allow, l_addr_obj);
     }
     dap_json_t *l_json_arr_tx_send_block = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_send_block_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_send_block[i];
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        dap_json_t *l_addr_obj = dap_dap_json_object_new_string(l_addr_str);
+        dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
         dap_json_array_add(l_json_arr_tx_send_block, l_addr_obj);
     }
     dap_json_object_add_array(json_obj_datum, a_version == 1 ? "Signatures public keys" : "sig_pkeys", l_json_arr_pkeys);

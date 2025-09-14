@@ -2125,7 +2125,7 @@ static dap_json_t *s_dap_chain_callback_atom_to_json(dap_json_t **a_arr_out, dap
         const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
                                  dap_enc_base58_encode_hash_to_str_static(l_hash) :
                                  dap_hash_fast_to_str_static(l_hash);
-        dap_json_t *l_hash_json = dap_dap_json_object_new_string(l_hash_str);
+        dap_json_t *l_hash_json = dap_json_object_new_string(l_hash_str);
         dap_json_array_add(l_jobj_hash_links, l_hash_json);
     }
     dap_json_object_add_object(l_jobj, "hash_links", l_jobj_hash_links);

@@ -258,7 +258,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, dap_chain_datum_de
             }
             dap_pkey_t *l_owner_pkey = /*DAP_NEW_STACK_SIZE(dap_pkey_t, l_tsd->size);
             memcpy(l_owner_pkey, l_tsd->data, l_tsd->size);*/ _dap_tsd_get_object(l_tsd, dap_pkey_t);
-            dap_json_object_add(a_json_out, a_version == 1 ? "Owner fingerprint" : "owner_pkey_hash", dap_dap_json_object_new_string(dap_get_data_hash_str(l_owner_pkey->pkey, l_owner_pkey->header.size).s));
+            dap_json_object_add(a_json_out, a_version == 1 ? "Owner fingerprint" : "owner_pkey_hash", dap_json_object_new_string(dap_get_data_hash_str(l_owner_pkey->pkey, l_owner_pkey->header.size).s));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER:
             if (l_tsd->size > sizeof(uint256_t)){
@@ -372,7 +372,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, dap_chain_datum_de
                 dap_json_object_add_string(a_json_out, a_version == 1 ? "pkey type" : "pkey_type", "WRONG SIZE");
                 break;
             }
-            dap_json_object_add(a_json_out, a_version == 1 ? "pkey type" : "pkey_type", dap_dap_json_object_new_string( dap_pkey_type_to_str(((dap_pkey_t *)(l_tsd->data))->header.type) ));
+            dap_json_object_add(a_json_out, a_version == 1 ? "pkey type" : "pkey_type", dap_json_object_new_string( dap_pkey_type_to_str(((dap_pkey_t *)(l_tsd->data))->header.type) ));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM:
             if (l_tsd->size != sizeof(uint64_t)) {
@@ -391,7 +391,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, dap_chain_datum_de
             if (!dap_strcmp(dap_tsd_get_string_const(l_tsd), DAP_TSD_CORRUPTED_STRING)) {
                 l_json_obj = dap_json_parse_string(dap_tsd_get_string_const(l_tsd));
             } else {
-                l_json_obj = dap_dap_json_object_new_string("Can't parse json in Wallet_addr_pair");
+                l_json_obj = dap_json_object_new_string("Can't parse json in Wallet_addr_pair");
             }
             dap_json_object_add_object(a_json_out, "wallet_addr_pair", l_json_obj);
 
@@ -400,7 +400,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, dap_chain_datum_de
                 dap_json_object_add_string(a_json_out, "policy_type", "WRONG SIZE");
                 break;
             }
-            dap_json_object_add(a_json_out, "policy_type", dap_dap_json_object_new_string( dap_chain_policy_to_str((dap_chain_policy_t *)(l_tsd->data))));
+            dap_json_object_add(a_json_out, "policy_type", dap_json_object_new_string( dap_chain_policy_to_str((dap_chain_policy_t *)(l_tsd->data))));
             break;
 
         default:

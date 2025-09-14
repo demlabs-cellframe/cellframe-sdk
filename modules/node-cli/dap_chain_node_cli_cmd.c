@@ -2465,7 +2465,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
     if (json_arr_out) {
             dap_json_array_add(*a_json_arr_reply, json_arr_out);
         } else {
-            dap_json_array_add(*a_json_arr_reply, dap_dap_json_object_new_string("empty"));
+            dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string("empty"));
         }
     return 0;
 }
@@ -6225,7 +6225,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
     if (l_response) {
         dap_json_array_add(*a_json_arr_reply, l_response);
     } else {
-        dap_json_array_add(*a_json_arr_reply, dap_dap_json_object_new_string("Empty reply"));
+        dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string("Empty reply"));
     }
     DAP_DEL_Z(node_info);
     dap_json_rpc_request_free(l_request);
@@ -6326,7 +6326,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
     switch(l_cmd_num) {
         case CMD_PRINT : {
             if (l_res) {
-                dap_json_array_add(*a_json_arr_reply, dap_dap_json_object_new_string(l_res));
+                dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string(l_res));
                 DAP_DELETE(l_res);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open source file %s or wrong line number %d", l_file_full_path, l_num_line);
@@ -6344,7 +6344,7 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             int res = dap_log_export_string_to_file(l_res, l_dest_str);
             switch (res) {
                 case 0: {
-                    dap_json_array_add(*a_json_arr_reply, dap_dap_json_object_new_string("Export success"));
+                    dap_json_array_add(*a_json_arr_reply, dap_json_object_new_string("Export success"));
                     break;
                 }
                 case -1: {
