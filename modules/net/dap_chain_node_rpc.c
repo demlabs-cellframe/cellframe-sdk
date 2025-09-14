@@ -215,7 +215,7 @@ json_object *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
     }
     json_object* json_node_loads_arr = dap_json_array_new();
     if (!json_node_loads_arr) {
-        dap_json_object_free(json_node_obj);
+        dap_dap_json_object_free(json_node_obj);
         return NULL;
     }
     const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
@@ -311,7 +311,7 @@ json_object *dap_chain_node_rpc_list()
         }
         json_object* json_node_obj = dap_json_object_new();
         if (!json_node_obj) {
-            dap_json_object_free(json_node_list_arr);
+            dap_dap_json_object_free(json_node_list_arr);
             return NULL;
         }
         char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
@@ -328,7 +328,7 @@ json_object *dap_chain_node_rpc_list()
     dap_global_db_objs_delete(l_objs, l_nodes_count);
     json_object* json_node_list_obj = dap_json_object_new();
     if (!json_node_list_obj) {
-        dap_json_object_free(json_node_list_arr);
+        dap_dap_json_object_free(json_node_list_arr);
         return NULL;
     }
     dap_json_object_add_object(json_node_list_obj, "got_nodes", json_object_new_uint64(l_nodes_count));

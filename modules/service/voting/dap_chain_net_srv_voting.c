@@ -886,7 +886,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 dap_json_object_add_object(json_obj_no_polls, "token", json_object_new_string(l_token_str));
             dap_json_object_add_string(json_obj_no_polls, "error", "No polls found");
             dap_json_array_add(*json_arr_reply, json_obj_no_polls);
-            dap_json_object_free(json_arr_voting_out);
+            dap_dap_json_object_free(json_arr_voting_out);
         } else {
             dap_json_array_add(*json_arr_reply, json_arr_voting_out);
         }

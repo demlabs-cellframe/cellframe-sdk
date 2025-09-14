@@ -493,7 +493,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
         dap_json_t *json_obj_tx = dap_json_object_new();
         if (!json_obj_tx) {
             pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-            dap_json_object_free(json_arr_out);
+            dap_dap_json_object_free(json_arr_out);
             return NULL;
         }
         HASH_FIND(hh, l_ledger_pvt->threshold_txs, a_threshold_hash, sizeof(dap_hash_t), l_tx_item);
@@ -516,7 +516,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
             i_tmp++;
             if (s_pack_ledger_threshold_info_json(json_arr_out, l_tx_item, a_version)) {
                 pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-                dap_json_object_free(json_arr_out);
+                dap_dap_json_object_free(json_arr_out);
                 return NULL;
             }            
             l_counter++;
@@ -529,7 +529,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
                     continue;
                 if (s_pack_ledger_threshold_info_json(json_arr_out, l_tx_item, a_version)) {
                     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-                    dap_json_object_free(json_arr_out);
+                    dap_dap_json_object_free(json_arr_out);
                     return NULL;
                 }
                 l_counter++;

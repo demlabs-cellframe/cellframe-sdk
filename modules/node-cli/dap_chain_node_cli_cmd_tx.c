@@ -385,7 +385,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     if (!l_net) {
         log_it(L_WARNING, "Can't find net by specified chain %s", a_chain->name);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Can't find net by specified chain %s", a_chain->name);
-        dap_json_object_free(json_obj_datum);
+        dap_dap_json_object_free(json_obj_datum);
         return NULL;
     }
     dap_ledger_t *l_ledger = l_net->pub.ledger;
@@ -393,7 +393,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     if (!a_chain->callback_datum_iter_create) {
         log_it(L_WARNING, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
-        dap_json_object_free(json_obj_datum);
+        dap_dap_json_object_free(json_obj_datum);
         return NULL;
     }
 
@@ -416,7 +416,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     if (l_from_cache && a_addr->net_id.uint64 != l_net->pub.id.uint64){
         log_it(L_WARNING, "Can't find wallet with addr %s in net %s", l_addr_str, l_net->pub.name);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Can't find wallet with addr %s in net %s", l_addr_str, l_net->pub.name);
-        dap_json_object_free(json_obj_datum);
+        dap_dap_json_object_free(json_obj_datum);
         return NULL;
     }
     memset(&l_curr_tx_hash, 0, sizeof(dap_hash_fast_t));
@@ -556,8 +556,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         json_object * j_obj_tx = dap_json_object_new();
         if (!j_obj_tx || !j_arr_data) {
             dap_json_rpc_allocation_error(a_json_arr_reply);
-            dap_json_object_free(j_obj_tx);
-            dap_json_object_free(j_arr_data);
+            dap_dap_json_object_free(j_obj_tx);
+            dap_dap_json_object_free(j_arr_data);
             return NULL;
         }
         if (!l_src_addr) {
@@ -584,9 +584,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             }
             if (!l_dst_addr_present)
             {
-                dap_json_object_free(j_arr_data);
+                dap_dap_json_object_free(j_arr_data);
                 j_arr_data = NULL;
-                dap_json_object_free(j_obj_tx);
+                dap_dap_json_object_free(j_obj_tx);
                 dap_list_free(l_list_out_items);
                 goto next_step;
             }                
@@ -684,8 +684,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 json_object * j_obj_data = dap_json_object_new();
                 if (!j_obj_data) {
                     dap_json_rpc_allocation_error(a_json_arr_reply);
-                    dap_json_object_free(j_obj_tx);
-                    dap_json_object_free(j_arr_data);
+                    dap_dap_json_object_free(j_obj_tx);
+                    dap_dap_json_object_free(j_arr_data);
                     return NULL;
                 }                
                 dap_json_object_add_string(j_obj_data, "tx_type", "recv");
@@ -737,8 +737,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 json_object * j_obj_data = dap_json_object_new();
                 if (!j_obj_data) {
                     dap_json_rpc_allocation_error(a_json_arr_reply);
-                    dap_json_object_free(j_obj_tx);
-                    dap_json_object_free(j_arr_data);
+                    dap_dap_json_object_free(j_obj_tx);
+                    dap_dap_json_object_free(j_arr_data);
                     return NULL;
                 }                
                 dap_json_object_add_string(j_obj_data, "tx_type", "send");
@@ -754,8 +754,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             }
         }  
         if (l_continue) {
-            dap_json_object_free(j_obj_tx);
-            dap_json_object_free(j_arr_data);
+            dap_dap_json_object_free(j_obj_tx);
+            dap_dap_json_object_free(j_arr_data);
             goto next_step;
         }            
 
@@ -791,9 +791,9 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             dap_json_object_add_object(j_obj_tx, "data", j_arr_data);
             dap_json_array_add(json_obj_datum, j_obj_tx);
         } else {
-            dap_json_object_free(j_arr_data);
+            dap_dap_json_object_free(j_arr_data);
             j_arr_data = NULL;
-            dap_json_object_free(j_obj_tx);
+            dap_dap_json_object_free(j_obj_tx);
         }
         dap_list_free(l_list_out_items);
 
@@ -817,7 +817,7 @@ next_step:
         json_object * json_empty_tx = dap_json_object_new();
         if (!json_empty_tx) {
             dap_json_rpc_allocation_error(a_json_arr_reply);
-            dap_json_object_free(json_obj_datum);
+            dap_dap_json_object_free(json_obj_datum);
             return NULL;
         }
         dap_json_object_add_string(json_empty_tx, "status", "empty");        
@@ -930,7 +930,7 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
                 continue;
             else if (res == 2)
             {
-                dap_json_object_free(json_arr_out);
+                dap_dap_json_object_free(json_arr_out);
                 return NULL;
             }
             dap_json_object_add_object(json_tx_history, a_version == 1 ? "tx number" : "tx_num", json_object_new_uint64(l_count+1));                     
@@ -1472,14 +1472,14 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             }
             dap_json_object_add_object(json_datum, "all_outs_unspent", json_object_new_boolean(l_all_outs_unspent));
             if (l_all_outs_unspent) {
-                dap_json_object_free(json_arr_items);
+                dap_dap_json_object_free(json_arr_items);
             } else {
                 dap_json_object_add_object(json_datum, "spent_outs", json_arr_items);
             }
             dap_chain_net_tx_to_json(l_datum_tx, json_datum);
             if (!json_object_object_length(json_datum)) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_TO_JSON_ERR, "Can't find transaction hash %s in ledger", l_tx_hash_str);
-                dap_json_object_free(json_datum);
+                dap_dap_json_object_free(json_datum);
                 DAP_DELETE(l_tx_hash);
                 return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_TO_JSON_ERR;
             }
@@ -1490,7 +1490,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
 
         if (!s_dap_chain_datum_tx_out_data(*a_json_arr_reply,l_datum_tx, l_net->pub.ledger, json_datum, l_hash_out_type, l_tx_hash, a_version)){
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR, "Can't find transaction hash %s in ledger", l_tx_hash_str);
-            dap_json_object_free(json_datum);
+            dap_dap_json_object_free(json_datum);
             DAP_DEL_Z(l_tx_hash);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
         }
@@ -1798,7 +1798,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
     }
     if(!json_object_is_type(l_json, json_type_object)) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT, "Wrong json format");
-        dap_json_object_free(l_json);
+        dap_dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT;
     }
 
@@ -1812,7 +1812,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
         if(!l_net_name) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
                                    "Command requires parameter '-net' or set net in the json file");
-            dap_json_object_free(l_json);
+            dap_dap_json_object_free(l_json);
             return DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET;
         }
     }
@@ -1821,7 +1821,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
         dap_json_rpc_error_add(*a_json_arr_reply,
                                DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME,
                                "Not found net by name '%s'", l_net_name);
-        dap_json_object_free(l_json);
+        dap_dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME;
     }
 
@@ -1840,7 +1840,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
         dap_json_rpc_error_add(*a_json_arr_reply,
                                DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
                                "Chain name '%s' not found, try use parameter '-chain' or set chain in the json file", l_chain_name);
-        dap_json_object_free(l_json);
+        dap_dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME;
     }
 
@@ -1869,7 +1869,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
         DAP_DELETE(l_tx);
         return DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS;
     }
-    dap_json_object_free(l_jobj_errors);
+    dap_dap_json_object_free(l_jobj_errors);
 
     // Pack transaction into the datum
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
@@ -2194,7 +2194,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
         dap_chain_wallet_close(l_wallet);
         dap_enc_key_delete(l_priv_key);
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID, "source address is invalid");
-        dap_json_object_free(l_jobj_result);
+        dap_dap_json_object_free(l_jobj_result);
         DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
         DAP_DEL_MULTY(l_addr_to, l_value);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID;
@@ -2205,7 +2205,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
             dap_chain_wallet_close(l_wallet);
             dap_enc_key_delete(l_priv_key);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS, "The transaction cannot be directed to the same address as the source.");
-            dap_json_object_free(l_jobj_result);
+            dap_dap_json_object_free(l_jobj_result);
             DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
             DAP_DEL_MULTY(l_addr_to, l_value);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS;
@@ -2232,7 +2232,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
                                     " Please, change network name or wallet address",
                                     l_addr_to[i]->net_id.uint64, l_allowed_list->str);
                 dap_string_free(l_allowed_list, true);
-                dap_json_object_free(l_jobj_result);
+                dap_dap_json_object_free(l_jobj_result);
 
                 DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
                 DAP_DEL_MULTY(l_addr_to, l_value);
@@ -2333,7 +2333,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
     }
     if(!json_object_is_type(l_json, json_type_object)) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT, "Wrong json format");
-        dap_json_object_free(l_json);
+        dap_dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT;
     }
 
@@ -2347,14 +2347,14 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
         if(!l_net_name) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
                                    "Command requires parameter '-net' or set net in the json file");
-            dap_json_object_free(l_json);
+            dap_dap_json_object_free(l_json);
             return DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET;
         }
     }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     if(!l_net) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME, "Not found net by name '%s'", l_net_name);
-        dap_json_object_free(l_json);
+        dap_dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME;
     }
     
@@ -2372,7 +2372,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
     if(!l_chain) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
                                "Chain name '%s' not found, try use parameter '-chain' or set chain in the json file", l_chain_name);
-        dap_json_object_free(l_json);
+        dap_dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME;
     }
     
@@ -2400,7 +2400,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
         dap_json_array_add(*a_json_arr_reply, l_jobj_ret);
         return DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS;
     }
-    dap_json_object_free(l_jobj_arr_errors);
+    dap_dap_json_object_free(l_jobj_arr_errors);
 
     // Pack transaction into the datum
     dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
@@ -2689,7 +2689,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         if (!json_obj_out) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR,
                                     "something went wrong in tx_history");
-            dap_json_object_free(json_obj_summary);
+            dap_dap_json_object_free(json_obj_summary);
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR;
         }
         dap_json_array_add(*a_json_arr_reply, json_obj_out);
