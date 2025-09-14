@@ -177,7 +177,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
             continue;
         l_json = s_balancer_states_json_collect(a_net, a_host_addr, a_host_port);
         dap_notify_server_send(json_object_get_string(l_json));
-        dap_dap_json_object_free(l_json);
+        dap_json_object_free(l_json);
     }
 }
 
@@ -197,7 +197,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
     log_it(L_WARNING, "%s", l_err_str);
     dap_json_object_add_object(l_json, "errorMessage", json_object_new_string(l_err_str));
     dap_notify_server_send(json_object_get_string(l_json));
-    dap_dap_json_object_free(l_json);
+    dap_json_object_free(l_json);
 }
 
 /**

@@ -1205,7 +1205,7 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
                 dap_notify_server_send(l_json_str);
                 DAP_DELETE(l_json_str);
             }
-            dap_dap_json_object_free(l_json);
+            dap_json_object_free(l_json);
         }
     }
     return 0;

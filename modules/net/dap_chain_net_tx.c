@@ -1542,7 +1542,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     struct dap_json_t *l_json_items = json_object_object_get(l_json, "items");
     size_t l_items_count;
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
-        dap_dap_json_object_free(l_json);
+        dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
 
@@ -1550,7 +1550,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     // Create transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     if(!l_tx) {
-        dap_dap_json_object_free(l_json);
+        dap_json_object_free(l_json);
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
 
@@ -2655,7 +2655,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     }
 
     dap_list_free(l_sign_list);
-    dap_dap_json_object_free(l_json);
+    dap_json_object_free(l_json);
 
     *a_out_tx = l_tx;
 
