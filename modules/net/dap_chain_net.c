@@ -477,7 +477,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->addr), a_link->uplink.client->link_info.uplink_addr, a_error);
-        dap_json_object_add_object(l_json, "errorMessage", json_object_new_string(l_err_str));
+        dap_json_object_add_string(l_json, "errorMessage", l_err_str);
         dap_notify_server_send(json_object_get_string(l_json));
         dap_json_object_free(l_json);
     }
@@ -647,7 +647,7 @@ void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out,
                            json_object_new_int(dap_link_manager_links_count(a_net->pub.id.uint64)));
     char l_node_addr_str[24] = {'\0'};
     int l_tmp = snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(g_node_addr));
-    dap_json_object_add_object(a_json_out, a_version == 1 ? "nodeAddress" : "node_addr", json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
+    dap_json_object_add_string(a_json_out, a_version == 1 ? "nodeAddress" : "node_addr", l_tmp ? l_node_addr_str : "0000::0000::0000::0000");
     if (PVT(a_net)->state == NET_STATE_SYNC_CHAINS) {
         dap_json_t *l_json_sync_status = s_net_sync_status(a_net, a_version);
         dap_json_object_add_object(a_json_out, "processed", l_json_sync_status);
@@ -656,7 +656,7 @@ void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out,
 
 struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net, int a_version) {
     dap_json_t *l_json = dap_json_object_new();
-    dap_json_object_add_object(l_json, "class", json_object_new_string(a_version == 1 ? "NetInfo" : "net_info"));
+    dap_json_object_add_string(l_json, "class", a_version == 1 ? "NetInfo" : "net_info");
     s_set_reply_text_node_status_json(a_net, l_json, a_version);
     s_chain_net_states_to_json(a_net, l_json, a_version);
     return l_json;
@@ -664,7 +664,7 @@ struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net, in
 
 struct json_object *dap_chain_net_list_json_collect(int a_version){
     dap_json_t *l_json = dap_json_object_new();
-    dap_json_object_add_object(l_json, "class", json_object_new_string(a_version == 1 ? "NetList" : "net_list"));
+    dap_json_object_add_string(l_json, "class", a_version == 1 ? "NetList" : "net_list");
     dap_json_t *l_json_networks = dap_json_array_new();
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         dap_json_array_add(l_json_networks, json_object_new_string(l_net->pub.name));
@@ -675,7 +675,7 @@ struct json_object *dap_chain_net_list_json_collect(int a_version){
 
 struct json_object *dap_chain_nets_info_json_collect(int a_version){
     dap_json_t *l_json = dap_json_object_new();
-    dap_json_object_add_object(l_json, "class", json_object_new_string(a_version == 1 ? "NetsInfo" : "nets_info"));
+    dap_json_object_add_string(l_json, "class", a_version == 1 ? "NetsInfo" : "nets_info");
     dap_json_t *l_json_networks = dap_json_object_new();
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         dap_json_t *l_jobj_net_info = dap_json_object_new();
@@ -1011,7 +1011,7 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 void _s_print_chains(json_object *a_obj_chain, dap_chain_t *a_chain) {
     if (!a_obj_chain || !a_chain)
         return;
-    dap_json_object_add_object(a_obj_chain, "name", json_object_new_string(a_chain->name));
+    dap_json_object_add_string(a_obj_chain, "name", a_chain->name);
     dap_json_object_add_object(a_obj_chain, "consensus", json_object_new_string(DAP_CHAIN_PVT(a_chain)->cs_name));
 
     if (a_chain->default_datum_types_count) {

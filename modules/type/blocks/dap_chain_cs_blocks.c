@@ -526,7 +526,7 @@ static void s_cli_meta_hash_print(json_object* a_json_obj_out, const char *a_met
         const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
                 dap_enc_base58_encode_hash_to_str_static((dap_chain_hash_fast_t*)a_meta->data) :
                 dap_chain_hash_fast_to_str_static((dap_chain_hash_fast_t*)a_meta->data);
-        dap_json_object_add_object(a_json_obj_out, a_meta_title, json_object_new_string(l_hash_str));
+        dap_json_object_add_string(a_json_obj_out, a_meta_title, l_hash_str);
 //        if (dap_strcmp(a_hash_out_type, "base58")) {
 //            const char *l_hash_str = dap_enc_base58_encode_hash_to_str_static(a_meta->data);
             //
@@ -535,7 +535,7 @@ static void s_cli_meta_hash_print(json_object* a_json_obj_out, const char *a_met
 //            dap_chain_hash_fast_to_str((dap_chain_hash_fast_t *) a_meta->data, l_hash_str, sizeof(l_hash_str));
 //        }
     } else
-        dap_json_object_add_object(a_json_obj_out, a_meta_title, json_object_new_string("Error, hash size is incorrect"));
+        dap_json_object_add_string(a_json_obj_out, a_meta_title, "Error, hash size is incorrect");
 }
 
 /**
@@ -549,7 +549,7 @@ static void s_cli_meta_hex_print(json_object* a_json_obj_out, const char * a_met
     char l_str[a_meta->hdr.data_size * 2 + 3];
     strcpy(l_str, "0x");
     dap_bin2hex(l_str + 2, a_meta->data, a_meta->hdr.data_size);
-    dap_json_object_add_object(a_json_obj_out, a_meta_title, json_object_new_string(l_str));
+    dap_json_object_add_string(a_json_obj_out, a_meta_title, l_str);
 }
 
 static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_json_obj_out, const char *a_table_name, int a_version)
@@ -566,8 +566,8 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_jso
         dap_global_db_obj_t *l_obj_cur = l_objs + i;
         uint256_t l_cur_value = *(uint256_t*)l_obj_cur->value;
         const char *l_value_str; dap_uint256_to_char(l_cur_value, &l_value_str);
-        dap_json_object_add_object(json_obj_t, "obj_key", json_object_new_string(l_obj_cur->key));
-        dap_json_object_add_object(json_obj_t, "obj_val", json_object_new_string(l_value_str));
+        dap_json_object_add_string(json_obj_t, "obj_key", l_obj_cur->key);
+        dap_json_object_add_string(json_obj_t, "obj_val", l_value_str);
         dap_json_array_add(json_arr_out, json_obj_t);
         SUM_256_256(l_total_value, l_cur_value, &l_total_value);
     }
@@ -602,10 +602,10 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_jso
     char *l_key = NULL;
     if (a_version == 1) {
         l_key = dap_strdup_printf("%s status", a_table_name);
-        dap_json_object_add_object(a_json_obj_out, l_key, json_object_new_string(l_val ? l_val : "Empty"));
+        dap_json_object_add_string(a_json_obj_out, l_key, l_val ? l_val : "Empty");
     } else {
         l_key = dap_strdup_printf("%s_status", a_table_name);
-        dap_json_object_add_object(a_json_obj_out, l_key, json_object_new_string(l_val ? l_val : "empty"));
+        dap_json_object_add_string(a_json_obj_out, l_key, l_val ? l_val : "empty");
     }
     DAP_DEL_MULTY(l_key, l_val);
 }
@@ -826,16 +826,16 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             // Header
             json_object* json_obj_inf = dap_json_object_new();
             dap_json_object_add_object(json_obj_inf, a_version == 1 ? "Block number" : "block_num", json_object_new_uint64(l_block_cache->block_number));
-            dap_json_object_add_object(json_obj_inf, a_version == 1 ? "hash" : "block_hash", json_object_new_string(l_block_cache->block_hash_str));
+            dap_json_object_add_string(json_obj_inf, a_version == 1 ? "hash" : "block_hash", l_block_cache->block_hash_str);
             snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%04X",l_block->hdr.version);
             
-            dap_json_object_add_object(json_obj_inf, "version", json_object_new_string(l_hexbuf));
+            dap_json_object_add_string(json_obj_inf, "version", l_hexbuf);
             snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.cell_id.uint64);
-            dap_json_object_add_object(json_obj_inf, "cell_id", json_object_new_string(l_hexbuf));
+            dap_json_object_add_string(json_obj_inf, "cell_id", l_hexbuf);
             snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.chain_id.uint64);
-            dap_json_object_add_object(json_obj_inf, "chain_id", json_object_new_string(l_hexbuf));
+            dap_json_object_add_string(json_obj_inf, "chain_id", l_hexbuf);
             dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_block->hdr.ts_created);
-            dap_json_object_add_object(json_obj_inf, "ts_created", json_object_new_string(l_time_buf));
+            dap_json_object_add_string(json_obj_inf, "ts_created", l_time_buf);
 
             // Dump Metadata
             size_t l_offset = 0;
@@ -847,7 +847,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 dap_chain_block_meta_t *l_meta = (dap_chain_block_meta_t *)(l_block->meta_n_datum_n_sign + l_offset);
                 switch (l_meta->hdr.type) {
                 case DAP_CHAIN_BLOCK_META_GENESIS:
-                    dap_json_object_add_object(json_obj_meta,  a_version == 1 ? "GENESIS" : "genesis", json_object_new_string(a_version == 1 ? "GENESIS" : ""));
+                    dap_json_object_add_string(json_obj_meta,  a_version == 1 ? "GENESIS" : "genesis", a_version == 1 ? "GENESIS" : "");
                     break;
                 case DAP_CHAIN_BLOCK_META_PREV:
                     s_cli_meta_hash_print(json_obj_meta, a_version == 1 ? "PREV" : "prev", l_meta, l_hash_out_type);
@@ -869,12 +869,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     break;
                 default: {
                     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
-                    dap_json_object_add_object(json_obj_meta, a_version == 1 ? "# -" : "num", json_object_new_string(l_hexbuf));
+                    dap_json_object_add_string(json_obj_meta, a_version == 1 ? "# -" : "num", l_hexbuf);
                     int l_len = l_meta->hdr.data_size * 2 + 5;
                     char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
                     strcpy(l_data_hex, "0x");
                     dap_bin2hex(l_data_hex + 2, l_meta->data, l_meta->hdr.data_size);
-                    dap_json_object_add_object(json_obj_meta, a_version == 1 ? "Data hex - " : "data_hex", json_object_new_string(l_data_hex)); }
+                    dap_json_object_add_string(json_obj_meta, a_version == 1 ? "Data hex - " : "data_hex", l_data_hex); }
                 }
                 dap_json_array_add(json_arr_meta_out, json_obj_meta);
                 l_offset += sizeof(l_meta->hdr) + l_meta->hdr.data_size;
@@ -946,7 +946,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 const char *l_hash_str = !dap_strcmp(l_hash_out_type, "base58") ?
                         dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
                         dap_chain_hash_fast_to_str_static(&l_pkey_hash);
-                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
+                dap_json_object_add_string(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_sign_type_to_str( l_sign->header.type ));
                 dap_json_object_add_object(json_obj_sign, a_version == 1 ? "size" : "sig_size",json_object_new_uint64(l_sign_size));
                 dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",json_object_new_string(l_hash_str));
                 dap_json_array_add(json_arr_sign_out, json_obj_sign);
@@ -1168,8 +1168,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             if (l_last_block)
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_block->ts_created);
             dap_json_object_add_object(json_obj_out, a_version == 1 ? "Last block num" : "last_block_num", json_object_new_uint64(l_last_block ? l_last_block->block_number : 0));
-            dap_json_object_add_object(json_obj_out, a_version == 1 ? "Last block hash" : "last_block_hash", json_object_new_string(l_last_block ? l_last_block->block_hash_str : "empty"));
-            dap_json_object_add_object(json_obj_out, "ts_created", json_object_new_string(l_last_block ? l_buf : "never"));
+            dap_json_object_add_string(json_obj_out, a_version == 1 ? "Last block hash" : "last_block_hash", l_last_block ? l_last_block->block_hash_str : "empty");
+            dap_json_object_add_string(json_obj_out, "ts_created", l_last_block ? l_buf : "never");
 
             char *l_key = dap_strdup_printf("%s.%s has blocks", l_net->pub.name, l_chain->name);
             dap_json_object_add_object(json_obj_out, l_key, json_object_new_uint64(PVT(l_blocks)->blocks_count));
@@ -1261,7 +1261,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                         json_object* json_obj_out = dap_json_object_new();
                         char *l_val = dap_strdup_printf("Decree with hash %s created to set basic block sign reward", l_decree_hash_str);
                         DAP_DELETE(l_decree_hash_str);
-                        dap_json_object_add_object(json_obj_out, "status", json_object_new_string(l_val));
+                        dap_json_object_add_string(json_obj_out, "status", l_val);
                         DAP_DELETE(l_val);
                         dap_json_array_add(*a_json_arr_reply, json_obj_out);
                     } else {
@@ -1274,7 +1274,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     const char *l_reward_str; dap_uint256_to_char(l_cur_reward, &l_reward_str);
                     json_object* json_obj_out = dap_json_object_new();
                     char *l_val = dap_strdup_printf("Current base block reward is %s\n", l_reward_str);
-                    dap_json_object_add_object(json_obj_out, "status", json_object_new_string(l_val));
+                    dap_json_object_add_string(json_obj_out, "status", l_val);
                     DAP_DELETE(l_val);
                     dap_json_array_add(*a_json_arr_reply, json_obj_out);
                     break;
@@ -1448,7 +1448,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                             json_object* json_obj_bl = dap_json_object_new();
                             dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
                             char *l_val = dap_strdup_printf("fee - \t%s: ts_create=%s", l_block_cache->block_hash_str, l_buf);
-                            dap_json_object_add_object(json_obj_bl, "block", json_object_new_string(l_val));
+                            dap_json_object_add_string(json_obj_bl, "block", l_val);
                             DAP_DELETE(l_val);
                             dap_json_array_add(json_arr_bl_out, json_obj_bl);
                             l_block_count++;
@@ -1480,7 +1480,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     json_object* json_obj_bl = dap_json_object_new();
                     dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
                     char *l_val = dap_strdup_printf("rewards - \t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
-                    dap_json_object_add_object(json_obj_bl, "block", json_object_new_string(l_val));
+                    dap_json_object_add_string(json_obj_bl, "block", l_val);
                     DAP_DELETE(l_val);
                     dap_json_array_add(json_arr_bl_out, json_obj_bl);
                     l_block_count++;
@@ -1489,7 +1489,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 json_object* json_obj_out = dap_json_object_new();
                 char *l_val = dap_strdup_printf("%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks\n",
                                      l_net->pub.name, l_chain->name, l_block_count);
-                dap_json_object_add_object(json_obj_out, "status", json_object_new_string(l_val));
+                dap_json_object_add_string(json_obj_out, "status", l_val);
                 DAP_DELETE(l_val);
                 dap_json_array_add(*a_json_arr_reply, json_obj_out);
             } else {
@@ -1503,7 +1503,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 bool l_status = dap_chain_esbocs_get_autocollect_status(l_net->pub.id);
                 char *l_val = dap_strdup_printf("for network %s is %s\n", l_net->pub.name,
                                                 l_status ? "active" : "inactive cause of the network config or consensus starting problems");
-                dap_json_object_add_object(json_obj_out, a_version == 1 ? "Autocollect status" : "autocollect_status", json_object_new_string(l_val));
+                dap_json_object_add_string(json_obj_out, a_version == 1 ? "Autocollect status" : "autocollect_status", l_val);
                 DAP_DELETE(l_val);
                 if (!l_status)
                     break;
@@ -1516,7 +1516,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
         default: {
             json_object* json_obj_out = dap_json_object_new();
             char *l_val = dap_strdup_printf("Undefined block subcommand \"%s\" ", l_subcmd_str);
-            dap_json_object_add_object(json_obj_out, "status", json_object_new_string(l_val));
+            dap_json_object_add_string(json_obj_out, "status", l_val);
             DAP_DELETE(l_val);
             dap_json_array_add(*a_json_arr_reply, json_obj_out);
             ret = DAP_CHAIN_NODE_CLI_COM_BLOCK_UNKNOWN;
@@ -2384,13 +2384,13 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
     char l_time_buf[DAP_TIME_STR_SIZE], l_hexbuf[32] = { '\0' };
     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%04X", l_block->hdr.version);
 
-    dap_json_object_add_object(l_obj_ret, "version", json_object_new_string(l_hexbuf));
+    dap_json_object_add_string(l_obj_ret, "version", l_hexbuf);
     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%016"DAP_UINT64_FORMAT_X"", l_block->hdr.cell_id.uint64);
-    dap_json_object_add_object(l_obj_ret, "cell_id", json_object_new_string(l_hexbuf));
+    dap_json_object_add_string(l_obj_ret, "cell_id", l_hexbuf);
     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%016"DAP_UINT64_FORMAT_X"", l_block->hdr.chain_id.uint64);
-    dap_json_object_add_object(l_obj_ret, "chain_id", json_object_new_string(l_hexbuf));
+    dap_json_object_add_string(l_obj_ret, "chain_id", l_hexbuf);
     dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_block->hdr.ts_created);
-    dap_json_object_add_object(l_obj_ret, "ts_created", json_object_new_string(l_time_buf));
+    dap_json_object_add_string(l_obj_ret, "ts_created", l_time_buf);
 
     // Dump Metadata
     size_t l_offset = 0;
@@ -2400,7 +2400,7 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
         dap_chain_block_meta_t *l_meta = (dap_chain_block_meta_t *) (l_block->meta_n_datum_n_sign + l_offset);
         switch (l_meta->hdr.type) {
             case DAP_CHAIN_BLOCK_META_GENESIS:
-                dap_json_object_add_object(json_obj_meta, a_version == 1 ? "GENESIS" : "genesis", json_object_new_string("GENESIS"));
+                dap_json_object_add_string(json_obj_meta, a_version == 1 ? "GENESIS" : "genesis", "GENESIS");
                 break;
             case DAP_CHAIN_BLOCK_META_PREV:
                 s_cli_meta_hash_print(json_obj_meta, a_version == 1 ? "PREV" : "prev", l_meta, a_hash_out_type);
@@ -2422,12 +2422,12 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
                 break;
             default: {
                 snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
-                dap_json_object_add_object(json_obj_meta, a_version == 1 ? "# -" : "num", json_object_new_string(l_hexbuf));
+                dap_json_object_add_string(json_obj_meta, a_version == 1 ? "# -" : "num", l_hexbuf);
                 int l_len = l_meta->hdr.data_size * 2 + 5;
                 char *l_data_hex = DAP_NEW_STACK_SIZE(char, l_len);
                 strcpy(l_data_hex, "0x");
                 dap_bin2hex(l_data_hex + 2, l_meta->data, l_meta->hdr.data_size);
-                dap_json_object_add_object(json_obj_meta, a_version == 1 ? "Data hex - " : "data_hex", json_object_new_string(l_data_hex));
+                dap_json_object_add_string(json_obj_meta, a_version == 1 ? "Data hex - " : "data_hex", l_data_hex);
             }
         }
         dap_json_array_add(l_jobj_metadata, json_obj_meta);

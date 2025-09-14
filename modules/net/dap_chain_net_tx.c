@@ -2897,7 +2897,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
 
     char *l_tx_hash_str = dap_hash_fast_str_new(a_tx, dap_chain_datum_tx_get_size(a_tx));
 
-    dap_json_object_add_object(json_obj_out, "datum_hash", json_object_new_string(l_tx_hash_str));
+    dap_json_object_add_string(json_obj_out, "datum_hash", l_tx_hash_str);
     dap_json_object_add_object(json_obj_out, "ts_created", json_object_new_int64(a_tx->header.ts_created));
     dap_json_object_add_string(json_obj_out, "datum_type", "tx");
 
@@ -2947,7 +2947,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_exp);
             dap_json_object_add_object(json_obj_item,"ts_expires", l_ts_exp ? json_object_new_string(l_tmp_buf) : json_object_new_string("never"));
             dap_json_object_add_object(json_obj_item,"value", json_object_new_string(l_value_str));
-            dap_json_object_add_object(json_obj_item, "coins", json_object_new_string(l_coins_str));
+            dap_json_object_add_string(json_obj_item, "coins", l_coins_str);
             sprintf(l_tmp_buff,"0x%016"DAP_UINT64_FORMAT_x"",((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64);
             dap_json_object_add_object(json_obj_item,"service_id", json_object_new_string(l_tmp_buff));
             dap_json_object_add_object(json_obj_item,"subtype", json_object_new_string(dap_chain_tx_out_cond_subtype_to_str_short(((dap_chain_tx_out_cond_t*)item)->header.subtype)));
@@ -2991,7 +2991,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
                     snprintf(l_tmp_buf, DAP_TIME_STR_SIZE, "%"DAP_UINT64_FORMAT_U, l_ts_unlock);
                     dap_json_object_add_object(json_obj_item,"time_staking", json_object_new_string(l_tmp_buf));
                     char *l_reinvest_percent = dap_chain_balance_coins_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.reinvest_percent);
-                    dap_json_object_add_object(json_obj_item, "reinvest_percent", json_object_new_string(l_reinvest_percent));
+                    dap_json_object_add_string(json_obj_item, "reinvest_percent", l_reinvest_percent);
                     DAP_DELETE(l_reinvest_percent);
                 } break;
                 default: break;
@@ -3014,7 +3014,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
             dap_json_object_add_object(json_obj_item,"addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_ext_t*)item)->addr)));
             dap_json_object_add_object(json_obj_item,"token", json_object_new_string(((dap_chain_tx_out_ext_t*)item)->token));
             dap_json_object_add_object(json_obj_item,"value", json_object_new_string(l_value_str));
-            dap_json_object_add_object(json_obj_item, "coins", json_object_new_string(l_coins_str));
+            dap_json_object_add_string(json_obj_item, "coins", l_coins_str);
 
         } break;
 
@@ -3023,11 +3023,11 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
             dap_json_object_add_string(json_obj_item, "type", "out_std");
             dap_json_object_add_object(json_obj_item, "addr", json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_std_t *)item)->addr)));
             dap_json_object_add_object(json_obj_item, "token", json_object_new_string(((dap_chain_tx_out_std_t *)item)->token));
-            dap_json_object_add_object(json_obj_item, "value", json_object_new_string(l_value_str));
-            dap_json_object_add_object(json_obj_item, "coins", json_object_new_string(l_coins_str));
+            dap_json_object_add_string(json_obj_item, "value", l_value_str);
+            dap_json_object_add_string(json_obj_item, "coins", l_coins_str);
             dap_time_t l_ts_unlock = ((dap_chain_tx_out_std_t *)item)->ts_unlock;
             snprintf(l_tmp_buf, DAP_TIME_STR_SIZE, "%"DAP_UINT64_FORMAT_U, l_ts_unlock);
-            dap_json_object_add_object(json_obj_item, "time_unlock", json_object_new_string(l_tmp_buf));
+            dap_json_object_add_string(json_obj_item, "time_unlock", l_tmp_buf);
         } break;
 
         case TX_ITEM_TYPE_VOTING:{
@@ -3039,7 +3039,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
             dap_json_object_add_object(json_obj_item,"type", json_object_new_string("voting"));
             dap_json_object_add_object(json_obj_item,"voting_question", json_object_new_string(l_voting_params->question));
             dap_json_t *l_json_array = dap_json_array_new();
-            dap_json_object_add_object(json_obj_item, "token", json_object_new_string(l_voting_params->token_ticker));
+            dap_json_object_add_string(json_obj_item, "token", l_voting_params->token_ticker);
             dap_list_t *l_temp = l_voting_params->options;
             uint8_t l_index = 0;
             while (l_temp) {
@@ -3050,7 +3050,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
             dap_json_object_add_object(json_obj_item, "answer_options", l_json_array);
             if (l_voting_params->voting_expire) {
                 snprintf(l_tmp_buf, DAP_TIME_STR_SIZE, "%"DAP_UINT64_FORMAT_U, l_voting_params->voting_expire);
-                dap_json_object_add_object(json_obj_item, "voting_expire", json_object_new_string(l_tmp_buf));
+                dap_json_object_add_string(json_obj_item, "voting_expire", l_tmp_buf);
             }
             if (l_voting_params->votes_max_count) {
                 dap_json_object_add_object(json_obj_item, "votes_max_count", json_object_new_uint64(l_voting_params->votes_max_count));

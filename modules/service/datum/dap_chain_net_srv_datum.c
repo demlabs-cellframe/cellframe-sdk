@@ -192,7 +192,7 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, int a_ver
             else {
                 json_object* json_obj_out = dap_json_object_new();
                 char *l_status = dap_strdup_printf("Datum custom %s was successfully placed to mempool", l_datum_hash_str);
-                dap_json_object_add_object(json_obj_out, "status", json_object_new_string(l_status));
+                dap_json_object_add_string(json_obj_out, "status", l_status);
                 DAP_DELETE(l_status); 
                 DAP_DELETE(l_ret);
                 dap_json_array_add(*a_json_arr_reply, json_obj_out);

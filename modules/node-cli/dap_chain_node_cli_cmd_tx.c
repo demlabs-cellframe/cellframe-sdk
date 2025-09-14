@@ -121,9 +121,9 @@ static bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
     const char *l_description = dap_ledger_get_description_by_ticker(a_ledger, l_ticker);
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
     dap_chain_hash_fast_to_str(a_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
-    dap_json_object_add_object(json_obj_out, a_version == 1 ? "Datum_tx_hash" : "datum_tx_hash", json_object_new_string(l_tx_hash_str));
-    dap_json_object_add_object(json_obj_out, a_version == 1 ? "TS_Created" : "ts_created", json_object_new_string(l_tmp_buf));
-    dap_json_object_add_object(json_obj_out, a_version == 1 ? "Token_ticker" : "token_ticker", json_object_new_string(l_ticker));
+    dap_json_object_add_string(json_obj_out, a_version == 1 ? "Datum_tx_hash" : "datum_tx_hash", l_tx_hash_str);
+    dap_json_object_add_string(json_obj_out, a_version == 1 ? "TS_Created" : "ts_created", l_tmp_buf);
+    dap_json_object_add_string(json_obj_out, a_version == 1 ? "Token_ticker" : "token_ticker", l_ticker);
     dap_json_object_add_object(json_obj_out, a_version == 1 ? "Token_description" : "token_description", l_description ? json_object_new_string(l_description)
                                                                             : json_object_new_null());
     dap_chain_datum_dump_tx_json(a_json_arr_reply, a_datum, l_ticker, json_obj_out, a_hash_out_type, a_tx_hash, a_ledger->net->pub.id, a_version);
@@ -139,7 +139,7 @@ static bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
             dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
             l_json_obj_out = dap_json_object_new();
             dap_json_object_add_object(l_json_obj_out, a_version == 1 ? "OUT - " : "out", json_object_new_int(l_out_idx));
-            dap_json_object_add_object(l_json_obj_out, a_version == 1 ? "is spent by tx" : "spent_by_tx", json_object_new_string(l_hash_str));
+            dap_json_object_add_string(l_json_obj_out, a_version == 1 ? "is spent by tx" : "spent_by_tx", l_hash_str);
             l_spent = true;
         }
         dap_list_t *l_trackers = dap_ledger_tx_get_trackers(a_ledger, a_tx_hash, l_out_idx);
@@ -156,17 +156,17 @@ static bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
             dap_json_t *l_json_obj_tracker = dap_json_object_new();
             dap_json_array_add(l_json_arr_colours, l_json_obj_tracker);
             const char *l_voling_hash_str = dap_hash_fast_to_str_static(&l_tracker->voting_hash);
-            dap_json_object_add_object(l_json_obj_tracker, "voting_hash", json_object_new_string(l_voling_hash_str));
+            dap_json_object_add_string(l_json_obj_tracker, "voting_hash", l_voling_hash_str);
             dap_json_t *l_json_arr_tracker_items = dap_json_array_new();
             dap_json_object_add_object(l_json_obj_tracker, "items", l_json_arr_tracker_items);
             for (dap_ledger_tracker_item_t *l_item = l_tracker->items; l_item; l_item = l_item->next) {
                 dap_json_t *l_json_obj_tracker_item = dap_json_object_new();
                 dap_json_array_add(l_json_arr_tracker_items, l_json_obj_tracker_item);
                 const char *l_pkey_hash_str = dap_hash_fast_to_str_static(&l_item->pkey_hash);
-                dap_json_object_add_object(l_json_obj_tracker_item, "pkey_hash", json_object_new_string(l_pkey_hash_str));
+                dap_json_object_add_string(l_json_obj_tracker_item, "pkey_hash", l_pkey_hash_str);
                 const char *l_coloured_coins, *l_coloured_value = dap_uint256_to_char(l_item->coloured_value, &l_coloured_coins);
-                dap_json_object_add_object(l_json_obj_tracker_item, "coloured_coins", json_object_new_string(l_coloured_coins));
-                dap_json_object_add_object(l_json_obj_tracker_item, "coloured_value", json_object_new_string(l_coloured_value));
+                dap_json_object_add_string(l_json_obj_tracker_item, "coloured_coins", l_coloured_coins);
+                dap_json_object_add_string(l_json_obj_tracker_item, "coloured_value", l_coloured_value);
             }
         }
         if (l_json_obj_out)
@@ -208,7 +208,7 @@ static json_object *s_tx_history_to_json(json_object* a_json_arr_reply,
         const char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str_static(l_atom_hash)
                             : dap_chain_hash_fast_to_str_static(l_atom_hash);
-        dap_json_object_add_object(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
+        dap_json_object_add_string(json_obj_datum, "atom_hash", l_atom_hash_str);
         dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, c_dap_chain_cell_id_null, l_atom_hash);
         size_t l_size = 0;
         if(a_chain->callback_atom_find_by_hash(l_iter, l_atom_hash, &l_size) != NULL){
@@ -222,14 +222,14 @@ static json_object *s_tx_history_to_json(json_object* a_json_arr_reply,
     const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                         ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
                         : dap_chain_hash_fast_to_str_static(a_tx_hash);
-    dap_json_object_add_object(json_obj_datum, "hash", json_object_new_string(l_hash_str));
+    dap_json_object_add_string(json_obj_datum, "hash", l_hash_str);
     
-    dap_json_object_add_object(json_obj_datum, "token_ticker", json_object_new_string(l_tx_token_ticker ? l_tx_token_ticker : "UNKNOWN"));
+    dap_json_object_add_string(json_obj_datum, "token_ticker", l_tx_token_ticker ? l_tx_token_ticker : "UNKNOWN");
     if (l_tx_token_description) 
-        dap_json_object_add_object(json_obj_datum, "token_description", json_object_new_string(l_tx_token_description));
+        dap_json_object_add_string(json_obj_datum, "token_description", l_tx_token_description);
 
     dap_json_object_add_object(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
-    dap_json_object_add_object(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_check_error_str(l_ret_code)));
+    dap_json_object_add_string(json_obj_datum, "ret_code_str", dap_ledger_check_error_str(l_ret_code));
 
     dap_chain_srv_uid_t uid;
     char *service_name;
@@ -240,8 +240,8 @@ static json_object *s_tx_history_to_json(json_object* a_json_arr_reply,
 
     if (srv_found)
     {
-        //dap_json_object_add_object(json_obj_datum, "service", json_object_new_string(service_name));
-        dap_json_object_add_object(json_obj_datum, "action", json_object_new_string(dap_ledger_tx_action_str(action)));
+        //dap_json_object_add_string(json_obj_datum, "service", service_name);
+        dap_json_object_add_string(json_obj_datum, "action", dap_ledger_tx_action_str(action));
     }
     else
     {   
@@ -325,19 +325,19 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
         l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
         l_atom_hash_str = dap_enc_base58_encode_hash_to_str(a_atom_hash);
     }
-    dap_json_object_add_object(json_obj_datum, "status", json_object_new_string(l_declined ? "DECLINED" : "ACCEPTED"));
-    dap_json_object_add_object(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
-    dap_json_object_add_object(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
+    dap_json_object_add_string(json_obj_datum, "status", l_declined ? "DECLINED" : "ACCEPTED");
+    dap_json_object_add_string(json_obj_datum, "hash", l_tx_hash_str);
+    dap_json_object_add_string(json_obj_datum, "atom_hash", l_atom_hash_str);
     dap_json_object_add_object(json_obj_datum, "ret_code", json_object_new_int(a_ret_code));
-    dap_json_object_add_object(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_check_error_str(a_ret_code)));
+    dap_json_object_add_string(json_obj_datum, "ret_code_str", dap_ledger_check_error_str(a_ret_code));
 
 
     bool srv_found = a_uid.uint64 ? true : false;
     
     if (srv_found)
     {
-        dap_json_object_add_object(json_obj_datum, "action", json_object_new_string(dap_ledger_tx_action_str(a_action)));
-        dap_json_object_add_object(json_obj_datum, "service", json_object_new_string(dap_ledger_tx_tag_str_by_uid(a_uid)));
+        dap_json_object_add_string(json_obj_datum, "action", dap_ledger_tx_action_str(a_action));
+        dap_json_object_add_string(json_obj_datum, "service", dap_ledger_tx_tag_str_by_uid(a_uid));
     }
     else
     {
@@ -346,7 +346,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     }
 
     dap_json_object_add_object(json_obj_datum, "batching", json_object_new_string(!dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT) ? "false" : "true"));
-    dap_json_object_add_object(json_obj_datum, "tx_created", json_object_new_string(l_time_str));
+    dap_json_object_add_string(json_obj_datum, "tx_created", l_time_str);
 
     DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_atom_hash_str);
@@ -377,7 +377,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
 
     // add address
     json_object * json_obj_addr = dap_json_object_new();
-    dap_json_object_add_object(json_obj_addr, a_version == 1 ? "address" : "addr", json_object_new_string(l_addr_str));
+    dap_json_object_add_string(json_obj_addr, a_version == 1 ? "address" : "addr", l_addr_str);
     dap_json_array_add(json_obj_datum, json_obj_addr);
 
     dap_chain_tx_hash_processed_ht_t *l_tx_data_ht = NULL;
@@ -689,11 +689,11 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     return NULL;
                 }                
                 dap_json_object_add_string(j_obj_data, "tx_type", "recv");
-                dap_json_object_add_object(j_obj_data, "recv_coins", json_object_new_string(l_coins_str));
-                dap_json_object_add_object(j_obj_data, "recv_datoshi", json_object_new_string(l_value_str));
+                dap_json_object_add_string(j_obj_data, "recv_coins", l_coins_str);
+                dap_json_object_add_string(j_obj_data, "recv_datoshi", l_value_str);
                 dap_json_object_add_object(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
                                                                             : json_object_new_string("UNKNOWN"));
-                dap_json_object_add_object(j_obj_data, "source_address", json_object_new_string(l_src_str));
+                dap_json_object_add_string(j_obj_data, "source_address", l_src_str);
                 if (l_recv_from_cond && !l_cond_recv_object)
                     l_cond_recv_object = j_obj_data;
                 else
@@ -742,11 +742,11 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     return NULL;
                 }                
                 dap_json_object_add_string(j_obj_data, "tx_type", "send");
-                dap_json_object_add_object(j_obj_data, "send_coins", json_object_new_string(l_coins_str));
-                dap_json_object_add_object(j_obj_data, "send_datoshi", json_object_new_string(l_value_str));
+                dap_json_object_add_string(j_obj_data, "send_coins", l_coins_str);
+                dap_json_object_add_string(j_obj_data, "send_datoshi", l_value_str);
                 dap_json_object_add_object(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
                                                                         : json_object_new_string("UNKNOWN"));
-                dap_json_object_add_object(j_obj_data, "destination_address", json_object_new_string(l_dst_addr_str));
+                dap_json_object_add_string(j_obj_data, "destination_address", l_dst_addr_str);
                 if (l_send_to_same_cond && !l_cond_send_object)
                     l_cond_send_object = j_obj_data;
                 else
@@ -762,8 +762,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         if (l_is_need_correction) {
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
             const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
-            dap_json_object_add_object(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
-            dap_json_object_add_object(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
+            dap_json_object_add_string(l_corr_object, "recv_coins", l_coins_str);
+            dap_json_object_add_string(l_corr_object, "recv_datoshi", l_value_str);
         }
         if (l_send_to_same_cond && l_found_out_to_same_addr_from_out_cond) {
             uint256_t l_cond_recv_value = l_cond_value;
@@ -774,14 +774,14 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             if (l_direction > 0) {
                 SUBTRACT_256_256(l_cond_recv_value, l_cond_send_value, &l_cond_recv_value);
                 const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_cond_recv_value, &l_coins_str);
-                dap_json_object_add_object(l_cond_recv_object, "recv_coins", json_object_new_string(l_coins_str));
-                dap_json_object_add_object(l_cond_recv_object, "recv_datoshi", json_object_new_string(l_value_str));
+                dap_json_object_add_string(l_cond_recv_object, "recv_coins", l_coins_str);
+                dap_json_object_add_string(l_cond_recv_object, "recv_datoshi", l_value_str);
                 dap_json_array_add(j_arr_data, l_cond_recv_object);
             } else if (l_direction < 0) {
                 SUBTRACT_256_256(l_cond_send_value, l_cond_recv_value, &l_cond_send_value);
                 const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_cond_send_value, &l_coins_str);
-                dap_json_object_add_object(l_cond_send_object, "send_coins", json_object_new_string(l_coins_str));
-                dap_json_object_add_object(l_cond_send_object, "send_datoshi", json_object_new_string(l_value_str));
+                dap_json_object_add_string(l_cond_send_object, "send_coins", l_coins_str);
+                dap_json_object_add_string(l_cond_send_object, "send_datoshi", l_value_str);
                 dap_json_array_add(j_arr_data, l_cond_send_object);
             }
         } else if (l_recv_from_cond)
@@ -823,8 +823,8 @@ next_step:
         dap_json_object_add_string(json_empty_tx, "status", "empty");        
         dap_json_array_add(json_obj_datum, json_empty_tx);
     }    
-    dap_json_object_add_object(json_obj_summary, "network", json_object_new_string(l_net->pub.name));
-    dap_json_object_add_object(json_obj_summary, "chain", json_object_new_string(a_chain->name));
+    dap_json_object_add_string(json_obj_summary, "network", l_net->pub.name);
+    dap_json_object_add_string(json_obj_summary, "chain", a_chain->name);
     dap_json_object_add_object(json_obj_summary, a_version == 1 ? "accepted_tx" : "tx_accept_count", json_object_new_int(l_tx_ledger_accepted));
     dap_json_object_add_object(json_obj_summary, a_version == 1 ? "rejected_tx" : "tx_reject_count", json_object_new_int(l_tx_ledger_rejected));
     dap_json_object_add_object(json_obj_summary, a_version == 1 ? "tx_sum" : "tx_count", json_object_new_int(l_count));   
@@ -941,8 +941,8 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
         log_it(L_DEBUG, "END getting tx from chain");
         a_chain->callback_datum_iter_delete(l_datum_iter);
 
-        dap_json_object_add_object(json_obj_summary, "network", json_object_new_string(a_net->pub.name));
-        dap_json_object_add_object(json_obj_summary, "chain", json_object_new_string(a_chain->name));
+        dap_json_object_add_string(json_obj_summary, "network", a_net->pub.name);
+        dap_json_object_add_string(json_obj_summary, "chain", a_chain->name);
         dap_json_object_add_object(json_obj_summary, "tx_sum", json_object_new_int(l_count));
         dap_json_object_add_object(json_obj_summary, "accepted_tx", json_object_new_int(l_tx_ledger_accepted));
         dap_json_object_add_object(json_obj_summary, "rejected_tx", json_object_new_int(l_tx_ledger_rejected));
@@ -1008,7 +1008,7 @@ static json_object* dap_db_chain_history_token_list(json_object* a_json_arr_repl
         }
         int l_ret_code = l_datum_iter->ret_code;
         json_object* json_history_token = dap_json_object_new();
-        dap_json_object_add_object(json_history_token, "status", json_object_new_string(l_ret_code ? "DECLINED" : "ACCEPTED"));
+        dap_json_object_add_string(json_history_token, "status", l_ret_code ? "DECLINED" : "ACCEPTED");
 dap_json_object_add_object(json_history_token, a_version == 1 ? "Ledger return code" : "ledger_ret_code", json_object_new_int(l_ret_code));
         switch (l_token->type) {
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
@@ -1094,10 +1094,10 @@ static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger,
         
         if (dap_strcmp(a_hash_out_type, "base58") == 0) {
             const char *l_hash_base58 = dap_enc_base58_encode_hash_to_str_static(a_current_hash);
-            dap_json_object_add_object(l_json_tx, "hash", json_object_new_string(l_hash_base58 ? l_hash_base58 : ""));
+            dap_json_object_add_string(l_json_tx, "hash", l_hash_base58 ? l_hash_base58 : "");
         } else {
             const char *l_hash_hex = dap_chain_hash_fast_to_str_static(a_current_hash);
-            dap_json_object_add_object(l_json_tx, "hash", json_object_new_string(l_hash_hex));
+            dap_json_object_add_string(l_json_tx, "hash", l_hash_hex);
         }
         // Add previous output index information
         dap_json_object_add_string(l_json_tx, "prev_out_idx", "unavailable");
@@ -1149,10 +1149,10 @@ static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger,
             dap_json_t *l_json_tx = dap_json_object_new();
             if (dap_strcmp(a_hash_out_type, "base58") == 0) {
                 const char *l_hash_base58 = dap_enc_base58_encode_hash_to_str_static(a_current_hash);
-                dap_json_object_add_object(l_json_tx, "hash", json_object_new_string(l_hash_base58 ? l_hash_base58 : ""));
+                dap_json_object_add_string(l_json_tx, "hash", l_hash_base58 ? l_hash_base58 : "");
             } else {
                 const char *l_hash_hex = dap_chain_hash_fast_to_str_static(a_current_hash);
-                dap_json_object_add_object(l_json_tx, "hash", json_object_new_string(l_hash_hex));
+                dap_json_object_add_string(l_json_tx, "hash", l_hash_hex);
             }
             // Add previous output index information
             dap_json_object_add_object(l_json_tx, "prev_out_idx", json_object_new_int(l_tx_out_prev_idx));
@@ -1211,8 +1211,8 @@ static int s_ledger_trace_chain(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a
     dap_json_t *l_json_chain = dap_json_array_new();
 
     // Add info about the trace
-    dap_json_object_add_object(l_json_info, "start_hash", json_object_new_string(dap_hash_fast_to_str_static(a_hash_from)));
-    dap_json_object_add_object(l_json_info, "target_hash", json_object_new_string(dap_hash_fast_to_str_static(a_hash_to)));
+    dap_json_object_add_string(l_json_info, "start_hash", dap_hash_fast_to_str_static(a_hash_from));
+    dap_json_object_add_string(l_json_info, "target_hash", dap_hash_fast_to_str_static(a_hash_to));
     dap_json_object_add_string(l_json_info, "direction", "backward");
     dap_json_object_add_object(l_json_info, "max_depth", json_object_new_int(a_max_depth));
     dap_json_object_add_object(l_json_result, "trace_info", l_json_info);
@@ -1453,7 +1453,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         json_object* json_datum = dap_json_object_new();
         if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx_to_json", NULL)) {
             const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, l_tx_hash);
-            dap_json_object_add_object(json_datum, "token_ticker", json_object_new_string(l_ticker));
+            dap_json_object_add_string(json_datum, "token_ticker", l_ticker);
             bool l_all_outs_unspent = true;
             byte_t *l_item; size_t l_size; int index, l_out_idx = -1;
             json_object* json_arr_items = dap_json_array_new();
@@ -1466,7 +1466,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                     dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
                     json_object * l_json_obj_datum = dap_json_object_new();
                     dap_json_object_add_object(l_json_obj_datum, "out_idx", json_object_new_int(l_out_idx));
-                    dap_json_object_add_object(l_json_obj_datum, "spent_by_tx", json_object_new_string(l_hash_str));
+                    dap_json_object_add_string(l_json_obj_datum, "spent_by_tx", l_hash_str);
                     dap_json_array_add(json_arr_items, l_json_obj_datum);
                 }
             }
@@ -1510,7 +1510,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                             dap_json_t *item = json_object_array_get_idx(json_items, i);
                             const char *item_type = json_object_get_string(json_object_object_get(item, "type"));
                             if (item_type && strcmp(item_type, "sig_dil") == 0) {
-                                dap_json_object_add_object(item, "sig_b64", json_object_new_string(l_sign_b64));
+                                dap_json_object_add_string(item, "sig_b64", l_sign_b64);
                                 dap_json_object_add_object(item, "sig_b64_size", json_object_new_uint64(l_sign_size));
                             }
                         }

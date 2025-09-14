@@ -297,8 +297,8 @@ static void s_tx_header_print(json_object *a_json_out, dap_chain_datum_tx_t *a_t
     const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
             : dap_chain_hash_fast_to_str_static(a_tx_hash);
-    dap_json_object_add_object(a_json_out, "tx_hash ", json_object_new_string(l_tx_hash_str));
-    dap_json_object_add_object(a_json_out, "time ", json_object_new_string(l_time_str));
+    dap_json_object_add_string(a_json_out, "tx_hash ", l_tx_hash_str);
+    dap_json_object_add_string(a_json_out, "time ", l_time_str);
 }
 
 static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspent, dap_ledger_t *a_ledger, 
@@ -396,8 +396,8 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             const char *l_dst_addr_str = !dap_chain_addr_is_blank(&l_dst_addr) 
                 ? dap_chain_addr_to_str_static(&l_dst_addr)
                 : dap_chain_tx_out_cond_subtype_to_str( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype );
-            dap_json_object_add_object(l_json_obj_datum, "send", json_object_new_string(dap_uint256_to_char(l_value, NULL)));
-            dap_json_object_add_object(l_json_obj_datum, "to_addr", json_object_new_string(l_dst_addr_str));
+            dap_json_object_add_string(l_json_obj_datum, "send", dap_uint256_to_char(l_value, NULL));
+            dap_json_object_add_string(l_json_obj_datum, "to_addr", l_dst_addr_str);
             dap_json_object_add_object(l_json_obj_datum, "token", l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN"));
             dap_json_array_add(json_arr_out, l_json_obj_datum);
         }
@@ -414,10 +414,10 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                 : ( !dap_chain_addr_is_blank(&l_src_addr) 
                     ? dap_chain_addr_to_str_static(&l_src_addr)
                     : dap_chain_tx_out_cond_subtype_to_str(l_src_subtype) );
-            dap_json_object_add_object(l_json_obj_datum, "recv", json_object_new_string(dap_uint256_to_char(l_value, NULL)));
+            dap_json_object_add_string(l_json_obj_datum, "recv", dap_uint256_to_char(l_value, NULL));
             dap_json_object_add_object(l_json_obj_datum, "token", l_dst_token ? json_object_new_string(l_dst_token) :
                                   (l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN")));
-            dap_json_object_add_object(l_json_obj_datum, "from", json_object_new_string(l_src_addr_str));
+            dap_json_object_add_string(l_json_obj_datum, "from", l_src_addr_str);
             dap_json_array_add(json_arr_out, l_json_obj_datum);
         }
     }
@@ -460,8 +460,8 @@ static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_
     char l_time[DAP_TIME_STR_SIZE] = {0};
     dap_chain_hash_fast_to_str(&a_tx_item->tx_hash_fast,l_tx_prev_hash_str,sizeof(l_tx_prev_hash_str));
     dap_time_to_str_rfc822(l_time, sizeof(l_time), a_tx_item->cache_data.ts_created);
-    dap_json_object_add_object(json_obj_tx, a_version == 1 ? "Ledger thresholded tx_hash_fast" : "tx_hash", json_object_new_string(l_tx_prev_hash_str));
-    dap_json_object_add_object(json_obj_tx, "time_created", json_object_new_string(l_time));
+    dap_json_object_add_string(json_obj_tx, a_version == 1 ? "Ledger thresholded tx_hash_fast" : "tx_hash", l_tx_prev_hash_str);
+    dap_json_object_add_string(json_obj_tx, "time_created", l_time);
     dap_json_object_add_object(json_obj_tx, "tx_item_size", json_object_new_int(a_tx_item->tx->header.tx_items_size));
     dap_json_array_add(a_json_arr_out, json_obj_tx);
     return 0;
@@ -469,9 +469,9 @@ static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_
 static bool s_pack_ledger_balance_info_json (json_object *a_json_arr_out, dap_ledger_wallet_balance_t *a_balance_item, int a_version)
 {
     json_object* json_obj_tx = dap_json_object_new();   
-    dap_json_object_add_object(json_obj_tx, a_version == 1 ? "Ledger balance key" : "balance_key", json_object_new_string(a_balance_item->key));
-    dap_json_object_add_object(json_obj_tx, "token_ticker", json_object_new_string(a_balance_item->token_ticker));
-    dap_json_object_add_object(json_obj_tx, "balance", json_object_new_string(dap_uint256_to_char(a_balance_item->balance, NULL)));
+    dap_json_object_add_string(json_obj_tx, a_version == 1 ? "Ledger balance key" : "balance_key", a_balance_item->key);
+    dap_json_object_add_string(json_obj_tx, "token_ticker", a_balance_item->token_ticker);
+    dap_json_object_add_string(json_obj_tx, "balance", dap_uint256_to_char(a_balance_item->balance, NULL));
     dap_json_array_add(a_json_arr_out, json_obj_tx);
     return 0;
 }
@@ -498,10 +498,10 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
         }
         HASH_FIND(hh, l_ledger_pvt->threshold_txs, a_threshold_hash, sizeof(dap_hash_t), l_tx_item);
         if (l_tx_item) {
-            dap_json_object_add_object(json_obj_tx, a_version == 1 ? "Hash was found in ledger tx threshold" : "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(a_threshold_hash)));
+            dap_json_object_add_string(json_obj_tx, a_version == 1 ? "Hash was found in ledger tx threshold" : "tx_hash", dap_hash_fast_to_str_static(a_threshold_hash));
             dap_json_array_add(json_arr_out, json_obj_tx);
         } else {
-            dap_json_object_add_object(json_obj_tx, a_version == 1 ? "Hash wasn't found in ledger" : "tx_hash", json_object_new_string("empty"));
+            dap_json_object_add_string(json_obj_tx, a_version == 1 ? "Hash wasn't found in ledger" : "tx_hash", "empty");
             dap_json_array_add(json_arr_out, json_obj_tx);
         }
     } else {
@@ -579,7 +579,7 @@ dap_json_t *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size
     }
     if (!l_counter){
         json_object* json_obj_tx = dap_json_object_new();
-        dap_json_object_add_object(json_obj_tx, a_version == 1 ? "No items in ledger balance_accounts" : "info_status", json_object_new_string("empty"));
+        dap_json_object_add_string(json_obj_tx, a_version == 1 ? "No items in ledger balance_accounts" : "info_status", "empty");
         dap_json_array_add(json_arr_out, json_obj_tx);
     } 
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
