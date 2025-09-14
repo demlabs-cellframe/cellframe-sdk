@@ -596,8 +596,8 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
 
             dap_json_object_add_string(json_obj_net_srv, a_version == 1 ? "provider" : "sig_inf_provider", l_provider_pkey_hash_str);
             dap_json_object_add_string(json_obj_net_srv, a_version == 1 ? "client" : "sig_inf_client", l_client_pkey_hash_str);
-            dap_json_object_add_object(json_obj_net_srv, "sec", json_object_new_uint64((uint64_t)l_remain_service->limits_ts));
-            dap_json_object_add_object(json_obj_net_srv, "bytes", json_object_new_uint64((uint64_t)l_remain_service->limits_bytes));
+            dap_json_object_add_object(json_obj_net_srv, "sec", dap_json_object_new_uint64((uint64_t)l_remain_service->limits_ts));
+            dap_json_object_add_object(json_obj_net_srv, "bytes", dap_json_object_new_uint64((uint64_t)l_remain_service->limits_bytes));
             DAP_DELETE(l_remain_service);
         } else {
             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UNKNOWN,

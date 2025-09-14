@@ -621,8 +621,8 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         dap_json_object_add_string(a_json_obj_out, a_version == 1 ? "price coins" : "price_coins", l_balance_coins);
         dap_json_object_add_string(a_json_obj_out, a_version == 1 ? "price datoshi" : "price_datoshi", l_balance);
         dap_json_object_add_object(a_json_obj_out, a_version == 1 ? "price token" : "price_token", (*a_order->price_ticker) ?
-                                                              json_object_new_string(a_order->price_ticker) :
-                                                              json_object_new_string(a_native_ticker));
+                                                              dap_json_object_new_string(a_order->price_ticker) :
+                                                              dap_json_object_new_string(a_native_ticker));
                                                               
         dap_json_object_add_string(a_json_obj_out, "units", dap_utoa(a_order->units));
 

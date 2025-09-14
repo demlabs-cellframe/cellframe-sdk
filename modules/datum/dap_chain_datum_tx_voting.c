@@ -205,7 +205,7 @@ dap_json_t *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_t
             {
                 char *l_option = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
                 memcpy(l_option, l_tsd->data, l_tsd->size);
-                dap_json_t *l_option_obj = dap_json_object_new_string(l_option);
+                dap_json_t *l_option_obj = dap_dap_json_object_new_string(l_option);
                 dap_json_array_add(l_answer_array_object, l_option_obj);
                 DAP_DELETE(l_option);
             }
@@ -254,9 +254,9 @@ dap_json_t *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, in
 {
     dap_json_t *l_object = dap_json_object_new();
     char *l_voting_hash_str = dap_hash_fast_to_str_new(&a_vote->voting_hash);
-    dap_json_t *l_voting_hash = dap_json_object_new_string(l_voting_hash_str);
+    dap_json_t *l_voting_hash = dap_dap_json_object_new_string(l_voting_hash_str);
     DAP_DELETE(l_voting_hash_str);
-    dap_json_t *l_answer_idx = dap_json_object_new_uint64(a_vote->answer_idx);
+    dap_json_t *l_answer_idx = dap_dap_json_object_new_uint64(a_vote->answer_idx);
     dap_json_object_add_object(l_object, a_version == 1 ? "votingHash" : "voting_hash", l_voting_hash);
     dap_json_object_add_object(l_object, "answer_idx", l_answer_idx);
     return l_object;

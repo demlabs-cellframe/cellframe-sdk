@@ -198,13 +198,13 @@ uint32_t dap_chain_datum_token_flag_from_str(const char *a_str)
 void dap_chain_datum_token_flags_dump_to_json(dap_json_t * json_obj_out, const char *a_key, uint16_t a_flags)
 {
     if (!a_flags) {
-        dap_json_object_add(json_obj_out, a_key, dap_json_object_new_string(dap_chain_datum_token_flag_to_str(DAP_CHAIN_DATUM_TOKEN_FLAG_NONE)));
+        dap_json_object_add(json_obj_out, a_key, dap_dap_json_object_new_string(dap_chain_datum_token_flag_to_str(DAP_CHAIN_DATUM_TOKEN_FLAG_NONE)));
         return;
     }
     dap_json_t *l_array_flags = dap_json_array_new();
     for (uint16_t i = 0; i < sizeof(s_flags_table) / sizeof(struct datum_token_flag_struct); i++) {
         if (s_flags_table[i].val == a_flags) {
-            dap_json_array_add(l_array_flags, dap_json_object_new_string(s_flags_table[i].key));
+            dap_json_array_add(l_array_flags, dap_dap_json_object_new_string(s_flags_table[i].key));
         }
     }
     dap_json_object_add(json_obj_out, a_key, l_array_flags);
@@ -265,9 +265,9 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_tsd_n
 void dap_chain_datum_token_certs_dump_to_json(dap_json_t *a_json_obj_out, byte_t * a_tsd_n_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
 {
     if (a_version == 1)
-        dap_json_object_add(a_json_obj_out, "Signatures", dap_json_object_new_string(""));
+        dap_json_object_add(a_json_obj_out, "Signatures", dap_dap_json_object_new_string(""));
     if (!a_certs_size) {
-        dap_json_object_add(a_json_obj_out, "status", dap_json_object_new_string("<NONE>"));
+        dap_json_object_add(a_json_obj_out, "status", dap_dap_json_object_new_string("<NONE>"));
         return;
     }
 
@@ -278,19 +278,19 @@ void dap_chain_datum_token_certs_dump_to_json(dap_json_t *a_json_obj_out, byte_t
         dap_sign_t *l_sign = (dap_sign_t *) (a_tsd_n_signs + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {
-            dap_json_object_add(l_json_obj_out, "status", dap_json_object_new_string("<CORRUPTED - 0 size signature>"));
+            dap_json_object_add(l_json_obj_out, "status", dap_dap_json_object_new_string("<CORRUPTED - 0 size signature>"));
             break;
         }
 
         if (l_sign->header.sign_size > a_certs_size)
         {
-            dap_json_object_add(l_json_obj_out, "status", dap_json_object_new_string("<CORRUPTED - signature size is greater than a_certs_size>"));
+            dap_json_object_add(l_json_obj_out, "status", dap_dap_json_object_new_string("<CORRUPTED - signature size is greater than a_certs_size>"));
             continue;
         }
 
         dap_chain_hash_fast_t l_pkey_hash = {0};
         if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
-            dap_json_object_add(l_json_obj_out, "status", dap_json_object_new_string("<CORRUPTED - can't calc hash>"));
+            dap_json_object_add(l_json_obj_out, "status", dap_dap_json_object_new_string("<CORRUPTED - can't calc hash>"));
             continue;
         }
 
@@ -298,10 +298,10 @@ void dap_chain_datum_token_certs_dump_to_json(dap_json_t *a_json_obj_out, byte_t
                                ? dap_enc_base58_encode_hash_to_str(&l_pkey_hash)
                                : dap_chain_hash_fast_to_str_new(&l_pkey_hash);
 
-        dap_json_object_add(l_json_obj_out, "line", dap_json_object_new_int(i));
-        dap_json_object_add(l_json_obj_out, a_version == 1 ? "hash" : "sig_pkey_hash", dap_json_object_new_string(l_hash_str));
-        dap_json_object_add(l_json_obj_out, a_version == 1 ? "sign_type" : "sig_type", dap_json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
-        dap_json_object_add(l_json_obj_out, a_version == 1 ? "bytes" : "sig_size", dap_json_object_new_int(l_sign->header.sign_size));
+        dap_json_object_add(l_json_obj_out, "line", dap_dap_json_object_new_int(i));
+        dap_json_object_add(l_json_obj_out, a_version == 1 ? "hash" : "sig_pkey_hash", dap_dap_json_object_new_string(l_hash_str));
+        dap_json_object_add(l_json_obj_out, a_version == 1 ? "sign_type" : "sig_type", dap_dap_json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
+        dap_json_object_add(l_json_obj_out, a_version == 1 ? "bytes" : "sig_size", dap_dap_json_object_new_int(l_sign->header.sign_size));
         dap_json_array_add(json_arr_seg, l_json_obj_out);
         DAP_DEL_Z(l_hash_str);
     }

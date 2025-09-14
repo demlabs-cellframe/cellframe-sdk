@@ -1292,19 +1292,19 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_name, a_path, &res);
     if (l_wallet) {
         dap_json_t *l_json_ret = dap_json_object_new();
-        dap_json_t *l_jobj_correct_str = dap_json_object_new_string(
+        dap_json_t *l_jobj_correct_str = dap_dap_json_object_new_string(
                 strlen(dap_chain_wallet_check_sign(l_wallet)) != 0 ? dap_chain_wallet_check_sign(l_wallet)
                                                                    : "correct");
         dap_json_object_add(l_json_ret, "inf_correct", l_jobj_correct_str);
         dap_json_t *l_jobj_signs = NULL;
         if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
-            dap_json_object_add(l_json_ret, "status", dap_json_object_new_string("protected-active"));
+            dap_json_object_add(l_json_ret, "status", dap_dap_json_object_new_string("protected-active"));
         else
-            dap_json_object_add(l_json_ret, "status", dap_json_object_new_string("unprotected"));
+            dap_json_object_add(l_json_ret, "status", dap_dap_json_object_new_string("unprotected"));
         dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
         if (l_w_internal->certs_count == 1) {
             dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type);
-            l_jobj_signs = dap_json_object_new_string(
+            l_jobj_signs = dap_dap_json_object_new_string(
                     dap_sign_type_to_str(
                             dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type)));
         } else {
@@ -1316,7 +1316,7 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
                                                  l_w_internal->certs[i]->enc_key->type)) : "unknown",
                                          ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
             }
-            l_jobj_signs = dap_json_object_new_string(l_str_signs->str);
+            l_jobj_signs = dap_dap_json_object_new_string(l_str_signs->str);
             dap_string_free(l_str_signs, true);
         }
         dap_json_object_add(l_json_ret, "signs", l_jobj_signs);
@@ -1325,7 +1325,7 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
             dap_json_t *l_jobj_net = dap_json_object_new();
             dap_chain_addr_t *l_wallet_addr_in_net = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             dap_json_object_add(l_jobj_net, "addr",
-                                   dap_json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net)));
+                                   dap_dap_json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net)));
             dap_json_object_add(l_jobj_network, l_net->pub.name, l_jobj_net);
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
@@ -1339,11 +1339,11 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
                 const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
                 const char *l_description = dap_ledger_get_description_by_ticker(l_net->pub.ledger,
                                                                                  l_addr_tokens[i]);
-                dap_json_object_add(l_balance_data, "ticker", dap_json_object_new_string(l_addr_tokens[i]));
+                dap_json_object_add(l_balance_data, "ticker", dap_dap_json_object_new_string(l_addr_tokens[i]));
                 dap_json_object_add_string(l_balance_data, "description", l_description ?
                                                                       l_description : "No description");
-                dap_json_object_add(l_balance_data, "coins", dap_json_object_new_string(l_balance_coins));
-                dap_json_object_add(l_balance_data, "datoshi", dap_json_object_new_string(l_balance_datoshi));
+                dap_json_object_add(l_balance_data, "coins", dap_dap_json_object_new_string(l_balance_coins));
+                dap_json_object_add(l_balance_data, "datoshi", dap_dap_json_object_new_string(l_balance_datoshi));
                 dap_json_array_add(l_arr_balance, l_balance_data);
                 DAP_DELETE(l_addr_tokens[i]);
             }
@@ -1355,8 +1355,8 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
         return l_json_ret;
     } else {
         dap_json_t *l_obj_ret = dap_json_object_new();
-        if (res == 4) dap_json_object_add(l_obj_ret, "status", dap_json_object_new_string("protected-inactive"));
-        else if (res) dap_json_object_add(l_obj_ret, "status", dap_json_object_new_string("invalid"));
+        if (res == 4) dap_json_object_add(l_obj_ret, "status", dap_dap_json_object_new_string("protected-inactive"));
+        else if (res) dap_json_object_add(l_obj_ret, "status", dap_dap_json_object_new_string("invalid"));
         return l_obj_ret;
     }
 

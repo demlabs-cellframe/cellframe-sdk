@@ -197,8 +197,8 @@ int dap_json_compose_error_add(dap_json_t* a_json_obj_reply, int a_code_error, c
         return -1;
     }
 
-    dap_json_t *l_code = dap_json_object_new_int(a_code_error);
-    dap_json_t *l_message = dap_json_object_new_string(l_msg);
+    dap_json_t *l_code = dap_dap_json_object_new_int(a_code_error);
+    dap_json_t *l_message = dap_dap_json_object_new_string(l_msg);
 
     if (!l_code || !l_message) {
         if (l_code) dap_json_object_free(l_code);

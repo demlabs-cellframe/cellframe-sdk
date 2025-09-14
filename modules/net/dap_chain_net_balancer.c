@@ -84,7 +84,7 @@ struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, const
 {
     struct dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class"          , "BalancerRequest");
-    dap_json_object_add_object(l_json, "networkName"    , json_object_new_string((const char*)a_net->pub.name));
+    dap_json_object_add_object(l_json, "networkName"    , dap_json_object_new_string((const char*)a_net->pub.name));
     dap_json_object_add_string(l_json, "hostAddress"    , a_host_addr ? a_host_addr : "localhost");
     if (a_host_addr)
         dap_json_object_add_int(l_json, "hostPort"       , a_host_port);

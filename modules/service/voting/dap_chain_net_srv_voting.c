@@ -875,7 +875,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             dap_json_object_add_object( json_obj_vote, "poll_tx",
                                     json_object_new_string_len(dap_chain_hash_fast_to_str_static(&it->hash), sizeof(dap_hash_str_t)) );            
             dap_json_object_add_object( json_obj_vote, "question", 
-                                    json_object_new_string(it->params->question) );
+                                    dap_json_object_new_string(it->params->question) );
             dap_json_object_add_string(json_obj_vote, "token", it->params->token_ticker);
             dap_json_array_add(json_arr_voting_out, json_obj_vote);
         }
@@ -948,7 +948,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
         dap_chain_addr_t l_creator_addr = {0};
         dap_chain_addr_fill_from_sign(&l_creator_addr, l_sign, l_net->pub.id);
-        dap_json_object_add_object(json_vote_out,"creator_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_creator_addr))); 
+        dap_json_object_add_object(json_vote_out,"creator_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&l_creator_addr))); 
 
         dap_json_object_add_string(json_vote_out, "question", l_voting->params->question);
         dap_json_object_add_string(json_vote_out, "token", l_voting->params->token_ticker);
@@ -956,15 +956,15 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting->params->voting_expire);
             dap_json_object_add_object(json_vote_out, "expiration", 
-                                    json_object_new_string(l_tmp_buf));
+                                    dap_json_object_new_string(l_tmp_buf));
             dap_json_object_add_object(json_vote_out, "status",
-                                   json_object_new_string( l_voting->params->voting_expire >= dap_time_now() ? "active" : "expired" ));
+                                   dap_json_object_new_string( l_voting->params->voting_expire >= dap_time_now() ? "active" : "expired" ));
         }
         if (l_voting->params->votes_max_count){
             dap_json_object_add_object(json_vote_out, "votes_max",
-                                   json_object_new_uint64( l_voting->params->votes_max_count ));
+                                   dap_json_object_new_uint64( l_voting->params->votes_max_count ));
             dap_json_object_add_object( json_vote_out, "votes_available",
-                                    json_object_new_uint64( l_voting->params->votes_max_count - l_votes_count ));
+                                    dap_json_object_new_uint64( l_voting->params->votes_max_count - l_votes_count ));
         }
         
         dap_json_object_add_object(json_vote_out, "can_change_status",
@@ -976,10 +976,10 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         for (dap_list_t *l_option = l_voting->params->options; l_option; l_option = l_option->next, ++i) {
             dap_json_t *json_option_obj = dap_json_object_new();
             dap_json_object_add_int(json_option_obj, "option_id", i);
-            dap_json_object_add_object( json_option_obj, "option_text", json_object_new_string(l_option->data) );
-            dap_json_object_add_object(json_option_obj, "votes_count", json_object_new_uint64( l_results[i].num_of_votes) );
+            dap_json_object_add_object( json_option_obj, "option_text", dap_json_object_new_string(l_option->data) );
+            dap_json_object_add_object(json_option_obj, "votes_count", dap_json_object_new_uint64( l_results[i].num_of_votes) );
             int l_percentage = l_votes_count ? ((double)(l_results[i].num_of_votes * 100))/l_votes_count + 0.5 : 0;
-            dap_json_object_add_object(json_option_obj, "votes_percent", json_object_new_int(l_percentage) );
+            dap_json_object_add_object(json_option_obj, "votes_percent", dap_json_object_new_int(l_percentage) );
             uint256_t l_weight_percentage = { };
 
             DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
@@ -1007,7 +1007,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             dap_json_object_add_string(json_vote_obj, "vote_hash", l_vote_hash_str);
             const char *l_pkey_hash_str = dap_hash_fast_to_str_static(&((struct vote *)l_vote_item->data)->pkey_hash);
             dap_json_object_add_string(json_vote_obj, "pkey_hash", l_pkey_hash_str);
-            dap_json_object_add_object(json_vote_obj, "answer_idx", json_object_new_int(((struct vote *)l_vote_item->data)->answer_idx));
+            dap_json_object_add_object(json_vote_obj, "answer_idx", dap_json_object_new_int(((struct vote *)l_vote_item->data)->answer_idx));
             const char *l_weight_str; dap_uint256_to_char(((struct vote *)l_vote_item->data)->weight, &l_weight_str);
             dap_json_object_add_string(json_vote_obj, "weight", l_weight_str);
             dap_json_array_add(json_arr_votes_out, json_vote_obj);

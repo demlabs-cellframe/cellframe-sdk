@@ -451,24 +451,24 @@ dap_json_t *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, 
     if (l_policy_activate->ts_start) {
         char l_time[DAP_TIME_STR_SIZE] = {};
         dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, l_policy_activate->ts_start);
-        dap_json_object_add(l_ret, "ts_start", dap_json_object_new_string(l_time));
+        dap_json_object_add(l_ret, "ts_start", dap_dap_json_object_new_string(l_time));
     } else {
-        dap_json_object_add(l_ret, "ts_start", dap_json_object_new_int(0));
+        dap_json_object_add(l_ret, "ts_start", dap_dap_json_object_new_int(0));
     }
-    dap_json_object_add(l_ret, "block_start", dap_json_object_new_uint64(l_policy_activate->block_start));
+    dap_json_object_add(l_ret, "block_start", dap_dap_json_object_new_uint64(l_policy_activate->block_start));
     if (l_policy_activate->block_start) {
         dap_chain_t *l_chain = dap_chain_find_by_id(a_net_id, l_policy_activate->chain_id);
         if (!l_chain) {
-            dap_json_object_add(l_ret, "chain", dap_json_object_new_string("NULL"));
+            dap_json_object_add(l_ret, "chain", dap_dap_json_object_new_string("NULL"));
         } else {
             char l_chain_id[32] = { };
             snprintf(l_chain_id, sizeof(l_chain_id) - 1, "0x%016"DAP_UINT64_FORMAT_x, l_policy_activate->chain_id.uint64);
-            dap_json_object_add(l_ret, "chain", dap_json_object_new_string(l_chain_id));
+            dap_json_object_add(l_ret, "chain", dap_dap_json_object_new_string(l_chain_id));
         }
     } else {
-        dap_json_object_add(l_ret, "chain", dap_json_object_new_string(""));
+        dap_json_object_add(l_ret, "chain", dap_dap_json_object_new_string(""));
     }
-    dap_json_object_add(l_ret, "description", dap_json_object_new_string("WIKI"));
+    dap_json_object_add(l_ret, "description", dap_dap_json_object_new_string("WIKI"));
     return l_ret;
 }
 
@@ -477,27 +477,27 @@ dap_json_t *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy)
     dap_return_val_if_pass(!a_policy, NULL);
     dap_json_t *l_ret = dap_json_object_new();
 
-    dap_json_object_add(l_ret, "version", dap_json_object_new_uint64(a_policy->version));
-    dap_json_object_add(l_ret, "type", dap_json_object_new_string(dap_chain_policy_to_str(a_policy)));
+    dap_json_object_add(l_ret, "version", dap_dap_json_object_new_uint64(a_policy->version));
+    dap_json_object_add(l_ret, "type", dap_dap_json_object_new_string(dap_chain_policy_to_str(a_policy)));
     if (DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE)) {
         dap_chain_policy_activate_t *l_policy_activate = (dap_chain_policy_activate_t *)a_policy->data;
-        dap_json_object_add(l_ret, "num", dap_json_object_new_uint64(l_policy_activate->num));
+        dap_json_object_add(l_ret, "num", dap_dap_json_object_new_uint64(l_policy_activate->num));
         if (l_policy_activate->ts_start) {
             char l_time[DAP_TIME_STR_SIZE] = {};
             dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, l_policy_activate->ts_start);
-            dap_json_object_add(l_ret, "ts_start", dap_json_object_new_string(l_time));
+            dap_json_object_add(l_ret, "ts_start", dap_dap_json_object_new_string(l_time));
         } else {
-            dap_json_object_add(l_ret, "ts_start", dap_json_object_new_int(0));
+            dap_json_object_add(l_ret, "ts_start", dap_dap_json_object_new_int(0));
         }
-        dap_json_object_add(l_ret, "block_start", dap_json_object_new_uint64(l_policy_activate->block_start));
+        dap_json_object_add(l_ret, "block_start", dap_dap_json_object_new_uint64(l_policy_activate->block_start));
         if (l_policy_activate->block_start) {
                 char l_chain_id[32] = { };
                 snprintf(l_chain_id, sizeof(l_chain_id) - 1, "0x%016"DAP_UINT64_FORMAT_x, l_policy_activate->chain_id.uint64);
-                dap_json_object_add(l_ret, "chain", dap_json_object_new_string(l_chain_id));
+                dap_json_object_add(l_ret, "chain", dap_dap_json_object_new_string(l_chain_id));
         } else {
-            dap_json_object_add(l_ret, "chain", dap_json_object_new_string(""));
+            dap_json_object_add(l_ret, "chain", dap_dap_json_object_new_string(""));
         }
-        dap_json_object_add(l_ret, "description", dap_json_object_new_string("WIKI"));
+        dap_json_object_add(l_ret, "description", dap_dap_json_object_new_string("WIKI"));
     } else {
         dap_chain_policy_deactivate_t *l_policy_deactivate = (dap_chain_policy_deactivate_t *)a_policy->data;
         if (l_policy_deactivate->count) {
@@ -505,10 +505,10 @@ dap_json_t *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy)
             for (size_t i = 0; i < l_policy_deactivate->count; ++i) {
                 dap_string_append_printf(l_nums_list, "CN-%u ", l_policy_deactivate->nums[i]);
             }
-            dap_json_object_add(l_ret, "deactivate", dap_json_object_new_string(l_nums_list->str));
+            dap_json_object_add(l_ret, "deactivate", dap_dap_json_object_new_string(l_nums_list->str));
             dap_string_free(l_nums_list, true);
         } else {
-            dap_json_object_add(l_ret, "deactivate", dap_json_object_new_string(""));
+            dap_json_object_add(l_ret, "deactivate", dap_dap_json_object_new_string(""));
         }
     }
     return l_ret;

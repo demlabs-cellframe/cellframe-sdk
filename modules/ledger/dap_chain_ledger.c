@@ -398,7 +398,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                 : dap_chain_tx_out_cond_subtype_to_str( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype );
             dap_json_object_add_string(l_json_obj_datum, "send", dap_uint256_to_char(l_value, NULL));
             dap_json_object_add_string(l_json_obj_datum, "to_addr", l_dst_addr_str);
-            dap_json_object_add_object(l_json_obj_datum, "token", l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN"));
+            dap_json_object_add_object(l_json_obj_datum, "token", l_src_token ? dap_json_object_new_string(l_src_token) : dap_json_object_new_string("UNKNOWN"));
             dap_json_array_add(json_arr_out, l_json_obj_datum);
         }
         if ( dap_chain_addr_compare(&l_dst_addr, a_addr) ) {
@@ -415,8 +415,8 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                     ? dap_chain_addr_to_str_static(&l_src_addr)
                     : dap_chain_tx_out_cond_subtype_to_str(l_src_subtype) );
             dap_json_object_add_string(l_json_obj_datum, "recv", dap_uint256_to_char(l_value, NULL));
-            dap_json_object_add_object(l_json_obj_datum, "token", l_dst_token ? json_object_new_string(l_dst_token) :
-                                  (l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN")));
+            dap_json_object_add_object(l_json_obj_datum, "token", l_dst_token ? dap_json_object_new_string(l_dst_token) :
+                                  (l_src_token ? dap_json_object_new_string(l_src_token) : dap_json_object_new_string("UNKNOWN")));
             dap_json_object_add_string(l_json_obj_datum, "from", l_src_addr_str);
             dap_json_array_add(json_arr_out, l_json_obj_datum);
         }
