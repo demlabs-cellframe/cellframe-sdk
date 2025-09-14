@@ -1629,7 +1629,7 @@ static int s_cli_net(int argc, char **argv, void **reply, int a_version)
                     }
                 }
                 dap_global_db_objs_delete(l_objs, l_objs_count);
-                if (json_object_array_length(l_jobj_list_ca) > 0) {
+                if (dap_json_array_length(l_jobj_list_ca) > 0) {
                     dap_json_object_add_object(l_jobj_return, "ca_list", l_jobj_list_ca);
                 } else {
                     dap_json_object_free(l_jobj_list_ca);
@@ -1713,7 +1713,7 @@ static int s_cli_net(int argc, char **argv, void **reply, int a_version)
                 }
                 dap_json_array_add(l_jobj_pkeys, l_jobj_hash_key);
             }
-            if (json_object_array_length(l_jobj_pkeys) > 0) {
+            if (dap_json_array_length(l_jobj_pkeys) > 0) {
                 dap_json_object_add_object(l_jobj_return, "poa_certs", l_jobj_pkeys);
             } else {
                 dap_json_object_free(l_jobj_pkeys);

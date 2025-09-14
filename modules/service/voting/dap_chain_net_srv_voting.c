@@ -880,7 +880,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             dap_json_array_add(json_arr_voting_out, json_obj_vote);
         }
         dap_json_array_add(*json_arr_reply, json_vote_out);
-        if (json_object_array_length(json_arr_voting_out) == 0) {
+        if (dap_json_array_length(json_arr_voting_out) == 0) {
             dap_json_t* json_obj_no_polls = dap_json_object_new();
             if (l_token_str)
                 dap_json_object_add_string(json_obj_no_polls, "token", l_token_str);

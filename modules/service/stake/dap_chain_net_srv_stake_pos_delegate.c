@@ -1710,8 +1710,8 @@ int json_object_compare_by_timestamp(const void *a, const void *b) {
     struct dap_json_t *obj_a = *(struct dap_json_t **)a;
     struct dap_json_t *obj_b = *(struct dap_json_t **)b;
 
-    struct dap_json_t *timestamp_a = json_object_object_get(obj_a, "timestamp");
-    struct dap_json_t *timestamp_b = json_object_object_get(obj_b, "timestamp");
+    struct dap_json_t *timestamp_a = dap_json_object_get(obj_a, "timestamp");
+    struct dap_json_t *timestamp_b = dap_json_object_get(obj_b, "timestamp");
 
     int64_t time_a = json_object_get_int64(timestamp_a);
     int64_t time_b = json_object_get_int64(timestamp_b);
@@ -2198,7 +2198,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
         }
         DAP_DEL_Z(l_hashes_group_str);
         dap_global_db_objs_delete(l_delegated_hashes, l_delegated_hashes_count);
-        size_t json_array_lenght = json_object_array_length(l_json_arr_reply);
+        size_t json_array_lenght = dap_json_array_length(l_json_arr_reply);
         if (!json_array_lenght)
             dap_json_array_add(l_json_arr_reply, dap_dap_json_object_new_string( "No orders found");
         else {

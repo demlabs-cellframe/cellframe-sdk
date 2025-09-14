@@ -3486,7 +3486,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             dap_json_object_add_string(l_ban_validator, "node_addr", dap_chain_addr_to_str_static(l_validator_addr));
             dap_json_array_add(l_json_arr_banlist, l_ban_validator);
         }
-        if (!json_object_array_length(l_json_arr_banlist)) {
+        if (!dap_json_array_length(l_json_arr_banlist)) {
             dap_json_object_add_string(l_json_obj_banlist, a_version == 1 ? "BANLIST" : "banlist", "empty");
         } else {
             dap_json_object_add_object(l_json_obj_banlist, a_version == 1 ? "BANLIST" : "banlist", l_json_arr_banlist);

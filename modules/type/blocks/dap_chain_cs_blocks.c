@@ -615,8 +615,8 @@ static int block_list_sort_by_date(const void *a, const void *b, bool a_forward)
     struct dap_json_t *obj_a = (struct json_object*)a,
                        *obj_b = (struct json_object*)b;
 
-    struct dap_json_t *timestamp_a = json_object_object_get(obj_a, "timestamp"), 
-                       *timestamp_b = json_object_object_get(obj_b, "timestamp");
+    struct dap_json_t *timestamp_a = dap_json_object_get(obj_a, "timestamp"), 
+                       *timestamp_b = dap_json_object_get(obj_b, "timestamp");
     int l_fwd = a_forward ? 1 : -1;
     return timestamp_a > timestamp_b ? a_forward : timestamp_a < timestamp_b ? -a_forward : 0;
 }
@@ -1143,7 +1143,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             //sort by time
             json_object_array_sort(json_arr_bl_cache_out, l_head ? blocks_sort_fwd : blocks_sort_rev);
             // Remove the timestamp and change block num
-            size_t l_length = json_object_array_length(json_arr_bl_cache_out);
+            size_t l_length = dap_json_array_length(json_arr_bl_cache_out);
             for (size_t i = 0; i < l_length; i++) {
                 struct dap_json_t *obj = json_object_array_get_idx(json_arr_bl_cache_out, i);
                 json_object_object_del(obj, "timestamp");

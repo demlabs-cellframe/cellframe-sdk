@@ -2233,7 +2233,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
         l_new_data = dap_json_object_new_uint64(l_remain_service ? l_remain_service->limits_ts : 0);
         dap_json_object_add_object(l_json_response, "limit_sec", l_new_data);
 
-        const char *output_string = json_object_to_json_string(l_json_response);
+        const char *output_string = dap_json_to_string(l_json_response);
         dap_http_simple_reply(a_http_simple, (void*)output_string, strlen(output_string));
         strcpy(a_http_simple->reply_mime, "application/json");
         dap_json_object_free(l_json_response);
