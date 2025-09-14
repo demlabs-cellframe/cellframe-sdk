@@ -110,7 +110,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
  */
 int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
 
     const char * l_hash_out_type = NULL;
@@ -737,7 +737,7 @@ static int s_token_decl_check_params_json(int a_argc, char **a_argv, json_object
  */
 int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
     const char * l_ticker = NULL;
     uint256_t l_total_supply = {}; // 256
     uint16_t l_signs_emission = 0;
@@ -1034,7 +1034,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
  */
 int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
     const char * l_ticker = NULL;
     uint256_t l_total_supply = {}; // 256
     uint16_t l_signs_emission = 0;
@@ -1176,7 +1176,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_versi
  */
 int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
     const char *str_tmp = NULL;
     //const char *str_fee = NULL;

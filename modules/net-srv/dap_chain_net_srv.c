@@ -115,7 +115,7 @@ void dap_chain_net_srv_deinit(void)
  */
 static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_version)
 {
-    json_object **json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 

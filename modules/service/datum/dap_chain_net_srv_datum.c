@@ -112,7 +112,7 @@ char* dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, const uint8_t *a
 
 static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;
     dap_chain_t * l_chain = NULL;

@@ -1291,7 +1291,7 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
 static bool s_json_dag_pack_round(json_object * a_json_out, dap_global_db_obj_t * a_objs, int i, int a_version) {
     if ( !strcmp(DAG_ROUND_CURRENT_KEY, a_objs[i].key) )
         return true;
-    json_object * json_obj_event_i = dap_json_object_new();
+    dap_json_t * json_obj_event_i = dap_json_object_new();
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                     ((dap_chain_cs_dag_event_round_item_t *)a_objs[i].value)->event_n_signs;
     char buf[DAP_TIME_STR_SIZE];
@@ -1304,7 +1304,7 @@ static bool s_json_dag_pack_round(json_object * a_json_out, dap_global_db_obj_t 
 }
 
 static void s_json_dag_pack_event(json_object * a_json_out, dap_chain_cs_dag_event_item_t * a_event_item, size_t i, int a_version){
-    json_object * json_obj_event_i = dap_json_object_new();                            
+    dap_json_t * json_obj_event_i = dap_json_object_new();                            
     char buf[DAP_TIME_STR_SIZE];
     dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, a_event_item->event->header.ts_created);
     dap_json_object_add_string(json_obj_event_i, "#", dap_itoa(i));
@@ -1382,7 +1382,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
 
     int ret = 0;
     if ( l_round_cmd_str ) {
-        json_object * json_obj_round = dap_json_object_new();
+        dap_json_t * json_obj_round = dap_json_object_new();
         char l_buf[150] = {};
         if ( strcmp(l_round_cmd_str,"complete") == 0 ){
             const char * l_cmd_mode_str = NULL;
@@ -1545,7 +1545,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
         switch (l_event_subcmd) {
 
         case SUBCMD_EVENT_DUMP: {
-            json_object * json_obj_event = dap_json_object_new();
+            dap_json_t * json_obj_event = dap_json_object_new();
             char l_buf[150] = {};
             dap_chain_cs_dag_event_round_item_t *l_round_item = NULL;
             dap_chain_cs_dag_event_t *l_event = NULL;

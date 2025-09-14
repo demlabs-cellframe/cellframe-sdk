@@ -1744,7 +1744,7 @@ static void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out
             const char *l_file_name = l_dir_entry->d_name;
             size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
             unsigned int res = 0;
-            json_object * json_obj_wall = dap_json_object_new();
+            dap_json_t * json_obj_wall = dap_json_object_new();
             if (!json_obj_wall)
                 return;
             if ( (l_file_name_len > 8) && (!strcmp(l_file_name + l_file_name_len - 8, ".dwallet")) ) {
@@ -1806,7 +1806,7 @@ static void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out
                 dap_json_object_free(json_obj_wall);
         }
         if (a_addr && (json_object_array_length(a_json_arr_out) == 0)) {
-            json_object * json_obj_out = dap_json_object_new();
+            dap_json_t * json_obj_out = dap_json_object_new();
             if (!json_obj_out) return;
             dap_json_object_add_string(json_obj_out, "status", "not found");
             dap_json_array_add(a_json_arr_out, json_obj_out);
@@ -1888,8 +1888,8 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         "Not found net by name '%s'", l_net_name);
         return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
     }
-    json_object * json_obj_out = NULL;
-    json_object * json_arr_out = dap_json_array_new();
+    dap_json_t * json_obj_out = NULL;
+    dap_json_t * json_arr_out = dap_json_array_new();
     if (!json_arr_out) {
         return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
     }
@@ -1949,7 +1949,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
                 }
             }
-            json_object * json_obj_wall = dap_json_object_new();
+            dap_json_t * json_obj_wall = dap_json_object_new();
             const char *l_addr_str = dap_chain_addr_to_str_static((dap_chain_addr_t*) l_addr);
             if(l_wallet)
             {
@@ -2094,7 +2094,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                     dap_json_object_free(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
             }
-            json_object * json_obj_wall = dap_json_object_new();
+            dap_json_t * json_obj_wall = dap_json_object_new();
             const char *l_value_str = NULL, *l_cond_type_str = NULL;
             uint256_t l_value_datoshi = uint256_0, l_value_sum = uint256_0;
             dap_chain_tx_out_cond_subtype_t l_cond_type = DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL;
@@ -2566,7 +2566,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     }
     int l_removed = 0;
     dap_json_t *l_obj_chain = dap_json_object_new();
-    json_object *l_obj_chain_name  = json_object_new_string(a_chain->name);
+    dap_json_t *l_obj_chain_name  = json_object_new_string(a_chain->name);
     if (!l_obj_chain_name || !l_obj_chain) {
         dap_json_object_free(l_obj_chain);
         dap_json_rpc_allocation_error(a_json_arr_reply);
@@ -3961,7 +3961,7 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
 }
 
 int cmd_find(int a_argc, char **a_argv, void **a_reply, int a_version) {
-    json_object **a_json_reply = (json_object **)a_reply;
+    dap_json_t **a_json_reply = (json_object **)a_reply;
     int arg_index = 1;
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
@@ -6157,7 +6157,7 @@ static void s_stage_connected_error_callback(dap_client_t* a_client, void * a_ar
 }
 
 int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
-    json_object ** a_json_arr_reply = (json_object **) reply;
+    dap_json_t ** a_json_arr_reply = (json_object **) reply;
     if (!dap_json_rpc_exec_cmd_inited()) {
         dap_json_rpc_error_add(*a_json_arr_reply, -1, "Json-rpc module doesn't inited, check confings");
         return -1;
@@ -6219,7 +6219,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
     }
 
     //send request
-    json_object * l_response = NULL;
+    dap_json_t * l_response = NULL;
     dap_json_rpc_request_send(l_client_internal, l_request, &l_response, NULL);
 
     if (l_response) {
@@ -6427,7 +6427,7 @@ static char *s_decree_policy_put(dap_chain_datum_decree_t *a_decree, dap_chain_n
 }
 
 int com_policy(int argc, char **argv, void **reply, int a_version) {
-    json_object ** a_json_arr_reply = (json_object **) reply;
+    dap_json_t ** a_json_arr_reply = (json_object **) reply;
     char **l_deactivate_array = NULL;
     const char
         *l_num_str = NULL,

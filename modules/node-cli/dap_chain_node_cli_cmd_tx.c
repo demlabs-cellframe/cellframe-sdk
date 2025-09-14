@@ -376,7 +376,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
     }
 
     // add address
-    json_object * json_obj_addr = dap_json_object_new();
+    dap_json_t * json_obj_addr = dap_json_object_new();
     dap_json_object_add_string(json_obj_addr, a_version == 1 ? "address" : "addr", l_addr_str);
     dap_json_array_add(json_obj_datum, json_obj_addr);
 
@@ -552,8 +552,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         bool l_header_printed = false;
         uint256_t l_fee_sum = uint256_0;
         dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
-        json_object * j_arr_data = dap_json_array_new();
-        json_object * j_obj_tx = dap_json_object_new();
+        dap_json_t * j_arr_data = dap_json_array_new();
+        dap_json_t * j_obj_tx = dap_json_object_new();
         if (!j_obj_tx || !j_arr_data) {
             dap_json_rpc_allocation_error(a_json_arr_reply);
             dap_json_object_free(j_obj_tx);
@@ -814,7 +814,7 @@ next_step:
     
     // if no history
     if (json_object_array_length(json_obj_datum) == 2) {
-        json_object * json_empty_tx = dap_json_object_new();
+        dap_json_t * json_empty_tx = dap_json_object_new();
         if (!json_empty_tx) {
             dap_json_rpc_allocation_error(a_json_arr_reply);
             dap_json_object_free(json_obj_datum);
@@ -892,8 +892,8 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
             l_count = 0,
             i_tmp = 0;
         int res = 0;        
-        json_object * json_arr_out = dap_json_array_new();
-        json_object * json_tx_history = NULL;        
+        dap_json_t * json_arr_out = dap_json_array_new();
+        dap_json_t * json_tx_history = NULL;        
         size_t l_arr_start = 0;
         size_t l_arr_end = 0;
 
@@ -1250,7 +1250,7 @@ static int s_ledger_trace_chain(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a
  */
 int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) reply;
+    dap_json_t ** a_json_arr_reply = (json_object **) reply;
     enum { CMD_NONE, CMD_LIST, CMD_TX_INFO, CMD_TRACE };
     int arg_index = 1;
     const char *l_net_str = NULL;
@@ -2670,7 +2670,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_CHAIN_PARAM_ERR;
     }
     // response
-    json_object * json_obj_out = NULL;
+    dap_json_t * json_obj_out = NULL;
     if (l_tx_hash_str) {
          // history tx hash
         json_obj_out = dap_db_history_tx(*a_json_arr_reply, &l_tx_hash, l_chain, l_hash_out_type, l_net, a_version);
@@ -2681,7 +2681,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         }
     } else if (l_addr) {
         // history addr and wallet
-        json_object * json_obj_summary = dap_json_object_new();
+        dap_json_t * json_obj_summary = dap_json_object_new();
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
@@ -2697,7 +2697,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     } else if (l_is_tx_all) {
         // history all
-        json_object * json_obj_summary = dap_json_object_new();
+        dap_json_t * json_obj_summary = dap_json_object_new();
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
@@ -2714,7 +2714,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         dap_json_array_add(*a_json_arr_reply, json_obj_summary);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     } else if (l_is_tx_count) {
-        json_object * json_count_obj= dap_json_object_new();
+        dap_json_t * json_count_obj= dap_json_object_new();
         dap_json_object_add_uint64(json_count_obj, "number_of_transaction", l_chain->callback_count_tx(l_chain));
         dap_json_array_add(*a_json_arr_reply, json_count_obj);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;

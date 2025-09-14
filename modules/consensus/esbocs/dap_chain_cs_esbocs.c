@@ -3374,14 +3374,14 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR;
             }
         } else{
-            json_object * json_obj_out = dap_json_object_new();
+            dap_json_t * json_obj_out = dap_json_object_new();
             dap_json_object_add_uint64(json_obj_out, a_version == 1 ? "Minimum validators count" : "min_validators_count", l_esbocs_pvt->min_validators_count);
             dap_json_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
 
     case SUBCMD_CHECK_SIGNS_STRUCTURE: {
-        json_object * json_obj_out = dap_json_object_new();
+        dap_json_t * json_obj_out = dap_json_object_new();
         if (!l_subcommand_show) {
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_signs_check(l_chain_net, l_chain, l_subcommand_add, l_poa_cert);
             char *l_decree_hash_str = NULL;
@@ -3435,7 +3435,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR;
             }
         } else{
-            json_object * json_obj_out = dap_json_object_new();
+            dap_json_t * json_obj_out = dap_json_object_new();
             s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs, a_version);
             dap_json_array_add(*a_json_arr_reply, json_obj_out);
         }            
@@ -3477,8 +3477,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
         const char *l_penalty_group = s_get_penalty_group(l_net->pub.id);
         size_t l_penalties_count = 0;
-        json_object * l_json_obj_banlist = dap_json_object_new();
-        json_object * l_json_arr_banlist = dap_json_array_new();
+        dap_json_t * l_json_obj_banlist = dap_json_object_new();
+        dap_json_t * l_json_arr_banlist = dap_json_array_new();
         dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
         for (size_t i = 0; i < l_penalties_count; i++) {
             dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(l_objs[i].key);

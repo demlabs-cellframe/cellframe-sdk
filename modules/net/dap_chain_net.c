@@ -864,7 +864,7 @@ dap_string_t* dap_cli_list_net()
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_object *a_json_out, int a_version) {
     if (!a_net || !a_json_out)
         return;
-    json_object *l_jobj_net_name  = json_object_new_string(a_net->pub.name);
+    dap_json_t *l_jobj_net_name  = json_object_new_string(a_net->pub.name);
     dap_json_object_add_object(a_json_out, "net", l_jobj_net_name);
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
     l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
@@ -1041,7 +1041,7 @@ void _s_print_chains(json_object *a_obj_chain, dap_chain_t *a_chain) {
  */
 static int s_cli_net(int argc, char **argv, void **reply, int a_version)
 {
-    json_object ** a_json_arr_reply = (json_object **) reply;
+    dap_json_t ** a_json_arr_reply = (json_object **) reply;
     dap_json_t *l_jobj_return = dap_json_object_new();
     if (!l_jobj_return) {
         dap_json_rpc_allocation_error(*a_json_arr_reply);

@@ -387,7 +387,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             && dap_chain_addr_compare(&l_dst_addr, &l_src_addr) )
             continue;   // send to self
         if ( dap_chain_addr_compare(&l_src_addr, a_addr)) {
-            json_object * l_json_obj_datum = dap_json_object_new();
+            dap_json_t * l_json_obj_datum = dap_json_object_new();
             if (!l_header_printed) {
                 s_tx_header_print(l_json_obj_datum, l_tx, a_hash_out_type, &l_tx_hash);
                 l_header_printed = true;
@@ -402,7 +402,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             dap_json_array_add(json_arr_out, l_json_obj_datum);
         }
         if ( dap_chain_addr_compare(&l_dst_addr, a_addr) ) {
-            json_object * l_json_obj_datum = dap_json_object_new();
+            dap_json_t * l_json_obj_datum = dap_json_object_new();
             if (!l_header_printed) {
                s_tx_header_print(l_json_obj_datum, l_tx, a_hash_out_type, &l_tx_hash);
                l_header_printed = true;
@@ -425,7 +425,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
 
 dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only)
 {
-    json_object * json_arr_out = dap_json_array_new();
+    dap_json_t * json_arr_out = dap_json_array_new();
     if (!json_arr_out) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
@@ -443,7 +443,7 @@ dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_add
     // if no history
     if(!json_arr_out)
     {
-        json_object * json_obj_addr = dap_json_object_new();
+        dap_json_t * json_obj_addr = dap_json_object_new();
         dap_json_object_add_string(json_obj_addr, "status", "empty");
         dap_json_array_add(json_arr_out, json_obj_addr);
     }
@@ -549,7 +549,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
 dap_json_t *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, bool a_head, int a_version)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    json_object * json_arr_out = dap_json_array_new();
+    dap_json_t * json_arr_out = dap_json_array_new();
     pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
     uint32_t l_counter = 0;
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
