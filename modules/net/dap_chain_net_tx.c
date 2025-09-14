@@ -3053,7 +3053,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
                 dap_json_object_add_string(json_obj_item, "voting_expire", l_tmp_buf);
             }
             if (l_voting_params->votes_max_count) {
-                dap_json_object_add_object(json_obj_item, "votes_max_count", json_object_new_uint64(l_voting_params->votes_max_count));
+                dap_json_object_add_uint64(json_obj_item, "votes_max_count", l_voting_params->votes_max_count);
             }
             dap_json_object_add_object(json_obj_item,"changing_vote", json_object_new_boolean(l_voting_params->vote_changing_allowed));
             dap_json_object_add_object(json_obj_item,"delegate_key_required", json_object_new_boolean(l_voting_params->delegate_key_required));  

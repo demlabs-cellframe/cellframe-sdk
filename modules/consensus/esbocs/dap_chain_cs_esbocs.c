@@ -3249,7 +3249,7 @@ static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *
     for (dap_list_t *it = a_validator_addrs; it; it = it->next, i++) {
         dap_json_t *json_obj_validator = dap_json_object_new();
         dap_chain_addr_t *l_addr = it->data;
-        dap_json_object_add_object(json_obj_validator, a_version == 1 ? "#" : "num", json_object_new_uint64(i));
+        dap_json_object_add_uint64(json_obj_validator, a_version == 1 ? "#" : "num", i);
         dap_json_object_add_string(json_obj_validator, a_version == 1 ? "addr hash" : "addr_hash", dap_chain_hash_fast_to_str_static(&l_addr->data.hash_fast));
         dap_json_array_add(json_arr_validators, json_obj_validator);
     }
@@ -3375,7 +3375,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             }
         } else{
             json_object * json_obj_out = dap_json_object_new();
-            dap_json_object_add_object(json_obj_out, a_version == 1 ? "Minimum validators count" : "min_validators_count", json_object_new_uint64(l_esbocs_pvt->min_validators_count));
+            dap_json_object_add_uint64(json_obj_out, a_version == 1 ? "Minimum validators count" : "min_validators_count", l_esbocs_pvt->min_validators_count);
             dap_json_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
@@ -3494,9 +3494,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         dap_json_array_add(*a_json_arr_reply, l_json_obj_banlist);   
 
         json_object* l_json_obj_status = dap_json_object_new();
-        dap_json_object_add_object(l_json_obj_status, "ban_list_count", json_object_new_int(l_penalties_count));
-        dap_json_object_add_object(l_json_obj_status, "sync_attempt", json_object_new_uint64(l_session->cur_round.sync_attempt));
-        dap_json_object_add_object(l_json_obj_status, "round_id", json_object_new_uint64(l_session->cur_round.id));
+        dap_json_object_add_int(l_json_obj_status, "ban_list_count", l_penalties_count);
+        dap_json_object_add_uint64(l_json_obj_status, "sync_attempt", l_session->cur_round.sync_attempt);
+        dap_json_object_add_uint64(l_json_obj_status, "round_id", l_session->cur_round.id);
         dap_json_array_add(*a_json_arr_reply, l_json_obj_status);
         if (l_session->esbocs->last_submitted_candidate_timestamp) {
             char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};

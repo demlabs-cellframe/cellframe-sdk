@@ -975,7 +975,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         dap_json_t *json_arr_options_out = dap_json_array_new();
         for (dap_list_t *l_option = l_voting->params->options; l_option; l_option = l_option->next, ++i) {
             dap_json_t *json_option_obj = dap_json_object_new();
-            dap_json_object_add_object(json_option_obj, "option_id", json_object_new_int(i));
+            dap_json_object_add_int(json_option_obj, "option_id", i);
             dap_json_object_add_object( json_option_obj, "option_text", json_object_new_string(l_option->data) );
             dap_json_object_add_object(json_option_obj, "votes_count", json_object_new_uint64( l_results[i].num_of_votes) );
             int l_percentage = l_votes_count ? ((double)(l_results[i].num_of_votes * 100))/l_votes_count + 0.5 : 0;
@@ -992,7 +992,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             dap_json_array_add(json_arr_options_out, json_option_obj);
         }
         dap_json_object_add_object(json_vote_out, "results", json_arr_options_out);
-        dap_json_object_add_object(json_vote_out, "votes_count", json_object_new_uint64(l_votes_count));
+        dap_json_object_add_uint64(json_vote_out, "votes_count", l_votes_count);
         const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
         dap_json_object_add_string(json_vote_out, "total_sum", l_tw_coins);
         dap_json_object_add_string(json_vote_out, "total_sum_datoshi", l_tw_datoshi);
@@ -1002,7 +1002,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         dap_json_t *json_arr_votes_out = dap_json_array_new();
         for (dap_list_t *l_vote_item = l_voting->votes; l_vote_item; l_vote_item = l_vote_item->next) {
             dap_json_t *json_vote_obj = dap_json_object_new();
-            dap_json_object_add_object(json_vote_obj, "vote_id", json_object_new_int(i++));
+            dap_json_object_add_int(json_vote_obj, "vote_id", i++);
             const char *l_vote_hash_str = dap_hash_fast_to_str_static(&((struct vote *)l_vote_item->data)->vote_hash);
             dap_json_object_add_string(json_vote_obj, "vote_hash", l_vote_hash_str);
             const char *l_pkey_hash_str = dap_hash_fast_to_str_static(&((struct vote *)l_vote_item->data)->pkey_hash);

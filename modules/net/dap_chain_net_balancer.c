@@ -87,7 +87,7 @@ struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, const
     dap_json_object_add_object(l_json, "networkName"    , json_object_new_string((const char*)a_net->pub.name));
     dap_json_object_add_string(l_json, "hostAddress"    , a_host_addr ? a_host_addr : "localhost");
     if (a_host_addr)
-        dap_json_object_add_object(l_json, "hostPort"       , json_object_new_int(a_host_port));
+        dap_json_object_add_int(l_json, "hostPort"       , a_host_port);
     return l_json;
 }
 
@@ -640,13 +640,13 @@ dap_json_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
         char * l_uplink_addr = dap_strdup_printf("%-16s", l_link_info->uplink_addr);
         dap_json_object_add_string(l_jobj_link, "host_addr", l_uplink_addr);
         DAP_DELETE(l_uplink_addr);
-        dap_json_object_add_object(l_jobj_link, "port", json_object_new_uint64(l_link_info->uplink_port));
+        dap_json_object_add_uint64(l_jobj_link, "port", l_link_info->uplink_port);
         if(i + 1 == s_max_links_response_count && i + 1 < l_node_num) {
             dap_json_object_add_string(l_jobj_link, "status", "Not send in http balancer response");
         }
         dap_json_array_add(l_jobj_list_array, l_jobj_link);
     }
-    dap_json_object_add_object(l_jobj_out, "links total", json_object_new_uint64(l_node_num));
+    dap_json_object_add_uint64(l_jobj_out, "links total", l_node_num);
     DAP_DELETE(l_links_info_list);
     return l_jobj_out;
 }

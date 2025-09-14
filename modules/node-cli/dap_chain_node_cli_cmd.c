@@ -296,7 +296,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
         } else {
             json_object* json_node_list_obj = dap_json_object_new();
             if (!json_node_list_obj) return dap_json_object_free(json_node_list_obj), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
-            dap_json_object_add_object(json_node_list_obj, "got_nodes", json_object_new_uint64(l_nodes_count));
+            dap_json_object_add_uint64(json_node_list_obj, "got_nodes", l_nodes_count);
             json_object* json_node_list_arr = dap_json_array_new();
             if (!json_node_list_arr) return dap_json_object_free(json_node_list_obj), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
             dap_json_object_add_object(json_node_list_obj, "NODES", json_node_list_arr);
@@ -320,7 +320,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
                 char *l_addr = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_info->address));
                 dap_json_object_add_string(json_node_obj, "address", l_addr);
                 dap_json_object_add_string(json_node_obj, "IPv4", l_node_info->ext_host);
-                dap_json_object_add_object(json_node_obj, "port", json_object_new_uint64(l_node_info->ext_port));
+                dap_json_object_add_uint64(json_node_obj, "port", l_node_info->ext_port);
                 dap_json_object_add_string(json_node_obj, "timestamp", l_ts);
                 dap_json_array_add(json_node_list_arr, json_node_obj);
                 DAP_DELETE(l_addr);
@@ -512,7 +512,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 
                 dap_bin2hex(l_value_str, l_value, l_value_len);
                 dap_json_object_add_object(json_obj_rec, a_version == 1 ? "command status" : "command_status",json_object_new_string("Record found"));
-                dap_json_object_add_object(json_obj_rec, a_version == 1 ? "lenght(byte)" : "lenght_byte", json_object_new_uint64(l_value_len));
+                dap_json_object_add_uint64(json_obj_rec, a_version == 1 ? "lenght(byte)" : "lenght_byte", l_value_len);
                 dap_json_object_add_object(json_obj_rec, "hash", json_object_new_string(dap_get_data_hash_str(l_value, l_value_len).s));
                 if (a_version == 1) {
                     dap_json_object_add_object(json_obj_rec, "pinned", l_is_pinned ? json_object_new_string("Yes") : json_object_new_string("No") );
@@ -815,7 +815,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             dap_json_array_add(json_arr_group, json_obj_list);
         }
         dap_json_object_add_object(json_group_list, a_version == 1 ? "group list" : "group_list", json_arr_group);
-        dap_json_object_add_object(json_group_list, a_version == 1 ? "total count" : "total_count", json_object_new_uint64(l_count));
+        dap_json_object_add_uint64(json_group_list, a_version == 1 ? "total count" : "total_count", l_count);
         dap_json_array_add(*a_json_arr_reply, json_group_list);
         dap_list_free_full(l_group_list, NULL);
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
@@ -5018,13 +5018,13 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             dap_pkey_get_hash(l_pkey, &l_pkey_hash);
             json_object* json_obj_owner = dap_json_object_new();
             if (!json_obj_owner) return dap_json_rpc_allocation_put_error(json_obj_out);
-            dap_json_object_add_object(json_obj_owner, "num", json_object_new_int(i));
+            dap_json_object_add_int(json_obj_owner, "num", i);
             dap_json_object_add_string(json_obj_owner, "pkey_hash", dap_hash_fast_to_str_static(&l_pkey_hash));
             i++;
             dap_json_array_add(json_obj_array, json_obj_owner);
         }
-        dap_json_object_add_object(json_obj_out, "owners_total", json_object_new_int(dap_ledger_decree_get_num_of_owners(l_net->pub.ledger)));
-        dap_json_object_add_object(json_obj_out, "min_owners", json_object_new_int(dap_ledger_decree_get_min_num_of_signers(l_net->pub.ledger)));
+        dap_json_object_add_int(json_obj_out, "owners_total", dap_ledger_decree_get_num_of_owners(l_net->pub.ledger));
+        dap_json_object_add_int(json_obj_out, "min_owners", dap_ledger_decree_get_min_num_of_signers(l_net->pub.ledger));
         dap_json_array_add(*a_json_arr_reply, json_obj_out);
     } break;
     default:
@@ -5203,7 +5203,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             dap_json_object_add_object(jobj, "flags", json_object_new_uint64((uint64_t)l_store_obj[i].flags));
             dap_json_object_add_string(jobj, "sign", l_sign_str);
             dap_json_object_add_object(jobj, "timestamp", json_object_new_int64((int64_t)l_store_obj[i].timestamp));
-            dap_json_object_add_object(jobj, "crc", json_object_new_uint64(l_store_obj[i].crc));
+            dap_json_object_add_uint64(jobj, "crc", l_store_obj[i].crc);
             dap_json_array_add(l_json_group, jobj);
 
             DAP_DELETE(l_value_enc_str);

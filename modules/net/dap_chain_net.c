@@ -625,7 +625,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
         }
         dap_json_t *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
         dap_json_t *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
-        dap_json_object_add_object(l_jobj_chain, "generation", json_object_new_int(l_chain->generation));
+        dap_json_object_add_int(l_jobj_chain, "generation", l_chain->generation);
         dap_json_object_add_object(l_jobj_chain, "status", l_jobj_chain_status);
         dap_json_object_add_object(l_jobj_chain, "current", l_jobj_current);
         dap_json_object_add_object(l_jobj_chain, a_version == 1 ? "in network" : "in_network", l_jobj_total);
@@ -642,7 +642,7 @@ void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out,
                            json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
     dap_json_object_add_object(a_json_out, a_version == 1 ? "targetState" : "target_state",
                            json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
-    dap_json_object_add_object(a_json_out, a_version == 1 ? "linksCount" : "links_count", json_object_new_int(0));
+    dap_json_object_add_int(a_json_out, a_version == 1 ? "linksCount" : "links_count", 0);
     dap_json_object_add_object(a_json_out, a_version == 1 ? "activeLinksCount" : "active_links_count",
                            json_object_new_int(dap_link_manager_links_count(a_net->pub.id.uint64)));
     char l_node_addr_str[24] = {'\0'};
@@ -808,8 +808,8 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg)
         dap_json_t *json_chains = dap_json_object_new();
         for (dap_chain_t *l_chain = net->pub.chains; l_chain; l_chain = l_chain->next) {
             dap_json_t *l_jobj_chain_info = dap_json_object_new();
-            dap_json_object_add_object(l_jobj_chain_info, "count_atoms", json_object_new_int(l_chain->callback_count_atom(l_chain)));
-            dap_json_object_add_object(l_jobj_chain_info, "load_process", json_object_new_int(l_chain->load_progress));
+            dap_json_object_add_int(l_jobj_chain_info, "count_atoms", l_chain->callback_count_atom(l_chain));
+            dap_json_object_add_int(l_jobj_chain_info, "load_process", l_chain->load_progress);
             dap_json_object_add_object(json_chains, l_chain->name, l_jobj_chain_info);
             log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
                             net->pub.name, l_chain->name, l_chain->id.uint64, l_chain->load_progress);

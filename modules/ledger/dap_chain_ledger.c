@@ -462,7 +462,7 @@ static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_
     dap_time_to_str_rfc822(l_time, sizeof(l_time), a_tx_item->cache_data.ts_created);
     dap_json_object_add_string(json_obj_tx, a_version == 1 ? "Ledger thresholded tx_hash_fast" : "tx_hash", l_tx_prev_hash_str);
     dap_json_object_add_string(json_obj_tx, "time_created", l_time);
-    dap_json_object_add_object(json_obj_tx, "tx_item_size", json_object_new_int(a_tx_item->tx->header.tx_items_size));
+    dap_json_object_add_int(json_obj_tx, "tx_item_size", a_tx_item->tx->header.tx_items_size);
     dap_json_array_add(a_json_arr_out, json_obj_tx);
     return 0;
 }

@@ -599,7 +599,7 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
                 : dap_chain_hash_fast_to_str_static(&l_hash);
 
         dap_json_object_add_string(a_json_obj_out, "order", l_hash_str);
-        dap_json_object_add_object(a_json_obj_out, "version", json_object_new_uint64(a_order->version));
+        dap_json_object_add_uint64(a_json_obj_out, "version", a_order->version);
 
         switch ( a_order->direction) {
         case SERV_DIR_UNDEFINED:    dap_json_object_add_string(a_json_obj_out, "direction", "SERV_DIR_UNDEFINED");   break;
@@ -610,7 +610,7 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         dap_time_to_str_rfc822(buf_time, DAP_TIME_STR_SIZE, a_order->ts_created);
         dap_json_object_add_string(a_json_obj_out, "created", buf_time);
         //timestamp remove after sort
-        dap_json_object_add_object(a_json_obj_out, "timestamp", json_object_new_uint64(a_order->ts_created));
+        dap_json_object_add_uint64(a_json_obj_out, "timestamp", a_order->ts_created);
         char buf_srv_uid[64];
         snprintf(buf_srv_uid, sizeof(buf_srv_uid), "0x%016"DAP_UINT64_FORMAT_X"", a_order->srv_uid.uint64);
         dap_json_object_add_string(a_json_obj_out, "srv_uid", buf_srv_uid);
@@ -651,14 +651,14 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
                 : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);      
             dap_json_object_add_string(a_json_obj_out, "tx_cond_hash", l_hash_str);
         }
-        dap_json_object_add_object(a_json_obj_out, "ext_size", json_object_new_uint64(a_order->ext_size));
+        dap_json_object_add_uint64(a_json_obj_out, "ext_size", a_order->ext_size);
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         if (a_need_sign) {
             char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1);
             size_t l_sign_size = dap_sign_get_size(l_sign);
             dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
             dap_json_object_add_string(a_json_obj_out, "sig_b64", l_sign_b64);
-            dap_json_object_add_object(a_json_obj_out, "sig_b64_size", json_object_new_uint64(l_sign_size));
+            dap_json_object_add_uint64(a_json_obj_out, "sig_b64_size", l_sign_size);
         }
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
