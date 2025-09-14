@@ -2887,13 +2887,13 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
         return log_it(L_ERROR, "Empty transaction"), DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS;
 
     // Create a new json_object and assign it to the dap_json_t pointer
-    json_object* json_obj_out = dap_json_object_new();
+    dap_json_t* json_obj_out = dap_json_object_new();
     json_object* l_json_arr_reply = NULL;
     dap_hash_fast_t l_hash_tmp = { };
     byte_t *item; size_t l_size;
     char *l_hash_str = NULL;
     char l_tmp_buf[DAP_TIME_STR_SIZE];
-    json_object* json_arr_items = dap_json_array_new();
+    dap_json_t* json_arr_items = dap_json_array_new();
 
     char *l_tx_hash_str = dap_hash_fast_str_new(a_tx, dap_chain_datum_tx_get_size(a_tx));
 
@@ -2902,7 +2902,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
     dap_json_object_add_string(json_obj_out, "datum_type", "tx");
 
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
-        json_object* json_obj_item = dap_json_object_new();
+        dap_json_t* json_obj_item = dap_json_object_new();
         dap_json_object_add_object(json_obj_item,"type", json_object_new_string(dap_chain_datum_tx_item_type_to_str_short(*item)));
         switch (*item) {
         case TX_ITEM_TYPE_IN:

@@ -784,7 +784,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
         switch (res) {
             case DAP_CHAIN_NET_VOTE_VOTING_OK: {
-                json_object* json_obj_inf = dap_json_object_new();
+                dap_json_t* json_obj_inf = dap_json_object_new();
                 if (a_version == 1) {
                     dap_json_object_add_string(json_obj_inf, "Datum add successfully to mempool", l_hash_tx);
                 } else {
@@ -862,16 +862,16 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     } break;
 
     case CMD_LIST: {
-        json_object* json_vote_out = dap_json_object_new();
+        dap_json_t* json_vote_out = dap_json_object_new();
         dap_json_object_add_string(json_vote_out, "list_of_polls", l_net->pub.name);
-        json_object* json_arr_voting_out = dap_json_array_new();
+        dap_json_t* json_arr_voting_out = dap_json_array_new();
         const char *l_token_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_str);
         struct voting *votings_ht = s_votings_ht_get(l_net->pub.id);
         for (struct voting *it = votings_ht; it; it = it->hh.next) {
             if (l_token_str && strcmp(l_token_str, it->params->token_ticker) != 0)
                 continue;
-            json_object* json_obj_vote = dap_json_object_new();
+            dap_json_t* json_obj_vote = dap_json_object_new();
             dap_json_object_add_object( json_obj_vote, "poll_tx",
                                     json_object_new_string_len(dap_chain_hash_fast_to_str_static(&it->hash), sizeof(dap_hash_str_t)) );            
             dap_json_object_add_object( json_obj_vote, "question", 
@@ -881,7 +881,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         }
         dap_json_array_add(*json_arr_reply, json_vote_out);
         if (json_object_array_length(json_arr_voting_out) == 0) {
-            json_object* json_obj_no_polls = dap_json_object_new();
+            dap_json_t* json_obj_no_polls = dap_json_object_new();
             if (l_token_str)
                 dap_json_object_add_string(json_obj_no_polls, "token", l_token_str);
             dap_json_object_add_string(json_obj_no_polls, "error", "No polls found");
@@ -933,7 +933,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             SUM_256_256(l_total_weight, l_vote->weight, &l_total_weight);
         }
 
-        json_object* json_vote_out = dap_json_object_new();
+        dap_json_t* json_vote_out = dap_json_object_new();
         dap_json_object_add_object(json_vote_out, "poll_tx", json_object_new_string_len(l_hash_str, sizeof(dap_hash_str_t)));
 
         // get creator address from voting tx

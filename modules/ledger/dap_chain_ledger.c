@@ -468,7 +468,7 @@ static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_
 }
 static bool s_pack_ledger_balance_info_json (json_object *a_json_arr_out, dap_ledger_wallet_balance_t *a_balance_item, int a_version)
 {
-    json_object* json_obj_tx = dap_json_object_new();   
+    dap_json_t* json_obj_tx = dap_json_object_new();   
     dap_json_object_add_string(json_obj_tx, a_version == 1 ? "Ledger balance key" : "balance_key", a_balance_item->key);
     dap_json_object_add_string(json_obj_tx, "token_ticker", a_balance_item->token_ticker);
     dap_json_object_add_string(json_obj_tx, "balance", dap_uint256_to_char(a_balance_item->balance, NULL));
@@ -536,7 +536,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
             }
         }
         if (!l_counter) {
-            json_object* json_obj_tx = dap_json_object_new();
+            dap_json_t* json_obj_tx = dap_json_object_new();
             dap_json_object_add_string(json_obj_tx, "status", "0 items in ledger tx threshold");
             dap_json_array_add(json_arr_out, json_obj_tx);
         }
@@ -578,7 +578,7 @@ dap_json_t *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size
             }
     }
     if (!l_counter){
-        json_object* json_obj_tx = dap_json_object_new();
+        dap_json_t* json_obj_tx = dap_json_object_new();
         dap_json_object_add_string(json_obj_tx, a_version == 1 ? "No items in ledger balance_accounts" : "info_status", "empty");
         dap_json_array_add(json_arr_out, json_obj_tx);
     } 

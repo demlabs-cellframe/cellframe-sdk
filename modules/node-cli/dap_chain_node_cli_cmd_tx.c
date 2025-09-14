@@ -189,7 +189,7 @@ static json_object *s_tx_history_to_json(json_object* a_json_arr_reply,
                                          int a_version)
 {
     const char *l_tx_token_description = NULL;
-    json_object* json_obj_datum = dap_json_object_new();
+    dap_json_t* json_obj_datum = dap_json_object_new();
     if (!json_obj_datum) {
         return NULL;
     }
@@ -368,7 +368,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                                  size_t a_limit, size_t a_offset, bool a_brief, const char *a_srv, dap_chain_tx_tag_action_type_t a_action, bool a_head,
                                  int a_version)
 {
-    json_object* json_obj_datum = dap_json_array_new();
+    dap_json_t* json_obj_datum = dap_json_array_new();
     if (!json_obj_datum){
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         dap_json_rpc_error_add(a_json_arr_reply, -44, "Memory allocation error");
@@ -1007,7 +1007,7 @@ static json_object* dap_db_chain_history_token_list(json_object* a_json_arr_repl
             l_jobj_updates = json_object_object_get(l_jobj_ticker, "updates");
         }
         int l_ret_code = l_datum_iter->ret_code;
-        json_object* json_history_token = dap_json_object_new();
+        dap_json_t* json_history_token = dap_json_object_new();
         dap_json_object_add_string(json_history_token, "status", l_ret_code ? "DECLINED" : "ACCEPTED");
 dap_json_object_add_int(json_history_token, a_version == 1 ? "Ledger return code" : "ledger_ret_code", l_ret_code);
         switch (l_token->type) {
@@ -1047,7 +1047,7 @@ dap_json_object_add_int(json_history_token, a_version == 1 ? "Ledger return code
 static size_t dap_db_net_history_token_list(json_object* a_json_arr_reply, dap_chain_net_t * l_net, const char *a_token_name, const char *a_hash_out_type, json_object* a_obj_out, int a_version) {
     size_t l_token_num_total = 0;
     dap_chain_t *l_chain_cur;
-    json_object* json_arr_obj_tx = dap_json_array_new();    
+    dap_json_t* json_arr_obj_tx = dap_json_array_new();    
     DL_FOREACH(l_net->pub.chains, l_chain_cur) {
         size_t l_token_num = 0;
         json_object* json_obj_tx = NULL;
@@ -1450,13 +1450,13 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             DAP_DEL_Z(l_tx_hash);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
         }
-        json_object* json_datum = dap_json_object_new();
+        dap_json_t* json_datum = dap_json_object_new();
         if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx_to_json", NULL)) {
             const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, l_tx_hash);
             dap_json_object_add_string(json_datum, "token_ticker", l_ticker);
             bool l_all_outs_unspent = true;
             byte_t *l_item; size_t l_size; int index, l_out_idx = -1;
-            json_object* json_arr_items = dap_json_array_new();
+            dap_json_t* json_arr_items = dap_json_array_new();
             TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, index, l_datum_tx) {
                 dap_hash_fast_t l_spender = { };
                 ++l_out_idx;
@@ -1580,7 +1580,7 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             l_cmd = CMD_TX;
     // token list
     if(l_cmd == CMD_LIST) {
-        json_object* json_obj_tx = dap_json_object_new();
+        dap_json_t* json_obj_tx = dap_json_object_new();
         size_t l_total_all_token = dap_db_net_history_token_list(*a_json_arr_reply, l_net, NULL, l_hash_out_type, json_obj_tx, a_version);
 
         json_object_object_length(json_obj_tx);

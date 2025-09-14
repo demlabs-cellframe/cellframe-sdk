@@ -3493,7 +3493,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         }
         dap_json_array_add(*a_json_arr_reply, l_json_obj_banlist);   
 
-        json_object* l_json_obj_status = dap_json_object_new();
+        dap_json_t* l_json_obj_status = dap_json_object_new();
         dap_json_object_add_int(l_json_obj_status, "ban_list_count", l_penalties_count);
         dap_json_object_add_uint64(l_json_obj_status, "sync_attempt", l_session->cur_round.sync_attempt);
         dap_json_object_add_uint64(l_json_obj_status, "round_id", l_session->cur_round.id);

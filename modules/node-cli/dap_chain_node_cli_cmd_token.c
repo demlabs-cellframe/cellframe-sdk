@@ -1368,7 +1368,7 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
         dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
-    json_object* json_obj_out = dap_json_object_new();
+    dap_json_t* json_obj_out = dap_json_object_new();
     dap_json_object_add_string(json_obj_out, "result", l_str_reply_tmp);
     dap_json_array_add(*a_json_arr_reply, json_obj_out);
     return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;

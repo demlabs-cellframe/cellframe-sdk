@@ -1926,7 +1926,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
             } break;
             case SUBCMD_EVENT_FIND:{
                 const char* l_datum_hash_str = NULL;
-                json_object* json_obj_out = dap_json_object_new();
+                dap_json_t* json_obj_out = dap_json_object_new();
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
                 if (!l_datum_hash_str) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR, "Command 'event find' requires parameter '-datum'");
@@ -1939,7 +1939,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                 pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                 // dap_chain_cs_dag_event_item_t *l_curr_event = PVT(l_dag)->events;
                 dap_chain_cs_dag_event_item_t *l_curr_event = NULL, *l_temp;
-                json_object* json_arr_bl_cache_out = dap_json_array_new();
+                dap_json_t* json_arr_bl_cache_out = dap_json_array_new();
                 json_object* json_obj_event = NULL;
                 // for (;l_curr_event;l_curr_event = l_curr_event->hh.next)
                 HASH_ITER(hh, PVT(l_dag)->events, l_curr_event, l_temp){                                        
