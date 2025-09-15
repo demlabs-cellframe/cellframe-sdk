@@ -1,0 +1,8 @@
+План финальной миграции JSON API:
+
+json_object_type_mismatch: 426 проблем
+implicit_declarations: 8 проблем
+initialization_mismatch: 12 проблем
+other: 1899 проблем
+
+Всего исправлений: 4
