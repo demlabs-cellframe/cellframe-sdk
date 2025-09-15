@@ -97,7 +97,7 @@ typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chain_t *, size_t *);
-typedef json_object *(*dap_chain_callback_atom_to_json)(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hex_out_type);
+typedef json_object *(*dap_chain_callback_atom_to_json)(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hex_out_type, int a_version);
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t*);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 
@@ -132,6 +132,8 @@ typedef void (*dap_chain_callback_datum_notify_t)(void *a_arg, dap_chain_hash_fa
 typedef void (*dap_chain_callback_datum_removed_notify_t)(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_datum_t *a_datum); //change in chain happened
 typedef void (*dap_chain_callback_blockchain_timer_t)(dap_chain_t *a_chain, dap_time_t a_time, void *a_arg, bool a_reverse);
 typedef uint64_t (*dap_chain_callback_get_count)(dap_chain_t *a_chain);
+typedef uint64_t (*dap_chain_callback_get_count_tx_increase)(dap_chain_t *a_chain);
+typedef uint64_t (*dap_chain_callback_get_count_tx_decrease)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
@@ -221,6 +223,8 @@ typedef struct dap_chain {
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;
 
     dap_chain_callback_get_count callback_count_tx;
+    dap_chain_callback_get_count_tx_increase callback_count_tx_increase;
+    dap_chain_callback_get_count_tx_decrease callback_count_tx_decrease;
     dap_chain_callback_get_list callback_get_txs;
     dap_chain_callback_get_count callback_count_atom;
     dap_chain_callback_get_list callback_get_atoms;
@@ -323,5 +327,6 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 
 const char *dap_chain_type_to_str(dap_chain_type_t a_chain_type);
+const char *dap_datum_type_to_str(uint16_t a_datum_type);
 const char *dap_chain_get_path(dap_chain_t *a_chain);
 const char *dap_chain_get_cs_type(dap_chain_t *l_chain);

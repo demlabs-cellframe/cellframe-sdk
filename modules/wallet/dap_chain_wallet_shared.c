@@ -1091,7 +1091,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
  * @param a_str_reply
  * @return
  */
-int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply)
+int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     int l_arg_index = 2;
@@ -1135,7 +1135,7 @@ int dap_chain_wallet_shared_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL);
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
-    dap_ledger_service_add(l_uid, "wallet shared", s_tag_check);
+    dap_ledger_service_add(l_uid, "wallet_shared", s_tag_check);
 
     return 0;
 }
