@@ -1101,8 +1101,8 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         }
 
         if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
-            // A terrible legacy crutch, not applied to new txs anymore.
-            if (!l_receipt_old || SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
+            // A terrible legacy crutch, not for old format only =/
+            if (SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
                     !EQUAL_256(l_blank_out_value, l_value_delegated)) {
                 log_it(L_ERROR, "Burning and delegated value mismatch");
                 return -12;
