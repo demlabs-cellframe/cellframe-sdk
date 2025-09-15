@@ -609,7 +609,7 @@ static dap_json_t* s_request_command_parse(dap_json_t *l_response, compose_confi
                 dap_json_object_get_ex(error_obj, "message", &error_message)) {
                 dap_json_compose_error_add(a_config->response_handler,
                                          dap_json_object_get_int(error_code, NULL),
-                                         dap_dap_json_object_get_string(error_message, NULL));
+                                         dap_dap_dap_json_object_get_string(error_message, NULL));
             }
         }
         return NULL;

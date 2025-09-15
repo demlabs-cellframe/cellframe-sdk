@@ -768,7 +768,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         if (l_send_to_same_cond && l_found_out_to_same_addr_from_out_cond) {
             uint256_t l_cond_recv_value = l_cond_value;
             dap_json_t *l_cond_send_value_obj = dap_json_object_get(l_cond_send_object, "send_datoshi");
-            const char *l_cond_send_value_str = dap_json_object_get_string(l_cond_send_value_obj);
+            const char *l_cond_send_value_str = dap_dap_json_object_get_string(l_cond_send_value_obj);
             uint256_t l_cond_send_value = dap_uint256_scan_uninteger(l_cond_send_value_str);
             int l_direction = compare256(l_cond_recv_value, l_cond_send_value);
             if (l_direction > 0) {
@@ -1508,7 +1508,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                         int array_len = dap_json_array_length(json_items);
                         for (int i = 0; i < array_len; i++) {
                             dap_json_t *item = json_object_array_get_idx(json_items, i);
-                            const char *item_type = dap_json_object_get_string(dap_json_object_get(item, "type"));
+                            const char *item_type = dap_dap_json_object_get_string(dap_json_object_get(item, "type"));
                             if (item_type && strcmp(item_type, "sig_dil") == 0) {
                                 dap_json_object_add_string(item, "sig_b64", l_sign_b64);
                                 dap_json_object_add_uint64(item, "sig_b64_size", l_sign_size);
@@ -1807,7 +1807,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
     if(!l_net_name) {
         struct dap_json_t *l_json_net = dap_json_object_get(l_json, "net");
         if(l_json_net && json_object_is_type(l_json_net, json_type_string)) {
-            l_net_name = dap_json_object_get_string(l_json_net);
+            l_net_name = dap_dap_json_object_get_string(l_json_net);
         }
         if(!l_net_name) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
@@ -1829,7 +1829,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
     if(!l_chain_name) {
         struct dap_json_t *l_json_chain = dap_json_object_get(l_json, "chain");
         if(l_json_chain && json_object_is_type(l_json_chain, json_type_string)) {
-            l_chain_name = dap_json_object_get_string(l_json_chain);
+            l_chain_name = dap_dap_json_object_get_string(l_json_chain);
         }
     }
     dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
@@ -2342,7 +2342,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
     if(!l_net_name) {
         struct dap_json_t *l_json_net = dap_json_object_get(l_json, "net");
         if(l_json_net && json_object_is_type(l_json_net, json_type_string)) {
-            l_net_name = dap_json_object_get_string(l_json_net);
+            l_net_name = dap_dap_json_object_get_string(l_json_net);
         }
         if(!l_net_name) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
@@ -2362,7 +2362,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
     if(!l_chain_name) {
         struct dap_json_t *l_json_chain = dap_json_object_get(l_json, "chain");
         if(l_json_chain && json_object_is_type(l_json_chain, json_type_string)) {
-            l_chain_name = dap_json_object_get_string(l_json_chain);
+            l_chain_name = dap_dap_json_object_get_string(l_json_chain);
         }
     }
     dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);

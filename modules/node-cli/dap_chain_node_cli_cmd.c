@@ -2223,7 +2223,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                         // Notify about wallet
                         s_new_wallet_info_notify(l_wallet_name);
                         struct dap_json_t *l_json_wallets = wallet_list_json_collect(a_version);
-                        dap_notify_server_send(dap_json_object_get_string(l_json_wallets));
+                        dap_notify_server_send(dap_dap_json_object_get_string(l_json_wallets));
                         dap_json_object_free(l_json_wallets);
                         break;
                     case -EBUSY:
@@ -2454,7 +2454,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                     // Notify about wallet
                     s_new_wallet_info_notify(l_wallet_name);
                     struct dap_json_t *l_json_wallets = wallet_list_json_collect(a_version);
-                    dap_notify_server_send(dap_json_object_get_string(l_json_wallets));
+                    dap_notify_server_send(dap_dap_json_object_get_string(l_json_wallets));
                     dap_json_object_free(l_json_wallets);
                     break;
                 }
@@ -5277,7 +5277,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             continue;
         }
         struct dap_json_t *l_json_group_name = dap_json_object_get(l_group_obj, "group");
-        const char *l_group_name = dap_json_object_get_string(l_json_group_name);
+        const char *l_group_name = dap_dap_json_object_get_string(l_json_group_name);
         // proc group name
         log_it(L_INFO, "Group %zu: %s", i, l_group_name);
         struct dap_json_t *l_json_records = dap_json_object_get(l_group_obj, "records");
@@ -5295,7 +5295,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             size_t l_record_size = json_object_object_length(l_record);
             l_value_len = dap_json_object_get(l_record, "value_len");
             l_ts        = dap_json_object_get(l_record, "timestamp");
-            l_group_store[j].key    = dap_strdup(dap_json_object_get_string(l_key));
+            l_group_store[j].key    = dap_strdup(dap_dap_json_object_get_string(l_key));
             if(!l_group_store[j].key) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 l_records_count = j;
@@ -5311,7 +5311,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             l_group_store[j].timestamp = l_temp >> 32 ? l_temp : dap_nanotime_from_sec(l_temp);  // possibly legacy record
             l_group_store[j].value_len = (uint64_t)json_object_get_int64(l_value_len);
 
-            const char *l_value_str = dap_json_object_get_string(l_value);
+            const char *l_value_str = dap_dap_json_object_get_string(l_value);
             char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
             if(!l_val) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -5326,7 +5326,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                 dap_json_t *l_jobj_flags = dap_json_object_get(l_record, "flags");
                 uint8_t l_flags = (uint8_t)json_object_get_uint64(l_jobj_flags);
                 uint64_t l_crc = json_object_get_uint64(l_jobj_crc);
-                const char *l_sign_str = dap_json_object_get_string(l_jobj_sign);
+                const char *l_sign_str = dap_dap_json_object_get_string(l_jobj_sign);
                 int l_len = dap_strlen(l_sign_str);
                 dap_sign_t *l_sign = DAP_NEW_Z_SIZE(dap_sign_t, DAP_ENC_BASE64_DECODE_SIZE(l_len) + 1);
                 size_t l_sign_decree_size = dap_enc_base64_decode(l_sign_str, l_len, l_sign, DAP_ENC_DATA_TYPE_B64);
@@ -6088,7 +6088,7 @@ struct dap_json_t *wallets_info_json_collect(int a_version) {
                 *l_json_wallet_name = dap_json_object_get(l_json_wallet, "Wallet");
         if ( !l_json_wallet_name )
             continue;
-        char *l_tmp = (char*)dap_json_object_get_string(l_json_wallet_name), *l_dot_pos = strstr(l_tmp, ".dwallet"), tmp = '\0';
+        char *l_tmp = (char*)dap_dap_json_object_get_string(l_json_wallet_name), *l_dot_pos = strstr(l_tmp, ".dwallet"), tmp = '\0';
         if (l_dot_pos) {
             tmp = *l_dot_pos;
             *l_dot_pos = '\0';
@@ -6130,7 +6130,7 @@ static void s_new_wallet_info_notify(const char *a_wallet_name)
     struct dap_json_t *l_json_wallet_info = dap_json_object_new();
     dap_json_object_add_object(l_json_wallet_info, a_wallet_name, dap_chain_wallet_info_to_json(a_wallet_name, dap_chain_wallet_get_path(g_config)));
     dap_json_object_add_object(l_json, "wallet", l_json_wallet_info);
-    dap_notify_server_send(dap_json_object_get_string(l_json));
+    dap_notify_server_send(dap_dap_json_object_get_string(l_json));
     dap_json_object_free(l_json);
 }
 
