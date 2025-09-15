@@ -5492,7 +5492,7 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                          "'net list'";
     }
 
-    json_object* json_obj_out;
+    dap_json_t* json_obj_out;
     char *l_out_mes;
     if (error) {
        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_REMOVE_GENERAL_ERR, "Error when deleting, because:\n%s", return_message);
