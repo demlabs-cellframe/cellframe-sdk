@@ -95,7 +95,7 @@
 
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 static void s_new_wallet_info_notify(const char *a_wallet_name); 
-struct json_object *wallet_list_json_collect(int a_version);
+struct dap_json_t *wallet_list_json_collect(int a_version);
 
 dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_hash) {
     dap_chain_t *l_chain = NULL;
@@ -1730,7 +1730,7 @@ int com_help(int a_argc, char **a_argv, void **a_str_reply, int a_version)
     }
 }
 
-static void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_chain_addr_t *a_addr, int a_version){
+static void s_wallet_list(const char *a_wallet_path, dap_json_t *a_json_arr_out, dap_chain_addr_t *a_addr, int a_version){
     if (!a_wallet_path || !a_json_arr_out)
         return;
     const char *l_addr_str = NULL;
@@ -1989,7 +1989,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                                        dap_json_object_new_string(dap_sign_type_to_str(l_addr->sig_type)));
             }
             if (l_addr_tokens_size) {
-                json_object * j_arr_balance = dap_json_array_new();
+                dap_json_t * j_arr_balance = dap_json_array_new();
                 for(size_t i = 0; i < l_addr_tokens_size; i++) {
                     dap_json_t *l_jobj_token = dap_json_object_new();
                     dap_json_t *l_jobj_ticker = dap_json_object_new_string(l_addr_tokens[i]);
@@ -1998,7 +1998,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                                                                     : json_object_new_null();
                     dap_json_object_add_object(l_jobj_token, "ticker", l_jobj_ticker);
                     dap_json_object_add_object(l_jobj_token, "description", l_jobj_description);
-                    json_object * j_balance_data = dap_json_object_new();
+                    dap_json_t * j_balance_data = dap_json_object_new();
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
                     const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
                     dap_json_object_add_string(j_balance_data, "balance", "");
@@ -2206,7 +2206,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             switch (cmd_num) {
                 case CMD_WALLET_ACTIVATE:
                 case CMD_WALLET_DEACTIVATE: {
-                    json_object * json_obj_wall = dap_json_object_new();
+                    dap_json_t * json_obj_wall = dap_json_object_new();
                     const char *l_prefix = cmd_num == CMD_WALLET_ACTIVATE ? "" : "de";
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ttl", &l_ttl_str);
                     l_rc = l_ttl_str ? strtoul(l_ttl_str, NULL, 10) : 60;
@@ -2298,7 +2298,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                         dap_json_object_free(json_arr_out);
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR;
                     }
-                    json_object * json_obj_wall = dap_json_object_new();
+                    dap_json_t * json_obj_wall = dap_json_object_new();
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
                     dap_json_object_add_object(json_obj_wall, a_version == 1 ? "Sign wallet" : "sig_wallet", dap_json_object_new_string(
                                                                               strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
@@ -2431,7 +2431,7 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INTERNAL_ERR;
                     }
 
-                    json_object * json_obj_wall = dap_json_object_new();
+                    dap_json_t * json_obj_wall = dap_json_object_new();
                     dap_json_object_add_string(json_obj_wall, a_version == 1 ? "Wallet name" : "wallet_name", l_wallet->name);
                     if (l_sign_count > 1) {
                         dap_string_t *l_signs_types_str = dap_string_new("sig_multi_chained, ");
@@ -2544,7 +2544,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
  * @param a_hash_out_type
  */
 void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain_net_t * a_net, dap_chain_t * a_chain, const char * a_add,
-                                        json_object *a_json_obj, const char *a_hash_out_type, bool a_fast, size_t a_limit, size_t a_offset, int a_version) {
+                                        dap_json_t *a_json_obj, const char *a_hash_out_type, bool a_fast, size_t a_limit, size_t a_offset, int a_version) {
     dap_chain_addr_t *l_wallet_addr = dap_chain_addr_from_str(a_add);
     if (a_add && !l_wallet_addr) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CONVERT_BASE58_TO_ADDR_WALLET, "Cannot convert "
@@ -3890,7 +3890,7 @@ typedef enum _s_where_search{
     MEMPOOL
 }_s_where_search_t;
 
-void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, uint16_t a_decree_type, _s_where_search_t a_where, const char *a_hash_out_type, int a_version) {
+void _cmd_find_type_decree_in_chain(dap_json_t *a_out, dap_chain_t *a_chain, uint16_t a_decree_type, _s_where_search_t a_where, const char *a_hash_out_type, int a_version) {
     dap_json_t *l_common_decree_arr = dap_json_array_new();
     dap_json_t *l_service_decree_arr = dap_json_array_new();
     if (a_where == ALL || a_where == CHAINS) {
@@ -3961,7 +3961,7 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
 }
 
 int cmd_find(int a_argc, char **a_argv, void **a_reply, int a_version) {
-    dap_json_t **a_json_reply = (json_object **)a_reply;
+    dap_json_t **a_json_reply = (dap_json_t **)a_reply;
     int arg_index = 1;
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
@@ -5288,7 +5288,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             return -1;
         }
         for (size_t j = 0; j < l_records_count; ++j) {
-            struct json_object *l_record, *l_key, *l_value, *l_value_len, *l_ts;
+            struct dap_json_t *l_record, *l_key, *l_value, *l_value_len, *l_ts;
             l_record = json_object_array_get_idx(l_json_records, j);
             l_key       = dap_json_object_get(l_record, "key");
             l_value     = dap_json_object_get(l_record, "value");
@@ -6066,7 +6066,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
     return NULL;
 }
 
-struct json_object *wallet_list_json_collect(int a_version){
+struct dap_json_t *wallet_list_json_collect(int a_version){
     struct dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", "WalletList");
     struct dap_json_t *l_j_wallets = dap_json_array_new();
@@ -6076,7 +6076,7 @@ struct json_object *wallet_list_json_collect(int a_version){
 }
 
 
-struct json_object *wallets_info_json_collect(int a_version) {
+struct dap_json_t *wallets_info_json_collect(int a_version) {
     struct dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", "WalletsInfo");
     struct dap_json_t *l_json_wallets = dap_json_object_new();
@@ -6157,7 +6157,7 @@ static void s_stage_connected_error_callback(dap_client_t* a_client, void * a_ar
 }
 
 int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
-    dap_json_t ** a_json_arr_reply = (json_object **) reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) reply;
     if (!dap_json_rpc_exec_cmd_inited()) {
         dap_json_rpc_error_add(*a_json_arr_reply, -1, "Json-rpc module doesn't inited, check confings");
         return -1;
@@ -6427,7 +6427,7 @@ static char *s_decree_policy_put(dap_chain_datum_decree_t *a_decree, dap_chain_n
 }
 
 int com_policy(int argc, char **argv, void **reply, int a_version) {
-    dap_json_t ** a_json_arr_reply = (json_object **) reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) reply;
     char **l_deactivate_array = NULL;
     const char
         *l_num_str = NULL,
