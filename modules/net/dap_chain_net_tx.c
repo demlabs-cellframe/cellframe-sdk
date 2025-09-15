@@ -572,7 +572,7 @@ static const char* s_json_get_text(struct dap_json_t *a_json, const char *a_key)
     struct dap_json_t *l_json = dap_json_object_get(a_json, a_key);
     if(l_json && json_object_is_type(l_json, json_type_string)) {
         // Read text
-        return json_object_get_string(l_json);
+        return dap_json_object_get_string(l_json);
     }
     return NULL;
 }
@@ -686,7 +686,7 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, dap_json_t *a_jso
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
-        const char *l_item_type_str = json_object_get_string(l_json_item_type);
+        const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
         dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
         if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
             log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
@@ -1376,7 +1376,7 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(dap_json_t *a_json_item_obj, d
         *a_sign_list = dap_list_append(*a_sign_list, a_json_item_obj);
         return NULL;
     }
-    const char *l_sign_b64_str = json_object_get_string(l_jobj_sign);
+    const char *l_sign_b64_str = dap_json_object_get_string(l_jobj_sign);
     if ( !l_sign_b64_str ) {
         if (a_jobj_arr_errors)
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Can't get base64-encoded sign");
@@ -1586,7 +1586,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
             log_it(L_WARNING, "Item %du without type", i);
             continue;
         }
-        const char *l_item_type_str = json_object_get_string(l_json_item_type);
+        const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
         l_signed |= TX_ITEM_TYPE_SIG == dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
     }
 
@@ -1602,7 +1602,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                 log_it(L_WARNING, "Item %zu without type", i);
                 continue;
             }
-            const char *l_item_type_str = json_object_get_string(l_json_item_type);
+            const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
             dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
             if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
                 log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
@@ -1752,14 +1752,14 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
-        const char *l_item_type_str = json_object_get_string(l_json_item_type);
+        const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
         dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
         if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
             log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
             continue;
         }
 
-        log_it(L_DEBUG, "Json TX: process item %s", json_object_get_string(l_json_item_type));
+        log_it(L_DEBUG, "Json TX: process item %s", dap_json_object_get_string(l_json_item_type));
         // Create an item depending on its type
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
@@ -2342,7 +2342,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                 l_sign_list = dap_list_append(l_sign_list, l_json_item_obj);
                 break;
             }
-            const char *l_sign_b64_str = json_object_get_string(l_jobj_sign);
+            const char *l_sign_b64_str = dap_json_object_get_string(l_jobj_sign);
             if ( !l_sign_b64_str ) {
                 dap_json_array_add(l_jobj_errors, dap_json_object_new_string("Can't get base64-encoded sign"));
                 log_it(L_ERROR, "Json TX: Can't get base64-encoded sign!");
@@ -2692,7 +2692,7 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = dap_json_array_length(l_json_items))) {
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     } 
-    const char *l_net_str = json_object_get_string(l_json_net); 
+    const char *l_net_str = dap_json_object_get_string(l_json_net); 
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
     if (l_net_str && !l_net && !a_net) {
         dap_json_rpc_error_add(a_jobj_arr_errors,DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON,"not found net by name '%s'", l_net_str);
@@ -2741,14 +2741,14 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
-        const char *l_item_type_str = json_object_get_string(l_json_item_type);
+        const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
         dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
         if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
             log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
             continue;
         }
 
-        log_it(L_DEBUG, "Json TX: process item %s", json_object_get_string(l_json_item_type));
+        log_it(L_DEBUG, "Json TX: process item %s", dap_json_object_get_string(l_json_item_type));
         // Create an item depending on its type
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
