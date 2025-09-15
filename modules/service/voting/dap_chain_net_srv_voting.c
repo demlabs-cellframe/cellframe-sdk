@@ -1138,7 +1138,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     }break;
     case CMD_LIST:{
         json_object* json_vote_out = json_object_new_object();
-        json_object_object_add(json_vote_out, "list_of_polls", json_object_new_string(l_net->pub.name));
+        json_object_object_add(json_vote_out, "net_name", json_object_new_string(l_net->pub.name));
         json_object* json_arr_voting_out = json_object_new_array();
         dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
         const char *l_token_str = NULL;
@@ -1193,7 +1193,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             json_object_array_add(*json_arr_reply, json_obj_no_polls);
             json_object_put(json_arr_voting_out);
         } else {
-            json_object_array_add(*json_arr_reply, json_arr_voting_out);
+            json_object * l_json_arr_polls = json_object_new_object();
+            json_object_object_add(l_json_arr_polls, "polls", json_arr_voting_out);
+            json_object_array_add(*json_arr_reply, l_json_arr_polls);
         }
     }break;
     case CMD_DUMP:{
