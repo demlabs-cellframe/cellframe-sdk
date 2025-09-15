@@ -2015,15 +2015,3 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_v
     return 0;
 }
 
-bool s_dap_chain_node_cli_find_subcmd (char ** cmd_param, int cmd_cnt, const char * a_str)
-{
-    for (int i = 0; i < cmd_cnt; i++)
-    {
-        if (!strcmp(cmd_param[i], a_str))
-        {
-            return true;            
-        }
-    }
-    return false;
-}
-
