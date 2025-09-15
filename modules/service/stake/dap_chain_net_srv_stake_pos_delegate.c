@@ -2206,7 +2206,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             json_object_array_sort(l_json_arr_reply, json_object_compare_by_timestamp);
             // Remove the timestamp
             for (size_t i = 0; i < json_array_lenght; i++) {
-                struct dap_json_t *obj = json_object_array_get_idx(l_json_arr_reply, i);
+                struct dap_json_t *obj = dap_json_array_get_idx(l_json_arr_reply, i);
                 json_object_object_del(obj, "timestamp");
             }
         }

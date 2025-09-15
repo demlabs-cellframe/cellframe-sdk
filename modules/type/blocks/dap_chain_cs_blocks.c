@@ -1145,7 +1145,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             // Remove the timestamp and change block num
             size_t l_length = dap_json_array_length(json_arr_bl_cache_out);
             for (size_t i = 0; i < l_length; i++) {
-                struct dap_json_t *obj = json_object_array_get_idx(json_arr_bl_cache_out, i);
+                struct dap_json_t *obj = dap_json_array_get_idx(json_arr_bl_cache_out, i);
                 json_object_object_del(obj, "timestamp");
                 if (json_object_object_get_ex(obj, "block", NULL)) 
                     dap_json_object_add_uint64(obj, "block", i);
