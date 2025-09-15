@@ -50,7 +50,7 @@ typedef struct {
 
 typedef struct dap_chain_net_srv_abstract
 {
-    uint8_t class; //Class of service (once or permanent)
+    uint8_t c; //Class of service (once or permanent)
     dap_chain_net_srv_uid_t type_id; //Type of service
     union {
         struct {
@@ -96,8 +96,6 @@ typedef struct dap_chain_net_srv_grace {
     dap_stream_ch_uuid_t ch_uuid;
     dap_chain_net_srv_usage_t *usage;
     dap_timerfd_t *timer;
-    dap_stream_ch_chain_net_srv_pkt_request_t *request;
-    size_t request_size;
 } dap_chain_net_srv_grace_t;
 
 typedef struct dap_chain_net_srv_client_remote
@@ -122,9 +120,7 @@ typedef void (*dap_chain_net_srv_callback_decree_t)(dap_chain_net_srv_t* a_srv, 
 
 typedef struct dap_chain_net_srv_banlist_item {
     dap_chain_hash_fast_t client_pkey_hash;
-    pthread_mutex_t *ht_mutex;
-    struct dap_chain_net_srv_banlist_item **ht_head;
-    UT_hash_handle hh;
+    dap_time_t end_of_ban_timestamp;
 } dap_chain_net_srv_banlist_item_t;
 
 typedef struct dap_chain_net_srv_callbacks {
@@ -167,8 +163,6 @@ typedef struct dap_chain_net_srv
 
     bool allow_free_srv;
     uint32_t grace_period;
-    pthread_mutex_t banlist_mutex;
-    dap_chain_net_srv_banlist_item_t *ban_list;
 
     dap_chain_net_srv_callbacks_t callbacks;
 
@@ -224,7 +218,7 @@ size_t dap_chain_net_srv_count(void);
 const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
-                                                               const void * a_ext, size_t a_ext_size);
+                                                               const void * a_ext, size_t a_ext_size, dap_hash_fast_t *a_prev_tx_hash);
 
 int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section);
 
@@ -234,9 +228,9 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
     switch ( a_uid.enm) {
-        case SERV_UNIT_B: return "BYTE";
-        case SERV_UNIT_SEC: return "SECOND";
-        case SERV_UNIT_PCS: return "PIECES";
+        case SERV_UNIT_B: return "bytes";
+        case SERV_UNIT_SEC: return "sec";
+        case SERV_UNIT_PCS: return "pieces";
         default: return "UNKNOWN";
     }
 }

@@ -103,3 +103,10 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-bridge")
     add_subdirectory(service/bridge)
 endif()
+
+# Service for emission rights delegate to wallets consensus
+
+# compose service
+if (CELLFRAME_MODULES MATCHES "compose")
+    add_subdirectory(compose)
+endif()

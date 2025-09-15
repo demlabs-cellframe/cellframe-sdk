@@ -170,9 +170,10 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                              json_object* json_obj_out,
                              const char *a_hash_out_type,
                              dap_hash_fast_t *a_tx_hash,
-                             dap_chain_net_id_t a_net_id);
+                             dap_chain_net_id_t a_net_id,
+                             int a_version);
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
-void dap_chain_datum_dump_json(json_object* a_json_arr_reply,json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose);
+void dap_chain_datum_dump_json(json_object* a_json_arr_reply,json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose, int a_version);
 
 #ifdef __cplusplus
 }

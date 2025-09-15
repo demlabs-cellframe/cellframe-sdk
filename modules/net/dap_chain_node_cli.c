@@ -159,7 +159,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name>>\n"
-                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [{-cond | -value <uint256_value>}]\n"
+                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [{-cond [-type <cond_type>] | -value <uint256_value>}]\n"
+                                "\t Available conditional output types for -type parameter:\n"
+                                "\t   srv_pay, srv_xchange, srv_stake_pos_delegate, srv_stake_lock, fee\n"
                             "wallet convert -w <wallet_name> {-password <password> | -remove_password }\n"
                             "wallet find -addr <addr> {-file <file path>}\n"
                             "wallet shared hold - creates new shared funds transaction\n"
@@ -200,9 +202,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\texample value_coins (only natural) 1.0 123.4567\n"
                                 "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
     );
-
-    // Token commands
-
 
     // Token commands
     dap_cli_server_cmd_add ("token_decl", com_token_decl, "Token declaration",
@@ -304,6 +303,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
+    dap_cli_server_cmd_add ("mempool_add", com_mempool_add, "Make transaction and put that to mempool",
+                "json_datum_mempool_put  -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
                                         "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                                         " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n" );

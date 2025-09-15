@@ -84,7 +84,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size);
 static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
 static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr);
-static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply);
+static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
 {
@@ -222,6 +222,58 @@ void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
     dap_chain_esbocs_t *l_esbocs = l_blocks->_inheritor;
     dap_chain_esbocs_pvt_t * l_esbocs_pvt = PVT(l_esbocs);    
     l_esbocs_pvt->debug = a_enable;
+}
+
+/**
+ * @brief Set custom metadata callback for ESBOCS consensus
+ * @details This function sets a callback that will be called to get custom metadata
+ *          for each block before SUBMIT message is sent
+ * @param a_net_id Network ID
+ * @param a_callback Callback function pointer or NULL to disable
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_esbocs_set_custom_metadata_callback(dap_chain_net_id_t a_net_id, 
+                                                  dap_chain_esbocs_callback_set_custom_metadata_t a_callback)
+{
+    dap_chain_esbocs_t *l_esbocs = NULL;
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session)
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
+            l_esbocs = l_session->esbocs;
+    if (!l_esbocs) {
+         log_it(L_ERROR, "ESBOCS consensus not initialized for net 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
+        return -1;
+    }
+    l_esbocs->callback_set_custom_metadata = a_callback;  
+    log_it(L_INFO, "Custom metadata callback %s for network %s", 
+           a_callback ? "set" : "removed", l_esbocs->chain->net_name);
+    return 0;
+}
+
+/**
+ * @brief Set presign callback for ESBOCS consensus
+ * @details This function sets a callback that will be called to validate custom metadata
+ *          in blocks during verification process
+ * @param a_net_id Network ID
+ * @param a_callback Callback function pointer or NULL to disable
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
+                                          dap_chain_esbocs_callback_presign_t a_callback)
+{
+    dap_chain_esbocs_t *l_esbocs = NULL;
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session)
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
+            l_esbocs = l_session->esbocs;
+    if (!l_esbocs) {
+         log_it(L_ERROR, "ESBOCS consensus not initialized for net 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
+        return -1;
+    }
+    l_esbocs->callback_presign = a_callback;
+    log_it(L_INFO, "Presign callback %s for network %s", 
+           a_callback ? "set" : "removed", l_esbocs->chain->net_name);
+    return 0;
 }
 
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
@@ -1662,6 +1714,22 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                  l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
         }
+        
+        // Add custom metadata if available
+        if (l_candidate_size && a_session->esbocs->callback_set_custom_metadata) {
+            size_t l_custom_data_size = 0;
+            uint8_t l_meta_type = DAP_CHAIN_BLOCK_META_EVM_DATA;
+            uint8_t *l_custom_data = a_session->esbocs->callback_set_custom_metadata(l_candidate, &l_meta_type, &l_custom_data_size);
+            if (l_custom_data && l_custom_data_size) {
+                l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, l_meta_type, l_custom_data, l_custom_data_size);
+                if (PVT(a_session->esbocs)->debug) {
+                    log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu. Added custom metadata, size: %zu",
+                            a_session->chain->net_name, a_session->chain->name,
+                                a_session->cur_round.id, a_session->cur_round.attempt_num, l_custom_data_size);
+                }
+            }
+        }
+        
         if (l_candidate_size) {
             dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);
             if (PVT(a_session->esbocs)->debug) {
@@ -2847,9 +2915,18 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block)
+    if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block) {
         // It's a block candidate, don't check signs
-        return a_block->hdr.version > 1 ? 0 : -3;
+        if (a_block->hdr.version <= 1) {
+            log_it(L_ERROR, "Block %s has version %d, which is not supported", dap_hash_fast_to_str_static(a_block_hash), a_block->hdr.version);
+            return -3;
+        }
+        if (l_esbocs->callback_presign && !l_esbocs->callback_presign(a_block)) {
+            log_it(L_WARNING, "Block %s has invalid custom metadata", dap_hash_fast_to_str_static(a_block_hash));
+            return -5;
+        }
+        return 0;
+    }
 
     size_t l_block_size = a_block_size; // /* Can't calc it for many old bugged blocks */ dap_chain_block_get_size(a_block);
     size_t l_signs_count = 0;
@@ -3023,18 +3100,18 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_emergency_validator(dap_cha
     return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
-static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *a_validator_addrs)
+static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *a_validator_addrs, int a_version)
 {
     json_object *json_arr_validators = json_object_new_array();
     size_t i=1;
     for (dap_list_t *it = a_validator_addrs; it; it = it->next, i++) {
         json_object *json_obj_validator = json_object_new_object();
         dap_chain_addr_t *l_addr = it->data;
-        json_object_object_add(json_obj_validator,"#", json_object_new_uint64(i));
-        json_object_object_add(json_obj_validator,"addr hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_addr->data.hash_fast)));
+        json_object_object_add(json_obj_validator, a_version == 1 ? "#" : "num", json_object_new_uint64(i));
+        json_object_object_add(json_obj_validator, a_version == 1 ? "addr hash" : "addr_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_addr->data.hash_fast)));
         json_object_array_add(json_arr_validators, json_obj_validator);
     }
-    json_object_object_add(json_obj_out,"Current emergency validators list", json_arr_validators);
+    json_object_object_add(json_obj_out, a_version == 1 ? "Current emergency validators list" : "current_emergency_validators_list", json_arr_validators);
 }
 
 /**
@@ -3046,7 +3123,7 @@ static void s_print_emergency_validators(json_object *json_obj_out, dap_list_t *
  * @param str_reply
  * @return
  */
-static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
+static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     int l_arg_index = 1;
     dap_chain_net_t *l_chain_net = NULL;
@@ -3147,7 +3224,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
                 json_object * json_obj_out = json_object_new_object();
                 json_object_object_add(json_obj_out,"status", json_object_new_string("Minimum validators count has been set"));
-                json_object_object_add(json_obj_out,"decree hash", json_object_new_string(l_decree_hash_str));
+                json_object_object_add(json_obj_out, a_version == 1 ? "decree hash" : "decree_hash", json_object_new_string(l_decree_hash_str));
                 json_object_array_add(*a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
@@ -3157,7 +3234,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             }
         } else{
             json_object * json_obj_out = json_object_new_object();
-            json_object_object_add(json_obj_out,"Minimum validators count", json_object_new_uint64(l_esbocs_pvt->min_validators_count));
+            json_object_object_add(json_obj_out, a_version == 1 ? "Minimum validators count" : "min_validators_count", json_object_new_uint64(l_esbocs_pvt->min_validators_count));
             json_object_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
@@ -3168,8 +3245,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_signs_check(l_chain_net, l_chain, l_subcommand_add, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
-                json_object_object_add(json_obj_out,"Checking signs structure has been", l_subcommand_add ? json_object_new_string("enabled") : json_object_new_string("disabled"));
-                json_object_object_add(json_obj_out,"Decree hash", json_object_new_string(l_decree_hash_str));
+                json_object_object_add(json_obj_out, a_version == 1 ? "Checking signs structure has been" : "sig_check_status", l_subcommand_add ? json_object_new_string("enabled") : json_object_new_string("disabled"));
+                json_object_object_add(json_obj_out, a_version == 1 ? "Decree hash" : "decree_hash", json_object_new_string(l_decree_hash_str));
                 json_object_array_add(*a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
@@ -3179,7 +3256,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
         } else{
-            json_object_object_add(json_obj_out,"Checking signs structure is", l_esbocs_pvt->check_signs_structure ? json_object_new_string("enabled") : json_object_new_string("disabled"));
+            json_object_object_add(json_obj_out, a_version == 1 ? "Checking signs structure is" : "sig_check_status", l_esbocs_pvt->check_signs_structure ? json_object_new_string("enabled") : json_object_new_string("disabled"));
             json_object_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
@@ -3205,9 +3282,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
                 json_object * json_obj_out = json_object_new_object();
-                json_object_object_add(json_obj_out,"Emergency validator", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
-                json_object_object_add(json_obj_out,"status", l_subcommand_add ? json_object_new_string("added") : json_object_new_string("deleted"));
-                json_object_object_add(json_obj_out,"Decree hash", json_object_new_string(l_decree_hash_str));
+                json_object_object_add(json_obj_out, a_version == 1 ? "Emergency validator" : "emergency_validator", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
+                json_object_object_add(json_obj_out, "status", l_subcommand_add ? json_object_new_string("added") : json_object_new_string("deleted"));
+                json_object_object_add(json_obj_out, a_version == 1 ? "Decree hash" : "decree_hash", json_object_new_string(l_decree_hash_str));
                 json_object_array_add(*a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
@@ -3218,7 +3295,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             }
         } else {
             json_object * json_obj_out = json_object_new_object();
-            s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs);
+            s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs, a_version);
             json_object_array_add(*a_json_arr_reply, json_obj_out);
             }            
     } break;
@@ -3275,9 +3352,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
             json_object_array_add(l_json_arr_banlist, l_ban_validator);
         }
         if (!json_object_array_length(l_json_arr_banlist)) {
-            json_object_object_add(l_json_obj_banlist, "BANLIST", json_object_new_string("empty"));
+            json_object_object_add(l_json_obj_banlist, a_version == 1 ? "BANLIST" : "banlist", json_object_new_string("empty"));
         } else {
-            json_object_object_add(l_json_obj_banlist, "BANLIST", l_json_arr_banlist);
+            json_object_object_add(l_json_obj_banlist, a_version == 1 ? "BANLIST" : "banlist", l_json_arr_banlist);
         }
         json_object_array_add(*a_json_arr_reply, l_json_obj_banlist);   
 

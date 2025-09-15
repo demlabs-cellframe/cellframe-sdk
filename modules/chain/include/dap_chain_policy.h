@@ -31,6 +31,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS    0x1
 #define DAP_CHAIN_POLICY_OUT_STD_TIMELOCK_USE               0x2
+#define DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2           0x3
 
 typedef struct dap_chain_policy {
     uint16_t version;
@@ -53,7 +54,7 @@ void dap_chain_policy_update_last_num(dap_chain_net_id_t a_net_id, uint32_t a_nu
 uint32_t dap_chain_policy_get_last_num(dap_chain_net_id_t a_net_id);
 json_object *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num);
 json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy);
-json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id);
+json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version);
 bool dap_chain_policy_is_exist(dap_chain_net_id_t a_net_id, uint32_t a_num);
 bool dap_chain_policy_is_activated(dap_chain_net_id_t a_net_id, uint32_t a_policy_num);
 

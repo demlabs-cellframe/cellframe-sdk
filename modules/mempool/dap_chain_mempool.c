@@ -202,6 +202,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
         uint32_t l_tx_num = a_tx_num;
         dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_tx_num, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
         dap_chain_datum_tx_add_item(&l_tx, l_out_count);
+        DAP_DELETE(l_out_count);
     }
 
     uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
@@ -801,6 +802,13 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
             *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_NATIVE_TOKEN;
         return NULL;
     }
+    if (!dap_hash_fast_compare(&l_tx_final_hash, &a_receipt->receipt_info.prev_tx_cond_hash)){
+        log_it(L_WARNING, "Tx hash in receipt doesn't match with hash of last tx cond.");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_NATIVE_TOKEN;
+        return NULL;
+    }
+
     dap_chain_datum_tx_t *l_tx_cond = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_final_hash);
     int l_out_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_cond_idx);

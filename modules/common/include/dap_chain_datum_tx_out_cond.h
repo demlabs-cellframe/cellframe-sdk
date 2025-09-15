@@ -58,6 +58,8 @@ typedef byte_t dap_chain_tx_out_cond_subtype_t;
 #define DAP_CHAIN_TX_OUT_COND_TSD_HASH                      0xf002
 // Custom str
 #define DAP_CHAIN_TX_OUT_COND_TSD_STR                       0xf003
+// Custom str
+#define DAP_CHAIN_TX_OUT_COND_TSD_PKEY                      0xf004
 
 /**
  * @struct dap_chain_tx_out
@@ -140,6 +142,22 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
     default: {}
     }
     return "UNDEFINED";
+}
+
+/**
+ * Get name of dap_chain_tx_out_cond_subtype_t
+ *
+ * return subtype, or "UNDEFINED"
+ */
+DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str_short(dap_chain_tx_out_cond_subtype_t a_subtype) {
+    switch(a_subtype){
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: return "srv_pay";
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: return "srv_xchange";
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: return "srv_stake_pos_delegate";
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: return "srv_stake_lock";
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: return "fee";
+        default: return "UNDEFINED";
+    }
 }
 
 #ifdef __cplusplus

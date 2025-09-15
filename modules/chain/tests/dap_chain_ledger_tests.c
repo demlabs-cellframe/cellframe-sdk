@@ -198,7 +198,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_pay(l_pkey, l_tx_prev_out->header.srv_uid, l_cond_change, uint256_0, l_tx_prev_out->subtype.srv_pay.unit, NULL, 0);
 
     // create receipt
-    dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_unit_type, 1, a_value, NULL, 0);
+    dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_unit_type, 1, a_value, NULL, 0, a_hash_prev);
     // Sign with our wallet
     l_receipt = dap_chain_datum_tx_receipt_sign_add(l_receipt, a_key_to);
     l_receipt = dap_chain_datum_tx_receipt_sign_add(l_receipt, a_key_from);
@@ -263,7 +263,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
     memset(&l_in_ems->header.token_emission_hash, 0, sizeof(l_in_ems->header.token_emission_hash));
     strcpy(l_in_ems->header.ticker, s_delegated_token_ticker);
 
-    dap_time_t a_time_staking = 1;
+    dap_time_t a_time_staking = dap_time_now() + 1;
     dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
                                                 l_uid, a_value, a_time_staking, uint256_0);
 

@@ -442,11 +442,11 @@ size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block
         return 0;
     }
     if(l_block->hdr.meta_count == UINT16_MAX){
-        log_it(L_ERROR,"Meta add: Can't add more, maximum meta count %hu is achieved", UINT16_MAX);
+        log_it(L_ERROR,"Meta add: Can't add more, maximum meta count %hu is achieved", (uint16_t)UINT16_MAX);
         return 0;
     }
     if( UINT32_MAX - l_block->hdr.meta_n_datum_n_signs_size < a_data_size + sizeof (l_meta->hdr) ){
-        log_it(L_ERROR,"Meta add: Can't add more, maximum block data section size %u achieved", UINT32_MAX);
+        log_it(L_ERROR,"Meta add: Can't add more, maximum block data section size %u achieved", (uint32_t)UINT32_MAX);
         return 0;
     }
 
@@ -481,6 +481,7 @@ static const char *s_meta_type_to_string(uint8_t a_meta_type)
     case DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT: return "SYNC_ATTEMPT";
     case DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT: return "ROUND_ATTEMPT";
     case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS: return "EXCLUDED_KEYS";
+    case DAP_CHAIN_BLOCK_META_EVM_DATA: return "EVM_DATA";
     default: return "UNNOWN";
     }
 }
@@ -526,6 +527,13 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
                 return a_meta->data;
         }
         log_it(L_WARNING, "Meta %s has wrong size %hu", s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size);
+    break;
+    case DAP_CHAIN_BLOCK_META_EVM_DATA:
+        // Custom data can have any size, just return the data pointer
+        if (a_meta->hdr.data_size > 0)
+            return a_meta->data;
+        log_it(L_WARNING, "Meta %s has zero size", s_meta_type_to_string(a_meta->hdr.type));
+    break;
     default:
         log_it(L_WARNING, "Unknown meta type 0x%02x (size %u), possible corrupted block or you need to upgrade your software",
                           a_meta->hdr.type, a_meta->hdr.type);
