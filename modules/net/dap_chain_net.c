@@ -2791,7 +2791,12 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 dap_chain_addr_fill_from_sign(&l_addr, l_sig, a_chain->net_id);
                 log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_chain_hash_fast_to_str_static(a_datum_hash));
             }
-            return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
+            int l_result = dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
+            
+            if (l_result == 0 && a_chain) {
+                a_chain->callback_count_tx_increase(a_chain);
+            }
+            return l_result;
         }
         case DAP_CHAIN_DATUM_CA:
             return dap_cert_chain_file_save(a_datum, a_chain->net_name);
@@ -2846,7 +2851,12 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
                 log_it(L_WARNING, "Corrupted trnsaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
             }
-            return dap_ledger_tx_remove(l_ledger, l_tx, a_datum_hash);
+            int l_result = dap_ledger_tx_remove(l_ledger, l_tx, a_datum_hash);
+            
+            if (l_result == 0 && a_chain) {
+                a_chain->callback_count_tx_decrease(a_chain);
+            }
+            return l_result;
         }
         case DAP_CHAIN_DATUM_CA:
             return 0;//dap_cert_chain_file_save(a_datum, a_chain->net_name);
