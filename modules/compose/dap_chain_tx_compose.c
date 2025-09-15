@@ -608,7 +608,7 @@ static dap_json_t* s_request_command_parse(dap_json_t *l_response, compose_confi
             if (dap_json_object_get_ex(error_obj, "code", &error_code) &&
                 dap_json_object_get_ex(error_obj, "message", &error_message)) {
                 dap_json_compose_error_add(a_config->response_handler,
-                                         dap_json_object_get_int(error_code, NULL),
+                                         dap_dap_json_object_get_int(error_code, NULL),
                                          dap_dap_dap_dap_json_object_get_string(error_message, NULL));
             }
         }
@@ -1251,7 +1251,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(dap_json_t * a_outputs_array
         if (!l_out_prev_idx_obj) {
             continue;
         }
-        int l_out_idx = dap_json_object_get_int(l_out_prev_idx_obj, NULL);
+        int l_out_idx = dap_dap_json_object_get_int(l_out_prev_idx_obj, NULL);
 
         dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
         if (!l_item) {
@@ -2947,7 +2947,7 @@ static bool s_datum_tx_voting_coin_check_spent_compose(dap_json_t *a_votes_list,
 
         dap_json_t *l_answer_idx_obj = NULL;
         dap_json_object_get_ex(l_vote, "answer_idx", &l_answer_idx_obj);
-        int l_answer_idx = l_answer_idx_obj ? dap_json_object_get_int(l_answer_idx_obj, NULL) : 0;
+        int l_answer_idx = l_answer_idx_obj ? dap_dap_json_object_get_int(l_answer_idx_obj, NULL) : 0;
 
         if (!dap_strcmp(l_vote_hash, dap_chain_hash_fast_to_str_static(&a_tx_hash)) && a_out_idx == l_answer_idx) {
             return a_pkey_hash ? !dap_strcmp(l_pkey_hash, dap_chain_hash_fast_to_str_static(a_pkey_hash)) : true;
@@ -3017,11 +3017,11 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
 
     dap_json_t *l_votes_max_obj = NULL;
     dap_json_object_get_ex(l_voting_info, "votes_max", &l_votes_max_obj);
-    int l_votes_max = l_votes_max_obj ? dap_json_object_get_int(l_votes_max_obj, NULL) : 0;
+    int l_votes_max = l_votes_max_obj ? dap_dap_json_object_get_int(l_votes_max_obj, NULL) : 0;
 
     dap_json_t *l_votes_available_obj = NULL;
     dap_json_object_get_ex(l_voting_info, "votes_available", &l_votes_available_obj);
-    int l_votes_available = l_votes_available_obj ? dap_json_object_get_int(l_votes_available_obj, NULL) : 0;
+    int l_votes_available = l_votes_available_obj ? dap_dap_json_object_get_int(l_votes_available_obj, NULL) : 0;
 
     dap_json_t *l_vote_changed_obj = NULL;
     dap_json_object_get_ex(l_voting_info, "can_change_status", &l_vote_changed_obj);
@@ -3622,7 +3622,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
             }
             dap_json_t *l_prev_idx_obj = NULL;
             dap_json_object_get_ex(l_item, "tx_out_prev_idx", &l_prev_idx_obj);
-            l_prev_cond_idx = l_prev_idx_obj ? dap_json_object_get_int(l_prev_idx_obj, NULL) : 0;
+            l_prev_cond_idx = l_prev_idx_obj ? dap_dap_json_object_get_int(l_prev_idx_obj, NULL) : 0;
             dap_json_t *response_cond = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s", 
                                                                       l_tx_prev_hash, a_config->net_name);
             if (!response_cond) {
@@ -3868,7 +3868,7 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
             l_order = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, sizeof(dap_chain_net_srv_order_t));
             dap_json_t *l_version_obj = NULL;
             dap_json_object_get_ex(order_obj, "version", &l_version_obj);
-            l_order->version = l_version_obj ? dap_json_object_get_int(l_version_obj, NULL) : 0;
+            l_order->version = l_version_obj ? dap_dap_json_object_get_int(l_version_obj, NULL) : 0;
             dap_json_t *l_direction_obj = NULL;
             dap_json_object_get_ex(order_obj, "direction", &l_direction_obj);
             l_order->direction = dap_chain_net_srv_order_direction_from_str(l_direction_obj ? dap_json_get_string(l_direction_obj) : NULL);
@@ -3892,7 +3892,7 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
 
             dap_json_t *l_units_obj = NULL;
             dap_json_object_get_ex(order_obj, "units", &l_units_obj);
-            l_order->units = l_units_obj ? dap_json_object_get_int(l_units_obj, NULL) : 0;
+            l_order->units = l_units_obj ? dap_dap_json_object_get_int(l_units_obj, NULL) : 0;
 
             dap_json_t *l_price_unit_obj = NULL;
             dap_json_object_get_ex(order_obj, "price_unit", &l_price_unit_obj);
@@ -3907,7 +3907,7 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
             if (tx_cond_hash_str) {
                 dap_chain_hash_fast_from_str(tx_cond_hash_str, &l_order->tx_cond_hash);
             }
-            l_order->ext_size = dap_json_object_get_int(order_obj, "ext_size");
+            l_order->ext_size = dap_dap_json_object_get_int(order_obj, "ext_size");
 
             if (l_order->ext_size > 0) {
                 dap_json_t *external_params = NULL;
@@ -4015,7 +4015,7 @@ dap_sign_t* dap_get_remote_srv_order_sign(const char* l_order_hash_str, compose_
 
     // dap_json_t *sig_size_obj = NULL;
     // if (dap_json_object_get_ex(l_response_array, "sig_b64_size", &sig_size_obj)) {
-    //     *a_sign_size = dap_json_object_get_int(sig_size_obj, NULL);
+    //     *a_sign_size = dap_dap_json_object_get_int(sig_size_obj, NULL);
     // }
     int64_t l_sign_b64_strlen = strlen(l_sign_b64_str);
     int64_t l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
@@ -4650,7 +4650,7 @@ static bool s_process_ledger_response(dap_chain_tx_out_cond_subtype_t a_cond_typ
             dap_json_t *spent_out = dap_json_array_get_idx(spent_outs, i);
             dap_json_t *l_out_obj = NULL;
             dap_json_object_get_ex(spent_out, "OUT - ", &l_out_obj);
-            int out_index = l_out_obj ? dap_json_object_get_int(l_out_obj, NULL) : 0;
+            int out_index = l_out_obj ? dap_dap_json_object_get_int(l_out_obj, NULL) : 0;
             if (out_index == l_prev_tx_count) {
                 dap_json_t *spent_by_tx_obj = NULL;
                 if (dap_json_object_get_ex(spent_out, "is_spent_by_tx", &spent_by_tx_obj)) {
@@ -5090,7 +5090,7 @@ dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
             dap_json_t *out_obj = NULL, *spent_by_tx_obj = NULL;
             if (dap_json_object_get_ex(l_spent_out, "out", &out_obj) &&
                 dap_json_object_get_ex(l_spent_out, "is_spent_by_tx", &spent_by_tx_obj)) {
-                int out_value = dap_json_object_get_int(out_obj, NULL);
+                int out_value = dap_dap_json_object_get_int(out_obj, NULL);
                 if (out_value == l_cond_out_idx) {
                     const char *l_next_hash = dap_json_get_string(spent_by_tx_obj);
                     if (l_next_hash && dap_chain_hash_fast_from_str(l_next_hash, &l_current_hash) == 0) {
@@ -5189,7 +5189,7 @@ dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
                 }
 
                 if (dap_json_object_get_ex(item, "tsd_size", &tsd_size_obj)) {
-                    l_cond_tx->tsd_size = dap_json_object_get_int(tsd_size_obj, NULL);
+                    l_cond_tx->tsd_size = dap_dap_json_object_get_int(tsd_size_obj, NULL);
                 }
                 // Set seller address from the first transaction
                 l_cond_tx->subtype.srv_xchange.seller_addr = *a_seller_addr;
