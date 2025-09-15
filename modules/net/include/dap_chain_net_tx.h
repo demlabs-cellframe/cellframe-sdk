@@ -52,9 +52,9 @@ typedef enum s_type_of_tx {
     DAP_CHAIN_NET_TX_STAKE_LOCK,
     DAP_CHAIN_NET_TX_STAKE_UNLOCK,
     DAP_CHAIN_NET_TX_REWARD,
-
     DAP_CHAIN_NET_TX_TYPE_ERR
 }s_type_of_tx_t;
+
 
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
