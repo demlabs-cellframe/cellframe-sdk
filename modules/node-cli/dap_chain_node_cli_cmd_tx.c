@@ -1504,7 +1504,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                     dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
                     
                     dap_json_t *json_items = dap_json_object_get(json_datum, "items");
-                    if (json_items && dap_json_object_is_type(json_items, json_type_array)) {
+                    if (json_items && dap_dap_json_object_is_type(json_items, json_type_array)) {
                         int array_len = dap_json_array_length(json_items);
                         for (int i = 0; i < array_len; i++) {
                             dap_json_t *item = dap_json_array_get_idx(json_items, i);
@@ -1796,7 +1796,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
             return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
         }
     }
-    if(!dap_json_object_is_type(l_json, json_type_object)) {
+    if(!dap_dap_json_object_is_type(l_json, json_type_object)) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT, "Wrong json format");
         dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT;
@@ -1806,7 +1806,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
     // Read network from json file
     if(!l_net_name) {
         struct dap_json_t *l_json_net = dap_json_object_get(l_json, "net");
-        if(l_json_net && dap_json_object_is_type(l_json_net, json_type_string)) {
+        if(l_json_net && dap_dap_json_object_is_type(l_json_net, json_type_string)) {
             l_net_name = dap_dap_dap_json_object_get_string(l_json_net);
         }
         if(!l_net_name) {
@@ -1828,7 +1828,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
     // Read chain from json file
     if(!l_chain_name) {
         struct dap_json_t *l_json_chain = dap_json_object_get(l_json, "chain");
-        if(l_json_chain && dap_json_object_is_type(l_json_chain, json_type_string)) {
+        if(l_json_chain && dap_dap_json_object_is_type(l_json_chain, json_type_string)) {
             l_chain_name = dap_dap_dap_json_object_get_string(l_json_chain);
         }
     }
@@ -2331,7 +2331,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
             return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
         }
     }
-    if(!dap_json_object_is_type(l_json, json_type_object)) {
+    if(!dap_dap_json_object_is_type(l_json, json_type_object)) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT, "Wrong json format");
         dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT;
@@ -2341,7 +2341,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
     // Read network from json file
     if(!l_net_name) {
         struct dap_json_t *l_json_net = dap_json_object_get(l_json, "net");
-        if(l_json_net && dap_json_object_is_type(l_json_net, json_type_string)) {
+        if(l_json_net && dap_dap_json_object_is_type(l_json_net, json_type_string)) {
             l_net_name = dap_dap_dap_json_object_get_string(l_json_net);
         }
         if(!l_net_name) {
@@ -2361,7 +2361,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
     // Read chain from json file
     if(!l_chain_name) {
         struct dap_json_t *l_json_chain = dap_json_object_get(l_json, "chain");
-        if(l_json_chain && dap_json_object_is_type(l_json_chain, json_type_string)) {
+        if(l_json_chain && dap_dap_json_object_is_type(l_json_chain, json_type_string)) {
             l_chain_name = dap_dap_dap_json_object_get_string(l_json_chain);
         }
     }

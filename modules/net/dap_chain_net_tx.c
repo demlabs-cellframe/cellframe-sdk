@@ -570,7 +570,7 @@ static const char* s_json_get_text(struct dap_json_t *a_json, const char *a_key)
     if(!a_json || !a_key)
         return NULL;
     struct dap_json_t *l_json = dap_json_object_get(a_json, a_key);
-    if(l_json && dap_json_object_is_type(l_json, json_type_string)) {
+    if(l_json && dap_dap_json_object_is_type(l_json, json_type_string)) {
         // Read text
         return dap_dap_dap_json_object_get_string(l_json);
     }
@@ -678,11 +678,11 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, dap_json_t *a_jso
     int res = DAP_CHAIN_NET_TX_NORMAL;
     for(size_t i = 0; i < a_items_count; ++i) {
         struct dap_json_t *l_json_item_obj = dap_json_array_get_idx(a_json_item_objs, i);
-        if(!l_json_item_obj || !dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+        if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
             continue;
         }
         struct dap_json_t *l_json_item_type = dap_json_object_get(l_json_item_obj, "type");
-        if(!l_json_item_type && dap_json_object_is_type(l_json_item_type, json_type_string)) {
+        if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
@@ -1541,7 +1541,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     // Read items from json file
     struct dap_json_t *l_json_items = dap_json_object_get(l_json, "items");
     size_t l_items_count;
-    if(!l_json_items || !dap_json_object_is_type(l_json_items, json_type_array) || !(l_items_count = dap_json_array_length(l_json_items))) {
+    if(!l_json_items || !dap_dap_json_object_is_type(l_json_items, json_type_array) || !(l_items_count = dap_json_array_length(l_json_items))) {
         dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
@@ -1578,11 +1578,11 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
 
     for(int i = l_items_count - 1; i >= 0  && !l_signed; --i) {
         struct dap_json_t *l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
-        if(!l_json_item_obj || !dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+        if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
             continue;
         }   
         struct dap_json_t *l_json_item_type = dap_json_object_get(l_json_item_obj, "type");
-        if(!l_json_item_type && dap_json_object_is_type(l_json_item_type, json_type_string)) {
+        if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %du without type", i);
             continue;
         }
@@ -1594,11 +1594,11 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
         // First iteration in input file. Check the tx will be multichannel or not
         for(size_t i = 0; i < l_items_count; ++i) {
             struct dap_json_t *l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
-            if(!l_json_item_obj || !dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+            if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
                 continue;
             }
             struct dap_json_t *l_json_item_type = dap_json_object_get(l_json_item_obj, "type");
-            if(!l_json_item_type && dap_json_object_is_type(l_json_item_type, json_type_string)) {
+            if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
                 log_it(L_WARNING, "Item %zu without type", i);
                 continue;
             }
@@ -1744,11 +1744,11 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
         struct dap_json_t *l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
-        if(!l_json_item_obj || !dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+        if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
             continue;
         }
         struct dap_json_t *l_json_item_type = dap_json_object_get(l_json_item_obj, "type");
-        if(!l_json_item_type && dap_json_object_is_type(l_json_item_type, json_type_string)) {
+        if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
@@ -2689,7 +2689,7 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
     struct dap_json_t *l_json_items = dap_json_object_get(a_tx_json, "items");
     struct dap_json_t *l_json_net = dap_json_object_get(a_tx_json, "net");
     size_t l_items_count;
-    if(!l_json_items || !dap_json_object_is_type(l_json_items, json_type_array) || !(l_items_count = dap_json_array_length(l_json_items))) {
+    if(!l_json_items || !dap_dap_json_object_is_type(l_json_items, json_type_array) || !(l_items_count = dap_json_array_length(l_json_items))) {
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     } 
     const char *l_net_str = dap_dap_dap_json_object_get_string(l_json_net); 
@@ -2733,11 +2733,11 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
         struct dap_json_t *l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
-        if(!l_json_item_obj || !dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+        if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
             continue;
         }
         struct dap_json_t *l_json_item_type = dap_json_object_get(l_json_item_obj, "type");
-        if(!l_json_item_type && dap_json_object_is_type(l_json_item_type, json_type_string)) {
+        if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
