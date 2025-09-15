@@ -172,6 +172,8 @@ static uint64_t s_callback_count_atom(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 // Get TXs callbacks
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain);
+static uint64_t s_callback_count_tx_increase(dap_chain_t *a_chain);
+static uint64_t s_callback_count_tx_decrease(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
 
@@ -320,6 +322,8 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_count_atom = s_callback_count_atom;
     a_chain->callback_get_atoms = s_callback_get_atoms;
     a_chain->callback_count_tx = s_callback_count_txs;
+    a_chain->callback_count_tx_increase = s_callback_count_tx_increase;
+    a_chain->callback_count_tx_decrease = s_callback_count_tx_decrease;
     a_chain->callback_get_txs = s_callback_get_txs;
 
 
@@ -1638,8 +1642,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED){ // If this is any datum other than a already cached transaction
             l_ret++;
-            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
-                PVT(a_blocks)->tx_count++;  
+            // Note: tx_count increment moved to dap_ledger_tx_add() to ensure it only increments for successfully verified transactions
             // Save datum hash -> block_hash link in hash table
             dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
             if (!l_datum_index) {
@@ -2800,6 +2803,15 @@ static uint64_t s_callback_count_txs(dap_chain_t *a_chain)
     return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count;
 }
 
+static uint64_t s_callback_count_tx_increase(dap_chain_t *a_chain)
+{
+    return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count++;
+}
+
+static uint64_t s_callback_count_tx_decrease(dap_chain_t *a_chain)
+{
+    return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count--;
+}
 
 static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
 {
