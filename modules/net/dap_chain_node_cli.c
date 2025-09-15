@@ -459,16 +459,10 @@ void dap_chain_node_cli_delete(void)
 
 
 int  s_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
-	if (!response || !response->result_json_object) {
-		printf("Response is empty\n");
-		return -1;
-	}
+    dap_return_val_if_pass(!response || !response->result_json_object, -1);
 	// Raw JSON flag
-	bool table_mode = false;
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h")) {
-        table_mode = true;
-    }	
-	if (!table_mode) { json_print_object(response->result_json_object, 0); return 0; }
+	bool l_table_mode = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h");
+	if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
 	if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
 		return -2;
 
@@ -553,20 +547,12 @@ int  s_print_for_mempool_list(dap_json_rpc_response_t* response, char ** cmd_par
 	return 0;
 }
 static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
-    if (!response || !response->result_json_object) {
-        printf("Response is empty\n");
-        return -1;
-    }
+    dap_return_val_if_pass(!response || !response->result_json_object, -1);
     // Raw JSON flag
-    bool table_mode = false; 
-    bool l_full = false;
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h")) {
-        table_mode = true;
-    }
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full")) {
-        l_full = true;
-    }    
-    if (!table_mode) { json_print_object(response->result_json_object, 0); return 0; }
+    bool l_table_mode = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h");
+    bool l_full = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full");
+
+    if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
@@ -640,20 +626,13 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
 }
 
 static int s_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
-    if (!response || !response->result_json_object) {
-        printf("Response is empty\n");
-        return -1;
-    }
+    dap_return_val_if_pass(!response || !response->result_json_object, -1);
     // Raw JSON flag
-    bool table_mode = false; 
-    bool l_full = false;
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h")) {
-        table_mode = true;
-    }
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full")) {
-        l_full = true;
-    }
-    if (!table_mode) { json_print_object(response->result_json_object, 0); return 0; }
+    bool l_table_mode = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h");
+    bool l_full = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full");
+
+    if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
+    
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
@@ -773,13 +752,9 @@ static int s_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char
  * @return int 0 on success, negative on error
  */
 static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
-    if (!response || !response->result_json_object)
-        return -1;
+    dap_return_val_if_pass(!response || !response->result_json_object, -1);
     // Table mode flag: -h. If not present, print raw JSON by default
-    bool l_table_mode = false;
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h")) {
-        l_table_mode = true;
-    }
+    bool l_table_mode = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h");
     if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
         return -2;
@@ -1043,15 +1018,12 @@ static int s_print_for_srv_stake_all(dap_json_rpc_response_t* response, char ** 
 }
 
 static int s_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
-    int res = -1;
-    // Raw JSON flag
+    
+    dap_return_val_if_pass(!response || !response->result_json_object, -1);
+
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h")) {
         json_print_object(response->result_json_object, 0);
         return 0;
-    }
-    if (!response || !response->result_json_object) {
-        printf("Response is empty\n");
-        return -1;
     }
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
         return -2;
@@ -1113,10 +1085,8 @@ static int s_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd
 }
 
 static int s_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
-    if (!response || !response->result_json_object) {
-        printf("Response is empty\n");
-        return -1;
-    }
+
+    dap_return_val_if_pass(!response || !response->result_json_object, -1);
     // Raw JSON flag
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h")) {
         json_print_object(response->result_json_object, 0);
@@ -1196,15 +1166,11 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
         printf("Response is empty\n");
         return -1;
     }
-    bool table_mode_tok = false;
-    bool l_full = false;
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h")) {
-        table_mode_tok = true;
-    }
-    if (!table_mode_tok) { json_print_object(response->result_json_object, 0); return 0; }
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full")) {
-        l_full = true;
-    }
+    bool l_table_mode = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h");
+    bool l_full = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full");
+
+    if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
+
     
     if (!s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "list"))
         return -2;
@@ -1359,21 +1325,12 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
 
 
 static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
-    if (!response || !response->result_json_object) {
-        printf("Response is empty\n");
-        return -1;
-    }   
+    dap_return_val_if_pass(!response || !response->result_json_object, -1);
     // Raw JSON flag
-    bool table_mode_sx = false; 
-    bool l_full = false;
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h")) {
-        table_mode_sx = true;
-    }
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full")) {
-        l_full = true;
-    }
+    bool l_table_mode = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h");
+    bool l_full = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-full");
     
-    if (!table_mode_sx) { json_print_object(response->result_json_object, 0); return 0; }
+    if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
     struct json_object *j_obj_headr = NULL, *limit_obj = NULL, *l_arr_pages = NULL, *l_obj_pages = NULL,
 			*offset_obj = NULL, *l_arr_orders = NULL;
 	char *l_limit = NULL;
@@ -1654,15 +1611,8 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
  */
 static int s_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt)
 {
-	// Raw JSON flag
-    bool l_table_mode = false;
-    if (s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h")) {
-        l_table_mode = true;
-    }
-	if (!response || !response->result_json_object) {
-		printf("Response is empty\n");
-		return -1;
-	}
+	dap_return_val_if_pass(!response || !response->result_json_object, -1);
+    bool l_table_mode = (bool)s_dap_chain_node_cli_find_subcmd(cmd_param, cmd_cnt, "-h");
     if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
 	if (json_object_get_type(response->result_json_object) == json_type_array) {
 		int result_count = json_object_array_length(response->result_json_object);

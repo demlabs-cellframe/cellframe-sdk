@@ -28,7 +28,6 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
-#include "dap_json_rpc_response.h"
 
 typedef enum s_com_ledger_err{
     DAP_CHAIN_NODE_CLI_COM_LEDGER_OK = 0,
