@@ -4036,7 +4036,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
             if (l_tax_check && l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
                     SUBTRACT_256_256(l_taxed_value, l_value, &l_taxed_value)) {
-                log_it(L_WARNING, "Fee is greater than sum of inputs");
+                log_it(L_WARNING, "[%s] Fee is greater than sum of inputs", dap_chain_hash_fast_to_str_static(a_tx_hash));
                 l_err_num = DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
                 break;
             }
@@ -4049,7 +4049,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 if (!l_cross_network) {
                     l_cross_network = true;
                 } else {
-                    log_it(L_WARNING, "The transaction was rejected because it contains multiple outputs to other network.");
+                    log_it(L_WARNING, "[%s] The transaction was rejected because it contains multiple outputs to other network.", dap_chain_hash_fast_to_str_static(a_tx_hash));
                     l_err_num = DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET;
                     break;
                 }
@@ -4079,13 +4079,13 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         // Find token item
         dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token);
         if (!l_token_item) {
-            debug_if(s_debug_more, L_WARNING, "Token with ticker %s not found", l_token);
+            debug_if(s_debug_more, L_WARNING, "[%s] Token with ticker %s not found", dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
             l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
             break;
         }
         // Check permissions
         if (s_ledger_addr_check(l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
-            debug_if(s_debug_more, L_WARNING, "No permission to receive for addr %s", dap_chain_addr_to_str_static(&l_tx_out_to));
+            debug_if(s_debug_more, L_WARNING, "[%s] No permission to receive for addr %s", dap_chain_hash_fast_to_str_static(a_tx_hash), dap_chain_addr_to_str_static(&l_tx_out_to));
             l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
             break;
         }
@@ -4101,7 +4101,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     // Check for transaction consistency (sum(ins) == sum(outs))
     if ( !l_err_num && !s_check_hal(a_ledger, a_tx_hash) ) {
         if ( HASH_COUNT(l_values_from_prev_tx) != HASH_COUNT(l_values_from_cur_tx) ) {
-            log_it(L_ERROR, "Token tickers IN and OUT mismatch: %u != %u",
+            log_it(L_ERROR, "[%s] Token tickers IN and OUT mismatch: %u != %u",
+                            dap_chain_hash_fast_to_str_static(a_tx_hash),
                             HASH_COUNT(l_values_from_prev_tx), HASH_COUNT(l_values_from_cur_tx));
             l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
         } else {
@@ -4111,7 +4112,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     if (s_debug_more) {
                         char *l_balance = dap_chain_balance_to_coins(l_res ? l_res->sum : uint256_0);
                         char *l_balance_cur = dap_chain_balance_to_coins(l_value_cur->sum);
-                        log_it(L_ERROR, "Sum of values of out items from current tx (%s) is not equal outs from previous txs (%s) for token %s",
+                        log_it(L_ERROR, "[%s] Sum of values of out items from current tx (%s) is not equal outs from previous txs (%s) for token %s",
+                                dap_chain_hash_fast_to_str_static(a_tx_hash),
                                 l_balance, l_balance_cur, l_value_cur->token_ticker);
                         DAP_DELETE(l_balance);
                         DAP_DELETE(l_balance_cur);
@@ -4130,13 +4132,13 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 !dap_ledger_tx_poa_signed(a_ledger, a_tx)) {
             char *l_current_fee = dap_chain_balance_to_coins(l_fee_sum);
             char *l_expected_fee = dap_chain_balance_to_coins(a_ledger->net->pub.fee_value);
-            log_it(L_WARNING, "Fee value is invalid, expected %s pointed %s", l_expected_fee, l_current_fee);
+            log_it(L_WARNING, "[%s] Fee value is invalid, expected %s pointed %s", dap_chain_hash_fast_to_str_static(a_tx_hash), l_expected_fee, l_current_fee);
             l_err_num = DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE;
             DAP_DEL_Z(l_current_fee);
             DAP_DEL_Z(l_expected_fee);
         }
         if (l_tax_check && SUBTRACT_256_256(l_taxed_value, l_fee_sum, &l_taxed_value)) {
-            log_it(L_WARNING, "Fee is greater than sum of inputs");
+            log_it(L_WARNING, "[%s] Fee is greater than sum of inputs", dap_chain_hash_fast_to_str_static(a_tx_hash));
             l_err_num = DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
         }
     }
@@ -4148,7 +4150,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         if (compare256(l_tax_sum, l_expected_tax) == -1) {
             char *l_current_tax_str = dap_chain_balance_to_coins(l_tax_sum);
             char *l_expected_tax_str = dap_chain_balance_to_coins(l_expected_tax);
-            log_it(L_WARNING, "Tax value is invalid, expected %s pointed %s", l_expected_tax_str, l_current_tax_str);
+            log_it(L_WARNING, "[%s] Tax value is invalid, expected %s pointed %s", dap_chain_hash_fast_to_str_static(a_tx_hash), l_expected_tax_str, l_current_tax_str);
             l_err_num = DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX;
             DAP_DEL_Z(l_current_tax_str);
             DAP_DEL_Z(l_expected_tax_str);

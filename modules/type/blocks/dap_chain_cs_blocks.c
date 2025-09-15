@@ -2766,7 +2766,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     }
     dap_time_t l_block_time = l_block->hdr.ts_created;
     if (l_block_time < DAP_REWARD_INIT_TIMESTAMP) {
-        log_it(L_WARNING, "Reward is not set for this block");
+        log_it(L_WARNING, "[%s] Reward is not set for this block", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
     }
     l_ret = dap_chain_net_get_reward(l_net, l_block_cache->block_number);
@@ -2779,12 +2779,12 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     l_block_cache = NULL;
     HASH_FIND(hh, PVT(l_blocks)->blocks, &l_prev_block_hash, sizeof(l_prev_block_hash), l_block_cache);
     if (!l_block_cache) {
-        log_it(L_ERROR, "l_block_cache is NULL");
+        log_it(L_ERROR, "[%s] l_block_cache is NULL", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
     }
     l_block = l_block_cache->block;
     if (!l_block) {
-        log_it(L_ERROR, "l_block is NULL");
+        log_it(L_ERROR, "[%s] l_block is NULL", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
     }
     assert(l_block);
@@ -2792,7 +2792,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     if ( l_block_time > l_cur_time ) {
         dap_time_t l_time_diff = l_block_time - l_cur_time;
         if (MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret))
-            return log_it(L_ERROR, "Integer overflow while multiplication execution to calculate final reward"), uint256_0;
+            return log_it(L_ERROR, "[%s] Integer overflow while multiplication execution to calculate final reward", dap_chain_hash_fast_to_str_static(a_block_hash)), uint256_0;
     }
     DIV_256(l_ret, GET_256_FROM_64(s_block_timediff_unit_size * l_signs_count), &l_ret);
     return l_ret;
