@@ -431,6 +431,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             return -18;
         }
         const char *l_ticker_in = NULL;
+        
         switch (*l_prev_out_union) {
         case TX_ITEM_TYPE_OUT: {
             dap_chain_tx_out_t *l_prev_out = (dap_chain_tx_out_t *)l_prev_out_union;
@@ -478,11 +479,6 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
                                         dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
             dap_list_free(l_ins_list);
             return -20;
-        }
-        if (SUM_256_256(l_weight, l_prev_out_union->header.value, &l_weight)) {
-            log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
-            dap_list_free(l_ins_list);
-            return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
         }
     }
     dap_list_free(l_ins_list);
