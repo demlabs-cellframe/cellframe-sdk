@@ -33,17 +33,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
-#include "dap_chain_datum.h"
-#include "dap_chain_datum_tx_items.h"
-#include "dap_chain_common.h"
 #include "dap_enc_base58.h"
-#include "dap_cert.h"
-#include "dap_chain_wallet.h"
-#include "dap_chain_wallet_shared.h"
-#include "dap_config.h"
-#include "dap_file_utils.h"
-#include <dirent.h>
-#include <errno.h>
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
@@ -188,7 +178,6 @@ static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
 static dap_list_t *s_fork_resolved_notificators = NULL;
-
 
 /**
  * @brief dap_chain_cs_blocks_init
@@ -1101,7 +1090,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                                 break;
                             }
                         }
-                        if (!l_found)
+                        if(!l_found)
                             continue;
                     }
                 } else if (l_signed_flag) {
@@ -1680,7 +1669,6 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
             dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash, (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
-          
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,

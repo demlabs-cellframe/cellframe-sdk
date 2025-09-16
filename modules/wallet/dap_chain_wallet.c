@@ -1178,11 +1178,9 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
             struct json_object *l_jobj_net = json_object_new_object();
             dap_chain_addr_t *l_wallet_addr_in_net = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             
-            json_object_object_add(l_jobj_net, "addr",
-                                   json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net)));
+            json_object_object_add(l_jobj_net, "addr", json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net)));
             json_object_object_add(l_jobj_network, l_net->pub.name, l_jobj_net);
             
-           
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_net->pub.ledger, l_wallet_addr_in_net, &l_addr_tokens,

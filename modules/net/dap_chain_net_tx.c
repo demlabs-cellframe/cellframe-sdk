@@ -1584,7 +1584,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
 
-        json_object *l_json = a_tx_json;
+    json_object *l_json = a_tx_json;
     json_object *l_jobj_errors = a_json_obj_error ? a_json_obj_error : NULL;
     
     if (!a_tx_json)

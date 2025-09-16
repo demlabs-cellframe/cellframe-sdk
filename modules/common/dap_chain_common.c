@@ -29,13 +29,6 @@
 #include <time.h>
 #endif
 #include "dap_chain_common.h"
-#include "dap_chain_net.h"
-#include "dap_chain_ledger.h"
-#include "dap_chain_datum_tx_items.h"
-#include "dap_global_db.h"
-#include "dap_chain_datum.h"
-#include "json.h"
-#include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_chain_common"
 
@@ -292,103 +285,5 @@ void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_sta
     else
         json_object_object_add(json_obj_lim, "limit", json_object_new_string("unlimit"));
     json_object_array_add(a_json_obj_out, json_obj_lim);
-}
-
-
-
-/**
- * @brief Write filtered datum (transaction) to GDB if it matches type DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED and public key
- * 
- * This function checks if the provided transaction:
- * - Has conditional output of type DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED
- * - Contains the specified public key hash in its signatures (TX_ITEM_TYPE_SIG)
- * 
- * If both conditions are met, the transaction is written to the specified GDB group as datum.
- * 
- * @param a_tx - transaction to check and potentially write
- * @param a_pkey_hash - public key hash to filter by (must match signature public key hash)
- * @param a_gdb_group - GDB group name to write filtered datum to
- * @return 1 if datum written, 0 if not matching criteria, negative value on error:
- *         -1: invalid arguments
- *         -2: failed to create datum from transaction
- *         -3: failed to write to GDB
- * 
- * @example
- * // Example usage during chain loading:
- * dap_hash_fast_t l_pkey_hash;
- * dap_chain_hash_fast_from_str("0x1234567890abcdef...", &l_pkey_hash);
- * int l_result = dap_chain_write_wallet_shared_datum_by_pkey(l_tx, &l_pkey_hash, "filtered.wallet_shared");
- * if (l_result == 1) {
- *     log_it(L_INFO, "Wallet shared datum written");
- * }
- */
-int dap_chain_write_wallet_shared_datum_by_pkey(dap_chain_datum_tx_t *a_tx, const dap_hash_fast_t *a_pkey_hash, const char *a_gdb_group)
-{
-	dap_return_val_if_fail(a_tx && a_pkey_hash && a_gdb_group, -1);
-	
-	// Check if transaction has wallet shared condition output
-	int l_out_idx = 0;
-	dap_chain_tx_out_cond_t *l_cond_out = dap_chain_datum_tx_out_cond_get(a_tx, 
-		DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_out_idx);
-	
-	if (!l_cond_out)
-		return 0; // Transaction doesn't have wallet shared condition output
-		
-	// Check if transaction contains our public key hash in signatures
-	bool l_pkey_found = false;
-	
-	// Parse transaction signatures to find public key hashes
-	byte_t *l_item;
-	size_t l_item_size;
-	TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
-		if (*l_item == TX_ITEM_TYPE_SIG) {
-			dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)l_item;
-			dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-			if (l_sign) {
-				dap_hash_fast_t l_current_pkey_hash;
-				if (dap_sign_get_pkey_hash(l_sign, &l_current_pkey_hash)) {
-                    log_it(L_DEBUG, "l_current_pkey_hash: %s", dap_hash_fast_to_str_static(&l_current_pkey_hash));
-					if (dap_hash_fast_compare(a_pkey_hash, &l_current_pkey_hash)) {
-						l_pkey_found = true;
-						break; // Found matching public key hash, stop searching
-					}
-				}
-			}
-		}
-	}
-	
-	if (!l_pkey_found)
-		return 0; // Transaction doesn't contain the specified public key
-	
-	// Create datum from transaction
-	size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-	dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
-	if (!l_datum) {
-		log_it(L_ERROR, "Failed to create datum from transaction");
-		return -2;
-	}
-	
-	// Calculate datum hash for key
-	dap_chain_hash_fast_t l_datum_hash;
-	dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
-	char *l_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
-	
-	// Write datum to GDB
-	int l_res = dap_global_db_set_sync(a_gdb_group, l_datum_hash_str, 
-		l_datum, dap_chain_datum_size(l_datum), false);
-	
-	if (l_res == DAP_GLOBAL_DB_RC_SUCCESS) {
-		log_it(L_NOTICE, "Wallet shared datum %s written to GDB group %s", 
-			l_datum_hash_str, a_gdb_group);
-		DAP_DELETE(l_datum_hash_str);
-		DAP_DELETE(l_datum);
-		return 1; // Successfully written
-	} else {
-		log_it(L_WARNING, "Failed to write wallet shared datum %s to GDB group %s, code %d", 
-			l_datum_hash_str, a_gdb_group, l_res);
-		DAP_DELETE(l_datum_hash_str);
-		DAP_DELETE(l_datum);
-		return -3; // Failed to write
-	}
 }
 
