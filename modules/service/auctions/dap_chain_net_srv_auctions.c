@@ -103,7 +103,7 @@ int dap_chain_net_srv_auctions_init(void)
     }
     
     dap_cli_server_cmd_add ("auction", com_auction, "Auction commands",
-                "bid -net <network> -auction <GUUID|tx_hash> -amount <value> -lock_period <3..24> -project <project_id> -fee <value> -w <wallet>\n"
+                "bid -net <network> -auction <auction_name|tx_hash> -amount <value> -lock_period <3..24> -project <project_id> -fee <value> -w <wallet>\n"
                 "\tPlace a bid on an auction for a specific project\n"
                 "\t-project: project ID (uint32) for which the bid is made\n\n"
                 "withdraw -net <network> -bid_tx_hash <hash> -fee <value> -w <wallet>\n"
@@ -112,9 +112,9 @@ int dap_chain_net_srv_auctions_init(void)
                 "\tList all auctions or active auctions only\n"
                 "\t-active_only: show only active auctions\n"
                 "\t-projects: include basic project information\n\n"
-                "info -net <network> -auction <GUUID|tx_hash>\n"
+                "info -net <network> -auction <auction_name|tx_hash>\n"
                 "\tGet detailed information about a specific auction\n\n"
-                "events -net <network> [-auction <GUUID|tx_hash>] [-limit <count>]\n"
+                "events -net <network> [-auction <auction_name|tx_hash>] [-limit <count>]\n"
                 "\tGet auction events history\n"
                 "\t-auction: filter events for specific auction\n"
                 "\t-limit: maximum number of events to return\n\n"
@@ -122,10 +122,10 @@ int dap_chain_net_srv_auctions_init(void)
                 "\tGet auction statistics\n\n"
                 "  Examples:\n"
                 "  auction list -net myCellFrame -active_only -projects\n"
-                "  auction bid -net myCellFrame -auction <GUUID|tx_hash> -amount 1000 -lock_period 6 -project 1 -fee 0.1 -w myWallet\n"
-                "  auction info -net myCellFrame -auction <GUUID|tx_hash>\n"
+                "  auction bid -net myCellFrame -auction <auction_name|tx_hash> -amount 1000 -lock_period 6 -project 1 -fee 0.1 -w myWallet\n"
+                "  auction info -net myCellFrame -auction <auction_name|tx_hash>\n"
                 "  auction withdraw -net myCellFrame -bid_tx_hash <hash> -fee 0.1 -w myWallet\n"
-                "  auction events -net myCellFrame -auction <GUUID|tx_hash> -limit 10\n"
+                "  auction events -net myCellFrame -auction <auction_name|tx_hash> -limit 10\n"
                 "  auction stats -net myCellFrame\n"
                 "  Notes:\n"
                 "  - Each bid has lock period (3-24 months) set by -lock_period option.\n"
@@ -2713,10 +2713,8 @@ int com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int a_versio
                 // Basic auction info
                 json_object_object_add(l_auction_obj, "hash", 
                     json_object_new_string(dap_chain_hash_fast_to_str_static(&l_auction->auction_hash)));
-                if (l_auction->guuid) {
-                    json_object_object_add(l_auction_obj, "guuid",
-                        json_object_new_string(l_auction->guuid));
-                }
+                if (l_auction->guuid)
+                    json_object_object_add(l_auction_obj, "auction_name", json_object_new_string(l_auction->guuid));
                 json_object_object_add(l_auction_obj, "status", 
                     json_object_new_string(dap_auction_status_to_str(l_auction->status)));
                 
