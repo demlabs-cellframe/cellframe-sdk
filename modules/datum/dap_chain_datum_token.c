@@ -67,7 +67,7 @@ static const struct datum_token_flag_struct s_flags_table[] = {
 dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
     if (a_token_size < sizeof(dap_chain_datum_token_t)){
-        log_it(L_WARNING, "Token size %lu < %lu header size, corrupted token datum", a_token_size, sizeof(dap_chain_datum_token_t));
+        log_it(L_WARNING, "Token size %zu < %zu header size, corrupted token datum", a_token_size, sizeof(dap_chain_datum_token_t));
         return NULL;
     }
     return (dap_tsd_t*)a_token->tsd_n_signs;
@@ -498,7 +498,7 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
         l_sign = (dap_sign_t *)((byte_t *)l_sign + l_sign_size);
     }
     if ((l_expected_size != l_actual_size) || (l_count < a_emission->data.type_auth.signs_count)) {
-        log_it(L_CRITICAL, "Malformed signs, only %lu of %hu are present (%lu != %lu)", l_count, a_emission->data.type_auth.signs_count,
+        log_it(L_CRITICAL, "Malformed signs, only %zu of %hu are present (%zu != %zu)", l_count, a_emission->data.type_auth.signs_count,
                l_actual_size, l_expected_size);
     }
     dap_sign_t *l_ret = DAP_NEW_Z_SIZE(dap_sign_t, l_actual_size);

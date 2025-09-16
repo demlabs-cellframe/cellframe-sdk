@@ -175,6 +175,9 @@ void dap_chain_net_voting_info_free(dap_chain_net_voting_info_t *a_info);
 dap_list_t* dap_get_options_list_from_str(const char* a_str);
 int dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out);
 
+dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net);
+dap_list_t *dap_get_options_list_from_str(const char* a_str);
+
 #if defined(__cplusplus)
 }
 #endif

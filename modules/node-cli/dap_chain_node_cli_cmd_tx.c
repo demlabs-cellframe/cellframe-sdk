@@ -1829,7 +1829,6 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
     } else if (l_cmd == CMD_TX_INFO) {
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
-        bool l_need_sign  = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-need_sign", NULL);
         bool l_unspent_flag = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unspent", NULL);
         //check input
         if (l_tx_hash_str == NULL){
@@ -1901,30 +1900,6 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             json_object_put(json_datum);
             DAP_DEL_Z(l_tx_hash);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
-        }
-        if (l_need_sign) {
-            byte_t *item; size_t l_size;
-            TX_ITEM_ITER_TX(item, l_size, l_datum_tx) {
-                if (*item == TX_ITEM_TYPE_SIG) {
-                    dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t*)item);
-                    char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1);
-                    size_t l_sign_size = dap_sign_get_size(l_sign);
-                    dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-                    
-                    json_object *json_items = json_object_object_get(json_datum, "items");
-                    if (json_items && json_object_is_type(json_items, json_type_array)) {
-                        int array_len = json_object_array_length(json_items);
-                        for (int i = 0; i < array_len; i++) {
-                            json_object *item = json_object_array_get_idx(json_items, i);
-                            const char *item_type = json_object_get_string(json_object_object_get(item, "type"));
-                            if (item_type && strcmp(item_type, "sig_dil") == 0) {
-                                json_object_object_add(item, "sig_b64", json_object_new_string(l_sign_b64));
-                                json_object_object_add(item, "sig_b64_size", json_object_new_uint64(l_sign_size));
-                            }
-                        }
-                    }
-                }
-            }
         }
         DAP_DELETE(l_tx_hash);
 

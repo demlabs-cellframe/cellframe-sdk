@@ -1086,7 +1086,8 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(!dap_ledger_tx_add_check(l_ledger, l_base_tx, l_base_tx_size, &l_hash_btx), "Check can added base tx in ledger");
     dap_assert_PIF(!dap_ledger_tx_add(l_ledger, l_base_tx, &l_hash_btx, false, NULL), "Added base tx in ledger.");
     uint256_t l_balance_example = dap_chain_uint256_from(s_standard_value_tx);
-    uint256_t l_balance = dap_ledger_calc_balance(l_ledger, &l_addr, s_token_ticker);
+    uint256_t l_balance = {};
+    l_balance = dap_ledger_calc_balance(l_ledger, &l_addr, s_token_ticker);
 	uint256_t l_fee = dap_chain_uint256_from(s_fee);
 	SUM_256_256(l_balance,l_fee,&l_balance);
     dap_assert_PIF(!compare256(l_balance, l_balance_example), "Checking the availability of the necessary balance "
@@ -1230,7 +1231,7 @@ void dap_ledger_test_run(void){
  * @return Created transaction or NULL
  */
 static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // get previous transaction
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out

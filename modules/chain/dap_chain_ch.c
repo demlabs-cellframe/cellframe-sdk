@@ -613,7 +613,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                             l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                             DAP_CHAIN_CH_ERROR_UNKNOWN_CHAIN_PKT_TYPE);
         return false;
-
     }
     return true;
 }
