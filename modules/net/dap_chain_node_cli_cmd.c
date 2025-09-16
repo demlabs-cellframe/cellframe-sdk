@@ -2750,8 +2750,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     size_t l_objs_count = 0;
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     json_object  *l_jobj_datums;
-    size_t l_offset = a_offset;
-    if (l_objs_count == 0 || l_objs_count < l_offset) {
+    if (l_objs_count == 0 || l_objs_count <= a_offset) {
         l_jobj_datums = json_object_new_null();
     } else {
         l_jobj_datums = json_object_new_array();
@@ -2762,19 +2761,20 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
         }
 
         size_t l_arr_start = 0;
-        if (l_offset) {
-            l_arr_start = l_offset;
-            json_object *l_jobj_offset = json_object_new_uint64(l_offset);
-            json_object_object_add(l_obj_chain, "offset", l_jobj_offset);
+        size_t l_arr_end = 0;
+        json_object *l_json_pages = json_object_new_array();
+        if (!l_json_pages) {
+            json_object_put(l_jobj_datums);
+            json_object_put(l_obj_chain);
+            dap_json_rpc_allocation_error(a_json_arr_reply);
+            return;
         }
-        size_t l_arr_end = l_objs_count;
-        if (a_limit) {
-            l_arr_end = l_offset + a_limit;
-            if (l_arr_end > l_objs_count)
-                l_arr_end = l_objs_count;
-            json_object *l_jobj_limit = json_object_new_uint64(l_arr_end);
-            json_object_object_add(l_obj_chain, "limit", l_jobj_limit);
-        }
+        dap_chain_set_offset_limit_json(l_json_pages, &l_arr_start, &l_arr_end, a_limit, a_offset, l_objs_count, false);
+        if (l_arr_end > l_objs_count)
+            l_arr_end = l_objs_count;
+        if (l_arr_start > l_objs_count)
+            l_arr_start = l_objs_count;
+        json_object_object_add(l_obj_chain, "pages", l_json_pages);
         for (size_t i = l_arr_start; i < l_arr_end; i++) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *) l_objs[i].value;
             if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
