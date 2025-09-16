@@ -191,6 +191,7 @@ typedef struct dap_chain_net_pvt{
 #define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
 static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
+static size_t s_node_list_ttl = 3600 * 2;
 
 static const char *c_net_states[] = {
     [NET_STATE_LOADING]             = "NET_STATE_LOADING",
@@ -280,6 +281,7 @@ int dap_chain_net_init()
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
+    s_node_list_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_ttl", s_node_list_ttl);
     char l_path[MAX_PATH + 1], *l_end = NULL;
     int l_pos = snprintf(l_path, MAX_PATH, "%s/network/", dap_config_path());
     if (l_pos >= MAX_PATH - 4)
@@ -2182,7 +2184,7 @@ static void *s_net_load(void *a_arg)
     snprintf(l_net->pub.gdb_nodes, sizeof(l_net->pub.gdb_nodes), "%s.%s", l_net->pub.gdb_groups_prefix, s_gdb_nodes_postfix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                         l_net->pub.gdb_nodes, 7200, true,
+                                                         l_net->pub.gdb_nodes, s_node_list_ttl, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_TYPE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
@@ -2752,13 +2754,13 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     if ( dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) )
-        return log_it(L_ERROR, "Datum is blackilsted"), -100;
+        return log_it(L_ERROR, "[%s] Datum is blackilsted", dap_chain_hash_fast_to_str_static(a_datum_hash)), -100;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
             size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
             if (l_decree_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted decree, datum size %zd is not equal to size of decree %zd", l_datum_data_size, l_decree_size);
+                log_it(L_WARNING, "[%s] Corrupted decree, datum size %zd is not equal to size of decree %zd", dap_chain_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_decree_size);
                 return -102;
             }
             return dap_chain_net_decree_load(l_decree, a_chain, a_datum_hash);
@@ -2767,7 +2769,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
             size_t l_anchor_size = dap_chain_datum_anchor_get_size(l_anchor);
             if (l_anchor_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
+                log_it(L_WARNING, "[%s] Corrupted anchor, datum size %zd is not equal to size of anchor %zd", dap_chain_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_anchor_size);
                 return -102;
             }
             return dap_chain_net_anchor_load(l_anchor, a_chain, a_datum_hash);
@@ -2782,7 +2784,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
             if (l_tx_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted transaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
+                log_it(L_WARNING, "[%s] Corrupted transaction, datum size %zd is not equal to size of TX %zd", dap_chain_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_tx_size);
                 return -102;
             }
             dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, 0);
@@ -2791,7 +2793,12 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 dap_chain_addr_fill_from_sign(&l_addr, l_sig, a_chain->net_id);
                 log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_chain_hash_fast_to_str_static(a_datum_hash));
             }
-            return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
+            int l_result = dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
+            
+            if (l_result == 0 && a_chain) {
+                a_chain->callback_count_tx_increase(a_chain);
+            }
+            return l_result;
         }
         case DAP_CHAIN_DATUM_CA:
             return dap_cert_chain_file_save(a_datum, a_chain->net_name);
@@ -2816,7 +2823,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
 {
     size_t l_datum_data_size = a_datum->header.data_size;
     if (a_datum_size < l_datum_data_size + sizeof(a_datum->header)) {
-        log_it(L_INFO,"Corrupted datum rejected: wrong size %zd not equal or less than datum size %zd",a_datum->header.data_size+ sizeof (a_datum->header),
+        log_it(L_INFO,"[%s] Corrupted datum rejected: wrong size %zd not equal or less than datum size %zd", dap_chain_hash_fast_to_str_static(a_datum_hash), a_datum->header.data_size+ sizeof (a_datum->header),
                a_datum_size );
         return -101;
     }
@@ -2829,7 +2836,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
             size_t l_anchor_size = dap_chain_datum_anchor_get_size(l_anchor);
             if (l_anchor_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
+                log_it(L_WARNING, "[%s] Corrupted anchor, datum size %zd is not equal to size of anchor %zd", dap_chain_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_anchor_size);
                 return -102;
             }
             return dap_chain_net_anchor_unload(l_anchor, a_chain, a_datum_hash);
@@ -2843,10 +2850,15 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
             if (l_tx_size != l_datum_data_size) {
-                log_it(L_WARNING, "Corrupted trnsaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
+                log_it(L_WARNING, "[%s] Corrupted trnsaction, datum size %zd is not equal to size of TX %zd", dap_chain_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_tx_size);
                 return -102;
             }
-            return dap_ledger_tx_remove(l_ledger, l_tx, a_datum_hash);
+            int l_result = dap_ledger_tx_remove(l_ledger, l_tx, a_datum_hash);
+            
+            if (l_result == 0 && a_chain) {
+                a_chain->callback_count_tx_decrease(a_chain);
+            }
+            return l_result;
         }
         case DAP_CHAIN_DATUM_CA:
             return 0;//dap_cert_chain_file_save(a_datum, a_chain->net_name);
