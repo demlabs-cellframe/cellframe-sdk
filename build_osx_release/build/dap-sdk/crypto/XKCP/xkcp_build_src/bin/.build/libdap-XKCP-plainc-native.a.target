@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<target name="libdap-XKCP-plainc-native.a">
+        <config xmlns:xi="http://www.w3.org/2001/XInclude">XKCP_has_Sponge_Keccak</config>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/KeccakSponge.h</h><I>lib/high/Keccak/</I>
+        <inc xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/KeccakSponge.inc</inc><I>lib/high/Keccak/</I>
+        <c xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/KeccakSponge.c</c>
+    
+        <config xmlns:xi="http://www.w3.org/2001/XInclude">XKCP_has_FIPS202</config>
+        <c xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/FIPS202/SimpleFIPS202.c</c>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/FIPS202/SimpleFIPS202.h</h><I>lib/high/Keccak/FIPS202/</I>
+        <c xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/FIPS202/KeccakHash.c</c>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/high/Keccak/FIPS202/KeccakHash.h</h><I>lib/high/Keccak/FIPS202/</I>
+    
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/common/brg_endian.h</h><I>lib/common/</I>
+        <gcc xmlns:xi="http://www.w3.org/2001/XInclude">-fomit-frame-pointer</gcc>
+        <gcc xmlns:xi="http://www.w3.org/2001/XInclude">-O2</gcc>
+        <gcc xmlns:xi="http://www.w3.org/2001/XInclude">-g0</gcc>
+    
+        <config xmlns:xi="http://www.w3.org/2001/XInclude">XKCP_has_KeccakP1600</config>
+    
+        <c xmlns:xi="http://www.w3.org/2001/XInclude">lib/low/KeccakP-1600/plain-64bits/KeccakP-1600-opt64.c</c>
+        <inc xmlns:xi="http://www.w3.org/2001/XInclude">lib/low/KeccakP-1600/common/KeccakP-1600-unrolling.macros</inc><I>lib/low/KeccakP-1600/common/</I>
+        <inc xmlns:xi="http://www.w3.org/2001/XInclude">lib/low/KeccakP-1600/common/KeccakP-1600-64.macros</inc><I>lib/low/KeccakP-1600/common/</I>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/low/KeccakP-1600/plain-64bits/KeccakP-1600-SnP.h</h><I>lib/low/KeccakP-1600/plain-64bits/</I>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/low/common/SnP-Relaned.h</h><I>lib/low/common/</I>
+    
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/low/KeccakP-1600/plain-64bits/ua/KeccakP-1600-opt64-config.h</h><I>lib/low/KeccakP-1600/plain-64bits/ua/</I>
+    
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/common/align.h</h><I>lib/common/</I>
+        <h xmlns:xi="http://www.w3.org/2001/XInclude">lib/common/brg_endian.h</h><I>lib/common/</I>
+    </target>

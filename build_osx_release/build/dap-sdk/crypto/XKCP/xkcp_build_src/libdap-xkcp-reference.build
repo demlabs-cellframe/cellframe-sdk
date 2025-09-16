@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<group>
+	<target name="libdap-XKCP-ref.a" inherits="FIPS202 K1600-plain-64bits-ua "/>
+	<target name="libdap-XKCP-ref-native.a" inherits="FIPS202 K1600-plain-64bits-ua optimized-gcc optimized-march-native"/>
+</group>
