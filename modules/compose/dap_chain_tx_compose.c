@@ -904,7 +904,7 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
     }
 
     if (l_time_el_count && (l_time_el_count != l_value_el_count || l_time_el_count != l_addr_el_count)) {
-        dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_INVALID_PARAMS, "num of '-to_addr', '-value' and  '-lock_before' should be equal");
+        s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_INVALID_PARAMS, "num of '-to_addr', '-value' and  '-lock_before' should be equal");
         return s_compose_config_return_response_handler(l_config);
     }
 
@@ -936,13 +936,13 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
     if (l_time_unlock_str) {
         l_time_unlock = DAP_NEW_Z_COUNT(dap_time_t, l_value_el_count);
         if (!l_time_unlock) {
-            dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_MEMORY_ERROR, "Can't allocate memory");
+            s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_MEMORY_ERROR, "Can't allocate memory");
             return s_compose_config_return_response_handler(l_config);
         }
         char **l_time_unlock_array = dap_strsplit(l_time_unlock_str, ",", l_value_el_count);
         if (!l_time_unlock_array) {
             DAP_DELETE(l_time_unlock);
-            dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Can't read '-to_addr' arg");
+            s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Can't read '-to_addr' arg");
             return s_compose_config_return_response_handler(l_config);
         }
         for (size_t i = 0; i < l_value_el_count; ++i) {
@@ -952,7 +952,7 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
             }
             l_time_unlock[i] = dap_time_from_str_rfc822(l_time_unlock_array[i]);
             if (!l_time_unlock[i]) {
-                dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Wrong time format. Parameter -lock_before must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +0300\"");
+                s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Wrong time format. Parameter -lock_before must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +0300\"");
                 DAP_DEL_MULTY(l_time_unlock, l_value);
                 return s_compose_config_return_response_handler(l_config);
             }
