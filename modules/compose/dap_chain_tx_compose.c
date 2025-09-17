@@ -781,7 +781,7 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
 
 bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker,
                                          json_object **l_outs, int *l_outputs_count, compose_config_t *a_config) {
-    json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s", 
+    json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s;-mempool_check", 
                                                                       dap_chain_addr_to_str(a_addr_from), a_token_ticker, a_config->net_name);
     if (!l_json_outs) {
         log_it(L_ERROR, "failed to get outs");
@@ -1284,7 +1284,7 @@ json_object *dap_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_
     log_it_fl(L_DEBUG, "a_token_ticker: %s, a_addr: %s, a_config: %p",
     a_token_ticker, dap_chain_addr_to_str(a_addr), a_config);
 
-    json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s", 
+    json_object *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s;-mempool_check", 
                                                                       dap_chain_addr_to_str(a_addr), a_token_ticker, a_config->net_name);
     if (!l_json_outs) {
         log_it(L_ERROR, "failed to get response from RPC request");
@@ -3406,7 +3406,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     dap_chain_datum_tx_add_item(&l_tx, l_vote_item);
     DAP_DEL_Z(l_vote_item);
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST  
-    json_object *l_cond_tx_outputs_raw = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-net;%s;-token;%s;-cond",
+    json_object *l_cond_tx_outputs_raw = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-net;%s;-token;%s;-cond;-mempool_check",
                                                                             dap_chain_addr_to_str(a_wallet_addr), a_config->net_name, l_token_ticker);
     if (!l_cond_tx_outputs_raw) {
         log_it(L_ERROR, "failed to get cond tx outputs");
