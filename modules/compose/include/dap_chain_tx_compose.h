@@ -90,9 +90,8 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_arra
 dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  compose_config_t * a_config, 
                                                   dap_time_t *a_ts_created, char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
 
-json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, 
-                                  const char *l_fee_str, const char *addr_base58_to, dap_chain_addr_t *l_addr_from, 
-                                  const char *l_url_str, uint16_t l_port, const char *l_enc_cert);
+json_object* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_time_unlock_str, const char *l_fee_str, const char *addr_base58_to, 
+                                    dap_chain_addr_t *l_addr_from, const char *l_url_str, uint16_t l_port, const char *l_cert_path);
 
 json_object* dap_tx_create_xchange_compose(const char *l_net_str, const char *l_token_sell, const char *l_token_buy, 
                                           dap_chain_addr_t * l_wallet_addr, const char *l_value_str, const char *l_rate_str, const char *l_fee_str, 
@@ -151,9 +150,8 @@ dap_chain_datum_tx_t* dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
 json_object* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const char *a_tx_hash_str, dap_chain_addr_t *a_wallet_addr, 
                                                  const char *a_cert_str, const char *a_fee_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
 
-dap_chain_datum_tx_t* dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
-                                                       const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, 
-                                                       size_t a_tx_num, compose_config_t *a_config);
+dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
+        const char* a_token_ticker, uint256_t *a_value, dap_time_t *a_time_unlock, uint256_t a_value_fee, size_t a_tx_num, compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_token_buy, const char *a_token_sell, 
                                                               uint256_t a_datoshi_sell, uint256_t a_rate, uint256_t a_fee, 
