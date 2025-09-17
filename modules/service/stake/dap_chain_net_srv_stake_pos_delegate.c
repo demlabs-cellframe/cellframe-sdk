@@ -97,7 +97,7 @@ typedef enum s_cli_srv_stake_err{
 static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                                      dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+                                                      dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond);
 
 static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
@@ -254,7 +254,7 @@ void dap_chain_net_srv_stake_pos_delegate_deinit()
 }
 
 static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                         dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+                                         dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply)
 {
     dap_return_val_if_fail(a_ledger && a_cond && a_tx_in, -1);
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
