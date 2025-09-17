@@ -52,8 +52,6 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_wallet_shared"
 
-bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);
-
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner)
 {
     size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
