@@ -861,7 +861,7 @@ typedef enum {
 } tx_create_compose_error_t;
 
 json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                    uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, const char *a_value_str, const char *a_fee_str, 
+                                    uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, const char *a_value_str, const char *l_time_unlock_str, const char *a_fee_str, 
                                     const char *a_addr_base58_to, dap_chain_addr_t *a_addr_from) {
     dap_return_val_if_pass(!a_net_name || !a_native_ticker || !a_url_str || !a_port, NULL);
     
@@ -874,10 +874,12 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
     }
 
     uint256_t *l_value = NULL;
+    dap_time_t *l_time_unlock = NULL;
     uint256_t l_value_fee = {};
     dap_chain_addr_t **l_addr_to = NULL;
     size_t l_addr_el_count = 0;
     size_t l_value_el_count = 0;
+    size_t l_time_el_count = 0;
 
 
     l_value_fee = dap_chain_balance_scan(a_fee_str);
@@ -888,7 +890,8 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
     }
 
     l_value_el_count = dap_str_symbol_count(a_value_str, ',') + 1;
-
+    if (l_time_unlock_str)
+        l_time_el_count = dap_str_symbol_count(l_time_unlock_str, ',') + 1;
     if (a_addr_base58_to)
         l_addr_el_count = dap_str_symbol_count(a_addr_base58_to, ',') + 1;
     else 
@@ -897,6 +900,11 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
     if (a_addr_base58_to && l_addr_el_count != l_value_el_count) {
         log_it(L_ERROR, "num of '-to_addr' and '-value' should be equal");
         s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_INVALID_PARAMS, "num of '-to_addr' and '-value' should be equal");
+        return s_compose_config_return_response_handler(l_config);
+    }
+
+    if (l_time_el_count && (l_time_el_count != l_value_el_count || l_time_el_count != l_addr_el_count)) {
+        dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_INVALID_PARAMS, "num of '-to_addr', '-value' and  '-lock_before' should be equal");
         return s_compose_config_return_response_handler(l_config);
     }
 
@@ -925,6 +933,33 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
     }
     dap_strfreev(l_value_array);
 
+    if (l_time_unlock_str) {
+        l_time_unlock = DAP_NEW_Z_COUNT(dap_time_t, l_value_el_count);
+        if (!l_time_unlock) {
+            dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_MEMORY_ERROR, "Can't allocate memory");
+            return s_compose_config_return_response_handler(l_config);
+        }
+        char **l_time_unlock_array = dap_strsplit(l_time_unlock_str, ",", l_value_el_count);
+        if (!l_time_unlock_array) {
+            DAP_DELETE(l_time_unlock);
+            dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Can't read '-to_addr' arg");
+            return s_compose_config_return_response_handler(l_config);
+        }
+        for (size_t i = 0; i < l_value_el_count; ++i) {
+            if (l_time_unlock_array[i] && !dap_strcmp(l_time_unlock_array[i], "0")) {
+                l_time_unlock[i] = 0;
+                continue;
+            }
+            l_time_unlock[i] = dap_time_from_str_rfc822(l_time_unlock_array[i]);
+            if (!l_time_unlock[i]) {
+                dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Wrong time format. Parameter -lock_before must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +0300\"");
+                DAP_DEL_MULTY(l_time_unlock, l_value);
+                return s_compose_config_return_response_handler(l_config);
+            }
+        }
+        dap_strfreev(l_time_unlock_array);
+    }
+
     if (a_addr_base58_to) {
         l_addr_to = DAP_NEW_Z_COUNT(dap_chain_addr_t *, l_addr_el_count);
         if (!l_addr_to) {
@@ -935,6 +970,7 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
         }
         char **l_addr_base58_to_array = dap_strsplit(a_addr_base58_to, ",", l_addr_el_count);
         if (!l_addr_base58_to_array) {
+            DAP_DEL_MULTY(l_addr_to, l_value, l_time_unlock);
             log_it(L_ERROR, "failed to read '-to_addr' arg");
             DAP_DEL_MULTY(l_addr_to, l_value);
             s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Can't read '-to_addr' arg");
@@ -956,7 +992,7 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
         dap_strfreev(l_addr_base58_to_array);
     }
 
-    dap_chain_datum_tx_t *l_tx = dap_chain_tx_compose_datum_tx_create( a_addr_from, l_addr_to, a_token_ticker, l_value, l_value_fee, l_addr_el_count, l_config);
+    dap_chain_datum_tx_t *l_tx = dap_chain_tx_compose_datum_tx_create( a_addr_from, l_addr_to, a_token_ticker, l_value, l_time_unlock, l_value_fee, l_addr_el_count, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
@@ -968,7 +1004,7 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
 
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
-        const char *a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, size_t a_tx_num, compose_config_t *a_config)
+        const char *a_token_ticker, uint256_t *a_value, dap_time_t *a_time_unlock, uint256_t a_value_fee, size_t a_tx_num, compose_config_t *a_config)
 {
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
     dap_return_val_if_pass(!a_config, NULL);
@@ -1101,7 +1137,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
     if (l_single_channel) { // add 'out' items
         uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
         for (size_t i = 0; i < a_tx_num; ++i) {
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to ? a_addr_to[i] : &l_addr_burn, a_value[i], l_native_ticker) != 1) {
+            if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], l_native_ticker, a_time_unlock ? a_time_unlock[i] : 0) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_OUT_ERROR, "Can't add 'out' item");
                 DAP_DELETE(l_addr_fee);
@@ -1144,7 +1180,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
         }
     } else { // add 'out_ext' items
         for (size_t i = 0; i < a_tx_num; ++i) {
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to ? a_addr_to[i] : &l_addr_burn, a_value[i], a_token_ticker) != 1) {
+            if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock ? a_time_unlock[i] : 0) != 1) {
                 log_it(L_ERROR, "failed to add 'out_ext' item");
                 dap_chain_datum_tx_delete(l_tx);
                 s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_OUT_ERROR, "Can't add 'out_ext' item");
