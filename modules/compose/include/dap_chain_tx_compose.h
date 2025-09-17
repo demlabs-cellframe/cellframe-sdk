@@ -66,7 +66,7 @@ dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
                                                   dap_time_t *a_ts_created, char **a_token_ticker, int32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
 
 json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                  uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, const char *a_value_str, 
+                                  uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, const char *a_value_str, const char *l_time_unlock_str,
                                   const char *a_fee_str, const char *addr_base58_to, dap_chain_addr_t *a_addr_from);
 
 json_object *dap_chain_tx_compose_xchange_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
@@ -155,7 +155,7 @@ json_object *dap_chain_tx_compose_wallet_shared_sign(dap_chain_net_id_t a_net_id
 
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
-                                                       const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, 
+                                                       const char* a_token_ticker, uint256_t *a_value, dap_time_t *a_time_unlock, uint256_t a_value_fee, 
                                                        size_t a_tx_num, compose_config_t *a_config);
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_xchange_create(const char *a_token_buy, const char *a_token_sell, 
