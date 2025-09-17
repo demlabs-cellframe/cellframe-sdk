@@ -71,6 +71,8 @@
 
 #define LOG_TAG "dap_chain_wallet"
 
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);
+
 typedef struct dap_chain_wallet_notificator {
     dap_chain_wallet_opened_callback_t callback;
     void *arg;
