@@ -271,7 +271,7 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             log_it(L_WARNING, "Conditional out and conditional in have different headers");         \
             return -3;                                                                              \
         }                                                                                           \
-        if (l_tx_new_cond->tsd_size < a_cond->tsd_size ||                                          \
+        if (l_tx_new_cond->tsd_size != a_cond->tsd_size ||                                          \
                 memcmp(l_tx_new_cond->tsd, a_cond->tsd, a_cond->tsd_size)) {                        \
             log_it(L_WARNING, "Conditional out and conditional in have different TSD sections");    \
             return -4;                                                                              \
@@ -342,7 +342,8 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             log_it(L_ERROR, "Blank hash of prev tx in tx_in_cond");
             return -7;
         }
-        if (a_tx_in->header.ts_created < 1706227200) // Jan 26 2024 00:00:00 GMT, old policy rules
+        // Legacy bypass tied to blockchain time, not user-supplied ts_created
+        if (dap_ledger_get_blockchain_time(a_ledger) < 1706227200)
             return 0;
         dap_chain_net_srv_stake_item_t *l_stake = NULL;
         HASH_FIND(ht, l_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);
@@ -1098,6 +1099,12 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&l_spender_hash, l_hash_str, sizeof(l_hash_str));
         log_it(L_WARNING, "Requested conditional transaction is already used out by %s", l_hash_str);
+        return NULL;
+    }
+    // Check minimal allowed stake value
+    uint256_t l_min = dap_chain_net_srv_stake_get_allowed_min_value(a_net->pub.id);
+    if (compare256(l_tx_out_cond->header.value, l_min) == -1) {
+        log_it(L_WARNING, "Delegation value is below minimum allowed");
         return NULL;
     }
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];

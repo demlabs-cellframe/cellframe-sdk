@@ -2478,10 +2478,17 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
     }
 
     struct json_object *l_json_timestamp = json_object_object_get(a_tx_json, "ts_created");
-    if (l_json_timestamp)
+    const dap_time_t l_now = time(NULL);
+    if (l_json_timestamp) {
         l_tx->header.ts_created = json_object_get_int64(l_json_timestamp);
+        // Clamp ts_created to sane window ±24h from now
+        const dap_time_t past_limit = l_now - 86400, future_limit = l_now + 86400;
+        if (l_tx->header.ts_created < past_limit || l_tx->header.ts_created > future_limit)
+            l_tx->header.ts_created = l_now;
+    }
     else
-        l_tx->header.ts_created = time(NULL);
+        l_tx->header.ts_created = l_now;
+    
 
     size_t l_items_ready = 0;
     dap_list_t *l_sign_list = NULL;// list 'sign' items

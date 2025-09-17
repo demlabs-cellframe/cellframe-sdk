@@ -1024,6 +1024,12 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX ||
             a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT) {
+        // Validate reinvest_percent ∈ [0; 100.0]
+        uint256_t l_percent_max = dap_chain_coins_to_balance("100.0");
+        if (compare256(a_cond->subtype.srv_stake_lock.reinvest_percent, l_percent_max) == 1) {
+            log_it(L_WARNING, "Invalid reinvest percent > 100%%");
+            return -18;
+        }
         if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(a_ledger, l_delegated_ticker_str)))
             return -5;
 
@@ -1064,7 +1070,8 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         dap_chain_addr_t l_out_addr = {};
         byte_t *l_item; size_t l_size; int i;
         TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_burning_tx) {
-            if (*l_item == TX_ITEM_TYPE_OUT) {
+            if (*l_item == TX_ITEM_TYPE_OUT && dap_ledger_get_blockchain_time(a_ledger) < 1706227200 && a_check_for_apply) {
+                // Legacy acceptance: allow non-tickered OUT burn only before cut-off and only on apply stage
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)l_item;
                 l_out_addr = l_out->addr;
                 if ( dap_chain_addr_is_blank(&l_out_addr) ) {
@@ -1101,9 +1108,15 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         }
 
         if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
-            // A terrible legacy crutch, not for old format only =/
-            if (SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
-                    !EQUAL_256(l_blank_out_value, l_value_delegated)) {
+            // Allow legacy +10 only for old format receipts on apply stage and before cut-off
+            if (l_receipt_old && a_check_for_apply && dap_ledger_get_blockchain_time(a_ledger) < 1706227200) {
+                uint256_t l_value_delegated_with_delta = l_value_delegated;
+                if (SUM_256_256(l_value_delegated_with_delta, GET_256_FROM_64(10), &l_value_delegated_with_delta) ||
+                        !EQUAL_256(l_blank_out_value, l_value_delegated_with_delta)) {
+                    log_it(L_ERROR, "Burning and delegated value mismatch (legacy)");
+                    return -12;
+                }
+            } else {
                 log_it(L_ERROR, "Burning and delegated value mismatch");
                 return -12;
             }
