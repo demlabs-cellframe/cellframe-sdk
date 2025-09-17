@@ -59,6 +59,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
 #include "dap_notify_srv.h"
+#include "dap_chain_mempool.h"
 
 //#define __USE_GNU
 

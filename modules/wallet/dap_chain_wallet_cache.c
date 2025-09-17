@@ -42,7 +42,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain.h"
 #include "dap_common.h"
-
+#include "dap_chain_mempool.h"
 
 
 #define LOG_TAG "dap_chain_wallet_cache"
