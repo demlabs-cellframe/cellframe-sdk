@@ -127,7 +127,7 @@ int dap_chain_net_srv_voting_init()
     pthread_rwlock_init(&s_votings_rwlock, NULL);
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
     dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
-                "poll", s_cli_voting, "Voting/poll commands",
+                "poll", s_cli_voting, NULL, "Voting/poll commands",
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>]"
                                            " [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll cancel -net <net_name> -hash <poll_hash> -fee <value_datoshi> -w <fee_wallet_name>\n"
@@ -431,6 +431,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             return -18;
         }
         const char *l_ticker_in = NULL;
+        
         switch (*l_prev_out_union) {
         case TX_ITEM_TYPE_OUT: {
             dap_chain_tx_out_t *l_prev_out = (dap_chain_tx_out_t *)l_prev_out_union;
@@ -514,6 +515,30 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
     }
 
     if (a_apply) {
+        // Mark conditional outs
+        pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
+        if (l_old_vote) {
+            dap_hash_fast_t *l_vote_hash = &((dap_chain_net_vote_t *)l_old_vote->data)->vote_hash;
+            dap_chain_net_voting_cond_outs_t *it = NULL, *tmp;
+            HASH_ITER(hh, l_voting->voting_spent_cond_outs, it, tmp) {
+                if (!dap_hash_fast_compare(l_vote_hash, &it->pkey_hash))
+                    continue;
+                HASH_DEL(l_voting->voting_spent_cond_outs, it);
+                DAP_DELETE(it);
+            }
+        }
+        for (dap_list_t *it = l_tsd_list; it; it = it->next) {
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)it->data)->tsd;
+            if (l_tsd->type != VOTING_TSD_TYPE_VOTE_TX_COND)
+                continue;
+            dap_chain_net_voting_cond_outs_t *l_tx_out = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_voting_cond_outs_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
+            l_tx_out->tx_hash = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->tx_hash;
+            l_tx_out->out_idx = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->out_idx;
+            l_tx_out->pkey_hash = l_pkey_hash;
+            HASH_ADD(hh, l_voting->voting_spent_cond_outs, tx_hash, sizeof(dap_hash_fast_t), l_tx_out);
+        }
+        pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
+
         // Mark conditional outs
         pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
         if (l_old_vote) {
@@ -1138,7 +1163,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     }break;
     case CMD_LIST:{
         json_object* json_vote_out = json_object_new_object();
-        json_object_object_add(json_vote_out, "list_of_polls", json_object_new_string(l_net->pub.name));
+        json_object_object_add(json_vote_out, "net_name", json_object_new_string(l_net->pub.name));
         json_object* json_arr_voting_out = json_object_new_array();
         dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
         const char *l_token_str = NULL;
@@ -1193,7 +1218,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             json_object_array_add(*json_arr_reply, json_obj_no_polls);
             json_object_put(json_arr_voting_out);
         } else {
-            json_object_array_add(*json_arr_reply, json_arr_voting_out);
+            json_object * l_json_arr_polls = json_object_new_object();
+            json_object_object_add(l_json_arr_polls, "polls", json_arr_voting_out);
+            json_object_array_add(*json_arr_reply, l_json_arr_polls);
         }
     }break;
     case CMD_DUMP:{
