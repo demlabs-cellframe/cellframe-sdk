@@ -103,7 +103,7 @@ void s_chain_datum_tx_create_test()
 { 
     dap_print_module_name("tx_create_compose");
     dap_chain_addr_t *l_addr_to = &s_data->addr_to;
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_create(&s_data->addr_from, &l_addr_to, s_ticker_native, &s_data->value, s_data->value_fee, 1, &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_create(&s_data->addr_from, &l_addr_to, s_ticker_native, &s_data->value, NULL, s_data->value_fee, 1, &s_data->config);
     dap_assert(l_datum_1, "tx_create_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
