@@ -6152,32 +6152,6 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -7;
     }
-    // Additional pre-apply uniqueness check across already added transactions in ledger cache
-    if (!a_apply && l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED) {
-        pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
-        for (dap_ledger_tx_item_t *lit = l_ledger_pvt->ledger_items; lit; lit = lit->hh.next) {
-            byte_t *it_item; size_t it_size;
-            TX_ITEM_ITER_TX(it_item, it_size, lit->tx) {
-                if (*it_item != TX_ITEM_TYPE_EVENT)
-                    continue;
-                dap_chain_tx_item_event_t *existing_event = (dap_chain_tx_item_event_t *)it_item;
-                if (existing_event->version != DAP_CHAIN_TX_EVENT_VERSION)
-                    continue;
-                if (existing_event->event_type != DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED)
-                    continue;
-                if (existing_event->group_name_size != l_event_item->group_name_size)
-                    continue;
-                if (!memcmp(existing_event->group_name, l_event_item->group_name, l_event_item->group_name_size)) {
-                    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-                    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-                    log_it(L_WARNING, "Auction start rejected at check: group '%.*s' already present in pending ledger items",
-                           (int)l_event_item->group_name_size, (const char *)l_event_item->group_name);
-                    return -13;
-                }
-            }
-        }
-        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    }
     if (dap_chain_datum_tx_verify_sign(a_tx, 1)) {
         log_it(L_WARNING, "Sign verification failed in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
@@ -6194,10 +6168,14 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
         if (!memcmp(it->group_name, l_event_item->group_name, l_event_item->group_name_size)) {
             // Enforce uniqueness for auction start events by group_name
-            if (l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED &&
-                    it->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED) {
-                log_it(L_WARNING, "Auction start rejected: group '%.*s' already exists (existing tx %s)",
+            if (l_event_item->event_type == it->event_type &&
+                    (it->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED ||
+                        it->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED ||
+                        it->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED)) {
+                log_it(L_WARNING, "Event %s rejected: group '%.*s' already exists event with type %s (existing tx %s)",
+                        dap_chain_hash_fast_to_str_static(a_tx_hash),
                         (int)l_event_item->group_name_size, (const char *)l_event_item->group_name,
+                        dap_chain_tx_item_event_type_to_str(it->event_type),
                         dap_chain_hash_fast_to_str_static(&it->tx_hash));
                 pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
                 return -13;

@@ -30,6 +30,7 @@
 #include "dap_common.h"
 #include "dap_test.h"
 #include "dap_chain_net_srv_auctions_tests.h"
+#include "dap_chain_net_srv_auctions.h"
 #include "dap_chain_datum_tx_event.h"
 #include "dap_math_ops.h"
 
@@ -350,11 +351,10 @@ void dap_auctions_test_cache_bid_management(void)
     dap_time_t l_lock_time = dap_time_now() + 7776000; // 3 months
     dap_hash_fast_t l_project_hash;
     generate_test_hash(4001, &l_project_hash);
-    const char *l_project_name = "test_project_1";
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash, 
                                         &l_bidder_addr, l_bid_amount, l_lock_time,
-                                        &l_project_hash, l_project_name);
+                                        &l_project_hash);
     dap_assert_PIF(l_result == 0, "Bid should be added successfully");
     dap_pass_msg("Test 1: Testing bid addition to auction: passed");
     
@@ -386,7 +386,7 @@ void dap_auctions_test_cache_bid_management(void)
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash2, 
                                         &l_bidder_addr2, l_bid_amount2, l_lock_time,
-                                        &l_project_hash, l_project_name);
+                                        &l_project_hash);
     dap_assert_PIF(l_result == 0, "Second bid should be added");
     dap_assert_PIF(l_auction->bids_count == 2, "Auction should have 2 bids");
     dap_test_msg("Second bid added");
@@ -402,7 +402,7 @@ void dap_auctions_test_cache_bid_management(void)
     dap_test_msg("Test 6: Duplicate bid handling");
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash, 
                                         &l_bidder_addr, l_bid_amount, l_lock_time,
-                                        &l_project_hash, l_project_name);
+                                        &l_project_hash);
     dap_assert_PIF(l_result != 0, "Duplicate bid should be rejected");
     dap_assert_PIF(l_auction->bids_count == 2, "Bid count should remain 2");
     dap_pass_msg("Test 6: Testing duplicate bid rejection: passed");
@@ -416,7 +416,7 @@ void dap_auctions_test_cache_bid_management(void)
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_nonexistent_auction, &l_bid_hash3, 
                                         &l_bidder_addr, l_bid_amount, l_lock_time,
-                                        &l_project_hash, l_project_name);
+                                        &l_project_hash);
     dap_assert_PIF(l_result != 0, "Bid to non-existent auction should fail");
     dap_pass_msg("Test 7: Testing bid to non-existent auction rejection: passed");
     
@@ -528,13 +528,13 @@ void dap_auctions_test_cache_statistics(void)
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash1, &l_bid_hash1, 
                                         &l_bidder_addr1, l_bid_amount, dap_time_now() + 7776000,
-                                        &l_project_hash, "test_project");
+                                        &l_project_hash);
     dap_assert_PIF(l_result == 0, "First bid should be added");
     dap_assert_PIF(l_auction->bids_count == 1, "Bids count should be 1");
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash1, &l_bid_hash2, 
                                         &l_bidder_addr2, l_bid_amount, dap_time_now() + 7776000,
-                                        &l_project_hash, "test_project");
+                                        &l_project_hash);
     dap_assert_PIF(l_result == 0, "Second bid should be added");
     dap_assert_PIF(l_auction->bids_count == 2, "Bids count should be 2");
     dap_pass_msg("Test 4: Testing bid counter functionality: passed");
@@ -1335,7 +1335,7 @@ void dap_auctions_test_withdraw_transactions(void)
     // Simulate adding a bid to the auction cache
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_tx_hash, 
                                         &l_bidder_addr, l_bid_amount, l_lock_time, 
-                                        &l_project_hash, "Test Project 1");
+                                        &l_project_hash);
     dap_assert_PIF(l_result == 0, "Failed to add test bid to cache");
     
     dap_pass_msg("Test setup - ");
@@ -1996,7 +1996,7 @@ void dap_auctions_test_verificators(void)
     l_bid_amount_256.lo = l_bid_cond->bid_amount;
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_tx_hash, 
                                        &l_bidder_addr, l_bid_amount_256, 
-                                       l_bid_cond->lock_time, &l_project_hash, "Test Project");
+                                       l_bid_cond->lock_time, &l_project_hash);
     dap_assert_PIF(l_result == 0, "Updater should be able to add valid bid to cache");
     
     // Verify bid was added correctly
@@ -2450,7 +2450,7 @@ void dap_auctions_test_error_handling(void)
     // This may succeed or fail, but should handle gracefully
     int l_bid_result = dap_auction_cache_add_bid(l_cache, &l_test_hash, &l_bid_hash, 
                                                &l_invalid_addr, l_bid_amount, 86400, 
-                                               &l_project_hash, "Test Project");
+                                               &l_project_hash);
     dap_test_msg("Invalid address bid handling: %s", (l_bid_result == 0) ? "accepted" : "rejected");
     
     // ===== Test 7: Memory pressure simulation =====
@@ -2736,7 +2736,7 @@ void dap_auctions_test_thread_safety(void)
         // Simulate thread adding bid
         int l_bid_result = dap_auction_cache_add_bid(l_cache, &l_bid_auction_hash, &l_bid_hash, 
                                                    &l_bidder_addr, l_bid_amount, 86400, 
-                                                   &l_project_hash, "Thread Test Project");
+                                                   &l_project_hash);
         // Log only bid failures
         if (l_bid_result != 0) {
             dap_test_msg("Concurrent bid operation %d: failed", i);

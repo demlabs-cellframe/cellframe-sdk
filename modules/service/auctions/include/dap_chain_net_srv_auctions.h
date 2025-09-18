@@ -37,6 +37,38 @@
 // Forward declarations
 typedef struct dap_chain_net_srv_auctions dap_chain_net_srv_auctions_t;
 
+typedef enum dap_chain_tx_event_data_time_unit {
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS  = 0,
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS   = 1,
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS  = 2,
+    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS = 3,
+} dap_chain_tx_event_data_time_unit_t;
+
+DAP_STATIC_INLINE const char *dap_chain_tx_event_data_time_unit_to_str(dap_chain_tx_event_data_time_unit_t a_time_unit)
+{
+    switch (a_time_unit) {
+    case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS: return "hours";
+    case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS: return "days";
+    case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS: return "weeks";
+    case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS: return "months";
+    default: return "seconds";
+    }
+}
+
+typedef struct dap_chain_tx_event_data_auction_started {
+    uint32_t multiplier;
+    dap_time_t duration;
+    dap_chain_tx_event_data_time_unit_t time_unit;
+    uint32_t calculation_rule_id;
+    uint8_t projects_cnt;
+    uint32_t project_ids[];
+} DAP_ALIGN_PACKED dap_chain_tx_event_data_auction_started_t;
+
+typedef struct dap_chain_tx_event_data_ended {
+    uint8_t winners_cnt;
+    uint32_t winners_ids[];
+} DAP_ALIGN_PACKED dap_chain_tx_event_data_ended_t;
+
 // Auction status enumeration
 typedef enum {
     DAP_AUCTION_STATUS_UNKNOWN = 0,
@@ -63,7 +95,6 @@ typedef struct dap_auction_bid_cache_item {
 // Project aggregation in auction
 typedef struct dap_auction_project_cache_item {
     uint64_t project_id;               // ID of the project
-    char *project_name;                // Name of the project
     uint256_t total_amount;            // Total amount bid for this project
     uint32_t bids_count;               // Number of bids for this project
     uint32_t active_bids_count;        // Number of active (non-withdrawn) bids
@@ -123,7 +154,6 @@ struct dap_chain_net_srv_auctions {
 // Project information in auction (for external API)
 typedef struct dap_chain_net_srv_auction_project {
     uint64_t project_id;
-    char *project_name;
     uint256_t total_amount;
     uint32_t bids_count;
     uint32_t active_bids_count;
@@ -184,8 +214,7 @@ int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
                               dap_chain_addr_t *a_bidder_addr,
                               uint256_t a_bid_amount,
                               dap_time_t a_lock_time,
-                              uint64_t a_project_id,
-                              const char *a_project_name);
+                              uint64_t a_project_id);
 
 int dap_auction_cache_update_auction_status(dap_auction_cache_t *a_cache,
                                            dap_hash_fast_t *a_auction_hash,
@@ -266,6 +295,11 @@ char *dap_chain_net_srv_auction_bid_create(dap_chain_net_t *a_net, dap_enc_key_t
                                 uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_project_id, uint256_t a_fee, int *a_ret_code);
 
 char *dap_chain_net_srv_auction_withdraw_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_bid_tx_hash, uint256_t a_fee, uint256_t *a_value, int *a_ret_code);
+
+byte_t *dap_chain_srv_auction_started_tx_event_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
+    dap_chain_tx_event_data_time_unit_t a_time_unit,
+    uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[]);
+byte_t *dap_chain_srv_auction_ended_tx_event_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[]);
 
 #ifdef __cplusplus
 }

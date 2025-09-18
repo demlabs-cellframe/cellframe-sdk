@@ -53,27 +53,6 @@ typedef struct dap_chain_tx_event {
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED               0x0003
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED           0x0004
 
-typedef enum dap_chain_tx_event_data_time_unit {
-    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS  = 0,
-    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS   = 1,
-    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS  = 2,
-    DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS = 3,
-} dap_chain_tx_event_data_time_unit_t;
-
-typedef struct dap_chain_tx_event_data_auction_started {
-    uint32_t multiplier;
-    dap_time_t duration;
-    dap_chain_tx_event_data_time_unit_t time_unit;
-    uint32_t calculation_rule_id;
-    uint8_t projects_cnt;
-    uint32_t project_ids[];
-} DAP_ALIGN_PACKED dap_chain_tx_event_data_auction_started_t;
-
-typedef struct dap_chain_tx_event_data_ended {
-    uint8_t winners_cnt;
-    uint32_t winners_ids[];
-} DAP_ALIGN_PACKED dap_chain_tx_event_data_ended_t;
-
 DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_event_type)
 {
     switch (a_event_type) {
@@ -85,13 +64,21 @@ DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_eve
     }
 }
 
+DAP_STATIC_INLINE int dap_chain_tx_item_event_type_from_str(const char *a_event_type_str)
+{
+    if (!dap_strcmp(a_event_type_str, "auction_started")) 
+        return DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED;
+    if (!dap_strcmp(a_event_type_str, "auction_bid_placed")) 
+        return DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED;
+    if (!dap_strcmp(a_event_type_str, "auction_ended")) 
+        return DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED;
+    if (!dap_strcmp(a_event_type_str, "auction_cancelled")) 
+        return DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED;
+    return -1;
+}
+
 #define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA                   0x1000
 #define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA_JSON_STR          "custom_data"
 
 int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_item_event_t *a_event);
-
- byte_t *dap_chain_tx_event_data_auction_started_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
-                                                        dap_chain_tx_event_data_time_unit_t a_time_unit,
-                                                        uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[]);
-byte_t *dap_chain_tx_event_data_auction_ended_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[]);
 int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type);

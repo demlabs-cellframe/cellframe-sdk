@@ -910,44 +910,17 @@ int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event
     json_object_object_add(l_object, "pkey_hash", json_object_new_string(l_pkey_hash_str));
     json_object_object_add(l_object, "data_size", json_object_new_int64(a_event->event_data_size));
     if (a_event->event_data && a_event->event_data_size > 0) {
-        char *l_data_hex = DAP_NEW_Z_SIZE(char, a_event->event_data_size * 2 + 1);
+        const size_t l_print_size_max = 32;
+        size_t l_print_size = a_event->event_data_size > l_print_size_max ? l_print_size_max : a_event->event_data_size;
+        char *l_data_hex = DAP_NEW_Z_SIZE(char, l_print_size * 2 + 1);
         if (l_data_hex) {
-            dap_bin2hex(l_data_hex, a_event->event_data, a_event->event_data_size);
+            dap_bin2hex(l_data_hex, a_event->event_data, l_print_size);
             json_object_object_add(l_object, "data_hex", json_object_new_string(l_data_hex));
             DAP_DELETE(l_data_hex);
         }
+        if (a_event->event_data_size > l_print_size_max)
+            for (size_t i = l_print_size; i > l_print_size - 3; i--)
+                l_data_hex[i] = '.';
     }
     return 0;
-}
-
-byte_t *dap_chain_tx_event_data_auction_started_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
-                                                       dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
-{
-    size_t l_data_size = sizeof(dap_chain_tx_event_data_auction_started_t) + a_projects_cnt * sizeof(uint32_t);
-    dap_chain_tx_event_data_auction_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_auction_started_t, l_data_size, NULL);
-    
-    l_data->multiplier = a_multiplier;
-    l_data->duration = a_duration;
-    l_data->time_unit = a_time_unit;
-    l_data->calculation_rule_id = a_calculation_rule_id;
-    l_data->projects_cnt = a_projects_cnt;
-    memcpy(l_data->project_ids, a_project_ids, a_projects_cnt * sizeof(uint32_t));
-    
-    if (a_data_size)
-        *a_data_size = l_data_size;
-    
-    return (byte_t *)l_data;
-}
-
-byte_t *dap_chain_tx_event_data_auction_ended_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[])
-{
-    size_t l_data_size = sizeof(dap_chain_tx_event_data_ended_t) + a_winners_cnt * sizeof(uint32_t);
-    dap_chain_tx_event_data_ended_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_ended_t, l_data_size, NULL);
-    l_data->winners_cnt = a_winners_cnt;
-    memcpy(l_data->winners_ids, a_winners_ids, a_winners_cnt * sizeof(uint32_t));
-    
-    if (a_data_size)
-        *a_data_size = l_data_size;
-    
-    return (byte_t *)l_data;
 }
