@@ -794,15 +794,17 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     case CMD_GROUP_LIST: {
-        json_object* json_group_list = json_object_new_object();
-        dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
+        const char *l_mask = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-mask", &l_mask);
+        json_object *json_group_list = json_object_new_object();
+        dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask(l_mask ? l_mask : "*");
         size_t l_count = 0;
-        json_object* json_arr_group = json_object_new_array();
-        json_object* json_obj_list = NULL;
+        json_object *json_arr_group = json_object_new_array();
+        json_object *json_obj_list = NULL;
         for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list), ++l_count) {
             json_obj_list = json_object_new_object();
             json_object_object_add(json_obj_list, (char*)l_list->data,
-                                   json_object_new_uint64(dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, false)));
+                                   json_object_new_uint64(dap_global_db_driver_count((char*)l_list->data, c_dap_global_db_driver_hash_blank, dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-all") != -1)));
             json_object_array_add(json_arr_group, json_obj_list);
         }
         json_object_object_add(json_group_list, a_version == 1 ? "group list" : "group_list", json_arr_group);
