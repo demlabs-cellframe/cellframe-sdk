@@ -25,6 +25,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_config.h"
 #include "json-c/json.h"
+#include "json_object.h"
 
 #define LOG_TAG "dap_chain_net_srv_auctions"
 #define set_ret_code(p,ret_code) if (p) { *p = ret_code;}
@@ -62,7 +63,8 @@ enum error_code {
     PROJECT_ID_ARG_ERROR = 27,
     PROJECT_ID_FORMAT_ERROR = 28,
     AUCTION_CACHE_NOT_INITIALIZED = 29,
-    PROJECT_NOT_FOUND_IN_AUCTION = 30
+    PROJECT_NOT_FOUND_IN_AUCTION = 30,
+    INVALID_EVENT_TYPE_ERROR = 31
 };
 
 // Callbacks
@@ -116,10 +118,10 @@ int dap_chain_net_srv_auctions_init(void)
                 "\t-projects: include basic project information\n\n"
                 "info -net <network> -auction <auction_name|tx_hash>\n"
                 "\tGet detailed information about a specific auction\n\n"
-                "events -net <network> [-auction <auction_name|tx_hash>] [-limit <count>]\n"
+                "events -net <network> [-auction <auction_name|tx_hash>] [-type <event_type>]\n"
                 "\tGet auction events history\n"
                 "\t-auction: filter events for specific auction\n"
-                "\t-limit: maximum number of events to return\n\n"
+                "\t-type: filter events for specific type\n\n"
                 "stats -net <network>\n"
                 "\tGet auction statistics\n\n"
                 "create -net <network> -name <auction_name> -duration <duration_hours> -projects <project_list> -fee <value> -w <wallet>\n"
@@ -134,7 +136,7 @@ int dap_chain_net_srv_auctions_init(void)
                 "  auction bid -net myCellFrame -auction <auction_name|tx_hash> -amount 1000 -lock_period 6 -project 1 -fee 0.1 -w myWallet\n"
                 "  auction info -net myCellFrame -auction <auction_name|tx_hash>\n"
                 "  auction withdraw -net myCellFrame -bid_tx_hash <hash> -fee 0.1 -w myWallet\n"
-                "  auction events -net myCellFrame -auction <auction_name|tx_hash> -limit 10\n"
+                "  auction events -net myCellFrame -auction <auction_name|tx_hash> -type <event_type>\n"
                 "  auction stats -net myCellFrame\n"
                 "  auction create -net myCellFrame -name 'Test Auction' -duration 168 -projects '1,2,part3' -fee 0.1 -w myWallet\n\n"
                 "  Notes:\n"
@@ -204,7 +206,6 @@ void dap_auction_cache_delete(dap_auction_cache_t *a_cache)
         dap_auction_project_cache_item_t *l_project, *l_tmp_project;
         HASH_ITER(hh, l_auction->projects, l_project, l_tmp_project) {
             HASH_DEL(l_auction->projects, l_project);
-            DAP_DELETE(l_project->project_name);
             DAP_DELETE(l_project);
         }
         
@@ -358,7 +359,6 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
  * @param a_bid_amount Bid amount
  * @param a_lock_time Lock time in seconds
  * @param a_project_id ID of project this bid is for
- * @param a_project_name Name of project this bid is for
  * @return Returns 0 on success, negative error code otherwise
  */
 int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
@@ -367,8 +367,7 @@ int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
                               dap_chain_addr_t *a_bidder_addr,
                               uint256_t a_bid_amount,
                               dap_time_t a_lock_time,
-                              uint64_t a_project_id,
-                              const char *a_project_name)
+                              uint64_t a_project_id)
 {
     if (!a_cache || !a_bid_hash || !a_bidder_addr)
         return -1;
@@ -396,14 +395,6 @@ int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
     // Find project in auction cache
     dap_auction_project_cache_item_t *l_project = NULL;
     HASH_FIND(hh, l_auction->projects, &a_project_id, sizeof(uint64_t), l_project);
-    if (!l_project && a_project_name) {
-        for (dap_auction_project_cache_item_t *it = NULL; it; it = it->hh.next) {
-            if (it->project_name && strcmp(it->project_name, a_project_name) == 0) {
-                l_project = it;
-                break;
-            }
-        }
-    }
     if (!l_project) {
         log_it(L_ERROR, "Project not found in auction cache for bid add");
         return -4;
@@ -865,11 +856,12 @@ void dap_auction_cache_event_callback(void *a_arg,
                            dap_chain_hash_fast_to_str_static(&a_event->tx_hash),
                            l_started_data->projects_cnt,
                            l_started_data->duration,
-                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS ? "hours" :
-                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS ? "days" :
-                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS ? "weeks" :
-                           l_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS ? "months" : "seconds");
+                           dap_chain_tx_event_data_time_unit_to_str(l_started_data->time_unit));
                 }
+            } else {
+                // TODO: Handle deleted auction started event
+                log_it(L_DEBUG, "Processing deleted auction started event for %s", 
+                       dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             }
         } break;
         
@@ -933,6 +925,10 @@ void dap_auction_cache_event_callback(void *a_arg,
                                  dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
                     }
                 }
+            } else {
+                // TODO: Handle deleted auction ended event
+                log_it(L_DEBUG, "Processing deleted auction ended event for %s", 
+                       dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             }
         } break;
         
@@ -964,6 +960,10 @@ void dap_auction_cache_event_callback(void *a_arg,
                            a_event->group_name);
                     return;
                 }
+            } else {
+                // TODO: Handle deleted auction cancelled event
+                log_it(L_DEBUG, "Processing deleted auction cancelled event for %s", 
+                       dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             }
         } break;
         
@@ -1086,8 +1086,7 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
                                                      &l_bidder_addr,
                                                      l_bid_amount,
                                                      l_lock_time,
-                                                     l_project_id,
-                                                     NULL);
+                                                     l_project_id);
 
         if (l_add_result == 0) {
             log_it(L_INFO, "Successfully added bid %s to auction %s cache (project_id=%u, lock_time=%"DAP_UINT64_FORMAT_U", amount=%s)", 
@@ -1357,20 +1356,12 @@ void dap_chain_net_srv_auctions_delete(dap_chain_net_srv_auctions_t *a_auctions)
  */
 void dap_chain_net_srv_auction_delete(dap_chain_net_srv_auction_t *a_auction)
 {
-    if (!a_auction)
-        return;
+    dap_return_if_fail(a_auction);
     
-    DAP_DELETE(a_auction->guuid);
-    DAP_DELETE(a_auction->description);
-    DAP_DELETE(a_auction->winners_ids);  // Free winners array
-    
-    // Free projects array if present
-    if (a_auction->projects) {
-        for (uint32_t i = 0; i < a_auction->projects_count; i++) {
-            DAP_DELETE(a_auction->projects[i].project_name);
-        }
-        DAP_DELETE(a_auction->projects);
-    }
+    DAP_DEL_Z(a_auction->guuid);
+    DAP_DEL_Z(a_auction->description);
+    DAP_DEL_Z(a_auction->winners_ids);  // Free winners array   
+    DAP_DEL_Z(a_auction->projects);     // Free projects array if present
     
     DAP_DELETE(a_auction);
 }
@@ -1521,7 +1512,6 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_get_detailed(dap_chain_n
                 l_auction->projects[l_index].total_amount = l_project->total_amount;
                 l_auction->projects[l_index].bids_count = l_project->bids_count;
                 l_auction->projects[l_index].active_bids_count = l_project->active_bids_count; 
-                l_auction->projects[l_index].project_name = l_project->project_name ? dap_strdup(l_project->project_name) : NULL;
                 
                 l_index++;
             }
@@ -1668,10 +1658,6 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
                     l_auction->projects[l_index].total_amount = l_project->total_amount;
                     l_auction->projects[l_index].bids_count = l_project->bids_count;
                     l_auction->projects[l_index].active_bids_count = l_project->active_bids_count;
-                    
-                    if (l_project->project_name) {
-                        l_auction->projects[l_index].project_name = dap_strdup(l_project->project_name);
-                    }
                     
                     l_index++;
                 }
@@ -2048,32 +2034,20 @@ char *dap_chain_net_srv_auction_bid_create(dap_chain_net_t *a_net, dap_enc_key_t
         set_ret_code(a_ret_code, -102);
         return NULL;
     }
-    
-    // Check if project_id exists in auction
-    bool l_project_found = false;
-    if (l_auction_cache->projects_count > 0) {
-        // Generate project hash from project_id for comparison
-        dap_hash_fast_t l_project_hash = {};
-        dap_hash_fast(&a_project_id, sizeof(uint32_t), &l_project_hash);
-        
-        dap_auction_project_cache_item_t *l_project = NULL;
-        HASH_FIND(hh, l_auction_cache->projects, &l_project_hash, sizeof(dap_hash_fast_t), l_project);
-        if (l_project) {
-            l_project_found = true;
-        }
-    }
-    
+      
+    uint64_t l_project_id = a_project_id;
+    dap_auction_project_cache_item_t *l_project = NULL;
+    HASH_FIND(hh, l_auction_cache->projects, &l_project_id, sizeof(uint64_t), l_project);    
     pthread_rwlock_unlock(&s_auction_cache->cache_rwlock);
-    
-    if (a_lock_time < DAP_SEC_PER_DAY * 30 * 3 || a_lock_time > DAP_SEC_PER_DAY * 30 * 24) {
-        log_it(L_ERROR, "Lock time must be between 3 and 24 months");
-        set_ret_code(a_ret_code, -103);
+    if (!l_project) {
+        log_it(L_ERROR, "Project ID %u not found in auction", a_project_id);
+        set_ret_code(a_ret_code, -104);
         return NULL;
     }
 
-    if (!l_project_found) {
-        log_it(L_ERROR, "Project ID %u not found in auction", a_project_id);
-        set_ret_code(a_ret_code, -104);
+    if (a_lock_time < DAP_SEC_PER_DAY * 30 * 3 || a_lock_time > DAP_SEC_PER_DAY * 30 * 24) {
+        log_it(L_ERROR, "Lock time must be between 3 and 24 months");
+        set_ret_code(a_ret_code, -103);
         return NULL;
     }
 
@@ -2763,12 +2737,8 @@ int com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int a_versio
                     for (uint32_t i = 0; i < l_auction->projects_count; i++) {
                         json_object *l_project_obj = json_object_new_object();
                         
-                        // Project name
-                        if (l_auction->projects[i].project_name) {
-                            json_object_object_add(l_project_obj, "project_name", json_object_new_string(l_auction->projects[i].project_name));
-                        } else {
-                            json_object_object_add(l_project_obj, "project_name", json_object_new_string("Unknown"));
-                        }
+                        // Project ID
+                        json_object_object_add(l_project_obj, "project_id", json_object_new_uint64(l_auction->projects[i].project_id));
                         
                         // Total amount
                         char *l_total_amount_str = dap_uint256_uninteger_to_char(l_auction->projects[i].total_amount);
@@ -2860,10 +2830,8 @@ int com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int a_versio
             json_object_object_add(l_json_obj, "created_time", json_object_new_string(info_created_time_str));
             json_object_object_add(l_json_obj, "start_time", json_object_new_string(info_start_time_str));
             json_object_object_add(l_json_obj, "end_time", json_object_new_string(info_end_time_str));
-            json_object_object_add(l_json_obj, "bids_count", 
-                json_object_new_uint64(l_auction->bids_count));
-            json_object_object_add(l_json_obj, "projects_count", 
-                json_object_new_uint64(l_auction->projects_count));
+            json_object_object_add(l_json_obj, "bids_count", json_object_new_uint64(l_auction->bids_count));
+            json_object_object_add(l_json_obj, "projects_count", json_object_new_uint64(l_auction->projects_count));
             
             if (l_auction->description) {
                 json_object_object_add(l_json_obj, "description", 
@@ -2891,11 +2859,9 @@ int com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int a_versio
                 for (dap_auction_project_cache_item_t *l_project = l_auction->projects; l_project; l_project = l_project->hh.next) {
                     json_object *l_project_obj = json_object_new_object();
                     
-                    if (l_project->project_name) {
-                        json_object_object_add(l_project_obj, "project_name",
-                            json_object_new_string(l_project->project_name));
-                    }
-                    
+                    // Project ID
+                    json_object_object_add(l_project_obj, "project_id", json_object_new_uint64(l_project->project_id));
+                   
                     const char *l_total_amount_str = dap_uint256_to_char(l_project->total_amount, NULL);
                     json_object_object_add(l_project_obj, "total_amount", json_object_new_string(l_total_amount_str));
                     
@@ -2928,40 +2894,86 @@ int com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int a_versio
             const char *l_auction_id_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-auction", &l_auction_id_str);
             dap_auction_cache_item_t *l_auction = NULL;
-            if (l_auction_id_str) {
-                dap_hash_fast_t l_auction_hash = {};
-                bool l_hash_parsed = (dap_chain_hash_fast_from_str(l_auction_id_str, &l_auction_hash) == 0);
-                if (l_hash_parsed) {
-                    l_auction = dap_auction_cache_find_auction(s_auction_cache, &l_auction_hash);
-                } else {
-                    // Try resolve by GUUID via auction cache
-                    l_auction = dap_auction_cache_find_auction_by_name(s_auction_cache, l_auction_id_str);
-                    if (l_auction)
-                        l_auction_hash = l_auction->auction_tx_hash;
-                }
-                if(!l_auction) {
-                    dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_NOT_FOUND_ERROR, "Auction '%s' not found",
-                                                                                    l_hash_parsed ? dap_hash_fast_to_str_static(&l_auction_hash) : l_auction_id_str);
-                    return -2;
-                }
+            if (!l_auction_id_str) {
+                dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_HASH_ARG_ERROR, "Auction hash not specified");
+                return -1;
+            }
+            dap_hash_fast_t l_auction_hash = {};
+            bool l_hash_parsed = (dap_chain_hash_fast_from_str(l_auction_id_str, &l_auction_hash) == 0);
+            if (l_hash_parsed)
+                l_auction = dap_auction_cache_find_auction(s_auction_cache, &l_auction_hash);
+            else {
+                // Try resolve by GUUID via auction cache
+                l_auction = dap_auction_cache_find_auction_by_name(s_auction_cache, l_auction_id_str);
+                if (l_auction)
+                    l_auction_hash = l_auction->auction_tx_hash;
+            }
+            if(!l_auction) {
+                dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_NOT_FOUND_ERROR, "Auction '%s' not found", l_auction_id_str);
+                return -2;
             }
             // Parse optional parameters
             const char *l_event_type = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-type", &l_event_type);
-            
-            str_tmp = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-limit", &str_tmp);
-            uint32_t l_limit = str_tmp ? (uint32_t)atoi(str_tmp) : 50;
 
-            // TODO: Implement events listing logic
+            int l_event_type_int = 0;
+            if (l_event_type) {
+                l_event_type_int = dap_chain_tx_item_event_type_from_str(l_event_type);
+                if (l_event_type_int == -1) {
+                    dap_json_rpc_error_add(*l_json_arr_reply, INVALID_EVENT_TYPE_ERROR, "Invalid event type: %s", l_event_type);
+                    return -3;
+                }
+            }
+
+            dap_list_t *l_events = dap_ledger_event_get_list(l_net->pub.ledger, l_auction->guuid);
+            
             json_object *l_json_obj = json_object_new_object();
             json_object_object_add(l_json_obj, "command", json_object_new_string("events"));
-            json_object_object_add(l_json_obj, "status", json_object_new_string("not_implemented"));
-            if (l_auction)
-                json_object_object_add(l_json_obj, "auction_name", json_object_new_string(l_auction->guuid));
-            if (l_event_type)
-                json_object_object_add(l_json_obj, "event_type", json_object_new_string(l_event_type));
-            json_object_object_add(l_json_obj, "limit", json_object_new_int(l_limit));
+            json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
+            json_object_object_add(l_json_obj, "auction_name", json_object_new_string(l_auction->guuid));
+            json_object *l_events_array = json_object_new_array();
+            for (dap_list_t *it = l_events; it; it = it->next) {
+                dap_chain_tx_event_t *l_event = (dap_chain_tx_event_t *)it->data;
+                if (l_event_type_int && l_event->event_type != l_event_type_int)
+                    continue;
+                json_object *l_event_obj = json_object_new_object();
+                json_object_array_add(l_events_array, l_event_obj);
+                dap_chain_datum_tx_event_to_json(l_event_obj, l_event, "hex");
+                json_object *l_auction_data = json_object_new_object();
+                json_object_object_add(l_event_obj, "auction_data", l_auction_data);
+                switch (l_event->event_type) {
+                case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED: {
+                    dap_chain_tx_event_data_auction_started_t *l_started_data = (dap_chain_tx_event_data_auction_started_t *)l_event->event_data;
+                    json_object_object_add(l_auction_data, "multiplier", json_object_new_uint64(l_started_data->multiplier));
+                    json_object_object_add(l_auction_data, "duration", json_object_new_uint64(l_started_data->duration));
+                    json_object_object_add(l_auction_data, "time_unit", json_object_new_string(dap_chain_tx_event_data_time_unit_to_str(l_started_data->time_unit)));
+                    json_object_object_add(l_auction_data, "calculation_rule_id", json_object_new_uint64(l_started_data->calculation_rule_id));
+                    json_object_object_add(l_auction_data, "projects_cnt", json_object_new_uint64(l_started_data->projects_cnt));
+                    json_object *l_projects_array = json_object_new_array();
+                    json_object_object_add(l_auction_data, "projects", l_projects_array);
+                    for (uint8_t i = 0; i < l_started_data->projects_cnt; i++) {
+                        json_object *l_project_obj = json_object_new_object();
+                        json_object_object_add(l_project_obj, "project_id", json_object_new_uint64(l_started_data->project_ids[i]));
+                        json_object_array_add(l_projects_array, l_project_obj);
+                    }
+                } break;
+                case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED: {
+                    dap_chain_tx_event_data_ended_t *l_ended_data = (dap_chain_tx_event_data_ended_t *)l_event->event_data;
+                    json_object_object_add(l_auction_data, "winners_cnt", json_object_new_uint64(l_ended_data->winners_cnt));
+                    json_object *l_winners_array = json_object_new_array();
+                    json_object_object_add(l_auction_data, "winners", l_winners_array);
+                    for (uint8_t i = 0; i < l_ended_data->winners_cnt; i++) {
+                        json_object *l_winner_obj = json_object_new_object();
+                        json_object_object_add(l_winner_obj, "winner_id", json_object_new_uint64(l_ended_data->winners_ids[i]));
+                        json_object_array_add(l_winners_array, l_winner_obj);
+                    }
+                } break;
+                default:
+                    json_object_object_add(l_auction_data, "empty", json_object_new_null());
+                    break;
+                }
+            }
+            json_object_object_add(l_json_obj, "events", l_events_array);
             json_object_array_add(*l_json_arr_reply, l_json_obj);
         } break;
 
@@ -3036,4 +3048,36 @@ int dap_auction_cache_set_winners_by_name(dap_auction_cache_t *a_cache,
 
     log_it(L_DEBUG, "Set %u winners for auction '%s' (by GUUID)", a_winners_cnt, a_guuid);
     return 0;
+}
+
+byte_t *dap_chain_srv_auction_started_tx_event_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
+    dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
+{
+    size_t l_data_size = sizeof(dap_chain_tx_event_data_auction_started_t) + a_projects_cnt * sizeof(uint32_t);
+    dap_chain_tx_event_data_auction_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_auction_started_t, l_data_size, NULL);
+
+    l_data->multiplier = a_multiplier;
+    l_data->duration = a_duration;
+    l_data->time_unit = a_time_unit;
+    l_data->calculation_rule_id = a_calculation_rule_id;
+    l_data->projects_cnt = a_projects_cnt;
+    memcpy(l_data->project_ids, a_project_ids, a_projects_cnt * sizeof(uint32_t));
+
+    if (a_data_size)
+        *a_data_size = l_data_size;
+
+    return (byte_t *)l_data;
+}
+
+byte_t *dap_chain_srv_auction_ended_tx_event_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[])
+{
+    size_t l_data_size = sizeof(dap_chain_tx_event_data_ended_t) + a_winners_cnt * sizeof(uint32_t);
+    dap_chain_tx_event_data_ended_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_ended_t, l_data_size, NULL);
+    l_data->winners_cnt = a_winners_cnt;
+    memcpy(l_data->winners_ids, a_winners_ids, a_winners_cnt * sizeof(uint32_t));
+
+    if (a_data_size)
+        *a_data_size = l_data_size;
+
+    return (byte_t *)l_data;
 }
