@@ -44,7 +44,7 @@
 #define LOG_TAG "dap_chain_tx_compose"
 
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-#include "../../dap-sdk/crypto/src/rand/dap_rand.h"
+#include "rand/dap_rand.h"
 #endif
 
 static compose_config_t* s_compose_config_init(const char *a_net_name, const char *a_url_str,

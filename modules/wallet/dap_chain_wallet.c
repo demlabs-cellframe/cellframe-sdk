@@ -285,7 +285,8 @@ struct timespec l_now;
     if (l_prec && (l_now.tv_sec > l_prec->exptm.tv_sec) )               /* Record is expired ? */
     {
                                                                         /* Reset password field */
-        memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
+        dap_secure_bzero(l_prec->pass, l_prec->pass_len);
+        l_prec->pass_len = 0;
         l_prec = NULL; //log_it(L_ERROR, "Wallet's credential has been expired, need re-Activation ");
     }
     else if ( l_prec && !l_prec->pass_len )                             /* Is record has been deactivated ? */
