@@ -3324,19 +3324,16 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
 
 
 /**
-* @brief s_com_mempool_check_datum_in_chain
-* @param a_chain
-* @param a_datum_hash_str
-* @return boolean
-*/
-dap_chain_datum_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
+ * @brief s_com_mempool_check_datum_in_chain
+ * @param a_chain
+ * @param a_datum_hash_str
+ * @return finded store object or NULL
+ */
+static dap_store_obj_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
 {
-    if (!a_datum_hash_str)
-        return NULL;
-    char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
-    uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str, NULL, NULL, NULL);
-    DAP_DELETE(l_gdb_group_mempool);
-    return (dap_chain_datum_t *)l_data_tmp;
+    dap_return_val_if_pass(a_datum_hash_str, NULL);
+    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    return dap_global_db_get_raw_sync(l_gdb_group_mempool, a_datum_hash_str);
 }
 
 typedef enum cmd_mempool_check_err_list {
@@ -3344,7 +3341,8 @@ typedef enum cmd_mempool_check_err_list {
     COM_MEMPOOL_CHECK_ERR_CAN_NOT_FIND_NET,
     COM_MEMPOOL_CHECK_ERR_REQUIRES_DATUM_HASH,
     COM_MEMPOOL_CHECK_ERR_INCORRECT_HASH_STR,
-    COM_MEMPOOL_CHECK_ERR_DATUM_NOT_FIND
+    COM_MEMPOOL_CHECK_ERR_DATUM_NOT_FIND,
+    COM_MEMPOOL_CHECK_ERR_VALUE_NOT_FIND
 }cmd_mempool_check_err_list_t;
 
 /**
@@ -3395,18 +3393,29 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             l_found_in_chains = true;
     }
     //  FIND in mempool
+    bool l_hole = false;
     if (!l_found_in_chains) {
-        if (a_chain)
-            l_datum = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
-        else {
+        dap_store_obj_t *l_store_obj = NULL;
+        if (a_chain) {
+            l_store_obj = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
+        } else {
             dap_chain_t *it = NULL;
             DL_FOREACH(a_net->pub.chains, it) {
-                l_datum = s_com_mempool_check_datum_in_chain(it, a_datum_hash);
-                if (l_datum) {
+                l_store_obj = s_com_mempool_check_datum_in_chain(it, a_datum_hash);
+                if (l_store_obj) {
                     l_chain_name = it->name;
                     break;
                 }
             }
+        }
+        if (l_store_obj && l_store_obj->value) {
+            l_hole = DAP_FLAG_CHECK(l_store_obj->flags, DAP_GLOBAL_DB_RECORD_DEL);
+            if (l_hole) {
+                l_ret_code = strtol(l_store_obj->value, NULL, 10);
+            } else {
+                l_datum = DAP_DUP_SIZE(l_store_obj->value, l_store_obj->value_len);
+            }
+            dap_store_obj_free_one(l_store_obj);
         }
     }
     json_object *l_jobj_datum = json_object_new_object();
@@ -3435,7 +3444,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
     json_object_object_add(l_jobj_datum, "net", l_net_obj);
     json_object_object_add(l_jobj_datum, "chain", l_chain_obj);
     json_object *l_find_bool;
-    if (l_datum) {
+    if (l_datum || l_hole) {
         l_find_bool = json_object_new_boolean(TRUE);
         json_object *l_find_chain_or_mempool = json_object_new_string(l_found_in_chains ? "chain" : "mempool");
         if (!l_find_chain_or_mempool || !l_find_bool) {
@@ -3464,8 +3473,13 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             json_object_object_add(l_obj_atom, a_version == 1 ? "hash" : "atom_hash", l_jobj_atom_hash);
             json_object_object_add(l_obj_atom, "ledger_response_code", l_jobj_atom_err);
             json_object_object_add(l_jobj_datum, "atom", l_obj_atom);
-        }        
-
+        }
+        if (l_hole) {
+            json_object_object_add(l_jobj_datum, "status", json_object_new_string("hole"));
+            json_object_object_add(l_jobj_datum, "ledger_response_code", json_object_new_string(dap_ledger_check_error_str(l_ret_code)));
+            json_object_array_add(*a_json_arr_reply, l_jobj_datum);
+            return 0;
+        }
         json_object *l_datum_obj_inf = json_object_new_object();
         dap_chain_datum_dump_json(*a_json_arr_reply, l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id, true, a_version);
         if (!l_datum_obj_inf) {
