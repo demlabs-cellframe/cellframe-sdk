@@ -149,10 +149,11 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
             else l_receipt_size = ((const dap_chain_datum_tx_receipt_t*)a_item)->size;
         }
         return l_receipt_size ? a_max_size ? l_receipt_size <= a_max_size ? l_receipt_size : 0 : l_receipt_size : 0;
-    default: return 0;
+    default: break;
     }
 #undef m_tx_item_size
 #undef m_tx_item_size_ext
+    return 0;
 }
 
 /**
