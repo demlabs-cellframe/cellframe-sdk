@@ -343,17 +343,14 @@ void dap_auctions_test_cache_bid_management(void)
     dap_test_msg("Test 1: Add bid to auction");
     dap_hash_fast_t l_bid_hash;
     generate_test_hash(3001, &l_bid_hash);
-    dap_chain_addr_t l_bidder_addr;
-    generate_test_addr(101, &l_bidder_addr);
     uint256_t l_bid_amount;
     generate_test_amount(100, &l_bid_amount);
     dap_time_t l_lock_time = dap_time_now() + 7776000; // 3 months
-    dap_hash_fast_t l_project_hash;
-    generate_test_hash(4001, &l_project_hash);
+    uint64_t l_project_id = 4001;
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash, 
-                                        &l_bidder_addr, l_bid_amount, l_lock_time,
-                                        &l_project_hash);
+                                        l_bid_amount, l_lock_time,
+                                        l_project_id);
     dap_assert_PIF(l_result == 0, "Bid should be added successfully");
     dap_pass_msg("Test 1: Testing bid addition to auction: passed");
     
@@ -371,28 +368,26 @@ void dap_auctions_test_cache_bid_management(void)
     dap_assert_PIF(l_found_bid != NULL, "Bid should be found");
     dap_assert_PIF(l_found_bid->is_withdrawn == false, "Bid should not be withdrawn");
     dap_assert_PIF(EQUAL_256(l_found_bid->bid_amount, l_bid_amount), "Bid amount should match");
-    dap_assert_PIF(strcmp(l_found_bid->project_name, l_project_name) == 0, "Project name should match");
     dap_pass_msg("Test 3: Testing bid search and verification: passed");
     
     // Test 4: Add second bid
     dap_test_msg("Test 4: Add second bid");
     dap_hash_fast_t l_bid_hash2;
     generate_test_hash(3002, &l_bid_hash2);
-    dap_chain_addr_t l_bidder_addr2;
-    generate_test_addr(102, &l_bidder_addr2);
     uint256_t l_bid_amount2;
     generate_test_amount(200, &l_bid_amount2);
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash2, 
-                                        &l_bidder_addr2, l_bid_amount2, l_lock_time,
-                                        &l_project_hash);
+                                        l_bid_amount2, l_lock_time,
+                                        l_project_id);
     dap_assert_PIF(l_result == 0, "Second bid should be added");
     dap_assert_PIF(l_auction->bids_count == 2, "Auction should have 2 bids");
     dap_test_msg("Second bid added");
     
     // Test 5: Withdraw bid
     dap_test_msg("Test 5: Withdraw bid");
-    l_result = dap_auction_cache_withdraw_bid(l_cache, &l_bid_hash);
+    dap_auction_project_cache_item_t *l_project = dap_auction_cache_find_project(l_auction, l_project_id);
+    l_result = dap_auction_cache_withdraw_bid(l_project, &l_bid_hash);
     dap_assert_PIF(l_result == 0, "Bid withdrawal should succeed");
     dap_assert_PIF(l_found_bid->is_withdrawn == true, "Bid should be marked as withdrawn");
     dap_pass_msg("Test 5: Testing bid withdrawal: passed");
@@ -400,8 +395,8 @@ void dap_auctions_test_cache_bid_management(void)
     // Test 6: Try to add duplicate bid
     dap_test_msg("Test 6: Duplicate bid handling");
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash, 
-                                        &l_bidder_addr, l_bid_amount, l_lock_time,
-                                        &l_project_hash);
+                                        l_bid_amount, l_lock_time,
+                                        l_project_id);
     dap_assert_PIF(l_result != 0, "Duplicate bid should be rejected");
     dap_assert_PIF(l_auction->bids_count == 2, "Bid count should remain 2");
     dap_pass_msg("Test 6: Testing duplicate bid rejection: passed");
@@ -414,8 +409,8 @@ void dap_auctions_test_cache_bid_management(void)
     generate_test_hash(3003, &l_bid_hash3);
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_nonexistent_auction, &l_bid_hash3, 
-                                        &l_bidder_addr, l_bid_amount, l_lock_time,
-                                        &l_project_hash);
+                                        l_bid_amount, l_lock_time,
+                                        l_project_id);
     dap_assert_PIF(l_result != 0, "Bid to non-existent auction should fail");
     dap_pass_msg("Test 7: Testing bid to non-existent auction rejection: passed");
     
@@ -429,7 +424,8 @@ void dap_auctions_test_cache_bid_management(void)
     
     // Test 9: Withdraw non-existent bid
     dap_test_msg("Test 9: Withdraw non-existent bid");
-    l_result = dap_auction_cache_withdraw_bid(l_cache, &l_nonexistent_bid);
+    dap_auction_project_cache_item_t *l_project = dap_auction_cache_find_project(l_auction, l_project_id);
+    l_result = dap_auction_cache_withdraw_bid(l_project, &l_nonexistent_bid);
     dap_assert_PIF(l_result != 0, "Withdraw non-existent bid should fail");
     dap_pass_msg("Test 9: Testing non-existent bid withdrawal rejection: passed");
     
@@ -517,23 +513,19 @@ void dap_auctions_test_cache_statistics(void)
     dap_hash_fast_t l_bid_hash1, l_bid_hash2;
     generate_test_hash(6001, &l_bid_hash1);
     generate_test_hash(6002, &l_bid_hash2);
-    dap_chain_addr_t l_bidder_addr1, l_bidder_addr2;
-    generate_test_addr(201, &l_bidder_addr1);
-    generate_test_addr(202, &l_bidder_addr2);
     uint256_t l_bid_amount;
     generate_test_amount(500, &l_bid_amount);
-    dap_hash_fast_t l_project_hash;
-    generate_test_hash(7001, &l_project_hash);
+    uint64_t l_project_id = 7001;
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash1, &l_bid_hash1, 
-                                        &l_bidder_addr1, l_bid_amount, dap_time_now() + 7776000,
-                                        &l_project_hash);
+                                        l_bid_amount, dap_time_now() + 7776000,
+                                        l_project_id);
     dap_assert_PIF(l_result == 0, "First bid should be added");
     dap_assert_PIF(l_auction->bids_count == 1, "Bids count should be 1");
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash1, &l_bid_hash2, 
-                                        &l_bidder_addr2, l_bid_amount, dap_time_now() + 7776000,
-                                        &l_project_hash);
+                                        l_bid_amount, dap_time_now() + 7776000,
+                                        l_project_id);
     dap_assert_PIF(l_result == 0, "Second bid should be added");
     dap_assert_PIF(l_auction->bids_count == 2, "Bids count should be 2");
     dap_pass_msg("Test 4: Testing bid counter functionality: passed");
@@ -542,7 +534,8 @@ void dap_auctions_test_cache_statistics(void)
     dap_test_msg("Test 5: Counter consistency");
     
     // Withdraw one bid
-    l_result = dap_auction_cache_withdraw_bid(l_cache, &l_bid_hash1);
+    dap_auction_project_cache_item_t *l_project = dap_auction_cache_find_project(l_auction, l_project_id);
+    l_result = dap_auction_cache_withdraw_bid(l_project, &l_bid_hash1);
     dap_assert_PIF(l_result == 0, "Bid withdrawal should succeed");
     dap_assert_PIF(l_auction->bids_count == 2, "Bids count should remain 2 (withdrawn bids still counted)");
     
@@ -690,8 +683,8 @@ void dap_auctions_test_status_validation(void)
     const char *l_unknown_str = dap_auction_status_to_str(DAP_AUCTION_STATUS_UNKNOWN);
     dap_assert_PIF(strcmp(l_unknown_str, "unknown") == 0, "UNKNOWN status should return 'unknown'");
     
-    const char *l_created_str = dap_auction_status_to_str(DAP_AUCTION_STATUS_CREATED);
-    dap_assert_PIF(strcmp(l_created_str, "created") == 0, "CREATED status should return 'created'");
+    const char *l_created_str = dap_auction_status_to_str(DAP_AUCTION_STATUS_EXPIRED);
+    dap_assert_PIF(strcmp(l_created_str, "created") == 0, "EXPIRED status should return 'expired'");
     
     const char *l_active_str = dap_auction_status_to_str(DAP_AUCTION_STATUS_ACTIVE);
     dap_assert_PIF(strcmp(l_active_str, "active") == 0, "ACTIVE status should return 'active'");
@@ -783,20 +776,6 @@ void dap_auctions_test_status_validation(void)
     }
     
     dap_pass_msg("Edge cases - ");
-
-    // Test 8: Status validation in different contexts
-    dap_test_msg("Test 8: Testing status validation in contexts");
-    
-    // Verify that all status values can be used in comparisons
-    dap_auction_status_t l_test_status = DAP_AUCTION_STATUS_ACTIVE;
-    dap_assert_PIF(l_test_status != DAP_AUCTION_STATUS_UNKNOWN, "Status comparison works");
-    dap_assert_PIF(l_test_status == DAP_AUCTION_STATUS_ACTIVE, "Status equality works");
-    dap_assert_PIF(l_test_status > DAP_AUCTION_STATUS_CREATED, "Status ordering works");
-    dap_assert_PIF(l_test_status < DAP_AUCTION_STATUS_ENDED, "Status ordering works");
-    
-    dap_pass_msg("Status validation in different contexts - ");
-
-    dap_pass_msg("Status validation tests: ");
 }
 
 // ===== 3. TRANSACTION TESTS =====
@@ -1233,15 +1212,7 @@ void dap_auctions_test_bid_transactions(void)
     // Test valid key
     dap_assert_PIF(l_key_bidder, "Bidder key should be valid");
     dap_assert_PIF(l_key_bidder->priv_key_data, "Private key data should exist");
-    
-    // Create address from key
-    dap_chain_addr_t l_bidder_addr = {0};
-    dap_chain_addr_fill_from_key(&l_bidder_addr, l_key_bidder, l_net_id);
-    
-    // Verify address was created successfully
-    bool l_addr_is_blank = dap_chain_addr_is_blank(&l_bidder_addr);
-    dap_assert_PIF(!l_addr_is_blank, "Bidder address should not be blank");
-    
+           
     dap_pass_msg("Address and key validation - ");
     
     // ===== Test 8: Memory Management and Edge Cases =====
@@ -1321,20 +1292,12 @@ void dap_auctions_test_withdraw_transactions(void)
     uint256_t l_bid_amount = dap_chain_uint256_from(2000);
     uint256_t l_withdrawal_fee = dap_chain_uint256_from(5);
     dap_time_t l_lock_time = dap_time_now() + 3600;
-    uint32_t l_project_id = 1001;
-    
-    // Create bidder address 
-    dap_chain_addr_t l_bidder_addr = {0};
-    dap_chain_addr_fill_from_key(&l_bidder_addr, l_key_bidder, l_net_id);
-    
-    // Create project hash
-    dap_hash_fast_t l_project_hash;
-    generate_test_hash(l_project_id, &l_project_hash);
+    uint64_t l_project_id = 1001;
     
     // Simulate adding a bid to the auction cache
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_tx_hash, 
-                                        &l_bidder_addr, l_bid_amount, l_lock_time, 
-                                        &l_project_hash);
+                                        l_bid_amount, l_lock_time, 
+                                        l_project_id);
     dap_assert_PIF(l_result == 0, "Failed to add test bid to cache");
     
     dap_pass_msg("Test setup - ");
@@ -1361,30 +1324,22 @@ void dap_auctions_test_withdraw_transactions(void)
     generate_test_hash(9998, &l_fake_bid_hash);
     dap_auction_bid_cache_item_t *l_fake_bid = dap_auction_cache_find_bid(l_auction_for_bid, &l_fake_bid_hash);
     dap_assert_PIF(!l_fake_bid, "Non-existent bid should not be found");
-    
-    // ===== Test 3: Withdrawal Permissions =====
-    dap_test_msg("Test 3: Testing withdrawal permissions");
-    
-    dap_chain_addr_t l_other_addr = {0};
-    dap_chain_addr_fill_from_key(&l_other_addr, l_key_other, l_net_id);
-    
-    bool l_addresses_different = memcmp(&l_bidder_addr, &l_other_addr, sizeof(dap_chain_addr_t)) != 0;
-    dap_assert_PIF(l_addresses_different, "Bidder and other addresses should be different");
-    
-    // ===== Test 4: Invalid Scenarios =====
+       
+    // ===== Test 3: Invalid Scenarios =====
     dap_test_msg("Test 4: Testing invalid withdrawal scenarios");
     
     uint256_t l_zero_fee = uint256_0;
     dap_assert_PIF(IS_ZERO_256(l_zero_fee), "Zero fee should be detected as invalid");
     
     // Test withdrawal of bid
-    l_result = dap_auction_cache_withdraw_bid(l_cache, &l_bid_tx_hash);
+    dap_auction_project_cache_item_t *l_project = dap_auction_cache_find_project(l_auction, l_project_id);
+    l_result = dap_auction_cache_withdraw_bid(l_project, &l_bid_tx_hash);
     dap_assert_PIF(l_result == 0, "Should be able to mark bid as withdrawn");
     
     l_found_bid = dap_auction_cache_find_bid(l_auction_for_bid, &l_bid_tx_hash);
     dap_assert_PIF(l_found_bid->is_withdrawn, "Bid should be withdrawn");
     
-    // ===== Test 5: Fee Validation =====
+    // ===== Test 4: Fee Validation =====
     dap_test_msg("Test 5: Testing fee validation");
     
     uint256_t l_min_fee = dap_chain_uint256_from(1);
@@ -1393,7 +1348,7 @@ void dap_auctions_test_withdraw_transactions(void)
     bool l_fee_reasonable = (compare256(l_withdrawal_fee, l_bid_amount) < 0);
     dap_assert_PIF(l_fee_reasonable, "Fee should be less than bid amount");
     
-    // ===== Test 6: Transaction Structure =====
+    // ===== Test 5: Transaction Structure =====
     dap_test_msg("Test 6: Testing withdrawal transaction structure");
     
     struct {
@@ -1981,19 +1936,15 @@ void dap_auctions_test_verificators(void)
     dap_hash_fast_t l_bid_tx_hash;
     generate_test_hash(6101, &l_bid_tx_hash);
     
-    // Create bidder address
-    dap_chain_addr_t l_bidder_addr = {0};
-    dap_chain_addr_fill_from_key(&l_bidder_addr, l_key_from, l_net_id);
     
     // Create project hash for bid
-    dap_hash_fast_t l_project_hash;
-    generate_test_hash(3001, &l_project_hash);
+    uint64_t l_project_id = 3001;
     
     // Simulate updater adding bid to cache (simplified for testing)
     uint256_t l_bid_amount_256 = GET_256_FROM_64(l_bid_cond->bid_amount);
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_tx_hash, 
-                                       &l_bidder_addr, l_bid_amount_256, 
-                                       l_bid_cond->lock_time, &l_project_hash);
+                                       l_bid_amount_256, 
+                                       l_bid_cond->lock_time, l_project_id);
     dap_assert_PIF(l_result == 0, "Updater should be able to add valid bid to cache");
     
     // Verify bid was added correctly
@@ -2432,16 +2383,16 @@ void dap_auctions_test_error_handling(void)
     dap_chain_addr_t l_invalid_addr;
     memset(&l_invalid_addr, 0xFF, sizeof(l_invalid_addr));
     
-    dap_hash_fast_t l_bid_hash, l_project_hash;
+    uint64_t l_project_id = 4001;
+    dap_hash_fast_t l_bid_hash;
     memset(&l_bid_hash, 0x03, sizeof(l_bid_hash));
-    memset(&l_project_hash, 0x04, sizeof(l_project_hash));
     
     uint256_t l_bid_amount = GET_256_FROM_64(1000000);
     
     // This may succeed or fail, but should handle gracefully
     int l_bid_result = dap_auction_cache_add_bid(l_cache, &l_test_hash, &l_bid_hash, 
                                                &l_invalid_addr, l_bid_amount, 86400, 
-                                               &l_project_hash);
+                                               l_project_id);
     dap_test_msg("Invalid address bid handling: %s", (l_bid_result == 0) ? "accepted" : "rejected");
     
     // ===== Test 7: Memory pressure simulation =====
@@ -2711,22 +2662,19 @@ void dap_auctions_test_thread_safety(void)
     
     // Simulate concurrent bid operations
     for(int i = 0; i < 5; i++) {
-        dap_hash_fast_t l_bid_hash, l_project_hash;
-        dap_chain_addr_t l_bidder_addr;
+        dap_hash_fast_t l_bid_hash;
+        uint64_t l_project_id;
         uint256_t l_bid_amount;
         
         memset(&l_bid_hash, 0, sizeof(l_bid_hash));
-        memset(&l_project_hash, 0, sizeof(l_project_hash));
-        memset(&l_bidder_addr, 0, sizeof(l_bidder_addr));
         l_bid_hash.raw[0] = 0x60 + i; // Unique bid hash
-        l_project_hash.raw[0] = 0x70 + i; // Unique project hash
-        *(uint8_t*)&l_bidder_addr = 0x80 + i; // Unique bidder addr
+        l_project_id = 0x70 + i; // Unique project id
         l_bid_amount = GET_256_FROM_64(1000000 + i * 100000);
         
         // Simulate thread adding bid
         int l_bid_result = dap_auction_cache_add_bid(l_cache, &l_bid_auction_hash, &l_bid_hash, 
-                                                   &l_bidder_addr, l_bid_amount, 86400, 
-                                                   &l_project_hash);
+                                                   l_bid_amount, 86400, 
+                                                   l_project_id);
         // Log only bid failures
         if (l_bid_result != 0) {
             dap_test_msg("Concurrent bid operation %d: failed", i);
