@@ -72,7 +72,7 @@ typedef struct dap_chain_tx_event_data_ended {
 // Auction status enumeration
 typedef enum {
     DAP_AUCTION_STATUS_UNKNOWN = 0,
-    DAP_AUCTION_STATUS_CREATED = 1,
+    DAP_AUCTION_STATUS_EXPIRED = 1,
     DAP_AUCTION_STATUS_ACTIVE = 2,
     DAP_AUCTION_STATUS_ENDED = 3,
     DAP_AUCTION_STATUS_CANCELLED = 4
@@ -80,9 +80,7 @@ typedef enum {
 
 // Single bid information in auction cache
 typedef struct dap_auction_bid_cache_item {
-    uint64_t project_id;               // ID of the project this bid is for
     dap_hash_fast_t bid_tx_hash;       // Transaction hash of the bid
-    dap_chain_addr_t bidder_addr;      // Address of the bidder
     uint256_t bid_amount;              // Amount of the bid
     uint8_t range_end;                 // Range end (1-8)
     dap_time_t lock_time;              // Lock time in seconds
@@ -96,9 +94,8 @@ typedef struct dap_auction_bid_cache_item {
 typedef struct dap_auction_project_cache_item {
     uint64_t project_id;               // ID of the project
     uint256_t total_amount;            // Total amount bid for this project
-    uint32_t bids_count;               // Number of bids for this project
     uint32_t active_bids_count;        // Number of active (non-withdrawn) bids
-    
+    dap_auction_bid_cache_item_t *bids;// Hash table of bids by bid_tx_hash  
     UT_hash_handle hh;                 // Hash table handle by project_hash
 } dap_auction_project_cache_item_t;
 
@@ -119,13 +116,11 @@ typedef struct dap_auction_cache_item {
     uint256_t min_bid_amount;          // Minimum bid amount (if specified)
     
     // Bids tracking
-    dap_auction_bid_cache_item_t *bids; // Hash table of bids by bid_tx_hash
     uint32_t bids_count;               // Total number of bids
     uint32_t active_bids_count;        // Number of non-withdrawn bids
     
     // Projects tracking
     dap_auction_project_cache_item_t *projects; // Hash table of projects by project_id
-    uint32_t projects_count;           // Number of projects in this auction
     
     // Winner tracking (for ended auctions)
     bool has_winner;                   // Whether auction has determined winner
@@ -211,9 +206,9 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
 int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache,
                               dap_hash_fast_t *a_auction_hash,
                               dap_hash_fast_t *a_bid_hash,
-                              dap_chain_addr_t *a_bidder_addr,
                               uint256_t a_bid_amount,
                               dap_time_t a_lock_time,
+                              dap_time_t a_created_time,
                               uint64_t a_project_id);
 
 int dap_auction_cache_update_auction_status(dap_auction_cache_t *a_cache,
@@ -225,7 +220,7 @@ int dap_auction_cache_update_auction_status_by_name(dap_auction_cache_t *a_cache
                                                    const char *a_guuid,
                                                    dap_auction_status_t a_new_status);
 
-int dap_auction_cache_withdraw_bid(dap_auction_cache_t *a_cache,
+int dap_auction_cache_withdraw_bid(dap_auction_project_cache_item_t *a_cache,
                                   dap_hash_fast_t *a_bid_hash);
 
 int dap_auction_cache_set_winners(dap_auction_cache_t *a_cache,
