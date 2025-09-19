@@ -249,9 +249,9 @@ void dap_auctions_test_cache_auction_management(void)
     dap_test_msg("Test 2: Find auction by hash");
     dap_auction_cache_item_t *l_found_auction = dap_auction_cache_find_auction(l_cache, &l_auction_hash);
     dap_assert_PIF(l_found_auction != NULL, "Auction should be found by hash");
-    dap_assert_PIF(strcmp(l_found_auction->group_name, l_group_name) == 0, "Group name should match");
+    dap_assert_PIF(strcmp(l_found_auction->guuid, l_group_name) == 0, "Group name should match");
     dap_assert_PIF(l_found_auction->status == DAP_AUCTION_STATUS_ACTIVE, "Status should be ACTIVE");
-    dap_assert_PIF(l_found_auction->projects_count == 3, "Projects count should be 3");
+    dap_assert_PIF(HASH_COUNT(l_found_auction->projects) == 3, "Projects count should be 3");
     dap_pass_msg("Test 2: Testing auction search by hash: passed");
     
     // Test 3: Find auction by name
@@ -349,7 +349,7 @@ void dap_auctions_test_cache_bid_management(void)
     uint64_t l_project_id = 4001;
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash, 
-                                        l_bid_amount, l_lock_time,
+                                        l_bid_amount, l_lock_time, dap_time_now(),
                                         l_project_id);
     dap_assert_PIF(l_result == 0, "Bid should be added successfully");
     dap_pass_msg("Test 1: Testing bid addition to auction: passed");
@@ -359,7 +359,6 @@ void dap_auctions_test_cache_bid_management(void)
     dap_auction_cache_item_t *l_auction = dap_auction_cache_find_auction(l_cache, &l_auction_hash);
     dap_assert_PIF(l_auction != NULL, "Auction should be found");
     dap_assert_PIF(l_auction->bids_count == 1, "Auction should have 1 bid");
-    dap_assert_PIF(l_auction->bids != NULL, "Auction bids list should not be NULL");
     dap_test_msg("Bid verified in auction");
     
     // Test 3: Find specific bid
@@ -378,7 +377,7 @@ void dap_auctions_test_cache_bid_management(void)
     generate_test_amount(200, &l_bid_amount2);
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash2, 
-                                        l_bid_amount2, l_lock_time,
+                                        l_bid_amount2, l_lock_time, dap_time_now(),
                                         l_project_id);
     dap_assert_PIF(l_result == 0, "Second bid should be added");
     dap_assert_PIF(l_auction->bids_count == 2, "Auction should have 2 bids");
@@ -395,7 +394,7 @@ void dap_auctions_test_cache_bid_management(void)
     // Test 6: Try to add duplicate bid
     dap_test_msg("Test 6: Duplicate bid handling");
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash, 
-                                        l_bid_amount, l_lock_time,
+                                        l_bid_amount, l_lock_time, dap_time_now(),
                                         l_project_id);
     dap_assert_PIF(l_result != 0, "Duplicate bid should be rejected");
     dap_assert_PIF(l_auction->bids_count == 2, "Bid count should remain 2");
@@ -409,7 +408,7 @@ void dap_auctions_test_cache_bid_management(void)
     generate_test_hash(3003, &l_bid_hash3);
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_nonexistent_auction, &l_bid_hash3, 
-                                        l_bid_amount, l_lock_time,
+                                        l_bid_amount, l_lock_time, dap_time_now(),
                                         l_project_id);
     dap_assert_PIF(l_result != 0, "Bid to non-existent auction should fail");
     dap_pass_msg("Test 7: Testing bid to non-existent auction rejection: passed");
@@ -424,8 +423,8 @@ void dap_auctions_test_cache_bid_management(void)
     
     // Test 9: Withdraw non-existent bid
     dap_test_msg("Test 9: Withdraw non-existent bid");
-    dap_auction_project_cache_item_t *l_project = dap_auction_cache_find_project(l_auction, l_project_id);
-    l_result = dap_auction_cache_withdraw_bid(l_project, &l_nonexistent_bid);
+    dap_auction_project_cache_item_t *l_project2 = dap_auction_cache_find_project(l_auction, l_project_id);
+    l_result = dap_auction_cache_withdraw_bid(l_project2, &l_nonexistent_bid);
     dap_assert_PIF(l_result != 0, "Withdraw non-existent bid should fail");
     dap_pass_msg("Test 9: Testing non-existent bid withdrawal rejection: passed");
     
@@ -518,13 +517,13 @@ void dap_auctions_test_cache_statistics(void)
     uint64_t l_project_id = 7001;
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash1, &l_bid_hash1, 
-                                        l_bid_amount, dap_time_now() + 7776000,
+                                        l_bid_amount, dap_time_now() + 7776000, dap_time_now(),
                                         l_project_id);
     dap_assert_PIF(l_result == 0, "First bid should be added");
     dap_assert_PIF(l_auction->bids_count == 1, "Bids count should be 1");
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash1, &l_bid_hash2, 
-                                        l_bid_amount, dap_time_now() + 7776000,
+                                        l_bid_amount, dap_time_now() + 7776000, dap_time_now(),
                                         l_project_id);
     dap_assert_PIF(l_result == 0, "Second bid should be added");
     dap_assert_PIF(l_auction->bids_count == 2, "Bids count should be 2");
@@ -740,7 +739,7 @@ void dap_auctions_test_status_validation(void)
     dap_test_msg("Test 5: Testing status enum bounds");
     
     dap_assert_PIF(DAP_AUCTION_STATUS_UNKNOWN == 0, "UNKNOWN status should be 0");
-    dap_assert_PIF(DAP_AUCTION_STATUS_CREATED == 1, "CREATED status should be 1");
+    dap_assert_PIF(DAP_AUCTION_STATUS_EXPIRED == 1, "EXPIRED status should be 1");
     dap_assert_PIF(DAP_AUCTION_STATUS_ACTIVE == 2, "ACTIVE status should be 2");
     dap_assert_PIF(DAP_AUCTION_STATUS_ENDED == 3, "ENDED status should be 3");
     dap_assert_PIF(DAP_AUCTION_STATUS_CANCELLED == 4, "CANCELLED status should be 4");
@@ -830,7 +829,7 @@ void dap_auctions_test_event_processing(void)
     dap_auction_cache_item_t *l_found_auction = dap_auction_cache_find_auction_by_name(l_cache, l_group_name);
     dap_assert_PIF(l_found_auction, "Auction should be added to cache after creation");
     dap_assert_PIF(l_found_auction->status == DAP_AUCTION_STATUS_ACTIVE, "Auction status should be ACTIVE");
-    dap_assert_PIF(l_found_auction->projects_count == 3, "Projects count should be 3");
+    dap_assert_PIF(HASH_COUNT(l_found_auction->projects) == 3, "Projects count should be 3");
     dap_assert_PIF(l_cache->active_auctions == 1, "Active auctions count should be 1");
     dap_assert_PIF(l_cache->total_auctions == 1, "Total auctions count should be 1");
     
@@ -1076,10 +1075,10 @@ void dap_auctions_test_bid_transactions(void)
     
     // Verify project_id exists in auction
     bool l_project_found = false;
-    if (l_found_auction->projects_count > 0 && l_found_auction->projects) {
+    if (HASH_COUNT(l_found_auction->projects) > 0 && l_found_auction->projects) {
         // In real implementation, we would iterate through projects to find project_id
         // For test, we know project 1001 exists from create_test_auction_started_data()
-        l_project_found = (l_project_id >= 1000 && l_project_id < 1000 + l_found_auction->projects_count);
+        l_project_found = (l_project_id >= 1000 && l_project_id < 1000 + HASH_COUNT(l_found_auction->projects));
     }
     dap_assert_PIF(l_project_found, "Project ID should exist in auction");
     
@@ -1099,7 +1098,7 @@ void dap_auctions_test_bid_transactions(void)
     // Test project_id not in auction
     uint32_t l_nonexistent_project_id = 9999;
     bool l_invalid_project_found = (l_nonexistent_project_id >= 1000 && 
-                                   l_nonexistent_project_id < 1000 + l_found_auction->projects_count);
+                                   l_nonexistent_project_id < 1000 + HASH_COUNT(l_found_auction->projects));
     dap_assert_PIF(!l_invalid_project_found, "Non-existent project_id should be rejected");
     
     // Test non-existent auction hash
@@ -1296,7 +1295,7 @@ void dap_auctions_test_withdraw_transactions(void)
     
     // Simulate adding a bid to the auction cache
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_tx_hash, 
-                                        l_bid_amount, l_lock_time, 
+                                        l_bid_amount, l_lock_time, dap_time_now(),
                                         l_project_id);
     dap_assert_PIF(l_result == 0, "Failed to add test bid to cache");
     
@@ -1869,7 +1868,7 @@ void dap_auctions_test_verificators(void)
     if(l_found_auction && l_found_auction->projects) {
         // In a real test we would check for specific project hashes
         // For testing purposes, just verify projects array is accessible
-        l_project_valid = (l_found_auction->projects_count > 0);
+        l_project_valid = (HASH_COUNT(l_found_auction->projects) > 0);
     }
     dap_assert_PIF(l_project_valid, "Project ID should be valid in auction");
     
@@ -1943,8 +1942,8 @@ void dap_auctions_test_verificators(void)
     // Simulate updater adding bid to cache (simplified for testing)
     uint256_t l_bid_amount_256 = GET_256_FROM_64(l_bid_cond->bid_amount);
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_tx_hash, 
-                                       l_bid_amount_256, 
-                                       l_bid_cond->lock_time, l_project_id);
+                                       l_bid_amount_256, l_bid_cond->lock_time, dap_time_now(),
+                                       l_project_id);
     dap_assert_PIF(l_result == 0, "Updater should be able to add valid bid to cache");
     
     // Verify bid was added correctly
@@ -1988,7 +1987,7 @@ void dap_auctions_test_verificators(void)
             // Check auction status (verificator operation)
             volatile bool l_is_active = (l_perf_auction->status == DAP_AUCTION_STATUS_ACTIVE);
             // Check project validity (verificator operation)
-            volatile uint32_t l_project_count = l_perf_auction->projects_count;
+            volatile uint32_t l_project_count = HASH_COUNT(l_perf_auction->projects);
             (void)l_is_active; (void)l_project_count; // Prevent optimization
         }
     }
@@ -2376,26 +2375,8 @@ void dap_auctions_test_error_handling(void)
     l_result = dap_auction_cache_find_auction(l_cache, &l_test_hash);
     dap_assert_PIF(l_result != NULL, "Cache should remain functional after error scenarios");
     
-    // ===== Test 6: Invalid address handling =====
-    dap_test_msg("Test 6: Testing invalid address handling");
     
-    // Test bid operations with invalid addresses
-    dap_chain_addr_t l_invalid_addr;
-    memset(&l_invalid_addr, 0xFF, sizeof(l_invalid_addr));
-    
-    uint64_t l_project_id = 4001;
-    dap_hash_fast_t l_bid_hash;
-    memset(&l_bid_hash, 0x03, sizeof(l_bid_hash));
-    
-    uint256_t l_bid_amount = GET_256_FROM_64(1000000);
-    
-    // This may succeed or fail, but should handle gracefully
-    int l_bid_result = dap_auction_cache_add_bid(l_cache, &l_test_hash, &l_bid_hash, 
-                                               &l_invalid_addr, l_bid_amount, 86400, 
-                                               l_project_id);
-    dap_test_msg("Invalid address bid handling: %s", (l_bid_result == 0) ? "accepted" : "rejected");
-    
-    // ===== Test 7: Memory pressure simulation =====
+    // ===== Test 6: Memory pressure simulation =====
     dap_test_msg("Test 7: Testing memory pressure scenarios");
     
     // Create multiple auctions to test memory handling
@@ -2415,7 +2396,7 @@ void dap_auctions_test_error_handling(void)
     l_result = dap_auction_cache_find_auction(l_cache, &l_test_hash);
     dap_assert_PIF(l_result != NULL, "Cache should remain responsive under memory pressure");
     
-    // ===== Test 8: Invalid event data handling =====
+    // ===== Test 7: Invalid event data handling =====
     dap_test_msg("Test 8: Testing invalid event data handling");
     
     // Test with NULL event data
@@ -2426,7 +2407,7 @@ void dap_auctions_test_error_handling(void)
                                                l_group_name, NULL, dap_time_now());
     dap_test_msg("NULL event data handling: %s", (l_add_result == 0) ? "accepted" : "rejected");
     
-    // ===== Test 9: Resource cleanup verification =====
+    // ===== Test 8: Resource cleanup verification =====
     dap_test_msg("Test 9: Testing resource cleanup verification");
     
     // Verify no memory leaks by checking cache state
@@ -2436,7 +2417,7 @@ void dap_auctions_test_error_handling(void)
     dap_auction_cache_delete(l_cache);
     dap_pass_msg("Cache cleanup - ");
     
-    // ===== Test 10: Error consistency verification =====
+    // ===== Test 9: Error consistency verification =====
     dap_test_msg("Test 10: Testing error consistency");
     
     // Create new cache for consistency tests
@@ -2673,7 +2654,7 @@ void dap_auctions_test_thread_safety(void)
         
         // Simulate thread adding bid
         int l_bid_result = dap_auction_cache_add_bid(l_cache, &l_bid_auction_hash, &l_bid_hash, 
-                                                   l_bid_amount, 86400, 
+                                                   l_bid_amount, 86400, dap_time_now(),
                                                    l_project_id);
         // Log only bid failures
         if (l_bid_result != 0) {

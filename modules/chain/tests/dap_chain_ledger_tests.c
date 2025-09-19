@@ -1,3 +1,4 @@
+#include "dap_math_convert.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_ledger.h"
@@ -1092,7 +1093,7 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(!compare256(l_balance, l_balance_example), "Checking the availability of the necessary balance "
                                                              "on the wallet after the first transaction.");
     char *l_pass_msg = dap_strdup_printf("Starting balance is %s. Validation of the declaration of the token, "
-                                         "creation of an emission and a basic transaction using it in the ledger", dap_chain_balance_print(l_balance));
+                                         "creation of an emission and a basic transaction using it in the ledger", dap_uint256_to_char(l_balance, NULL));
     dap_pass_msg(l_pass_msg);
     DAP_DELETE(l_pass_msg);
 
@@ -1230,7 +1231,7 @@ void dap_ledger_test_run(void){
  * @return Created transaction or NULL
  */
 static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // get previous transaction
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
