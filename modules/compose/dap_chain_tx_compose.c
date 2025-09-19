@@ -697,7 +697,7 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     *a_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
     randombytes(*a_addr_fee, sizeof(dap_chain_addr_t));
-    a_net_fee->_lo.b = rand() % 500;
+    a_net_fee->_lo.b = rand() % 500 + 1;
 #else
     dap_return_val_if_pass(!a_net_fee || !a_addr_fee || !a_config || !a_config->net_name, false);
     *a_addr_fee = NULL;
@@ -3697,7 +3697,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     randombytes(&l_owner_addr, sizeof(l_owner_addr));
     dap_chain_tx_out_cond_t *l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
     l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
-    l_tx_out_cond->header.value._lo.b = rand() % 500;
+    l_tx_out_cond->header.value._lo.b = rand() % 500 + 1;
     l_tx_out_cond->header.value._hi.b = rand() % 100;
 #endif
     uint256_t l_fee_transfer = {}; // how many coins to transfer

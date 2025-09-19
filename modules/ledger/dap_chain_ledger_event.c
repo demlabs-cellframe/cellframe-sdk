@@ -259,11 +259,17 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
     for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
         if (!memcmp(it->group_name, l_event_item->group_name, l_event_item->group_name_size)) {
             // Illegal check for only first event in group based on event type. Should be moved to service.
-            if (l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED &&
-                    it->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED) {
-                log_it(L_WARNING, "Auction start rejected: group '%.*s' already exists (existing tx %s)",
-                        (int)l_event_item->group_name_size, (const char *)l_event_item->group_name,
-                        dap_chain_hash_fast_to_str_static(&it->tx_hash));
+            if (l_event_item->event_type == it->event_type &&
+                    (it->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED ||
+                    it->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED ||
+                    it->event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED))
+            {
+                log_it(L_WARNING, "Event %s rejected: group '%.*s' already exists event with type %s (existing tx %s)",
+                                                dap_chain_hash_fast_to_str_static(a_tx_hash),
+                                                (int)l_event_item->group_name_size,
+                                                (const char *)l_event_item->group_name,
+                                                dap_chain_tx_item_event_type_to_str(it->event_type),
+                                                dap_chain_hash_fast_to_str_static(&it->tx_hash));
                 pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
                 return -13;
             }
