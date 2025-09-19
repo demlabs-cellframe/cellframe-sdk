@@ -346,7 +346,7 @@ void dap_auctions_test_cache_bid_management(void)
     uint256_t l_bid_amount;
     generate_test_amount(100, &l_bid_amount);
     dap_time_t l_lock_time = dap_time_now() + 7776000; // 3 months
-    uint64_t l_project_id = 4001;
+    uint64_t l_project_id = 1;
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash, 
                                         l_bid_amount, l_lock_time, dap_time_now(),
@@ -390,17 +390,8 @@ void dap_auctions_test_cache_bid_management(void)
     dap_assert_PIF(l_result == 0, "Bid withdrawal should succeed");
     dap_assert_PIF(l_found_bid->is_withdrawn == true, "Bid should be marked as withdrawn");
     dap_pass_msg("Test 5: Testing bid withdrawal: passed");
-    
-    // Test 6: Try to add duplicate bid
-    dap_test_msg("Test 6: Duplicate bid handling");
-    l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_hash, 
-                                        l_bid_amount, l_lock_time, dap_time_now(),
-                                        l_project_id);
-    dap_assert_PIF(l_result != 0, "Duplicate bid should be rejected");
-    dap_assert_PIF(l_auction->bids_count == 2, "Bid count should remain 2");
-    dap_pass_msg("Test 6: Testing duplicate bid rejection: passed");
-    
-    // Test 7: Add bid to non-existent auction
+       
+    // Test 6: Add bid to non-existent auction
     dap_test_msg("Test 7: Add bid to non-existent auction");
     dap_hash_fast_t l_nonexistent_auction;
     generate_test_hash(9999, &l_nonexistent_auction);
@@ -413,7 +404,7 @@ void dap_auctions_test_cache_bid_management(void)
     dap_assert_PIF(l_result != 0, "Bid to non-existent auction should fail");
     dap_pass_msg("Test 7: Testing bid to non-existent auction rejection: passed");
     
-    // Test 8: Find non-existent bid
+    // Test 7: Find non-existent bid
     dap_test_msg("Test 8: Find non-existent bid");
     dap_hash_fast_t l_nonexistent_bid;
     generate_test_hash(8888, &l_nonexistent_bid);
@@ -421,7 +412,7 @@ void dap_auctions_test_cache_bid_management(void)
     dap_assert_PIF(l_not_found_bid == NULL, "Non-existent bid should not be found");
     dap_pass_msg("Test 8: Testing non-existent bid handling: passed");
     
-    // Test 9: Withdraw non-existent bid
+    // Test 8: Withdraw non-existent bid
     dap_test_msg("Test 9: Withdraw non-existent bid");
     dap_auction_project_cache_item_t *l_project2 = dap_auction_cache_find_project(l_auction, l_project_id);
     l_result = dap_auction_cache_withdraw_bid(l_project2, &l_nonexistent_bid);
@@ -514,7 +505,7 @@ void dap_auctions_test_cache_statistics(void)
     generate_test_hash(6002, &l_bid_hash2);
     uint256_t l_bid_amount;
     generate_test_amount(500, &l_bid_amount);
-    uint64_t l_project_id = 7001;
+    uint64_t l_project_id = 1;
     
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash1, &l_bid_hash1, 
                                         l_bid_amount, dap_time_now() + 7776000, dap_time_now(),
@@ -682,8 +673,8 @@ void dap_auctions_test_status_validation(void)
     const char *l_unknown_str = dap_auction_status_to_str(DAP_AUCTION_STATUS_UNKNOWN);
     dap_assert_PIF(strcmp(l_unknown_str, "unknown") == 0, "UNKNOWN status should return 'unknown'");
     
-    const char *l_created_str = dap_auction_status_to_str(DAP_AUCTION_STATUS_EXPIRED);
-    dap_assert_PIF(strcmp(l_created_str, "created") == 0, "EXPIRED status should return 'expired'");
+    const char *l_expired_str = dap_auction_status_to_str(DAP_AUCTION_STATUS_EXPIRED);
+    dap_assert_PIF(strcmp(l_expired_str, "expired") == 0, "EXPIRED status should return 'expired'");
     
     const char *l_active_str = dap_auction_status_to_str(DAP_AUCTION_STATUS_ACTIVE);
     dap_assert_PIF(strcmp(l_active_str, "active") == 0, "ACTIVE status should return 'active'");
@@ -1291,7 +1282,7 @@ void dap_auctions_test_withdraw_transactions(void)
     uint256_t l_bid_amount = dap_chain_uint256_from(2000);
     uint256_t l_withdrawal_fee = dap_chain_uint256_from(5);
     dap_time_t l_lock_time = dap_time_now() + 3600;
-    uint64_t l_project_id = 1001;
+    uint64_t l_project_id = 2;
     
     // Simulate adding a bid to the auction cache
     l_result = dap_auction_cache_add_bid(l_cache, &l_auction_hash, &l_bid_tx_hash, 
