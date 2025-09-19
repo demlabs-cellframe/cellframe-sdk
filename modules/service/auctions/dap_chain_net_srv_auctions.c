@@ -25,6 +25,7 @@
 #include "dap_config.h"
 #include "json-c/json.h"
 #include "json_object.h"
+#include "uthash.h"
 
 #define LOG_TAG "dap_chain_net_srv_auctions"
 #define set_ret_code(p,ret_code) if (p) { *p = ret_code;}
@@ -294,12 +295,19 @@ int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache,
             for (uint8_t i = 0; i < a_started_data->projects_cnt; i++) {
                 uint64_t l_project_id = a_started_data->project_ids[i];              
                 // Create project cache item
-                dap_auction_project_cache_item_t *l_project = DAP_NEW_Z(dap_auction_project_cache_item_t);
+                dap_auction_project_cache_item_t *l_project = NULL;
+                HASH_FIND(hh, l_auction->projects, &l_project_id, sizeof(uint64_t), l_project);
+                if (l_project) {
+                    log_it(L_ERROR, "Project %" DAP_UINT64_FORMAT_U " already exists in auction cache", l_project_id);
+                    continue;
+                }
+                l_project = DAP_NEW_Z(dap_auction_project_cache_item_t);
                 if (!l_project) {
                     log_it(L_CRITICAL, "Memory allocation error for project cache item");
                     return -4;
                 }
-                l_project->project_id = l_project_id;                    
+                l_project->project_id = l_project_id;
+
                 // Add to projects hash table
                 HASH_ADD(hh, l_auction->projects, project_id, sizeof(uint64_t), l_project);
             }
