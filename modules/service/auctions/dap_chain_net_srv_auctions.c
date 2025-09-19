@@ -1187,7 +1187,7 @@ static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         case DAP_AUCTION_STATUS_ACTIVE: {
             // For active auctions, check if time has expired based on cache data
             dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
-            if (l_auction->end_time > 0 && l_current_time >= l_auction->end_time + a_cond->subtype.srv_auction_bid.lock_time) {
+            if (l_auction->end_time > 0 && l_current_time >= l_auction->end_time + a_prev_cond->subtype.srv_auction_bid.lock_time) {
                 log_it(L_DEBUG, "Withdrawal allowed: auction %s ended by time", l_auction_hash_str);
                 ret_code = 0;
             } else {
@@ -1745,9 +1745,7 @@ char *dap_chain_net_srv_auction_withdraw_create(dap_chain_net_t *a_net, dap_enc_
     dap_chain_addr_fill_from_key(&l_addr, a_key_to, a_net->pub.id);
 
     if (!IS_ZERO_256(l_value_delegated)) {
-        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_delegated_ticker_str, &l_addr, &l_list_used_out, l_value_delegated, &l_value_transfer) == -101)
-            l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker_str,
-                                                                                 &l_addr, l_value_delegated, &l_value_transfer);
+        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker_str, &l_addr, l_value_delegated, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");
             set_ret_code(a_ret_code, -111);
@@ -1784,8 +1782,7 @@ char *dap_chain_net_srv_auction_withdraw_create(dap_chain_net_t *a_net, dap_enc_
     if (compare256(l_fee_pack, l_out_cond->header.value) == 1) {
         uint256_t l_value_shortage = {};
         SUBTRACT_256_256(l_fee_pack, l_out_cond->header.value, &l_value_shortage);
-        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_ticker_str, &l_addr, &l_list_used_out, l_value_shortage, &l_fee_transfer) == -101)
-            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_ticker_str, &l_addr, l_value_shortage, &l_fee_transfer);
+        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_ticker_str, &l_addr, l_value_shortage, &l_fee_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough coins)");
             set_ret_code(a_ret_code, -111);
