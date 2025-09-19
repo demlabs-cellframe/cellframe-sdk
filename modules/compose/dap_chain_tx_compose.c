@@ -5335,12 +5335,11 @@ dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_a
 
     dap_chain_addr_t *l_addr_fee = NULL;
     bool l_net_fee_used = s_get_remote_net_fee_and_address( &l_net_fee, &l_addr_fee, a_config);
-    if (l_net_fee_used && SUM_256_256(l_net_fee, a_fee, &l_fee_total) ) {
+    if ((l_net_fee_used && SUM_256_256(l_net_fee, a_fee, &l_fee_total) ) || (l_share_native && SUM_256_256(l_value, l_fee_total, &l_value))) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST  
         s_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
         return NULL;
-    }
-    if (l_share_native && SUM_256_256(l_value, l_fee_total, &l_value)) {
-        s_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
+#endif
     }
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST  
     // list of transaction with 'out' items to sell
@@ -5596,14 +5595,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_refill(dap_chain_
 
     dap_chain_addr_t *l_net_fee_addr = NULL;
     bool l_net_fee_used = s_get_remote_net_fee_and_address( &l_net_fee, &l_net_fee_addr, a_config);
-    if (l_net_fee_used && SUM_256_256(l_net_fee, a_fee, &l_fee_total) ) {
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
-        s_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
-        DAP_DELETE(l_tx_ticker);
-        return NULL;
-#endif
-    }
-    if (l_refill_native && SUM_256_256(l_value, l_fee_total, &l_value)) {
+    if ((l_net_fee_used && SUM_256_256(l_net_fee, a_fee, &l_fee_total) ) || (l_refill_native && SUM_256_256(l_value, l_fee_total, &l_value))) {
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
         s_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
         DAP_DELETE(l_tx_ticker);
@@ -6009,19 +6001,23 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
             return NULL;
         }
         if (SUM_256_256(l_value, a_value[i], &l_value)) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
             s_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
             log_it(L_ERROR, "Integer overflow in TX composer");
             DAP_DEL_MULTY(l_final_tx_hash_str, l_tx_ticker);
             return NULL;
+#endif
         }
     }
 
     bool l_net_fee_used = s_get_remote_net_fee_and_address( &l_net_fee, &l_net_fee_addr, a_config);
     if (l_net_fee_used && SUM_256_256(l_net_fee, a_fee, &l_fee_total) ) {
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         s_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_OVERFLOW, "Integer overflow in TX composer");
         log_it(L_ERROR, "Integer overflow in TX composer");
         DAP_DEL_MULTY(l_final_tx_hash_str, l_tx_ticker, l_net_fee_addr);
         return NULL;
+#endif
     }
 
     // list of transaction with 'out' items to sell
