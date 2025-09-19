@@ -1,3 +1,10 @@
+<<<<<<< HEAD
+=======
+#include "dap_math_convert.h"
+#include "rand/dap_rand.h"
+#include "dap_chain_datum_tx_receipt.h"
+#include "dap_chain_ledger.h"
+>>>>>>> 711479fb1 ([*] Tests build fix)
 #include "dap_test.h"
 #include "dap_chain_ledger_tests.h"
 #include "dap_chain_datum.h"
@@ -1075,7 +1082,11 @@ void dap_ledger_test_run(void){
 	SUM_256_256(l_balance,l_fee,&l_balance);
     dap_assert_PIF(!compare256(l_balance, l_balance_example), "Checking the availability of the necessary balance "
                                                              "on the wallet after the first transaction.");
-    dap_pass_msg("Validation of the declaration of the token, creation of an emission and a basic transaction using this in the ledger.");
+    char *l_pass_msg = dap_strdup_printf("Starting balance is %s. Validation of the declaration of the token, "
+                                         "creation of an emission and a basic transaction using it in the ledger", dap_uint256_to_char(l_balance, NULL));
+    dap_pass_msg(l_pass_msg);
+    DAP_DELETE(l_pass_msg);
+
     //second base tx
     dap_chain_datum_tx_t  *l_base_tx_second = dap_ledger_test_create_datum_base_tx(l_emi_sign, &l_emi_hash, l_addr, l_cert);
     size_t l_base_tx_size2 = dap_chain_datum_tx_get_size(l_base_tx_second);
@@ -1195,4 +1206,184 @@ void dap_ledger_test_run(void){
         dap_pass_msg("Checks that the ability to update a token with a non-zero total_supply if the current total_supply is set to zero is passed.");
     }
 
+<<<<<<< HEAD
+=======
+    // Test legacy stake operations
+    dap_ledger_test_legacy_stake_operations(l_ledger, &l_first_tx_hash, l_first_cert->enc_key, l_iddn);
+
+}
+
+/**
+ * @brief dap_ledger_test_create_legacy_stake_tx_cond
+ * Creates legacy stake transaction with m-tokens emission (old format)
+ * @param a_key_from Sender key
+ * @param a_hash_prev Previous transaction hash
+ * @param a_value Stake value
+ * @param a_ledger Ledger pointer
+ * @return Created transaction or NULL
+ */
+static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
+    dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    // get previous transaction
+    dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
+     // get previous cond out
+    int l_out_idx = 0;
+    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT, NULL);
+
+    dap_chain_addr_t l_addr_to = {0};
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
+
+    dap_time_t a_time_staking = dap_time_now() + 1;
+    dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
+                                                l_uid, a_value, a_time_staking, uint256_0);
+    l_tx_out_cond->subtype.srv_stake_lock.flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX;
+    // add all items to tx
+    uint256_t value_change = {};
+    dap_assert_PIF(!SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &value_change), "Subtract value from previous output");
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, value_change, s_token_ticker);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_out_cond);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
+    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from);
+    DAP_DEL_MULTY(l_in, l_out_change, l_tx_out_cond);
+
+    return l_tx;
+}
+
+static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond_ems(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
+    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create((dap_chain_id_t) {.uint64 = 0}, a_hash_prev, s_delegated_token_ticker);
+    dap_chain_addr_t l_addr_to = {0};
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, a_value, s_delegated_token_ticker);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
+    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from);
+    DAP_DEL_Z(l_in_ems);
+
+    return l_tx;
+}
+
+static dap_chain_datum_tx_receipt_old_t *dap_ledger_test_create_receipt_old(dap_chain_hash_fast_t *a_burning_tx_hash) {
+    dap_chain_datum_tx_receipt_old_t *l_receipt = DAP_NEW_Z_SIZE(dap_chain_datum_tx_receipt_old_t, sizeof(dap_chain_datum_tx_receipt_old_t) + sizeof(dap_hash_fast_t));
+    l_receipt->type = TX_ITEM_TYPE_RECEIPT_OLD;
+    l_receipt->receipt_info.version = 1;
+    l_receipt->receipt_info.srv_uid.uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID;
+    l_receipt->size = sizeof(dap_chain_datum_tx_receipt_old_t) + sizeof(dap_hash_fast_t);
+    l_receipt->exts_size = sizeof(dap_hash_fast_t);
+    memcpy(l_receipt->exts_n_signs, a_burning_tx_hash, sizeof(dap_hash_fast_t));
+    return l_receipt;
+}
+
+/**
+ * @brief dap_ledger_test_create_legacy_unstake_tx_cond
+ * Creates legacy unstake transaction with burning m-tokens (old format)
+ * @param a_key_from Sender key
+ * @param a_hash_prev Previous stake transaction hash
+ * @param a_value Unstake value
+ * @param a_ledger Ledger pointer
+ * @return Created transaction or NULL
+ */
+static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_unstake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, dap_chain_hash_fast_t *a_burning_tx_hash, dap_ledger_t *a_ledger) {
+    // get previous transaction
+    dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
+     // get previous cond out
+    int l_out_idx = 0;
+    dap_chain_tx_out_cond_t *l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_out_cond_get(l_tx_prev,
+                                                                            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_out_idx);
+
+    if(!l_tx_prev_out_cond || l_tx_prev_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
+        return NULL;
+
+    dap_chain_addr_t l_addr_to = {0};
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+    dap_chain_datum_tx_receipt_old_t *l_receipt = dap_ledger_test_create_receipt_old(a_burning_tx_hash);
+    dap_chain_tx_in_cond_t *l_in_cond = dap_chain_datum_tx_item_in_cond_create(a_hash_prev, l_out_idx, 0);
+    dap_chain_tx_out_ext_t *l_out = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, l_tx_prev_out_cond->header.value, s_token_ticker);
+
+   // add all items to tx
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_receipt);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_in_cond);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out);
+    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from);
+    DAP_DEL_MULTY(l_out, l_receipt, l_in_cond);
+
+    return l_tx;
+}
+
+/**
+ * @brief dap_ledger_test_legacy_stake_operations
+ * Test function for legacy stake and unstake operations
+ * @param a_ledger Ledger pointer
+ * @param a_hash_prev Previous transaction hash
+ * @param a_from_key Sender key
+ * @param a_net_id Network ID
+ */
+static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hash_prev, dap_enc_key_t *a_from_key, dap_chain_net_id_t a_net_id) {
+    dap_print_module_name("dap_ledger_test_legacy_stake_operations");
+
+    // Test legacy stake transaction
+    dap_hash_fast_t l_stake_tx_ems_hash = {}, l_stake_tx_hash = {};
+    {
+        dap_chain_datum_tx_t *l_stake_tx = dap_ledger_test_create_legacy_stake_tx_cond(a_from_key, a_hash_prev, dap_chain_uint256_from(200U), a_ledger);
+        if (l_stake_tx) {
+            dap_hash_fast(l_stake_tx, dap_chain_datum_tx_get_size(l_stake_tx), &l_stake_tx_hash);
+            // Try to add legacy stake transaction (should work with a_check_for_apply = true)
+            int err_code = dap_ledger_tx_add(a_ledger, l_stake_tx, &l_stake_tx_hash, false, NULL);
+            printf("Legacy stake tx add result: %d\n", err_code);
+            dap_assert(!err_code, "Adding of legacy stake transaction to ledger is");
+
+            dap_chain_datum_tx_t *l_stake_tx_ems = dap_ledger_test_create_legacy_stake_tx_cond_ems(a_from_key, &l_stake_tx_hash, dap_chain_uint256_from(20U), a_ledger);
+            dap_hash_fast(l_stake_tx_ems, dap_chain_datum_tx_get_size(l_stake_tx_ems), &l_stake_tx_ems_hash);
+            err_code = dap_ledger_tx_add_check(a_ledger, l_stake_tx_ems, dap_chain_datum_tx_get_size(l_stake_tx_ems), &l_stake_tx_ems_hash);
+            printf("Legacy stake tx ems add checking result: %d\n", err_code);
+            dap_assert(err_code == DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN, "Checking of legacy stake emission to ledger is");
+            err_code = dap_ledger_tx_add(a_ledger, l_stake_tx_ems, &l_stake_tx_ems_hash, false, NULL);
+            printf("Legacy stake tx ems add result: %d\n", err_code);
+            dap_assert(!err_code, "Adding of legacy stake emission to ledger is");
+            dap_pass_msg("Legacy stake transaction tests overall");
+        }
+    }
+
+    // Test legacy unstake transaction
+    {
+        // Creating burning tx
+        dap_hash_fast_t l_burning_tx_hash = {};
+        dap_chain_datum_tx_t *l_stake_tx_ems = dap_ledger_tx_find_by_hash(a_ledger, &l_stake_tx_ems_hash);
+        dap_assert(l_stake_tx_ems, "Get legacy stake cond tx ems");
+        dap_chain_tx_out_ext_t *l_tx_prev_out_ext = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_stake_tx_ems, NULL, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
+        dap_assert(l_tx_prev_out_ext, "Get legacy stake cond tx out ext for m-tokens");
+        dap_chain_datum_tx_t *l_burning_tx = dap_chain_datum_tx_create();
+        dap_chain_tx_in_t *l_in_ext = dap_chain_datum_tx_item_in_create(&l_stake_tx_ems_hash, 0);
+        dap_chain_addr_t l_null_addr = {0};
+        dap_chain_tx_out_ext_t *l_out_burn = dap_chain_datum_tx_item_out_ext_create(&l_null_addr, l_tx_prev_out_ext->header.value, s_delegated_token_ticker);
+        dap_chain_datum_tx_add_item(&l_burning_tx, (const uint8_t*) l_in_ext);
+        dap_chain_datum_tx_add_item(&l_burning_tx, (const uint8_t*) l_out_burn);
+        dap_chain_datum_tx_add_sign_item(&l_burning_tx, a_from_key);
+        DAP_DEL_MULTY(l_in_ext, l_out_burn);
+        dap_hash_fast(l_burning_tx, dap_chain_datum_tx_get_size(l_burning_tx), &l_burning_tx_hash);
+        // Try to add legacy stake transaction (should work with a_check_for_apply = true)
+        int err_code = dap_ledger_tx_add(a_ledger, l_burning_tx, &l_burning_tx_hash, false, NULL);
+        printf("Legacy burning tx add result: %d\n", err_code);
+        dap_assert(!err_code, "Adding of legacy burning transaction to ledger is");
+
+        dap_chain_datum_tx_t *l_unstake_tx = dap_ledger_test_create_legacy_unstake_tx_cond(a_from_key, &l_stake_tx_hash, &l_burning_tx_hash, a_ledger);
+        dap_hash_fast_t l_unstake_tx_hash = {};
+        dap_hash_fast(l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);
+        err_code = dap_ledger_tx_add_check(a_ledger, l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);
+        printf("Legacy unstake err_code = %d\n", err_code);
+        dap_assert(err_code == DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE, "Checking of legacy unstake is");
+        err_code = dap_ledger_tx_add(a_ledger, l_unstake_tx, &l_unstake_tx_hash, false, NULL);
+        printf("Legacy unstake add result: %d\n", err_code);
+        dap_assert(!err_code, "Adding of legacy unstake to ledger is");
+
+        dap_pass_msg("Legacy unstake transaction tests overall");
+    }
+>>>>>>> 711479fb1 ([*] Tests build fix)
 }
