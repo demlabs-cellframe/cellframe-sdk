@@ -214,7 +214,7 @@ int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_c
 {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     if (rand() % 2) {
-        dap_time_t l_ts_unlock = dap_min(rand() % UINT64_MAX, dap_time_now());
+        dap_time_t l_ts_unlock = dap_min(rand() % UINT64_MAX, dap_time_now() / 10);
         log_it(L_INFO, "Add out std item, token %s, ts_unlock %"DAP_UINT64_FORMAT_U, a_token, l_ts_unlock);
         return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, l_ts_unlock) );
     } else {
