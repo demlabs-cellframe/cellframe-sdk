@@ -1,10 +1,7 @@
-<<<<<<< HEAD
-=======
 #include "dap_math_convert.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_ledger.h"
->>>>>>> 711479fb1 ([*] Tests build fix)
 #include "dap_test.h"
 #include "dap_chain_ledger_tests.h"
 #include "dap_chain_datum.h"
