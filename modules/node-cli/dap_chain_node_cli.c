@@ -75,13 +75,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\tReads a value by key from a specified group.\n\n"
             "global_db delete -group <group_name> -key <key_name>\n"
                 "\tRemoves a value by key from a specified group.\n\n"
-            "global_db group_list\n"
+            "global_db group_list [-h]\n"
                 "\tGets a list of groups in the database.\n\n"
             "global_db drop_table -group <group_name>\n"
                 "\tPerforms deletion of the entire group in the database.\n\n"
-            "global_db get_keys -group <group_name>\n"
+            "global_db get_keys -group <group_name> [-h]\n"
                 "\tGets all record keys from a specified group.\n\n"
-            "Note: you can add [-h] to print human-friendly tables for supported subcommands.\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -360,7 +359,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info", dap_chain_node_cli_cmd_id_from_str("token"),
             "token list -net <net_name> [-full] [-h]\n"
-            "token info -net <net_name> -name <token_ticker> [-h]\n");
+            "token info -net <net_name> -name <token_ticker> \n");
 
     // Statisticss
     dap_cli_server_cmd_add("stats", com_stats, "Print statistics", dap_chain_node_cli_cmd_id_from_str("stats"),

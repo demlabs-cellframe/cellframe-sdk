@@ -234,15 +234,15 @@ int dap_chain_net_srv_xchange_init()
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
     "srv_xchange tx_list -net <net_name> [-time_from <From_time>] [-time_to <To_time>]"
-        "[-addr <wallet_addr>]  [-status {inactive|active|all}]\n"                /* @RRL:  #6294  */
+        "[-addr <wallet_addr>]  [-status {inactive|active|all}] [-limit <limit>] [-offset <offset>] [-head] [-full] [-h]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions\n"
         "\tAll times are in RFC822. For example: \"7 Dec 2023 21:18:04\"\n"
 
-    "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>]\n"
+    "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>] [-h]\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>]\n"
+    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-h]\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
-    "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>]\n"
+    "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>] [-h]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
         "\tAll times are in RFC822. For example: \"7 Dec 2023 21:18:04\"\n"
 
@@ -2411,13 +2411,13 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             json_object* json_obj_order = json_object_new_object();
             json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
-            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
-            json_object_object_add(json_obj_order, "pagina", json_arr_orders_limit);
+            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), false);
+            json_object_object_add(json_obj_order, "pages", json_arr_orders_limit);
 
             size_t i_tmp = 0;
             // Print all txs
-            for (dap_list_t *it = l_head ? dap_list_last(l_list) : dap_list_first(l_list);
-                    it; it = l_head ? it->prev : it->next) {
+            for (dap_list_t *it = l_head ? dap_list_first(l_list) : dap_list_last(l_list);
+                    it; it = l_head ? it->next : (it->prev && it->prev->next ? it->prev : NULL)) {
                 dap_chain_datum_tx_t *l_tx = NULL;
                 char l_buy_token[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
                 char l_sell_token[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
@@ -2566,7 +2566,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 json_object_array_add(json_arr_orders_out, l_json_obj_order);
                 DAP_DELETE(l_owner_addr);
                 l_printed_orders_count++;
-                if (l_head && (it->prev->next == NULL)) break;
             }
             if (s_xchange_cache_state == XCHANGE_CACHE_ENABLED){
                 dap_list_free(l_list);

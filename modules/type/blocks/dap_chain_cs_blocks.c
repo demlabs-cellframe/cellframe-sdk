@@ -223,7 +223,7 @@ int dap_chain_cs_blocks_init()
 
             "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
-            " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>}] [-unspent]\n"
+            " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>}] [-unspent] [-h]\n"
                 "\t\t List blocks\n\n"
 
             "block -net <net_name> [-chain <chain_name>] count\n"
@@ -975,6 +975,21 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
 
+            /**
+             * Validate mutually exclusive flag groups usage
+             * Groups: {-limit/-offset/-head}, {-from_date/-to_date}, {-from_hash/-to_hash}
+             * Only one group can be used at a time, same as in s_cli_dag
+             */
+             bool l_has_loh = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
+             bool l_has_dates = (l_from_date_str != NULL) || (l_to_date_str != NULL);
+             bool l_has_hashes = (l_from_hash_str != NULL) || (l_to_hash_str != NULL);
+             int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_dates ? 1 : 0) + (l_has_hashes ? 1 : 0);
+             if (l_groups_cnt > 1) {
+                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
+                     "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-from_date/-to_date} or {-from_hash/-to_hash}");
+                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+             }
+
             if (l_signed_flag && l_first_signed_flag) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Choose only one option from 'singed' and 'first_signed'");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
@@ -1032,9 +1047,34 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR, "Can't convert \"%s\" to date", l_to_date_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR;
                 }
-                struct tm *l_localtime = localtime((time_t *)&l_to_time);
-                l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
-                l_to_time = mktime(l_localtime);
+                // Align behavior with DAG: if only to_date is set, make it inclusive by adding one day.
+                // If both dates are set and from_date > to_date, make from_date inclusive (+1 day) and set head traversal.
+                if (!l_from_date_str) {
+                    struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                    l_localtime->tm_mday += 1; // inclusive end
+                    l_to_time = mktime(l_localtime);
+                } else {
+                    if (l_from_time > l_to_time) {
+                        struct tm *l_localtime = localtime((time_t *)&l_from_time);
+                        l_localtime->tm_mday += 1; // inclusive start when dates swapped
+                        l_from_time = mktime(l_localtime);
+                        l_head = true; // traverse from head (oldest first)
+                    } else {
+                        struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                        l_localtime->tm_mday += 1; // inclusive end
+                        l_to_time = mktime(l_localtime);
+                    }
+                }
+            }
+
+            // If both hashes provided, align traversal direction with chronological order as in DAG
+            if (l_from_hash_str && l_to_hash_str) {
+                dap_chain_block_cache_t *l_from_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_from_hash);
+                dap_chain_block_cache_t *l_to_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_to_hash);
+                if (l_from_cache && l_to_cache) {
+                    if (l_from_cache->block->hdr.ts_created < l_to_cache->block->hdr.ts_created)
+                        l_head = true; // oldest -> newest to span [to_hash..from_hash]
+                }
             }
 
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
@@ -1053,21 +1093,23 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             }             
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
+                // Time window filtering aligned with DAG logic and traversal direction
                 if (l_head) {
-                    if (l_from_time && l_ts < l_from_time)
+                    // Oldest -> newest
+                    if ((l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time))
                         continue;
-                    if (l_to_time && l_ts >= l_to_time)
-                        break;
                 } else {
-                    if (l_from_time && l_ts > l_from_time)
+                    // Newest -> oldest
+                    if ((l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time))
                         continue;
-                    if (l_to_time && l_ts <= l_to_time)
-                        break;
                 }
-                if (l_from_hash_str && !l_hash_flag) {
-                   if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
-                       continue;
-                   l_hash_flag = true;
+                // Hash range start boundary depends on traversal direction (align with DAG)
+                if (!l_hash_flag) {                    
+                    if (l_from_hash_str) {
+                        if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
+                            continue;
+                        l_hash_flag = true;
+                    }                    
                 }
                 if (l_first_signed_flag) {
                     dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
@@ -1132,6 +1174,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 json_object_object_add(json_obj_bl_cache, "timestamp", json_object_new_uint64(l_ts));
                 json_object_object_add(json_obj_bl_cache, "ts_create",json_object_new_string(l_buf));
                 json_object_array_add(json_arr_bl_cache_out, json_obj_bl_cache);
+                // Hash range end boundary depends on traversal direction 
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
                     break;
             }
