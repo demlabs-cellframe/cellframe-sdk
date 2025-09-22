@@ -34,11 +34,13 @@ typedef struct dap_chain_tx_item_event {
     uint8_t version;                        /// @param version          @brief Version of the event.
     uint16_t event_type;                    /// @param event_type       @brief Event type.
     uint16_t group_name_size;               /// @param group_name_size  @brief Size of the event group name.
-    dap_time_t timestamp;                   /// @param event_ts          @brief Timestamp of the event.
+    dap_time_t timestamp;                   /// @param event_ts         @brief Timestamp of the event.
+    dap_chain_net_srv_uid_t srv_uid;        /// @param srv_uid          @brief Service UID.
     byte_t group_name[];                    /// @param group_name       @brief Event group name
 } DAP_ALIGN_PACKED dap_chain_tx_item_event_t;
 
 typedef struct dap_chain_tx_event {
+    dap_chain_net_srv_uid_t srv_uid;    /// @param srv_uid              @brief Service UID.
     dap_time_t timestamp;               /// @param timestamp            @brief Timestamp of the event.
     char *group_name;                   /// @param group_name           @brief Event group name
     dap_chain_hash_fast_t tx_hash;      /// @param tx_hash              @brief Hash of the transaction.

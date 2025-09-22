@@ -1647,7 +1647,13 @@ char *dap_chain_net_srv_auction_withdraw_create(dap_chain_net_t *a_net, dap_enc_
         set_ret_code(a_ret_code, -103);
         return NULL;
     }
-    
+
+    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, a_bid_tx_hash, l_out_num, NULL)) {
+        log_it(L_ERROR, "Bid transaction is already withdrawn");
+        set_ret_code(a_ret_code, -104);
+        return NULL;
+    }
+
     // 3. Find auction
     dap_hash_fast_t l_auction_hash = l_out_cond->subtype.srv_auction_bid.auction_hash;
     dap_auction_cache_item_t *l_auction = dap_auction_cache_find_auction(s_auction_cache, &l_auction_hash);
@@ -2489,7 +2495,7 @@ int com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int a_versio
                         l_error_msg = "Bid output not found";
                         break;
                     case -104:
-                        l_error_msg = "Auction transaction not found";
+                        l_error_msg = "Bid transaction is already withdrawn";
                         break;
                     case -105:
                         l_error_msg = "Auction not found in cache";

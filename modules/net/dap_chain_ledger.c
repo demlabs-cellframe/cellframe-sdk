@@ -231,6 +231,7 @@ typedef struct dap_ledger_wallet_balance {
 } dap_ledger_wallet_balance_t;
 
 typedef struct dap_ledger_event {
+    dap_chain_net_srv_uid_t srv_uid;
     dap_time_t timestamp;
     dap_hash_fast_t tx_hash;
     dap_hash_fast_t pkey_hash;
@@ -6009,7 +6010,8 @@ static dap_chain_tx_event_t *s_ledger_event_to_tx_event(dap_ledger_event_t *a_ev
         .pkey_hash = a_event->pkey_hash,
         .event_type = a_event->event_type,
         .event_data_size = a_event->event_data_size,
-        .timestamp = a_event->timestamp
+        .timestamp = a_event->timestamp,
+        .srv_uid = a_event->srv_uid
     };
     if (a_event->event_data_size)
         l_tx_event->event_data = DAP_DUP_SIZE_RET_VAL_IF_FAIL(a_event->event_data, a_event->event_data_size, NULL);
