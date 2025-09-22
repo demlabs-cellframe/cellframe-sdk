@@ -86,20 +86,19 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\tReads a value by key from a specified group.\n\n"
             "global_db delete -group <group_name> -key <key_name>\n"
                 "\tRemoves a value by key from a specified group. Change record to hole type.\n\n"
-            "global_db group_list [-mask <mask>] [-all]\n"
+            "global_db group_list [-mask <mask>] [-all] [-h]\n"
                 "\tGets a list of groups in the database.\n"
                 "\t-mask <mask>: list groups by mask\n"
                 "\t-all: count actual and holes records types\n\n"
             "global_db drop_table -group <group_name>\n"
                 "\tPerforms deletion of the entire group in the database.\n\n"
-            "global_db get_keys -group <group_name>\n"
+            "global_db get_keys -group <group_name> [-h]\n"
                 "\tGets all record keys from a specified group.\n\n"
             "global_db clear -group <group_name> | -mask <mask> | -all [-pinned]\n"
                 "\tRemove all hole type records from a specified group or all groups by mask.\n"
                 "\t-mask <mask>: clear groups by mask\n"
                 "\t-all: clear all groups\n"
                 "\t-pinned: remove pinned records too\n\n"
-            "Note: you can add [-h] to print human-friendly tables for supported subcommands.\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -578,11 +577,13 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
         if (l_full) {
             printf("_________________________________________________________________________________________________________________"
                    "_________________________________________________________________________________________________________________\n");
-            printf(" Node addres \t\t| Pkey hash \t\t\t\t\t\t\t\t| Stake val | Eff val | Rel weight | Sover addr \t\t\t\t\t\t\t\t\t\t\t\t   | Sover tax  |\n");
+            printf(" %-22s | %-69s | %-9s | %-7s | %-10s | %-106s | %-10s |\n",
+                   "Node addres", "Pkey hash", "Stake val", "Eff val", "Rel weight", "Sover addr", "Sover tax");
         } else {
             printf("__________________________________________________________________________________________________"
                    "_______________________________________________________________________\n");
-            printf(" Node addres \t\t| Pkey hash \t\t\t\t\t\t\t\t| Stake val | Eff val | Rel weight | Sover addr \t   | Sover tax  |\n");
+            printf(" %-22s | %-69s | %-9s | %-7s | %-10s | %-21s | %-10s |\n",
+                   "Node addres", "Pkey hash", "Stake val", "Eff val", "Rel weight", "Sover addr", "Sover tax");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         result_count = json_object_array_length(json_obj_array);
@@ -612,7 +613,7 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
                     const char *sover_addr_full = json_object_get_string(j_obj_sovereign_addr);
                     const char *sovereign_addr_str = (sover_addr_full && strcmp(sover_addr_full, "null")) ?
                                                      (l_full ? sover_addr_full : sover_addr_full + 85) : "-------------------";
-                    printf("%s \t| %s\t|    %4d   |   %4d  |   %4d     |%s    |   %s \t|",
+                    printf("%22s | %66s  |    %4d   |   %4d  |   %4d     |%s    |   %s \t|",
                             node_addr_full, pkey_hash_full,
                             json_object_get_int(j_obj_stake_value),
                             json_object_get_int(j_obj_effective_value),
@@ -658,12 +659,13 @@ static int s_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char
         if (l_full) {
             printf("_________________________________________________________________________________________________________________"
                 "_________________________________________________________________________________________________________________"
+                "____________________________________________________________________________________________________"
                 "_________________________________________________________________________________________________________________\n");
-            printf(" TX Hash \t\t\t\t\t\t\t    | Date \t\t\t      | Signing Addr\t\t\t\t\t\t\t\t\t\t\t\t\t | Signing Hash \t\t\t\t\t      | Node Address \t       | %-25s | Owner Addr \t\t\t\t\t\t\t\t\t\t\t\t\t\t|\n", "Value Coins");
+            printf(" %-66s | %-31s | %-104s | %-66s | %-22s | %-25s | %-104s |\n", "TX Hash","Date","Signing Addr","Signing Hash","Node Address","Value Coins","Owner Addr");
         } else {
             printf("_________________________________________________________________________________________________________________"
                 "________________________________________\n");
-            printf(" TX Hash \t | Date \t\t\t   | Signing Addr\t | Signing Hash    | Node Address \t    | %-10s | Owner Addr \t\t|\n", "Value Coins");
+            printf(" %-15s | %-31s | %-19s | %-15s | %-22s | %-11s | %-19s |\n", "TX Hash","Date","Signing Addr","Signing Hash","Node Address","Value Coins","Owner Addr");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         result_count = json_object_array_length(json_obj_array);
