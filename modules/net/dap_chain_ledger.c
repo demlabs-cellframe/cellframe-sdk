@@ -6203,7 +6203,8 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         .event_type = l_event_item->event_type,
         .event_data_size = l_event_tsd ? l_event_tsd->size : 0,
         .pkey_hash = l_event_pkey_hash,
-        .timestamp = l_event_item->timestamp
+        .timestamp = l_event_item->timestamp,
+        .srv_uid = l_event_item->srv_uid
     };
     l_event->group_name = DAP_NEW_SIZE(char, l_event_item->group_name_size + 1);
 

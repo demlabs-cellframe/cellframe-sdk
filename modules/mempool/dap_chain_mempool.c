@@ -1546,6 +1546,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
  char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
                                dap_enc_key_t *a_key_from,
                                dap_enc_key_t *a_service_key,
+                               dap_chain_net_srv_uid_t a_srv_uid,
                                const char *a_group_name,
                                uint16_t a_event_type,
                                const void *a_event_data,
@@ -1609,7 +1610,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     dap_list_free_full(l_list_fee_out, NULL);
 
     // Create and add event item using standard cellframe function
-    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(a_group_name, a_event_type);
+    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(a_srv_uid, a_group_name, a_event_type);
     if (!l_event_item) {
         log_it(L_ERROR, "Failed to create event item");
         dap_chain_datum_tx_delete(l_tx);

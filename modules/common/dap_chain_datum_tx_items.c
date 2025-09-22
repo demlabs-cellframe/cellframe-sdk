@@ -858,7 +858,7 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t
     return NULL;
 }
 
-dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, uint16_t a_type)
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(dap_chain_net_srv_uid_t a_srv_uid, const char *a_group_name, uint16_t a_type)
 {
     dap_return_val_if_fail(a_group_name, NULL);
     size_t l_group_name_size = strlen(a_group_name);
@@ -871,6 +871,7 @@ dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_n
     l_event->group_name_size = (uint16_t)l_group_name_size;
     l_event->event_type = a_type;
     l_event->timestamp = dap_time_now();
+    l_event->srv_uid = a_srv_uid;
     return l_event;
 }
 void dap_chain_datum_tx_event_delete(void *a_event)

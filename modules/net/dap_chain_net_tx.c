@@ -1754,7 +1754,18 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 break;
             }
 
-            dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(l_group_name, (uint16_t)l_event_type_int);
+            uint64_t l_srv_uid;
+            if (!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid)) {
+                log_it(L_ERROR, "Json TX: bad srv_uid in TX_ITEM_TYPE_EVENT");
+                char *l_str_err = dap_strdup_printf("For item %zu of type 'event' the 'srv_uid' is missing or invalid.", i);
+                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                DAP_DELETE(l_str_err);
+                if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                break;
+            }
+
+            dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create((dap_chain_net_srv_uid_t){.uint64 = l_srv_uid},
+                                                                                       l_group_name, (uint16_t)l_event_type_int);
             if (!l_event_item) {
                  char *l_str_err = dap_strdup_printf("Unable to create event item for transaction from item %zu.", i);
                 json_object *l_jobj_err = json_object_new_string(l_str_err);

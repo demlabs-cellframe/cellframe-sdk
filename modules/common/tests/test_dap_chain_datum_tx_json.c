@@ -643,7 +643,7 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
     }
     
     // Add EVENT item
-    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create("test_group", 1);
+    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create((dap_chain_net_srv_uid_t){.uint64 = 1}, "test_group", 1);
     if (l_event_item) {
         l_event_item->type = TX_ITEM_TYPE_EVENT;
         dap_chain_datum_tx_add_item(&l_tx, l_event_item);
