@@ -688,7 +688,7 @@ static dap_chain_datum_t *s_event_tx_create(dap_chain_tx_event_t *a_event)
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx)
         return NULL;
-    dap_chain_tx_item_event_t *l_event = dap_chain_datum_tx_event_create(a_event->group_name, a_event->event_type, a_event->timestamp);
+    dap_chain_tx_item_event_t *l_event = dap_chain_datum_tx_event_create(a_event->srv_uid,a_event->group_name, a_event->event_type, a_event->timestamp);
     if (!l_event) {
         dap_chain_datum_tx_delete(l_tx);
         return NULL;

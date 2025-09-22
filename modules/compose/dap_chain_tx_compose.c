@@ -3812,7 +3812,7 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
             l_order->version = json_object_get_int(json_object_object_get(order_obj, "version"));
             l_order->direction = dap_chain_net_srv_order_direction_from_str(json_object_get_string(json_object_object_get(order_obj, "direction")));
             l_order->ts_created = dap_time_from_str_rfc822(json_object_get_string(json_object_object_get(order_obj, "created")));
-            l_order->srv_uid.uint64 = dap_chain_net_srv_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "srv_uid"))).uint64;
+            l_order->srv_uid.uint64 = dap_chain_srv_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "srv_uid"))).uint64;
             l_order->price = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(order_obj, "price_datoshi")));
             strncpy(l_order->price_ticker, json_object_get_string(json_object_object_get(order_obj, "price_token")), DAP_CHAIN_TICKER_SIZE_MAX - 1);
             l_order->price_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';

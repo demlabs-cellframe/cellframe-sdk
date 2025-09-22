@@ -161,6 +161,7 @@ typedef struct dap_ledger_anchor_item {
 } dap_ledger_anchor_item_t;
 
 typedef struct dap_ledger_event {
+    dap_chain_srv_uid_t srv_uid;
     dap_time_t timestamp;
     dap_hash_fast_t tx_hash;
     dap_hash_fast_t pkey_hash;
