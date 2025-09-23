@@ -211,7 +211,11 @@ int dap_chain_cs_esbocs_init()
         "esbocs emergency_validators show -net <net_name> [-chain <chain_name>]\n"
             "\tShow list of validators public key hashes allowed to work in emergency mode\n"
         "esbocs status -net <net_name> [-chain <chain_name>]\n"
-            "\tShow current esbocs consensus status\n");
+            "\tShow current esbocs consensus status\n"
+        "esbocs blockgen_period set -net <net_name> [-chain <chain_name>] -val_count <uint16_t value>\n"
+            "\tSets empty block generation every times\n"
+        "esbocs blockgen_period show -net <net_name> [-chain <chain_name>]\n"
+            "\tShow empty block generation every times\n");
     return 0;
 }
 
@@ -312,8 +316,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->new_round_delay          = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "new_round_delay", 10);
     l_esbocs_pvt->round_attempts_max       = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout    = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
-    l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count = l_validators_count;
-    l_esbocs_pvt->empty_block_every_times = 5;
+    l_esbocs_pvt->start_validators_min     = l_esbocs_pvt->min_validators_count = l_validators_count;
 
     dap_chain_net_srv_stake_net_add(a_chain->net_id);
     uint16_t i, l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
@@ -3465,8 +3468,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
 int dap_chain_esbocs_set_blockgen_period(dap_chain_t *a_chain, uint16_t a_blockgen_period)
 {
-    dap_return_val_if_fail(!a_chain || DAP_CHAIN_ESBOCS(a_chain) || PVT(DAP_CHAIN_ESBOCS(a_chain)), -1);
-    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_chain);
+    dap_return_val_if_fail(!a_chain || DAP_CHAIN_ESBOCS(a_chain), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_return_val_if_fail(!DAP_CHAIN_ESBOCS(l_blocks) || !PVT(DAP_CHAIN_ESBOCS(l_blocks)), -2);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->empty_block_every_times = a_blockgen_period;
     return 0;
