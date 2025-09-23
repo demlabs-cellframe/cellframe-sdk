@@ -1810,6 +1810,7 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
                                 a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                         a_session->cur_round.attempt_num, l_candidate_hash_str);
         }
+        PVT(a_session->esbocs)->empty_round_count = 0;
     } else {
         // validation - fail, gen event Reject
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_REJECT, a_candidate_hash,
