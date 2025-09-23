@@ -1706,7 +1706,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     dap_chain_block_t *l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
     PVT(a_session->esbocs)->empty_round_count += l_candidate && l_candidate_size ? 0 : 1;
     bool l_empty_block_generation = PVT(a_session->esbocs)->empty_block_every_times && PVT(a_session->esbocs)->empty_round_count >= PVT(a_session->esbocs)->empty_block_every_times;
-    if (l_empty_block_generation) {
+    if (!l_candidate && l_empty_block_generation) {
         if (PVT(a_session->esbocs)->debug)
             log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                         " I don't have a candidate. I submit a empty candidate.",
@@ -1717,6 +1717,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
         }
         dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_CUSTOM, NULL, 0);
         l_chain->callback_add_datums(l_chain, &l_datum, 1);
+        l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
     }
     if (l_candidate && l_candidate_size) {
         if (PVT(a_session->esbocs)->emergency_mode)
@@ -1730,10 +1731,9 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
             if (l_candidate_size)
                  l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
-            if (l_candidate_size)
-                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_BLOCKGEN,
-                                                            &PVT(a_session->esbocs)->empty_round_count, sizeof(uint16_t));
         }
+        if (l_empty_block_generation && l_candidate_size)
+            l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_BLOCKGEN, NULL, 0);
         // Add custom metadata if available
         if (l_candidate_size && a_session->esbocs->callback_set_custom_metadata) {
             size_t l_custom_data_size = 0;
