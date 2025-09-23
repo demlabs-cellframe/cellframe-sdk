@@ -3096,7 +3096,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
 static dap_chain_datum_decree_t *s_esbocs_decree_set_empty_block_every_times(dap_chain_net_t *a_net, dap_chain_t *a_chain,
                                                                           uint16_t a_value, dap_cert_t *a_cert)
 {
-    size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint16_t);
     dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
                                                                     *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
     if (!l_decree)
