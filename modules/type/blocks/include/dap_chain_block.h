@@ -74,6 +74,7 @@ typedef struct dap_chain_block_meta{
 #define DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT      0x82
 #define DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS      0x83
 #define DAP_CHAIN_BLOCK_META_EVM_DATA           0x84
+#define DAP_CHAIN_BLOCK_META_BLOCKGEN           0x85
 
 /**
  * @struct dap_chain_block

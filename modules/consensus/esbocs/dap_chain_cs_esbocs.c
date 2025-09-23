@@ -161,6 +161,8 @@ typedef struct dap_chain_esbocs_pvt {
     uint16_t round_start_sync_timeout;
     uint16_t round_attempts_max;
     uint16_t round_attempt_timeout;
+    uint16_t empty_round_count;
+    uint16_t empty_block_every_times;
     // PoA section
     dap_list_t *poa_validators;
     // Fee & autocollect params
@@ -311,6 +313,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->round_attempts_max       = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout    = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
     l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count = l_validators_count;
+    l_esbocs_pvt->empty_block_every_times = 5;
 
     dap_chain_net_srv_stake_net_add(a_chain->net_id);
     uint16_t i, l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
@@ -1699,8 +1702,22 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     size_t l_candidate_size = 0;
     dap_hash_fast_t l_candidate_hash = {0};
-    dap_chain_node_mempool_process_all(a_session->chain, false);
+    dap_chain_node_mempool_process_all(l_chain, false);
     dap_chain_block_t *l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
+    PVT(a_session->esbocs)->empty_round_count += l_candidate && l_candidate_size ? 0 : 1;
+    bool l_empty_block_generation = PVT(a_session->esbocs)->empty_block_every_times && PVT(a_session->esbocs)->empty_round_count >= PVT(a_session->esbocs)->empty_block_every_times;
+    if (l_empty_block_generation) {
+        if (PVT(a_session->esbocs)->debug)
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                        " I don't have a candidate. I submit a empty candidate.",
+                                l_chain->net_name, l_chain->name,
+                                    a_session->cur_round.id, a_session->cur_round.attempt_num);
+        if (!l_chain->callback_add_datums) {
+            log_it(L_ERROR, "Not found chain callback for datums processing");
+        }
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_CUSTOM, NULL, 0);
+        l_chain->callback_add_datums(l_chain, &l_datum, 1);
+    }
     if (l_candidate && l_candidate_size) {
         if (PVT(a_session->esbocs)->emergency_mode)
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EMERGENCY, NULL, 0);
@@ -1713,8 +1730,10 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
             if (l_candidate_size)
                  l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
+            if (l_candidate_size)
+                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_BLOCKGEN,
+                                                            &PVT(a_session->esbocs)->empty_round_count, sizeof(uint16_t));
         }
-        
         // Add custom metadata if available
         if (l_candidate_size && a_session->esbocs->callback_set_custom_metadata) {
             size_t l_custom_data_size = 0;
@@ -1724,7 +1743,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, l_meta_type, l_custom_data, l_custom_data_size);
                 if (PVT(a_session->esbocs)->debug) {
                     log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu. Added custom metadata, size: %zu",
-                            a_session->chain->net_name, a_session->chain->name,
+                            l_chain->net_name, l_chain->name,
                                 a_session->cur_round.id, a_session->cur_round.attempt_num, l_custom_data_size);
                 }
             }
@@ -1735,9 +1754,11 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
             if (PVT(a_session->esbocs)->debug) {
                 const char *l_candidate_hash_str = dap_chain_hash_fast_to_str_static(&l_candidate_hash);
                 log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu. Submit my candidate %s",
-                        a_session->chain->net_name, a_session->chain->name,
+                        l_chain->net_name, l_chain->name,
                             a_session->cur_round.id, a_session->cur_round.attempt_num, l_candidate_hash_str);
             }
+            // reset empty round count
+            PVT(a_session->esbocs)->empty_round_count = 0;
         }
     }
     if (!l_candidate || !l_candidate_size) { // there is no my candidate, send null hash

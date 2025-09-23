@@ -59,6 +59,7 @@ dap_chain_datum_t *dap_chain_datum_create(uint16_t a_type_id, const void *a_data
             .ts_create  = dap_time_now()
         }
    };
+   if (a_data_size && a_data)
    memcpy(l_datum->data, a_data, (uint32_t)a_data_size);
    return  l_datum;
 }

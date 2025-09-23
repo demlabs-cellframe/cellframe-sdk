@@ -78,6 +78,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE         0x000E
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY                        0x0012
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BLOCKGEN                      0x0020
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -98,6 +99,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E 
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_EMPTY_ROUND_COUNT                   0x0118 
 
 
 #ifdef __cplusplus

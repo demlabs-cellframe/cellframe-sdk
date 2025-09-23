@@ -867,6 +867,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 case DAP_CHAIN_BLOCK_META_EVM_DATA:
                     s_cli_meta_hex_print(json_obj_meta, a_version == 1 ? "EVM_DATA" : "evm_data", l_meta);
                     break;
+                case DAP_CHAIN_BLOCK_META_BLOCKGEN:
+                    json_object_object_add(json_obj_meta, "blockgen", json_object_new_string(""));
+                    break;
                 default: {
                     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
                     json_object_object_add(json_obj_meta, a_version == 1 ? "# -" : "num", json_object_new_string(l_hexbuf));
