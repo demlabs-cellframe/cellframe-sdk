@@ -644,6 +644,27 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             return dap_chain_policy_apply(l_policy, a_net->pub.id);
         }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BLOCKGEN: {
+            if (!a_apply)
+                break;
+            if (!a_anchored)
+                break;
+            uint16_t l_blockgen_period = 0;
+            if (dap_chain_datum_decree_get_blockgen_period(a_decree, &l_blockgen_period)){
+                log_it(L_WARNING,"Can't get blockgen period from decree.");
+                return -105;
+            }
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+                log_it(L_WARNING, "Can't apply this decree to specified chain");
+                return -115;
+            }
+            dap_chain_esbocs_set_blockgen_period(l_chain, l_blockgen_period);
+        }
         default:
             return -1;
     }

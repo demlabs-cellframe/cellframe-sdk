@@ -99,8 +99,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGNATURE_TYPE                      0x010B
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E 
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_EMPTY_ROUND_COUNT                   0x0118 
-
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD             0x0118
 
 #ifdef __cplusplus
 extern "C" {
@@ -139,6 +138,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
         return "DECREE_COMMON_SUBTYPE_STAKE_UPDATE";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY:
         return "DECREE_COMMON_SUBTYPE_POLICY";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BLOCKGEN:
+        return "DECREE_COMMON_SUBTYPE_BLOCKGEN";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
     }
@@ -175,6 +176,8 @@ DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_de
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE;
     } else if (!dap_strcmp(a_decree_type, "policy")) {
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY;
+    } else if (!dap_strcmp(a_decree_type, "blockgen")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BLOCKGEN;
     } else {
         return 0;
     }
@@ -218,6 +221,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE:
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD:
+         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD";
     default:
         return "DECREE_TSD_TYPE_UNKNOWN";
     }
@@ -332,6 +337,14 @@ dap_pkey_t *dap_chain_datum_decree_get_pkey(dap_chain_datum_decree_t *a_decree);
  * @return pointer to dap_chain_policy_t if find, if not or error - NULL
  */
 dap_chain_policy_t *dap_chain_datum_decree_get_policy(dap_chain_datum_decree_t *a_decree);
+
+/**
+ * @brief get empty block every times from decree
+ * @param a_decree
+ * @param a_blockgen_period
+ * @return result code. 0 - success
+ */
+int dap_chain_datum_decree_get_blockgen_period(dap_chain_datum_decree_t *a_decree, uint16_t *a_blockgen_period);
 
 /**
  * @breif dap_chain_datum_decree_dump Dump information about decree

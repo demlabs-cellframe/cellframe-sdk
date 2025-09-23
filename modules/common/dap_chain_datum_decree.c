@@ -188,6 +188,13 @@ dap_chain_policy_t *dap_chain_datum_decree_get_policy(dap_chain_datum_decree_t *
     return (l_tsd  && dap_chain_policy_get_size((dap_chain_policy_t *)l_tsd->data) == l_tsd->size) ? (dap_chain_policy_t *)l_tsd->data : NULL;
 }
 
+int dap_chain_datum_decree_get_blockgen_period(dap_chain_datum_decree_t *a_decree, uint16_t *a_blockgen_period)
+{
+    dap_return_val_if_fail(a_decree && a_blockgen_period, -1);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD);
+    return l_tsd && l_tsd->size == sizeof(uint16_t) ? ( _dap_tsd_get_scalar(l_tsd, a_blockgen_period), 0 ) : 1;
+}
+
 void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type, int a_version)
 {
     char *l_type_str;
@@ -364,6 +371,14 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             }
             json_object_object_add(a_json_out, "policy_type", json_object_new_string( dap_chain_policy_to_str((dap_chain_policy_t *)(l_tsd->data))));
             break;
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD:
+            if (l_tsd->size != sizeof(uint16_t)) {
+                json_object_object_add(a_json_out, "empty_block_every_times", json_object_new_string("WRONG SIZE"));
+                break;
+            }
+            uint16_t l_empty_block_every_times = 0;
+            _dap_tsd_get_scalar(l_tsd, &l_empty_block_every_times);
+            json_object_object_add(a_json_out, "empty_block_every_times", json_object_new_uint64(l_empty_block_every_times));
         default:
             if (a_version == 1)
                 json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));
