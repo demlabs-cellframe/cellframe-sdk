@@ -576,13 +576,14 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
         }
         if (l_full) {
             printf("_________________________________________________________________________________________________________________"
+                "_________________________"
                    "_________________________________________________________________________________________________________________\n");
-            printf(" %-22s | %-69s | %-9s | %-7s | %-10s | %-106s | %-10s |\n",
+            printf(" %-22s| %-69s| %-9s | %-7s | %-10s | %-106s| %-10s |\n",
                    "Node addres", "Pkey hash", "Stake val", "Eff val", "Rel weight", "Sover addr", "Sover tax");
         } else {
-            printf("__________________________________________________________________________________________________"
+            printf("________________________________________________________________________________________________"
                    "_______________________________________________________________________\n");
-            printf(" %-22s | %-69s | %-9s | %-7s | %-10s | %-21s | %-10s |\n",
+            printf(" %-22s| %-69s| %-9s | %-7s | %-10s | %-21s | %-10s |\n",
                    "Node addres", "Pkey hash", "Stake val", "Eff val", "Rel weight", "Sover addr", "Sover tax");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
@@ -611,14 +612,15 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
                     const char *node_addr_full = json_object_get_string(j_obj_node_addr);
                     const char *pkey_hash_full = json_object_get_string(j_obj_pkey_hash);
                     const char *sover_addr_full = json_object_get_string(j_obj_sovereign_addr);
+                    int value_coins_width = l_full ? 104 : 20;
                     const char *sovereign_addr_str = (sover_addr_full && strcmp(sover_addr_full, "null")) ?
-                                                     (l_full ? sover_addr_full : sover_addr_full + 85) : "-------------------";
-                    printf("%22s | %66s  |    %4d   |   %4d  |   %4d     |%s    |   %s \t|",
+                                                     (l_full ? sover_addr_full : sover_addr_full + 85) : "------------------- ";
+                    printf("%-22s | %-69s|    %4d   |   %4d  |   %4d     | %-*s  |   %-8s |",
                             node_addr_full, pkey_hash_full,
                             json_object_get_int(j_obj_stake_value),
                             json_object_get_int(j_obj_effective_value),
                             json_object_get_int(j_obj_related_weight), 
-                            sovereign_addr_str,
+                            value_coins_width, sovereign_addr_str,
                             json_object_get_string(j_obj_sovereign_tax));
                 } else {
                     printf("Missing required fields in array element at index %d\n", i);
@@ -631,7 +633,7 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
             printf("\n");
         }        
         if (!l_full) {
-            printf("________________________|_______________________________________________________________________|__"
+            printf("_______________________|______________________________________________________________________|__"
                    "_________|_________|____________|_______________________|____________|\n\n");
         }
         if (json_obj_total)

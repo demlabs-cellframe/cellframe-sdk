@@ -1842,7 +1842,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time)) {
+                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time)) {
                                 i_tmp++;
                             } else {
                                 if (l_to_hash_str && !l_hash_flag) {
