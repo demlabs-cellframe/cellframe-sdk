@@ -1739,9 +1739,6 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         struct tm *l_localtime = localtime((time_t *)&l_to_time);
                         l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
                         l_to_time = mktime(l_localtime);
-                        char buf[DAP_TIME_STR_SIZE];
-                        dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_to_time);
-                        printf("l_to_time: %s\n", buf);
                     } else {
                         if (l_from_time > l_to_time) {
                             struct tm *l_localtime = localtime((time_t *)&l_from_time);
