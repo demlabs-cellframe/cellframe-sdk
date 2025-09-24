@@ -212,9 +212,9 @@ int dap_chain_cs_esbocs_init()
             "\tShow list of validators public key hashes allowed to work in emergency mode\n"
         "esbocs status -net <net_name> [-chain <chain_name>]\n"
             "\tShow current esbocs consensus status\n"
-        "esbocs blockgen_period set -net <net_name> [-chain <chain_name>] -val_count <uint16_t value>\n"
+        "esbocs empty_block_every_times set -net <net_name> [-chain <chain_name>] -round_count <uint16_t value>\n"
             "\tSets empty block generation every times\n"
-        "esbocs blockgen_period show -net <net_name> [-chain <chain_name>]\n"
+        "esbocs empty_block_every_times show -net <net_name> [-chain <chain_name>]\n"
             "\tShow empty block generation every times\n");
     return 0;
 }
@@ -3101,7 +3101,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_empty_block_every_times(dap
                                                                     *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
     if (!l_decree)
         return NULL;
-    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BLOCKGEN;
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN;
     dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD, &a_value, sizeof(uint16_t));
     return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
@@ -3187,7 +3187,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         SUBCMD_CHECK_SIGNS_STRUCTURE,
         SUBCMD_EMERGENCY_VALIDATOR,
         SUBCMD_STATUS,
-        SUBCMD_BLOCKGEN_PERIOD
+        SUBCMD_EMPTY_BLOCKGEN_PERIOD
     } l_subcmd = SUBCMD_UNDEFINED;
     const char *l_subcmd_strs[] = {
         [SUBCMD_UNDEFINED] = NULL,
@@ -3195,7 +3195,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         [SUBCMD_CHECK_SIGNS_STRUCTURE] = "check_signs_structure",
         [SUBCMD_EMERGENCY_VALIDATOR] = "emergency_validators",
         [SUBCMD_STATUS] = "status",
-        [SUBCMD_BLOCKGEN_PERIOD] = "blockgen_period"
+        [SUBCMD_EMPTY_BLOCKGEN_PERIOD] = "empty_block_every_times"
     };
 
     const size_t l_subcmd_str_count = sizeof(l_subcmd_strs) / sizeof(char *);
@@ -3216,7 +3216,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "disable") > 0 && l_subcmd == SUBCMD_CHECK_SIGNS_STRUCTURE) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "add") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "remove") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR) ||
-                (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "set") > 0 && l_subcmd == SUBCMD_BLOCKGEN_PERIOD))
+                (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "set") > 0 && l_subcmd == SUBCMD_EMPTY_BLOCKGEN_PERIOD))
         {
             if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "enable") != -1 ||
                     dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "add") != -1)
@@ -3280,10 +3280,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         }            
     } break;
 
-    case SUBCMD_BLOCKGEN_PERIOD: {        
+    case SUBCMD_EMPTY_BLOCKGEN_PERIOD: {        
         if (!l_subcommand_show) {
             const char *l_value_str = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-val_count", &l_value_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-round_count", &l_value_str);
             if (!l_value_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
@@ -3305,7 +3305,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             }
         } else{
             json_object * json_obj_out = json_object_new_object();
-            json_object_object_add(json_obj_out, "blockgen_period", json_object_new_uint64(l_esbocs_pvt->empty_block_every_times));
+            json_object_object_add(json_obj_out, "empty_block_every_times", json_object_new_uint64(l_esbocs_pvt->empty_block_every_times));
             json_object_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
@@ -3467,7 +3467,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     return ret;
 }
 
-int dap_chain_esbocs_set_blockgen_period(dap_chain_t *a_chain, uint16_t a_blockgen_period)
+int dap_chain_esbocs_set_empty_block_every_times(dap_chain_t *a_chain, uint16_t a_blockgen_period)
 {
     dap_return_val_if_pass(!a_chain || !DAP_CHAIN_ESBOCS(a_chain), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);

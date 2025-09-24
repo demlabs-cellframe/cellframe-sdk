@@ -78,7 +78,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE         0x000E
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY                        0x0012
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BLOCKGEN                      0x0020
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN                      0x0020
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -138,7 +138,7 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
         return "DECREE_COMMON_SUBTYPE_STAKE_UPDATE";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY:
         return "DECREE_COMMON_SUBTYPE_POLICY";
-    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BLOCKGEN:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN:
         return "DECREE_COMMON_SUBTYPE_BLOCKGEN";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
@@ -177,7 +177,7 @@ DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_de
     } else if (!dap_strcmp(a_decree_type, "policy")) {
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY;
     } else if (!dap_strcmp(a_decree_type, "blockgen")) {
-        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BLOCKGEN;
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN;
     } else {
         return 0;
     }
@@ -344,7 +344,7 @@ dap_chain_policy_t *dap_chain_datum_decree_get_policy(dap_chain_datum_decree_t *
  * @param a_blockgen_period
  * @return result code. 0 - success
  */
-int dap_chain_datum_decree_get_blockgen_period(dap_chain_datum_decree_t *a_decree, uint16_t *a_blockgen_period);
+int dap_chain_datum_decree_get_empty_block_every_times(dap_chain_datum_decree_t *a_decree, uint16_t *a_blockgen_period);
 
 /**
  * @breif dap_chain_datum_decree_dump Dump information about decree
