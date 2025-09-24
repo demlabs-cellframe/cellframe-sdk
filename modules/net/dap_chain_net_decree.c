@@ -663,7 +663,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
-            dap_chain_esbocs_set_empty_block_every_times(l_chain, l_blockgen_period);
+            return dap_chain_esbocs_set_empty_block_every_times(l_chain, l_blockgen_period);
         }
         default:
             return -1;

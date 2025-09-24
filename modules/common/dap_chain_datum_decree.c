@@ -379,6 +379,7 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             uint16_t l_blockgen_period = 0;
             _dap_tsd_get_scalar(l_tsd, &l_blockgen_period);
             json_object_object_add(a_json_out, "blockgen_period", json_object_new_uint64(l_blockgen_period));
+            break;
         default:
             if (a_version == 1)
                 json_object_object_add(a_json_out, "UNKNOWN_TYPE_TSD_SECTION", json_object_new_string(""));
