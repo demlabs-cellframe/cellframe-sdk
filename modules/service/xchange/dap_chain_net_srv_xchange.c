@@ -3133,7 +3133,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                             for(size_t j = i+1; j< l_tickers_count; j++){
                                 if(l_tickers[i] && l_tickers[j] && i != j){
                                     if ((l_arr_start && i_tmp < l_arr_start) || 
-                                        (l_arr_end &&i_tmp > l_arr_end)) {
+                                        (l_arr_end &&i_tmp >= l_arr_end)) {
                                         i_tmp++;
                                         continue;
                                     }
