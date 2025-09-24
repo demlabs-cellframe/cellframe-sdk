@@ -106,7 +106,8 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
                                  size_t *a_block_links_count,
                                  bool *a_is_genesis,
                                  uint64_t *a_nonce,
-                                 uint64_t *a_nonce2);
+                                 uint64_t *a_nonce2,
+                                 bool *a_blockgen);
 // Add datum in block
 size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size);
 size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);

@@ -52,6 +52,7 @@ typedef struct dap_chain_block_cache {
     uint64_t nonce;
     uint64_t nonce2;
     bool is_genesis;
+    bool is_blockgen;
 
     // Block's signatures
     size_t sign_count; // Number of signatures in block's tail
