@@ -3469,9 +3469,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
 int dap_chain_esbocs_set_blockgen_period(dap_chain_t *a_chain, uint16_t a_blockgen_period)
 {
-    dap_return_val_if_fail(!a_chain || DAP_CHAIN_ESBOCS(a_chain), -1);
+    dap_return_val_if_pass(!a_chain || !DAP_CHAIN_ESBOCS(a_chain), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_return_val_if_fail(!DAP_CHAIN_ESBOCS(l_blocks) || !PVT(DAP_CHAIN_ESBOCS(l_blocks)), -2);
+    dap_return_val_if_pass(!DAP_CHAIN_ESBOCS(l_blocks) || !PVT(DAP_CHAIN_ESBOCS(l_blocks)), -2);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->empty_block_every_times = a_blockgen_period;
