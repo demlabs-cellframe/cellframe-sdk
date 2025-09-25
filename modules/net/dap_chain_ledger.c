@@ -5437,7 +5437,7 @@ dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_ch
 dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                                        uint256_t a_value_need, uint256_t *a_value_transfer)
 {
-    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+    /*dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     dap_chain_hash_fast_t l_tx_cur_hash = { };
     uint256_t l_value_transfer = { };
     dap_chain_datum_tx_t *l_tx;
@@ -5506,12 +5506,15 @@ dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const c
     return compare256(l_value_transfer, a_value_need) >= 0 && l_list_used_out
         ? ({ if (a_value_transfer) *a_value_transfer = l_value_transfer; l_list_used_out; })
         : ( dap_list_free_full(l_list_used_out, NULL), NULL );
+        */
+    return dap_ledger_get_list_tx_outs_unspent_by_addr(a_ledger, a_token_ticker, a_addr_from, &a_value_need, a_value_transfer);
 }
 
 dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                         uint256_t *a_value_transfer)
 {
-    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+    return dap_ledger_get_list_tx_outs_unspent_by_addr(a_ledger, a_token_ticker, a_addr_from, NULL, a_value_transfer);
+    /*dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     dap_chain_hash_fast_t l_tx_cur_hash = { };
     uint256_t l_value_transfer = {};
     dap_chain_datum_tx_t *l_tx;
@@ -5568,7 +5571,7 @@ dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_to
         }
     }
     if (a_value_transfer) *a_value_transfer = l_value_transfer;
-    return l_list_used_out;
+    return l_list_used_out;*/
 }
 
 dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, const char *a_token,
@@ -5629,12 +5632,14 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
             if ( s_ledger_tx_hash_is_used_out_item(l_cur, l_out_idx, NULL) )
                 continue;
             if ( a_token && dap_strcmp(l_token, a_token) )
-                continue;
+                continue; 
             if ( a_addr && !dap_chain_addr_compare(a_addr, &l_addr) )
                 continue;
 
             dap_chain_tx_used_out_item_t *l_utxo = DAP_NEW(dap_chain_tx_used_out_item_t);
             *l_utxo = (dap_chain_tx_used_out_item_t) { l_cur->tx_hash_fast, (uint32_t)l_out_idx, l_value };
+            log_it(L_DEBUG, "UTXO: tx %s out #%d",
+                dap_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx);
             l_ret = dap_list_append(l_ret, l_utxo);
             SUM_256_256(*a_out_value, l_value, a_out_value);
             if ( a_limit && compare256(*a_out_value, *a_limit) != -1 ) {
