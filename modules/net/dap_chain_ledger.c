@@ -24,6 +24,7 @@
  */
 
 #include "dap_common.h"
+#include "dap_math_convert.h"
 #include <dirent.h>
 #ifdef _WIN32
 #include <winsock2.h>
@@ -5558,6 +5559,88 @@ dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_to
     }
     if (a_value_transfer) *a_value_transfer = l_value_transfer;
     return l_list_used_out;
+}
+
+dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, const char *a_token,
+        const dap_chain_addr_t *a_addr, const uint256_t *a_limit, uint256_t *a_out_value)
+{
+    if ( !a_ledger || ( a_limit && IS_ZERO_256(*a_limit) ) ) return NULL;
+    dap_list_t *l_ret = NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_ledger_tx_item_t *l_cur, *l_tmp;
+    uint256_t l_out_value = { };
+    if ( a_out_value )
+        *a_out_value = (uint256_t){ };
+    else if ( a_limit )
+        a_out_value = &l_out_value;
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    HASH_ITER(hh, l_ledger_pvt->ledger_items, l_cur, l_tmp) {
+        if ( l_cur->cache_data.ts_spent )
+            continue;
+        if ( a_token && dap_strcmp(l_cur->cache_data.token_ticker, a_token) && !l_cur->cache_data.multichannel )
+            continue;
+        byte_t *l_item; size_t l_size; int l_out_idx = -1;
+        TX_ITEM_ITER_TX(l_item, l_size, l_cur->tx) {
+            dap_chain_addr_t l_addr = { };
+            uint256_t l_value;
+            const char *l_token;
+            switch (*l_item) {
+            case TX_ITEM_TYPE_OUT:
+                ++l_out_idx;
+                l_addr = ((dap_chain_tx_out_t*)l_item)->addr;
+                l_value = ((dap_chain_tx_out_t*)l_item)->header.value;
+                l_token = a_token ? dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_cur->tx_hash_fast) : NULL;
+                break;
+            case TX_ITEM_TYPE_OUT_OLD:
+                ++l_out_idx;
+                l_addr = ((dap_chain_tx_out_old_t*)l_item)->addr;
+                l_value = GET_256_FROM_64( ((dap_chain_tx_out_old_t*)l_item)->header.value );
+                l_token = a_token ? dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_cur->tx_hash_fast) : NULL;
+                break;
+            case TX_ITEM_TYPE_OUT_EXT:
+                ++l_out_idx;
+                l_addr = ((dap_chain_tx_out_ext_t*)l_item)->addr;
+                l_value = ((dap_chain_tx_out_ext_t*)l_item)->header.value;
+                l_token = a_token ? ((dap_chain_tx_out_ext_t*)l_item)->token : NULL;
+                break;
+            case TX_ITEM_TYPE_OUT_STD:
+                ++l_out_idx;
+                if ( ((dap_chain_tx_out_std_t*)l_item)->ts_unlock > dap_ledger_get_blockchain_time(a_ledger) )
+                    continue;
+                l_addr = ((dap_chain_tx_out_std_t*)l_item)->addr;
+                l_value = ((dap_chain_tx_out_std_t*)l_item)->value;
+                l_token = a_token ? ((dap_chain_tx_out_std_t*)l_item)->token : NULL;
+                break;
+            case TX_ITEM_TYPE_OUT_COND:
+                ++l_out_idx;
+            default:
+                continue;
+            }
+            if ( s_ledger_tx_hash_is_used_out_item(l_cur, l_out_idx, NULL) )
+                continue;
+            if ( a_token && dap_strcmp(l_token, a_token) )
+                continue;
+            if ( a_addr && !dap_chain_addr_compare(a_addr, &l_addr) )
+                continue;
+
+            dap_chain_tx_used_out_item_t *l_utxo = DAP_NEW(dap_chain_tx_used_out_item_t);
+            *l_utxo = (dap_chain_tx_used_out_item_t) { l_cur->tx_hash_fast, (uint32_t)l_out_idx, l_value };
+            l_ret = dap_list_append(l_ret, l_utxo);
+            SUM_256_256(*a_out_value, l_value, a_out_value);
+            if ( a_limit && compare256(*a_out_value, *a_limit) != -1 ) {
+                a_limit = NULL;
+                goto complete;
+            }
+        }
+    }
+complete:
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    if ( a_limit ) {
+        log_it(L_INFO, "Limit not reached"); // TODO: extend log with new static output
+        dap_list_free_full(l_ret, NULL);
+        l_ret = NULL;
+    }
+    return l_ret;
 }
 
 
