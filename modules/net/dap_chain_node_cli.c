@@ -334,7 +334,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, NULL, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool",
-                "mempool_add  -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
+                "mempool_add  -net <net_name> [-chain <chain_name>] -json <json_file_path> | -tx_obj <tx_json_object>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, NULL, "Make cond transaction",
                                         "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
                                         " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n" );
