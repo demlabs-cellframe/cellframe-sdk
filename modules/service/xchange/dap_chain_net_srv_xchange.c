@@ -110,7 +110,7 @@ static xchange_cache_state_t s_xchange_cache_state = XCHANGE_CACHE_DISABLED;
 
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
 static int s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                            dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+                            dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid = {.uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID};
 
 
@@ -333,7 +333,7 @@ void dap_chain_net_srv_xchange_deinit()
  * @return
  */
 static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
-                                           dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+                                           dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply)
 {
     if (a_owner)
         return 0;
@@ -2644,7 +2644,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
             dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
-            json_object_object_add(json_obj_order, "pagina", json_arr_orders_limit);
+            json_object_object_add(json_obj_order, "page", json_arr_orders_limit);
 
             size_t i_tmp = 0;
 
