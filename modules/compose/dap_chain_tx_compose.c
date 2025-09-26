@@ -45,7 +45,7 @@
 #define LOG_TAG "dap_chain_tx_compose"
 
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-#include "../../dap-sdk/crypto/src/rand/dap_rand.h"
+#include "rand/dap_rand.h"
 #endif
 
 static compose_config_t* s_compose_config_init(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
@@ -4933,7 +4933,7 @@ dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
                                      "Failed to get hash from string");
             return NULL;
         }
-        l_tx = s_get_datum_info_from_rpc(l_spent_by_hash, a_config, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_cond_tx, &l_spent_by_hash, a_token_ticker, a_prev_cond_idx, true);
+        l_tx = s_get_datum_info_from_rpc(l_spent_by_hash, a_config, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_cond_tx, &l_spent_by_hash, a_token_ticker, (int*)a_prev_cond_idx, true);
 
         if (!l_tx) {
             log_it(L_ERROR, "failed to get datum info from remote node");

@@ -253,6 +253,43 @@ void dap_chain_net_srv_stake_pos_delegate_deinit()
     s_srv_stake_list = NULL;
 }
 
+// Custom conditional output matching callback for staking
+// Allows adding additional fields to the conditional output while preserving base structure
+static int s_stake_cond_out_match(dap_chain_tx_out_cond_t *a_prev_cond, dap_chain_tx_out_cond_t *a_new_cond)
+{
+    // Check basic header compatibility
+    if (a_new_cond->header.subtype != a_prev_cond->header.subtype ||
+            a_new_cond->header.ts_expires != a_prev_cond->header.ts_expires ||
+            !dap_chain_net_srv_uid_compare(a_new_cond->header.srv_uid, a_prev_cond->header.srv_uid)) {
+        log_it(L_WARNING, "Staking: Conditional out and conditional in have different headers");
+        return -3;
+    }
+
+    // For staking, allow TSD section to be extended (new size >= old size)
+    if (a_new_cond->tsd_size < a_prev_cond->tsd_size) {
+        log_it(L_WARNING, "Staking: New conditional output TSD size %u is smaller than original %u", 
+               a_new_cond->tsd_size, a_prev_cond->tsd_size);
+        return -4;
+    }
+
+    // Check that original TSD data is preserved (if exists)
+    if (a_prev_cond->tsd_size > 0 &&
+            memcmp(a_new_cond->tsd, a_prev_cond->tsd, a_prev_cond->tsd_size)) {
+        log_it(L_WARNING, "Staking: Original TSD section data has been modified");
+        return -5;
+    }
+
+    // Check staking-specific fields preservation
+    if (dap_chain_addr_is_blank(&a_new_cond->subtype.srv_stake_pos_delegate.signing_addr) ||
+            a_new_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {
+        log_it(L_WARNING, "Staking: Address or key fields are blank in new conditional tx");
+        return -9;
+    }
+
+    // All checks passed - conditional outputs match correctly with allowed extensions
+    return 0;
+}
+
 static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                          dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply)
 {
@@ -260,30 +297,7 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
     dap_return_val_if_fail(l_srv_stake, -2);
 
-#define m_cond_check()                                                                              \
-(                                                                                                   \
-    {                                                                                               \
-        if (l_tx_new_cond->header.subtype != a_cond->header.subtype ||                              \
-                l_tx_new_cond->header.ts_expires != a_cond->header.ts_expires ||                    \
-                !dap_chain_net_srv_uid_compare(l_tx_new_cond->header.srv_uid,                       \
-                                               a_cond->header.srv_uid)                              \
-                ) {                                                                                 \
-            log_it(L_WARNING, "Conditional out and conditional in have different headers");         \
-            return -3;                                                                              \
-        }                                                                                           \
-        if (l_tx_new_cond->tsd_size < a_cond->tsd_size ||                                          \
-                memcmp(l_tx_new_cond->tsd, a_cond->tsd, a_cond->tsd_size)) {                        \
-            log_it(L_WARNING, "Conditional out and conditional in have different TSD sections");    \
-            return -4;                                                                              \
-        }                                                                                           \
-        if (dap_chain_addr_is_blank(&l_tx_new_cond->subtype.srv_stake_pos_delegate.signing_addr) || \
-                l_tx_new_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {       \
-            log_it(L_WARNING, "Not blank address or key fields in order conditional tx");           \
-            return -5;                                                                              \
-        }                                                                                           \
-    }                                                                                               \
-)
-    int l_out_idx = 0;
+    int l_out_idx = 0, l_ret = 0;
     dap_chain_tx_out_cond_t *l_tx_new_cond = dap_chain_datum_tx_out_cond_get(
                                                 a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_idx);
     // It's a order conditional TX
@@ -295,7 +309,9 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             log_it(L_ERROR, "Condition not found in conditional tx");
             return -13;
         }
-        m_cond_check();
+        l_ret = s_stake_cond_out_match(a_cond, l_tx_new_cond);
+        if (l_ret != 0)
+            return l_ret;
 
         if (compare256(l_tx_new_cond->header.value, a_cond->header.value)) {
             log_it(L_WARNING, "Conditional out and conditional in have different values");
@@ -310,7 +326,9 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
     // Delegation value update (dynamic weight feature)
     if (l_tx_new_cond) {
 
-        m_cond_check();
+        l_ret = s_stake_cond_out_match(a_cond, l_tx_new_cond);
+        if (l_ret != 0)
+            return l_ret;
 
         if (!dap_chain_addr_compare(&l_tx_new_cond->subtype.srv_stake_pos_delegate.signing_addr,
                                     &a_cond->subtype.srv_stake_pos_delegate.signing_addr)) {
@@ -342,7 +360,8 @@ static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out
             log_it(L_ERROR, "Blank hash of prev tx in tx_in_cond");
             return -7;
         }
-        if (a_tx_in->header.ts_created < 1706227200) // Jan 26 2024 00:00:00 GMT, old policy rules
+        // Legacy bypass tied to blockchain time, not user-supplied ts_created
+        if (dap_ledger_get_blockchain_time(a_ledger) < dap_config_get_item_uint64_default(g_config, "stake", "policy_cutoff_date", 1706227200ULL))
             return 0;
         dap_chain_net_srv_stake_item_t *l_stake = NULL;
         HASH_FIND(ht, l_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);
@@ -394,7 +413,6 @@ static bool s_srv_stake_is_poa_cert(dap_chain_net_t *a_net, dap_enc_key_t *a_key
     return l_is_poa_cert;
 }
 
-#define LIMIT_DELTA UINT64_C(1000000000000) // 1.0e-6
 static bool s_weights_truncate(dap_chain_net_srv_stake_t *l_srv_stake, const uint256_t a_limit)
 {
     uint256_t l_sum = uint256_0;
@@ -406,7 +424,12 @@ static bool s_weights_truncate(dap_chain_net_srv_stake_t *l_srv_stake, const uin
     uint256_t l_sum_others = l_sum;
     for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next) {
         uint256_t l_weight_with_delta;
-        SUBTRACT_256_256(it->value, GET_256_FROM_64(LIMIT_DELTA), &l_weight_with_delta);
+        if (SUBTRACT_256_256(it->value,
+            GET_256_FROM_64(dap_config_get_item_uint64_default(g_config, "stake", "weight_limit_delta", 1000000000000ULL)),
+            &l_weight_with_delta)) {
+            log_it(L_ERROR, "Weight limit delta calculation overflow in stake weights truncate");
+            return true;
+        }
         if (compare256(l_weight_with_delta, l_weight_max) == 1) {
             SUBTRACT_256_256(l_sum_others, it->value, &l_sum_others);
             it->value = uint256_0;
@@ -2048,8 +2071,11 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                                     l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
                                     l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
                                     l_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
-                                    MULT_256_256(l_tax, GET_256_FROM_64(100), &l_tax);
-                                    l_error = false;
+                                    if (MULT_256_256(l_tax, GET_256_FROM_64(100), &l_tax)) {
+                                        log_it(L_ERROR, "Tax calculation multiplication overflow");
+                                        l_error = true;
+                                    } else
+                                        l_error = false;
                                 }
                             }
                         }                   
@@ -2260,7 +2286,11 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             l_sovereign_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
             l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
             l_sovereign_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
-            MULT_256_256(l_sovereign_tax, GET_256_FROM_64(100), &l_sovereign_tax);
+            if (MULT_256_256(l_sovereign_tax, GET_256_FROM_64(100), &l_sovereign_tax)) {
+                log_it(L_ERROR, "Tax calculation multiplication overflow");
+                DAP_DEL_MULTY(l_order, l_pkey);
+                return DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_TAX_ERR;
+            }
 #if EXTENDED_SRV_DEBUG
             {
                 char *l_tax_str = dap_chain_balance_to_coins(l_sovereign_tax);
@@ -2871,14 +2901,20 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     char *l_balance = dap_chain_balance_to_coins(a_stake->locked_value);
     char *l_effective_weight = dap_chain_balance_to_coins(a_stake->value);
     uint256_t l_rel_weight, l_tmp;
-    MULT_256_256(a_stake->value, GET_256_FROM_64(100), &l_tmp);
+    if (MULT_256_256(a_stake->value, GET_256_FROM_64(100), &l_tmp)) {
+        log_it(L_ERROR, "Related weight calculation multiplication overflow");
+        return;
+    }
     DIV_256_COIN(l_tmp, a_total_weight, &l_rel_weight);
     char *l_rel_weight_str = dap_chain_balance_to_coins(l_rel_weight);
         // snprintf(l_active_str, 32, "\tActive: %s\n", a_stake->is_active ? "true" : "false");
     const char *l_sov_addr_str = dap_chain_addr_is_blank(&a_stake->sovereign_addr) ?
                 "null" : dap_chain_addr_to_str_static(&a_stake->sovereign_addr);
     uint256_t l_sov_tax_percent = uint256_0;
-    MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent);
+    if (MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent)) {
+        log_it(L_ERROR, "Sovereign tax calculation multiplication overflow");
+        return;
+    }
     char *l_sov_tax_str = dap_chain_balance_to_coins(l_sov_tax_percent);
     char l_node_addr[32];
     snprintf(l_node_addr, 32, ""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
@@ -3440,7 +3476,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
                 uint256_t l_percent_max = dap_chain_net_srv_stake_get_percent_max(l_net->pub.id);
                 const char *l_percent_max_str = NULL;
                 if (!IS_ZERO_256(l_percent_max)) {
-                    MULT_256_256(l_percent_max, GET_256_FROM_64(100), &l_percent_max);
+                    if (MULT_256_256(l_percent_max, GET_256_FROM_64(100), &l_percent_max)) {
+                        log_it(L_ERROR, "Percent max multiplication overflow");
+                        json_object_put(l_json_obj_keys_count);
+                        return DAP_CHAIN_NODE_CLI_SRV_STAKE_PARAM_ERR;
+
+                    }
                     dap_uint256_to_char(l_percent_max, &l_percent_max_str);
                 }
                 json_object_object_add(l_json_obj_keys_count, "each_validator_max_related_weight", json_object_new_string(IS_ZERO_256(l_percent_max) ? "100" : l_percent_max_str));
