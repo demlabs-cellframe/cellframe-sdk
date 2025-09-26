@@ -430,7 +430,8 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const c
                                                  const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash, bool a_unspent_only);
 
 dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, const char *a_token,
-        const dap_chain_addr_t *a_addr, const uint256_t *a_limit, uint256_t *a_out_value);
+        const dap_chain_addr_t *a_addr, const uint256_t *a_limit, uint256_t *a_out_value,
+        bool a_cond_only, dap_chain_tx_out_cond_subtype_t a_cond_subtype);
 
 bool dap_ledger_tx_check_recipient(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_tx_prev_hash, dap_chain_addr_t *a_addr);
 
