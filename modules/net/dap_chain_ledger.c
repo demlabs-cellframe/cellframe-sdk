@@ -3930,7 +3930,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_err_num = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 break;
             }
-            strcpy(l_value_cur->token_ticker, l_token);
+            dap_strncpy(l_value_cur->token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
             HASH_ADD_STR(l_values_from_prev_tx, token_ticker, l_value_cur);
         }
         // calculate  from previous transactions per each token
@@ -3951,7 +3951,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             HASH_DEL(l_values_from_prev_tx, l_value_cur);
             DAP_DELETE(l_value_cur);
         }
-        return l_err_num;
+    return l_err_num;
     }
 
     // 6. Compare sum of values in 'out' items
@@ -4074,7 +4074,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_err_num = DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
                 break;
             }
-            strcpy(l_value_cur->token_ticker, l_token);
+            dap_strncpy(l_value_cur->token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
             HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
         }
         if (SUM_256_256(l_value_cur->sum, l_value, &l_value_cur->sum)) {
@@ -4323,7 +4323,7 @@ int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_add
             return -1;
         }
         l_wallet_balance->key = l_wallet_balance_key;
-        strcpy(l_wallet_balance->token_ticker, a_token_ticker);
+        dap_strncpy(l_wallet_balance->token_ticker, a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
         SUM_256_256(l_wallet_balance->balance, a_value, &l_wallet_balance->balance);
         debug_if(s_debug_more, L_DEBUG, "Create new balance item: %s %s", l_addr_str, a_token_ticker);
         HASH_ADD_KEYPTR(hh, PVT(a_ledger)->balance_accounts, l_wallet_balance->key,
