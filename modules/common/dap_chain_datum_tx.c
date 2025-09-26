@@ -85,7 +85,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     tx_new->header.tx_items_size += l_item_size;
     *a_tx = tx_new;
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    char *l_hash = dap_hash_fast_str_new(a_item, size);
+    char *l_hash = dap_hash_fast_str_new(a_item, l_item_size);
     log_it(L_INFO, "Add \"%s\" item %s\n",  dap_chain_datum_tx_item_type_to_str_short(*(byte_t *)(a_item)), l_hash);
     DAP_DELETE(l_hash);
 #endif
