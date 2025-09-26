@@ -108,11 +108,19 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(con
 size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size) {
     dap_return_val_if_fail(a_item, 0);
 #define m_tx_item_size(t) ( !a_max_size || sizeof(t) <= a_max_size ? sizeof(t) : 0 )
-#define m_tx_item_size_ext(t, size_field)                                                                                       \
-    ( !a_max_size ||                                                                                                            \
-    ( sizeof(t) <= a_max_size && a_max_size > ((t*)a_item)->size_field && sizeof(t) <= a_max_size - ((t*)a_item)->size_field )  \
-        ? sizeof(t) + ((t*)a_item)->size_field : 0 );
+/*
+ * Safe calculation for structures with variable-size tail (size_field):
+ * - When a_max_size > 0: ensure header fits, payload fits into a_max_size and no underflow in (a_max_size - size_field)
+ * - When a_max_size == 0: guard against size_t overflow in sizeof(t) + size_field
+ */
+#define m_tx_item_size_ext(t, size_field) \
+    ( a_max_size \
+        ? ( ( sizeof(t) <= a_max_size ) && ( (size_t)((t*)a_item)->size_field <= a_max_size - sizeof(t) ) \
+          ? ( sizeof(t) + (size_t)((t*)a_item)->size_field ) : 0 \
+        ) : ( ( (sizeof(t) + (size_t)((t*)a_item)->size_field) >= sizeof(t) ) ? ( sizeof(t) + (size_t)((t*)a_item)->size_field ) : 0 ) \
+    )
 
+    size_t l_receipt_size = 0;
     switch (*a_item) {
     case TX_ITEM_TYPE_IN:       return m_tx_item_size(dap_chain_tx_in_t);
     case TX_ITEM_TYPE_OUT_OLD:  return m_tx_item_size(dap_chain_tx_out_old_t);
@@ -125,27 +133,27 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_VOTING:   return m_tx_item_size(dap_chain_tx_voting_t);
     case TX_ITEM_TYPE_VOTE:     return m_tx_item_size(dap_chain_tx_vote_t);
     // Access data size by struct field
-    case TX_ITEM_TYPE_TSD:           return m_tx_item_size_ext(dap_chain_tx_tsd_t, header.size);
+    case TX_ITEM_TYPE_TSD:      return m_tx_item_size_ext(dap_chain_tx_tsd_t, header.size);
     case TX_ITEM_TYPE_OUT_COND: return m_tx_item_size_ext(dap_chain_tx_out_cond_t, tsd_size);
-    case TX_ITEM_TYPE_PKEY:         return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.sig_size);
-    case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
+    case TX_ITEM_TYPE_PKEY:     return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.sig_size);
+    case TX_ITEM_TYPE_SIG:      return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
     // Receipt size calculation is non-trivial...
-    case TX_ITEM_TYPE_RECEIPT_OLD:{
-        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
-            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_old_t) < a_max_size && 
-                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size < a_max_size ) ? 
-                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size : 0;
-    }
-    case TX_ITEM_TYPE_RECEIPT:{
-        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version == 2) 
-            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_t) < a_max_size && 
-                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size < a_max_size ) ? 
-                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size : 0;
-    }
-    default: return 0;
+    case TX_ITEM_TYPE_RECEIPT_OLD:
+        if ( ((const dap_chain_datum_tx_receipt_old_t*)a_item)->receipt_info.version > 1 )
+            break;
+        else l_receipt_size = ((const dap_chain_datum_tx_receipt_old_t*)a_item)->size;
+    case TX_ITEM_TYPE_RECEIPT:
+        if ( !l_receipt_size ) {
+            if ( ((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version != 2 )
+                break;
+            else l_receipt_size = ((const dap_chain_datum_tx_receipt_t*)a_item)->size;
+        }
+        return l_receipt_size ? a_max_size ? l_receipt_size <= a_max_size ? l_receipt_size : 0 : l_receipt_size : 0;
+    default: break;
     }
 #undef m_tx_item_size
 #undef m_tx_item_size_ext
+    return 0;
 }
 
 /**
