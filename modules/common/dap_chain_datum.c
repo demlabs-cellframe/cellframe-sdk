@@ -50,18 +50,25 @@
  */
 dap_chain_datum_t *dap_chain_datum_create(uint16_t a_type_id, const void *a_data, size_t a_data_size)
 {
-   dap_chain_datum_t *l_datum = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_datum_t, sizeof(dap_chain_datum_t) + a_data_size, NULL);
-   *l_datum = (dap_chain_datum_t) {
+    if (a_data_size > UINT32_MAX) {
+        log_it(L_ERROR, "Data size %zu exceeds max value", a_data_size);
+        return NULL;
+    }
+    
+    dap_chain_datum_t *l_datum = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_datum_t, sizeof(dap_chain_datum_t) + a_data_size, NULL);
+    *l_datum = (dap_chain_datum_t) {
         .header = {
             .version_id = DAP_CHAIN_DATUM_VERSION,
             .type_id    = a_type_id,
             .data_size  = (uint32_t)a_data_size,
             .ts_create  = dap_time_now()
         }
-   };
-   memcpy(l_datum->data, a_data, (uint32_t)a_data_size);
-   return  l_datum;
+    };
+    if (a_data && a_data_size)
+        memcpy(l_datum->data, a_data, a_data_size);
+    return  l_datum;
 }
+
 void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type)
 {
     dap_tsd_t *l_tsd_begin = dap_chain_datum_token_tsd_get(a_token, a_token_size);
