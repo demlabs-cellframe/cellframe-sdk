@@ -1653,6 +1653,11 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "UNKNOWN", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
         bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->chain->generation;
+        dap_hash_fast_t l_zero_hash = {0};
+        if (!memcmp(l_datum_hash, &l_zero_hash, sizeof(dap_hash_fast_t)))
+            continue;
+        dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
+
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) { // If this is any datum other than a already cached transaction
             l_ret++;
