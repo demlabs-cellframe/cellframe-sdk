@@ -150,7 +150,7 @@ DAP_STATIC_INLINE void dap_chain_datum_calc_hash(const dap_chain_datum_t *a_datu
 {
     if (!a_datum || !a_out_hash)
         return;
-    dap_hash_fast(a_datum->data, a_datum->header.data_size, a_out_hash);
+    dap_hash_fast(a_datum->header.data_size ? a_datum->data : a_datum, a_datum->header.data_size ? a_datum->header.data_size : dap_chain_datum_size(a_datum), a_out_hash);
 }
 
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
