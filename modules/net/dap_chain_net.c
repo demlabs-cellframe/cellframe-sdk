@@ -254,7 +254,7 @@ int dap_chain_net_init()
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
-    dap_cli_server_cmd_add ("net", s_cli_net, NULL, "Network commands",
+    dap_cli_server_cmd_add_ex ("net", s_cli_net, NULL, true, "Network commands",
         "net list [chains -net <net_name>]\n"
             "\tList all networks or list all chains in selected network\n"
         "net -net <net_name> [-mode {update | all}] go {online | offline | sync}\n"
@@ -279,6 +279,7 @@ int dap_chain_net_init()
             "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
         "net -net <net_name> poa_certs list\n"
             "\tPrint list of PoA cerificates for this network\n");
+    dap_cli_server_cmd_set_json_response("net", true);
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
     s_node_list_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_ttl", s_node_list_ttl);
