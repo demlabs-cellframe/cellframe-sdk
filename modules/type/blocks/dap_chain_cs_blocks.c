@@ -1640,6 +1640,9 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             break;
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
+        dap_hash_fast_t l_zero_hash = {0};
+        if (!memcmp(l_datum_hash, &l_zero_hash, sizeof(dap_hash_fast_t)))
+            continue;
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
 
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
