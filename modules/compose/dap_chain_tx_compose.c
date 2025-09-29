@@ -1049,14 +1049,11 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
     dap_list_t *l_list_fee_out = NULL;
     uint256_t l_net_fee = {};
     dap_chain_addr_t *l_addr_fee = NULL;
-    if (!s_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config)) {
-        log_it(L_ERROR, "failed to get net fee and address");
-        s_json_compose_error_add(a_config->response_handler, -20, "failed to get net fee and address");
-        return NULL;
+    bool l_net_fee_used = s_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+    if (l_net_fee_used) {
+        SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     }
 
-    bool l_net_fee_used = !IS_ZERO_256(l_net_fee);
-    SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     json_object *l_native_outs = NULL;
     json_object *l_outs = NULL;
     int l_outputs_count = 0;
@@ -1876,10 +1873,9 @@ dap_chain_datum_tx_t *dap_chain_mempool_tx_create_cond_compose(dap_chain_addr_t 
         return NULL;
     }
     uint256_t l_net_fee = {};
-    dap_chain_addr_t* l_addr_fee = NULL;
-    dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+    dap_chain_addr_t *l_addr_fee = NULL;
+    bool l_net_fee_used = s_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
 
-    bool l_net_fee_used = !IS_ZERO_256(l_net_fee);
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need = {};
@@ -2166,9 +2162,11 @@ dap_chain_datum_tx_t * dap_stake_lock_datum_create_compose(dap_chain_addr_t *a_w
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need = a_value, l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
-    dap_chain_addr_t * l_addr_fee = NULL;
-    bool l_net_fee_used = dap_get_remote_net_fee_and_address( &l_net_fee, &l_addr_fee, a_config);
-    SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
+    dap_chain_addr_t *l_addr_fee = NULL;
+    bool l_net_fee_used = s_get_remote_net_fee_and_address( &l_net_fee, &l_addr_fee, a_config);
+    if (l_net_fee_used) {
+        SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
+    }
     dap_list_t *l_list_fee_out = NULL;
     json_object *l_outs_native = NULL;
     json_object *l_outs_main = NULL;
@@ -2902,8 +2900,10 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
     const char *l_native_ticker = s_get_native_ticker(a_config->net_name);
     uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer;
     dap_chain_addr_t *l_addr_fee = NULL;
-    bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
-    SUM_256_256(l_net_fee, a_fee, &l_total_fee);
+    bool l_net_fee_used = s_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+    if (l_net_fee_used) {
+        SUM_256_256(l_net_fee, a_fee, &l_total_fee);
+    }
 
 
     dap_chain_addr_t *l_addr_from = NULL;
@@ -5291,7 +5291,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     }
 
     // Add network fee
-    if (l_net_fee_used && !IS_ZERO_256(l_net_fee)) {
+    if (l_net_fee_used) {
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_net_fee_addr, l_net_fee, l_native_ticker) == -1) {
             log_it(L_ERROR, "Can't add net fee output");
             dap_chain_datum_tx_delete(l_tx);
