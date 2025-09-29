@@ -86,20 +86,19 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\tReads a value by key from a specified group.\n\n"
             "global_db delete -group <group_name> -key <key_name>\n"
                 "\tRemoves a value by key from a specified group. Change record to hole type.\n\n"
-            "global_db group_list [-mask <mask>] [-all]\n"
+            "global_db group_list [-mask <mask>] [-all] [-h]\n"
                 "\tGets a list of groups in the database.\n"
                 "\t-mask <mask>: list groups by mask\n"
                 "\t-all: count actual and holes records types\n\n"
             "global_db drop_table -group <group_name>\n"
                 "\tPerforms deletion of the entire group in the database.\n\n"
-            "global_db get_keys -group <group_name>\n"
+            "global_db get_keys -group <group_name> [-h]\n"
                 "\tGets all record keys from a specified group.\n\n"
             "global_db clear -group <group_name> | -mask <mask> | -all [-pinned]\n"
                 "\tRemove all hole type records from a specified group or all groups by mask.\n"
                 "\t-mask <mask>: clear groups by mask\n"
                 "\t-all: clear all groups\n"
                 "\t-pinned: remove pinned records too\n\n"
-            "Note: you can add [-h] to print human-friendly tables for supported subcommands.\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -577,12 +576,15 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
         }
         if (l_full) {
             printf("_________________________________________________________________________________________________________________"
+                "_________________________"
                    "_________________________________________________________________________________________________________________\n");
-            printf(" Node addres \t\t| Pkey hash \t\t\t\t\t\t\t\t| Stake val | Eff val | Rel weight | Sover addr \t\t\t\t\t\t\t\t\t\t\t\t   | Sover tax  |\n");
+            printf(" %-22s| %-69s| %-9s | %-7s | %-10s | %-106s| %-10s |\n",
+                   "Node addres", "Pkey hash", "Stake val", "Eff val", "Rel weight", "Sover addr", "Sover tax");
         } else {
-            printf("__________________________________________________________________________________________________"
+            printf("________________________________________________________________________________________________"
                    "_______________________________________________________________________\n");
-            printf(" Node addres \t\t| Pkey hash \t\t\t\t\t\t\t\t| Stake val | Eff val | Rel weight | Sover addr \t   | Sover tax  |\n");
+            printf(" %-22s| %-69s| %-9s | %-7s | %-10s | %-21s | %-10s |\n",
+                   "Node addres", "Pkey hash", "Stake val", "Eff val", "Rel weight", "Sover addr", "Sover tax");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         result_count = json_object_array_length(json_obj_array);
@@ -610,14 +612,15 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
                     const char *node_addr_full = json_object_get_string(j_obj_node_addr);
                     const char *pkey_hash_full = json_object_get_string(j_obj_pkey_hash);
                     const char *sover_addr_full = json_object_get_string(j_obj_sovereign_addr);
+                    int value_coins_width = l_full ? 104 : 20;
                     const char *sovereign_addr_str = (sover_addr_full && strcmp(sover_addr_full, "null")) ?
-                                                     (l_full ? sover_addr_full : sover_addr_full + 85) : "-------------------";
-                    printf("%s \t| %s\t|    %4d   |   %4d  |   %4d     |%s    |   %s \t|",
+                                                     (l_full ? sover_addr_full : sover_addr_full + 85) : "------------------- ";
+                    printf("%-22s | %-69s|    %4d   |   %4d  |   %4d     | %-*s  |   %-8s |",
                             node_addr_full, pkey_hash_full,
                             json_object_get_int(j_obj_stake_value),
                             json_object_get_int(j_obj_effective_value),
                             json_object_get_int(j_obj_related_weight), 
-                            sovereign_addr_str,
+                            value_coins_width, sovereign_addr_str,
                             json_object_get_string(j_obj_sovereign_tax));
                 } else {
                     printf("Missing required fields in array element at index %d\n", i);
@@ -630,7 +633,7 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
             printf("\n");
         }        
         if (!l_full) {
-            printf("________________________|_______________________________________________________________________|__"
+            printf("_______________________|______________________________________________________________________|__"
                    "_________|_________|____________|_______________________|____________|\n\n");
         }
         if (json_obj_total)
@@ -658,12 +661,13 @@ static int s_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char
         if (l_full) {
             printf("_________________________________________________________________________________________________________________"
                 "_________________________________________________________________________________________________________________"
+                "____________________________________________________________________________________________________"
                 "_________________________________________________________________________________________________________________\n");
-            printf(" TX Hash \t\t\t\t\t\t\t    | Date \t\t\t      | Signing Addr\t\t\t\t\t\t\t\t\t\t\t\t\t | Signing Hash \t\t\t\t\t      | Node Address \t       | %-25s | Owner Addr \t\t\t\t\t\t\t\t\t\t\t\t\t\t|\n", "Value Coins");
+            printf(" %-66s | %-31s | %-104s | %-66s | %-22s | %-25s | %-104s |\n", "TX Hash","Date","Signing Addr","Signing Hash","Node Address","Value Coins","Owner Addr");
         } else {
             printf("_________________________________________________________________________________________________________________"
                 "________________________________________\n");
-            printf(" TX Hash \t | Date \t\t\t   | Signing Addr\t | Signing Hash    | Node Address \t    | %-10s | Owner Addr \t\t|\n", "Value Coins");
+            printf(" %-15s | %-31s | %-19s | %-15s | %-22s | %-11s | %-19s |\n", "TX Hash","Date","Signing Addr","Signing Hash","Node Address","Value Coins","Owner Addr");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         result_count = json_object_array_length(json_obj_array);
@@ -796,7 +800,8 @@ static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cm
 
             printf("__________________________________________________________________________________________________________"
                 "____________________________\n");
-            printf("  Token Ticker   |   Type  | Decimals | Total Supply                                  | Current Supply\n");
+            printf("  %-15s|  %-7s| %-9s|  %-45s|  %-45s|\n",
+                   "Token Ticker", "Type", "Decimals", "Total Supply", "Current Supply");
             printf("__________________________________________________________________________________________________________"
                 "____________________________\n");
 
@@ -856,7 +861,8 @@ static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cm
         // Case 2: object mapping ticker -> token object
         if (json_object_is_type(root0, json_type_object)) {
             printf("__________________________________________________________________________________________________________\n");
-            printf("  Token Ticker   |   Type  | Decimals | Total Supply                                   | Current Supply\n");
+            printf("  %-15s|  %-7s|    %-6s|  %-45s|  %-45s|\n",
+                   "Token Ticker", "Type", "Decimals", "Total Supply", "Current Supply");
             printf("__________________________________________________________________________________________________________\n");
 
             int printed = 0;
@@ -896,6 +902,117 @@ static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cm
         return 0;
     }
 
+    // threshold
+    if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "threshold") != -1) {
+        bool l_full = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-full") != -1;
+        if (json_object_get_type(response->result_json_object) != json_type_array) {
+            json_print_object(response->result_json_object, 0);
+            return 0;
+        }
+        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        if (!json_obj_array) {
+            printf("Response array is empty\n");
+            return -3;
+        }
+        int result_count = json_object_array_length(json_obj_array);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return -3;
+        }
+        if (l_full) {
+            printf("_________________________________________________________________________________________________________________"
+                   "_________________________________________________________________________________________________________________\n");
+            printf(" %-66s | %-31s | %-12s |\n", "Tx Hash", "Time Created", "Items Size");
+        } else {
+            printf("________________________________________________________________________________________________________\n");
+            printf(" %-15s | %-31s | %-12s |\n", "Tx Hash", "Time Created", "Items Size");
+        }
+        char hash_buffer[16];
+        for (int i = 0; i < result_count; i++) {
+            struct json_object *json_obj_result = json_object_array_get_idx(json_obj_array, i);
+            if (!json_obj_result)
+                continue;
+            // Skip meta objects like {limit}/{offset}
+            json_object *j_meta = NULL;
+            if (json_object_object_get_ex(json_obj_result, "limit", &j_meta) ||
+                json_object_object_get_ex(json_obj_result, "offset", &j_meta))
+                continue;
+
+            json_object *j_tx_hash = NULL, *j_time_created = NULL, *j_items_size = NULL;
+            // Versioned key for tx hash
+            if (!json_object_object_get_ex(json_obj_result, "tx_hash", &j_tx_hash))
+                json_object_object_get_ex(json_obj_result, "Ledger thresholded tx_hash_fast", &j_tx_hash);
+            json_object_object_get_ex(json_obj_result, "time_created", &j_time_created);
+            json_object_object_get_ex(json_obj_result, "tx_item_size", &j_items_size);
+
+            const char *tx_hash_full = j_tx_hash ? json_object_get_string(j_tx_hash) : NULL;
+            const char *tx_hash_short = tx_hash_full;
+            if (!l_full && tx_hash_full && strlen(tx_hash_full) > 15) {
+                strncpy(hash_buffer, tx_hash_full + strlen(tx_hash_full) - 15, 15);
+                hash_buffer[15] = '\0';
+                tx_hash_short = hash_buffer;
+            }
+            printf(" %-15s | %-31s | %-12s |\n",
+                   l_full ? (tx_hash_full ? tx_hash_full : "-") : (tx_hash_short ? tx_hash_short : "-"),
+                   j_time_created ? json_object_get_string(j_time_created) : "-",
+                   j_items_size ? json_object_get_string(j_items_size) : "-");
+        }
+        return 0;
+    }
+
+    // balance
+    if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "balance") != -1) {
+        bool l_full = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-full") != -1;
+        if (json_object_get_type(response->result_json_object) != json_type_array) {
+            json_print_object(response->result_json_object, 0);
+            return 0;
+        }
+        struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
+        if (!json_obj_array) {
+            printf("Response array is empty\n");
+            return -3;
+        }
+        int result_count = json_object_array_length(json_obj_array);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return -3;
+        }
+        if (l_full) {
+            printf("_________________________________________________________________________________________________________________"
+                   "____________________________________________________________________________________________\n");
+            printf(" %-120s | %-10s | %-66s |\n", "Balance Key", "Token", "Balance");
+        } else {
+            printf("________________________________________________________________________________________________________"
+            "__________\n");
+            printf(" %-30s | %-10s | %-66s |\n", "Balance Key", "Token", "Balance");
+        }
+        for (int i = 0; i < result_count; i++) {
+            struct json_object *json_obj_result = json_object_array_get_idx(json_obj_array, i);
+            if (!json_obj_result)
+                continue;
+            // Skip meta objects like {limit}/{offset}
+            json_object *j_meta = NULL;
+            if (json_object_object_get_ex(json_obj_result, "limit", &j_meta) ||
+                json_object_object_get_ex(json_obj_result, "offset", &j_meta))
+                continue;
+
+            json_object *j_key = NULL, *j_token = NULL, *j_balance = NULL;
+            if (!json_object_object_get_ex(json_obj_result, "balance_key", &j_key))
+                json_object_object_get_ex(json_obj_result, "Ledger balance key", &j_key);
+            json_object_object_get_ex(json_obj_result, "token_ticker", &j_token);
+            json_object_object_get_ex(json_obj_result, "balance", &j_balance);
+            int key_width = l_full ? 120 : 30;
+            const char *key_str_full = j_key ? json_object_get_string(j_key) : "-";            
+
+            printf(" %-*s | %-10s | %-66s |\n",
+                   key_width,
+                   l_full ? key_str_full : key_str_full+85,
+                   j_token ? json_object_get_string(j_token) : "-",
+                   j_balance ? json_object_get_string(j_balance) : "-");
+        }
+        return 0;
+    }
+
     // other ledger list subcmds handled elsewhere or printed raw
     json_print_object(response->result_json_object, 0);
     return 0;
@@ -914,14 +1031,17 @@ static int s_print_for_srv_stake_list(dap_json_rpc_response_t* response, char **
             printf("Response array is empty\n");
             return -3;
         }
-        if (l_full) {
-            printf("_________________________________________________________________________________________________________________"
-                "__________________________________________________________________________________\n");
-            printf(" Order \t\t\t\t\t\t\t\t    | Direction     | Created \t\t\t      | Price Coins \t     | Price Token | Price Unit | Node Addr \t\t | Pkey \t\t\t\t\t\t\t      |\n");
+        if (l_full) {            
+                printf("_________________________________________________________________________________________________________________"
+                    "____________________________________________________________________"
+                    "__________________________________________________________________________________\n");
+                printf(" %-66s | %-13s | %-31s | %-20s | %-11s | %-10s | %-22s | %-66s |\n",
+                    "Order", "Direction", "Created", "Price Coins", "Price Token", "Price Unit", "Node Addr", "Pkey");
         } else {
             printf("______________________________________________________________________________"
                 "__________________________________________________________________________________\n");
-            printf(" Order \t\t | Direction     | Created \t\t\t   | Price Coins \t  | Price Token | Price Unit | Node Addr \t      | Pkey \t\t|\n");
+            printf(" %-15s | %-13s | %-31s | %-20s | %-11s | %-10s | %-22s | %-15s |\n",
+                   "Order", "Direction", "Created", "Price Coins", "Price Token", "Price Unit", "Node Addr", "Pkey");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
         result_count = json_object_array_length(json_obj_array);
@@ -986,9 +1106,7 @@ static int s_print_for_srv_stake_list(dap_json_rpc_response_t* response, char **
                 json_obj_total = json_obj_result;
                 continue;
             }
-        }        
-        printf("_________________|_______________|_________________________________|______________________|"
-            "_____________|____________|________________________|_________________|\n\n");
+        }
         if (json_obj_total)
             json_print_object(json_obj_total, 0);
     } else {
@@ -1214,14 +1332,14 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
         // Print table header
         if (l_full) {
             printf("__________________________________________________________________________________________________________________________________________________________________________________"
-                   "______________________________________________________________________________________________\n");
-            printf("  Token Ticker   |   Type  | Decimals | Current Signs | Declarations  | Updates  | Decl Status| Decl Hash (full)                                         | Total Supply                             | Current Supply \n");
-            printf("__________________________________________________________________________________________________________________________________________________________________________________"
-                   "______________________________________________________________________________________________\n");
+                   "_________________________________________________________________________\n");
+            printf("  %-15s|  %-7s| %-6s | %-13s | %-13s | %-8s | %-11s| %-68s| %-41s| %-41s|\n",
+                   "Token Ticker", "Type", "Decimals", "Current Signs", "Declarations", "Updates", "Decl Status", "Decl Hash (full)", "Total Supply", "Current Supply");
         } else {
-            printf("__________________________________________________________________________________________________________________________________________________________________________________\n");
-            printf("  Token Ticker   |   Type  | Decimals | Current Signs | Declarations  | Updates  | Decl Status| Decl Hash  | Total Supply                             | Current Supply \n");
-            printf("__________________________________________________________________________________________________________________________________________________________________________\n");
+            printf("__________________________________________________________________________________________________________________________________________________________________________________"
+            "________________\n");
+            printf("  %-15s|  %-7s| %-6s | %-13s | %-13s | %-8s | %-11s| %-12s| %-41s| %-41s|\n",
+                   "Token Ticker", "Type", "Decimals", "Current Signs", "Declarations", "Updates", "Decl Status", "Decl Hash", "Total Supply", "Current Supply");
         }
         
         int total_tokens = 0;
@@ -1305,7 +1423,7 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
                 int decl_count = declarations ? json_object_array_length(declarations) : 0;
                 int upd_count = updates ? json_object_array_length(updates) : 0;
                 
-                printf("  %-15s|  %-7s|    %-6d|     %-10s|      %-9d|   %-7d|   %-9s|  %-10s|  %-40s|  %-40s|\n",
+                printf("  %-15s|  %-7s|    %-6d|     %-10s|      %-9d|   %-7d|   %-9s|  %-*s|  %-40s|  %-40s|\n",
                     ticker,
                     token_type,
                     decimals,
@@ -1313,6 +1431,7 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
                     decl_count,
                     upd_count,
                     decl_status,
+                    strlen(decl_hash_short)+1,
                     decl_hash_short,
                     total_supply,
                     current_supply
@@ -1320,8 +1439,7 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
             }
         }
         
-        printf("__________________________________________________________________________________________________________________________________________________________________________\n");
-        printf("Total tokens: %d\n", total_tokens);
+        printf("\nTotal tokens: %d\n", total_tokens);
         
         // Show tokens_count if available
         struct json_object *tokens_count_obj = NULL;
