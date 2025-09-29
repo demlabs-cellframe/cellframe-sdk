@@ -5438,26 +5438,7 @@ dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_ch
     return l_ret;
 }
 
-/**
- * @brief dap_ledger_get_list_tx_outs_with_val
- * @param a_ledger
- * @param a_token_ticker
- * @param a_addr_from
- * @param a_value_need
- * @param a_value_transfer
- * @return list of dap_chain_tx_used_out_item_t
- */
-dap_list_t *dap_ledger_get_list_tx_outs_with_val_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                                       uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check)
-{
-    return dap_ledger_get_list_tx_outs_unspent_by_addr(a_ledger, a_token_ticker, a_addr_from, &a_value_need, a_value_transfer, false, 0, a_mempool_check);
-}
 
-dap_list_t *dap_ledger_get_list_tx_outs_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                        uint256_t *a_value_transfer, bool a_mempool_check)
-{
-    return dap_ledger_get_list_tx_outs_unspent_by_addr(a_ledger, a_token_ticker, a_addr_from, NULL, a_value_transfer, false, 0, a_mempool_check);
-}
 
 dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, const char *a_token,
         const dap_chain_addr_t *a_addr, const uint256_t *a_limit, uint256_t *a_out_value,
@@ -5554,10 +5535,12 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
             log_it(L_DEBUG, "UTXO: tx %s out #%d",
                 dap_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx);
             l_ret = dap_list_append(l_ret, l_utxo);
-            SUM_256_256(*a_out_value, l_value, a_out_value);
-            if ( a_limit && compare256(*a_out_value, *a_limit) != -1 ) {
-                a_limit = NULL;
-                goto complete;
+            if (a_out_value) {
+                SUM_256_256(*a_out_value, l_value, a_out_value);
+                if ( a_limit && compare256(*a_out_value, *a_limit) != -1 ) {
+                    a_limit = NULL;
+                    goto complete;
+                }
             }
         }
     }

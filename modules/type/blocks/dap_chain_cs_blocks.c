@@ -33,6 +33,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"

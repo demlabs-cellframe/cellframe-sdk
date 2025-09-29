@@ -109,6 +109,3 @@ DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_reward_group(const char *a_net_n
 dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash);
 
 dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash);
-
-// Get wallet shared filter hashes
-int dap_chain_cs_blocks_get_wallet_shared_hashes(dap_hash_fast_t **a_hashes_out, size_t *a_count_out);

@@ -831,14 +831,14 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         size_t l_total_count = 0;
         if (l_group_str) {
             json_object *l_json_obj_clear = json_object_new_object();
-            json_object_object_add(l_json_obj_clear, l_group_str, json_object_new_uint64(dap_global_db_group_clear(l_group_str, l_pinned)));
+            json_object_object_add(l_json_obj_clear, l_group_str, json_object_new_uint64(dap_global_db_clear_table(l_group_str, l_pinned)));
             json_object_array_add(l_json_arr_clear, l_json_obj_clear);
             l_total_count = 1;
         }
         if (l_all || l_mask) {
             dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask(l_mask ? l_mask : "*");
             for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list)) {
-                size_t l_count = dap_global_db_group_clear((const char *)(l_list->data), l_pinned);
+                size_t l_count = dap_global_db_clear_table((const char *)(l_list->data), l_pinned);
                 if (l_count) {
                     json_object *l_json_obj_clear = json_object_new_object();
                     json_object_object_add(l_json_obj_clear, (const char *)(l_list->data), json_object_new_uint64(l_count));

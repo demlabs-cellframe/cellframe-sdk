@@ -25,9 +25,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <pthread.h>
-#include <stdint.h>
-#include <string.h>
-#include "json_object.h"
 #include "uthash.h"
 #include "dap_cli_server.h"
 #include "dap_common.h"
@@ -2014,4 +2011,3 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_v
 
     return 0;
 }
-
