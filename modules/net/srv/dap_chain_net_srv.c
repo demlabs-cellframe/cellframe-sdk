@@ -49,6 +49,7 @@
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
+#include "dap_sys_paths.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
@@ -119,7 +120,7 @@ int dap_chain_net_srv_init()
  */
 void s_load_all()
 {
-    char * l_net_dir_str = dap_strdup_printf("%s/service.d", dap_config_path());
+    char *l_net_dir_str = dap_sys_path_get_service_config();
     DIR * l_net_dir = opendir( l_net_dir_str);
     if ( l_net_dir ) {
         struct dirent * l_dir_entry = NULL;

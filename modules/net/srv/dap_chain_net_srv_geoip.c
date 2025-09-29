@@ -27,6 +27,7 @@
 
 #include "dap_client_http.h"
 #include "dap_common.h"
+#include "dap_sys_paths.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 #include "dap_enc_key.h"
@@ -266,8 +267,14 @@ geoip_info_t *chain_net_geoip_get_ip_info(const char *a_ip_str)
 
 int chain_net_geoip_init(dap_config_t *a_config)
 {
-    s_geoip_db_file_path = dap_strdup_printf("%s/%s", g_sys_dir_path,
-            dap_config_get_item_str(g_config, "resources", "geoip_db_path"));
+	
+    const char *l_geoip_relative_path = dap_config_get_item_str(g_config, "resources", "geoip_db_path");
+    if (l_geoip_relative_path) {
+        s_geoip_db_file_path = dap_strdup_printf("%s/%s", g_sys_dir_path, l_geoip_relative_path);
+    } else {
+        char *l_geoip_default_path = dap_sys_path_get_subdir(DAP_SYS_PATH_GEOIP, "GeoLite2-City.mmdb");
+        s_geoip_db_file_path = l_geoip_default_path;
+    }
     if(!dap_file_test(s_geoip_db_file_path)) {
         log_it(L_ERROR, "No exists geoip db file %s", s_geoip_db_file_path);
         DAP_DELETE(s_geoip_db_file_path);

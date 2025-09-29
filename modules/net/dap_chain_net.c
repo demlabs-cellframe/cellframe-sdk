@@ -224,6 +224,37 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .link_count_changed = s_link_manager_link_count_changed,
 };
 
+/**
+ * @brief Get network configuration directory path
+ * @return String with path to network configurations directory
+ * @details Centralizes access to network config path to avoid hardcoded paths
+ */
+static inline char* s_get_network_config_path(void)
+{
+    return dap_strdup_printf("%s/network/", dap_config_path());
+}
+
+/**
+ * @brief Get network configuration path for specific network
+ * @param a_net_name[in] Network name
+ * @return String with path to specific network configuration directory
+ * @details Centralizes access to specific network config path to avoid hardcoded paths
+ */
+static inline char* s_get_network_config_path_for_net(const char *a_net_name)
+{
+    return dap_strdup_printf("network/%s/", a_net_name);
+}
+
+/**
+ * @brief Get cache directory path
+ * @return String with path to cache directory
+ * @details Centralizes access to cache directory path to avoid hardcoded paths
+ */
+static inline char* s_get_cache_dir_path(void)
+{
+    return dap_strdup_printf("%s/cache", g_sys_dir_path);
+}
+
 // State machine switchs here
 static bool s_net_states_proc(void *a_arg);
 static void s_net_states_notify(dap_chain_net_t * l_net);
@@ -284,7 +315,9 @@ int dap_chain_net_init()
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
     s_node_list_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_ttl", s_node_list_ttl);
     char l_path[MAX_PATH + 1], *l_end = NULL;
-    int l_pos = snprintf(l_path, MAX_PATH, "%s/network/", dap_config_path());
+    char *l_network_path = s_get_network_config_path();
+    int l_pos = snprintf(l_path, MAX_PATH, "%s", l_network_path);
+    DAP_DELETE(l_network_path);
     if (l_pos >= MAX_PATH - 4)
         return log_it(L_ERROR, "Invalid path to net configs, fix it!"), -1;
     DIR *l_dir = opendir(l_path);
@@ -982,7 +1015,7 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
     if (!l_net)
         return false;
     // create directory for cache checking file (cellframe-node/cache)
-    char *l_cache_dir = dap_strdup_printf( "%s/%s", g_sys_dir_path, "cache");
+    char *l_cache_dir = s_get_cache_dir_path();
     if (dap_mkdir_with_parents(l_cache_dir) != 0) {
         log_it(L_WARNING,"Error during disposable cache check file creation");
         DAP_DELETE(l_cache_dir);
@@ -1925,7 +1958,9 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     struct dirent *l_dir_entry;
     dap_config_t *l_chain_config, *l_all_chain_configs = NULL, *l_tmp_cfg;
     char l_chain_cfg_path[MAX_PATH + 1] = { '\0' };
-    int l_pos = snprintf(l_chain_cfg_path, MAX_PATH, "network/%s/", a_net_name);
+    char *l_net_config_path = s_get_network_config_path_for_net(a_net_name);
+    int l_pos = snprintf(l_chain_cfg_path, MAX_PATH, "%s", l_net_config_path);
+    DAP_DELETE(l_net_config_path);
     while (( l_dir_entry = readdir(l_chains_dir) )) {
         unsigned short l_len = strlen(l_dir_entry->d_name);
         if ( l_len > 4 && !dap_strncmp(l_dir_entry->d_name + l_len - 4, ".cfg", 4) ) {
