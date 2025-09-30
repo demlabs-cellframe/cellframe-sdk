@@ -3123,7 +3123,6 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                     l_value_str = dap_uint256_to_char(l_diff_value, &l_value_coins_str);
                                     l_jobj_diff = json_object_new_array();
                                     json_object *l_jobj_diff_obj = json_object_new_object();
-                                    json_object_object_add(l_jobj_diff_obj, "type", json_object_new_string(((dap_tsd_t *)(l_diff_tx_tsd->tsd))->type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF ? "take" : "refill"));
                                     json_object_object_add(l_jobj_diff_obj, "value", json_object_new_string(l_value_str));
                                     json_object_object_add(l_jobj_diff_obj, "coins", json_object_new_string(l_value_coins_str));
                                     json_object_object_add(l_jobj_diff_obj, "token", json_object_new_string(l_main_ticker));
