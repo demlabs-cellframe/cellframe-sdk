@@ -1807,12 +1807,11 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                         " I don't have a candidate. I submit a empty candidate.",
                                 l_chain->net_name, l_chain->name,
                                     a_session->cur_round.id, a_session->cur_round.attempt_num);
-        if (!l_chain->callback_add_datums) {
-            log_it(L_ERROR, "Not found chain callback for datums processing");
+        if (!l_blocks->callback_block_create) {
+            log_it(L_ERROR, "Not found chain callback for block creation");
+            return;
         }
-        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_CUSTOM, NULL, 0);
-        l_chain->callback_add_datums(l_chain, &l_datum, 1);
-        l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
+        l_candidate = l_blocks->callback_block_create(l_blocks, &l_candidate_size);
     }
     if (l_candidate && l_candidate_size) {
         if (PVT(a_session->esbocs)->emergency_mode)
