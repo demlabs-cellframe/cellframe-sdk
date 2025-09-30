@@ -166,6 +166,7 @@ static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** 
 static void s_callback_cs_blocks_purge(dap_chain_t *a_chain);
 
 static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
+static dap_chain_block_t *s_block_create(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
 
 //Work with atoms
 static uint64_t s_callback_count_atom(dap_chain_t *a_chain);
@@ -328,6 +329,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
 
 
     l_cs_blocks->callback_new_block_move = s_new_block_move;
+    l_cs_blocks->callback_block_create = s_block_create;
 
     dap_chain_cs_blocks_pvt_t *l_cs_blocks_pvt = DAP_NEW_Z(dap_chain_cs_blocks_pvt_t);
     if (!l_cs_blocks_pvt) {
@@ -2623,6 +2625,24 @@ static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size
         a_blocks->block_new = NULL;
         a_blocks->block_new_size = 0;
     }
+    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    if (a_new_block_size)
+        *a_new_block_size = l_ret_size;
+    return l_ret;
+}
+
+static dap_chain_block_t *s_block_create(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size)
+{
+    dap_return_val_if_pass(!a_blocks || !PVT(a_blocks) || !PVT(a_blocks)->blocks, NULL);
+    size_t l_ret_size = 0;
+    dap_chain_block_t *l_ret = NULL;
+    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
+    pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+        dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks->hh.tbl->tail->prev;
+        l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
+        l_ret = dap_chain_block_new(&l_bcache_last->block_hash, &l_ret_size);
+        l_ret->hdr.cell_id.uint64 = a_blocks->chain->cells->id.uint64;
+        l_ret->hdr.chain_id.uint64 = a_blocks->chain->id.uint64;
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     if (a_new_block_size)
         *a_new_block_size = l_ret_size;
