@@ -352,7 +352,7 @@ dap_chain_datum_token_emission_t *dap_ledger_token_emission_find(dap_ledger_t *a
 
 const char* dap_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,dap_chain_hash_fast_t *a_tx_hash);
 
-void dap_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
+void dap_ledger_addr_get_token_ticker_all_deprecated(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
         char *** a_tickers, size_t * a_tickers_size);
 
 void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
@@ -431,7 +431,7 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const c
 
 dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, const char *a_token,
         const dap_chain_addr_t *a_addr, const uint256_t *a_limit, uint256_t *a_out_value,
-        bool a_cond_only, dap_chain_tx_out_cond_subtype_t a_cond_subtype);
+        bool a_cond_only, dap_chain_tx_out_cond_subtype_t a_cond_subtype, bool a_mempool_check);
 
 bool dap_ledger_tx_check_recipient(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_tx_prev_hash, dap_chain_addr_t *a_addr);
 
@@ -443,10 +443,30 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
 
 // Get the list of 'out' items from previous transactions with summary value >= than a_value_need
 // Put this summary value to a_value_transfer
-dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                                       uint256_t a_value_need, uint256_t *a_value_transfer);
-dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                        uint256_t *a_value_transfer);
+
+DAP_STATIC_INLINE dap_list_t *dap_ledger_get_list_tx_outs_with_val_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                                       uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check)
+{
+    return dap_ledger_get_list_tx_outs_unspent_by_addr(a_ledger, a_token_ticker, a_addr_from, &a_value_need, a_value_transfer, false, 0, a_mempool_check);
+}
+
+DAP_STATIC_INLINE dap_list_t *dap_ledger_get_list_tx_outs_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                        uint256_t *a_value_transfer, bool a_mempool_check)
+{
+    return dap_ledger_get_list_tx_outs_unspent_by_addr(a_ledger, a_token_ticker, a_addr_from, NULL, a_value_transfer, false, 0, a_mempool_check);
+}
+
+DAP_STATIC_INLINE dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                                       uint256_t a_value_need, uint256_t *a_value_transfer)
+{
+    return dap_ledger_get_list_tx_outs_with_val_mempool_check(a_ledger, a_token_ticker, a_addr_from, a_value_need, a_value_transfer, true);
+}
+DAP_STATIC_INLINE dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                        uint256_t *a_value_transfer)
+{
+    return dap_ledger_get_list_tx_outs_mempool_check(a_ledger, a_token_ticker, a_addr_from, a_value_transfer, true);
+}
+
 dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_subtype, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from);
 bool dap_ledger_check_condition_owner(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int a_out_idx, dap_sign_t *a_owner_sign);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0

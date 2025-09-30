@@ -1047,13 +1047,13 @@ void dap_ledger_test_run(void){
     dap_chain_addr_t l_addr = {0};
     dap_chain_addr_fill_from_key(&l_addr, l_cert->enc_key, l_iddn);
     dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_create(dap_chain_uint256_from(s_total_supply), s_token_ticker, &l_addr);
-    dap_chain_datum_token_emission_t *l_emi_sign = dap_chain_datum_emission_add_sign(l_cert->enc_key, l_emi);
-    size_t l_emi_size = dap_chain_datum_emission_get_size((byte_t*)l_emi_sign);
+    l_emi = dap_chain_datum_emission_add_sign(l_cert->enc_key, l_emi);
+    size_t l_emi_size = dap_chain_datum_emission_get_size((byte_t*)l_emi);
     dap_chain_hash_fast_t l_emi_hash = {0};
     dap_hash_fast(l_emi, l_emi_size, &l_emi_hash);
-    int l_emi_check = dap_ledger_token_emission_add_check(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash);
+    int l_emi_check = dap_ledger_token_emission_add_check(l_ledger, (byte_t*)l_emi, l_emi_size, &l_emi_hash);
     dap_assert_PIF(l_emi_check == 0, "check emission for add in ledger");
-    dap_assert_PIF(!dap_ledger_token_emission_add(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash), "Added emission in ledger");
+    dap_assert_PIF(!dap_ledger_token_emission_add(l_ledger, (byte_t*)l_emi, l_emi_size, &l_emi_hash), "Added emission in ledger");
 
     // Declarate delegated token
     dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
@@ -1069,14 +1069,15 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(!dap_ledger_token_add(l_ledger, (byte_t *)l_token_decl, l_token_decl_size), "Adding token declaration to ledger.");
 
     //first base tx
-    dap_chain_datum_tx_t *l_base_tx = dap_ledger_test_create_datum_base_tx(l_emi_sign, &l_emi_hash, l_addr, l_cert);
+    dap_chain_datum_tx_t *l_base_tx = dap_ledger_test_create_datum_base_tx(l_emi, &l_emi_hash, l_addr, l_cert);
     size_t l_base_tx_size = dap_chain_datum_tx_get_size(l_base_tx);
     dap_hash_fast_t l_hash_btx = {0};
     dap_hash_fast(l_base_tx, l_base_tx_size, &l_hash_btx);
     dap_assert_PIF(!dap_ledger_tx_add_check(l_ledger, l_base_tx, l_base_tx_size, &l_hash_btx), "Check can added base tx in ledger");
     dap_assert_PIF(!dap_ledger_tx_add(l_ledger, l_base_tx, &l_hash_btx, false, NULL), "Added base tx in ledger.");
     uint256_t l_balance_example = dap_chain_uint256_from(s_standard_value_tx);
-    uint256_t l_balance = dap_ledger_calc_balance(l_ledger, &l_addr, s_token_ticker);
+    uint256_t l_balance = {};
+    l_balance = dap_ledger_calc_balance(l_ledger, &l_addr, s_token_ticker);
 	uint256_t l_fee = dap_chain_uint256_from(s_fee);
 	SUM_256_256(l_balance,l_fee,&l_balance);
     dap_assert_PIF(!compare256(l_balance, l_balance_example), "Checking the availability of the necessary balance "
@@ -1087,7 +1088,7 @@ void dap_ledger_test_run(void){
     DAP_DELETE(l_pass_msg);
 
     //second base tx
-    dap_chain_datum_tx_t  *l_base_tx_second = dap_ledger_test_create_datum_base_tx(l_emi_sign, &l_emi_hash, l_addr, l_cert);
+    dap_chain_datum_tx_t  *l_base_tx_second = dap_ledger_test_create_datum_base_tx(l_emi, &l_emi_hash, l_addr, l_cert);
     size_t l_base_tx_size2 = dap_chain_datum_tx_get_size(l_base_tx_second);
     dap_hash_fast_t l_hash_btx_second = {0};
     dap_hash_fast(l_base_tx_second, l_base_tx_size2, &l_hash_btx_second);

@@ -52,15 +52,9 @@ typedef enum s_type_of_tx {
     DAP_CHAIN_NET_TX_STAKE_LOCK,
     DAP_CHAIN_NET_TX_STAKE_UNLOCK,
     DAP_CHAIN_NET_TX_REWARD,
-
     DAP_CHAIN_NET_TX_TYPE_ERR
 }s_type_of_tx_t;
 
-typedef struct dap_tx_creator_tokenizer {
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t sum;
-    UT_hash_handle hh;
-} dap_tx_creator_tokenizer_t;
 
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory

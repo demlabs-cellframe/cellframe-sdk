@@ -1105,7 +1105,7 @@ const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet) {
     for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
         dap_return_val_if_pass(!l_wallet_internal->certs[i], "The wallet contains an undefined certificate.\n");
         dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_wallet_internal->certs[i]->enc_key->type);
-        if (dap_sign_type_is_depricated(l_sign_type)) {
+        if (dap_sign_type_is_deprecated(l_sign_type)) {
             return "The Bliss, Picnic and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n";
         }
     }
@@ -1171,13 +1171,17 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
             dap_string_free(l_str_signs, true);
         }
         json_object_object_add(l_json_ret, "signs", l_jobj_signs);
+        dap_hash_fast_t l_pkey_hash = {};
+        dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash);
+        json_object_object_add(l_json_ret, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
         struct json_object *l_jobj_network = json_object_new_object();
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             struct json_object *l_jobj_net = json_object_new_object();
             dap_chain_addr_t *l_wallet_addr_in_net = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-            json_object_object_add(l_jobj_net, "addr",
-                                   json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net)));
+            
+            json_object_object_add(l_jobj_net, "addr", json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net)));
             json_object_object_add(l_jobj_network, l_net->pub.name, l_jobj_net);
+            
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_net->pub.ledger, l_wallet_addr_in_net, &l_addr_tokens,
@@ -1202,6 +1206,11 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
             DAP_DELETE(l_wallet_addr_in_net);
             json_object_object_add(l_jobj_net, "tokens", l_arr_balance);
             DAP_DELETE(l_addr_tokens);
+            // add shared wallet tx hashes
+            json_object *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_pkey_hash, l_net->pub.name);
+            if (l_tx_hashes) {
+                json_object_object_add(l_json_ret, "wallet_shared_tx_hashes", l_tx_hashes);
+            }
         }
         json_object_object_add(l_json_ret, "networks", l_jobj_network);
         dap_chain_wallet_close(l_wallet);
