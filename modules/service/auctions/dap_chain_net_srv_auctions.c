@@ -66,6 +66,7 @@ enum error_code {
     INVALID_EVENT_TYPE_ERROR = 31
 };
 
+#ifndef DAP_AUCTIONS_TEST
 // Main auction service structure
 struct auction {
     dap_auction_cache_item_t *auctions; // Hash table of auctions keyed by GUUID
@@ -74,6 +75,11 @@ struct auction {
     uint32_t active_auctions;           // Number of active auctions
     pthread_rwlock_t cache_rwlock;      // Read-write lock for cache access
 };
+#endif
+
+// Auction cache API
+static struct auction *s_auction_service_create(void);
+static void s_auction_service_delete(struct auction *a_cache);
 
 // Callbacks
 static int s_auction_event_verify(dap_chain_net_id_t a_net_id, const char *a_event_group_name, int a_event_type, void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_tx_hash);
@@ -86,9 +92,6 @@ static void s_auction_cache_event_callback(void *a_arg, dap_ledger_t *a_ledger, 
 // Forward declaration for optimization function
 static dap_auction_cache_item_t *s_find_auction_by_hash_fast(struct auction *a_cache, const dap_hash_fast_t *a_auction_hash);
 static void *s_auction_start_callback(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
-// Auction cache API
-static struct auction *s_auction_cache_create(void);
-static void s_auction_cache_delete(struct auction *a_cache);
 
 // Cache manipulation functions
 static int s_auction_cache_add_auction(struct auction *a_cache, 
@@ -130,12 +133,39 @@ static int s_auction_cache_set_winners_by_name(struct auction *a_cache,
                                          uint32_t *a_winners_ids);
 
 // Search functions
+static dap_auction_bid_cache_item_t *s_auction_cache_find_bid(dap_auction_cache_item_t *a_auction, dap_hash_fast_t *a_bid_hash);
+static dap_auction_project_cache_item_t *s_auction_cache_find_project(dap_auction_cache_item_t *a_auction, uint64_t a_project_id);
+
 // Find by auction tx hash
 static dap_auction_cache_item_t *s_auction_cache_find_auction(struct auction *a_cache, dap_hash_fast_t *a_auction_hash);
 // New: find by group name
 static dap_auction_cache_item_t *s_auction_cache_find_auction_by_name(struct auction *a_cache, const char *a_guuid);
 
 static int s_com_auction(int argc, char **argv, void **str_reply, int a_version);
+
+#ifdef DAP_AUCTIONS_TEST
+dap_auction_cache_t *dap_auction_cache_create(void) { return s_auction_service_create(); }
+void dap_auction_cache_delete(dap_auction_cache_t *a_cache) { return s_auction_service_delete(a_cache); }
+int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache, dap_hash_fast_t *a_auction_hash, dap_chain_net_id_t a_net_id, const char *a_guuid, dap_chain_tx_event_data_auction_started_t *a_started_data, dap_time_t a_tx_timestamp)
+{ return s_auction_cache_add_auction(a_cache, a_auction_hash, a_net_id, a_guuid, a_started_data, a_tx_timestamp); }
+int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache, dap_hash_fast_t *a_auction_hash, dap_hash_fast_t *a_bid_hash, uint256_t a_bid_amount, dap_time_t a_lock_time, dap_time_t a_created_time, uint64_t a_project_id)
+{ return s_auction_cache_add_bid(a_cache, a_auction_hash, a_bid_hash, a_bid_amount, a_lock_time, a_created_time, a_project_id); }
+int dap_auction_cache_withdraw_bid(dap_auction_project_cache_item_t *a_cache, dap_hash_fast_t *a_bid_hash)
+{ return s_auction_cache_withdraw_bid(a_cache, a_bid_hash); }
+dap_auction_cache_item_t *dap_auction_cache_find_auction(dap_auction_cache_t *a_cache, dap_hash_fast_t *a_auction_hash)
+{ return s_auction_cache_find_auction(a_cache, a_auction_hash); }
+dap_auction_cache_item_t *dap_auction_cache_find_auction_by_name(dap_auction_cache_t *a_cache, const char *a_guuid)
+{ return s_auction_cache_find_auction_by_name(a_cache, a_guuid); }
+int dap_auction_cache_update_auction_status(dap_auction_cache_t *a_cache, dap_hash_fast_t *a_auction_hash, dap_auction_status_t a_new_status)
+{ return s_auction_cache_update_auction_status(a_cache, a_auction_hash, a_new_status); }
+dap_auction_bid_cache_item_t *dap_auction_cache_find_bid(dap_auction_cache_item_t *a_auction, dap_hash_fast_t *a_bid_hash)
+{ return s_auction_cache_find_bid(a_auction, a_bid_hash); }
+dap_auction_project_cache_item_t *dap_auction_cache_find_project(dap_auction_cache_item_t *a_auction, uint64_t a_project_id)
+{ return s_auction_cache_find_project(a_auction, a_project_id); }
+void dap_auction_cache_event_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode)
+{ s_auction_cache_event_callback(a_arg, a_ledger, a_event, a_tx_hash, a_opcode); }
+#endif
+
 
 /**
  * @brief Service initialization
@@ -262,7 +292,7 @@ static struct auction *s_auction_service_get(dap_chain_net_id_t a_net_id)
  * @brief Delete auction cache and cleanup all data
  * @param a_cache Cache instance to delete
  */
-static void s_auction_cache_delete(struct auction *a_cache)
+static void s_auction_service_delete(struct auction *a_cache)
 {
     if (!a_cache)
         return;
@@ -574,7 +604,7 @@ static int s_auction_cache_withdraw_bid(dap_auction_project_cache_item_t *a_cach
  * @param a_winners_ids Array of winner project IDs
  * @return Returns 0 on success, negative error code otherwise
  */
-int dap_auction_cache_set_winners(struct auction *a_cache,
+static int s_auction_cache_set_winners(struct auction *a_cache,
                                  dap_hash_fast_t *a_auction_hash,
                                  uint8_t a_winners_cnt,
                                  uint32_t *a_winners_ids)
@@ -803,7 +833,11 @@ static void s_auction_cache_event_callback(void *a_arg,
         l_data_hex[l_preview_len * 2] = '\0';
         log_it(L_DEBUG, "Auction event data preview (%zu bytes): %s", l_preview_len, l_data_hex);
     }
+#ifndef DAP_AUCTIONS_TEST
     struct auction *l_auction_service = s_auction_service_get(a_ledger->net->pub.id);
+#else
+    struct auction *l_auction_service = a_arg;
+#endif
     if (!l_auction_service) {
         log_it(L_ERROR, "Failed to get auction service");
         return;
@@ -1008,7 +1042,7 @@ void dap_chain_net_srv_auctions_deinit(void)
     while (l_net) {
         struct auction *l_auction_service = s_auction_service_get(l_net->pub.id);
         if (l_auction_service)
-            s_auction_cache_delete(l_auction_service);
+            s_auction_service_delete(l_auction_service);
         l_net = dap_chain_net_iter_next(l_net);
     }
     

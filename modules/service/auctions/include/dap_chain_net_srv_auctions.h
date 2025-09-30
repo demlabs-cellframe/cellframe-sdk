@@ -165,12 +165,6 @@ extern "C" {
 int dap_chain_net_srv_auctions_init(void);
 void dap_chain_net_srv_auctions_deinit(void);
 
-dap_auction_bid_cache_item_t *dap_auction_cache_find_bid(dap_auction_cache_item_t *a_auction,
-                                                         dap_hash_fast_t *a_bid_hash);
-
-dap_auction_project_cache_item_t *dap_auction_cache_find_project(dap_auction_cache_item_t *a_auction,
-                                                                 uint64_t a_project_id);
-
 // External API for frontend and CLI
 dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_find(dap_chain_net_t *a_net, 
                                                              dap_chain_hash_fast_t *a_hash);
@@ -211,7 +205,30 @@ byte_t *dap_chain_srv_auction_started_tx_event_create(size_t *a_data_size, uint3
     dap_chain_tx_event_data_time_unit_t a_time_unit,
     uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[]);
 byte_t *dap_chain_srv_auction_ended_tx_event_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[]);
-
 #ifdef __cplusplus
 }
 #endif 
+
+#ifdef DAP_AUCTIONS_TEST
+// Main auction service structure
+struct auction {
+    dap_auction_cache_item_t *auctions; // Hash table of auctions keyed by GUUID
+    dap_auction_cache_item_t *auctions_by_hash; // Hash table for fast lookup by auction_tx_hash
+    uint32_t total_auctions;            // Total number of auctions in cache
+    uint32_t active_auctions;           // Number of active auctions
+    pthread_rwlock_t cache_rwlock;      // Read-write lock for cache access
+};
+typedef struct auction dap_auction_cache_t;
+
+dap_auction_cache_t *dap_auction_cache_create(void);
+void dap_auction_cache_delete(dap_auction_cache_t *a_cache);
+int dap_auction_cache_add_auction(dap_auction_cache_t *a_cache, dap_hash_fast_t *a_auction_hash, dap_chain_net_id_t a_net_id, const char *a_guuid, dap_chain_tx_event_data_auction_started_t *a_started_data, dap_time_t a_tx_timestamp);
+int dap_auction_cache_add_bid(dap_auction_cache_t *a_cache, dap_hash_fast_t *a_auction_hash, dap_hash_fast_t *a_bid_hash, uint256_t a_bid_amount, dap_time_t a_lock_time, dap_time_t a_created_time, uint64_t a_project_id);
+int dap_auction_cache_withdraw_bid(dap_auction_project_cache_item_t *a_cache, dap_hash_fast_t *a_bid_hash);
+dap_auction_cache_item_t *dap_auction_cache_find_auction(dap_auction_cache_t *a_cache, dap_hash_fast_t *a_auction_hash);
+dap_auction_cache_item_t *dap_auction_cache_find_auction_by_name(dap_auction_cache_t *a_cache, const char *a_guuid);
+int dap_auction_cache_update_auction_status(dap_auction_cache_t *a_cache, dap_hash_fast_t *a_auction_hash, dap_auction_status_t a_new_status);
+dap_auction_bid_cache_item_t *dap_auction_cache_find_bid(dap_auction_cache_item_t *a_auction, dap_hash_fast_t *a_bid_hash);
+dap_auction_project_cache_item_t *dap_auction_cache_find_project(dap_auction_cache_item_t *a_auction, uint64_t a_project_id);
+void dap_auction_cache_event_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode);
+#endif
