@@ -34,6 +34,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
+#include "dap_common.h"
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_cli_server.h"
@@ -127,7 +128,7 @@ int dap_chain_net_srv_voting_init()
     pthread_rwlock_init(&s_votings_rwlock, NULL);
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
     dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
-                "poll", s_cli_voting, "Voting/poll commands",
+                "poll", s_cli_voting, NULL, "Voting/poll commands",
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>]"
                                            " [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll cancel -net <net_name> -hash <poll_hash> -fee <value_datoshi> -w <fee_wallet_name>\n"
@@ -168,11 +169,7 @@ uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash
         return NULL;
     }
 
-    l_voting_results = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t)*dap_list_length(l_voting->voting_params.option_offsets_list));
-    if (!l_voting_results){
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
+    l_voting_results = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint64_t, dap_list_length(l_voting->voting_params.option_offsets_list), NULL);
 
     dap_list_t* l_temp = l_voting->votes;
     while(l_temp){
@@ -431,6 +428,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             return -18;
         }
         const char *l_ticker_in = NULL;
+        
         switch (*l_prev_out_union) {
         case TX_ITEM_TYPE_OUT: {
             dap_chain_tx_out_t *l_prev_out = (dap_chain_tx_out_t *)l_prev_out_union;
@@ -1138,7 +1136,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     }break;
     case CMD_LIST:{
         json_object* json_vote_out = json_object_new_object();
-        json_object_object_add(json_vote_out, "list_of_polls", json_object_new_string(l_net->pub.name));
+        json_object_object_add(json_vote_out, "net_name", json_object_new_string(l_net->pub.name));
         json_object* json_arr_voting_out = json_object_new_array();
         dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
         const char *l_token_str = NULL;
@@ -1193,7 +1191,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             json_object_array_add(*json_arr_reply, json_obj_no_polls);
             json_object_put(json_arr_voting_out);
         } else {
-            json_object_array_add(*json_arr_reply, json_arr_voting_out);
+            json_object * l_json_arr_polls = json_object_new_object();
+            json_object_object_add(l_json_arr_polls, "polls", json_arr_voting_out);
+            json_object_array_add(*json_arr_reply, l_json_arr_polls);
         }
     }break;
     case CMD_DUMP:{

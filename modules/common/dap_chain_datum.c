@@ -38,6 +38,7 @@
 #include "dap_enc_base58.h"
 #include "dap_sign.h"
 #include "dap_tsd.h"
+#include "dap_chain_wallet_shared.h"
 
 #define LOG_TAG "dap_chain_datum"
 
@@ -50,18 +51,25 @@
  */
 dap_chain_datum_t *dap_chain_datum_create(uint16_t a_type_id, const void *a_data, size_t a_data_size)
 {
-   dap_chain_datum_t *l_datum = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_datum_t, sizeof(dap_chain_datum_t) + a_data_size, NULL);
-   *l_datum = (dap_chain_datum_t) {
+    if (a_data_size > UINT32_MAX) {
+        log_it(L_ERROR, "Data size %zu exceeds max value", a_data_size);
+        return NULL;
+    }
+    
+    dap_chain_datum_t *l_datum = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_datum_t, sizeof(dap_chain_datum_t) + a_data_size, NULL);
+    *l_datum = (dap_chain_datum_t) {
         .header = {
             .version_id = DAP_CHAIN_DATUM_VERSION,
             .type_id    = a_type_id,
             .data_size  = (uint32_t)a_data_size,
             .ts_create  = dap_time_now()
         }
-   };
-   memcpy(l_datum->data, a_data, (uint32_t)a_data_size);
-   return  l_datum;
+    };
+    if (a_data && a_data_size)
+        memcpy(l_datum->data, a_data, a_data_size);
+    return  l_datum;
 }
+
 void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type)
 {
     dap_tsd_t *l_tsd_begin = dap_chain_datum_token_tsd_get(a_token, a_token_size);
@@ -472,6 +480,24 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_unlock);
                     json_object_object_add(json_obj_item,"time_unlock", json_object_new_string(l_tmp_buf));
                 } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
+                    dap_chain_tx_tsd_t *l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(a_datum, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF);
+                    json_object *l_jobj_diff = json_object_new_array();
+                    json_object *l_jobj_diff_obj = json_object_new_object();
+                    if (l_diff_tx_tsd || (l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(a_datum, DAP_CHAIN_WALLET_SHARED_TSD_REFILL))) {
+                        uint256_t l_diff_value = {};
+                        memcpy(&l_diff_value, ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->data, sizeof(uint256_t));
+                        const char *l_value_coins_str = NULL;
+                        l_value_str = dap_uint256_to_char(l_diff_value, &l_value_coins_str);
+                        json_object_object_add(l_jobj_diff_obj, "type", json_object_new_string(((dap_tsd_t *)(l_diff_tx_tsd->tsd))->type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF ? "writeoff" : "refill"));
+                        json_object_object_add(l_jobj_diff_obj, "value", json_object_new_string(l_value_str));
+                        json_object_object_add(l_jobj_diff_obj, "coins", json_object_new_string(l_value_coins_str));
+                    } else {
+                        json_object_object_add(l_jobj_diff_obj, "type", json_object_new_string("hold"));
+                    }
+                    json_object_array_add(l_jobj_diff, l_jobj_diff_obj);
+                    json_object_object_add(json_obj_item, "operation", l_jobj_diff);
+                } break;
                 default: break;
             }
         } break;
@@ -637,7 +663,7 @@ void dap_chain_datum_dump_json(json_object* a_json_arr_reply, json_object  *a_ob
         return;
     }
     json_object * json_obj_datum = json_object_new_object();
-    dap_hash_fast_t l_datum_hash;
+    dap_hash_fast_t l_datum_hash = { };
     dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
     const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(&l_datum_hash)
@@ -763,6 +789,9 @@ void dap_chain_datum_dump_json(json_object* a_json_arr_reply, json_object  *a_ob
             l_hash_str = dap_chain_hash_fast_to_str_static(&l_decree_hash);
             json_object_object_add(json_obj_datum, a_version == 1 ? "decree hash" : "decree_hash", json_object_new_string(l_hash_str));
             dap_chain_datum_anchor_certs_dump_json(json_obj_datum,l_anchor->data_n_sign + l_anchor->header.data_size, l_anchor->header.signs_size, a_hash_out_type, a_version);
+        } break;
+        case DAP_CHAIN_DATUM_CUSTOM: {
+            json_object_object_add(json_obj_datum, a_version == 1 ? "hash" : "datum_hash", json_object_new_string(l_hash_str));
         } break;
     }  
     json_object_object_add(a_obj_out, a_version == 1 ? "Datum" : "datum", json_obj_datum);  
