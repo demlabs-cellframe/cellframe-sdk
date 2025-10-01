@@ -27,6 +27,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define DAP_CHAIN_NET_SRV_VOTING_ID 0x06
 
@@ -44,15 +45,7 @@ typedef struct dap_chain_net_voting_info {
     dap_chain_net_id_t net_id;
     bool is_expired;
     bool is_cancelled;
-    dap_time_t expired;
-    bool is_max_count_votes;
-    uint64_t max_count_votes;
-    bool is_changing_allowed;
-    bool is_delegate_key_required;
-    struct {
-        size_t question_size;
-        char *question_str;
-    } question;
+    dap_chain_datum_tx_voting_params_t *params;
     struct {
         uint64_t count_option;
         dap_chain_net_voting_option_info_t **options;
