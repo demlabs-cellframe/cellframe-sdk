@@ -152,21 +152,24 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
             log_it(L_ERROR,"Datum size is 0, smth is corrupted in block");
             return a_block_size;
         }
-        // Check if size of of block size
-        if (l_datum_size+l_offset >(a_block_size-sizeof (l_block->hdr))){
-            log_it(L_ERROR,"Datum size is too big %zu thats with offset %zu is bigger than block size %zu (without header)", l_datum_size, l_offset,
-                   (a_block_size-sizeof (l_block->hdr)));
+        if (__builtin_add_overflow(l_offset, l_datum_size, &l_offset)) {
+            log_it(L_ERROR,"Offset overflow %zu + %zu", l_offset, l_datum_size);
             return a_block_size;
         }
-        // update offset and current datum pointer
-        l_offset += l_datum_size;
+        // Check against block size
+        if (l_offset > (a_block_size - sizeof (l_block->hdr) )){
+            log_it(L_ERROR,"Datum size is too big: %zu > %zu", l_offset, a_block_size - sizeof (l_block->hdr));
+            return a_block_size;
+        }
         l_datum =(dap_chain_datum_t *) (l_block->meta_n_datum_n_sign + l_offset);
     }
-    if (l_offset> (a_block_size-sizeof (l_block->hdr))){
-        log_it(L_ERROR,"Offset %zd is bigger than block size %zd (without header)", l_offset, (a_block_size-sizeof (l_block->hdr)));
-        return a_block_size;
-    }
-    if (a_datum_size + l_block->hdr.meta_n_datum_n_signs_size < UINT32_MAX && l_block->hdr.datum_count < UINT16_MAX) {
+
+    if (a_datum_size + l_block->hdr.meta_n_datum_n_signs_size < UINT32_MAX &&
+        l_block->hdr.datum_count < UINT16_MAX &&
+        /* overflow guards for realloc size: sizeof(hdr) + l_offset + a_datum_size */
+        l_offset <= SIZE_MAX - a_datum_size &&
+        sizeof(l_block->hdr) <= SIZE_MAX - (l_offset + a_datum_size))
+    {
         // If were signs - they would be deleted after because signed should be all the block filled
         l_block = DAP_REALLOC_RET_VAL_IF_FAIL(l_block, sizeof(l_block->hdr) + l_offset + a_datum_size, a_block_size);
         *a_block_ptr = l_block;
@@ -175,8 +178,8 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
         l_block->hdr.datum_count++;
         l_block->hdr.meta_n_datum_n_signs_size = l_offset;
         return l_offset + sizeof(l_block->hdr);
-    }else{
-        //log_it(L_ERROR,"");
+    } else {
+        log_it(L_ERROR,"Can't add datum: size arithmetics error");
         return a_block_size;
     }
 }
@@ -194,8 +197,8 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
     dap_chain_block_t * l_block = *a_block_ptr;
     assert(l_block);
     assert(a_datum_hash);
-    if(a_block_size>=sizeof (l_block->hdr)){
-        log_it(L_ERROR, "Corrupted block, block size %zd is lesser than block header size %zd", a_block_size,sizeof (l_block->hdr));
+    if(a_block_size < sizeof (l_block->hdr)){
+        log_it(L_ERROR, "Corrupted block, block size %zd is less than block header size %zd", a_block_size, sizeof (l_block->hdr));
         return 0;
     }
     size_t l_offset = s_block_get_datum_offset(l_block,a_block_size);
