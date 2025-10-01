@@ -1416,18 +1416,16 @@ void dap_auctions_test_event_callbacks(void)
         .event_data = (void*)l_started_data,
         .event_data_size = sizeof(dap_chain_tx_event_data_auction_started_t) + (3 * sizeof(uint32_t))
     };
-    
-    // Test callback with ADDED opcode
-    dap_auction_cache_event_callback((void*)l_cache, l_ledger, &l_event_added, &l_tx_hash, 
-                                    DAP_LEDGER_NOTIFY_OPCODE_ADDED);
-    
     // Note: In our simplified test implementation, we manually add to cache since event callback 
     // works with global state. Here we verify the cache mechanism works properly.
     dap_chain_net_id_t l_net_id = {.uint64 = 0x4001};
-    int l_result = dap_auction_cache_add_auction(l_cache, &l_auction_hash, l_net_id, 
-                                               l_group_name, l_started_data, l_event_added.timestamp);
-    dap_assert_PIF(l_result == 0, "Callback should result in auction being added to cache");
-    
+    dap_chain_net_t *l_ledger_net = DAP_NEW_Z(dap_chain_net_t);
+    l_ledger_net->pub.id = l_net_id;
+    l_ledger->net = l_ledger_net;
+    // Test callback with ADDED opcode
+    dap_auction_cache_event_callback((void*)l_cache, l_ledger, &l_event_added, &l_tx_hash, 
+                                    DAP_LEDGER_NOTIFY_OPCODE_ADDED);    
+   
     dap_auction_cache_item_t *l_found = dap_auction_cache_find_auction_by_name(l_cache, l_group_name);
     dap_assert_PIF(l_found, "Auction should be findable after ADDED callback");
     dap_assert_PIF(l_found->status == DAP_AUCTION_STATUS_ACTIVE, "Auction status should be ACTIVE");
