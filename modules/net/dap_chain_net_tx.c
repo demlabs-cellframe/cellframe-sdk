@@ -1180,9 +1180,7 @@ static const uint8_t * s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_js
                 }
             }               
 
-            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(l_srv_uid, l_value, l_time_staking, l_reinvest_percent,
-                                                                                                                                DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME |
-                                                                                                                                DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT);
+            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(l_srv_uid, l_value, l_time_staking, l_reinvest_percent);
             // Save value for using in In item
             if(l_out_cond_item) {
                 return (const uint8_t*) l_out_cond_item;
@@ -1370,7 +1368,7 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(dap_json_t *a_json_item_obj, d
         *a_sign_list = dap_list_append(*a_sign_list, a_json_item_obj);
         return NULL;
     }
-    const char *l_sign_b64_str = dap_json_object_get_string(l_jobj_sign);
+    const char *l_sign_b64_str = dap_json_get_string(l_jobj_sign);
     if ( !l_sign_b64_str ) {
         if (a_jobj_arr_errors)
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Can't get base64-encoded sign");
@@ -1379,7 +1377,7 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(dap_json_t *a_json_item_obj, d
     }
     uint64_t
         l_sign_size = 0,
-        l_sign_b64_strlen = strlen(dap_json_object_get_string(l_jobj_sign, "value")),
+        l_sign_b64_strlen = strlen(l_sign_b64_str),
         l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
     if ( !s_json_get_int64_uint64(a_json_item_obj, "sig_size", &l_sign_size, true) )
         log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
@@ -1550,14 +1548,8 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
 
-    dap_json_t *l_json_timestamp = NULL;
-
-
-    dap_json_object_get_ex(l_json, "ts_created", &l_json_timestamp);
-    if (l_json_timestamp)
-        l_tx->header.ts_created = dap_json_object_get_int64(l_json_timestamp);
-    else
-        l_tx->header.ts_created = time(NULL);
+    int64_t l_ts_created = dap_json_object_get_int64(l_json, "ts_created");
+    l_tx->header.ts_created = l_ts_created ? l_ts_created : time(NULL);
 
     size_t l_items_ready = 0;
     dap_list_t *l_in_list = NULL;// list 'in' items
@@ -1595,14 +1587,11 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
             if(!l_json_item_obj || !dap_json_is_object(l_json_item_obj)) {
                 continue;
             }
-            dap_json_t *l_json_item_type = NULL;
-
-            dap_json_object_get_ex(l_json_item_obj, "type", &l_json_item_type);
-            if(!l_json_item_type && dap_json_is_string(l_json_item_type)) {
-                log_it(L_WARNING, "Item %zu without type", i);
-                continue;
-            }
-            const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
+             const char *l_item_type_str = dap_json_object_get_string(l_json_item_obj, "type");
+             if(!l_item_type_str) {
+                 log_it(L_WARNING, "Item %zu without type", i);
+                 continue;
+             }
             dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
             if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
                 log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
@@ -2220,9 +2209,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                     }
                 }
 
-                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(l_srv_uid, l_value, l_time_staking, l_reinvest_percent,
-                                                                                                                                    DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME |
-                                                                                                                                    DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT);
+                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(l_srv_uid, l_value, l_time_staking, l_reinvest_percent);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {

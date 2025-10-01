@@ -176,7 +176,9 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
         if (dap_chain_net_link_add(a_net, &l_link_info->node_addr, l_link_info->uplink_addr, l_link_info->uplink_port))
             continue;
         l_json = s_balancer_states_json_collect(a_net, a_host_addr, a_host_port);
-        dap_notify_server_send(dap_json_object_get_string(l_json));
+        char *l_json_str = dap_json_to_string(l_json);
+        dap_notify_server_send(l_json_str);
+        DAP_DELETE(l_json_str);
         dap_json_object_free(l_json);
     }
 }
@@ -196,7 +198,9 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
             , a_host_addr, a_host_port, a_request->net->pub.name, a_errno);
     log_it(L_WARNING, "%s", l_err_str);
     dap_json_object_add_string(l_json, "errorMessage", l_err_str);
-    dap_notify_server_send(dap_json_object_get_string(l_json));
+    char *l_json_str = dap_json_to_string(l_json);
+    dap_notify_server_send(l_json_str);
+    DAP_DELETE(l_json_str);
     dap_json_object_free(l_json);
 }
 
