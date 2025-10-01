@@ -229,7 +229,7 @@ static int s_net_try_online(dap_chain_net_t *a_net);
 static int s_cli_net(int argc, char ** argv, void **a_str_reply, int a_version);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_sync_timer_callback(void *a_arg);
-static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_object *a_json_out, int a_version);
+static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version);
 
 /**
  * @brief
@@ -410,9 +410,13 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_link->addr));
 
-    struct dap_json_t *l_json = dap_chain_net_states_json_collect(l_net, dap_cli_server_get_version());
-    dap_notify_server_send(dap_dap_dap_json_object_get_string(l_json));
-    dap_json_object_free(l_json);
+    dap_json_t *l_json = dap_chain_net_states_json_collect(l_net, dap_cli_server_get_version());
+    if (l_json) {
+        char *l_json_str = dap_json_to_string(l_json);
+        dap_notify_server_send(l_json_str);
+        DAP_DELETE(l_json_str);
+        dap_json_object_free(l_json);
+    }
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ) {
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
     }
@@ -472,13 +476,13 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
     log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR,
            l_net ? l_net->pub.name : "(unknown)", NODE_ADDR_FP_ARGS_S(a_link->addr));
     if (l_net){
-        struct dap_json_t *l_json = dap_chain_net_states_json_collect(l_net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
+        dap_json_t *l_json = dap_chain_net_states_json_collect(l_net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
         char l_err_str[DAP_HOSTADDR_STRLEN + 80];
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->addr), a_link->uplink.client->link_info.uplink_addr, a_error);
         dap_json_object_add_string(l_json, "errorMessage", l_err_str);
-        dap_notify_server_send(dap_dap_dap_json_object_get_string(l_json));
+        dap_notify_server_send(dap_json_to_string(l_json));
         dap_json_object_free(l_json);
     }
 }
@@ -532,9 +536,9 @@ int s_link_manager_link_request(uint64_t a_net_id)
 
 static int s_link_manager_link_count_changed()
 {
-    struct dap_json_t *l_json = dap_chain_nets_info_json_collect(dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
+    dap_json_t *l_json = dap_chain_nets_info_json_collect(dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
     dap_json_object_add_string(l_json, "errorMessage", " "); // regular notify has no error
-    dap_notify_server_send(dap_dap_dap_json_object_get_string(l_json));
+    dap_notify_server_send(dap_json_to_string(l_json));
     dap_json_object_free(l_json);
     return 0;
 }
@@ -582,7 +586,7 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     return DAP_DELETE(l_node_info), 0;
 }
 
-json_object *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
+dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
 {
     // sanity check
     dap_return_val_if_pass(!a_net, NULL);
@@ -636,7 +640,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
     return l_jobj_chains_array;
 }
 
-void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out, int a_version) {
+void s_chain_net_states_to_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version) {
     dap_json_object_add_object(a_json_out, "name", dap_json_object_new_string((const char *) a_net->pub.name));
     dap_json_object_add_object(a_json_out, a_version == 1 ? "networkState" : "network_state",
                            dap_json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
@@ -654,7 +658,7 @@ void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out,
     }
 }
 
-struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net, int a_version) {
+dap_json_t *dap_chain_net_states_json_collect(dap_chain_net_t *a_net, int a_version) {
     dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", a_version == 1 ? "NetInfo" : "net_info");
     s_set_reply_text_node_status_json(a_net, l_json, a_version);
@@ -662,7 +666,7 @@ struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t *a_net, in
     return l_json;
 }
 
-struct json_object *dap_chain_net_list_json_collect(int a_version){
+dap_json_t *dap_chain_net_list_json_collect(int a_version){
     dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", a_version == 1 ? "NetList" : "net_list");
     dap_json_t *l_json_networks = dap_json_array_new();
@@ -673,7 +677,7 @@ struct json_object *dap_chain_net_list_json_collect(int a_version){
     return l_json;
 }
 
-struct json_object *dap_chain_nets_info_json_collect(int a_version){
+dap_json_t *dap_chain_nets_info_json_collect(int a_version){
     dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", a_version == 1 ? "NetsInfo" : "nets_info");
     dap_json_t *l_json_networks = dap_json_object_new();
@@ -692,18 +696,18 @@ struct json_object *dap_chain_nets_info_json_collect(int a_version){
  */
 static void s_net_states_notify(dap_chain_net_t *a_net)
 {
-    struct dap_json_t *l_json = dap_chain_net_states_json_collect(a_net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
+    dap_json_t *l_json = dap_chain_net_states_json_collect(a_net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
     dap_json_object_add_string(l_json, "errorMessage", " "); // regular notify has no error
-    dap_notify_server_send(dap_dap_dap_json_object_get_string(l_json));
+    dap_notify_server_send(dap_json_to_string(l_json));
     dap_json_object_free(l_json);
 }
 
 static bool s_net_states_notify_timer_callback(UNUSED_ARG void *a_arg)
 {
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
-        struct dap_json_t *l_json = dap_chain_net_states_json_collect(net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
+        dap_json_t *l_json = dap_chain_net_states_json_collect(net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
         dap_json_object_add_string(l_json, "errorMessage", " "); // regular notify has no error
-        dap_notify_server_send(dap_dap_dap_json_object_get_string(l_json));
+        dap_notify_server_send(dap_json_to_string(l_json));
         dap_json_object_free(l_json);
     }
 
@@ -817,7 +821,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg)
         dap_json_object_add_object(l_jobj_nets, net->pub.name, json_chains);
     }
     dap_json_object_add_object(json_obj, "nets", l_jobj_nets);
-    dap_notify_server_send(dap_dap_dap_json_object_get_string(json_obj));
+    dap_notify_server_send(dap_json_to_string(json_obj));
     dap_json_object_free(json_obj);
     //s_net_states_notify_timer_callback(NULL);
     return true;
@@ -861,7 +865,7 @@ dap_string_t* dap_cli_list_net()
     return l_string_ret;
 }
 
-static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_object *a_json_out, int a_version) {
+static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version) {
     if (!a_net || !a_json_out)
         return;
     dap_json_t *l_jobj_net_name  = dap_json_object_new_string(a_net->pub.name);
@@ -1008,7 +1012,7 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 }
 
 
-void _s_print_chains(json_object *a_obj_chain, dap_chain_t *a_chain) {
+void _s_print_chains(dap_json_t *a_obj_chain, dap_chain_t *a_chain) {
     if (!a_obj_chain || !a_chain)
         return;
     dap_json_object_add_string(a_obj_chain, "name", a_chain->name);
@@ -1041,7 +1045,7 @@ void _s_print_chains(json_object *a_obj_chain, dap_chain_t *a_chain) {
  */
 static int s_cli_net(int argc, char **argv, void **reply, int a_version)
 {
-    dap_json_t ** a_json_arr_reply = (json_object **) reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) reply;
     dap_json_t *l_jobj_return = dap_json_object_new();
     if (!l_jobj_return) {
         dap_json_rpc_allocation_error(*a_json_arr_reply);

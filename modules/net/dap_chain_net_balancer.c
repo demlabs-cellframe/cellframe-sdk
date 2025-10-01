@@ -80,9 +80,9 @@ int dap_chain_net_balancer_init()
  * @param a_net - responce net
  * @param a_host_info - host info
  */
-struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, const char* a_host_addr, uint16_t a_host_port)
+dap_json_t *s_balancer_states_json_collect(dap_chain_net_t *a_net, const char* a_host_addr, uint16_t a_host_port)
 {
-    struct dap_json_t *l_json = dap_json_object_new();
+    dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class"          , "BalancerRequest");
     dap_json_object_add_object(l_json, "networkName"    , dap_json_object_new_string((const char*)a_net->pub.name));
     dap_json_object_add_string(l_json, "hostAddress"    , a_host_addr ? a_host_addr : "localhost");
@@ -170,7 +170,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
         }
         log_it(L_DEBUG, "%s", l_links_str);
     }
-    struct dap_json_t *l_json;
+    dap_json_t *l_json;
     for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
         if (dap_chain_net_link_add(a_net, &l_link_info->node_addr, l_link_info->uplink_addr, l_link_info->uplink_port))
@@ -189,7 +189,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
  */
 static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request, const char *a_host_addr, uint16_t a_host_port, int a_errno)
 {
-    struct dap_json_t *l_json = s_balancer_states_json_collect(a_request->net, a_host_addr, a_host_port);
+    dap_json_t *l_json = s_balancer_states_json_collect(a_request->net, a_host_addr, a_host_port);
     char l_err_str[256] = { '\0' };
     snprintf(l_err_str, sizeof(l_err_str)
             , "Links from balancer %s:%u in net %s can't be prepared, connection errno %d"

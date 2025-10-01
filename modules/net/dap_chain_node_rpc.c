@@ -205,7 +205,7 @@ void dap_chain_node_rpc_deinit()
  * @param a_addr - node addr to check
  * @return pointer to dap_string_t
  */
-json_object *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
+dap_json_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
 {
     dap_nanotime_t l_timestamp = 0;
     size_t l_data_size = 0;
@@ -291,7 +291,7 @@ int dap_chain_node_rpc_info_del(dap_chain_node_addr_t a_addr)
  * @brief Return string by rpc node list
  * @return pointer to json_object if Ok, NULL if error
  */
-json_object *dap_chain_node_rpc_list()
+dap_json_t *dap_chain_node_rpc_list()
 {
     size_t l_nodes_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(s_rpc_node_list_group, &l_nodes_count);
