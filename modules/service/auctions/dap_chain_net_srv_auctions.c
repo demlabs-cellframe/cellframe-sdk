@@ -105,7 +105,7 @@ int dap_chain_net_srv_auctions_init(void)
         l_net = dap_chain_net_iter_next(l_net);
     }
     
-    dap_cli_server_cmd_add ("auction", com_auction, "Auction commands",
+    dap_cli_server_cmd_add ("auction", com_auction, NULL, "Auction commands",
                 "bid -net <network> -auction <auction_name|tx_hash> -amount <value> -lock_period <3..24> -project <project_id> -fee <value> -w <wallet>\n"
                 "\tPlace a bid on an auction for a specific project\n"
                 "\t-project: project ID (uint32) for which the bid is made\n\n"
