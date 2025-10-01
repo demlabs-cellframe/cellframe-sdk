@@ -12,7 +12,9 @@ test/build
 *.ko
 *.obj
 *.elf
-
+.context
+slc
+.cursorrules
 # Linker output
 *.ilk
 *.map
