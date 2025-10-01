@@ -115,7 +115,7 @@ void dap_chain_net_srv_deinit(void)
  */
 static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_version)
 {
-    dap_json_t **json_arr_reply = (json_object **)a_str_reply;
+    dap_json_t **json_arr_reply = (dap_json_t **)a_str_reply;
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
@@ -141,7 +141,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
     }
 
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*json_arr_reply, &arg_index, argc, argv, NULL, &l_net, CHAIN_TYPE_INVALID);
-    json_object* json_obj_net_srv = NULL;
+    dap_json_t* json_obj_net_srv = NULL;
     if ( l_net ) {
 
         const char *l_order_str = NULL;

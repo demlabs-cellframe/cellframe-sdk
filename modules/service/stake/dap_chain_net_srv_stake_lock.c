@@ -102,7 +102,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, int a
 static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
                                                     const char *a_main_ticker, uint256_t a_value,
                                                     uint256_t a_value_fee,
-                                                    dap_time_t a_time_staking, uint256_t a_reinvest_percent,
+                                                    dap_time_t a_time_unlock, uint256_t a_reinvest_percent,
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value,
                                                     int *res);
 // Create unlock datum
@@ -293,13 +293,13 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 {
     const char *l_net_str = NULL, *l_ticker_str = NULL, *l_coins_str = NULL,
             *l_wallet_str = NULL, *l_cert_str = NULL, *l_chain_str = NULL,
-            *l_time_staking_str = NULL, *l_reinvest_percent_str = NULL, *l_value_fee_str = NULL;
+            *l_time_unlock_str = NULL, *l_reinvest_percent_str = NULL, *l_value_fee_str = NULL;
 
     const char *l_wallets_path								=	dap_chain_wallet_get_path(g_config);
     char 	l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
     dap_chain_net_t						*l_net				=	NULL;
     dap_chain_t							*l_chain			=	NULL;
-    dap_time_t              			l_time_staking		=	0;
+    dap_time_t              			l_time_unlock		=	0;
     uint256_t						    l_reinvest_percent	=	{};
     uint256_t							l_value_delegated	=	{};
     uint256_t                           l_value_fee     	=	{};
@@ -381,31 +381,26 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return FEE_FORMAT_ERROR;
 
     // Read time staking
-    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
-    ||	!l_time_staking_str)
+    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_unlock_str)
+    ||	!l_time_unlock_str)
         return TIME_ERROR;
 
-    if (dap_strlen(l_time_staking_str) != 6)
+    if (dap_strlen(l_time_unlock_str) != 6)
         return TIME_ERROR;
 
-    char l_time_staking_month_str[3] = {l_time_staking_str[2], l_time_staking_str[3], 0};
-    int l_time_staking_month = atoi(l_time_staking_month_str);
-    if (l_time_staking_month < 1 || l_time_staking_month > 12)
+    char l_time_unlock_month_str[3] = {l_time_unlock_str[2], l_time_unlock_str[3], 0};
+    int l_time_unlock_month = atoi(l_time_unlock_month_str);
+    if (l_time_unlock_month < 1 || l_time_unlock_month > 12)
         return TIME_ERROR;
 
-    char l_time_staking_day_str[3] = {l_time_staking_str[4], l_time_staking_str[5], 0};
-    int l_time_staking_day = atoi(l_time_staking_day_str);
-    if (l_time_staking_day < 1 || l_time_staking_day > 31)
+    char l_time_unlock_day_str[3] = {l_time_unlock_str[4], l_time_unlock_str[5], 0};
+    int l_time_unlock_day = atoi(l_time_unlock_day_str);
+    if (l_time_unlock_day < 1 || l_time_unlock_day > 31)
         return TIME_ERROR;
 
-
-    l_time_staking = dap_time_from_str_simplified(l_time_staking_str);
-    if (0 == l_time_staking)
+    l_time_unlock = dap_time_from_str_simplified(l_time_unlock_str);
+    if (l_time_unlock < dap_time_now())
         return TIME_ERROR;
-    dap_time_t l_time_now = dap_time_now();
-    if (l_time_staking < l_time_now)
-        return TIME_ERROR;
-    l_time_staking -= l_time_now;
 
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
     && NULL != l_reinvest_percent_str) {
@@ -444,7 +439,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     // Make transfer transaction
     dap_chain_datum_t *l_datum = s_stake_lock_datum_create(l_net, l_key_from,
                                                            l_ticker_str, l_value, l_value_fee,
-                                                           l_time_staking, l_reinvest_percent,
+                                                           l_time_unlock, l_reinvest_percent,
                                                            l_delegated_ticker_str, l_value_delegated, &res);
     dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_key_from);
@@ -807,7 +802,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
  * @param a_str_reply
  * @return
  */
-static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     enum {
@@ -1044,7 +1039,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         size_t l_receipt_size = 0;
         l_receipt = (dap_chain_datum_tx_receipt_old_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
         if (l_receipt) {
-
+            // Legacy stake lock verification
             if (dap_chain_datum_tx_receipt_check_size((dap_chain_datum_tx_receipt_t*)l_receipt, l_receipt_size))
                 return -13;
             if (!dap_chain_net_srv_uid_compare_scalar(l_receipt->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
@@ -1106,8 +1101,8 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         }
 
         if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
-            // !!! A terrible legacy crutch, TODO !!!
-            if (SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
+            // A terrible legacy crutch, not applied to new txs anymore.
+            if (!l_receipt || SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
                     !EQUAL_256(l_blank_out_value, l_value_delegated)) {
                 log_it(L_ERROR, "Burning and delegated value mismatch");
                 return -12;
@@ -1134,7 +1129,7 @@ static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datu
 static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
                                                     const char *a_main_ticker,
                                                     uint256_t a_value, uint256_t a_value_fee,
-                                                    dap_time_t a_time_staking, uint256_t a_reinvest_percent,
+                                                    dap_time_t a_time_unlock, uint256_t a_reinvest_percent,
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value,
                                                     int *res)
 {
@@ -1220,9 +1215,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         {
             uint256_t l_value_pack = {}, l_native_pack = {}; // how much coin add to 'out_ext' items
             dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-                                                            l_uid, a_value, a_time_staking, a_reinvest_percent,
-                                                            DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME |
-                                                            DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT);
+                                                            l_uid, a_value, a_time_unlock, a_reinvest_percent);
             if (l_tx_out_cond) {
                 if (SUM_256_256(l_value_pack, a_value, &l_value_pack)) {
                     log_it(L_ERROR, "Value pack calculation overflow");

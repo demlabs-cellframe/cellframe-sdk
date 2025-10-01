@@ -29,6 +29,8 @@
 #include "uthash.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_common.h"
+#include "dap_chain_cell.h"
+#include "dap_chain_srv.h"
 #include "dap_math_ops.h"
 #include "dap_list.h"
 #include "dap_hash.h"
@@ -39,6 +41,7 @@
 #include "dap_global_db.h"
 #include "dap_chain_ledger.h"
 #include "json_object.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -68,6 +71,17 @@ static bool s_tag_check_block_reward(dap_ledger_t *a_ledger, dap_chain_datum_tx_
         return true;
     }
     return false;
+}
+
+static bool s_tag_check_event(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
+{
+    //event tag
+    if (!a_items_grp->items_event)
+        return false;
+
+    if (a_action)
+        *a_action = DAP_CHAIN_TX_TAG_ACTION_EVENT;
+    return true;
 }
 
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond)
@@ -229,6 +243,11 @@ int dap_ledger_init()
 
     dap_chain_srv_uid_t l_uid_breward = { .uint64 = DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID };
     dap_ledger_service_add(l_uid_breward, "block_reward", s_tag_check_block_reward);
+
+    dap_chain_srv_uid_t l_uid_event = { .uint64 = DAP_CHAIN_NET_SRV_EVENT_ID };
+    dap_ledger_service_add(l_uid_event, "event", s_tag_check_event);
+
+
     return 0;
 }
 
@@ -256,6 +275,13 @@ static dap_ledger_t *dap_ledger_handle_new(void)
     pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->stake_lock_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->rewards_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->rewards_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->events_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->locked_outs_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->event_pkeys_rwlock, NULL);
+    pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
+    pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
+
     return l_ledger;
 }
 
@@ -275,6 +301,12 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     pthread_rwlock_destroy(&PVT(a_ledger)->balance_accounts_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->stake_lock_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->rewards_rwlock);
+    pthread_rwlock_destroy(&PVT(a_ledger)->events_rwlock);
+    pthread_rwlock_destroy(&PVT(a_ledger)->locked_outs_rwlock);
+    pthread_rwlock_destroy(&PVT(a_ledger)->event_pkeys_rwlock);
+    pthread_mutex_destroy(&PVT(a_ledger)->load_mutex);
+    pthread_cond_destroy(&PVT(a_ledger)->load_cond);
+
     DAP_DEL_MULTY(PVT(a_ledger), a_ledger);
     log_it(L_INFO,"Ledger for network %s destroyed", a_ledger->net->pub.name);
 
@@ -854,6 +886,8 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     if ( is_ledger_cached(l_ledger_pvt) )
         // load ledger cache from GDB
         dap_ledger_load_cache(l_ledger);
+#else
+    l_ledger_pvt->blockchain_time = dap_time_now();
 #endif
     // Decrees initializing
     dap_ledger_decree_init(l_ledger);
@@ -913,6 +947,7 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD) return "hold";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE) return "take";
     if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL) return "refill";
+    if (a_tag == DAP_CHAIN_TX_TAG_ACTION_EVENT) return "event";
 
     return "WTFSUBTAG";
 
@@ -933,13 +968,11 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
     if (strcmp("extend", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EXTEND;
     if (strcmp("close", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CLOSE;
     if (strcmp("change", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_CHANGE;
-    if (strcmp("voting", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_VOTING;
-    if (strcmp("vote", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_VOTE;
     if (strcmp("hold", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD;
     if (strcmp("take", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE;
     if (strcmp("refill", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL;
-
-
+    if (strcmp("event", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EVENT;
+    
     return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
 }
 
@@ -1042,6 +1075,27 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     dap_ledger_token_purge(a_ledger, a_preserve_db);
     dap_ledger_decree_purge(a_ledger);
     PVT(a_ledger)->load_end = false;
+}
+
+int dap_ledger_chain_purge(dap_chain_t *a_chain, size_t a_atom_size)
+{
+    dap_return_val_if_fail(a_chain, -1);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ledger_tx_purge(l_net->pub.ledger, false);
+    if (dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id))
+        return -2;
+    if (dap_chain_srv_purge_all(a_chain->net_id))
+        return -3;
+    if (a_atom_size && dap_chain_cell_truncate(a_chain, c_dap_chain_cell_id_null, a_atom_size))
+        return -4;
+    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
+    if (dap_chain_cell_remove(a_chain, c_dap_chain_cell_id_null, l_role.enums == NODE_ROLE_ARCHIVE))
+        return -5;
+    if (dap_chain_purge(a_chain))
+        return -6;
+    if (dap_chain_cell_create(a_chain, c_dap_chain_cell_id_null))
+        return -7;
+    return 0;
 }
 
 void dap_ledger_tx_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
@@ -1359,27 +1413,6 @@ dap_chain_datum_tx_t *dap_ledger_datum_iter_get_last(dap_ledger_datum_iter_t *a_
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     return a_iter->cur;
 }
-
-dap_chain_tx_used_out_item_t *dap_ledger_get_tx_cond_out(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr_from, dap_chain_tx_out_cond_subtype_t a_subtype)
-{
-    dap_chain_tx_used_out_item_t *l_item = NULL;
-    dap_chain_hash_fast_t l_tx_cur_hash = { };
-    dap_chain_datum_tx_t *l_tx;
-    while(( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_ledger->net->pub.native_ticker, a_addr_from, &l_tx_cur_hash, true) )) {
-        byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
-        TX_ITEM_ITER_TX_TYPE(it, TX_ITEM_TYPE_OUT_COND, l_size, i, l_tx) {
-            ++l_out_idx_tmp;
-            dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *)it;
-            if ( a_subtype != l_out_cond->header.subtype || IS_ZERO_256(l_out_cond->header.value) )
-                continue;
-            l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
-            *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_out_cond->header.value };
-        }
-    }
-
-    return l_item;
-}
-
 
 /**
  * Get the transaction in the cache by the addr in sig item

@@ -189,34 +189,37 @@ typedef union {
 
 enum dap_chain_tx_item_type {
     /// @brief Transaction: inputs
-    TX_ITEM_TYPE_IN = 0x00,
-    TX_ITEM_TYPE_IN_COND = 0x50,
-    TX_ITEM_TYPE_IN_REWARD = 0x07,
-    TX_ITEM_TYPE_IN_EMS = 0x40,
+    TX_ITEM_TYPE_IN = 0x00,             // Standard input
+    TX_ITEM_TYPE_IN_COND = 0x50,        // Conditional input
+    TX_ITEM_TYPE_IN_REWARD = 0x07,      // Reward input
+    TX_ITEM_TYPE_IN_EMS = 0x40,         // Emission input
 
     /// @brief Transaction: outputs
     TX_ITEM_TYPE_OUT_OLD = 0x10,        // Deprecated
-    TX_ITEM_TYPE_OUT_EXT = 0x11,
-    TX_ITEM_TYPE_OUT = 0x12,
-    TX_ITEM_TYPE_OUT_STD = 0x13,
-    TX_ITEM_TYPE_OUT_COND = 0x61,
+    TX_ITEM_TYPE_OUT_EXT = 0x11,        // Extended output
+    TX_ITEM_TYPE_OUT = 0x12,            // Old generation output
+    TX_ITEM_TYPE_OUT_STD = 0x13,        // Standard output
+    TX_ITEM_TYPE_OUT_COND = 0x61,       // Conditional output
 
-    /// @brief Transaction: misc
-    TX_ITEM_TYPE_PKEY = 0x20,
-    TX_ITEM_TYPE_SIG = 0x30,
-    TX_ITEM_TYPE_RECEIPT_OLD = 0x70,
-    TX_ITEM_TYPE_RECEIPT = 0x71,
-    TX_ITEM_TYPE_TSD = 0x80,
+    /// @brief Transaction: security and authorization
+    TX_ITEM_TYPE_PKEY = 0x20,           // Public key
+    TX_ITEM_TYPE_SIG = 0x30,            // Signature
+    TX_ITEM_TYPE_RECEIPT_OLD = 0x70,    // Deprecated
+    TX_ITEM_TYPE_RECEIPT = 0x71,        // Receipt
+    TX_ITEM_TYPE_TSD = 0x80,            // Miscellaneous data
 
     /// @brief Transaction: voting and vote
-    TX_ITEM_TYPE_VOTING = 0x90,
-    TX_ITEM_TYPE_VOTE = 0x91,
+    TX_ITEM_TYPE_VOTING = 0x90,        // Voting
+    TX_ITEM_TYPE_VOTE = 0x91,          // Vote
+
+    /// @brief Transaction: events
+    TX_ITEM_TYPE_EVENT = 0xa0,         // Event
 
     /// @brief Virtual types for items enumearting
-    TX_ITEM_TYPE_IN_EMS_LOCK = 0xf1,
-    TX_ITEM_TYPE_IN_ALL = 0xfd,
-    TX_ITEM_TYPE_OUT_ALL = 0xfe,
-    TX_ITEM_TYPE_ANY = 0xff
+    TX_ITEM_TYPE_IN_EMS_VIRTUAL = 0xf1, // Virtual emission of delegated tokens with single conditional transaction
+    TX_ITEM_TYPE_IN_ALL = 0xfd,         // All inputs
+    TX_ITEM_TYPE_OUT_ALL = 0xfe,        // All outputs
+    TX_ITEM_TYPE_ANY = 0xff             // Any type
 };
 #define TX_ITEM_TYPE_UNKNOWN TX_ITEM_TYPE_ANY
 typedef byte_t dap_chain_tx_item_type_t;
@@ -234,7 +237,7 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 size_t dap_chain_addr_from_str_array(const char *a_addr_str, dap_chain_addr_t **a_addr);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
-dap_chain_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
+dap_chain_srv_uid_t dap_chain_srv_uid_from_str(const char* a_str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);

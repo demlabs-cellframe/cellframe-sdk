@@ -55,6 +55,7 @@ typedef enum dap_chain_datum_voting_tsd_type {
     VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED,
     VOTING_TSD_TYPE_VOTE_TX_COND,
     VOTING_TSD_TYPE_TOKEN,
+    VOTING_TSD_TYPE_CANCEL,
     VOTING_TSD_TYPE_VOTE = 0xfa // hardfork related
 } dap_chain_datum_voting_tsd_type_t;
 
@@ -98,6 +99,7 @@ dap_chain_tx_tsd_t *dap_chain_datum_voting_delegated_key_required_tsd_create(boo
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool a_vote_changing_allowed);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_chain_hash_fast_t a_tx_hash, int a_out_idx);
 dap_chain_tx_tsd_t *dap_chain_datum_voting_token_tsd_create(const char *a_token_ticker);
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_chain_hash_fast_t a_voting_hash);
 
 dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void);
 dap_json_t *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_tx, int a_version);

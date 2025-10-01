@@ -66,8 +66,6 @@
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_ledger.h"
 
-#include "dap_chain_mempool_rpc.h"
-
 #define LOG_TAG "dap_chain_mempool"
 
 static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_dbi,
@@ -202,6 +200,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
         uint32_t l_tx_num = a_tx_num;
         dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_tx_num, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
         dap_chain_datum_tx_add_item(&l_tx, l_out_count);
+        DAP_DELETE(l_out_count);
     }
     
     uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
@@ -549,32 +548,71 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
 char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
                                            const dap_chain_addr_t *a_addr_to, uint256_t a_value_fee, const char *a_hash_out_type)
 {
-    uint256_t                   l_value_out = {};
     uint256_t                   l_net_fee = {};
     dap_chain_datum_tx_t        *l_tx;
     dap_chain_addr_t            l_addr_fee = {};
 
     dap_return_val_if_fail(a_blocks && a_key_from && a_addr_to, NULL);
+
+    dap_hash_fast_t l_sign_pkey_hash;
+    dap_enc_key_get_pkey_hash(a_key_from, &l_sign_pkey_hash);
+    dap_chain_addr_t l_addr_to = { };
+    dap_chain_addr_fill(&l_addr_to, dap_sign_type_from_key_type(a_key_from->type), &l_sign_pkey_hash, a_blocks->chain->net_id);
     dap_chain_t *l_chain = a_blocks->chain;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
-    dap_ledger_t *l_ledger = dap_chain_net_by_id(l_chain->net_id)->pub.ledger;
-    dap_pkey_t *l_sign_pkey = dap_pkey_from_enc_key(a_key_from);
-    dap_chain_tx_used_out_item_t * l_out_fee_stack = dap_ledger_get_tx_cond_out(l_ledger, a_addr_to, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK);
-    if (!l_out_fee_stack) {
-        log_it(L_WARNING, "Can't find fee_stack tx out item");
+    assert(l_chain);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
+    assert(l_net);
+    dap_ledger_t *l_ledger = l_net->pub.ledger;
+    assert(l_ledger);
+    log_it(L_INFO, "Try to find tx with OUT addr %s", dap_chain_addr_to_str_static(&l_addr_to));
+    dap_chain_hash_fast_t l_prev_tx_hash = {};
+    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_addr(l_ledger, l_net->pub.native_ticker, &l_addr_to, &l_prev_tx_hash, true);
+    if (!l_prev_tx) {
+        log_it(L_WARNING, "Can't find tx with OUT addr %s", dap_chain_addr_to_str_static(&l_addr_to));
         return NULL;
     }
-
+    uint8_t *l_out_prev = dap_chain_datum_tx_item_get(l_prev_tx, NULL, NULL, TX_ITEM_TYPE_OUT_STD, NULL);
+    if (!l_out_prev) {
+        log_it(L_WARNING, "Can't find OUT_STD item in tx with addr %s", dap_chain_addr_to_str_static(&l_addr_to));
+        return NULL;
+    }
+    
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {
         log_it(L_WARNING, "Can't create datum tx");
         return NULL;
     }
-    l_value_out = l_out_fee_stack->value;
 
-    dap_hash_fast_t l_sign_pkey_hash;
-    dap_hash_fast(l_sign_pkey->pkey, l_sign_pkey->header.size, &l_sign_pkey_hash);
-    DAP_DELETE(l_sign_pkey);
+    // add 'in' items
+    if (dap_chain_datum_tx_add_in_item(&l_tx, &l_prev_tx_hash, 0) != 1) {
+        log_it(L_WARNING, "Can't add in item in transaction fee");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
 
+    // Check and apply sovereign tax for this key
+    uint256_t l_value_tax = {}, l_value_out = ((dap_chain_tx_out_std_t *)l_out_prev)->value;
+    if (IS_ZERO_256(l_value_out)) {
+        log_it(L_WARNING, "OUT_STD item in tx with addr %s has zero value", dap_chain_addr_to_str_static(&l_addr_to));
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(l_chain->net_id, &l_sign_pkey_hash);
+    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
+                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
+        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
+        if (compare256(l_value_tax, l_value_out) < 1)
+            SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
+    }
+    if (!IS_ZERO_256(l_value_tax)) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax, l_ledger->net->pub.native_ticker) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't create out item in transaction fee");
+            return NULL;
+        }
+    }
+
+    // Network fee
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
     //add 'fee' items
     {
         uint256_t l_value_pack = {};
@@ -607,16 +645,7 @@ char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks
         }
     }
 
-    // Check and apply sovereign tax for this key
-    uint256_t l_value_tax = {};
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(l_chain->net_id, &l_sign_pkey_hash);
-    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
-                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
-        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
-        if (compare256(l_value_tax, l_value_out) < 1)
-            SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
-    }
-        //add 'out' items
+    //add 'out' items
     if (!IS_ZERO_256(l_value_out)) {
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, l_value_out, l_ledger->net->pub.native_ticker) != 1) {
             dap_chain_datum_tx_delete(l_tx);
@@ -624,14 +653,6 @@ char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks
             return NULL;
         }
     }
-    if (!IS_ZERO_256(l_value_tax)) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax, l_ledger->net->pub.native_ticker) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            log_it(L_WARNING, "Can't create out item in transaction fee");
-            return NULL;
-        }
-    }
-
     // add 'sign' items
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
         dap_chain_datum_tx_delete(l_tx);
@@ -1385,3 +1406,196 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     log_it(L_NOTICE, "Filter removed: %i records.", l_removed);
     DAP_DELETE(l_gdb_group);
 }
+
+/**
+  * @brief Compose a transaction with event item for ledger event system
+  * @param[in] a_chain Chain to create transaction for
+  * @param[in] a_key_from Private key for signing
+  * @param[in] a_service_key Service key for signing
+  * @param[in] a_group_name Event group name
+  * @param[in] a_event_type Event type
+  * @param[in] a_event_data Event data
+  * @param[in] a_event_data_size Size of event data
+  * @param[in] a_fee_value Fee value
+  * @param[in] a_hash_out_type Hash output format
+  * @return Transaction hash string on success, NULL on error
+  */
+ char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
+                               dap_enc_key_t *a_key_from,
+                               dap_enc_key_t *a_service_key,
+                               dap_chain_srv_uid_t a_srv_uid,
+                               const char *a_group_name,
+                               uint16_t a_event_type,
+                               const void *a_event_data,
+                               size_t a_event_data_size,
+                               uint256_t a_fee_value,
+                               const char *a_hash_out_type)
+ {
+    // Validate input parameters using standard cellframe pattern
+    dap_return_val_if_fail(a_chain && a_key_from && a_service_key && a_hash_out_type, NULL);
+    dap_return_val_if_fail(a_group_name && strlen(a_group_name), NULL);
+    dap_return_val_if_fail((a_event_data != NULL) == (a_event_data_size > 0), NULL);
+    dap_return_val_if_fail(a_key_from->priv_key_data && a_key_from->priv_key_data_size, NULL);
+    dap_return_val_if_fail(a_service_key->priv_key_data && a_service_key->priv_key_data_size, NULL);
+
+    const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
+
+    // Calculate total fees needed
+    uint256_t l_net_fee = {}, l_total_fee = a_fee_value, l_fee_transfer = {};
+    dap_chain_addr_t l_addr_fee = {};
+    dap_list_t *l_list_fee_out = NULL;
+
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
+    if (l_net_fee_used)
+        SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
+    if (IS_ZERO_256(l_total_fee)) {
+        log_it(L_ERROR, "Total fee is zero");
+        return NULL;
+    }
+     
+    // Get ledger for wallet operations
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+
+    dap_chain_addr_t l_addr_from = {};
+    dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_chain->net_id);
+
+    // Find outputs to cover fees (following mempool style)
+
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, 
+                                                    &l_addr_from, &l_list_fee_out, 
+                                                    l_total_fee, &l_fee_transfer) == -101) {
+        l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                            &l_addr_from, l_total_fee, 
+                                                            &l_fee_transfer);
+    }
+    if (!l_list_fee_out) {
+        log_it(L_WARNING, "Not enough funds to pay fee");
+        return NULL;
+    }
+ 
+    // Create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to create transaction");
+        dap_list_free_full(l_list_fee_out, NULL);
+        return NULL;
+    }
+
+    // Add 'in' items
+    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+    assert(EQUAL_256(l_value_fee_items, l_fee_transfer));
+    dap_list_free_full(l_list_fee_out, NULL);
+
+    // Create and add event item using standard cellframe function
+    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(a_srv_uid, a_group_name, a_event_type, dap_time_now());
+    if (!l_event_item) {
+        log_it(L_ERROR, "Failed to create event item");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (dap_chain_datum_tx_add_item(&l_tx, l_event_item) != 1) {
+        log_it(L_ERROR, "Failed to add event item to transaction");
+        DAP_DELETE(l_event_item);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Add TSD section with event data if provided
+    if (a_event_data && a_event_data_size > 0) {
+        // Create TSD section with event data using standard cellframe function
+        dap_chain_tx_tsd_t *l_tsd_item = dap_chain_datum_tx_item_tsd_create(
+            (void *)a_event_data, DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA, a_event_data_size);
+        
+        if (!l_tsd_item) {
+            log_it(L_ERROR, "Failed to create TSD item with event data");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        
+        int l_result = dap_chain_datum_tx_add_item(&l_tx, (const void *)l_tsd_item);
+        DAP_DELETE(l_tsd_item);
+        
+        if (l_result != 1) {
+            log_it(L_ERROR, "Failed to add TSD item to transaction: %d", l_result);
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Add network fee output if used
+    if (l_net_fee_used) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
+            log_it(L_ERROR, "Failed to add network fee output");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Add validator's fee
+    if (!IS_ZERO_256(a_fee_value)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee_value) != 1) {
+            log_it(L_ERROR, "Failed to add validator fee");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Calculate and add change output
+    uint256_t l_value_back = {};   
+    SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_value_back);
+
+    // Add change output if needed
+    if (!IS_ZERO_256(l_value_back)) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_from, l_value_back, l_native_ticker) != 1) {
+            log_it(L_ERROR, "Failed to add change output");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Add signature
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
+        log_it(L_ERROR, "Failed to sign transaction");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Add second signature from service key
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_service_key) != 1) {
+        log_it(L_ERROR, "Failed to add service signature to transaction");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Pre-validate transaction against ledger rules (e.g., duplicate AUCTION_STARTED)
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_hash_fast_t l_tx_hash = {};
+    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
+    int l_check_rc = dap_ledger_tx_add_check(l_ledger, l_tx, l_tx_size, &l_tx_hash);
+    if (l_check_rc) {
+        log_it(L_WARNING, "Reject event tx before mempool: ledger check failed (%d)", l_check_rc);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Create datum and add to mempool (following mempool pattern)
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    dap_chain_datum_tx_delete(l_tx);
+    
+    if (!l_datum) {
+        log_it(L_ERROR, "Failed to create transaction datum");
+        return NULL;
+    }
+
+    // Add to mempool
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, a_chain, a_hash_out_type);
+    DAP_DELETE(l_datum);
+    
+    if (!l_ret) {
+        log_it(L_ERROR, "Failed to add event transaction to mempool");
+        return NULL;
+    }
+    
+    log_it(L_INFO, "Successfully composed and added event transaction to mempool: %s", l_ret);
+    return l_ret;
+ } 

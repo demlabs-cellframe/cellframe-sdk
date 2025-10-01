@@ -119,34 +119,48 @@ void dap_datum_token_dump_tsd_to_json(dap_json_t * json_obj_out, dap_chain_datum
             dap_json_object_add_int(json_obj_out, "total_signs_valid", _dap_tsd_get_scalar(l_tsd, &l_t));
             continue;
         }
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD: {
+            dap_json_t *l_pkeys_array = NULL;
+            if (!dap_json_object_get_ex(json_obj_out, "total_pkeys_add", &l_pkeys_array)) {
+                l_pkeys_array = dap_json_array_new();
+                dap_json_object_add_array(json_obj_out, "total_pkeys_add", l_pkeys_array);
+            }
+            
             if(l_tsd->size >= sizeof(dap_pkey_t)) {
                     char *l_hash_str;
                     dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
                     dap_hash_fast_t l_hf = { };
                     if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
-                        dap_json_object_add(json_obj_out, "total_pkeys_add", dap_json_object_new_string("<WRONG CALCULATION FINGERPRINT>"));
+                        dap_json_array_add(l_pkeys_array, dap_json_object_new_string("<WRONG CALCULATION FINGERPRINT>"));
                     } else {
                         if (!dap_strcmp(a_hash_out_type, "hex") || !dap_strcmp(a_hash_out_type, "content_hash"))
                             l_hash_str = dap_chain_hash_fast_to_str_new(&l_hf);
                         else
                             l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hf);
-                        dap_json_object_add(json_obj_out, "total_pkeys_add", dap_json_object_new_string(l_hash_str));
+                        dap_json_array_add(l_pkeys_array, dap_json_object_new_string(l_hash_str));
                         DAP_DELETE(l_hash_str);
                     }
             } else
-                    dap_json_object_add_int(json_obj_out, "total_pkeys_add_with_wrong_size", l_tsd->size);
+                    dap_json_array_add(l_pkeys_array, dap_json_object_new_string("wrong_size"));
             continue;
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
+        }
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE: {
+            dap_json_t *l_pkeys_remove_array = NULL;
+            if (!dap_json_object_get_ex(json_obj_out, "total_pkeys_remove", &l_pkeys_remove_array)) {
+                l_pkeys_remove_array = dap_json_array_new();
+                dap_json_object_add_array(json_obj_out, "total_pkeys_remove", l_pkeys_remove_array);
+            }
+            
             if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
                     char *l_hash_str = (!dap_strcmp(a_hash_out_type,"hex")|| !dap_strcmp(a_hash_out_type, "content_hash"))
                                            ? dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t*) l_tsd->data)
                                            : dap_enc_base58_encode_hash_to_str((dap_chain_hash_fast_t*) l_tsd->data);
-                    dap_json_object_add(json_obj_out, "total_pkeys_remove", dap_json_object_new_string(l_hash_str));
+                    dap_json_array_add(l_pkeys_remove_array, dap_json_object_new_string(l_hash_str));
                     DAP_DELETE( l_hash_str );
             } else
-                    dap_json_object_add_int(json_obj_out, "total_pkeys_remove_with_wrong_size", l_tsd->size);
+                    dap_json_array_add(l_pkeys_remove_array, dap_json_object_new_string("wrong_size"));
             continue;
+        }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
             dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
             char *balance = dap_chain_balance_coins_print(l_tsd_section->emission_rate);

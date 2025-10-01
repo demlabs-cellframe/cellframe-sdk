@@ -274,7 +274,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
     );
 
-
     dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool", dap_chain_node_cli_cmd_id_from_str("mempool"),
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
@@ -348,7 +347,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
             "ledger trace -net <net_name> -from <hash1> -to <hash2> [-H {hex|base58}]\n"
-            "\t Build transaction chain from hash2 to hash1 using backward traversal\n");
+            "\t Build transaction chain from hash2 to hash1 using backward traversal\n"
+            "ledger event list -net <net_name> [-group <group_name>]\n"
+            "ledger event dump -net <net_name> -hash <tx_hash>\n"
+            "ledger event create -net <net_name> [-chain <chain_name>] -w <wallet_name> -service_key <cert_name> -srv_uid <service_uid> "
+            "-group <group_name> -event_type <event_type> [-event_data <event_data>] [-fee <fee_value>] [-H <hex|base58>]\n"
+            "ledger event key add -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key remove -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key list -net <net_name> [-H <hex|base58>]\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info", dap_chain_node_cli_cmd_id_from_str("token"),
@@ -375,7 +381,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Decree create command
     dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree", dap_chain_node_cli_cmd_id_from_str("decree"),
             "decree create [common] -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> |"
-                                                                                                                        " -hardfork_from <atom_number> [-trusted_addrs <node_addr1,node_add2,...>] [-addr_pairs <\"old_addr:new_addr\",\"old_addr1:new_addr1\"...>] |"
+                                                                                                                        " -hardfork_from <atom_number> [-trusted_addrs <node_addr1,node_addr2,...>] [-addr_pairs <\"old_addr:new_addr\",\"old_addr1:new_addr1\"...>] |"
                                                                                                                         " -hardfork_retry |"
                                                                                                                         " -hardfork_complete |"
                                                                                                                         " -hardfork_cancel |"
@@ -386,7 +392,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t -fee <value>: sets network fee\n"
             "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
             "\t -hardfork_from <atom_number>: start hardfork routine from specified block number\n"
-            "\t -trusted_addrs <node_addr1,node_add2,...>: addresses of nodes who can provide service state datums for hardfork routine\n"
+            "\t -trusted_addrs <node_addr1,node_addr2,...>: addresses of nodes who can provide service state datums for hardfork routine\n"
             "\t -addr_pairs <\"old_addr:new_addr\",\"old_addr1:new_addr1\"...>: blockchain addresses of wallets pairs moving balances from old_addr to new_addr with hardfork routine\n"
             "\t -hardfork_retry: try to retry unsucsessful hardfork routine immediately\n"
             "\t -hardfork_complete: finilize hardfork routine immediately\n"

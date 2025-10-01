@@ -432,11 +432,15 @@ DAP_STATIC_INLINE bool dap_chain_datum_token_is_old(uint8_t a_type)
 
 DAP_STATIC_INLINE bool dap_chain_datum_token_check_ticker(const char *a_ticker)
 {
-    const char *c = a_ticker;
-    for (int i = 0; i < DAP_CHAIN_TICKER_SIZE_MAX; i++, c++)
-        if (*c == '\0')
-            return true;
-    return false;
+    if (!a_ticker)
+        return false;
+    size_t l_len = strlen(a_ticker);
+    if (l_len < 3 || l_len > 10)
+        return false;
+    for (size_t i = 0; i < l_len; i++)
+        if (!isalnum(a_ticker[i]))
+            return false;
+    return true;
 }
 
 DAP_STATIC_INLINE const char *dap_chain_datum_emission_type_str(uint8_t a_type)

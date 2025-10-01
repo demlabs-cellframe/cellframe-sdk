@@ -53,7 +53,8 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_wallet_shared"
 
-static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner)
+static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash,
+                                       dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner, bool UNUSED_ARG a_check_for_apply)
 {
     size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];
@@ -703,7 +704,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
         const char *l_cur_ptr = strchr(l_token_ptr, ',');
         if (!l_cur_ptr)
             l_cur_ptr = l_pkeys_str + l_pkeys_str_size;
-        dap_strncpy(l_hash_str_buf, l_token_ptr, dap_min(DAP_HASH_FAST_STR_SIZE, l_cur_ptr - l_token_ptr));
+        dap_strncpy(l_hash_str_buf, l_token_ptr, dap_min(DAP_HASH_FAST_STR_SIZE, l_cur_ptr - l_token_ptr + 1));
         if (dap_chain_hash_fast_from_str(l_hash_str_buf, l_pkey_hashes + i)) {
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
             DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
@@ -1099,7 +1100,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
  * @param a_str_reply
  * @return
  */
-int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
     int l_arg_index = 2;
@@ -1143,6 +1144,6 @@ int dap_chain_wallet_shared_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL, NULL, NULL, NULL);
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
-    dap_ledger_service_add(l_uid, "wallet shared", s_tag_check);
+    dap_ledger_service_add(l_uid, "wallet_shared", s_tag_check);
     return 0;
 }

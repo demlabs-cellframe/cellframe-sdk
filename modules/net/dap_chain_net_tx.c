@@ -3055,8 +3055,8 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
             if (l_voting_params->votes_max_count) {
                 dap_json_object_add_uint64(json_obj_item, "votes_max_count", l_voting_params->votes_max_count);
             }
-            dap_json_object_add_object(json_obj_item,"changing_vote", json_object_new_boolean(l_voting_params->vote_changing_allowed));
-            dap_json_object_add_object(json_obj_item,"delegate_key_required", json_object_new_boolean(l_voting_params->delegate_key_required));  
+            dap_json_object_add_object(json_obj_item,"changing_vote", dap_json_object_new_bool(l_voting_params->vote_changing_allowed));
+            dap_json_object_add_object(json_obj_item,"delegate_key_required", dap_json_object_new_bool(l_voting_params->delegate_key_required));  
             dap_list_free_full(l_voting_params->options, NULL);
             DAP_DELETE(l_voting_params->question);
             DAP_DELETE(l_voting_params);

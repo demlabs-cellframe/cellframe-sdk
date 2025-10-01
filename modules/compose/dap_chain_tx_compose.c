@@ -20,8 +20,8 @@
  GNU General Public License for more details.
 
  You should have received a copy of the GNU General Public License
- along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
- */
+   along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+   */
 
 
 #include "dap_common.h"
@@ -41,9 +41,6 @@
 #include "dap_chain_node_client.h"
 
 #include "dap_json.h"
-#define _XOPEN_SOURCE
-#include <time.h>
-#include "rand/dap_rand.h"
 
 #define LOG_TAG "dap_chain_tx_compose"
 

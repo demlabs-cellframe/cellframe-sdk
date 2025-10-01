@@ -235,9 +235,16 @@ dap_chain_srv_hardfork_state_t *dap_chain_srv_hardfork_all(dap_chain_net_id_t a_
 int dap_chain_srv_load_state(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, byte_t *a_state, uint64_t a_state_size, uint32_t a_state_count)
 {
     struct service_list *l_service = s_service_find(a_srv_uid);
-    if (s_net_service_find(l_service, a_net_id))
-        return l_service->callbacks.hardfork_load(a_net_id, a_state, a_state_size, a_state_count);
-    return -404;
+    if (!l_service) {
+        log_it(L_ERROR, "Service 0x%016" DAP_UINT64_FORMAT_x " not found", a_srv_uid.uint64);
+        return -404;
+    }
+    struct network_service *l_net_service = s_net_service_find(l_service, a_net_id);
+    if (!l_net_service) {
+        log_it(L_ERROR, "Service 0x%016" DAP_UINT64_FORMAT_x " not registered on network ID 0x%016" DAP_UINT64_FORMAT_x, a_srv_uid.uint64, a_net_id.uint64);
+        return -400;
+    }
+    return l_service->callbacks.hardfork_load(a_net_id, a_state, a_state_size, a_state_count);
 }
 
 /**

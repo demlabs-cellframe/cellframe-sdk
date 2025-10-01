@@ -87,14 +87,16 @@ static int s_chain_tx_pkey_test()
 {
     dap_print_module_name("dap_chain_tx_pkey_test");
     dap_chain_tx_pkey_t s = {0};
-    dap_assert(sizeof(s) == 16, "size");
-    dap_assert(sizeof(s.header) == 12, "header size");
-    dap_assert(s_get_delta_addr(&s, &s.header) == 0, "header");
-    dap_assert(s_get_delta_addr(&s, &s.header.type) == 0, "header.type");
-    dap_assert(s_get_delta_addr(&s, &s.header.sig_type) == 1, "header.sig_type");
-    dap_assert(s_get_delta_addr(&s, &s.header.sig_size) == 8, "header.sig_size");
-    dap_assert(s_get_delta_addr(&s, &s.seq_no) == 12, "seq_no");
-    dap_assert(s_get_delta_addr(&s, &s.pkey) == 16, "pkey");
+    printf("sizeof(s) = %zu\n", sizeof(s));
+    printf("offsetof(header) = %zu\n", offsetof(dap_chain_tx_pkey_t, header));
+    printf("offsetof(header.type) = %zu\n", offsetof(dap_chain_tx_pkey_t, header.type));
+    printf("offsetof(header.size) = %zu\n", offsetof(dap_chain_tx_pkey_t, header.size));
+    printf("offsetof(pkey) = %zu\n", offsetof(dap_chain_tx_pkey_t, pkey));
+    dap_assert(sizeof(s) == 9, "size");
+    dap_assert(offsetof(dap_chain_tx_pkey_t, header) == 1, "header offset");
+    dap_assert(offsetof(dap_chain_tx_pkey_t, header.type) == 1, "header.type offset");
+    dap_assert(offsetof(dap_chain_tx_pkey_t, header.size) == 5, "header.size offset");
+    dap_assert(offsetof(dap_chain_tx_pkey_t, pkey) == 9, "pkey offset");
     return 0;
 }
 

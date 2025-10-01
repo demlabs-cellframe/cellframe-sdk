@@ -27,7 +27,6 @@
 #include <string.h>
 
 #include "dap_common.h"
-#include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_pkey.h"
 #include "dap_sign.h"
@@ -41,6 +40,7 @@
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
 #include "dap_chain_datum_tx_pkey.h"
+#include "dap_chain_datum_tx_event.h"
 
 typedef struct dap_chain_datum_tx dap_chain_datum_tx_t;
 
@@ -74,6 +74,7 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
         case TX_ITEM_TYPE_VOTING: return "TX_ITEM_TYPE_VOTING";
         case TX_ITEM_TYPE_VOTE: return "TX_ITEM_TYPE_VOTE";
+        case TX_ITEM_TYPE_EVENT: return "TX_ITEM_TYPE_EVENT";
         default: return "UNDEFINED";
     }
 }
@@ -100,6 +101,7 @@ DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chai
         case TX_ITEM_TYPE_TSD: return "data";
         case TX_ITEM_TYPE_VOTING: return "voting";
         case TX_ITEM_TYPE_VOTE: return "vote";
+        case TX_ITEM_TYPE_EVENT: return "event";
         default: return "UNDEFINED";
     }
 }
@@ -175,13 +177,6 @@ dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_std_create(const dap_chain_a
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a_value);
 
 /**
- * Create item dap_chain_tx_out_cond_t with fee_stack subtype
- *
- * return item, NULL Error
- */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee_stack(uint256_t a_value);
-
-/**
  * Create item dap_chain_tx_out_cond_t
  *
  * return item, NULL Error
@@ -222,12 +217,17 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                             dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
                                                                             uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size);
-
 // Create cond out
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_srv_uid_t a_srv_uid,
-                                                                                  uint256_t a_value, uint64_t a_time_staking,
-                                                                                  uint256_t a_reinvest_percent,
-                                                                                  uint32_t a_flags);
+                                                                                  uint256_t a_value, uint64_t a_time_unlock,
+                                                                                  uint256_t a_reinvest_percent);
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(dap_chain_srv_uid_t a_srv_uid,
+                                                                                  uint256_t a_value,
+                                                                                  const dap_hash_fast_t *a_auction_hash,
+                                                                                  dap_time_t a_lock_time,
+                                                                                  uint32_t a_project_id,
+                                                                                  const void *a_params, size_t a_params_size);
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
@@ -263,6 +263,11 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
 
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type);
 
+
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(dap_chain_srv_uid_t a_srv_uid, const char *a_group_name, uint16_t a_type, dap_time_t a_timestamp);
+
+void dap_chain_tx_event_delete(void *a_event);
+dap_chain_tx_event_t *dap_chain_tx_event_copy(dap_chain_tx_event_t *a_event);
 
 #ifdef __cplusplus
 }

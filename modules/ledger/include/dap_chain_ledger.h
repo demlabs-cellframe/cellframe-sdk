@@ -133,6 +133,18 @@ typedef struct dap_ledger_hardfork_anchors {
     dap_chain_datum_anchor_t *anchor;
     struct dap_ledger_hardfork_anchors *prev, *next;
 } dap_ledger_hardfork_anchors_t;
+
+typedef struct dap_ledger_hardfork_fees {
+    dap_chain_addr_t owner_addr;
+    uint256_t fees_n_rewards_sum;
+    struct dap_ledger_hardfork_fees *prev, *next;
+} dap_ledger_hardfork_fees_t;
+
+typedef struct dap_ledger_hardfork_events {
+    dap_chain_tx_event_t *event;
+    struct dap_ledger_hardfork_events *prev, *next;
+} dap_ledger_hardfork_events_t;
+
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
@@ -429,6 +441,10 @@ int dap_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emiss
 
 // Checking a new transaction before adding to the cache
 int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_chain_hash_fast_t *a_emission_hash);
+
+// Hardfork support functions
+int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t a_hardfork_time);
+int dap_ledger_chain_purge(dap_chain_t *a_chain, size_t a_atom_size);
 
 /* Add stake-lock item */
 int dap_ledger_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash);

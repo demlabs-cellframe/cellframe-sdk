@@ -151,11 +151,11 @@ bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr)
 }
 
 /**
- * @brief dap_chain_net_srv_uid_from_str
+ * @brief dap_chain_srv_uid_from_str
  * @param a_net_str
  * @return
  */
-dap_chain_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_uid_str)
+dap_chain_srv_uid_t dap_chain_srv_uid_from_str( const char * a_net_srv_uid_str)
 {
     dap_chain_srv_uid_t l_ret={{0}};
     size_t l_net_srv_uid_str_len = strlen( a_net_srv_uid_str);

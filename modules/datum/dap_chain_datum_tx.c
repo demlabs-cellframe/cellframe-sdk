@@ -78,6 +78,11 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     memcpy((uint8_t*)tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
     *a_tx = tx_new;
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    char *l_hash = dap_hash_fast_str_new(a_item, size);
+    printf("Add \"%s\" item %s\n",  dap_chain_datum_tx_item_type_to_str_short(*(byte_t *)(a_item)), l_hash);
+    DAP_DEL_Z(l_hash);
+#endif
     return 1;
 }
 
@@ -136,7 +141,7 @@ uint256_t dap_chain_datum_tx_add_in_cond_item_list(dap_chain_datum_tx_t **a_tx, 
    uint256_t l_value_to_items = { };
    DL_FOREACH(a_list_used_out_cound, l_item_out) {
        dap_chain_tx_used_out_item_t *l_item = l_item_out->data;
-       if (1 == dap_chain_datum_tx_add_in_cond_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out,0)) {
+       if (1 == dap_chain_datum_tx_add_in_cond_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out, -1)) {
            SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
        }
    }
@@ -203,7 +208,14 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
  */
 int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    if (false)
+        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, rand() % UINT64_MAX ) );
+    else
+        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,  dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
+#else
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, 0) );
+#endif
 }
 
 /**
@@ -304,11 +316,8 @@ int dap_chain_datum_tx_verify_sign_all(dap_chain_datum_tx_t *a_tx)
     TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
         if (*l_item != TX_ITEM_TYPE_SIG)
             continue;
-        if ((l_ret = dap_chain_datum_tx_verify_sign(a_tx, l_sign_num++))) {
+        if ((l_ret = dap_chain_datum_tx_verify_sign(a_tx, l_sign_num++)))
             return l_ret;
-        } else {
-            log_it(L_ERROR, "Sign %d verified", l_sign_num);
-        }
     }
     return l_ret;
 }
@@ -430,7 +439,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 }
 
 void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_items_groups)
-{
+{   
     dap_list_free(a_items_groups->items_in);
     dap_list_free(a_items_groups->items_in_cond);
     dap_list_free(a_items_groups->items_in_reward);
@@ -457,14 +466,15 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_out_cond_undefined);
     dap_list_free(a_items_groups->items_out_all);
     dap_list_free(a_items_groups->items_in_all);
+    dap_list_free(a_items_groups->items_event);
 }
 
 #define DAP_LIST_SAPPEND(X, Y) X = dap_list_append(X,Y)
 bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_res_group)
-{
-    if (!a_tx || !a_res_group)
-        return false;
-
+{   
+    if(!a_tx || !a_res_group)
+        return NULL;
+    
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
         switch (*l_item) {
@@ -546,8 +556,8 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
         case TX_ITEM_TYPE_SIG:
             DAP_LIST_SAPPEND(a_res_group->items_sig, l_item);
             break;
-        case TX_ITEM_TYPE_RECEIPT:
         case TX_ITEM_TYPE_RECEIPT_OLD:
+        case TX_ITEM_TYPE_RECEIPT:
             DAP_LIST_SAPPEND(a_res_group->items_receipt, l_item);
             break;
         case TX_ITEM_TYPE_TSD:
@@ -560,6 +570,9 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
 
         case TX_ITEM_TYPE_VOTE:
             DAP_LIST_SAPPEND(a_res_group->items_vote, l_item);
+            break;
+        case TX_ITEM_TYPE_EVENT:
+            DAP_LIST_SAPPEND(a_res_group->items_event, l_item);
             break;
         default:
             DAP_LIST_SAPPEND(a_res_group->items_unknown, l_item);

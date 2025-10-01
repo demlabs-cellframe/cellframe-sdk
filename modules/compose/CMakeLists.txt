@@ -16,9 +16,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/module/net/client/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../chain/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/module/crypto/include)
+target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
+
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
-    message("[+] Enable compose tests")
 endif()
 
 if (INSTALL_SDK)

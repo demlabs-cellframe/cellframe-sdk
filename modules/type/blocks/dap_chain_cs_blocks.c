@@ -117,7 +117,7 @@ typedef struct dap_chain_block_fork_resolved_notificator{
         log_it(L_DEBUG, "Unlocked rwqlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, void **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
-static void s_cli_meta_hash_print(  json_object* a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta, const char *a_hash_out_type);
+static void s_cli_meta_hash_print(  dap_json_t * a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta, const char *a_hash_out_type);
 static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
 
 // Setup BFT consensus and select the longest chunk
@@ -138,7 +138,7 @@ static size_t s_callback_atom_get_static_hdr_size(void);
 static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
-static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version);
+static dap_json_t *s_callback_atom_dump_json(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version);
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                         dap_chain_hash_fast_t *a_block_hash, int *a_ret_code);
@@ -238,9 +238,9 @@ int dap_chain_cs_blocks_init()
 
         "Commission collect:\n"
             "block -net <net_name> [-chain <chain_name>] fee collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
+            " -cert <priv_cert_name> -addr <addr> {-hashes <hashes_list>|-before_hardfork} -fee <value> \n"
                 "\t\t Take delegated part of commission\n\n"
-                "\t\t {-before_hardfork} collect fees from blocks before hardfork\n\n"
+                "\t\t -before_hardfork collect fees & rewards from all unspent blocks before hardfork\n\n"
 
         "Reward for block signs:\n"
             "block -net <net_name> [-chain <chain_name>] reward set"
@@ -251,9 +251,9 @@ int dap_chain_cs_blocks_init()
                 "\t\t Show base reward for sign for one block at one minute\n\n"
 
             "block -net <net_name> [-chain <chain_name>] reward collect"
-            " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value> {-before_hardfork}\n"
+            " -cert <priv_cert_name> -addr <addr> {-hashes <hashes_list>|-before_hardfork} -fee <value>\n"
                 "\t\t Take delegated part of reward\n\n"
-                "\t\t {-before_hardfork} collect rewards from blocks before hardfork\n\n"
+                "\t\t -before_hardfork collect fees & rewards from all unspent blocks before hardfork\n\n"
 
         "Rewards and fees autocollect status:\n"
             "block -net <net_name> [-chain <chain_name>] autocollect status\n"
@@ -277,9 +277,6 @@ int dap_chain_cs_blocks_init()
     }
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL, NULL, NULL, NULL);
     log_it(L_NOTICE ,"Initialized blocks(m) chain type");
-
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STACK, s_fee_stack_verificator_callback, NULL, NULL, NULL, NULL, NULL);
-    log_it(L_NOTICE ,"Initialized blocks(m) chain type verificator for fee stack subtype");
 
     return 0;
 }
@@ -520,7 +517,7 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, voi
  * @param a_meta
  * @param a_hash_out_type
  */
-static void s_cli_meta_hash_print(json_object* a_json_obj_out, const char *a_meta_title, dap_chain_block_meta_t *a_meta, const char *a_hash_out_type)
+static void s_cli_meta_hash_print(dap_json_t * a_json_obj_out, const char *a_meta_title, dap_chain_block_meta_t *a_meta, const char *a_hash_out_type)
 {
     if (a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t)) {
         const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
@@ -544,7 +541,7 @@ static void s_cli_meta_hash_print(json_object* a_json_obj_out, const char *a_met
  * @param a_meta_title
  * @param a_meta
  */
-static void s_cli_meta_hex_print(json_object* a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
+static void s_cli_meta_hex_print(dap_json_t * a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
 {
     char l_str[a_meta->hdr.data_size * 2 + 3];
     strcpy(l_str, "0x");
@@ -552,10 +549,10 @@ static void s_cli_meta_hex_print(json_object* a_json_obj_out, const char * a_met
     dap_json_object_add_string(a_json_obj_out, a_meta_title, l_str);
 }
 
-static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_json_obj_out, const char *a_table_name, int a_version)
+static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_json_t *a_json_obj_out, const char *a_table_name, int a_version)
 {
     size_t l_objs_count = 0;
-    char *l_group = dap_strcmp(a_table_name, "Fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
+    char *l_group = dap_strcmp(a_table_name, a_version == 1 ? "Fees" : "fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
                                                      : dap_chain_cs_blocks_get_fee_group(a_net->pub.name);
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_objs_count);
     DAP_DELETE(l_group);
@@ -612,13 +609,13 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_jso
 
 static int block_list_sort_by_date(const void *a, const void *b, bool a_forward)
 {
-    struct dap_json_t *obj_a = (struct json_object*)a,
-                       *obj_b = (struct json_object*)b;
+    dap_json_t *obj_a = (dap_json_t *)a;
+    dap_json_t *obj_b = (dap_json_t *)b;
 
-    struct dap_json_t *timestamp_a = dap_json_object_get(obj_a, "timestamp"), 
-                       *timestamp_b = dap_json_object_get(obj_b, "timestamp");
-    int l_fwd = a_forward ? 1 : -1;
-    return timestamp_a > timestamp_b ? a_forward : timestamp_a < timestamp_b ? -a_forward : 0;
+    uint64_t ts_a = dap_json_object_get_int64(obj_a, "timestamp");
+    uint64_t ts_b = dap_json_object_get_int64(obj_b, "timestamp");
+    
+    return ts_a > ts_b ? (a_forward ? 1 : -1) : ts_a < ts_b ? (a_forward ? -1 : 1) : 0;
 }
 
 static int blocks_sort_fwd(const void *a, const void *b) {
@@ -1141,13 +1138,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             }
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             //sort by time
-            json_object_array_sort(json_arr_bl_cache_out, l_head ? blocks_sort_fwd : blocks_sort_rev);
+            // TODO: Implement sorting in dap_json API - json_object_array_sort not available
+            // json_object_array_sort(json_arr_bl_cache_out, l_head ? blocks_sort_fwd : blocks_sort_rev);
             // Remove the timestamp and change block num
             size_t l_length = dap_json_array_length(json_arr_bl_cache_out);
             for (size_t i = 0; i < l_length; i++) {
-                struct dap_json_t *obj = dap_json_array_get_idx(json_arr_bl_cache_out, i);
-                json_object_object_del(obj, "timestamp");
-                if (json_object_object_get_ex(obj, "block", NULL)) 
+                dap_json_t *obj = dap_json_array_get_idx(json_arr_bl_cache_out, i);
+                dap_json_object_del(obj, "timestamp");
+                dap_json_t *l_block_val = NULL;
+                if (dap_json_object_get_ex(obj, "block", &l_block_val))
                     dap_json_object_add_uint64(obj, "block", i);
             }
             dap_json_array_add(*a_json_arr_reply, json_arr_bl_cache_out);
@@ -1299,8 +1298,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hashes", &l_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_value_str);
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", &l_fee_value_str);
-            int l_before_hardfork = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-before_hardfork", NULL);
+            bool l_before_hardfork = dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-before_hardfork") != -1;
 
             if (!l_addr_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block %s collect' requires parameter '-addr'", l_subcmd_str);
@@ -1331,13 +1329,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
 
-            if (!l_hash_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee collect' requires parameter '-hashes'");
-                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
-            }
-
             char *l_hash_tx = NULL;
-            if (l_before_hardfork == 0) {
+            if (!l_before_hardfork) {
+                if (!l_hash_str) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'block fee collect' requires parameter '-hashes'");
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+                }
                 // NOTE: This call will modify source string
                 l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
                 if (!l_block_list || !l_hashes_count) {
@@ -1348,9 +1345,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 char *l_hash_tx = l_subcmd == SUBCMD_FEE
                     ? dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type)
                     : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
-            } else {
-                char *l_hash_tx = dap_chain_mempool_tx_coll_fee_stack_create(l_blocks, l_cert->enc_key, l_addr, l_fee_value, l_hash_out_type);
-            }
+            } else
+                l_hash_tx = dap_chain_mempool_tx_coll_fee_stack_create(l_blocks, l_cert->enc_key, l_addr, l_fee_value, l_hash_out_type);
             
             if (l_hash_tx) {
                 dap_json_t* json_obj_out = dap_json_object_new();
@@ -1845,7 +1841,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         assert(l_net);
         if ( !dap_chain_net_get_load_mode(l_net) ) {
             int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
-            if (l_err) {
+            if (l_err < 0) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", l_err);
                 return ATOM_REJECT;
             }
@@ -1950,18 +1946,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     // Make a block copy to avoid unmapping block pointer destruction
                     dap_chain_block_t *l_block_copy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_block, a_atom_size, ATOM_REJECT);
                     l_block = l_block_copy;
-                    dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id);
-                    dap_ledger_tx_purge(l_net->pub.ledger, false);
-                    dap_chain_srv_purge_all(a_chain->net_id);
-                    dap_chain_cell_truncate(a_chain, c_dap_chain_cell_id_null, a_atom_size);
-                    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
-                    if (dap_chain_cell_remove(a_chain, c_dap_chain_cell_id_null, l_role.enums == NODE_ROLE_ARCHIVE)) {
+                    if (dap_ledger_chain_purge(a_chain, a_atom_size)) {
                         log_it(L_ERROR, "Can't accept hardfork genesis block %s: removing cell error", dap_hash_fast_to_str_static(a_atom_hash));
                         DAP_DELETE(l_block_copy);
                         return ATOM_REJECT;
                     }
-                    dap_chain_purge(a_chain);
-                    dap_chain_cell_create(a_chain, c_dap_chain_cell_id_null);
                     int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
                     DAP_DELETE(l_block_copy);
                     if (l_err) {
@@ -1974,6 +1963,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     }
                 }
                 l_net->pub.ledger->is_hardfork_state = true;
+                dap_ledger_token_emissions_mark_hardfork(l_net->pub.ledger, l_block->hdr.ts_created);
                 a_chain->generation = a_chain->hardfork_generation = l_generation;
                 dap_chain_esbocs_set_hardfork_state(a_chain, true);
                 if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, &l_hardfork_decree_hash)) { // True import
@@ -2378,7 +2368,7 @@ static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_cha
     return l_datum_index->block_cache->block;
 }
 
-static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version) {
+static dap_json_t *s_callback_atom_dump_json(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version) {
    dap_chain_block_t *l_block = (dap_chain_block_t *) a_atom_ptr;
     dap_json_t *l_obj_ret = dap_json_object_new();
     char l_time_buf[DAP_TIME_STR_SIZE], l_hexbuf[32] = { '\0' };
@@ -2738,11 +2728,12 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         dap_chain_datum_t *l_datum = a_datums[i];
         size_t l_datum_size = dap_chain_datum_size(l_datum);
         if (!l_datum_size) {
-            log_it(L_WARNING, "Empty datum"); /* How might it be? */
+            log_it(L_WARNING, "Empty datum #%zu", i); /* How might it be? */
             continue;
         }
         if (l_blocks->block_new_size + l_datum_size > DAP_CHAIN_CANDIDATE_MAX_SIZE) {
-            log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_CANDIDATE_MAX_SIZE);
+            log_it(L_DEBUG, "Maximum size exeeded for datum #%zu, %zu > %d", i, l_blocks->block_new_size + l_datum_size,
+                                                                             DAP_CHAIN_CANDIDATE_MAX_SIZE);
             break;
         }
         if (!l_blocks->block_new) {
@@ -2933,15 +2924,6 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
     return -4;
 }
 
-
-static int s_fee_stack_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
-                                      dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner)
-{
-    return a_owner ? 0 : -1;
-}
-
-
-
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain)
 {
     return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count;
@@ -2972,15 +2954,16 @@ static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size
     return l_list;
 }
 
-static int s_compare_fees(dap_chain_cs_blocks_hardfork_fees_t *a_list1, dap_chain_cs_blocks_hardfork_fees_t *a_list2)
+static int s_compare_fees(dap_ledger_hardfork_fees_t *a_list1, dap_ledger_hardfork_fees_t *a_list2)
 {
-    return !dap_sign_compare_pkeys(a_list1->owner_sign, a_list2->owner_sign);
+    return !dap_chain_addr_compare(&a_list1->owner_addr, &a_list2->owner_addr);
 }
 
-static int s_aggregate_fees(dap_chain_cs_blocks_hardfork_fees_t **a_out_list, dap_chain_block_autocollect_type_t a_type, dap_sign_t *a_sign, uint256_t a_value)
+static int s_aggregate_fees(dap_ledger_hardfork_fees_t **a_out_list, dap_chain_addr_t *a_addr, uint256_t a_value)
 {
-    dap_chain_cs_blocks_hardfork_fees_t l_new_fee = { .owner_sign = a_sign };
-    dap_chain_cs_blocks_hardfork_fees_t *l_exist = NULL;
+    assert(a_addr && a_out_list);
+    dap_ledger_hardfork_fees_t l_new_fee = { .owner_addr = *a_addr };
+    dap_ledger_hardfork_fees_t *l_exist = NULL;
     DL_SEARCH(*a_out_list, l_exist, &l_new_fee, s_compare_fees);
     if (!l_exist) {
         l_exist = DAP_DUP(&l_new_fee);
@@ -2990,27 +2973,16 @@ static int s_aggregate_fees(dap_chain_cs_blocks_hardfork_fees_t **a_out_list, da
         }
         DL_APPEND(*a_out_list, l_exist);
     }
-    switch (a_type) {
-    case DAP_CHAIN_BLOCK_COLLECT_FEES:
-        if (SUM_256_256(l_exist->fees_n_rewards_sum, a_value, &l_exist->fees_n_rewards_sum)) {
-            log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed fees");
-            return -2;
-        } break;
-    case DAP_CHAIN_BLOCK_COLLECT_REWARDS:
-        if (SUM_256_256(l_exist->fees_n_rewards_sum, a_value, &l_exist->fees_n_rewards_sum)) {
-            log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed rewards");
-            return -2;
-        } break;
-    default:
-        log_it(L_ERROR, "Illegal block autocollect type %d", a_type);
-        return -3;
+    if (SUM_256_256(l_exist->fees_n_rewards_sum, a_value, &l_exist->fees_n_rewards_sum)) {
+        log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed fees or rewards");
+        return -2;
     }
     return 0;
 }
 
-dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_chain)
+dap_ledger_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_chain)
 {
-    dap_chain_cs_blocks_hardfork_fees_t *ret = NULL;
+    dap_ledger_hardfork_fees_t *ret = NULL;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
@@ -3026,13 +2998,30 @@ dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chai
                     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp);
                     if (!l_cond)
                         continue;
-                    if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + j, l_out_idx_tmp, NULL))
-                        s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_FEES, l_sign, l_cond->header.value);
+                    if (dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + j, l_out_idx_tmp, NULL))
+                        continue;
+                    // Check and apply sovereign tax for this key
+                    uint256_t l_value_tax = {}, l_value_out = l_cond->header.value;
+                    dap_hash_fast_t l_sign_pkey_hash = {};
+                    dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+                    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_chain->net_id, &l_sign_pkey_hash);
+                    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
+                                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
+                        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
+                        if (compare256(l_value_tax, l_value_out) < 1)
+                            SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
+                    }
+                    if (!IS_ZERO_256(l_value_out)) {
+                        dap_chain_addr_t l_owner_addr = {};
+                        dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, a_chain->net_id);
+                        s_aggregate_fees(&ret, &l_owner_addr, l_value_out);
+                    }
+                    if (!IS_ZERO_256(l_value_tax))
+                        s_aggregate_fees(&ret, &l_key_item->sovereign_addr, l_value_tax);
                 }
             }
             if (l_ts < DAP_REWARD_INIT_TIMESTAMP)
                 break;
-            //dap_chain_cs_esbocs_get_precached_key_hash(l_sign);
             dap_hash_fast_t l_pkey_hash;
             dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
             if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
@@ -3040,7 +3029,9 @@ dap_chain_cs_blocks_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chai
             dap_pkey_t *l_sign_pkey = dap_pkey_get_from_sign(l_sign);
             uint256_t l_reward_value = s_callback_calc_reward(a_chain, &l_block_cache->block_hash, l_sign_pkey);
             DAP_DELETE(l_sign_pkey);
-            s_aggregate_fees(&ret, DAP_CHAIN_BLOCK_COLLECT_REWARDS, l_sign, l_reward_value);
+            dap_chain_addr_t l_owner_addr = {};
+            dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, a_chain->net_id);
+            s_aggregate_fees(&ret, &l_owner_addr, l_reward_value);
         }
     }
     return ret;

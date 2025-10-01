@@ -108,7 +108,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
  * @param str_reply
  * @return
  */
-int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
@@ -735,7 +735,7 @@ static int s_token_decl_check_params_json(int a_argc, char **a_argv, json_object
     "\t -tx_sender_blocked <value>:\t Blocked tx sender(s)\n"
     "\n"
  */
-int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
+int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
     const char * l_ticker = NULL;
@@ -1032,7 +1032,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
     "\t -tx_sender_blocked_remove <value>:\t Remove tx sender(s) from blocked\n"
     "\n"
  */
-int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
+int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
     const char * l_ticker = NULL;
@@ -1174,7 +1174,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_versi
  * @param str_reply
  * @return
  */
-int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;

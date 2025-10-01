@@ -146,8 +146,15 @@ if(NOT DEFINED CELLFRAME_MODULES)
 
         include (dap-sdk/cmake/OS_Detection.cmake)
 
+        # Configure DAP SDK modules
+        # Default modules are set in dap-sdk/CMakeLists.txt: crypto plugin io network-* global-db
         if(BUILD_CELLFRAME_SDK_TESTS)
-            set(DAPSDK_MODULES "test-framework")
+            # Add test-framework to default modules, don't replace them
+            if(NOT DEFINED DAPSDK_MODULES OR DAPSDK_MODULES STREQUAL "")
+                set(DAPSDK_MODULES "crypto plugin io network-core network-server network-client network-link_manager global-db test-framework")
+            else()
+                set(DAPSDK_MODULES "${DAPSDK_MODULES} test-framework")
+            endif()
         endif()
 
         add_subdirectory(dap-sdk)
@@ -161,7 +168,7 @@ if(NOT DEFINED CELLFRAME_MODULES)
         set(CELLFRAME_USING_EXTERNAL_DAP_SDK ON)
     endif()
 
-    set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange compose")
+    set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-auctions compose")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -231,6 +238,13 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
+        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
+endif()
+
+# Compose
+if (CELLFRAME_MODULES MATCHES "compose")
+    message("[+] Module 'compose'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_compose dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
         dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
 endif()
 
@@ -326,6 +340,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-voting")
     message("[+] Module 'srv-voting'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
+endif()
+
+# Enable service auctions
+if (CELLFRAME_MODULES MATCHES "srv-auctions")
+    message("[+] Module 'srv-auctions'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_auctions)
 endif()
 
 # Enable service for dynamic modules
