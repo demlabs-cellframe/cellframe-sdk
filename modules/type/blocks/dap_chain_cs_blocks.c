@@ -1634,7 +1634,7 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
 static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
 {
     if (! a_block_cache->datum_count){
-        log_it(L_WARNING,"Block %s has no datums at all, can't add anything to ledger", a_block_cache->block_hash_str);
+        log_it(L_DEBUG,"Block %s has no datums at all, nothing to add to ledger", a_block_cache->block_hash_str);
         return 1; // No errors just empty block
     }
     int l_ret = 0;
