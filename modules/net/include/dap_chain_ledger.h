@@ -485,7 +485,12 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger);
 dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger);
 
 dap_chain_tx_event_t *dap_ledger_event_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
-dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_group_name);
+dap_list_t *dap_ledger_event_get_list_ex(dap_ledger_t *a_ledger, const char *a_group_name, bool a_need_lock);
+DAP_STATIC_INLINE dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_group_name)
+{
+    return dap_ledger_event_get_list_ex(a_ledger, a_group_name, true);
+}
+
 
 /**
  * @brief Check if a public key is allowed for creating events
