@@ -277,8 +277,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY ,
                                              l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_chain_ch_validator_test_t) + sign_s);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-            DAP_DELETE(l_sign);
-            DAP_DELETE(send);
+            DAP_DEL_MULTY(l_sign, send);
         } break;
 
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY:{
