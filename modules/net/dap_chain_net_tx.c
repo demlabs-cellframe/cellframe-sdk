@@ -569,28 +569,21 @@ static const char* s_json_get_text(dap_json_t *a_json, const char *a_key)
 {
     if(!a_json || !a_key)
         return NULL;
-    dap_json_t *l_json = dap_json_object_get_ex(a_json, a_key);
-    if(l_json && dap_dap_json_object_is_type(l_json, json_type_string)) {
-        // Read text
-        return dap_json_to_string(l_json);
-    }
-    return NULL;
+    
+    return dap_json_object_get_string(a_json, a_key);
 }
 
 static bool s_json_get_int64_uint64(dap_json_t *a_json, const char *a_key, void *a_out, bool a_is_uint64)
 {
     if(!a_json || !a_key || !a_out)
         return false;
-    dap_json_t *l_json = dap_json_object_get_ex(a_json, a_key);
-    if(l_json) {
-        if(a_is_uint64) {
-            *(uint64_t*)a_out = json_object_get_uint64(l_json);
-        } else {
-            *(int64_t*)a_out = dap_json_object_get_int64(l_json);
-        }
-        return true;
+    
+    if(a_is_uint64) {
+        *(uint64_t*)a_out = dap_json_object_get_uint64(a_json, a_key);
+    } else {
+        *(int64_t*)a_out = dap_json_object_get_int64(a_json, a_key);
     }
-    return false;
+    return true;
 }
 
 static bool s_json_get_unit(dap_json_t *a_json, const char *a_key, dap_chain_net_srv_price_unit_uid_t *a_out)
@@ -678,15 +671,14 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, dap_json_t *a_jso
     int res = DAP_CHAIN_NET_TX_NORMAL;
     for(size_t i = 0; i < a_items_count; ++i) {
         dap_json_t *l_json_item_obj = dap_json_array_get_idx(a_json_item_objs, i);
-        if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+        if(!l_json_item_obj || !dap_json_is_object(l_json_item_obj)) {
             continue;
         }
-        dap_json_t *l_json_item_type = dap_json_object_get_ex(l_json_item_obj, "type");
-        if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
+        const char *l_item_type_str = dap_json_object_get_string(l_json_item_obj, "type");
+        if(!l_item_type_str) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
-        const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
         dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
         if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
             log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
@@ -1371,7 +1363,9 @@ static const uint8_t * s_dap_chain_net_tx_create_tsd_item(dap_json_t *a_json_ite
 
 const uint8_t *s_dap_chain_net_tx_create_sig_item(dap_json_t *a_json_item_obj, dap_json_t *a_jobj_arr_errors, dap_chain_datum_tx_t *a_tx, dap_list_t **a_sign_list)
 {
-    dap_json_t *l_jobj_sign = dap_json_object_get_ex(a_json_item_obj, "sig_b64");
+    dap_json_t *l_jobj_sign = NULL;
+
+    dap_json_object_get_ex(a_json_item_obj, "sig_b64", &l_jobj_sign);
     if (!l_jobj_sign) {
         *a_sign_list = dap_list_append(*a_sign_list, a_json_item_obj);
         return NULL;
@@ -1385,7 +1379,7 @@ const uint8_t *s_dap_chain_net_tx_create_sig_item(dap_json_t *a_json_item_obj, d
     }
     uint64_t
         l_sign_size = 0,
-        l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
+        l_sign_b64_strlen = strlen(dap_json_object_get_string(l_jobj_sign, "value")),
         l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
     if ( !s_json_get_int64_uint64(a_json_item_obj, "sig_size", &l_sign_size, true) )
         log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
@@ -1539,9 +1533,11 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     bool l_reward = false;
 
     // Read items from json file
-    dap_json_t *l_json_items = dap_json_object_get_ex(l_json, "items");
+    dap_json_t *l_json_items = NULL;
+
+    dap_json_object_get_ex(l_json, "items", &l_json_items);
     size_t l_items_count;
-    if(!l_json_items || !dap_dap_json_object_is_type(l_json_items, json_type_array) || !(l_items_count = dap_json_array_length(l_json_items))) {
+    if(!l_json_items || !dap_json_is_array(l_json_items) || !(l_items_count = dap_json_array_length(l_json_items))) {
         dap_json_object_free(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
@@ -1554,7 +1550,10 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
 
-    dap_json_t *l_json_timestamp = dap_json_object_get_ex(l_json, "ts_created");
+    dap_json_t *l_json_timestamp = NULL;
+
+
+    dap_json_object_get_ex(l_json, "ts_created", &l_json_timestamp);
     if (l_json_timestamp)
         l_tx->header.ts_created = dap_json_object_get_int64(l_json_timestamp);
     else
@@ -1578,15 +1577,14 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
 
     for(int i = l_items_count - 1; i >= 0  && !l_signed; --i) {
         dap_json_t *l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
-        if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+        if(!l_json_item_obj || !dap_json_is_object(l_json_item_obj)) {
             continue;
         }   
-        dap_json_t *l_json_item_type = dap_json_object_get_ex(l_json_item_obj, "type");
-        if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
+        const char *l_item_type_str = dap_json_object_get_string(l_json_item_obj, "type");
+        if(!l_item_type_str) {
             log_it(L_WARNING, "Item %du without type", i);
             continue;
         }
-        const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
         l_signed |= TX_ITEM_TYPE_SIG == dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
     }
 
@@ -1594,11 +1592,13 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
         // First iteration in input file. Check the tx will be multichannel or not
         for(size_t i = 0; i < l_items_count; ++i) {
             dap_json_t *l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
-            if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+            if(!l_json_item_obj || !dap_json_is_object(l_json_item_obj)) {
                 continue;
             }
-            dap_json_t *l_json_item_type = dap_json_object_get_ex(l_json_item_obj, "type");
-            if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
+            dap_json_t *l_json_item_type = NULL;
+
+            dap_json_object_get_ex(l_json_item_obj, "type", &l_json_item_type);
+            if(!l_json_item_type && dap_json_is_string(l_json_item_type)) {
                 log_it(L_WARNING, "Item %zu without type", i);
                 continue;
             }
@@ -1744,22 +1744,21 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
         dap_json_t *l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
-        if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+        if(!l_json_item_obj || !dap_json_is_object(l_json_item_obj)) {
             continue;
         }
-        dap_json_t *l_json_item_type = dap_json_object_get_ex(l_json_item_obj, "type");
-        if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
+        const char *l_item_type_str = dap_json_object_get_string(l_json_item_obj, "type");
+        if(!l_item_type_str) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
-        const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
         dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
         if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
             log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
             continue;
         }
 
-        log_it(L_DEBUG, "Json TX: process item %s", dap_json_object_get_string(l_json_item_type));
+        log_it(L_DEBUG, "Json TX: process item %s", l_item_type_str);
         // Create an item depending on its type
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
@@ -2337,18 +2336,12 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
         }
             break;
         case TX_ITEM_TYPE_SIG: {
-            dap_json_t *l_jobj_sign = dap_json_object_get_ex(l_json_item_obj, "sig_b64");
-            if (!l_jobj_sign) {
+            const char *l_sign_b64_str = dap_json_object_get_string(l_json_item_obj, "sig_b64");
+            if (!l_sign_b64_str) {
                 l_sign_list = dap_list_append(l_sign_list, l_json_item_obj);
                 break;
             }
-            const char *l_sign_b64_str = dap_json_object_get_string(l_jobj_sign);
-            if ( !l_sign_b64_str ) {
-                dap_json_array_add(l_jobj_errors, dap_json_object_new_string("Can't get base64-encoded sign"));
-                log_it(L_ERROR, "Json TX: Can't get base64-encoded sign!");
-                break;
-            }
-            int64_t l_sign_size = 0, l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
+            int64_t l_sign_size = 0, l_sign_b64_strlen = strlen(l_sign_b64_str),
                     l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
             if ( !s_json_get_int64_uint64(l_json_item_obj, "sig_size", &l_sign_size, false) )
                 log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
@@ -2686,13 +2679,13 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
     }
 
     // Read items and net from json file
-    dap_json_t *l_json_items = dap_json_object_get_ex(a_tx_json, "items");
-    dap_json_t *l_json_net = dap_json_object_get_ex(a_tx_json, "net");
+    dap_json_t *l_json_items = NULL;
+    dap_json_object_get_ex(a_tx_json, "items", &l_json_items);
     size_t l_items_count;
-    if(!l_json_items || !dap_dap_json_object_is_type(l_json_items, json_type_array) || !(l_items_count = dap_json_array_length(l_json_items))) {
+    if(!l_json_items || !dap_json_is_array(l_json_items) || !(l_items_count = dap_json_array_length(l_json_items))) {
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     } 
-    const char *l_net_str = dap_json_object_get_string(l_json_net); 
+    const char *l_net_str = dap_json_object_get_string(a_tx_json, "net"); 
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_str);
     if (l_net_str && !l_net && !a_net) {
         dap_json_rpc_error_add(a_jobj_arr_errors,DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON,"not found net by name '%s'", l_net_str);
@@ -2708,11 +2701,8 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
 
-    dap_json_t *l_json_timestamp = dap_json_object_get_ex(a_tx_json, "ts_created");
-    if (l_json_timestamp)
-        l_tx->header.ts_created = dap_json_object_get_int64(l_json_timestamp);
-    else
-        l_tx->header.ts_created = time(NULL);
+    int64_t l_ts_created = dap_json_object_get_int64(a_tx_json, "ts_created");
+    l_tx->header.ts_created = l_ts_created ? l_ts_created : time(NULL);
 
     size_t l_items_ready = 0;
     dap_list_t *l_sign_list = NULL;// list 'sign' items
@@ -2733,22 +2723,21 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
         dap_json_t *l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
-        if(!l_json_item_obj || !dap_dap_json_object_is_type(l_json_item_obj, json_type_object)) {
+        if(!l_json_item_obj || !dap_json_is_object(l_json_item_obj)) {
             continue;
         }
-        dap_json_t *l_json_item_type = dap_json_object_get_ex(l_json_item_obj, "type");
-        if(!l_json_item_type && dap_dap_json_object_is_type(l_json_item_type, json_type_string)) {
+        const char *l_item_type_str = dap_json_object_get_string(l_json_item_obj, "type");
+        if(!l_item_type_str) {
             log_it(L_WARNING, "Item %zu without type", i);
             continue;
         }
-        const char *l_item_type_str = dap_json_object_get_string(l_json_item_type);
         dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
         if(l_item_type == TX_ITEM_TYPE_UNKNOWN) {
             log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
             continue;
         }
 
-        log_it(L_DEBUG, "Json TX: process item %s", dap_json_object_get_string(l_json_item_type));
+        log_it(L_DEBUG, "Json TX: process item %s", l_item_type_str);
         // Create an item depending on its type
         const uint8_t *l_item = NULL;
         switch (l_item_type) {

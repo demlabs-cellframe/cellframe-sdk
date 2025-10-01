@@ -229,15 +229,15 @@ dap_json_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
     dap_json_object_add_string(json_node_obj, "Record timestamp", l_ts);
     dap_json_object_add_uint64(json_node_obj, "Record version", l_node_info->version);
     dap_json_object_add_string(json_node_obj, "Node addr", l_node_addr_str);
-    dap_json_object_add_object(json_node_obj, "Location", json_object_new_int64(l_node_info->location));
+    dap_json_object_add_object(json_node_obj, "Location", dap_json_object_new_int64(l_node_info->location));
     dap_json_object_add_uint64(json_node_obj, "Cli thread count", l_node_info->cli_thread_count);
     dap_json_object_add_uint64(json_node_obj, "Links count", l_node_info->links_count);
     dap_json_object_add_uint64(json_node_obj, "Procs", l_node_info->system_info.procs);
     dap_json_object_add_uint64(json_node_obj, "Free ram", l_node_info->system_info.freeram);
     dap_json_object_add_uint64(json_node_obj, "Total ram", l_node_info->system_info.totalram);
-    dap_json_array_add(json_node_loads_arr, dap_json_object_new_uint64(l_node_info->system_info.loads[0]));
-    dap_json_array_add(json_node_loads_arr, dap_json_object_new_uint64(l_node_info->system_info.loads[1]));
-    dap_json_array_add(json_node_loads_arr, dap_json_object_new_uint64(l_node_info->system_info.loads[2]));
+    dap_json_array_add(json_node_loads_arr, dap_dap_json_object_new_uint64(l_node_info->system_info.loads[0]));
+    dap_json_array_add(json_node_loads_arr, dap_dap_json_object_new_uint64(l_node_info->system_info.loads[1]));
+    dap_json_array_add(json_node_loads_arr, dap_dap_json_object_new_uint64(l_node_info->system_info.loads[2]));
     dap_json_object_add_object(json_node_obj, "Loads", json_node_loads_arr);
     return json_node_obj;
 }

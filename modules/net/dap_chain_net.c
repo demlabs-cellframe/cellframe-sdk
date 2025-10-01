@@ -2018,7 +2018,7 @@ static void *s_net_load(void *a_arg)
         closedir(l_service_cfg_dir);
     }
     
-    dap_chain_srv_start_all(l_net->pub.id);                 // Harcoded core service starting for voting capability             // Harcoded core service starting for exchange capability
+    // dap_chain_srv_start_all was removed in release-6.0 - services start individually
 
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->balancer_type = dap_config_get_item_bool_default(l_net->pub.config, "general", "use_dns_links", false);
