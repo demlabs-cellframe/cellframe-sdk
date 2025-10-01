@@ -2014,4 +2014,3 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_v
 
     return 0;
 }
-

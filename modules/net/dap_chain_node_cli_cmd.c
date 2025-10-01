@@ -3016,10 +3016,11 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                             OUT_COND_TYPE_STAKE_LOCK,
                             OUT_COND_TYPE_XCHANGE,
                             OUT_COND_TYPE_POS_DELEGATE,
-                            OUT_COND_TYPE_EMIT_DELEGATE
+                            OUT_COND_TYPE_WALLET_SHARED
                         } l_out_cond_subtype = {0};
                         dap_list_t *l_vote_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTE, NULL);
                         dap_list_t *l_voting_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTING, NULL);
+                        json_object *l_jobj_diff = NULL;
                         for (dap_list_t *it = l_list_out_items; it; it = it->next) {
                             dap_chain_addr_t *l_dist_addr = NULL;
                             uint256_t l_value = uint256_0;
@@ -3075,7 +3076,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                             break;
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
                                             l_dist_token = l_main_ticker;
-                                            l_out_cond_subtype = OUT_COND_TYPE_EMIT_DELEGATE;
+                                            l_out_cond_subtype = OUT_COND_TYPE_WALLET_SHARED;
                                         }
                                             break;
                                         default:
@@ -3193,9 +3194,22 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                     case OUT_COND_TYPE_POS_DELEGATE:
                                         json_object_array_add(l_jobj_stake_pos_delegate_list, l_jobj_money);
                                         break;
-                                    case OUT_COND_TYPE_EMIT_DELEGATE:
+                                    case OUT_COND_TYPE_WALLET_SHARED: {
                                         json_object_array_add(l_jobj_emit_delegate_list, l_jobj_money);
+                                        dap_chain_tx_tsd_t *l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF);
+                                        if (l_diff_tx_tsd || (l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL))) {
+                                            uint256_t l_diff_value = {};
+                                            memcpy(&l_diff_value, ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->data, sizeof(uint256_t));
+                                            l_value_str = dap_uint256_to_char(l_diff_value, &l_value_coins_str);
+                                            l_jobj_diff = json_object_new_array();
+                                            json_object *l_jobj_diff_obj = json_object_new_object();
+                                            json_object_object_add(l_jobj_diff_obj, "value", json_object_new_string(l_value_str));
+                                            json_object_object_add(l_jobj_diff_obj, "coins", json_object_new_string(l_value_coins_str));
+                                            json_object_object_add(l_jobj_diff_obj, "token", json_object_new_string(l_main_ticker));
+                                            json_object_array_add(l_jobj_diff, l_jobj_diff_obj);
+                                        }
                                         break;
+                                    }
                                     default:
                                         log_it(L_ERROR,
                                                "An unknown subtype output was found in a transaction in the mempool list.");
@@ -3229,7 +3243,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                                                                      : json_object_put(
                                 l_jobj_stake_pos_delegate_list);
                         json_object_array_length(l_jobj_emit_delegate_list) > 0 ?
-                        json_object_object_add(l_jobj_datum, "srv_emit_delegate", l_jobj_emit_delegate_list)
+                        json_object_object_add(l_jobj_datum, "srv_wallet_shared", l_jobj_emit_delegate_list)
                                                                                      : json_object_put(
                                 l_jobj_emit_delegate_list);
                         json_object_array_length(l_jobj_to_from_emi) > 0 ?
@@ -3240,6 +3254,8 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                         json_object_array_length(l_jobj_tx_voting) > 0 ?
                         json_object_object_add(l_jobj_datum, "voting", l_jobj_tx_voting) : json_object_put(
                                 l_jobj_tx_voting);
+                        if (l_jobj_diff)
+                            json_object_object_add(l_jobj_datum, "operation", l_jobj_diff);
                         dap_list_free(l_list_out_items);
                         dap_list_free(l_vote_list);
                         dap_list_free(l_voting_list);

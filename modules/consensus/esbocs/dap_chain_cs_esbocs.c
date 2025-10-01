@@ -2149,9 +2149,14 @@ static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_ch
 {
     for (dap_list_t *it = PVT(a_esbocs)->emergency_validator_addrs; it; it = it->next) {
         dap_chain_addr_t *l_authorized_pkey = it->data;
+        if ( !l_authorized_pkey ) {
+            log_it(L_ERROR, "Invalid emergency validator address in list");
+            continue;
+        }
         if (dap_hash_fast_compare(&l_authorized_pkey->data.hash_fast, &a_signing_addr->data.hash_fast))
             return it;
     }
+    log_it(L_ERROR, "Emergency rights denied - address %s not in authorized list", dap_chain_addr_to_str_static(a_signing_addr));
     return NULL;
 }
 
@@ -3345,10 +3350,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 log_it(L_ERROR, "Node address is empty");
                 continue;
             }
-            char l_addr_buf[128] = {'\0'};
-            sprintf(l_addr_buf, NODE_ADDR_FP_STR,  NODE_ADDR_FP_ARGS_S(l_node_info->address));
             json_object* l_ban_validator =  json_object_new_object();
-            json_object_object_add(l_ban_validator, "node_addr", json_object_new_string(l_addr_buf));
+            json_object_object_add(l_ban_validator, "node_addr", json_object_new_string(dap_stream_node_addr_to_str_static(l_node_info->address)));
             json_object_array_add(l_json_arr_banlist, l_ban_validator);
         }
         if (!json_object_array_length(l_json_arr_banlist)) {
