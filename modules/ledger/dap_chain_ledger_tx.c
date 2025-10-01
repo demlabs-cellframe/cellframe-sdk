@@ -1134,7 +1134,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 }
                 break;
             case TX_ITEM_TYPE_EVENT:
-                if (dap_ledger_pvt_event_verify_add(a_ledger, a_tx_hash, a_tx, false)) {
+                if (dap_ledger_pvt_event_verify_add(a_ledger, a_tx_hash, a_tx, false, a_check_for_apply)) {
                     l_err_num = DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE;
                     break;
                 }
@@ -1566,7 +1566,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_vote_tx_item = (dap_chain_tx_vote_t *)it;
             break;
         case TX_ITEM_TYPE_EVENT:
-            l_err_num = dap_ledger_pvt_event_verify_add(a_ledger, a_tx_hash, a_tx, true);
+            l_err_num = dap_ledger_pvt_event_verify_add(a_ledger, a_tx_hash, a_tx, true, false);
             break;
         default:
             break;
@@ -2256,6 +2256,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
 #endif
+
     return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
 
