@@ -639,6 +639,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_WRITING_FILED,
                                             "Data writing is failed");
         }
+        return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_WRITING_FILED;
     }
     case CMD_READ:
     {
