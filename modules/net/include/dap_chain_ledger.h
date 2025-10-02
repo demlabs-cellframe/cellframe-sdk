@@ -273,8 +273,14 @@ typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_
 typedef void (*dap_ledger_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_chan_ledger_notify_opcodes_t a_opcode);
+// TODO remove this callback
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 typedef void (* dap_ledger_event_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
+// Process service decree
+typedef int (*dap_ledger_srv_callback_decree_t)(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
+// Event verify service callback
+typedef int (*dap_ledger_srv_callback_event_verify_t)(dap_ledger_t *a_ledger, const char *a_event_group_name, int a_event_type,
+                                                      void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_event_tx_hash);
 
 typedef struct dap_chain_net dap_chain_net_t;
 typedef int (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
@@ -501,6 +507,8 @@ void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged
  * @param a_arg User data to be passed to the callback
  */
 void dap_ledger_event_notify_add(dap_ledger_t *a_ledger, dap_ledger_event_notify_t a_callback, void *a_arg);
+int dap_ledger_srv_callback_decree_add(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid, dap_ledger_srv_callback_decree_t a_callback);
+int dap_ledger_srv_callback_event_verify_add(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid, dap_ledger_srv_callback_event_verify_t a_callback);
 
 bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash);
 

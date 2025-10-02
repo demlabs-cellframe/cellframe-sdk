@@ -283,6 +283,17 @@ typedef struct dap_ledger_event_pkey_item {
     UT_hash_handle hh;
 } dap_ledger_event_pkey_item_t;
 
+struct srv_callback_decree_item_t {
+    uint64_t srv_uid;
+    dap_ledger_srv_callback_decree_t callback;
+    UT_hash_handle hh;
+};
+
+struct srv_callback_event_verify_item_t {
+    uint64_t srv_uid;
+    dap_ledger_srv_callback_event_verify_t callback;
+    UT_hash_handle hh;
+};
 // dap_ledger_t private section
 typedef struct dap_ledger_private {
     // separate access to transactions
@@ -330,6 +341,10 @@ typedef struct dap_ledger_private {
     // Event allowed public keys
     pthread_rwlock_t event_pkeys_rwlock;
     dap_ledger_event_pkey_item_t *event_pkeys_allowed;
+    // Service callbacks
+    pthread_rwlock_t srv_callbacks_rwlock;
+    struct srv_callback_decree_item_t *srv_callbacks_decree;
+    struct srv_callback_event_verify_item_t *srv_callbacks_event_verify;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -6157,29 +6172,40 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -9;
     }
+    if (l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE) {
+        struct srv_callback_decree_item_t *l_decree_callback_item = NULL;
+        uint64_t l_srv_uid = l_event_item->srv_uid.uint64;
+        HASH_FIND(hh, l_ledger_pvt->srv_callbacks_decree, &l_srv_uid, sizeof(uint64_t), l_decree_callback_item);
+        int ret = -1;
+        if (l_decree_callback_item) {
+            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+            ret = l_decree_callback_item->callback(a_ledger, a_apply, (dap_tsd_t *)l_event_tsd->data, l_event_tsd->size);
+        }
+        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+        return a_check_for_apply ? 0 : ret;
+    }
     char *l_event_group_name = DAP_NEW_SIZE(char, l_event_item->group_name_size + 1);
     if (!l_event_group_name) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -11;
     }
     dap_strncpy(l_event_group_name, (char *)l_event_item->group_name, l_event_item->group_name_size);
-    if (l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE) {
-        DAP_DELETE(l_event_group_name);
+    struct srv_callback_event_verify_item_t *l_event_verify_callback_item = NULL;
+    uint64_t l_srv_uid = l_event_item->srv_uid.uint64;
+    HASH_FIND(hh, l_ledger_pvt->srv_callbacks_event_verify, &l_srv_uid, sizeof(uint64_t), l_event_verify_callback_item);
+    int ret = -1;
+    if (l_event_verify_callback_item) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-        return 0;
-        int ret = dap_chain_srv_decree(a_ledger->net->pub.id, l_event_item->srv_uid, a_apply,
-                                       (dap_tsd_t *)l_event_tsd->data, l_event_tsd->size);
-        return a_check_for_apply ? 0 : ret;
+        ret = l_event_verify_callback_item->callback(a_ledger, l_event_group_name, l_event_item->event_type,
+                                                     l_event_tsd ? (dap_tsd_t *)l_event_tsd->data : NULL,
+                                                     l_event_tsd ? l_event_tsd->size : 0, a_tx_hash);
     }
-    int l_ret = dap_chain_srv_event_verify(a_ledger->net->pub.id, l_event_item->srv_uid, l_event_group_name,
-                                           l_event_item->event_type, l_event_tsd ? (dap_tsd_t *)l_event_tsd->data : NULL,
-                                           l_event_tsd ? l_event_tsd->size : 0, a_tx_hash);
-    if (l_ret || !a_apply) {
+    if (ret || !a_apply) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         DAP_DELETE(l_event_group_name);
-        if (l_ret)
-            log_it(L_WARNING, "Event %s rejected by service verificator with code %d", dap_hash_fast_to_str_static(a_tx_hash), l_ret);
-        return a_check_for_apply ? 0 : l_ret;
+        if (ret)
+            log_it(L_WARNING, "Event %s rejected by service verificator with code %d", dap_hash_fast_to_str_static(a_tx_hash), ret);
+        return a_check_for_apply ? 0 : ret;
     }
 
     if (!a_apply) {
@@ -6344,3 +6370,53 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
      pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
      return l_list;
  }
+
+int dap_ledger_srv_callback_decree_add(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid, dap_ledger_srv_callback_decree_t a_callback)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_wrlock(&l_ledger_pvt->srv_callbacks_rwlock);
+    struct srv_callback_decree_item_t *l_item = NULL;
+    uint64_t l_srv_uid = a_srv_uid.uint64;
+    HASH_FIND(hh, l_ledger_pvt->srv_callbacks_decree, &l_srv_uid, sizeof(uint64_t), l_item);
+    if (l_item) {
+        log_it(L_WARNING, "Service callback for decree already exists for srv %" DAP_UINT64_FORMAT_U, a_srv_uid.uint64);
+        pthread_rwlock_unlock(&l_ledger_pvt->srv_callbacks_rwlock);
+        return 1;
+    }
+    l_item = DAP_NEW_Z(struct srv_callback_decree_item_t);
+    if (!l_item) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        pthread_rwlock_unlock(&l_ledger_pvt->srv_callbacks_rwlock);
+        return -1;
+    }
+    l_item->srv_uid = a_srv_uid.uint64;
+    l_item->callback = a_callback;
+    HASH_ADD(hh, l_ledger_pvt->srv_callbacks_decree, srv_uid, sizeof(uint64_t), l_item);
+    pthread_rwlock_unlock(&l_ledger_pvt->srv_callbacks_rwlock);
+    return 0;
+}
+
+int dap_ledger_srv_callback_event_verify_add(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid, dap_ledger_srv_callback_event_verify_t a_callback)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_wrlock(&l_ledger_pvt->srv_callbacks_rwlock);
+    struct srv_callback_event_verify_item_t *l_item = NULL;
+    uint64_t l_srv_uid = a_srv_uid.uint64;
+    HASH_FIND(hh, l_ledger_pvt->srv_callbacks_event_verify, &l_srv_uid, sizeof(uint64_t), l_item);
+    if (l_item) {
+        log_it(L_WARNING, "Service callback for event verify already exists for srv %" DAP_UINT64_FORMAT_U, a_srv_uid.uint64);
+        pthread_rwlock_unlock(&l_ledger_pvt->srv_callbacks_rwlock);
+        return 1;
+    }
+    l_item = DAP_NEW_Z(struct srv_callback_event_verify_item_t);
+    if (!l_item) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        pthread_rwlock_unlock(&l_ledger_pvt->srv_callbacks_rwlock);
+        return -1;
+    }
+    l_item->srv_uid = a_srv_uid.uint64;
+    l_item->callback = a_callback;
+    HASH_ADD(hh, l_ledger_pvt->srv_callbacks_event_verify, srv_uid, sizeof(uint64_t), l_item);
+    pthread_rwlock_unlock(&l_ledger_pvt->srv_callbacks_rwlock);
+    return 0;
+}
