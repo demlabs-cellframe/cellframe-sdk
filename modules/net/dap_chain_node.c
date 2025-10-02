@@ -36,7 +36,7 @@
 #include "dap_cli_server.h"
 #include "dap_chain_srv.h"
 #include "dap_json.h"
-#include "dap_chain_mempool.h"
+#include "dap_chain_cs.h"
 #include "dap_chain_datum_service_state.h"
 #include "dap_chain_node_client.h"
 #include "utlist.h"
@@ -592,7 +592,8 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         size_t l_datums_count = 0;
         dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
         for (size_t i = 0; i < l_datums_count; i++)
-            DAP_DELETE(dap_chain_mempool_datum_add(l_datums[i], a_chain, "hex"));
+            if (l_mp_cbs && l_mp_cbs->mempool_datum_add)
+                DAP_DELETE(l_mp_cbs->mempool_datum_add(l_datums[i], a_chain, "hex"));
         DL_DELETE(l_states->service_states, it);
         DAP_DELETE(it);
     }

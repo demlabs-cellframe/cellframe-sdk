@@ -78,7 +78,7 @@
 #include "dap_chain_ch.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_node_list.h"
-#include "dap_chain_cs_esbocs.h"
+#include "dap_chain_cs.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_datum_tx_voting.h"
@@ -4617,7 +4617,10 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             }
         } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hardfork_retry", &l_param_value_str)) {
             l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY;
-            if (!dap_chain_esbocs_hardfork_engaged(l_decree_chain)) {
+            dap_chain_cs_callbacks_t *l_cs_cbs = dap_chain_cs_get_callbacks(l_decree_chain);
+            bool l_hardfork_engaged = (l_cs_cbs && l_cs_cbs->hardfork_engaged) ? 
+                l_cs_cbs->hardfork_engaged(l_decree_chain) : false;
+            if (!l_hardfork_engaged) {
                 log_it(L_WARNING, "Hardfork is not engaged, can't retry");
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_ENGAGED_ERR,
                                         "Hardfork is not engaged, can't retry");

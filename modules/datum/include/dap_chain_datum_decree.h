@@ -45,7 +45,8 @@ typedef struct dap_json dap_json_t;
 
 // Forward declaration for dap_json_t
 typedef struct dap_json dap_json_t;
-#include "dap_chain_policy.h"
+// Forward declaration instead of include to avoid circular dependency
+typedef struct dap_chain_policy dap_chain_policy_t;
 
 // Forward declaration for dap_json_t
 typedef struct dap_json dap_json_t;

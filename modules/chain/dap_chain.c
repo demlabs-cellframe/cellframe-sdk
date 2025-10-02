@@ -37,7 +37,7 @@
 #include "dap_chain.h"
 #include "dap_cert.h"
 #include "dap_chain_cell.h"
-#include "dap_chain_cs.h"
+#include "dap_chain_cs_class.h"
 #include "dap_cert_file.h"
 #include "dap_chain_ch.h"
 #include "dap_stream_ch_gossip.h"

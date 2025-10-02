@@ -26,6 +26,7 @@
 // Forward declaration for dap_json_t
 typedef struct dap_json dap_json_t;
 #include "dap_chain.h"
+#include "dap_chain_datum_tx.h"
 
 // Forward declaration for dap_json_t
 typedef struct dap_json dap_json_t;

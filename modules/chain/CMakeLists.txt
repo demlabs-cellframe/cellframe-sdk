@@ -14,7 +14,7 @@ endif()
 #find_package(PkgConfig REQUIRED)
 #pkg_search_module(GLIB REQUIRED glib-2.0)
 
-target_link_libraries(${PROJECT_NAME} dap_chain_datum dap_global_db dap_notify_srv dap_stream ${GLIB_LDFLAGS})
+target_link_libraries(${PROJECT_NAME} dap_common dap_chain_datum dap_global_db dap_notify_srv dap_stream dap_chain_cs ${GLIB_LDFLAGS})
 target_include_directories(${PROJECT_NAME} INTERFACE . include/ ${GLIB_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 

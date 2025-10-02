@@ -29,8 +29,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
+#include "dap_chain_cs.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_json.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
@@ -217,6 +217,8 @@ int dap_chain_cs_esbocs_init()
             "\tShow list of validators public key hashes allowed to work in emergency mode\n"
         "esbocs status -net <net_name> [-chain <chain_name>]\n"
             "\tShow current esbocs consensus status\n");
+    
+    log_it(L_INFO, "ESBOCS consensus module initialized");
     return 0;
 }
 
@@ -379,6 +381,24 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             if (!IS_ZERO_256(l_preset_reward))
                 dap_chain_net_add_reward(l_net, l_preset_reward, 0);
         }
+        
+        // Register consensus callbacks for this chain 
+        static dap_chain_cs_callbacks_t s_cs_callbacks = {
+            // Consensus → Chain callbacks
+            .get_fee_group = dap_chain_cs_blocks_get_fee_group,
+            .get_reward_group = dap_chain_cs_blocks_get_reward_group,
+            // Chain → Consensus callbacks
+            .get_fee = dap_chain_esbocs_get_fee,
+            .get_sign_pkey = dap_chain_esbocs_get_sign_pkey,
+            .get_collecting_level = dap_chain_esbocs_get_collecting_level,
+            .add_block_collect = dap_chain_esbocs_add_block_collect,
+            .get_autocollect_status = dap_chain_esbocs_get_autocollect_status,
+            .set_hardfork_state = dap_chain_esbocs_set_hardfork_state,
+            .hardfork_engaged = dap_chain_esbocs_hardfork_engaged
+        };
+        dap_chain_cs_set_callbacks(a_chain, &s_cs_callbacks);
+        log_it(L_INFO, "ESBOCS consensus callbacks registered for chain %s", a_chain->name);
+        
         return 0;
     }
     default:
@@ -468,10 +488,13 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
             dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
                                             l_net->pub.ledger, a_block_cache, &l_value_fee);
             if (!IS_ZERO_256(l_value_fee)) {
-                char *l_fee_group = dap_chain_cs_blocks_get_fee_group(l_chain->net_name);
-                dap_global_db_set(l_fee_group, a_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
-                                    false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
-                DAP_DELETE(l_fee_group);
+                dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks();
+                char *l_fee_group = l_blocks_cbs ? l_blocks_cbs->get_fee_group(l_chain->net_name) : NULL;
+                if (l_fee_group) {
+                    dap_global_db_set(l_fee_group, a_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
+                                        false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
+                    DAP_DELETE(l_fee_group);
+                }
             }
             dap_list_free_full(l_list_used_out, NULL);
         }
@@ -487,10 +510,13 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
             uint256_t l_value_reward = l_chain->callback_calc_reward(l_chain, &a_block_cache->block_hash,
                                                                      a_block_collect_params->block_sign_pkey);
             if (!IS_ZERO_256(l_value_reward)) {
-                char *l_reward_group = dap_chain_cs_blocks_get_reward_group(l_chain->net_name);
-                dap_global_db_set(l_reward_group, a_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),
-                                    false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
-                DAP_DELETE(l_reward_group);
+                dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks();
+                char *l_reward_group = l_blocks_cbs ? l_blocks_cbs->get_reward_group(l_chain->net_name) : NULL;
+                if (l_reward_group) {
+                    dap_global_db_set(l_reward_group, a_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),
+                                        false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
+                    DAP_DELETE(l_reward_group);
+                }
             }
         }
     }

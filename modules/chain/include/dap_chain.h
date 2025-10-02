@@ -27,8 +27,10 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include "dap_config.h"
+#include "dap_list.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum.h"
+// Forward declaration instead of include to avoid circular dependency
+typedef struct dap_chain_datum dap_chain_datum_t;
 
 #ifdef DAP_TPS_TEST
 #define DAP_CHAIN_ATOM_MAX_SIZE (100 * 1024 * 1024)
@@ -137,6 +139,51 @@ typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t 
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
 typedef uint256_t (*dap_chain_callback_calc_reward)(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
+
+/**
+ * @brief Chain сonsensus callbacks structure 
+ * All callbacks are stored per-chain to support different consensus and services per chain
+ */
+typedef struct dap_chain_cs_callbacks {
+    // ===== Consensus callbacks (chain ↔ consensus communication) =====
+    
+    // Get fee collection group name
+    char* (*get_fee_group)(const char *a_net_name);
+    // Get reward collection group name
+    char* (*get_reward_group)(const char *a_net_name);
+    // Get minimum fee for consensus
+    uint256_t (*get_fee)(dap_chain_net_id_t a_net_id);
+    // Get signing public key
+    dap_pkey_t* (*get_sign_pkey)(dap_chain_net_id_t a_net_id);
+    // Get collecting level
+    uint16_t (*get_collecting_level)(dap_chain_t *a_chain);
+    // Add block collect operation
+    int (*add_block_collect)(void *a_block_cache, void *a_params, int a_type);
+    // Get autocollect status
+    bool (*get_autocollect_status)(dap_chain_net_id_t a_net_id);
+    // Set hardfork state
+    void (*set_hardfork_state)(dap_chain_t *a_chain, bool a_state);
+    // Check if hardfork is engaged
+    bool (*hardfork_engaged)(dap_chain_t *a_chain);
+    
+    // ===== Stake service callbacks (blocks → stake communication) =====
+    
+    // Check public key hash and get sovereign tax info
+    // Returns: 0 if not found, 1 if found
+    int (*stake_check_pkey_hash)(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash, 
+                                 uint256_t *a_sovereign_tax, dap_chain_addr_t *a_sovereign_addr);
+    // Import hardfork data
+    int (*stake_hardfork_data_import)(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_decree_hash);
+    // Switch stake table (main/sandbox)
+    int (*stake_switch_table)(dap_chain_net_id_t a_net_id, bool a_to_sandbox);
+    
+    // ===== Mempool callbacks (net → mempool communication) =====
+    
+    // Get mempool GDB group name for a chain
+    char* (*mempool_group_new)(dap_chain_t *a_chain);
+    // Add datum to mempool
+    char* (*mempool_datum_add)(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_datum_hash_out_type);
+} dap_chain_cs_callbacks_t;
 
 typedef enum dap_chain_type {
     CHAIN_TYPE_INVALID = -1,
@@ -248,6 +295,11 @@ typedef struct dap_chain {
     dap_hash_fast_t hardfork_decree_hash;
     uint16_t hardfork_generation;
     struct hardfork_states *hardfork_data;
+    
+    // Callbacks (break circular dependencies between modules)
+    // All callbacks unified in single structure
+    dap_chain_cs_callbacks_t *cs_callbacks;
+    
     void * _pvt; // private data
     void * _inheritor; // inheritor object
 } dap_chain_t;

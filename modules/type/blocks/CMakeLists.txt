@@ -4,13 +4,13 @@ project (dap_chain_cs_blocks)
 file(GLOB DAP_CHAIN_BLOCK_SRCS *.c)
 file(GLOB DAP_CHAIN_BLOCK_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_BLOCK_SRCS} ${DAP_CHAIN_BLOCK_HEADERS})
+add_library(${PROJECT_NAME} ${CELLFRAME_MODULE_TYPE} ${DAP_CHAIN_BLOCK_SRCS} ${DAP_CHAIN_BLOCK_HEADERS})
 
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
 endif()
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_cli_server dap_chain_net dap_chain_cs_esbocs dap_chain_net_srv_stake)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_cli_server dap_chain_net dap_chain_cs)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 

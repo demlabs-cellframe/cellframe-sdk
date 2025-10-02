@@ -35,8 +35,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_net.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_cs_esbocs.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_cs.h"
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -573,19 +572,25 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_json_t *a_json
     DAP_DEL_Z(l_val);
     if (l_objs_count) {
         dap_global_db_objs_delete(l_objs, l_objs_count);
-        uint256_t l_collect_fee = dap_chain_esbocs_get_fee(a_net->pub.id);
+        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+        dap_chain_cs_callbacks_t *l_cs_cbs = l_chain ? dap_chain_cs_get_callbacks(l_chain) : NULL;
+        uint256_t l_collect_fee = l_cs_cbs ? l_cs_cbs->get_fee(a_net->pub.id) : uint256_0;
         SUM_256_256(l_collect_fee, a_net->pub.fee_value, &l_collect_fee);
         uint256_t l_collect_tax = {}, l_collect_value = {};
         if (compare256(l_total_value, l_collect_fee) == 1) {
             SUBTRACT_256_256(l_total_value, l_collect_fee, &l_collect_value);
-            dap_pkey_t *l_my_sign_pkey = dap_chain_esbocs_get_sign_pkey(a_net->pub.id);
+            dap_pkey_t *l_my_sign_pkey = l_cs_cbs ? l_cs_cbs->get_sign_pkey(a_net->pub.id) : NULL;
             dap_hash_t l_my_sign_pkey_hash;
             dap_hash_fast(l_my_sign_pkey->pkey, l_my_sign_pkey->header.size, &l_my_sign_pkey_hash);
-            dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_my_sign_pkey_hash);
-            if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
-                    !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
-                MULT_256_COIN(l_collect_value, l_key_item->sovereign_tax, &l_collect_tax);
-                SUBTRACT_256_256(l_collect_value, l_collect_tax, &l_collect_value);
+            dap_chain_cs_callbacks_t *l_stake_cbs = dap_chain_cs_get_callbacks(l_chain);
+            uint256_t l_sovereign_tax = uint256_0;
+            dap_chain_addr_t l_sovereign_addr = {};
+            if (l_stake_cbs && l_stake_cbs->stake_check_pkey_hash && 
+                l_stake_cbs->stake_check_pkey_hash(a_net->pub.id, &l_my_sign_pkey_hash, &l_sovereign_tax, &l_sovereign_addr)) {
+                if (!IS_ZERO_256(l_sovereign_tax) && !dap_chain_addr_is_blank(&l_sovereign_addr)) {
+                    MULT_256_COIN(l_collect_value, l_sovereign_tax, &l_collect_tax);
+                    SUBTRACT_256_256(l_collect_value, l_collect_tax, &l_collect_value);
+                }
             }
         }
         char *l_total_str = dap_chain_balance_coins_print(l_total_value);
@@ -1403,9 +1408,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                                             "Wallet address should be from the collecting network");
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_NET_ERR;
                 }
+                dap_chain_cs_callbacks_t *l_cs_cbs = dap_chain_cs_get_callbacks(l_chain);
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
-                        .collecting_level = dap_chain_esbocs_get_collecting_level(l_chain),
-                        .minimum_fee = dap_chain_esbocs_get_fee(l_chain->net_id),
+                        .collecting_level = l_cs_cbs ? l_cs_cbs->get_collecting_level(l_chain) : 0,
+                        .minimum_fee = l_cs_cbs ? l_cs_cbs->get_fee(l_chain->net_id) : uint256_0,
                         .chain = l_chain,
                         .blocks_sign_key = l_cert->enc_key,
                         .block_sign_pkey = l_pub_key,
@@ -1439,7 +1445,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                         if (NULL == dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp))
                             continue;
                         if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + i, l_out_idx_tmp, NULL)) {
-                            dap_chain_esbocs_add_block_collect(l_block_cache, &l_block_collect_params, DAP_CHAIN_BLOCK_COLLECT_FEES);
+                            if (l_cs_cbs && l_cs_cbs->add_block_collect)
+                                l_cs_cbs->add_block_collect(l_block_cache, &l_block_collect_params, DAP_CHAIN_BLOCK_COLLECT_FEES);
                             char l_buf[DAP_TIME_STR_SIZE];
                             dap_json_t* json_obj_bl = dap_json_object_new();
                             dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
@@ -1471,7 +1478,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                         continue;
                     if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
                         continue;
-                    dap_chain_esbocs_add_block_collect(l_block_cache, &l_block_collect_params, DAP_CHAIN_BLOCK_COLLECT_REWARDS);
+                    if (l_cs_cbs && l_cs_cbs->add_block_collect)
+                        l_cs_cbs->add_block_collect(l_block_cache, &l_block_collect_params, DAP_CHAIN_BLOCK_COLLECT_REWARDS);
                     char l_buf[DAP_TIME_STR_SIZE];
                     dap_json_t* json_obj_bl = dap_json_object_new();
                     dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_ts);
@@ -1496,7 +1504,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 }
                 dap_json_t* json_obj_out = dap_json_object_new();
                 dap_json_array_add(*a_json_arr_reply, json_obj_out);
-                bool l_status = dap_chain_esbocs_get_autocollect_status(l_net->pub.id);
+                dap_chain_cs_callbacks_t *l_cs_cbs = dap_chain_cs_get_callbacks(l_chain);
+                bool l_status = l_cs_cbs ? l_cs_cbs->get_autocollect_status(l_net->pub.id) : false;
                 char *l_val = dap_strdup_printf("for network %s is %s\n", l_net->pub.name,
                                                 l_status ? "active" : "inactive cause of the network config or consensus starting problems");
                 dap_json_object_add_string(json_obj_out, a_version == 1 ? "Autocollect status" : "autocollect_status", l_val);
@@ -1965,8 +1974,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 l_net->pub.ledger->is_hardfork_state = true;
                 dap_ledger_token_emissions_mark_hardfork(l_net->pub.ledger, l_block->hdr.ts_created);
                 a_chain->generation = a_chain->hardfork_generation = l_generation;
-                dap_chain_esbocs_set_hardfork_state(a_chain, true);
-                if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, &l_hardfork_decree_hash)) { // True import
+                dap_chain_cs_callbacks_t *l_cs_cbs = dap_chain_cs_get_callbacks(a_chain);
+                if (l_cs_cbs && l_cs_cbs->set_hardfork_state)
+                    l_cs_cbs->set_hardfork_state(a_chain, true);
+                dap_chain_cs_callbacks_t *l_stake_cbs = dap_chain_cs_get_callbacks(a_chain);
+                if (l_stake_cbs && l_stake_cbs->stake_hardfork_data_import && 
+                    l_stake_cbs->stake_hardfork_data_import(a_chain->net_id, &l_hardfork_decree_hash)) { // True import
                     log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
                 }
@@ -2160,11 +2173,13 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                 return ATOM_REJECT;
             }
-            if (dap_chain_net_srv_stake_switch_table(a_chain->net_id, true)) { // to Sandbox
+            dap_chain_cs_callbacks_t *l_stake_cbs = dap_chain_cs_get_callbacks(a_chain);
+            if (l_stake_cbs && l_stake_cbs->stake_switch_table && l_stake_cbs->stake_switch_table(a_chain->net_id, true)) { // to Sandbox
                 log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in switching to sandbox table", dap_hash_fast_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
-            if (dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // Sandbox
+            if (l_stake_cbs && l_stake_cbs->stake_hardfork_data_import && 
+                l_stake_cbs->stake_hardfork_data_import(a_chain->net_id, l_hardfork_decree_hash)) { // Sandbox
                 log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
@@ -2259,7 +2274,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         ret = ATOM_REJECT;
     }
     if (l_is_genesis && l_generation && a_chain->generation < l_generation &&
-            dap_chain_net_srv_stake_switch_table(a_chain->net_id, false)) {  // return to main
+            l_stake_cbs && l_stake_cbs->stake_switch_table && l_stake_cbs->stake_switch_table(a_chain->net_id, false)) {  // return to main
         log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
         ret = ATOM_REJECT;
     }
@@ -3004,12 +3019,16 @@ dap_ledger_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_ch
                     uint256_t l_value_tax = {}, l_value_out = l_cond->header.value;
                     dap_hash_fast_t l_sign_pkey_hash = {};
                     dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
-                    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_chain->net_id, &l_sign_pkey_hash);
-                    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
-                                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
-                        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
-                        if (compare256(l_value_tax, l_value_out) < 1)
-                            SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
+                    dap_chain_cs_callbacks_t *l_stake_cbs = dap_chain_cs_get_callbacks(a_chain);
+                    uint256_t l_sovereign_tax = uint256_0;
+                    dap_chain_addr_t l_sovereign_addr = {};
+                    if (l_stake_cbs && l_stake_cbs->stake_check_pkey_hash &&
+                        l_stake_cbs->stake_check_pkey_hash(a_chain->net_id, &l_sign_pkey_hash, &l_sovereign_tax, &l_sovereign_addr)) {
+                        if (!IS_ZERO_256(l_sovereign_tax) && !dap_chain_addr_is_blank(&l_sovereign_addr)) {
+                            MULT_256_COIN(l_value_out, l_sovereign_tax, &l_value_tax);
+                            if (compare256(l_value_tax, l_value_out) < 1)
+                                SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
+                        }
                     }
                     if (!IS_ZERO_256(l_value_out)) {
                         dap_chain_addr_t l_owner_addr = {};

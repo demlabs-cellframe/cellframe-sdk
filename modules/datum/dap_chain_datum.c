@@ -40,8 +40,7 @@
 #include "dap_sign.h"
 #include "dap_tsd.h"
 #include "dap_json_rpc_errors.h"
-#include "dap_chain_net.h"
-#include "dap_chain_ledger.h"
+#include "dap_chain_cs.h"
 
 #define LOG_TAG "dap_chain_datum"
 
@@ -742,8 +741,9 @@ void dap_chain_datum_dump_json(dap_json_t* a_json_arr_reply, dap_json_t *a_obj_o
             DAP_DELETE(l_emission);
         } break;
         case DAP_CHAIN_DATUM_TX: {
-            dap_ledger_t *l_ledger = dap_chain_net_by_id(a_net_id)->pub.ledger;
-            const char *l_tx_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_datum_hash);
+            // Get ledger through callbacks to avoid datum → net/ledger dependency  
+            // TODO: implement net_get_ledger callback in net module
+            const char *l_tx_token_ticker = NULL;  // Will be NULL until callback registered
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
             dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx, l_tx_token_ticker, json_obj_datum, a_hash_out_type, &l_datum_hash, a_net_id, a_version);
         } break;

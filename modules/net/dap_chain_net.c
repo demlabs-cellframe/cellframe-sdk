@@ -81,7 +81,7 @@
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_datum_service_state.h"
 #include "dap_chain_node_client.h"
-#include "dap_chain_mempool.h"
+#include "dap_chain_cs.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
@@ -2389,7 +2389,8 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
     {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
-                return dap_chain_mempool_group_new(l_chain);
+                dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(l_chain);
+                return (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(l_chain) : NULL;
         }
     }
     return NULL;

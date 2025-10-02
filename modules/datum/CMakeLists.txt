@@ -11,9 +11,8 @@ if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
 endif()
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_net)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_global_db dap_json_rpc dap_common dap_chain)
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/json-c)
 
 
 if (INSTALL_SDK)
