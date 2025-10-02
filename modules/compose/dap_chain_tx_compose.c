@@ -3708,16 +3708,6 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_invalidate(dap_hash_f
     return l_tx;
 }
 
-dap_chain_net_srv_order_direction_t dap_chain_net_srv_order_direction_from_str(const char* str) {
-    dap_chain_net_srv_order_direction_t direction = SERV_DIR_UNDEFINED;
-    if (strcmp(str, "SERV_DIR_BUY") == 0) {
-        direction = SERV_DIR_BUY;
-    } else if (strcmp(str, "SERV_DIR_SELL") == 0) {
-        direction = SERV_DIR_SELL;
-    }
-    return direction;
-}
-
 typedef enum {
     GET_REMOTE_SRV_ORDER_RPC_RESPONSE = -1,
     GET_REMOTE_SRV_ORDER_NO_ITEMS_FOUND = -2,
@@ -3953,9 +3943,12 @@ json_object *dap_chain_tx_compose_srv_stake_delegate(dap_chain_net_id_t a_net_id
                 return s_compose_config_return_response_handler(l_config);
             }
             l_value = l_order->price;
+            dap_tsd_t *l_tsd = dap_tsd_find(l_cond_tx->tsd, l_cond_tx->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
+            l_sovereign_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+            l_tsd = dap_tsd_find(l_cond_tx->tsd, l_cond_tx->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
+            l_sovereign_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
             DAP_DELETE(l_cond_tx);
         } else {
-            uint256_t l_tax;
             uint256_t l_value_max;
             if (!a_value_str) {
                 log_it(L_ERROR, "command 'delegate' requires parameter -value with this order type");
@@ -3963,7 +3956,7 @@ json_object *dap_chain_tx_compose_srv_stake_delegate(dap_chain_net_id_t a_net_id
                 return s_compose_config_return_response_handler(l_config);
             }
 
-            if (dap_chain_net_srv_stake_get_validator_ext(l_order, &l_tax, &l_value_max)) {
+            if (dap_chain_net_srv_stake_get_validator_ext(l_order, &l_sovereign_tax, &l_value_max)) {
                 log_it(L_ERROR, "failed to get validator ext");
                 s_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_ORDER, "Failed to get validator ext");
                 DAP_DELETE(l_order);
