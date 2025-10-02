@@ -7234,7 +7234,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
     }
     
     // Select chain network
-    if (!l_addr_base58 && l_net_str) {
+    if (l_net_str) {
         l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) { // Can't find such network
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_NET_PARAM_ERR,
@@ -7257,7 +7257,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_WALLET_ADDR_ERR;
         }
         if (l_net) {
-            if (l_net->pub.id.uint64 != l_addr->net_id.uint64) {
+            if (!dap_chain_addr_is_blank(l_addr) && l_net->pub.id.uint64 != l_addr->net_id.uint64) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_ID_NET_ADDR_DIF_ERR,
                                         "Network ID with '-net' param and network ID with '-addr' param are different");
                 DAP_DELETE(l_addr);
