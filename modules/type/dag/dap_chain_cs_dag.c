@@ -1288,7 +1288,7 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
     return a_datum_iter->cur;
 }
 
-static bool s_json_dag_pack_round(json_object * a_json_out, dap_global_db_obj_t * a_objs, int i, int a_version) {
+static bool s_json_dag_pack_round(dap_json_t * a_json_out, dap_global_db_obj_t * a_objs, int i, int a_version) {
     if ( !strcmp(DAG_ROUND_CURRENT_KEY, a_objs[i].key) )
         return true;
     dap_json_t * json_obj_event_i = dap_json_object_new();
@@ -1303,7 +1303,7 @@ static bool s_json_dag_pack_round(json_object * a_json_out, dap_global_db_obj_t 
     return false;
 }
 
-static void s_json_dag_pack_event(json_object * a_json_out, dap_chain_cs_dag_event_item_t * a_event_item, size_t i, int a_version){
+static void s_json_dag_pack_event(dap_json_t * a_json_out, dap_chain_cs_dag_event_item_t * a_event_item, size_t i, int a_version){
     dap_json_t * json_obj_event_i = dap_json_object_new();                            
     char buf[DAP_TIME_STR_SIZE];
     dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, a_event_item->event->header.ts_created);
@@ -1891,7 +1891,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
             } break;
 
             case SUBCMD_EVENT_COUNT: {
-                json_object * json_obj_event_count = dap_json_object_new();
+                dap_json_t * json_obj_event_count = dap_json_object_new();
                 dap_json_object_add_object(json_obj_event_count,a_version == 1 ? "net name" : "net_name", dap_json_object_new_string(l_net->pub.name));
                 dap_json_object_add_object(json_obj_event_count,"chain", dap_json_object_new_string(l_chain->name));
                 const char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
@@ -1906,7 +1906,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                 dap_json_array_add(*a_json_arr_reply, json_obj_event_count);
             } break;
             case SUBCMD_EVENT_LAST:{
-                json_object * json_obj_out = dap_json_object_new();
+                dap_json_t * json_obj_out = dap_json_object_new();
                 char l_tmp_buff[128] = {0};
                 pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                 dap_chain_cs_dag_event_item_t *l_last_item = HASH_LAST(PVT(l_dag)->events);
@@ -1940,7 +1940,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                 // dap_chain_cs_dag_event_item_t *l_curr_event = PVT(l_dag)->events;
                 dap_chain_cs_dag_event_item_t *l_curr_event = NULL, *l_temp;
                 dap_json_t* json_arr_bl_cache_out = dap_json_array_new();
-                json_object* json_obj_event = NULL;
+                dap_json_t* json_obj_event = NULL;
                 // for (;l_curr_event;l_curr_event = l_curr_event->hh.next)
                 HASH_ITER(hh, PVT(l_dag)->events, l_curr_event, l_temp){                                        
                     if (l_curr_event && dap_hash_fast_compare(&l_datum_hash, &l_curr_event->datum_hash)){
@@ -1979,7 +1979,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
 
                             if (dap_chain_cs_dag_event_gdb_set(l_dag, l_event_new_hash_hex_str, l_event,
                                                                l_event_size_new, l_round_item)) {
-                                json_object * json_obj_sign = dap_json_object_new();
+                                dap_json_t * json_obj_sign = dap_json_object_new();
 
                                 dap_json_object_add_object(json_obj_sign,"cert", dap_json_object_new_string(l_cert_str));
                                 dap_json_object_add_object(json_obj_sign,"event", l_event_new_hash_base58_str ?

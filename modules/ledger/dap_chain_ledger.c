@@ -320,7 +320,7 @@ bool dap_ledger_datum_is_enforced(dap_ledger_t *a_ledger, dap_hash_fast_t *a_has
 }
 
 
-static void s_tx_header_print(json_object *a_json_out, dap_chain_datum_tx_t *a_tx,
+static void s_tx_header_print(dap_json_t *a_json_out, dap_chain_datum_tx_t *a_tx,
                               const char *a_hash_out_type, dap_chain_hash_fast_t *a_tx_hash)
 {
     char l_time_str[DAP_TIME_STR_SIZE] = "unknown";
@@ -334,7 +334,7 @@ static void s_tx_header_print(json_object *a_json_out, dap_chain_datum_tx_t *a_t
 }
 
 static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspent, dap_ledger_t *a_ledger, 
-            dap_chain_addr_t *a_addr, const char *a_hash_out_type, json_object *json_arr_out) {
+            dap_chain_addr_t *a_addr, const char *a_hash_out_type, dap_json_t *json_arr_out) {
     if (a_unspent && a_item->cache_data.ts_spent) {
         // With 'unspent' flag spent ones are ignored
         return;
@@ -483,7 +483,7 @@ dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_add
 }
 
 
-static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_ledger_tx_item_t *a_tx_item, int a_version)
+static bool s_pack_ledger_threshold_info_json (dap_json_t *a_json_arr_out, dap_ledger_tx_item_t *a_tx_item, int a_version)
 {
     dap_json_t *json_obj_tx = dap_json_object_new();
     if (!json_obj_tx) 
@@ -498,7 +498,7 @@ static bool s_pack_ledger_threshold_info_json (json_object *a_json_arr_out, dap_
     dap_json_array_add(a_json_arr_out, json_obj_tx);
     return 0;
 }
-static bool s_pack_ledger_balance_info_json (json_object *a_json_arr_out, dap_ledger_wallet_balance_t *a_balance_item, int a_version)
+static bool s_pack_ledger_balance_info_json (dap_json_t *a_json_arr_out, dap_ledger_wallet_balance_t *a_balance_item, int a_version)
 {
     dap_json_t* json_obj_tx = dap_json_object_new();   
     dap_json_object_add_string(json_obj_tx, a_version == 1 ? "Ledger balance key" : "balance_key", a_balance_item->key);

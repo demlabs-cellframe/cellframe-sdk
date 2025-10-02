@@ -88,7 +88,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(dap_json_t * a_outputs_arr
 dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(dap_json_t * a_outputs_array, int a_outputs_count, uint256_t a_value_need, 
                                                     uint256_t *a_value_transfer, bool a_need_all_outputs);
 dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  compose_config_t * a_config, 
-                                                  dap_time_t *a_ts_created, char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
+                                                  const char **a_ts_created_str, const char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
 
 dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, 
                                   const char *l_fee_str, const char *addr_base58_to, dap_chain_addr_t *l_addr_from, 

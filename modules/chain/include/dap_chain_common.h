@@ -216,6 +216,7 @@ enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_EVENT = 0xa0,         // Event
 
     /// @brief Virtual types for items enumearting
+    TX_ITEM_TYPE_IN_EMS_LOCK = 0x41,    // Stake lock emission input
     TX_ITEM_TYPE_IN_EMS_VIRTUAL = 0xf1, // Virtual emission of delegated tokens with single conditional transaction
     TX_ITEM_TYPE_IN_ALL = 0xfd,         // All inputs
     TX_ITEM_TYPE_OUT_ALL = 0xfe,        // All outputs

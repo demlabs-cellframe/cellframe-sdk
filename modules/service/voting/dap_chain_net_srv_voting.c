@@ -873,7 +873,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 continue;
             dap_json_t* json_obj_vote = dap_json_object_new();
             dap_json_object_add_object( json_obj_vote, "poll_tx",
-                                    json_object_new_string_len(dap_chain_hash_fast_to_str_static(&it->hash), sizeof(dap_hash_str_t)) );            
+                                    dap_json_object_new_string_len(dap_chain_hash_fast_to_str_static(&it->hash), sizeof(dap_hash_str_t)) );            
             dap_json_object_add_object( json_obj_vote, "question", 
                                     dap_json_object_new_string(it->params->question) );
             dap_json_object_add_string(json_obj_vote, "token", it->params->token_ticker);
@@ -934,7 +934,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         }
 
         dap_json_t* json_vote_out = dap_json_object_new();
-        dap_json_object_add_object(json_vote_out, "poll_tx", json_object_new_string_len(l_hash_str, sizeof(dap_hash_str_t)));
+        dap_json_object_add_object(json_vote_out, "poll_tx", dap_json_object_new_string_len(l_hash_str, sizeof(dap_hash_str_t)));
 
         // get creator address from voting tx
         dap_ledger_t *l_ledger = l_net->pub.ledger;
@@ -968,9 +968,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         }
         
         dap_json_object_add_object(json_vote_out, "can_change_status",
-                               json_object_new_boolean(l_voting->params->vote_changing_allowed));
+                               dap_json_object_new_bool(l_voting->params->vote_changing_allowed));
         dap_json_object_add_object(json_vote_out, "delegated_key_required",
-                               json_object_new_boolean(l_voting->params->delegate_key_required));
+                               dap_json_object_new_bool(l_voting->params->delegate_key_required));
         
         dap_json_t *json_arr_options_out = dap_json_array_new();
         for (dap_list_t *l_option = l_voting->params->options; l_option; l_option = l_option->next, ++i) {

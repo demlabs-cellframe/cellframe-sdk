@@ -78,12 +78,12 @@ void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_
  *
  * return history json
  */
-json_object * dap_db_history_tx(json_object* a_json_arr_reply, dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type, dap_chain_net_t * l_net, int a_version);
-json_object * dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type, const char * l_addr_str, json_object *json_obj_summary, size_t a_limit, size_t a_offset,
+dap_json_t * dap_db_history_tx(dap_json_t* a_json_arr_reply, dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type, dap_chain_net_t * l_net, int a_version);
+dap_json_t * dap_db_history_addr(dap_json_t* a_json_arr_reply, dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type, const char * l_addr_str, dap_json_t *json_obj_summary, size_t a_limit, size_t a_offset,
                                     bool a_brief, const char *a_srv, dap_chain_tx_tag_action_type_t a_action, bool a_head, int a_version);
 
-json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *l_chain, dap_chain_net_t *l_net,
-                                    const char *l_hash_out_type, json_object *json_obj_summary,
+dap_json_t *dap_db_history_tx_all(dap_json_t* a_json_arr_reply, dap_chain_t *l_chain, dap_chain_net_t *l_net,
+                                    const char *l_hash_out_type, dap_json_t *json_obj_summary,
                                     size_t a_limit, size_t a_offset, bool out_brief,
                                     const char *a_srv,
                                     dap_chain_tx_tag_action_type_t a_action, bool a_head, int a_version);

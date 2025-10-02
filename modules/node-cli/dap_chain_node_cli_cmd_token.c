@@ -110,7 +110,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
  */
 int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
-    dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     int arg_index = 1;
 
     const char * l_hash_out_type = NULL;
@@ -309,7 +309,7 @@ typedef struct _dap_sdk_cli_params {
     dap_cli_token_additional_params ext;
 } dap_sdk_cli_params, *pdap_sdk_cli_params;
 
-static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, json_object* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
+static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, dap_json_t* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
 {
     a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-H", &a_params->hash_out_type);
@@ -446,7 +446,7 @@ dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd
     return l_tsd_list;
 }
 
-static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_object* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
+static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, dap_json_t* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
 {
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &a_params->ext.flags);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &a_params->ext.total_signs_valid);
@@ -641,7 +641,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
     return 0;
 }
 
-static int s_token_decl_check_params_json(int a_argc, char **a_argv, json_object* a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
+static int s_token_decl_check_params_json(int a_argc, char **a_argv, dap_json_t* a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
     int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv, a_json_arr_reply, a_params, a_update_token);
     if (l_parse_params)
@@ -737,7 +737,7 @@ static int s_token_decl_check_params_json(int a_argc, char **a_argv, json_object
  */
 int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
-    dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     const char * l_ticker = NULL;
     uint256_t l_total_supply = {}; // 256
     uint16_t l_signs_emission = 0;
@@ -1034,7 +1034,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
  */
 int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
-    dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     const char * l_ticker = NULL;
     uint256_t l_total_supply = {}; // 256
     uint16_t l_signs_emission = 0;
@@ -1176,7 +1176,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG 
  */
 int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
-    dap_json_t ** a_json_arr_reply = (json_object **) a_str_reply;
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     int arg_index = 1;
     const char *str_tmp = NULL;
     //const char *str_fee = NULL;

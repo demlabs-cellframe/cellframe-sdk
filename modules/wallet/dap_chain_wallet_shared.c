@@ -54,7 +54,7 @@ enum emit_delegation_error {
 #define LOG_TAG "dap_chain_wallet_shared"
 
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash,
-                                       dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner, bool UNUSED_ARG a_check_for_apply)
+                                       dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner)
 {
     size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];
@@ -749,8 +749,8 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
     dap_json_t * l_json_obj_create_val = dap_json_object_new();
     dap_json_object_add_string(l_json_obj_create_val, "status", "success");
     if (dap_strcmp(l_sign_str, ""))
-        dap_json_object_add(l_json_obj_create_val, "sign", dap_json_object_new_string(l_sign_str));
-    dap_json_object_add(l_json_obj_create_val, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
+        dap_json_object_add_object(l_json_obj_create_val, "sign", dap_json_object_new_string(l_sign_str));
+    dap_json_object_add_object(l_json_obj_create_val, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
     dap_json_array_add(*a_json_arr_reply, l_json_obj_create_val);
     DAP_DELETE(l_tx_hash_str);
     return DAP_NO_ERROR;
@@ -827,8 +827,8 @@ static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, dap_json_t *
     dap_json_t * l_json_obj_create_val = dap_json_object_new();
     dap_json_object_add_string(l_json_obj_create_val, "status", "success");
     if (dap_strcmp(l_sign_str, ""))
-        dap_json_object_add(l_json_obj_create_val, "sign", dap_json_object_new_string(l_sign_str));
-    dap_json_object_add(l_json_obj_create_val, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
+        dap_json_object_add_object(l_json_obj_create_val, "sign", dap_json_object_new_string(l_sign_str));
+    dap_json_object_add_object(l_json_obj_create_val, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
     dap_json_array_add(*a_json_arr_reply, l_json_obj_create_val);
     DAP_DELETE(l_tx_hash_str);
     return DAP_NO_ERROR;
@@ -946,8 +946,8 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
     dap_json_t * l_json_obj_create_val = dap_json_object_new();
     dap_json_object_add_string(l_json_obj_create_val, "status", "success");
     if (dap_strcmp(l_sign_str, ""))
-        dap_json_object_add(l_json_obj_create_val, "sign", dap_json_object_new_string(l_sign_str));
-    dap_json_object_add(l_json_obj_create_val, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
+        dap_json_object_add_object(l_json_obj_create_val, "sign", dap_json_object_new_string(l_sign_str));
+    dap_json_object_add_object(l_json_obj_create_val, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
     dap_json_array_add(*a_json_arr_reply, l_json_obj_create_val);
     DAP_DELETE(l_tx_hash_str);
     return DAP_NO_ERROR;
@@ -996,7 +996,7 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Specified certificate %s not found", l_cert_str);
             return ERROR_VALUE;
         }
-        if (dap_sign_type_is_depricated(dap_sign_type_from_key_type(l_cert->enc_key->type)))
+        if (dap_sign_type_is_deprecated(dap_sign_type_from_key_type(l_cert->enc_key->type)))
             l_sign_str = "The Bliss, Picnic and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n";
         else
             l_sign_str = "";
@@ -1022,8 +1022,8 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
     dap_json_t * l_json_obj_create_val = dap_json_object_new();
     dap_json_object_add_string(l_json_obj_create_val, "status", "success");
     if (dap_strcmp(l_sign_str, ""))
-        dap_json_object_add(l_json_obj_create_val, "sign", dap_json_object_new_string(l_sign_str));
-    dap_json_object_add(l_json_obj_create_val, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
+        dap_json_object_add_object(l_json_obj_create_val, "sign", dap_json_object_new_string(l_sign_str));
+    dap_json_object_add_object(l_json_obj_create_val, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
     dap_json_array_add(*a_json_arr_reply, l_json_obj_create_val);
     DAP_DELETE(l_tx_hash_str);
     return DAP_NO_ERROR;
@@ -1071,7 +1071,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
     dap_json_object_add_string(l_jobj_balance, "coins", l_balance_coins);
     dap_json_object_add_string(l_jobj_balance, "datoshi", l_balance_datoshi);
     // verify block
-    dap_json_object_add(l_jobj_take_verify, "signs_minimum", dap_json_object_new_uint64(l_cond->subtype.wallet_shared.signers_minimum));
+    dap_json_object_add_object(l_jobj_take_verify, "signs_minimum", dap_json_object_new_uint64(l_cond->subtype.wallet_shared.signers_minimum));
     dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
@@ -1081,14 +1081,14 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
             dap_json_array_add(l_jobj_tags, dap_json_object_new_string((char*)(l_tsd->data)));
         }
     }
-    dap_json_object_add(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
+    dap_json_object_add_object(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
     // result block
-    dap_json_object_add(l_json_jobj_info, "tx_hash", dap_json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_tx_hash) : dap_hash_fast_to_str_static(&l_tx_hash)));
-    dap_json_object_add(l_json_jobj_info, "tx_hash_final", dap_json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) : dap_hash_fast_to_str_static(&l_final_tx_hash)));
-    dap_json_object_add(l_json_jobj_info, "tags", l_jobj_tags);
-    dap_json_object_add(l_json_jobj_info, "balance", l_jobj_balance);
-    dap_json_object_add(l_json_jobj_info, "take_verify", l_jobj_take_verify);
-    dap_json_object_add(l_json_jobj_info, "token", l_jobj_token);
+    dap_json_object_add_object(l_json_jobj_info, "tx_hash", dap_json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_tx_hash) : dap_hash_fast_to_str_static(&l_tx_hash)));
+    dap_json_object_add_object(l_json_jobj_info, "tx_hash_final", dap_json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) : dap_hash_fast_to_str_static(&l_final_tx_hash)));
+    dap_json_object_add_object(l_json_jobj_info, "tags", l_jobj_tags);
+    dap_json_object_add_object(l_json_jobj_info, "balance", l_jobj_balance);
+    dap_json_object_add_object(l_json_jobj_info, "take_verify", l_jobj_take_verify);
+    dap_json_object_add_object(l_json_jobj_info, "token", l_jobj_token);
     dap_json_array_add(*a_json_arr_reply, l_json_jobj_info);
     return DAP_NO_ERROR;
 }
