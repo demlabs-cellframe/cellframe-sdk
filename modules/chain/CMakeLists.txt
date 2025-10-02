@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 project (dap_chain)
   
-file(GLOB DAP_CHAIN_SRCS *.c)
+# Exclude files moved to common module
+set(DAP_CHAIN_SRCS 
+    dap_chain.c
+    dap_chain_cell.c
+    dap_chain_cs_class.c
+)
 file(GLOB DAP_CHAIN_HEADERS include/*.h)
 
 # Use universal Cellframe library macro
