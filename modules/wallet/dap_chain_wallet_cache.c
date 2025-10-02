@@ -409,7 +409,7 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
         return -100;
     } 
     
-    if(!a_addr || dap_chain_addr_is_blank(a_addr)){
+    if(!a_addr /*|| dap_chain_addr_is_blank(a_addr)*/){
         log_it(L_ERROR, "Wallet addr is not specified.");
         return -100;
     }
@@ -518,7 +518,7 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
         return -100;
     } 
     
-    if(!a_addr || dap_chain_addr_is_blank(a_addr)){
+    if(!a_addr /*|| dap_chain_addr_is_blank(a_addr)*/){
         log_it(L_ERROR, "Wallet addr is not specified.");
         return -100;
     }
@@ -744,11 +744,11 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
     int l_ret_val = 0, l_items_cnt = 0, l_out_idx = -1;
     bool l_multichannel = false;
 #define m_check_addr(addr) (                                                                                    \
-    !dap_chain_addr_is_blank(&addr) && (                                                                        \
+    /*!dap_chain_addr_is_blank(&addr) &&*/ (                                                                    \
         a_addr ? dap_chain_addr_compare(&addr, a_addr) :                                                        \
         ( (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_LOCAL && dap_chain_wallet_addr_cache_get_name(&addr))  \
             || s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) )                                            \
-    && addr.net_id.uint64 == a_chain->net_id.uint64                                                             \
+    && ( addr.net_id.uint64 == a_chain->net_id.uint64 || dap_chain_addr_is_blank(&addr) )                       \
 )
     uint8_t *l_tx_item; size_t l_size;
     TX_ITEM_ITER_TX(l_tx_item, l_size, a_tx) {
