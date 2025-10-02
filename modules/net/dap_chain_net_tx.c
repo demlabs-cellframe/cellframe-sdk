@@ -42,6 +42,7 @@
 #include "dap_enc_base64.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_json_rpc.h"
 
 #define LOG_TAG "dap_chain_net_tx"
 
