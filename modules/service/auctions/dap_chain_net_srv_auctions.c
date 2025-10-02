@@ -720,6 +720,34 @@ dap_auction_project_cache_item_t *dap_auction_cache_find_project(dap_auction_cac
     return l_project;
 }
 
+static int s_auction_event_verify(dap_chain_net_id_t a_net_id, const char *a_event_group_name, int a_event_type, void *a_event_data,
+                                  size_t a_event_data_size, dap_hash_fast_t *a_tx_hash)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    dap_return_val_if_fail(l_net && l_net->pub.ledger, -1);
+    dap_list_t *l_events = dap_ledger_event_get_list_ex(l_net->pub.ledger, a_event_group_name, false);
+    if (!l_events)
+        return a_event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED ? 0 : -1;
+    for (dap_list_t *it = l_events; it; it = it->next) {
+        dap_chain_tx_event_t *l_event = (dap_chain_tx_event_t *)it->data;
+        if (l_event->event_type == a_event_type &&
+                (a_event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED ||
+                a_event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED ||
+                a_event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED))
+        {
+            log_it(L_WARNING, "Event %s rejected: group '%s' already exists event with type %s (existing tx %s)",
+                                            dap_chain_hash_fast_to_str_static(a_tx_hash),
+                                            a_event_group_name,
+                                            dap_chain_tx_item_event_type_to_str(a_event_type),
+                                            dap_chain_hash_fast_to_str_static(&l_event->tx_hash));
+            dap_list_free_full(l_events, dap_chain_datum_tx_event_delete);
+            return -13;
+        }
+    }
+    dap_list_free_full(l_events, dap_chain_datum_tx_event_delete);
+    return 0;
+}
+
 /**
  * @brief Event fixation callback for auction monitoring
  * @param a_arg User argument (auction cache)

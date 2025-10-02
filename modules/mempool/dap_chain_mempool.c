@@ -1658,7 +1658,7 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
     if (a_event_data && a_event_data_size > 0) {
         // Create TSD section with event data using standard cellframe function
         dap_chain_tx_tsd_t *l_tsd_item = dap_chain_datum_tx_item_tsd_create(
-            (void *)a_event_data, DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA, a_event_data_size);
+            (void *)a_event_data, DAP_CHAIN_TX_TSD_TYPE_EVENT_DATA, a_event_data_size);
         
         if (!l_tsd_item) {
             log_it(L_ERROR, "Failed to create TSD item with event data");
@@ -1752,5 +1752,29 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
     
     log_it(L_INFO, "Successfully composed and added event transaction to mempool: %s", l_ret);
     return l_ret;
- } 
+ }
+ 
+/**
+* @brief Compose a transaction with event item for ledger event system
+* @param[in] a_chain Chain to create transaction for
+* @param[in] a_key_from Private key for signing
+* @param[in] a_service_key Service key for signing
+* @param[in] a_group_name Event group name
+* @param[in] a_event_type Event type
+* @param[in] a_event_data Event data
+* @param[in] a_event_data_size Size of event data
+* @param[in] a_fee_value Fee value
+* @param[in] a_hash_out_type Hash output format
+* @return Transaction hash string on success, NULL on error
+*/
+char *dap_chain_mempool_tx_create_service_decree(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+                                                 dap_enc_key_t *a_service_key, dap_chain_net_srv_uid_t a_srv_uid,
+                                                 const void *a_service_decree_data,
+                                                 size_t a_service_decree_data_size,
+                                                 uint256_t a_fee_value,
+                                                 const char *a_hash_out_type)
+{
+    return dap_chain_mempool_tx_create_event(a_chain, a_key_from, a_service_key, a_srv_uid, "SERVICE_DECREE", DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE,
+                                             a_service_decree_data, a_service_decree_data_size, a_fee_value, a_hash_out_type);
+}
 
