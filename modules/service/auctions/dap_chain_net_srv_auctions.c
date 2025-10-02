@@ -68,7 +68,8 @@ enum error_code {
 
 // Callbacks
 static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
-static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
+static int s_auction_event_verify(dap_ledger_t *a_ledger, const char *a_event_group_name, int a_event_type, void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_tx_hash);
 // Forward declaration for optimization function
 static dap_auction_cache_item_t *s_find_auction_by_hash_fast(dap_auction_cache_t *a_cache, const dap_hash_fast_t *a_auction_hash);
 
@@ -92,13 +93,13 @@ int dap_chain_net_srv_auctions_init(void)
                                s_auction_bid_callback_verificator, 
                                s_auction_bid_callback_updater, 
                                NULL);
-
     // Register event notification callback for all existing networks
     dap_chain_net_t *l_net = dap_chain_net_iter_start();
     while (l_net) {
         if (l_net->pub.ledger) {
             dap_ledger_event_notify_add(l_net->pub.ledger, dap_auction_cache_event_callback, s_auction_cache);
-            log_it(L_DEBUG, "Registered auction event callback for network %s", l_net->pub.name);
+            dap_ledger_srv_callback_event_verify_add(l_net->pub.ledger, (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_AUCTION_ID }, s_auction_event_verify);
+            log_it(L_DEBUG, "Registered auction event callbacks for network %s", l_net->pub.name);
         } else {
             log_it(L_WARNING, "Network %s has no ledger, skipping auction event registration", l_net->pub.name);
         }
@@ -720,12 +721,11 @@ dap_auction_project_cache_item_t *dap_auction_cache_find_project(dap_auction_cac
     return l_project;
 }
 
-static int s_auction_event_verify(dap_chain_net_id_t a_net_id, const char *a_event_group_name, int a_event_type, void *a_event_data,
+static int s_auction_event_verify(dap_ledger_t *a_ledger, const char *a_event_group_name, int a_event_type, void *a_event_data,
                                   size_t a_event_data_size, dap_hash_fast_t *a_tx_hash)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-    dap_return_val_if_fail(l_net && l_net->pub.ledger, -1);
-    dap_list_t *l_events = dap_ledger_event_get_list_ex(l_net->pub.ledger, a_event_group_name, false);
+    dap_return_val_if_fail(a_ledger, -1);
+    dap_list_t *l_events = dap_ledger_event_get_list_ex(a_ledger, a_event_group_name, false);
     if (!l_events)
         return a_event_type == DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED ? 0 : -1;
     for (dap_list_t *it = l_events; it; it = it->next) {
@@ -1104,7 +1104,7 @@ static void s_auction_bid_callback_updater(dap_ledger_t *a_ledger, dap_chain_dat
  * @return Returns 0 on success, negative error code otherwise
  */
 static int s_auction_bid_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, 
-                                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+                                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply)
 {
     if (!a_cond) {
         log_it(L_WARNING, "NULL conditional output specified");
