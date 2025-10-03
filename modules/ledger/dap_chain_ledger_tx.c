@@ -25,6 +25,7 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "dap_chain_ledger.h"
+#include "dap_chain_policy.h"  // For policy functions from common module
 #include "dap_chain_ledger_pvt.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_wallet.h"
