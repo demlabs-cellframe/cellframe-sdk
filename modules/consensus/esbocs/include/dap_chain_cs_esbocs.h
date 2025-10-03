@@ -32,7 +32,7 @@ typedef struct dap_json dap_json_t;
 
 // Forward declaration for dap_json_t
 typedef struct dap_json dap_json_t;
-#include "dap_chain_cs_blocks.h"
+#include "dap_chain_type_blocks.h"
 
 // Forward declaration for dap_json_t
 typedef struct dap_json dap_json_t;
@@ -153,7 +153,7 @@ typedef struct dap_chain_esbocs_store {
 
 typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
-    dap_chain_cs_blocks_t *blocks;
+    dap_chain_type_blocks_t *blocks;
     dap_chain_esbocs_session_t *session;
     bool hardfork_state;
     uint16_t hardfork_generation;

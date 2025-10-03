@@ -37,7 +37,7 @@
 #include "dap_chain.h"
 #include "dap_cert.h"
 #include "dap_chain_cell.h"
-#include "dap_chain_cs_class.h"
+#include "dap_chain_cs_type.h"
 #include "dap_cert_file.h"
 #include "dap_chain_ch.h"
 #include "dap_stream_ch_gossip.h"
@@ -163,7 +163,7 @@ void dap_chain_set_cs_type(dap_chain_t *a_chain, const char *a_cs_type)
 
 int dap_chain_purge(dap_chain_t *a_chain)
 {
-    int ret = dap_chain_cs_class_purge(a_chain);
+    int ret = dap_chain_type_purge(a_chain);
     ret += dap_chain_cs_purge(a_chain);
     dap_chain_cell_close_all(a_chain);
     return ret;
@@ -240,7 +240,7 @@ void dap_chain_delete(dap_chain_t *a_chain)
     dap_list_free_full(a_chain->datum_removed_notifiers, NULL);
     dap_list_free_full(a_chain->blockchain_timers, NULL);
     dap_list_free_full(a_chain->atom_confirmed_notifiers, NULL);
-    dap_chain_cs_class_delete(a_chain);
+    dap_chain_type_delete(a_chain);
     if (DAP_CHAIN_PVT(a_chain)) {
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
     }
@@ -695,7 +695,7 @@ dap_chain_t * dap_chain_init_net_cfg_name(const char * a_chain_net_cfg_name)
  */
 void dap_chain_close(dap_chain_t * a_chain)
 {
-    dap_chain_cs_class_delete(a_chain);
+    dap_chain_type_delete(a_chain);
 }
 
 /**

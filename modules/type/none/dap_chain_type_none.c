@@ -38,11 +38,11 @@
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_cs_none.h"
-#include "dap_chain_cs_class.h"  // For old consensus class registration
+#include "dap_chain_type_none.h"
+#include "dap_chain_cs_type.h"  // For old consensus class registration
 #include "dap_chain_datum.h"  // For full datum structure definitions
 
-#define LOG_TAG "dap_chain_cs_none"
+#define LOG_TAG "dap_chain_type_none"
 
 #define CONSENSUS_NAME "none"
 
@@ -105,13 +105,10 @@ static int s_nonconsensus_callback_purge(dap_chain_t *a_chain);
  */
 int dap_nonconsensus_init(void)
 {
-    dap_chain_cs_class_callbacks_t l_callbacks = { .callback_delete = s_nonconsensus_callback_delete,
+    dap_chain_type_callbacks_t l_callbacks = { .callback_delete = s_nonconsensus_callback_delete,
                                                    .callback_purge = s_nonconsensus_callback_purge };
-    dap_chain_cs_class_add(CONSENSUS_NAME, l_callbacks); // It's a type and CS itself
-    // Use old consensus registration system (different from new callbacks!)
-    dap_chain_cs_old_callbacks_t l_cs_callbacks = { .callback_init = s_nonconsensus_callback_new,
-                                                     .callback_load = s_nonconsensus_callback_created };
-    dap_chain_cs_add(CONSENSUS_NAME, l_cs_callbacks);
+    dap_chain_type_add(CONSENSUS_NAME, l_callbacks); // It's a type and CS itself
+    // Type "none" doesn't need separate consensus callbacks registration
     log_it(L_NOTICE, "Initialized GDB chain items organization class");
     return 0;
 }

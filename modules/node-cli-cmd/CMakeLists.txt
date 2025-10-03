@@ -30,7 +30,7 @@ target_link_libraries(${PROJECT_NAME}
     dap_chain_net_srv 
     dap_chain_mempool 
     dap_chain_cs
-    dap_chain_cs_blocks
+    dap_chain_type_blocks
     dap_chain_cs_esbocs
     dap_chain_net_srv_stake
     dap_chain_net_srv_voting

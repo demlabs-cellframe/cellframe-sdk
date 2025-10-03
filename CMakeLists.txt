@@ -255,24 +255,24 @@ endif()
 
 # DAG based consensus(es)
 if (CELLFRAME_MODULES MATCHES "cs-dag-" )
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_type_dag)
 endif()
 
 # PoA consensus for DAG
 if (CELLFRAME_MODULES MATCHES "cs-dag-poa")
     message("[+] Module 'cs-dag-poa'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag_poa)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_type_dag_poa)
 endif()
 
 # PoS consensus for DAG
 if (CELLFRAME_MODULES MATCHES "cs-dag-pos")
     message("[+] Module 'cs-dag-pos'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag_pos)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_type_dag_pos)
 endif()
 
 # Blocks based consensus(es)
 if (CELLFRAME_MODULES MATCHES "cs-block-" OR CELLFRAME_MODULES MATCHES "cs-esbocs")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_blocks)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_type_blocks)
 endif()
 
 # ESBOCS consensus for blocks
@@ -291,7 +291,7 @@ endif()
 # No-consensus
 if (CELLFRAME_MODULES MATCHES "cs-none")
     message("[+] Module 'cs-none'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_none)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_type_none)
 endif()
 
 # Enable service Application

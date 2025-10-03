@@ -3,7 +3,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_block.h"
-#include "dap_chain_cs_blocks.h"
+#include "dap_chain_type_blocks.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs.h"
 
@@ -93,7 +93,7 @@ bool dap_chain_block_test_compare_chain_hash_lists(dap_chain_t* a_chain, dap_lis
 void dap_chain_blocks_test()
 {
     dap_test_msg("Start of cs block testing...");
-    dap_assert_PIF(dap_chain_cs_blocks_init() == 0, "Initialization of dap consensus block: ");
+    dap_assert_PIF(dap_chain_type_blocks_init() == 0, "Initialization of dap consensus block: ");
 
     dap_assert_PIF(dap_chain_cs_esbocs_init() == 0, "Initialization of esbocs: ");
 

@@ -29,7 +29,7 @@
 #include "dap_chain_node.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_cs_esbocs.h" // TODO set RPC callbacks for exclude consensus specific dependency
-#include "dap_chain_cs_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
+#include "dap_chain_type_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
 #include "dap_chain_net_srv_stake_pos_delegate.h" // TODO set RPC callbacks for exclude service specific dependency
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_balancer.h"
@@ -578,7 +578,7 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     }
     log_it(L_ATT, "Starting data prepare for hardfork of chain '%s' for net '%s'", a_chain->name, l_net->pub.name);
     struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1);
-    dap_ledger_hardfork_fees_t *l_fees = dap_chain_cs_blocks_fees_aggregate(a_chain);
+    dap_ledger_hardfork_fees_t *l_fees = dap_chain_type_blocks_fees_aggregate(a_chain);
     l_states->balances = dap_ledger_states_aggregate(l_net->pub.ledger, a_last_block_timestamp, &l_states->condouts, a_changed_addrs);
     l_states->anchors = dap_ledger_anchors_aggregate(l_net->pub.ledger, a_chain->id);
     l_states->events = dap_ledger_events_aggregate(l_net->pub.ledger, a_chain->id);

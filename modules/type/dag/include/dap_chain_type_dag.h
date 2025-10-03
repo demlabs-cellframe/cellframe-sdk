@@ -24,34 +24,34 @@
 #pragma once
 #include "uthash.h"
 #include "dap_chain.h"
-#include "dap_chain_cs_dag_event.h"
+#include "dap_chain_type_dag_event.h"
 
 #define DAG_ROUND_CURRENT_KEY "round_current"
 #define DAP_CHAIN_CLUSTER_ID_DAG 0x10000
 
-typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
+typedef struct dap_chain_type_dag dap_chain_type_dag_t;
 
-typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *a_dag);
-typedef void (*dap_chain_cs_dag_callback_rc_ptr_t)(dap_chain_cs_dag_t *, int a_rc, void * a_arg);
-typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_event, dap_hash_fast_t *a_event_hash);
+typedef void (*dap_chain_type_dag_callback_t)(dap_chain_type_dag_t *a_dag);
+typedef void (*dap_chain_type_dag_callback_rc_ptr_t)(dap_chain_type_dag_t *, int a_rc, void * a_arg);
+typedef int (*dap_chain_type_dag_callback_event_t)(dap_chain_type_dag_t *a_dag, dap_chain_type_dag_event_t *a_event, dap_hash_fast_t *a_event_hash);
 
-typedef dap_chain_cs_dag_event_t * (*dap_chain_cs_dag_callback_event_create_t)(dap_chain_cs_dag_t *,
+typedef dap_chain_type_dag_event_t * (*dap_chain_type_dag_callback_event_create_t)(dap_chain_type_dag_t *,
                                                                                dap_chain_datum_t *,
                                                                                dap_chain_hash_fast_t *,
                                                                                size_t, size_t*);
 
-typedef void (*dap_chain_cs_dag_callback_get_round_info_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_round_info_t *);
-typedef void (*dap_chain_cs_dag_callback_set_event_round_info_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_round_info_t *);
+typedef void (*dap_chain_type_dag_callback_get_round_info_t)(dap_chain_type_dag_t *, dap_chain_type_dag_event_round_info_t *);
+typedef void (*dap_chain_type_dag_callback_set_event_round_info_t)(dap_chain_type_dag_t *, dap_chain_type_dag_event_round_info_t *);
 
-typedef int (*dap_chain_cs_dag_callback_event_round_sync_t)(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
+typedef int (*dap_chain_type_dag_callback_event_round_sync_t)(dap_chain_type_dag_t * a_dag, const char a_op_code, const char *a_group,
                                                 const char *a_key, const void *a_value, const size_t a_value_size);
 
-typedef struct dap_chain_cs_dag_hal_item {
+typedef struct dap_chain_type_dag_hal_item {
     dap_chain_hash_fast_t hash;
     UT_hash_handle hh;
-} dap_chain_cs_dag_hal_item_t;
+} dap_chain_type_dag_hal_item_t;
 
-typedef struct dap_chain_cs_dag
+typedef struct dap_chain_type_dag
 {
     dap_chain_t * chain;
     bool is_single_line;
@@ -59,18 +59,18 @@ typedef struct dap_chain_cs_dag
     bool is_add_directly;
     bool is_static_genesis_event;
     dap_chain_hash_fast_t static_genesis_event_hash;
-    dap_chain_cs_dag_hal_item_t *hal;
+    dap_chain_type_dag_hal_item_t *hal;
 
     uint16_t datum_add_hashes_count;
     char * gdb_group_events_round_new;
 
-    dap_chain_cs_dag_callback_t callback_delete;
-    dap_chain_cs_dag_callback_event_create_t callback_cs_event_create;
-    dap_chain_cs_dag_callback_event_t callback_cs_verify;
+    dap_chain_type_dag_callback_t callback_delete;
+    dap_chain_type_dag_callback_event_create_t callback_cs_event_create;
+    dap_chain_type_dag_callback_event_t callback_cs_verify;
 
     void * _pvt;
     void * _inheritor;
-} dap_chain_cs_dag_t;
+} dap_chain_type_dag_t;
 
 typedef enum s_com_dag_err{
     DAP_CHAIN_NODE_CLI_COM_DAG_OK = 0,
@@ -92,11 +92,11 @@ typedef enum s_com_dag_err{
     DAP_CHAIN_NODE_CLI_COM_DAG_UNKNOWN /* MAX */
 } s_com_dag_err_t;
 
-#define DAP_CHAIN_CS_DAG(a) ( (dap_chain_cs_dag_t *) (a)->_inheritor)
+#define DAP_CHAIN_TYPE_DAG(a) ( (dap_chain_type_dag_t *) (a)->_inheritor)
 
-int dap_chain_cs_dag_init();
-void dap_chain_cs_dag_deinit(void);
-void dap_chain_cs_dag_start(dap_chain_cs_dag_t *a_dag);
+int dap_chain_type_dag_init();
+void dap_chain_type_dag_deinit(void);
+void dap_chain_type_dag_start(dap_chain_type_dag_t *a_dag);
 
-void dap_chain_cs_dag_proc_event_round_new(dap_chain_cs_dag_t *a_dag);
-dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag, dap_chain_hash_fast_t * a_hash);
+void dap_chain_type_dag_proc_event_round_new(dap_chain_type_dag_t *a_dag);
+dap_chain_type_dag_event_t* dap_chain_type_dag_find_event_by_hash(dap_chain_type_dag_t * a_dag, dap_chain_hash_fast_t * a_hash);

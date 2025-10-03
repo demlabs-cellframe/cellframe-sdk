@@ -17,10 +17,10 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_block.h"
-#include "dap_chain_cs_blocks.h"
+#include "dap_chain_type_blocks.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_cs_dag_poa.h"
+#include "dap_chain_type_dag_poa.h"
 
 static const uint64_t s_fee = 2;
 static const uint64_t s_total_supply = 500;
@@ -1008,10 +1008,10 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
 
 void dap_ledger_test_run(void){
     dap_set_appname("cellframe-node");
-    dap_assert_PIF(dap_chain_cs_blocks_init() == 0, "Initialization of dap consensus block: ");
+    dap_assert_PIF(dap_chain_type_blocks_init() == 0, "Initialization of dap consensus block: ");
     dap_assert_PIF(dap_chain_cs_esbocs_init() == 0, "Initialization of esbocs: ");
-    dap_assert_PIF(dap_chain_cs_dag_init() == 0, "Initialization of esbocs: ");
-    dap_assert_PIF(dap_chain_cs_dag_poa_init() == 0, "Initialization of esbocs: ");
+    dap_assert_PIF(dap_chain_type_dag_init() == 0, "Initialization of esbocs: ");
+    dap_assert_PIF(dap_chain_type_dag_poa_init() == 0, "Initialization of esbocs: ");
     dap_chain_net_srv_stake_lock_init();
     dap_chain_net_srv_stake_pos_delegate_init();
     dap_assert_PIF(!dap_chain_net_srv_init(), "Srv initializstion");

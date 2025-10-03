@@ -83,7 +83,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_net.h"
-#include "dap_chain_cs_class.h"  // For dap_chain_cs_load/start/stop
+#include "dap_chain_cs_type.h"  // For dap_chain_cs_load/start/stop
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_balancer.h"

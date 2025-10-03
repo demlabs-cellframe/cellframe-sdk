@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
-project (dap_chain_cs_blocks)
+project (dap_chain_type_blocks)
   
-file(GLOB DAP_CHAIN_BLOCK_SRCS *.c)
-file(GLOB DAP_CHAIN_BLOCK_HEADERS include/*.h)
+file(GLOB DAP_CHAIN_TYPE_BLOCKS_SRCS *.c)
+file(GLOB DAP_CHAIN_TYPE_BLOCKS_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} ${CELLFRAME_MODULE_TYPE} ${DAP_CHAIN_BLOCK_SRCS} ${DAP_CHAIN_BLOCK_HEADERS})
+add_library(${PROJECT_NAME} ${CELLFRAME_MODULE_TYPE} ${DAP_CHAIN_TYPE_BLOCKS_SRCS} ${DAP_CHAIN_TYPE_BLOCKS_HEADERS})
 
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
@@ -15,7 +15,7 @@ target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 if (INSTALL_SDK)
-set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_BLOCK_HEADERS}")
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_TYPE_BLOCKS_HEADERS}")
 INSTALL(TARGETS ${PROJECT_NAME} 
         LIBRARY DESTINATION lib/modules/type/blocks/
         ARCHIVE DESTINATION lib/modules/type/blocks/

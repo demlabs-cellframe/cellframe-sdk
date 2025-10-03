@@ -22,25 +22,25 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-#include "dap_chain_cs_dag.h"
+#include "dap_chain_type_dag.h"
 #include "dap_cert.h"
 
-typedef int (*dap_chain_cs_dag_poa_callback_t)(dap_chain_t *, dap_chain_cs_dag_event_t*, size_t, void *);
+typedef int (*dap_chain_type_dag_poa_callback_t)(dap_chain_t *, dap_chain_type_dag_event_t*, size_t, void *);
 
-typedef struct dap_chain_cs_dag_poa
+typedef struct dap_chain_type_dag_poa
 {
     dap_chain_t * chain;
-    dap_chain_cs_dag_t * dag;
+    dap_chain_type_dag_t * dag;
     void * _pvt;
     void * _inheritor;
-} dap_chain_cs_dag_poa_t;
+} dap_chain_type_dag_poa_t;
 
 #define DAG_ROUND_NEW_TTL 600 // 10 min
 
-#define DAP_CHAIN_CS_DAG_POA(a) ( (dap_chain_cs_dag_poa_t *) (a)->_inheritor)
+#define DAP_CHAIN_TYPE_DAG_POA(a) ( (dap_chain_type_dag_poa_t *) (a)->_inheritor)
 
-int dap_chain_cs_dag_poa_init();
-void dap_chain_cs_dag_poa_deinit(void);
-dap_list_t *dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *a_count_verify);
-void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain,
-                  dap_chain_cs_dag_poa_callback_t a_callback, void *a_arg);
+int dap_chain_type_dag_poa_init();
+void dap_chain_type_dag_poa_deinit(void);
+dap_list_t *dap_chain_type_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *a_count_verify);
+void dap_chain_type_dag_poa_presign_callback_set(dap_chain_t *a_chain,
+                  dap_chain_type_dag_poa_callback_t a_callback, void *a_arg);

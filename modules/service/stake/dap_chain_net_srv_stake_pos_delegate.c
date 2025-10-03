@@ -2599,7 +2599,7 @@ static int s_cli_srv_stake_pkey_show(int a_argc, char **a_argv, int a_arg_index,
     // search in curren
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, l_srv_stake->itemlist, &l_pkey_hash, sizeof(dap_hash_fast_t), l_stake);
-    dap_pkey_t *l_pkey = (l_stake && l_stake->pkey) ? DAP_DUP_SIZE(l_stake->pkey, dap_pkey_get_size(l_stake->pkey)) : dap_chain_cs_blocks_get_pkey_by_hash(l_net, &l_pkey_hash);
+    dap_pkey_t *l_pkey = (l_stake && l_stake->pkey) ? DAP_DUP_SIZE(l_stake->pkey, dap_pkey_get_size(l_stake->pkey)) : dap_chain_type_blocks_get_pkey_by_hash(l_net, &l_pkey_hash);
     if (!l_pkey) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_INVALID_PKEY_ERR, "pkey not finded");
         return -25;
@@ -3462,7 +3462,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_HASH_ERR, "Invalid pkey hash format");
                     return DAP_CHAIN_NODE_CLI_SRV_STAKE_HASH_ERR;
                 }
-                l_pkey = dap_chain_cs_blocks_get_pkey_by_hash(l_net, &l_pkey_hash);
+                l_pkey = dap_chain_type_blocks_get_pkey_by_hash(l_net, &l_pkey_hash);
                 if (!l_pkey) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_NO_PKEY_ERR, "Specified pkey hash %s isn't delegated or approved",
                                                                                                         dap_hash_fast_to_str_static(&l_pkey_hash);
@@ -4076,7 +4076,7 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
             for(dap_list_t *it = l_list_in_items; it; it = it->next)
             {
                 dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;            
-                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &l_in_reward->block_hash);
+                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_TYPE_BLOCKS(a_chain), &l_in_reward->block_hash);
                 json_arr_sign_out = dap_json_array_new();
                 json_block_hash = dap_json_object_new();
                 dap_json_object_add_string(json_block_hash, a_version == 1 ? "block hash" : "block_hash", dap_chain_hash_fast_to_str_static(&l_in_reward->block_hash))); 

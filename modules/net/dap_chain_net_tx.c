@@ -32,7 +32,7 @@
 #include "dap_chain_datum_tx_in_reward.h"
 #include "dap_chain_tx.h"
 #include "dap_list.h"
-#include "dap_chain_cs_blocks.h"
+#include "dap_chain_type_blocks.h"
 
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_wallet.h"
@@ -1873,7 +1873,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
                     if (l_is_value)
                         SUM_256_256(l_value_reward, l_value, &l_value_reward);
                     else if (l_chain) {
-                        l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(l_chain), &l_block_hash);
+                        l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_TYPE_BLOCKS(l_chain), &l_block_hash);
                         dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                         dap_pkey_t * l_block_sign_pkey = dap_pkey_get_from_sign(l_sign);
                         l_value = l_chain->callback_calc_reward(l_chain, &l_block_hash,l_block_sign_pkey);
