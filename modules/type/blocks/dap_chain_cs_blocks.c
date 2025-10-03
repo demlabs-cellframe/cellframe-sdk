@@ -1100,7 +1100,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
             if (!l_head)
                 l_block_cache = HASH_LAST(l_block_cache);             
-            for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
+			for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
+				if (i_tmp >= l_arr_end)
+					break;
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 // Time window filtering aligned with DAG logic and traversal direction
                 if (l_head) {
