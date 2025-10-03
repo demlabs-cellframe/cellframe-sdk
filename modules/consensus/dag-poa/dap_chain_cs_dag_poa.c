@@ -36,6 +36,7 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_event.h"
 #include "dap_chain_cs_dag_poa.h"
+#include "dap_chain_cs_class.h"  // For old consensus class registration
 #include "dap_chain_cell.h"
 #include "dap_global_db.h"
 #include "dap_cert.h"
@@ -95,9 +96,10 @@ static bool s_debug_more = false;
  */
 int dap_chain_cs_dag_poa_init()
 {
-    dap_chain_cs_callbacks_t l_callbacks = { .callback_init = s_callback_new,
-                                             .callback_load = s_callback_created,
-                                             .callback_start = s_callback_start};
+    // Use old consensus registration system
+    dap_chain_cs_old_callbacks_t l_callbacks = { .callback_init = s_callback_new,
+                                                 .callback_load = s_callback_created,
+                                                 .callback_start = s_callback_start};
     dap_chain_cs_add("dag_poa", l_callbacks); // Add consensus constructor
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands", dap_chain_node_cli_cmd_id_from_str("dag_poa"),
@@ -583,7 +585,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
                 }
             }
             log_it(L_INFO, "Event %s with datum %s is %s",
-                           l_event_hash_hex_str, l_datum_hash_str, dap_chain_atom_verify_res_str[l_res]);
+                           l_event_hash_hex_str, l_datum_hash_str, dap_chain_atom_verify_res_to_str(l_res));
         } else {
             log_it(L_ERROR, "Event %s is not chained: datum %s doesn't pass verification, error \"%s\"",
                             l_event_hash_hex_str, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));

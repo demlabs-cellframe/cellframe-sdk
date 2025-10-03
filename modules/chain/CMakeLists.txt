@@ -1,11 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 project (dap_chain)
   
-# Exclude files moved to common module
+# Exclude files moved to common and consensus modules
 set(DAP_CHAIN_SRCS 
     dap_chain.c
     dap_chain_cell.c
-    dap_chain_cs_class.c
 )
 file(GLOB DAP_CHAIN_HEADERS include/*.h)
 

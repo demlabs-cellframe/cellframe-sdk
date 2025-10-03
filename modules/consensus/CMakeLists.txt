@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(dap_chain_cs)
 
-file(GLOB DAP_CHAIN_CS_SRCS dap_chain_cs.c)
-file(GLOB DAP_CHAIN_CS_HEADERS include/dap_chain_cs.h)
+file(GLOB DAP_CHAIN_CS_SRCS dap_chain_cs.c dap_chain_cs_class.c)
+file(GLOB DAP_CHAIN_CS_HEADERS include/dap_chain_cs.h include/dap_chain_cs_callback.h dap_chain_cs_class.h)
 
 message("[+] Module 'chain-cs' (consensus callbacks & common API)")
 

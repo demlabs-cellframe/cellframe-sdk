@@ -539,7 +539,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             if (!s_threshold_enabled /*&& !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id))*/)
                 ret = ATOM_REJECT;
         }
-        debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, dap_chain_atom_verify_res_str[ret]);
+        debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, dap_chain_atom_verify_res_to_str(ret));
         break;
     case ATOM_PASS:
         debug_if(s_debug_more, L_DEBUG, "Atom already present");
