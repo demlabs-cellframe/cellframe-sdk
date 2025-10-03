@@ -4476,7 +4476,7 @@ int dap_chain_net_srv_stake_get_validator_ext(dap_chain_net_srv_order_t *a_order
         log_it(L_ERROR, "Order type is not a buy order");
         return -1;
     }
-    struct validator_odrer_ext *l_ext = (struct validator_odrer_ext *)a_order->ext_n_sign;
+    struct validator_order_ext *l_ext = (struct validator_order_ext *)a_order->ext_n_sign;
     if (a_tax) {
         *a_tax = l_ext->tax;
     }

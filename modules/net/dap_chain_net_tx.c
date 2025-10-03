@@ -2936,7 +2936,8 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
 
     json_object* json_obj_out = a_out_json;
     dap_hash_fast_t l_hash_tmp = { };
-    byte_t *item; size_t l_size;
+    byte_t *item = NULL;
+    size_t l_size = 0;
     char *l_hash_str = NULL;
     char l_tmp_buf[DAP_TIME_STR_SIZE];
     json_object* json_arr_items = json_object_new_array();
@@ -2951,9 +2952,6 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
     dap_chain_net_id_t l_net_id = {.uint64 = 0};
     //dap_chain_datum_dump_tx_items(json_arr_items, a_tx, "hex", l_net_id, 2, NULL);
 
-    dap_hash_fast_t l_hash_tmp = { };
-    byte_t *item; size_t l_size;
-    const char *l_hash_str = NULL;
     TX_ITEM_ITER_TX(item, l_size, a_tx) {
         json_object* json_obj_item = json_object_new_object();
         json_object_object_add(json_obj_item,"type", json_object_new_string(dap_chain_datum_tx_item_type_to_str_short(*item)));
