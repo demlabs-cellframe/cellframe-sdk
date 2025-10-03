@@ -2647,7 +2647,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             bool l_has_addr = (l_addr_str != NULL);
             int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_tokens ? 1 : 0) + (l_has_addr ? 1 : 0);
             if (l_groups_cnt > 1) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_ERR,
+                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_ERR,
                     "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-token_to/-token_from/-status} or {-addr}");
                 return DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_ERR;
             }
