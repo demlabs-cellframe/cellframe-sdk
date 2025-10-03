@@ -2388,9 +2388,10 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
     DL_FOREACH(a_net->pub.chains, l_chain)
     {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
-            if(l_chain->datum_types[i] == a_datum_type)
+            if(l_chain->datum_types[i] == a_datum_type) {
                 dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(l_chain);
                 return (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(l_chain) : NULL;
+            }
         }
     }
     return NULL;

@@ -7,7 +7,7 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_SRCS} ${DAP_CHAIN_NET_SRV
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/libmaxminddb ${CMAKE_CURRENT_BINARY_DIR}/../../3rdparty/libmaxminddb)
 
-target_link_libraries(${PROJECT_NAME} maxminddb dap_core dap_crypto dap_chain dap_chain_net dap_chain_wallet)
+target_link_libraries(${PROJECT_NAME} maxminddb dap_core dap_crypto dap_common dap_chain dap_chain_net dap_chain_wallet)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)

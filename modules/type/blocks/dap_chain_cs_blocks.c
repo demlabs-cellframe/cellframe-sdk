@@ -36,6 +36,8 @@
 #include "dap_chain_net.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_cs.h"
+#include "dap_chain_cs_class.h"  // For old consensus class registration
+#include "dap_chain_cs_esbocs.h"  // For esbocs-specific types
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -1410,7 +1412,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 }
                 dap_chain_cs_callbacks_t *l_cs_cbs = dap_chain_cs_get_callbacks(l_chain);
                 dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
-                        .collecting_level = l_cs_cbs ? l_cs_cbs->get_collecting_level(l_chain) : 0,
+                        .collecting_level = l_cs_cbs ? l_cs_cbs->get_collecting_level(l_chain) : uint256_0,
                         .minimum_fee = l_cs_cbs ? l_cs_cbs->get_fee(l_chain->net_id) : uint256_0,
                         .chain = l_chain,
                         .blocks_sign_key = l_cert->enc_key,
@@ -2273,10 +2275,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         debug_if(s_debug_more,L_DEBUG,"%s","Can't find valid previous block in chain or forked branches.");
         ret = ATOM_REJECT;
     }
-    if (l_is_genesis && l_generation && a_chain->generation < l_generation &&
-            l_stake_cbs && l_stake_cbs->stake_switch_table && l_stake_cbs->stake_switch_table(a_chain->net_id, false)) {  // return to main
-        log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
-        ret = ATOM_REJECT;
+    if (l_is_genesis && l_generation && a_chain->generation < l_generation) {
+        dap_chain_cs_callbacks_t *l_stake_cbs = dap_chain_cs_get_callbacks(a_chain);
+        if (l_stake_cbs && l_stake_cbs->stake_switch_table && l_stake_cbs->stake_switch_table(a_chain->net_id, false)) {  // return to main
+            log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
+            ret = ATOM_REJECT;
+        }
     }
     return ret;
 }
@@ -3036,7 +3040,7 @@ dap_ledger_hardfork_fees_t *dap_chain_cs_blocks_fees_aggregate(dap_chain_t *a_ch
                         s_aggregate_fees(&ret, &l_owner_addr, l_value_out);
                     }
                     if (!IS_ZERO_256(l_value_tax))
-                        s_aggregate_fees(&ret, &l_key_item->sovereign_addr, l_value_tax);
+                        s_aggregate_fees(&ret, &l_sovereign_addr, l_value_tax);
                 }
             }
             if (l_ts < DAP_REWARD_INIT_TIMESTAMP)

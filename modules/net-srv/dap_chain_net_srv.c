@@ -47,6 +47,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_policy.h"  // For policy functions from common module
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
