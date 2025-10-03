@@ -776,11 +776,12 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     if (!( l_net_name_str ))
         return DAP_DELETE(l_ret), log_it(L_ERROR, "Invalid net name, check [general] \"name\" in netconfig"), NULL;
     dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
-    if (!( l_ret->pub.native_ticker = a_native_ticker ))
-        return DAP_DEL_MULTY(l_ret->pub.name, l_ret),
-               log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg",
-                                l_net_name_str),
-                NULL;
+    if (!( l_ret->pub.native_ticker = a_native_ticker )) {
+        DAP_DEL_MULTY(l_ret->pub.name, l_ret);
+        log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg",
+                        l_net_name_str);
+        return NULL;
+    }
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
     
     if ( dap_chain_policy_net_add(l_ret->pub.id, a_cfg) ) {

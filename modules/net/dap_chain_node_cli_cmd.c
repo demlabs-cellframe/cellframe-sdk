@@ -5508,7 +5508,8 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int
     json_object* json_obj_out = json_object_new_object();
     json_object_object_add(json_obj_out, "result", json_object_new_string(l_str_reply_tmp));
     json_object_array_add(*a_json_arr_reply, json_obj_out);
-    return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
+    DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr);
+    return 0;
 }
 
 

@@ -246,7 +246,10 @@ dap_chain_node_client_t *dap_chain_node_client_create_n_connect(dap_chain_net_t 
                                                                 void *a_callback_arg)
 {
     dap_chain_node_client_t *l_node_client = dap_chain_node_client_create(a_net, a_node_info, a_callbacks, a_callback_arg);
-    return dap_chain_node_client_connect(l_node_client, a_active_channels) ? l_node_client : ( DAP_DEL_MULTY(l_node_client->info, l_node_client), NULL );
+    if ( dap_chain_node_client_connect(l_node_client, a_active_channels) )
+        return l_node_client;
+    DAP_DEL_MULTY(l_node_client->info, l_node_client);
+    return NULL;
 }
 
 dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
