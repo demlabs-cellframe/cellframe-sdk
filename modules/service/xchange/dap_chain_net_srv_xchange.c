@@ -229,7 +229,10 @@ int dap_chain_net_srv_xchange_init()
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>\n"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
-    "srv_xchange orders -net <net_name> [-status {opened|closed|all}] [-token_from <token_ticker>] [-token_to <token_ticker>] [-addr <wallet_addr>] [-limit <limit>] [-offset <offset>] [-head] [-full] [-h]\n"
+    "srv_xchange orders -net <net_name> [-status {opened|closed|all} -token_from <token_ticker> -token_to <token_ticker>]\n"
+         "\t OR [-addr <wallet_addr>]\n"
+         "\t OR [-limit <limit>] [-offset <offset>] [-head]\n"
+         "\t [-full] [-h]\n"
          "\tGet the exchange orders list within specified net name\n"
 
     "srv_xchange purchase -order <order hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>\n"
@@ -2623,7 +2626,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 }
             }
 
-            bool l_head = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-head", &l_head_str) ? true : false;
+            bool l_head = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-head", &l_head_str) ? false : true;
             
             dap_chain_addr_t *l_addr = NULL;
             const char *l_addr_str = NULL;
@@ -2638,6 +2641,17 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+
+            bool l_has_loh = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
+            bool l_has_tokens = (l_token_to_str != NULL) || (l_token_from_str != NULL) || (l_status_str != NULL);
+            bool l_has_addr = (l_addr_str != NULL);
+            int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_tokens ? 1 : 0) + (l_has_addr ? 1 : 0);
+            if (l_groups_cnt > 1) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_ERR,
+                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-token_to/-token_from/-status} or {-addr}");
+                return DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_ERR;
+            }
+
             size_t l_arr_start = 0;            
             size_t l_arr_end = 0;
             json_object* json_obj_order = json_object_new_object();
