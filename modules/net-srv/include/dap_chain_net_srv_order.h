@@ -144,7 +144,7 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
 void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_order, dap_string_t *a_str_out,
                                             const char *a_hash_out_type, const char *a_native_ticker);
 void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, json_object *a_json_obj_out,
-                                            const char *a_hash_out_type, const char *a_native_ticker, bool a_need_sign, int a_version);
+                                            const char *a_hash_out_type, const char *a_native_ticker, int a_version);
 
 void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
 /**
@@ -161,7 +161,13 @@ DAP_STATIC_INLINE char *dap_chain_net_srv_order_get_common_group(dap_chain_net_t
 {
     return a_net ? dap_strdup_printf("%s.orders", a_net->pub.gdb_groups_prefix) : NULL;
 }
-
+DAP_STATIC_INLINE dap_sign_t *dap_chain_net_srv_order_get_sign(dap_chain_net_srv_order_t *a_order)
+{
+    if (!a_order)
+        return NULL;
+    return (dap_sign_t*)(a_order->ext_n_sign + a_order->ext_size);
+}
 #ifdef __cplusplus
 }
 #endif
+

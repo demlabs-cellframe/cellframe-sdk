@@ -2096,7 +2096,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                 }
                 // TODO add filters to list (token, address, etc.)
                 json_object* l_json_obj_order = json_object_new_object();
-                dap_chain_net_srv_order_dump_to_json(l_order, l_json_obj_order, a_hash_out_type, l_net->pub.native_ticker, false, a_version);
+                dap_chain_net_srv_order_dump_to_json(l_order, l_json_obj_order, a_hash_out_type, l_net->pub.native_ticker, a_version);
                 if (l_order->srv_uid.uint64 == DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS) {
                     if (l_order->direction == SERV_DIR_SELL) {
                         json_object_object_add(l_json_obj_order, "message", 
@@ -4468,3 +4468,20 @@ void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net)
         if (!dap_hash_fast_is_blank(&it->tx_hash))
             s_stake_add_tx(a_net, it);
  }
+
+int dap_chain_net_srv_stake_get_validator_ext(dap_chain_net_srv_order_t *a_order, uint256_t *a_tax, uint256_t *a_value_max)
+{
+    dap_return_val_if_pass(!a_order || !a_order->ext_n_sign, -1);
+    if (a_order->direction != SERV_DIR_SELL) {
+        log_it(L_ERROR, "Order type is not a buy order");
+        return -1;
+    }
+    struct validator_odrer_ext *l_ext = (struct validator_odrer_ext *)a_order->ext_n_sign;
+    if (a_tax) {
+        *a_tax = l_ext->tax;
+    }
+    if (a_value_max) {
+        *a_value_max = l_ext->value_max;
+    }
+    return 0;
+}

@@ -800,7 +800,7 @@ static bool s_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_add
 
 static bool s_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker,
                                          json_object **l_outs, int *l_outputs_count, compose_config_t *a_config) {
-    json_object *l_json_outs = s_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s", 
+    json_object *l_json_outs = s_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s;-mempool_check", 
                                                                       dap_chain_addr_to_str(a_addr_from), a_token_ticker, a_config->net_name);
     if (!l_json_outs) {
         log_it(L_ERROR, "Failed to get outs");
@@ -1202,7 +1202,7 @@ json_object *dap_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_
     log_it_fl(L_DEBUG, "a_token_ticker: %s, a_addr: %s, a_config: %p",
     a_token_ticker, dap_chain_addr_to_str(a_addr), a_config);
 
-    json_object *l_json_outs = s_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s", 
+    json_object *l_json_outs = s_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s;-mempool_check", 
                                                                       dap_chain_addr_to_str(a_addr), a_token_ticker, a_config->net_name);
     if (!l_json_outs) {
         log_it(L_ERROR, "failed to get response from RPC request");
@@ -2237,9 +2237,8 @@ static dap_chain_datum_tx_t *s_get_datum_info_from_rpc(
     size_t
         l_items_count = 0,
         l_items_ready = 0;
-    json_object * l_json_errors = json_object_new_array();
-    if (dap_chain_tx_datum_from_json(l_response, NULL, l_json_errors, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
-        log_it(L_ERROR, "Failed to create transaction from json");
+    if (dap_chain_tx_datum_from_json(l_response, NULL, a_config->response_handler, &l_datum, &l_items_count, &l_items_ready) || l_items_count != l_items_ready) {
+        log_it(L_ERROR, "failed to create transaction from json");
         json_object_put(l_response);
         s_json_compose_error_add(a_config->response_handler, CLI_TAKE_COMPOSE_ERROR_FAILED_TO_CREATE_TX, "Failed to create transaction from json\n");
         dap_chain_datum_tx_delete(l_datum);
@@ -3324,7 +3323,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
     dap_chain_datum_tx_add_item(&l_tx, l_vote_item);
     DAP_DEL_Z(l_vote_item);
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST  
-    json_object *l_cond_tx_outputs_raw = s_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-net;%s;-token;%s;-cond",
+    json_object *l_cond_tx_outputs_raw = s_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-net;%s;-token;%s;-cond;-mempool_check",
                                                                             dap_chain_addr_to_str(a_wallet_addr), a_config->net_name, l_token_ticker);
     if (!l_cond_tx_outputs_raw) {
         log_it(L_ERROR, "Failed to get cond tx outputs");
@@ -3711,159 +3710,87 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_invalidate(dap_hash_f
 
 dap_chain_net_srv_order_direction_t dap_chain_net_srv_order_direction_from_str(const char* str) {
     dap_chain_net_srv_order_direction_t direction = SERV_DIR_UNDEFINED;
-    if (strcmp(str, "BUY") == 0) {
+    if (strcmp(str, "SERV_DIR_BUY") == 0) {
         direction = SERV_DIR_BUY;
-    } else if (strcmp(str, "SELL") == 0) {
+    } else if (strcmp(str, "SERV_DIR_SELL") == 0) {
         direction = SERV_DIR_SELL;
     }
     return direction;
 }
 
-dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, const char* l_order_hash_str, uint256_t* a_tax,
-                                                    uint256_t* a_value_max, dap_chain_addr_t* a_sovereign_addr, uint256_t* a_sovereign_tax, json_object* response){
-    dap_chain_net_srv_order_t *l_order = NULL;
-    json_object *orders_array = json_object_array_get_idx(response, 0);
-    size_t orders_count = json_object_array_length(orders_array);
-    for (size_t i = 0; i < orders_count; i++) {
-        json_object *order_obj = json_object_array_get_idx(orders_array, i);
-        const char *order_hash_str = json_object_get_string(json_object_object_get(order_obj, "order"));
-
-        if (strcmp(order_hash_str, l_order_hash_str) == 0) {
-            l_order = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, sizeof(dap_chain_net_srv_order_t));
-            l_order->version = json_object_get_int(json_object_object_get(order_obj, "version"));
-            l_order->direction = dap_chain_net_srv_order_direction_from_str(json_object_get_string(json_object_object_get(order_obj, "direction")));
-            l_order->ts_created = dap_time_from_str_rfc822(json_object_get_string(json_object_object_get(order_obj, "created")));
-            l_order->srv_uid.uint64 = dap_chain_net_srv_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "srv_uid"))).uint64;
-            l_order->price = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(order_obj, "price_datoshi")));
-            strncpy(l_order->price_ticker, json_object_get_string(json_object_object_get(order_obj, "price_token")), DAP_CHAIN_TICKER_SIZE_MAX - 1);
-            l_order->price_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
-            l_order->units = json_object_get_int(json_object_object_get(order_obj, "units"));
-            l_order->price_unit = dap_chain_net_srv_price_unit_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "price_unit")));
-            dap_chain_node_addr_from_str(&l_order->node_addr, json_object_get_string(json_object_object_get(order_obj, "node_addr")));
-            const char *tx_cond_hash_str = json_object_get_string(json_object_object_get(order_obj, "tx_cond_hash"));
-            if (tx_cond_hash_str) {
-                dap_chain_hash_fast_from_str(tx_cond_hash_str, &l_order->tx_cond_hash);
-            }
-            l_order->ext_size = json_object_get_int(json_object_object_get(order_obj, "ext_size"));
-            
-            if (l_order->ext_size > 0) {
-                json_object *external_params = json_object_object_get(order_obj, "external_params");
-                if (external_params) {
-                    const char *tax_str = json_object_get_string(json_object_object_get(external_params, "tax"));
-                    const char *value_max_str = json_object_get_string(json_object_object_get(external_params, "maximum_value"));
-                    *a_tax = dap_uint256_scan_decimal(tax_str);
-                    *a_value_max = dap_uint256_scan_decimal(value_max_str);
-                }
-            }
-
-            json_object *conditional_tx_params = json_object_object_get(order_obj, "conditional_tx_params");
-            if (conditional_tx_params && json_object_is_type(conditional_tx_params, json_type_object)) {
-                const char *sovereign_tax_str = json_object_get_string(json_object_object_get(conditional_tx_params, "sovereign_tax"));
-                const char *sovereign_addr_str = json_object_get_string(json_object_object_get(conditional_tx_params, "sovereign_addr"));
-                *a_sovereign_tax = dap_uint256_scan_decimal(sovereign_tax_str);
-                if (sovereign_addr_str) {
-                    a_sovereign_addr = dap_chain_addr_from_str(sovereign_addr_str);
-                    if (!a_sovereign_addr) {
-                        log_it(L_ERROR, "Invalid sovereign address format");
-                        // Invalid sovereign address format
-                        DAP_DELETE(l_order);
-                        return NULL;
-                    }
-                }
-            }
-            break;
-        }
-    }
-    return l_order;
-}
 typedef enum {
-    DAP_GET_REMOTE_SRV_ORDER_RPC_RESPONSE = -1
+    GET_REMOTE_SRV_ORDER_RPC_RESPONSE = -1,
+    GET_REMOTE_SRV_ORDER_NO_ITEMS_FOUND = -2,
+    GET_REMOTE_SRV_ORDER_BAD_DATA_TYPE = -3,
+    GET_REMOTE_SRV_ORDER_BAD_DATA_SIZE = -4,
+    GET_REMOTE_SRV_ORDER_BAD_DATA = -5,
+    GET_REMOTE_SRV_ORDER_INVALID_ORDER_HASH = -6
 } dap_get_remote_srv_order_error_t;
 
-dap_chain_net_srv_order_t* dap_get_remote_srv_order(const char* l_order_hash_str, uint256_t* a_tax,
-                                                    uint256_t* a_value_max, dap_chain_addr_t* a_sovereign_addr, uint256_t* a_sovereign_tax,
-                                                    compose_config_t *a_config){
+static dap_chain_net_srv_order_t *s_get_remote_srv_order(const char* l_order_hash_str, compose_config_t *a_config){
 
-    json_object *response = s_request_command_to_rpc_with_params(a_config, "srv_stake", "order;list;staker;-net;%s", 
-                                                                  a_config->net_name);
-    if (!response) {
+    json_object *l_raw_response = s_request_command_to_rpc_with_params(a_config, "net_srv", "order;dump;-hash;%s;-tx_to_json;-net;%s", 
+                                                                  l_order_hash_str, a_config->net_name);
+    if (!l_raw_response) {
         log_it(L_ERROR, "failed to get response from remote node");
-        s_json_compose_error_add(a_config->response_handler, DAP_GET_REMOTE_SRV_ORDER_RPC_RESPONSE, "Error: Failed to get response from remote node");
+        s_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_RPC_RESPONSE, "Error: Failed to get response from remote node");
+        return NULL;
+    }
+    json_object *l_response = json_object_array_get_idx(l_raw_response, 0);
+    if (!l_response) {
+        log_it(L_ERROR, "no items found in response");
+        s_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_NO_ITEMS_FOUND, "No items found in response\n");
+        json_object_put(l_raw_response);
         return NULL;
     }
 
-    dap_chain_net_srv_order_t *l_order = dap_check_remote_srv_order(a_config->net_name, l_order_hash_str, a_tax, a_value_max, a_sovereign_addr, a_sovereign_tax, response);
-    json_object_put(response);
+    char *l_data_type = dap_json_rpc_get_text(l_response, "data_type");
+    if (!l_data_type || strcmp("order", l_data_type)) {
+        log_it(L_ERROR, "current type is '%s', not 'order'", l_data_type);
+        s_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_BAD_DATA_TYPE, "Current type is '%s', not 'order'", l_data_type);
+        json_object_put(l_raw_response);
+        return NULL;
+    }
+    uint64_t l_order_data_size = 0;
+    if(!dap_json_rpc_get_int64_uint64(l_response, "data_size", &l_order_data_size, true) || !l_order_data_size) {
+        log_it(L_ERROR, "Json order: bad data_size");
+        s_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_BAD_DATA_SIZE, "Json order: bad data_size");
+        json_object_put(l_raw_response);
+        return NULL;
+    }
+    const char *l_order_data_str = dap_json_rpc_get_text(l_response, "data");
+    if (!l_order_data_str) {
+        log_it(L_ERROR, "Json order: bad data");
+        s_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_BAD_DATA, "Json order: bad data");
+        json_object_put(l_raw_response);
+        return NULL;
+    }
 
-    if (!l_order) {
-        response = s_request_command_to_rpc_with_params(a_config, "srv_stake", "order;list;validator;-net;%s", 
-                                                          a_config->net_name);
-        if (!response) {
-            log_it(L_ERROR, "failed to get response from remote node");
-            s_json_compose_error_add(a_config->response_handler, DAP_GET_REMOTE_SRV_ORDER_RPC_RESPONSE, "Error: Failed to get response from remote node");
+    dap_chain_net_srv_order_t *l_order = DAP_NEW_Z_SIZE(uint8_t, l_order_data_size+1);
+    size_t l_order_data_size_decoded = dap_enc_base58_decode(l_order_data_str, l_order);
+    if (l_order_data_size_decoded != l_order_data_size) {
+        log_it(L_ERROR, "Json order: data size - %zu, expected - %"DAP_UINT64_FORMAT_U, l_order_data_size_decoded, l_order_data_size);
+        s_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_BAD_DATA_SIZE, "Json order: data size - %zu, expected - %"DAP_UINT64_FORMAT_U, l_order_data_size_decoded, l_order_data_size);
+        json_object_put(l_raw_response);
+        DAP_DELETE(l_order);
+        return NULL;
+    }
+
+    const char *l_hash_str = dap_json_rpc_get_text(l_response, "data_hash");
+    if (l_hash_str) {
+        char *l_hash_str_current = dap_hash_fast_str_new(l_order, dap_chain_net_srv_order_get_size(l_order));
+        if (l_hash_str_current && strcmp(l_hash_str, l_hash_str_current)) {
+            log_it(L_ERROR, "Order has invalid hash '%s', expected hash '%s'", l_hash_str_current, l_hash_str);
+            s_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_INVALID_ORDER_HASH, "Order has invalid hash '%s', expected hash '%s'", l_hash_str_current, l_hash_str);
+            DAP_DEL_MULTY(l_order, l_hash_str_current);
+            json_object_put(l_raw_response);
             return NULL;
         }
-        l_order = dap_check_remote_srv_order(a_config->net_name, l_order_hash_str, a_tax, a_value_max, a_sovereign_addr, a_sovereign_tax, response);
-        json_object_put(response);
+        DAP_DEL_Z(l_hash_str_current);
     }
+    json_object_put(l_raw_response);
     return l_order;
 }
-
-typedef enum {
-    DAP_GET_REMOTE_SRV_ORDER_SIGN_RPC_RESPONSE = -1,
-    DAP_GET_REMOTE_SRV_ORDER_SIGN_CANT_GET_FIRST_ELEMENT = -2,
-    DAP_GET_REMOTE_SRV_ORDER_SIGN_CANT_GET_SIGN = -3
-} dap_get_remote_srv_order_sign_error_t;
-
-dap_sign_t* dap_get_remote_srv_order_sign(const char* l_order_hash_str, compose_config_t *a_config){
-
-    json_object *response = s_request_command_to_rpc_with_params(a_config, "net_srv", "order;dump;-hash;%s;-need_sign;-net;%s", 
-                                                                  l_order_hash_str, a_config->net_name);
-    if (!response) {
-        log_it(L_ERROR, "failed to get response from remote node");
-        s_json_compose_error_add(a_config->response_handler, DAP_GET_REMOTE_SRV_ORDER_SIGN_RPC_RESPONSE, "Error: Failed to get response from remote node");
-        return NULL;
-    }
-    json_object *l_response_array = json_object_array_get_idx(response, 0);
-    if (!l_response_array) {
-        log_it(L_ERROR, "can't get the first element from the response array");
-        s_json_compose_error_add(a_config->response_handler, DAP_GET_REMOTE_SRV_ORDER_SIGN_CANT_GET_FIRST_ELEMENT, "Error: Can't get the first element from the response array");
-        json_object_put(response);
-        return NULL;
-    }
-
-    const char *l_sign_b64_str = json_object_get_string(json_object_object_get(l_response_array, "sig_b64"));
-    if (!l_sign_b64_str) {
-        log_it(L_ERROR, "can't get base64-encoded sign from SIG item");
-        s_json_compose_error_add(a_config->response_handler, DAP_GET_REMOTE_SRV_ORDER_SIGN_CANT_GET_SIGN, "Error: Can't get base64-encoded sign from SIG item");
-        json_object_put(response);
-        return NULL;
-    }
-
-    // *a_sign_size = json_object_get_int(json_object_object_get(l_response_array, "sig_b64_size"));
-    int64_t l_sign_b64_strlen = json_object_get_string_len(json_object_object_get(l_response_array, "sig_b64"));
-    int64_t l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
-    dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
-    *l_tx_sig = (dap_chain_tx_sig_t) {
-        .header = {
-            .type = TX_ITEM_TYPE_SIG, .version = 1,
-            .sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE)
-        }
-    };
-    dap_sign_t *l_sign = NULL;
-    uint64_t l_sign_size = dap_sign_get_size((dap_sign_t*)l_tx_sig->sig);
-    if ( l_sign_size > 0) {
-        l_sign = DAP_NEW_Z_SIZE(dap_sign_t, l_sign_size);
-        memcpy(l_sign, l_tx_sig->sig, l_sign_size);
-    }
-
-    DAP_DELETE(l_tx_sig);
-    json_object_put(response);
-    return l_sign;
-}
-
-
-
 
 typedef enum {
     STAKE_DELEGATE_COMPOSE_OK = 0,
@@ -3967,16 +3894,13 @@ json_object *dap_chain_tx_compose_srv_stake_delegate(dap_chain_net_id_t a_net_id
         }
     }
     if (a_order_hash_str) {
-        uint256_t l_tax;
-        uint256_t l_value_max;
         int l_prev_tx_count = 0;
-        dap_chain_net_srv_order_t *l_order = dap_get_remote_srv_order(a_order_hash_str, &l_tax, &l_value_max, &l_sovereign_addr, &l_sovereign_tax, l_config);
+        dap_chain_net_srv_order_t *l_order = s_get_remote_srv_order(a_order_hash_str, l_config);
         if (!l_order) {
             log_it(L_ERROR, "failed to get order from remote node");
             s_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_ORDER_NOT_FOUND, "Error: Failed to get order from remote node");
             return s_compose_config_return_response_handler(l_config);
         }
-        l_sovereign_tax = l_tax;
 
         if (l_order->direction == SERV_DIR_BUY) { // Staker order
             char *l_token_ticker = NULL;
@@ -4031,11 +3955,21 @@ json_object *dap_chain_tx_compose_srv_stake_delegate(dap_chain_net_id_t a_net_id
             l_value = l_order->price;
             DAP_DELETE(l_cond_tx);
         } else {
+            uint256_t l_tax;
+            uint256_t l_value_max;
             if (!a_value_str) {
                 log_it(L_ERROR, "command 'delegate' requires parameter -value with this order type");
                 s_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_VALUE_REQUIRED, "Command 'delegate' requires parameter -value with this order type");
                 return s_compose_config_return_response_handler(l_config);
             }
+
+            if (dap_chain_net_srv_stake_get_validator_ext(l_order, &l_tax, &l_value_max)) {
+                log_it(L_ERROR, "failed to get validator ext");
+                s_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_INVALID_ORDER, "Failed to get validator ext");
+                DAP_DELETE(l_order);
+                return s_compose_config_return_response_handler(l_config);
+            }
+
             if (a_sovereign_addr_str) {
                 dap_chain_addr_t *l_spec_addr = dap_chain_addr_from_str(a_sovereign_addr_str);
                 if (!l_spec_addr) {
@@ -4064,8 +3998,7 @@ json_object *dap_chain_tx_compose_srv_stake_delegate(dap_chain_net_id_t a_net_id
                                                   a_value_str, l_coin_max_str, l_value_max_str);
                 return s_compose_config_return_response_handler(l_config);
             }
-            size_t l_sign_size = 0;
-            dap_sign_t *l_sign = dap_get_remote_srv_order_sign(a_order_hash_str, l_config);
+            dap_sign_t *l_sign = dap_chain_net_srv_order_get_sign(l_order);
             if (!l_sign) {
                 log_it(L_ERROR, "specified order is unsigned");
                 s_json_compose_error_add(l_config->response_handler, STAKE_DELEGATE_COMPOSE_ERR_UNSIGNED_ORDER, "Specified order is unsigned");
