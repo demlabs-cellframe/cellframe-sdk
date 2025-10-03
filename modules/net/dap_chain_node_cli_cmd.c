@@ -3066,14 +3066,14 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                     return;
                 }
                 json_object_object_add(l_jobj_datum, "srv_wallet_shared", l_jobj_wallet_shared_list);
-                json_object *l_jobj_auction_bid_list = json_object_new_array();
-                if (!l_jobj_auction_bid_list) {
+                json_object *l_jobj_stake_ext_lock_list = json_object_new_array();
+                if (!l_jobj_stake_ext_lock_list) {
                     json_object_put(l_obj_chain);
                     dap_global_db_objs_delete(l_objs, l_objs_count);
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     return;
                 }
-                json_object_object_add(l_jobj_datum, "srv_auction_bid", l_jobj_auction_bid_list);
+                json_object_object_add(l_jobj_datum, "srv_stake_ext_lock", l_jobj_stake_ext_lock_list);
                 json_object *l_jobj_pay_list = json_object_new_array();
                 if (!l_jobj_pay_list) {
                     json_object_put(l_obj_chain);
@@ -3091,7 +3091,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                     OUT_COND_TYPE_XCHANGE,
                     OUT_COND_TYPE_POS_DELEGATE,
                     OUT_COND_TYPE_WALLET_SHARED,
-                    OUT_COND_TYPE_AUCTION_BID
+                    OUT_COND_TYPE_stake_ext_lock
                 } l_out_cond_subtype = {0};
 
                 dap_list_t *l_list_in_reward = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
@@ -3300,8 +3300,8 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                                     json_object_array_add(l_jobj_diff, l_jobj_diff_obj);
                                 }
                             } break;
-                            case OUT_COND_TYPE_AUCTION_BID:
-                                json_object_array_add(l_jobj_auction_bid_list, l_jobj_money);
+                            case OUT_COND_TYPE_stake_ext_lock:
+                                json_object_array_add(l_jobj_stake_ext_lock_list, l_jobj_money);
                                 break;
                             default:
                                 log_it(L_ERROR,

@@ -101,8 +101,8 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(con
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE;
     else if(!dap_strcmp(a_subtype_str, "wallet_shared"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED;
-    else if(!dap_strcmp(a_subtype_str, "srv_auction_bid"))
-        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID;
+    else if(!dap_strcmp(a_subtype_str, "srv_stake_ext_lock"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK;
     return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
 }
 
@@ -456,26 +456,26 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
 }
 
 /**
- * @brief dap_chain_datum_tx_item_out_cond_create_srv_auction_bid
- * Create conditional output transaction item for auction bid
+ * @brief dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_lock
+ * Create conditional output transaction item for stake-ext lock
  * 
- * @param a_srv_uid Service UID for auction service
- * @param a_value Bid amount in datoshi
- * @param a_auction_hash Hash of the auction being bid on
- * @param a_lock_time Lock time for the bid tokens
+ * @param a_srv_uid Service UID for stake-ext service
+ * @param a_value Lock amount in datoshi
+ * @param a_stake_ext_hash Hash of the stake-ext being locked
+ * @param a_lock_time Lock time for the lock tokens
  * @param a_project_id Project ID for the bid
  * @param a_params Additional TSD parameters
  * @param a_params_size Size of additional parameters
  * @return dap_chain_tx_out_cond_t* Conditional output item or NULL on error
  */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(dap_chain_net_srv_uid_t a_srv_uid,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_lock(dap_chain_net_srv_uid_t a_srv_uid,
                                                                                   uint256_t a_value,
-                                                                                  const dap_hash_fast_t *a_auction_hash,
+                                                                                  const dap_hash_fast_t *a_stake_ext_hash,
                                                                                   dap_time_t a_lock_time,
                                                                                   uint32_t a_project_id,
                                                                                   const void *a_params, size_t a_params_size)
 {
-    if (IS_ZERO_256(a_value) || !a_auction_hash)
+    if (IS_ZERO_256(a_value) || !a_stake_ext_hash)
         return NULL;
     
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, 
@@ -484,14 +484,14 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid
     // Set header fields
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
-    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK;
     l_item->header.srv_uid = a_srv_uid;
     
-    // Set auction bid specific fields
-    l_item->subtype.srv_auction_bid.auction_hash = *a_auction_hash;
-    l_item->subtype.srv_auction_bid.range_end = 1; // Default to 1
-    l_item->subtype.srv_auction_bid.lock_time = a_lock_time;
-    l_item->subtype.srv_auction_bid.project_id = a_project_id;
+    // Set stake-ext lock specific fields
+    l_item->subtype.srv_stake_ext_lock.stake_ext_hash = *a_stake_ext_hash;
+    l_item->subtype.srv_stake_ext_lock.range_end = 1; // Default to 1
+    l_item->subtype.srv_stake_ext_lock.lock_time = a_lock_time;
+    l_item->subtype.srv_stake_ext_lock.project_id = a_project_id;
     
     // Copy additional parameters if provided
     if (a_params && a_params_size) {
@@ -722,7 +722,7 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_out_cond_srv_xchange);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_pos_delegate);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_lock);
-    dap_list_free(a_items_groups->items_out_cond_srv_auction_bid);
+    dap_list_free(a_items_groups->items_out_cond_srv_stake_ext_lock);
     dap_list_free(a_items_groups->items_out_cond_wallet_shared);
     dap_list_free(a_items_groups->items_in_ems);
     dap_list_free(a_items_groups->items_vote);
@@ -808,8 +808,8 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_lock, l_item);
                 break;
-            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID:
-                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_auction_bid, l_item);
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK:
+                DAP_LIST_SAPPEND(a_res_group->items_out_cond_srv_stake_ext_lock, l_item);
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED:
                 DAP_LIST_SAPPEND(a_res_group->items_out_cond_wallet_shared, l_item);

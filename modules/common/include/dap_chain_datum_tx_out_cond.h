@@ -37,7 +37,7 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED = 0x07,
-    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID = 0x08,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK = 0x08,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL = 0xFF
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;
@@ -123,12 +123,12 @@ typedef struct dap_chain_tx_out_cond {
             uint32_t signers_minimum;
         } DAP_ALIGN_PACKED wallet_shared;
         struct {
-            dap_hash_fast_t auction_hash;      ///< Hash of the auction this bid belongs to
+            dap_hash_fast_t stake_ext_hash;    ///< Hash of the stake-ext this lock belongs to
             uint8_t range_end;                 ///< Ending range for CellSlot (1-8, range_start always = 1)
             dap_time_t lock_time;              ///< Token lock time duration
             uint32_t project_id;               ///< Project ID
             byte_t padding[3];                 ///< Padding for alignment (increased by 1)
-        } DAP_ALIGN_PACKED srv_auction_bid;
+        } DAP_ALIGN_PACKED srv_stake_ext_lock;
         byte_t free_space[272]; // TODO increase it to 512 with version update
     } DAP_ALIGN_PACKED subtype;
     
@@ -148,7 +148,7 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED";
-    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID";
+    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK";
     default: {}
     }
     return "UNDEFINED";
@@ -166,6 +166,7 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str_short(dap_cha
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: return "srv_stake_pos_delegate";
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: return "srv_stake_lock";
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: return "fee";
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: return "srv_stake_ext_lock";
         default: return "UNDEFINED";
     }
 }
