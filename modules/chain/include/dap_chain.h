@@ -29,6 +29,8 @@
 #include "dap_config.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
+#include "dap_chain_callback.h"  // All callback typedefs from common module
+#include "dap_chain_cs_callback.h"  // Consensus callback structures from common module
 // Forward declaration instead of include to avoid circular dependency
 typedef struct dap_chain_datum dap_chain_datum_t;
 
@@ -43,9 +45,6 @@ typedef struct dap_chain dap_chain_t;
 typedef struct dap_chain_cell dap_chain_cell_t;
 
 typedef struct dap_ledger dap_ledger_t;
-
-// Atomic element
-typedef const void * dap_chain_atom_ptr_t;
 
 // Atomic element iterator
 typedef struct dap_chain_atom_iter {
@@ -72,118 +71,8 @@ typedef struct dap_chain_datum_iter {
     void *cur_item;
 } dap_chain_datum_iter_t;
 
-typedef enum dap_chain_atom_verify_res{
-    ATOM_ACCEPT = 0, ATOM_PASS, ATOM_REJECT, ATOM_MOVE_TO_THRESHOLD, ATOM_FORK, ATOM_CORRUPTED
-} dap_chain_atom_verify_res_t;
 
-static const char* const dap_chain_atom_verify_res_str[] = {
-    [ATOM_ACCEPT]           = "accepted",
-    [ATOM_PASS]             = "skipped",
-    [ATOM_REJECT]           = "rejected",
-    [ATOM_MOVE_TO_THRESHOLD]= "thresholded",
-    [ATOM_FORK]             = "forked",
-    [ATOM_CORRUPTED]        = "corrupted"
-};
-
-typedef enum dap_chain_iter_op {
-    DAP_CHAIN_ITER_OP_FIRST,
-    DAP_CHAIN_ITER_OP_LAST,
-    DAP_CHAIN_ITER_OP_NEXT,
-    DAP_CHAIN_ITER_OP_PREV
-} dap_chain_iter_op_t;
-
-typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
-
-typedef int (*dap_chain_callback_t)(dap_chain_t *);
-typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t *, dap_config_t *);
-typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
-
-typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new);
-typedef unsigned (*dap_chain_callback_atoms_t)(dap_chain_t*);
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chain_t *, size_t *);
-typedef dap_json_t *(*dap_chain_callback_atom_to_json)(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hex_out_type, int a_version);
-typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t*);
-typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
-
-typedef dap_chain_atom_iter_t * (*dap_chain_callback_atom_iter_create_t)(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_t)(dap_chain_atom_iter_t *a_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_chain_atom_iter_t *a_iter, dap_hash_fast_t *a_atom_hash, size_t *a_atom_size);
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_by_num_t)(dap_chain_atom_iter_t *a_iter, uint64_t a_atom_num);
-typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
-
-typedef dap_chain_datum_iter_t * (*dap_chain_datum_callback_iter_create_t)(dap_chain_t *);
-typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_first_t)(dap_chain_datum_iter_t *);
-typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_last_t)(dap_chain_datum_iter_t *);
-typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_next_t)(dap_chain_datum_iter_t *);
-typedef dap_chain_datum_t * (*dap_chain_datum_callback_iter_get_prev_t)(dap_chain_datum_iter_t *);
-typedef dap_chain_datum_t * (*dap_chain_datum_callback_iters)(dap_chain_datum_iter_t *);
-typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *);
-
-typedef dap_chain_datum_t** (*dap_chain_callback_atom_get_datum_t)(dap_chain_atom_ptr_t, size_t, size_t * );
-typedef dap_time_t (*dap_chain_callback_atom_get_timestamp_t)(dap_chain_atom_ptr_t);
-
-typedef dap_chain_datum_t * (*dap_chain_callback_datum_find_by_hash_t)(dap_chain_t *, dap_chain_hash_fast_t *, dap_chain_hash_fast_t *, int *);
-
-typedef dap_chain_atom_ptr_t (*dap_chain_callback_block_find_by_hash_t)(dap_chain_t * ,dap_chain_hash_fast_t *, size_t *);
-
-typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t* ,size_t**);
-typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
-
-typedef void (*dap_chain_callback_notify_t)(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size, dap_time_t a_atom_time); //change in chain happened
-typedef void (*dap_chain_callback_datum_notify_t)(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_hash_fast_t *a_atom_hash, void *a_datum, 
-                                    size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid); //change in chain happened
-typedef void (*dap_chain_callback_datum_removed_notify_t)(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_datum_t *a_datum); //change in chain happened
-typedef void (*dap_chain_callback_blockchain_timer_t)(dap_chain_t *a_chain, dap_time_t a_time, void *a_arg, bool a_reverse);
-typedef uint64_t (*dap_chain_callback_get_count)(dap_chain_t *a_chain);
-typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
-typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
-typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
-typedef uint256_t (*dap_chain_callback_calc_reward)(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
-
-/**
- * @brief Chain сonsensus callbacks structure 
- * All callbacks are stored per-chain to support different consensus and services per chain
- */
-typedef struct dap_chain_cs_callbacks {
-    // ===== Consensus callbacks (chain ↔ consensus communication) =====
-    
-    // Get fee collection group name
-    char* (*get_fee_group)(const char *a_net_name);
-    // Get reward collection group name
-    char* (*get_reward_group)(const char *a_net_name);
-    // Get minimum fee for consensus
-    uint256_t (*get_fee)(dap_chain_net_id_t a_net_id);
-    // Get signing public key
-    dap_pkey_t* (*get_sign_pkey)(dap_chain_net_id_t a_net_id);
-    // Get collecting level
-    uint16_t (*get_collecting_level)(dap_chain_t *a_chain);
-    // Add block collect operation
-    int (*add_block_collect)(void *a_block_cache, void *a_params, int a_type);
-    // Get autocollect status
-    bool (*get_autocollect_status)(dap_chain_net_id_t a_net_id);
-    // Set hardfork state
-    void (*set_hardfork_state)(dap_chain_t *a_chain, bool a_state);
-    // Check if hardfork is engaged
-    bool (*hardfork_engaged)(dap_chain_t *a_chain);
-    
-    // ===== Stake service callbacks (blocks → stake communication) =====
-    
-    // Check public key hash and get sovereign tax info
-    // Returns: 0 if not found, 1 if found
-    int (*stake_check_pkey_hash)(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash, 
-                                 uint256_t *a_sovereign_tax, dap_chain_addr_t *a_sovereign_addr);
-    // Import hardfork data
-    int (*stake_hardfork_data_import)(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_decree_hash);
-    // Switch stake table (main/sandbox)
-    int (*stake_switch_table)(dap_chain_net_id_t a_net_id, bool a_to_sandbox);
-    
-    // ===== Mempool callbacks (net → mempool communication) =====
-    
-    // Get mempool GDB group name for a chain
-    char* (*mempool_group_new)(dap_chain_t *a_chain);
-    // Add datum to mempool
-    char* (*mempool_datum_add)(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_datum_hash_out_type);
-} dap_chain_cs_callbacks_t;
+// Callback structure defined in dap_chain_cs_callback.h from common module
 
 typedef enum dap_chain_type {
     CHAIN_TYPE_INVALID = -1,

@@ -31,6 +31,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_mempool.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_cs.h"
+#include "dap_chain_cs_class.h"  // For old consensus registration system
+#include "dap_chain_policy.h"   // For policy functions from common module
 #include "dap_chain_cs_esbocs.h"
 #include "dap_json.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
@@ -82,6 +84,9 @@ static int s_callback_start(dap_chain_t *a_chain);
 static int s_callback_purge(dap_chain_t *a_chain);
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
+
+// Callback wrapper declarations
+static void s_add_block_collect_callback_wrapper(void *a_block_cache, void *a_params, int a_type);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size);
 static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
@@ -191,11 +196,12 @@ DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *
 
 int dap_chain_cs_esbocs_init()
 {
-    dap_chain_cs_callbacks_t l_callbacks = { .callback_init = s_callback_new,
-                                             .callback_load = s_callback_created,
-                                             .callback_start = s_callback_start,
-                                             .callback_stop = s_callback_stop,
-                                             .callback_purge = s_callback_purge };
+    // Use old consensus registration system (different from new dap_chain_cs_callbacks_t!)
+    dap_chain_cs_old_callbacks_t l_callbacks = { .callback_init = s_callback_new,
+                                                 .callback_load = s_callback_created,
+                                                 .callback_start = s_callback_start,
+                                                 .callback_stop = s_callback_stop,
+                                                 .callback_purge = s_callback_purge };
     dap_chain_cs_add(DAP_CHAIN_ESBOCS_CS_TYPE_STR, l_callbacks);
     dap_stream_ch_proc_add(DAP_STREAM_CH_ESBOCS_ID,
                            NULL,
@@ -391,7 +397,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             .get_fee = dap_chain_esbocs_get_fee,
             .get_sign_pkey = dap_chain_esbocs_get_sign_pkey,
             .get_collecting_level = dap_chain_esbocs_get_collecting_level,
-            .add_block_collect = dap_chain_esbocs_add_block_collect,
+            .add_block_collect = s_add_block_collect_callback_wrapper,
             .get_autocollect_status = dap_chain_esbocs_get_autocollect_status,
             .set_hardfork_state = dap_chain_esbocs_set_hardfork_state,
             .hardfork_engaged = dap_chain_esbocs_hardfork_engaged
@@ -473,9 +479,30 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
     dap_global_db_objs_delete(l_objs, l_objs_count);
 }
 
+// Wrapper function for callback with type casting and null check
+static void s_add_block_collect_internal(dap_chain_block_cache_t *a_block_cache,
+                                         dap_chain_esbocs_block_collect_t *a_block_collect_params,
+                                         dap_chain_block_autocollect_type_t a_type);
+
+// Public function that can be used as callback
 void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
                                         dap_chain_esbocs_block_collect_t *a_block_collect_params,
                                         dap_chain_block_autocollect_type_t a_type)
+{
+    s_add_block_collect_internal(a_block_cache, a_block_collect_params, a_type);
+}
+
+// Wrapper for callback registration (casts types to void*)
+static void s_add_block_collect_callback_wrapper(void *a_block_cache, void *a_params, int a_type)
+{
+    s_add_block_collect_internal((dap_chain_block_cache_t *)a_block_cache,
+                                 (dap_chain_esbocs_block_collect_t *)a_params,
+                                 (dap_chain_block_autocollect_type_t)a_type);
+}
+
+static void s_add_block_collect_internal(dap_chain_block_cache_t *a_block_cache,
+                                         dap_chain_esbocs_block_collect_t *a_block_collect_params,
+                                         dap_chain_block_autocollect_type_t a_type)
 {
     dap_return_if_fail(a_block_cache && a_block_collect_params);
     dap_chain_t *l_chain = a_block_collect_params->chain;
@@ -488,7 +515,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
             dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
                                             l_net->pub.ledger, a_block_cache, &l_value_fee);
             if (!IS_ZERO_256(l_value_fee)) {
-                dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks();
+                dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks(l_chain);
                 char *l_fee_group = l_blocks_cbs ? l_blocks_cbs->get_fee_group(l_chain->net_name) : NULL;
                 if (l_fee_group) {
                     dap_global_db_set(l_fee_group, a_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
@@ -510,7 +537,7 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
             uint256_t l_value_reward = l_chain->callback_calc_reward(l_chain, &a_block_cache->block_hash,
                                                                      a_block_collect_params->block_sign_pkey);
             if (!IS_ZERO_256(l_value_reward)) {
-                dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks();
+                dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks(l_chain);
                 char *l_reward_group = l_blocks_cbs ? l_blocks_cbs->get_reward_group(l_chain->net_name) : NULL;
                 if (l_reward_group) {
                     dap_global_db_set(l_reward_group, a_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),

@@ -37,6 +37,7 @@
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_chain_ch.h"
+#include "dap_chain_callback.h"  // For ATOM_* enums
 #include "dap_chain_ch_pkt.h"
 #include "dap_stream_ch_gossip.h"
 
