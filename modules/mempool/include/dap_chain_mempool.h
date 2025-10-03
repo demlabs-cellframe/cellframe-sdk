@@ -66,7 +66,8 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t* a_value, uint256_t a_value_fee, const char *a_hash_out_type, size_t a_tx_num);
+        uint256_t* a_value, uint256_t a_value_fee, const char *a_hash_out_type,
+        size_t a_tx_num, dap_time_t *a_time_unlock);
 
 // Make transfer transaction & insert to cache
 char* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
@@ -109,3 +110,5 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
                                            uint256_t a_value_fee, const char *a_hash_out_type);
 char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_sign_key, dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                          uint256_t a_value_fee, const char *a_hash_out_type);
+
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);

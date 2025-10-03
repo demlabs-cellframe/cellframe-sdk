@@ -668,7 +668,7 @@ void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t 
     dap_chain_ch_t *l_ch_chain = DAP_CHAIN_CH(a_ch);
     dap_return_if_fail(l_ch_chain);
     const char *l_err_str = a_error < DAP_CHAIN_CH_ERROR_LAST ? s_error_type_to_string[a_error] : "UNDEFINED ERROR";
-    dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_err_str, strlen(l_err_str) + 1, DAP_CHAIN_CH_PKT_VERSION_LEGACY);
+    dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_err_str, strlen(l_err_str) + 1, DAP_CHAIN_CH_PKT_VERSION_CURRENT);
     s_ch_chain_go_idle(l_ch_chain);
 }
 
@@ -1055,7 +1055,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_context->request_hdr = l_chain_pkt->hdr;
         l_ch_chain->legacy_sync_context = l_context;
         l_context->state = DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB;
-        debug_if(s_debug_legacy, L_DEBUG, "Sync out gdb proc, requested %" DAP_UINT64_FORMAT_U " records from address " NODE_ADDR_FP_STR " (unverified)",
+        debug_if(s_debug_legacy, L_DEBUG, "Sync out gdb proc, requested %zu records from address " NODE_ADDR_FP_STR " (unverified)",
                                                 l_db_list->items_number, NODE_ADDR_FP_ARGS_S(l_context->remote_addr));
         log_it(L_INFO, "In: UPDATE_GLOBAL_DB_REQ pkt: net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
                         l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);

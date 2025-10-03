@@ -56,6 +56,7 @@
 #include "dap_cert_file.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
+#include "dap_chain_wallet_shared.h"
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
@@ -80,6 +81,8 @@ typedef struct dap_chain_wallet_notificator {
 static const mode_t s_fileprot =  ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6) ;
 #endif
 static char const s_wallet_ext [] = ".dwallet", *s_wallets_path = NULL;
+
+static bool s_debug_more = false;
 
 static  pthread_rwlock_t s_wallet_n_pass_lock = PTHREAD_RWLOCK_INITIALIZER; /* Coordinate access to the hash-table */
 static  dap_chain_wallet_n_pass_t   *s_wallet_n_pass;                       /* A hash table to keep passwords for wallets */
@@ -140,6 +143,7 @@ dap_list_t* dap_chain_wallet_get_local_addr(){
 int     dap_chain_wallet_activate   (
                     const   char    *a_name,
                         ssize_t      a_name_len,
+                    const   char    *a_path,
                     const   char    *a_pass,
                         ssize_t      a_pass_len,
                         unsigned     a_ttl
@@ -197,7 +201,7 @@ char *c_wallets_path;
     /*
      * Check password by open/close BMF Wallet file
     */
-    if ( !(c_wallets_path = (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
+    if ( !(c_wallets_path = a_path ? (char *)a_path : (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
     {
         memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;
         return  log_it(L_ERROR, "Wallet's path has been not configured"), -EINVAL;
@@ -281,7 +285,8 @@ struct timespec l_now;
     if (l_prec && (l_now.tv_sec > l_prec->exptm.tv_sec) )               /* Record is expired ? */
     {
                                                                         /* Reset password field */
-        memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
+        dap_secure_bzero(l_prec->pass, l_prec->pass_len);
+        l_prec->pass_len = 0;
         l_prec = NULL; //log_it(L_ERROR, "Wallet's credential has been expired, need re-Activation ");
     }
     else if ( l_prec && !l_prec->pass_len )                             /* Is record has been deactivated ? */
@@ -355,6 +360,8 @@ int dap_chain_wallet_init()
     dap_chain_wallet_t *l_wallet = NULL;
     size_t l_len = 0;
 
+    s_debug_more = dap_config_get_item_bool_default(g_config,"wallet","debug_more", s_debug_more);
+
     if ( !(c_wallets_path = (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
         return -1;
 
@@ -390,7 +397,8 @@ int dap_chain_wallet_init()
     }
 
     closedir(l_dir);
-    return 0;
+
+    return dap_chain_wallet_shared_init();
 }
 
 /**
@@ -818,7 +826,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     }
 
     if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (!l_pass) ) {
-        log_it(L_DEBUG, "Wallet (%s) version 2 cannot be processed w/o password", a_file_name);
+        debug_if(s_debug_more, L_DEBUG, "Wallet (%s) version 2 cannot be processed w/o password", a_file_name);
         dap_fileclose(l_fh);
         if ( a_out_stat )
             *a_out_stat = 4;
@@ -849,7 +857,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_csum = crc32c(l_csum, &l_file_hdr, sizeof(l_file_hdr) );           /* Compute check sum of the Wallet file header */
     l_csum = crc32c(l_csum, l_wallet_name,  l_file_hdr.wallet_len);
 
-    log_it(L_DEBUG, "Wallet file: %s, Wallet[Version: %d, type: %d, name: '%.*s']",
+    debug_if(s_debug_more, L_DEBUG, "Wallet file: %s, Wallet[Version: %d, type: %d, name: '%.*s']",
            a_file_name, l_file_hdr.version, l_file_hdr.type, l_file_hdr.wallet_len, l_wallet_name);
 
     /* First run - count certs in file */
@@ -1080,8 +1088,9 @@ uint256_t dap_chain_wallet_get_balance (
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
-
-    return  (l_net)  ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+    uint256_t ret = (l_net) ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+    DAP_DEL_Z(l_addr);
+    return ret;
 }
 
 /**
@@ -1096,7 +1105,7 @@ const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet) {
     for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
         dap_return_val_if_pass(!l_wallet_internal->certs[i], "The wallet contains an undefined certificate.\n");
         dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_wallet_internal->certs[i]->enc_key->type);
-        if (SIG_TYPE_BLISS == l_sign_type.type || SIG_TYPE_PICNIC == l_sign_type.type || SIG_TYPE_TESLA == l_sign_type.type) {
+        if (dap_sign_type_is_deprecated(l_sign_type)) {
             return "The Bliss, Picnic and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n";
         }
     }
@@ -1162,13 +1171,17 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
             dap_string_free(l_str_signs, true);
         }
         json_object_object_add(l_json_ret, "signs", l_jobj_signs);
+        dap_hash_fast_t l_pkey_hash = {};
+        dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash);
+        json_object_object_add(l_json_ret, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
         struct json_object *l_jobj_network = json_object_new_object();
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             struct json_object *l_jobj_net = json_object_new_object();
             dap_chain_addr_t *l_wallet_addr_in_net = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-            json_object_object_add(l_jobj_net, "addr",
-                                   json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net)));
+            
+            json_object_object_add(l_jobj_net, "addr", json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net)));
             json_object_object_add(l_jobj_network, l_net->pub.name, l_jobj_net);
+            
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_net->pub.ledger, l_wallet_addr_in_net, &l_addr_tokens,
@@ -1185,13 +1198,19 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
                 json_object_object_add(l_balance_data, "description", l_description ?
                                                                       json_object_new_string(l_description)
                                                                                     : json_object_new_null());
-                json_object_object_add(l_balance_data, "coin", json_object_new_string(l_balance_coins));
+                json_object_object_add(l_balance_data, "coins", json_object_new_string(l_balance_coins));
                 json_object_object_add(l_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
                 json_object_array_add(l_arr_balance, l_balance_data);
                 DAP_DELETE(l_addr_tokens[i]);
             }
-            json_object_object_add(l_jobj_net, "balance", l_arr_balance);
+            DAP_DELETE(l_wallet_addr_in_net);
+            json_object_object_add(l_jobj_net, "tokens", l_arr_balance);
             DAP_DELETE(l_addr_tokens);
+            // add shared wallet tx hashes
+            json_object *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_pkey_hash, l_net->pub.name);
+            if (l_tx_hashes) {
+                json_object_object_add(l_json_ret, "wallet_shared_tx_hashes", l_tx_hashes);
+            }
         }
         json_object_object_add(l_json_ret, "networks", l_jobj_network);
         dap_chain_wallet_close(l_wallet);
@@ -1211,6 +1230,14 @@ int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t
     if (!l_key)
         return -2;
     int ret = dap_enc_key_get_pkey_hash(l_key, a_out_hash);
-    DAP_DELETE(l_key);
+    dap_enc_key_delete(l_key);
     return ret;
+}
+
+char *dap_chain_wallet_get_pkey_str(dap_chain_wallet_t *a_wallet, const char *a_str_type)
+{
+    dap_pkey_t *l_pkey = dap_chain_wallet_get_pkey(a_wallet, 0);
+    char *l_ret = dap_pkey_to_str(l_pkey, a_str_type);
+    DAP_DELETE(l_pkey);
+    return l_ret;
 }

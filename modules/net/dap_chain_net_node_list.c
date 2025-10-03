@@ -93,7 +93,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     uint64_t addr = 0;
     uint16_t port = 0;
     const char l_net_token[] = "net=";
-    if ( 4 != sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%zu,port=%hu,net=",
+    if ( 4 != sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%"DAP_UINT64_FORMAT_U",port=%hu,net=",
                                                                   &l_protocol_version, &l_issue_method, &addr, &port) )
     {
         log_it( L_ERROR, "Bad request \"%s\"", a_http_simple->http_client->in_query_string );
@@ -290,7 +290,7 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
     char *l_request = dap_strdup_printf( "%s/%s?version=1,method=%c,addr=%"DAP_UINT64_FORMAT_U",port=%hu,net=%s",
                                          DAP_UPLINK_PATH_NODE_LIST, DAP_NODE_LIST_URI_HASH, a_cmd,
                                          g_node_addr.uint64, a_port, a_net->pub.name );
-    int l_ret = -1;
+    int l_ret = ERR_NO_SERVER;
     size_t l_seeds_count = 0;
     dap_stream_node_addr_t *l_seeds_addrs = dap_chain_net_get_authorized_nodes(a_net, &l_seeds_count);
     for (size_t i = 0; i < l_seeds_count; ++i) {
@@ -331,6 +331,27 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
     DAP_DEL_MULTY(l_request, l_seeds_addrs);
     s_node_list_request_deinit(l_link_node_request);
     return l_ret;
+}
+
+// Check node existance with identical ip 
+dap_chain_node_info_t* dap_chain_node_list_ip_check(dap_chain_node_info_t *a_node_info, dap_chain_net_t *a_net) {
+    dap_return_val_if_fail(a_node_info && a_net, false);
+    char l_group_name[64] = {0};
+    bool l_ret = false;
+    snprintf(l_group_name, sizeof(l_group_name), "%s.%s", a_net->pub.gdb_groups_prefix, "nodes.list");
+    size_t l_count = 0;
+    dap_global_db_obj_t* l_objs = dap_global_db_get_all_sync(l_group_name, &l_count);
+    if (!l_objs)
+        return NULL;
+    for (size_t i = 0; i < l_count; i++) {
+        if(!dap_strcmp(a_node_info->ext_host, ((dap_chain_node_info_t*)l_objs[i].value)->ext_host)) {
+            dap_chain_node_info_t* l_info = DAP_DUP_SIZE( l_objs[i].value, l_objs[i].value_len);
+            dap_global_db_objs_delete(l_objs, l_count);
+            return l_info;
+        }
+    }
+    dap_global_db_objs_delete(l_objs, l_count);
+    return NULL;
 }
 
 int dap_chain_net_node_list_init()

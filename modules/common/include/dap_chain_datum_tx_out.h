@@ -26,7 +26,7 @@
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum_tx.h"
+#include "dap_time.h"
 
 /**
   * @struct dap_chain_tx_out
@@ -48,3 +48,22 @@ typedef struct dap_chain_tx_out {
     } DAP_PACKED header; /// Only header's hash is used for verification
     dap_chain_addr_t addr; ////
 } DAP_PACKED dap_chain_tx_out_t;
+
+typedef struct dap_chain_tx_out_ext {
+    struct {
+        dap_chain_tx_item_type_t type;     // Transaction item type - should be TX_ITEM_TYPE_OUT_EXT
+        uint256_t value;                   // Number of Datoshis ( DAP/10^8 ) to be transfered
+    } DAP_PACKED header;                              // Only header's hash is used for verification
+    dap_chain_addr_t addr;                 // Address to transfer to
+    const char token[DAP_CHAIN_TICKER_SIZE_MAX]; // Which token is transferred
+} DAP_PACKED dap_chain_tx_out_ext_t;
+
+typedef struct dap_chain_tx_out_std {
+    dap_chain_tx_item_type_t type;      // Transaction item type - should be TX_ITEM_TYPE_OUT_STD
+    uint8_t version;                    // Output version
+    const char token[DAP_CHAIN_TICKER_SIZE_MAX]; // Token to be transferred
+    uint256_t value;                    // Number of datoshis ( coin/10^8 ) to be transfered
+    dap_chain_addr_t addr;              // Address to transfer to
+    dap_time_t ts_unlock;               // Time to unlock for locked out
+} DAP_ALIGN_PACKED dap_chain_tx_out_std_t;
+

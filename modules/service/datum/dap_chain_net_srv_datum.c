@@ -34,7 +34,7 @@
 #define LOG_TAG "chain_net_srv_datum"
 
 static dap_chain_net_srv_t *s_srv_datum = NULL;
-static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply);
+static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, int a_version);
 
 void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg);
 
@@ -46,7 +46,7 @@ static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
 int dap_chain_net_srv_datum_init()
 {
-    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", 
+    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, NULL, "Service Datum commands", 
         "srv_datum -net <net_name> -chain <chain_name> datum save -datum <datum_hash>\n"
             "\tSaving datum from mempool to file.\n\n"
         "srv_datum -net <net_name> -chain <chain_name> datum load -datum <datum_hash>\n"
@@ -80,7 +80,7 @@ uint8_t * dap_chain_net_srv_file_datum_data_read(char * a_path, size_t *a_data_s
         rewind(l_file);
         l_datum_data = DAP_NEW_SIZE(uint8_t, l_datum_data_size);
         if ( fread(l_datum_data, 1, l_datum_data_size, l_file ) != l_datum_data_size ){
-            log_it(L_ERROR, "Can't read %"DAP_UINT64_FORMAT_U" bytes from the disk!", l_datum_data_size);
+            log_it(L_ERROR, "Can't read %zu bytes from the disk!", l_datum_data_size);
             DAP_DELETE(l_datum_data);
             fclose(l_file);
             return NULL;
@@ -104,7 +104,7 @@ char* dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, const uint8_t *a
     return l_hash_str;
 }
 
-static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
+static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;

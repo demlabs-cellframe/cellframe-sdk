@@ -31,7 +31,6 @@
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_datum_tx_out_cond.h"
-#include "dap_chain_datum_tx_out_ext.h"
 #include "dap_chain_datum_tx_out.h"
 
 typedef struct dap_chain_tx

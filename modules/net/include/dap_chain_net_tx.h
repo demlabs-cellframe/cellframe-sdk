@@ -25,6 +25,36 @@
 
 #include "dap_chain_net.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_json_rpc_errors.h"
+
+typedef enum s_com_tx_create_json_err {
+    DAP_CHAIN_NET_TX_CREATE_JSON_OK = 0,
+    DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+    DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT,
+    DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
+    DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME,
+    DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
+    DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON,
+    DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS,
+    DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS,
+    DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
+    DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS,
+    DAP_CHAIN_NET_TX_CREATE_JSON_ENOUGH_MEMORY,
+    DAP_CHAIN_NET_TX_CREATE_JSON_INTEGER_OVERFLOW,
+    DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR,    
+    DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,
+    DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED
+}s_com_tx_create_json_err_t;
+
+typedef enum s_type_of_tx {
+    DAP_CHAIN_NET_TX_NORMAL = 0,
+    DAP_CHAIN_NET_TX_STAKE_LOCK,
+    DAP_CHAIN_NET_TX_STAKE_UNLOCK,
+    DAP_CHAIN_NET_TX_REWARD,
+    DAP_CHAIN_NET_TX_TYPE_ERR
+}s_type_of_tx_t;
+
 
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
@@ -64,6 +94,11 @@ typedef struct dap_chain_datum_tx_cond_list_item {
     dap_hash_fast_t hash;
     dap_chain_datum_tx_t *tx;
 } dap_chain_datum_tx_cond_list_item_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // TX functions
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
                                                      dap_chain_net_tx_search_type_t a_search_type);
@@ -79,10 +114,6 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
 dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap_chain_addr_t * a_addr, dap_chain_net_srv_uid_t a_srv_uid);
 
 dap_list_t * dap_chain_net_get_tx_all_from_tx(dap_chain_net_t * a_net, dap_hash_fast_t * l_tx_hash);
-
-
-
-
 dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type);
@@ -91,3 +122,33 @@ void dap_chain_datum_tx_spends_items_free(dap_chain_datum_tx_spends_items_t * a_
 
 bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr);
 bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr);
+
+/**
+ * @brief Compose transaction from json. If a_net is NULL it means offline tx creation and 
+ *          tx will be created from json as is without any checks and conversions.
+ * @param a_tx_json input json
+ * @param a_net network. If NULL it means offline tx creation
+ * @param a_json_obj_error json object for tx items errors messages
+ * @param a_out_tx pointer to output transaction pointer
+ * @param a_items_count count of total items in input json transaction
+ * @param a_items_ready count of valid items in output transaction
+ * 
+ * @return s_com_tx_create_json_err_t status code
+ */
+int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
+                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
+int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_errors, 
+                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
+
+/**
+ * @brief Convert binary transaction to json
+ * @param a_tx input transaction
+ * @param a_out_json pointer to json object created by json_object_new_object()
+ * 
+ * @return s_com_tx_create_json_err_t status code
+ */
+int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json);
+
+#ifdef __cplusplus
+}
+#endif

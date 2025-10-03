@@ -91,7 +91,7 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_cha
 static void s_round_event_cs_done(dap_chain_cs_dag_poa_round_item_t *a_event_item, uint32_t a_timeout_s);
 
 // CLI commands
-static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply);
+static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, int a_version);
 
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
@@ -109,7 +109,7 @@ int dap_chain_cs_dag_poa_init()
     // Add consensus constructor
     dap_chain_cs_add("dag_poa", s_callback_new);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
+    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
     s_debug_more = dap_config_get_item_bool_default(g_config, "dag", "debug_more", s_debug_more);
@@ -171,7 +171,7 @@ void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_c
  * @param str_reply
  * @return
  */
-static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
+static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     int ret = -666;
     int arg_index = 1;
@@ -439,7 +439,7 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_cha
     int l_ret_event_verify = s_callback_event_verify(a_dag, a_event, &l_event_hash);
     if (l_ret_event_verify == 0)
         return true;
-    log_it(L_ERROR, "Round auto-complete error! Event %s is not passing consensus verification, ret code %d\n",
+    log_it(L_ERROR, "Round auto-complete error! Event %s is not passing consensus verification, ret code %d",
                           a_event_hash_hex_str, l_ret_event_verify );
     return false;
 }
@@ -703,6 +703,10 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
                                                                        dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_DAG),
                                                                        l_dag->gdb_group_events_round_new, DAG_ROUND_NEW_TTL, true,
                                                                        DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
+    if (!l_dag_cluster) {
+        log_it(L_ERROR, "Can't create cluster for consensus communication. Can't start the DAG consensus");
+        return -1;
+    }
     dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_dag_cluster->links_cluster);
@@ -858,21 +862,27 @@ static int s_callback_event_verify(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_e
     }
     uint16_t l_signs_verified_count = 0;
     if (l_signs_count >= l_certs_count_verify) {
-        uint16_t l_event_signs_count = a_event->header.signs_count;
+        dap_chain_cs_dag_event_t * l_event = a_dag->chain->is_mapped
+            ? DAP_DUP_SIZE(a_event, l_event_size)
+            : a_event;
+        uint16_t l_event_signs_count = l_event->header.signs_count;
         for (size_t i = 0; i < l_signs_count; i++) {
             dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
             // Compare signature with auth_certs
-            a_event->header.signs_count = i;
+            l_event->header.signs_count = i;
             for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
                 if (!dap_cert_compare_with_sign( l_poa_pvt->auth_certs[j], l_sign)
-                            && !dap_sign_verify(l_sign, a_event, l_offset_from_beginning)){
+                            && !dap_sign_verify(l_sign, l_event, l_offset_from_beginning)){
                     l_signs_verified_count++;
                     break;
                 }
             }
         }
-        a_event->header.signs_count = l_event_signs_count;
         DAP_DELETE(l_signs);
+        if (a_dag->chain->is_mapped)
+            DAP_DELETE(l_event);
+        else
+            a_event->header.signs_count = l_event_signs_count;
         if (l_signs_verified_count >= l_certs_count_verify)
             return 0;
     }

@@ -59,6 +59,24 @@ typedef struct dap_chain_item {
     UT_hash_handle hh;
 } dap_chain_item_t;
 
+typedef struct dap_chain_datum_notifier {
+    dap_chain_callback_datum_notify_t callback;
+    dap_proc_thread_t *proc_thread;
+    void *arg;
+} dap_chain_datum_notifier_t;
+
+typedef struct dap_chain_datum_removed_notifier {
+    dap_chain_callback_datum_removed_notify_t callback;
+    dap_proc_thread_t *proc_thread;
+    void *arg;
+} dap_chain_datum_removed_notifier_t;
+
+typedef struct dap_chain_blockchain_timer_notifier {
+    dap_chain_callback_blockchain_timer_t callback;
+    void *arg;
+} dap_chain_blockchain_timer_notifier_t;
+
+
 static pthread_rwlock_t s_chain_items_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 static dap_chain_item_t *s_chain_items = NULL;
 
@@ -162,6 +180,10 @@ void dap_chain_delete(dap_chain_t *a_chain)
     }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     dap_list_free_full(a_chain->atom_notifiers, NULL);
+    dap_list_free_full(a_chain->datum_notifiers, NULL);
+    dap_list_free_full(a_chain->datum_removed_notifiers, NULL);
+    dap_list_free_full(a_chain->blockchain_timers, NULL);
+    dap_list_free_full(a_chain->atom_confirmed_notifiers, NULL);
     if (a_chain->callback_delete)
         a_chain->callback_delete(a_chain);
     dap_config_close(a_chain->config);
@@ -246,35 +268,6 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     return CHAIN_TYPE_INVALID;
 }
 
-/**
- * @brief s_datum_type_from_str
- * get datum type (DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX) by str value
- * @param a_type_str datum type in string value (token,emission,transaction)
- * @return uint16_t 
- */
-static uint16_t s_datum_type_from_str(const char *a_type_str)
-{
-    if(!dap_strcmp(a_type_str, "token")) {
-        return DAP_CHAIN_DATUM_TOKEN;
-    }
-    if(!dap_strcmp(a_type_str, "emission")) {
-        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
-    }
-    if(!dap_strcmp(a_type_str, "transaction")) {
-        return DAP_CHAIN_DATUM_TX;
-    }
-    if(!dap_strcmp(a_type_str, "ca")) {
-        return DAP_CHAIN_DATUM_CA;
-    }
-    if (!dap_strcmp(a_type_str, "signer")) {
-        return DAP_CHAIN_DATUM_SIGNER;
-    }
-    if (!dap_strcmp(a_type_str, "decree"))
-        return DAP_CHAIN_DATUM_DECREE;
-    if (!dap_strcmp(a_type_str, "anchor"))
-        return DAP_CHAIN_DATUM_ANCHOR;
-    return DAP_CHAIN_DATUM_CUSTOM;
-}
 
 /**
  * @brief s_chain_type_convert
@@ -301,6 +294,45 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
         return DAP_CHAIN_DATUM_ANCHOR;
     default:
         return DAP_CHAIN_DATUM_CUSTOM;
+    }
+}
+
+/**
+ * @brief s_datum_type_from_str
+ * get datum type (DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX) by str value
+ * @param a_type_str datum type in string value (token,emission,transaction)
+ * @return uint16_t 
+ */
+static uint16_t s_datum_type_from_str(const char *a_type_str)
+{
+    return s_chain_type_convert(s_chain_type_from_str(a_type_str));
+}
+/**
+ * @brief s_datum_type_convert
+ * convert uint16_t to  dap_chain_type_t
+ * @param a_type - uint16_t a_type [DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX]
+ * @return dap_chain_type_t 
+ */
+
+static dap_chain_type_t s_datum_type_convert(uint16_t a_type)
+{
+    switch (a_type) {
+    case DAP_CHAIN_DATUM_TOKEN: 
+        return CHAIN_TYPE_TOKEN;
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+        return CHAIN_TYPE_EMISSION;
+    case DAP_CHAIN_DATUM_TX:
+        return CHAIN_TYPE_TX;
+    case DAP_CHAIN_DATUM_CA:
+        return CHAIN_TYPE_CA;
+	case DAP_CHAIN_DATUM_SIGNER:
+		return CHAIN_TYPE_SIGNER;
+    case DAP_CHAIN_DATUM_DECREE:
+        return CHAIN_TYPE_DECREE;
+    case DAP_CHAIN_DATUM_ANCHOR:
+        return CHAIN_TYPE_ANCHOR;
+    default:
+        return CHAIN_TYPE_INVALID;
     }
 }
 
@@ -636,6 +668,18 @@ void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_noti
     pthread_rwlock_unlock(&a_chain->rwlock);
 }
 
+int dap_chain_add_callback_timer(dap_chain_t *a_chain, dap_chain_callback_blockchain_timer_t a_callback, void *a_callback_arg)
+{
+    dap_return_val_if_fail(a_chain && a_callback, -1);
+    dap_chain_blockchain_timer_notifier_t *l_notifier = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_blockchain_timer_notifier_t, -2);
+    l_notifier->callback = a_callback;
+    l_notifier->arg = a_callback_arg;
+    pthread_rwlock_wrlock(&a_chain->rwlock);
+    a_chain->blockchain_timers = dap_list_append(a_chain->blockchain_timers, l_notifier);
+    pthread_rwlock_unlock(&a_chain->rwlock);
+    return 0;
+}
+
 
 /**
  * @brief Add a callback to monitor adding new atom into index
@@ -755,6 +799,7 @@ struct chain_thread_notifier {
     dap_hash_fast_t hash;
     void *atom;
     size_t atom_size;
+    dap_time_t atom_time;
 };
 
 struct chain_thread_datum_notifier {
@@ -777,6 +822,7 @@ struct chain_thread_datum_removed_notifier {
     dap_chain_t *chain;
     dap_chain_cell_id_t cell_id;
     dap_hash_fast_t hash;
+    dap_chain_datum_t *datum;
     int ret_code;
 };
 
@@ -784,7 +830,7 @@ static bool s_notify_atom_on_thread(void *a_arg)
 {
     struct chain_thread_notifier *l_arg = a_arg;
     assert(l_arg->atom && l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, &l_arg->hash, l_arg->atom, l_arg->atom_size);
+    l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, &l_arg->hash, l_arg->atom, l_arg->atom_size, l_arg->atom_time);
     if ( !l_arg->chain->is_mapped )
         DAP_DELETE(l_arg->atom);
     DAP_DELETE(l_arg);
@@ -807,7 +853,7 @@ static bool s_notify_datum_removed_on_thread(void *a_arg)
 {
     struct chain_thread_datum_removed_notifier *l_arg = a_arg;
     assert(l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, &l_arg->hash);
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum);
     DAP_DELETE(l_arg);
     return false;
 }
@@ -873,14 +919,19 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
 }
 
-void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size) {
+void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size, dap_time_t a_atom_time)
+{
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
 
-    if ( !a_chain_cell->chain->atom_notifiers )
-        return;
+    if (a_chain_cell->id.uint64 == 0)
+        a_chain_cell->chain->blockchain_time = a_atom_time;
     dap_list_t *l_iter;
+    DL_FOREACH(a_chain_cell->chain->blockchain_timers, l_iter) {
+        dap_chain_blockchain_timer_notifier_t *l_notifier = l_iter->data;
+        l_notifier->callback(a_chain_cell->chain, a_atom_time, l_notifier->arg, false);
+    }
     DL_FOREACH(a_chain_cell->chain->atom_notifiers, l_iter) {
         dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
         struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
@@ -893,18 +944,34 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
             .hash = *a_hash,
             .atom = a_chain_cell->chain->is_mapped ? (byte_t*)a_atom : DAP_DUP_SIZE((byte_t*)a_atom, a_atom_size),
-            .atom_size = a_atom_size };
+            .atom_size = a_atom_size,
+            .atom_time = a_atom_time
+        };
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
 
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid) {
+void dap_chain_atom_remove_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_time_t a_prev_atom_time)
+{
+#ifdef DAP_CHAIN_BLOCKS_TEST
+    return;
+#endif
+    if (a_cell_id.uint64 == 0)
+        a_chain->blockchain_time = a_prev_atom_time;
+    dap_list_t *l_iter;
+    DL_FOREACH(a_chain->blockchain_timers, l_iter) {
+        dap_chain_blockchain_timer_notifier_t *l_notifier = l_iter->data;
+        l_notifier->callback(a_chain, a_prev_atom_time, l_notifier->arg, true);
+    }
+}
+
+
+void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid)
+{
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
 
-    if ( !a_chain_cell->chain->datum_notifiers )
-        return;
     dap_list_t *l_iter;
     DL_FOREACH(a_chain_cell->chain->datum_notifiers, l_iter) {
         dap_chain_datum_notifier_t *l_notifier = (dap_chain_datum_notifier_t*)l_iter->data;
@@ -928,7 +995,7 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
     }
 }
 
-void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash) {
+void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_chain_datum_t *a_datum) {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
 #endif
@@ -946,7 +1013,7 @@ void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fa
         *l_arg = (struct chain_thread_datum_removed_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
-            .hash = *a_hash};
+            .hash = *a_hash, .datum = a_datum};
         dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_removed_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
     }
 }
@@ -979,6 +1046,11 @@ const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type)
         case CHAIN_TYPE_ANCHOR:
             return "anchor";
         default:
-            return "unknown";
+            return "custom";
     }
+}
+
+const char *dap_datum_type_to_str(uint16_t a_datum_type)
+{
+    return dap_chain_type_to_str(s_datum_type_convert(a_datum_type));
 }

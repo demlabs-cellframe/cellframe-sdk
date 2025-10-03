@@ -104,6 +104,7 @@
 
 #define DAP_CHAIN_DATUM_ID_SIZE 2
 
+
 // Datum subchain type id
 typedef union dap_chain_datum_typeid{
     uint8_t data[DAP_CHAIN_DATUM_ID_SIZE];
@@ -128,6 +129,10 @@ typedef struct dap_chain_datum{
     } DAP_ALIGN_PACKED header;
     byte_t data[]; /// Stored datum body
 } DAP_ALIGN_PACKED dap_chain_datum_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief dap_chain_datum_size
@@ -165,6 +170,11 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                              json_object* json_obj_out,
                              const char *a_hash_out_type,
                              dap_hash_fast_t *a_tx_hash,
-                             dap_chain_net_id_t a_net_id);
+                             dap_chain_net_id_t a_net_id,
+                             int a_version);
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
-void dap_chain_datum_dump_json(json_object* a_json_arr_reply,json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose);
+void dap_chain_datum_dump_json(json_object* a_json_arr_reply,json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose, int a_version);
+
+#ifdef __cplusplus
+}
+#endif

@@ -43,6 +43,12 @@ typedef struct dap_chain_datum_anchor{
 // ANCHOR TSD types
 #define DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH                0x0001
 
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 DAP_STATIC_INLINE size_t dap_chain_datum_anchor_get_size(dap_chain_datum_anchor_t *a_datum_anchor)
 {
     return sizeof(*a_datum_anchor) + a_datum_anchor->header.data_size + a_datum_anchor->header.signs_size;
@@ -52,4 +58,8 @@ int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor
 void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_signs,
                                        size_t a_certs_size, const char *a_hash_out_type);
 
-void dap_chain_datum_anchor_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
+void dap_chain_datum_anchor_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version);
+
+#ifdef __cplusplus
+}
+#endif

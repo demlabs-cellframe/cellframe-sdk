@@ -41,7 +41,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_NET_MEMPOOL_TTL 4 * 3600  // 4 hours
 #define DAP_CHAIN_NET_NODES_TTL 14 * 24 * 3600   // 2 weeks
 
-
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
 typedef struct dap_chain_net_decree dap_chain_net_decree_t;
@@ -78,6 +77,38 @@ typedef struct dap_chain_net {
     uint8_t pvt[];
 } dap_chain_net_t;
 
+enum dap_chain_net_json_rpc_error_list{
+    DAP_CHAIN_NET_JSON_RPC_OK,
+    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE,
+    DAP_CHAIN_NET_JSON_RPC_WRONG_NET,
+    DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_ADDR_COMMAND_INFO,
+    DAP_CHAIN_NET_JSON_RPC_CANT_CALCULATE_HASH_FOR_ADDR,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_GET_CLUSTER,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
+    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST,
+    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL,
+    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_DEL,
+    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA,
+    DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
+    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 DAP_STATIC_INLINE int dap_chain_net_id_parse(const char *a_id_str, dap_chain_net_id_t *a_id)
 {
     uint64_t l_id;
@@ -105,16 +136,7 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
-inline static int dap_chain_net_stop(dap_chain_net_t *a_net)
-{
-    if (dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE) {
-        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
-        return true;
-    }
-    if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE)
-        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
-    return false;
-}
+bool dap_chain_net_stop(dap_chain_net_t *a_net);
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
 inline static int dap_chain_net_sync(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 
@@ -204,38 +226,15 @@ bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addr(dap_chain_net_t *a_net);
 void dap_chain_net_announce_addr_all();
 char *dap_chain_net_links_dump(dap_chain_net_t*);
-struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net);
-struct json_object *dap_chain_net_list_json_collect();
-struct json_object *dap_chain_nets_info_json_collect();
+struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net, int a_version);
+struct json_object *dap_chain_net_list_json_collect(int a_version);
+struct json_object *dap_chain_nets_info_json_collect(int a_version);
 
-enum dap_chain_net_json_rpc_error_list{
-    DAP_CHAIN_NET_JSON_RPC_OK,
-    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE,
-    DAP_CHAIN_NET_JSON_RPC_WRONG_NET,
-    DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_ADDR_COMMAND_INFO,
-    DAP_CHAIN_NET_JSON_RPC_CANT_CALCULATE_HASH_FOR_ADDR,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_GET_CLUSTER,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC,
-    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
-    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST,
-    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL,
-    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL,
-    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_DEL,
-    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA,
-    DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
-    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS
-};
 dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net);
 void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree);
 decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net);
 anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net);
+
+#ifdef __cplusplus
+}
+#endif

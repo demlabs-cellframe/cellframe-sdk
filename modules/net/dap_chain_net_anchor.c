@@ -64,7 +64,7 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
         return log_it(L_WARNING, "Anchor size is too small"), -120;
 
     if (dap_chain_datum_anchor_get_size(a_anchor) != a_data_size)
-        return log_it(L_WARNING, "Anchor size is invalid, %lu != %lu", dap_chain_datum_anchor_get_size(a_anchor), a_data_size), -121;
+        return log_it(L_WARNING, "Anchor size is invalid, %zu != %zu", dap_chain_datum_anchor_get_size(a_anchor), a_data_size), -121;
 
     int ret_val = 0;
     size_t l_signs_size = a_anchor->header.signs_size;
@@ -82,26 +82,31 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
         return log_it(L_WARNING, "No unique signatures!"), -106;
     bool l_sign_authorized = false;
     size_t l_signs_size_original = a_anchor->header.signs_size;
-    a_anchor->header.signs_size = 0;
+    dap_chain_datum_anchor_t *l_anchor = a_net->pub.chains->is_mapped
+        ? DAP_DUP_SIZE(a_anchor, a_data_size)
+        : a_anchor;
+    l_anchor->header.signs_size = 0;
     for (size_t i = 0; i < l_num_of_unique_signs; i++) {
         dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(a_net);
         for (dap_list_t *it = l_net_decree->pkeys; it; it = it->next) {
             if (dap_pkey_compare_with_sign(it->data, l_unique_signs[i])) {
                 // TODO make signs verification in s_concate_all_signs_in_array to correctly header.signs_size calculation
-                size_t l_verify_data_size = a_anchor->header.data_size + sizeof(dap_chain_datum_anchor_t);
-                if (dap_sign_verify_all(l_unique_signs[i], l_signs_size_original, a_anchor, l_verify_data_size))
+                size_t l_verify_data_size = l_anchor->header.data_size + sizeof(dap_chain_datum_anchor_t);
+                if (dap_sign_verify_all(l_unique_signs[i], l_signs_size_original, l_anchor, l_verify_data_size))
                     continue;
                 l_sign_authorized = true;
                 break;
             }
         }
-        a_anchor->header.signs_size += dap_sign_get_size(l_unique_signs[i]);
+        l_anchor->header.signs_size += dap_sign_get_size(l_unique_signs[i]);
         if (l_sign_authorized)
             break;
     }
     DAP_DELETE(l_unique_signs);
-    a_anchor->header.signs_size = l_signs_size_original;
-
+    if ( a_net->pub.chains->is_mapped )
+        DAP_DELETE(l_anchor);
+    else
+        l_anchor->header.signs_size = l_signs_size_original;
     if (!l_sign_authorized) {
         log_it(L_WARNING, "Anchor signs verify failed");
         return -108;

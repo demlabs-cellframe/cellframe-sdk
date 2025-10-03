@@ -331,7 +331,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
     if (a_node_client->reconnect_timer)
         dap_timerfd_delete_mt(a_node_client->reconnect_timer->worker, a_node_client->reconnect_timer->esocket_uuid);
     if (a_node_client->callbacks.delete)
-        a_node_client->callbacks.delete(a_node_client, a_node_client->net);
+        a_node_client->callbacks.delete(a_node_client, a_node_client->callbacks_arg);
 
     if (a_node_client->stream_worker) {
         dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_net_uuid);
@@ -399,7 +399,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     while (a_client->state != a_waited_state) {
         // prepare for signal waiting
         struct timespec l_cond_timeout;
-        clock_gettime(CLOCK_REALTIME, &l_cond_timeout);
+        clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
         l_cond_timeout.tv_sec += a_timeout_ms/1000;
         int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
         if (l_ret_wait == 0) {

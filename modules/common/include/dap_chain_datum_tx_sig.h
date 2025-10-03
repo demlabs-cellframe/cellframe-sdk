@@ -28,7 +28,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
-
 /**
   * @struct dap_chain_tx_sig
   * @brief Section with set of transaction signatures

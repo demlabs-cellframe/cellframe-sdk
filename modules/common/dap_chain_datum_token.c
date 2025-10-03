@@ -68,7 +68,7 @@ static const struct datum_token_flag_struct s_flags_table[] = {
 dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
     if (a_token_size < sizeof(dap_chain_datum_token_t)){
-        log_it(L_WARNING, "Token size %lu < %lu header size, corrupted token datum", a_token_size, sizeof(dap_chain_datum_token_t));
+        log_it(L_WARNING, "Token size %zu < %zu header size, corrupted token datum", a_token_size, sizeof(dap_chain_datum_token_t));
         return NULL;
     }
     return (dap_tsd_t*)a_token->tsd_n_signs;
@@ -262,9 +262,10 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_tsd_n
  * @param a_tsd_n_signs
  * @param a_certs_size
  */
-void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_t * a_tsd_n_signs, size_t a_certs_size, const char *a_hash_out_type)
+void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_t * a_tsd_n_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
 {
-    json_object_object_add(a_json_obj_out, "Signatures", json_object_new_string(""));
+    if (a_version == 1)
+        json_object_object_add(a_json_obj_out, "Signatures", json_object_new_string(""));
     if (!a_certs_size) {
         json_object_object_add(a_json_obj_out, "status", json_object_new_string("<NONE>"));
         return;
@@ -298,9 +299,9 @@ void dap_chain_datum_token_certs_dump_to_json(json_object *a_json_obj_out, byte_
                                : dap_chain_hash_fast_to_str_new(&l_pkey_hash);
 
         json_object_object_add(l_json_obj_out, "line", json_object_new_int(i));
-        json_object_object_add(l_json_obj_out, "hash", json_object_new_string(l_hash_str));
-        json_object_object_add(l_json_obj_out, "sign_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
-        json_object_object_add(l_json_obj_out, "bytes", json_object_new_int(l_sign->header.sign_size));
+        json_object_object_add(l_json_obj_out, a_version == 1 ? "hash" : "sig_pkey_hash", json_object_new_string(l_hash_str));
+        json_object_object_add(l_json_obj_out, a_version == 1 ? "sign_type" : "sig_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
+        json_object_object_add(l_json_obj_out, a_version == 1 ? "bytes" : "sig_size", json_object_new_int(l_sign->header.sign_size));
         json_object_array_add(json_arr_seg, l_json_obj_out);
         DAP_DEL_Z(l_hash_str);
     }
@@ -327,19 +328,10 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_va
 
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
 {
-    size_t l_ret = 0;
-    dap_chain_datum_token_emission_t *l_emission = (dap_chain_datum_token_emission_t *)a_emission_serial;
-    if (l_emission->hdr.version == 0) {
-        l_ret = sizeof(struct dap_chain_emission_header_v0);
-    } else {
-        l_ret = sizeof(l_emission->hdr);
-    }
-    if (l_emission->hdr.type == DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH) {
-        uint64_t l_size = *(uint64_t *)(a_emission_serial + l_ret);
-        l_ret += l_size;
-    }
-    l_ret += sizeof(l_emission->data);
-    return l_ret;
+    dap_chain_datum_token_emission_t *l_emission = (dap_chain_datum_token_emission_t*)a_emission_serial;
+    return ( l_emission->hdr.version ? sizeof(l_emission->hdr) : sizeof(struct dap_chain_emission_header_v0) )
+        + ( l_emission->hdr.type == DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH ? l_emission->data.type_auth.tsd_n_signs_size : 0 )
+        + sizeof(l_emission->data);
 }
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size)
@@ -427,7 +419,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_
     }
     a_emission->data.type_auth.signs_count = 0;
     a_emission->data.type_auth.tsd_n_signs_size = 0;
-    dap_sign_t *l_new_sign = dap_sign_create(a_sign_key, a_emission, sizeof(dap_chain_datum_token_emission_t) + a_emission->data.type_auth.tsd_total_size, 0);
+    dap_sign_t *l_new_sign = dap_sign_create(a_sign_key, a_emission, sizeof(dap_chain_datum_token_emission_t) + a_emission->data.type_auth.tsd_total_size);
     if (!l_new_sign)
         return NULL;
     size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
@@ -491,14 +483,14 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
     size_t l_count, l_sign_size;
     for (l_count = 0, l_sign_size = 0; l_count < a_emission->data.type_auth.signs_count; ++l_count) {
         l_sign_size = dap_sign_get_size(l_sign);
-        if (!dap_sign_verify_size(l_sign, l_sign_size)) {
+        if (dap_sign_verify_size(l_sign, l_sign_size)) {
             break;
         }
         l_actual_size += l_sign_size;
         l_sign = (dap_sign_t *)((byte_t *)l_sign + l_sign_size);
     }
     if ((l_expected_size != l_actual_size) || (l_count < a_emission->data.type_auth.signs_count)) {
-        log_it(L_CRITICAL, "Malformed signs, only %lu of %hu are present (%lu != %lu)", l_count, a_emission->data.type_auth.signs_count,
+        log_it(L_CRITICAL, "Malformed signs, only %zu of %hu are present (%zu != %zu)", l_count, a_emission->data.type_auth.signs_count,
                l_actual_size, l_expected_size);
     }
     dap_sign_t *l_ret = DAP_NEW_Z_SIZE(dap_sign_t, l_actual_size);

@@ -36,7 +36,6 @@
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH 100
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT 10
 
-
 typedef enum dap_chain_datum_voting_tsd_type {
     VOTING_TSD_TYPE_QUESTION = 0x01,
     VOTING_TSD_TYPE_ANSWER,
@@ -44,7 +43,9 @@ typedef enum dap_chain_datum_voting_tsd_type {
     VOTING_TSD_TYPE_MAX_VOTES_COUNT,
     VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED,
     VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED,
-    VOTING_TSD_TYPE_VOTE_TX_COND
+    VOTING_TSD_TYPE_VOTE_TX_COND,
+    VOTING_TSD_TYPE_TOKEN,
+    VOTING_TSD_TYPE_CANCEL
 } dap_chain_datum_voting_tsd_type_t;
 
 typedef struct dap_chain_tx_voting {
@@ -64,14 +65,19 @@ typedef struct dap_chain_tx_vote {
 
 
 typedef struct dap_chain_datum_tx_voting_params {
-    char *voting_question;
+    char       *voting_question;
     dap_list_t *answers_list;
     uint8_t    answers_count;
     dap_time_t voting_expire;
     uint64_t   votes_max_count;
     bool       delegate_key_required;
     bool       vote_changing_allowed;
+    char       token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 } dap_chain_datum_tx_voting_params_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 
 dap_chain_datum_tx_voting_params_t *dap_chain_voting_parse_tsd(dap_chain_datum_tx_t* a_tx);
@@ -79,14 +85,20 @@ dap_chain_datum_tx_voting_params_t *dap_chain_voting_parse_tsd(dap_chain_datum_t
 dap_chain_tx_tsd_t* dap_chain_datum_voting_question_tsd_create(const char* a_question_str, size_t str_len);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_answer_tsd_create(const char* a_answer_str, size_t str_len);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_expire_tsd_create(dap_time_t a_expire);
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_chain_hash_fast_t a_voting_hash);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_max_votes_count_tsd_create(uint64_t a_max_count);
 dap_chain_tx_tsd_t *dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegated_key_required);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool a_vote_changing_allowed);
 dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_chain_hash_fast_t a_tx_hash, int a_out_idx);
+dap_chain_tx_tsd_t *dap_chain_datum_voting_token_tsd_create(const char *a_token_ticker);
 
 dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void);
-json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_tx);
+json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_tx, int a_version);
 
 
 dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx);
-json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, dap_ledger_t *a_ledger);
+json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, dap_ledger_t *a_ledger, int a_version);
+
+#ifdef __cplusplus
+}
+#endif

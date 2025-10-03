@@ -97,7 +97,7 @@ typedef void (*dap_chain_callback_ptr_t)(dap_chain_t *, void * );
 
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_t)(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chain_t *, size_t *);
-typedef json_object *(*dap_chain_callback_atom_to_json)(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hex_out_type);
+typedef json_object *(*dap_chain_callback_atom_to_json)(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hex_out_type, int a_version);
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t*);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 
@@ -125,12 +125,15 @@ typedef dap_chain_atom_ptr_t (*dap_chain_callback_block_find_by_hash_t)(dap_chai
 typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t* ,size_t**);
 typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
 
-typedef void (*dap_chain_callback_notify_t)(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size); //change in chain happened
+typedef void (*dap_chain_callback_notify_t)(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, dap_chain_hash_fast_t *a_atom_hash,
+                                            void *a_atom, size_t a_atom_size, dap_time_t a_atom_time); //change in chain happened
 typedef void (*dap_chain_callback_datum_notify_t)(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_hash_fast_t *a_atom_hash, void *a_datum, 
                                     size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid); //change in chain happened
-typedef void (*dap_chain_callback_datum_removed_notify_t)(void *a_arg, dap_chain_hash_fast_t *a_datum_hash); //change in chain happened
-
+typedef void (*dap_chain_callback_datum_removed_notify_t)(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_datum_t *a_datum); //change in chain happened
+typedef void (*dap_chain_callback_blockchain_timer_t)(dap_chain_t *a_chain, dap_time_t a_time, void *a_arg, bool a_reverse);
 typedef uint64_t (*dap_chain_callback_get_count)(dap_chain_t *a_chain);
+typedef uint64_t (*dap_chain_callback_get_count_tx_increase)(dap_chain_t *a_chain);
+typedef uint64_t (*dap_chain_callback_get_count_tx_decrease)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
@@ -179,6 +182,7 @@ typedef struct dap_chain {
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
     uint64_t atom_num_last;
+    dap_time_t blockchain_time;
 
     dap_chain_sync_state_t  state;
 
@@ -219,6 +223,8 @@ typedef struct dap_chain {
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;
 
     dap_chain_callback_get_count callback_count_tx;
+    dap_chain_callback_get_count_tx_increase callback_count_tx_increase;
+    dap_chain_callback_get_count_tx_decrease callback_count_tx_decrease;
     dap_chain_callback_get_list callback_get_txs;
     dap_chain_callback_get_count callback_count_atom;
     dap_chain_callback_get_list callback_get_atoms;
@@ -239,7 +245,7 @@ typedef struct dap_chain {
     dap_list_t *atom_notifiers;
     dap_list_t *datum_notifiers;
     dap_list_t *datum_removed_notifiers;
-
+    dap_list_t *blockchain_timers;
     dap_list_t *atom_confirmed_notifiers;
 
     dap_config_t *config;
@@ -256,17 +262,6 @@ typedef struct dap_chain_atom_notifier {
     void *arg;
 } dap_chain_atom_notifier_t;
 
-typedef struct dap_chain_datum_notifier {
-    dap_chain_callback_datum_notify_t callback;
-    dap_proc_thread_t *proc_thread;
-    void *arg;
-} dap_chain_datum_notifier_t;
-
-typedef struct dap_chain_datum_removed_notifier {
-    dap_chain_callback_datum_removed_notify_t callback;
-    dap_proc_thread_t *proc_thread;
-    void *arg;
-} dap_chain_datum_removed_notifier_t;
 typedef struct dap_chain_atom_confirmed_notifier {
     uint64_t block_notify_cnt;
     dap_chain_callback_notify_t callback;
@@ -311,9 +306,12 @@ void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_noti
 void dap_chain_add_callback_datum_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg);
 void dap_chain_add_callback_datum_removed_from_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_removed_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg);
 void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, void *a_arg, uint64_t a_conf_cnt);
-void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size);
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid);
-void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash);
+int dap_chain_add_callback_timer(dap_chain_t *a_chain, dap_chain_callback_blockchain_timer_t a_callback, void *a_callback_arg);
+void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size, dap_time_t a_atom_time);
+void dap_chain_atom_remove_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_time_t a_prev_atom_time);
+void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, dap_chain_hash_fast_t *a_atom_hash,
+                            const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid);
+void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_chain_datum_t *a_datum);
 void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 bool dap_chain_get_atom_last_hash_num(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_atom_hash, uint64_t *a_atom_num);
@@ -321,9 +319,14 @@ DAP_STATIC_INLINE bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_ch
 {
     return dap_chain_get_atom_last_hash_num(a_chain, a_cell_id, a_atom_hash, NULL);
 }
+DAP_STATIC_INLINE dap_time_t dap_chain_get_blockhain_time(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id)
+{
+    return a_chain->blockchain_time;
+}
 ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 
 const char *dap_chain_type_to_str(dap_chain_type_t a_chain_type);
+const char *dap_datum_type_to_str(uint16_t a_datum_type);
 const char *dap_chain_get_path(dap_chain_t *a_chain);
 const char *dap_chain_get_cs_type(dap_chain_t *l_chain);

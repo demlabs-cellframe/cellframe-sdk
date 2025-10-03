@@ -39,10 +39,9 @@
  */
 dap_chain_datum_tx_t* dap_chain_datum_tx_create(void)
 {
-    dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
-    return tx 
-        ? tx->header.ts_created = time(NULL), tx
-        : ( log_it(L_CRITICAL, "%s", c_error_memory_alloc), NULL );
+    dap_chain_datum_tx_t *tx = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_datum_tx_t, NULL);
+    tx->header.ts_created = time(NULL);
+    return tx;
 }
 
 /**
@@ -72,17 +71,29 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
  */
 int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 {
-    size_t size = 0;
-    dap_return_val_if_pass(!a_tx || !*a_tx || !(size = dap_chain_datum_item_tx_get_size(a_item, 0)), -1 );
-    dap_chain_datum_tx_t *tx_new = DAP_REALLOC_RET_VAL_IF_FAIL( *a_tx, dap_chain_datum_tx_get_size(*a_tx) + size, -2 );
-    memcpy((uint8_t*) tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
-    tx_new->header.tx_items_size += size;
+    size_t l_item_size = 0, l_new_size = 0;
+    dap_return_val_if_pass(!a_tx || !*a_tx || !(l_item_size = dap_chain_datum_item_tx_get_size(a_item, 0)), -1 );
+    if (*(byte_t*)(a_item) != TX_ITEM_TYPE_SIG && dap_chain_datum_tx_item_get(*a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL)) {
+        log_it(L_ERROR, "Can't add item, datum already signed");
+        return -1;
+    }
+    if ( __builtin_add_overflow(dap_chain_datum_tx_get_size(*a_tx), l_item_size, &l_new_size) )
+        return log_it(L_ERROR, "Integer overflow in datum allocation"), -1;
+
+    dap_chain_datum_tx_t *tx_new = DAP_REALLOC_RET_VAL_IF_FAIL( *a_tx, l_new_size, -2 );
+    memcpy((uint8_t*) tx_new->tx_items + tx_new->header.tx_items_size, a_item, l_item_size);
+    tx_new->header.tx_items_size += l_item_size;
     *a_tx = tx_new;
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    char *l_hash = dap_hash_fast_str_new(a_item, l_item_size);
+    log_it(L_INFO, "Add \"%s\" item %s\n",  dap_chain_datum_tx_item_type_to_str_short(*(byte_t *)(a_item)), l_hash);
+    DAP_DELETE(l_hash);
+#endif
     return 1;
 }
 
 #define dap_chain_datum_tx_add_new_generic(a_tx, type, a_item) \
-    ({ type* item = a_item; item ? ( dap_chain_datum_tx_add_item(a_tx, item), DAP_DELETE(item), 1 ) : -1; })
+    ({ type* item = a_item; int l_ret = -1; item ? ( l_ret = dap_chain_datum_tx_add_item(a_tx, item), DAP_DELETE(item), l_ret ) : l_ret; })
 
 /**
  * Create 'in' item and insert to transaction
@@ -203,8 +214,28 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
  */
 int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
-    return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,
-        dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    if (rand() % 2) {
+        dap_time_t l_ts_unlock = dap_min(rand() % UINT64_MAX, dap_time_now() / 10);
+        log_it(L_INFO, "Add out std item, token %s, ts_unlock %"DAP_UINT64_FORMAT_U, a_token, l_ts_unlock);
+        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, l_ts_unlock) );
+    } else {
+        log_it(L_INFO, "Add out ext item, token %s", a_token);
+        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,  dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
+    }
+#else
+    return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, 0) );
+#endif
+}
+
+/**
+ * Create 'out_ext' item and insert to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_out_std_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token, dap_time_t a_ts_unlock)
+{
+    return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, a_ts_unlock) );
 }
 
 /**
@@ -240,24 +271,66 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
 {
     dap_return_val_if_pass(!a_tx, -1);
     int l_ret = -4, l_sign_num = 0;
-    byte_t *l_item; size_t l_item_size;
+    byte_t *l_item = NULL, *l_first_item = NULL;
+    size_t
+        l_item_size = 0,
+        l_sign_item_size = 0;
+    dap_chain_tx_sig_t *l_sign_item = NULL;
+    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+        if (*l_item != TX_ITEM_TYPE_SIG) {
+            if (l_sign_item) {
+                log_it(L_ERROR, "Items found after sign");
+                return l_ret;
+            }
+            continue;
+        }
+        if (!l_first_item)
+            l_first_item = l_item;
+        if (l_sign_num++ == a_sign_num) {
+            l_sign_item = (dap_chain_tx_sig_t*)l_item;
+            l_sign_item_size = l_item_size;
+        }
+    }
+    if (!l_sign_item || !l_sign_item_size)
+        return log_it(L_ERROR, "Sign not found in TX"), l_ret;
+    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sign_item);
+    size_t
+        l_tx_items_size = a_tx->header.tx_items_size,
+        l_data_size = 0;
+    dap_chain_datum_tx_t *l_tx = NULL;
+    byte_t *l_tx_data = NULL;
+    if ( l_sign_item->header.version ) {
+        l_data_size = (size_t)( l_first_item - (byte_t *)a_tx );
+        l_tx = dap_config_get_item_bool_default(g_config, "ledger", "mapped", true)
+            ? DAP_DUP_SIZE(a_tx, l_data_size) : a_tx;
+        l_tx_data = (byte_t*)l_tx;
+        l_tx->header.tx_items_size = 0;
+    } else {
+        l_tx = a_tx;
+        l_tx_data = a_tx->tx_items;
+        l_data_size = (size_t)( (byte_t *)l_sign_item - l_tx_data );
+    }
+    l_ret = dap_sign_verify_all(l_sign, l_sign_item_size, l_tx_data, l_data_size);
+    if (l_sign_item->header.version) {
+        if ( dap_config_get_item_bool_default(g_config, "ledger", "mapped", true) )
+            DAP_DELETE(l_tx);
+        else
+            a_tx->header.tx_items_size = l_tx_items_size;
+    }
+    return debug_if(l_ret, L_ERROR, "Sign verification error %d", l_ret), l_ret;
+}
+
+int dap_chain_datum_tx_verify_sign_all(dap_chain_datum_tx_t *a_tx)
+{
+    int l_sign_num = 0;
+    int l_ret = 0;
+    byte_t *l_item = NULL;
+    size_t l_item_size = 0;
     TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
         if (*l_item != TX_ITEM_TYPE_SIG)
             continue;
-        if (l_sign_num++ != a_sign_num)
-            continue;
-        dap_chain_tx_sig_t *l_sign_item = (dap_chain_tx_sig_t *)l_item;
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sign_item);
-        byte_t *l_data_ptr = l_sign_item->header.version ? (byte_t *)a_tx : a_tx->tx_items;
-        const size_t l_data_size = (size_t)(l_item - l_data_ptr);
-        size_t l_tx_items_size = a_tx->header.tx_items_size;
-        if (l_sign_item->header.version)
-            a_tx->header.tx_items_size = 0;
-        l_ret = dap_sign_verify_all(l_sign, l_item_size, l_data_ptr, l_data_size);
-        a_tx->header.tx_items_size = l_tx_items_size;
-        if (l_ret < -1)
-            log_it(L_WARNING, "Incorrect signature header, possible corrupted data");
-        break;
+        if ((l_ret = dap_chain_datum_tx_verify_sign(a_tx, l_sign_num++)))
+            return l_ret;
     }
     return l_ret;
 }

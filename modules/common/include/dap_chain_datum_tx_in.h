@@ -27,6 +27,8 @@
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
+
+
 /**
   * @struct dap_chain_tx_item
   * @brief Sections belongs to heading tx section, with inputs, outputs and others tx relatated items
@@ -45,3 +47,4 @@ typedef struct dap_chain_tx_used_out_item {
     uint32_t num_idx_out;
     uint256_t value;
 } dap_chain_tx_used_out_item_t;
+

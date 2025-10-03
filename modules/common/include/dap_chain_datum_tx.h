@@ -29,6 +29,7 @@
 #include "dap_time.h"
 #include "dap_pkey.h"
 
+
 /**
   * @struct dap_chain_datum_tx
   * @brief Transaction section, consists from lot of tx_items
@@ -45,16 +46,20 @@ typedef struct dap_chain_datum_tx {
     for ( byte_t *l_pos = (byte_t*)(data), *l_end = l_pos + (total_size) > l_pos ? l_pos + (total_size) : l_pos;    \
           !!( item = l_pos < l_end                                                                                  \
           && (item_size = dap_chain_datum_item_tx_get_size(l_pos, l_end - l_pos))                                   \
-            ? l_pos : NULL );                                                           \
+            ? l_pos : NULL );                                                                                       \
         l_pos += item_size )
 
 #define TX_ITEM_ITER_TX(item, item_size, tx) \
     TX_ITEM_ITER(item, item_size, tx->tx_items, tx->header.tx_items_size)
 
 #define TX_ITEM_ITER_TX_TYPE(item, item_type, item_size, item_index, tx)                                            \
-    for ( item_size = 0, item_index = 0, item = NULL;                                                                            \
+    for ( item_size = 0, item_index = 0, item = NULL;                                                               \
         !!( item = dap_chain_datum_tx_item_get(tx, &item_index, (byte_t*)item + item_size, item_type, &item_size) );\
         item_index = 0 )
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Create empty transaction
@@ -137,12 +142,17 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
 int dap_chain_datum_tx_add_fee_item(dap_chain_datum_tx_t **a_tx, uint256_t a_value);
 
 /**
- * Create 'out'_ext item and insert to transaction
+ * Create 'out_std' item with zero ts_unlock field and insert to transaction
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr,
-                                        uint256_t a_value, const char *a_token);
+int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token);
+/**
+ * Create 'out_std' item and insert to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_out_std_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token, dap_time_t a_ts_unlock);
 
 /**
  * Create 'out_cond' item and insert to transaction
@@ -168,6 +178,7 @@ dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_n
  * return 1 Ok, 0 Invalid sign, -1 Not found sing or other Error
  */
 int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num);
+int dap_chain_datum_tx_verify_sign_all(dap_chain_datum_tx_t *a_tx);
 
 
 int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value);
@@ -182,3 +193,7 @@ DAP_STATIC_INLINE dap_hash_fast_t dap_chain_node_datum_tx_calc_hash(dap_chain_da
     dap_hash_fast_t l_res;
     return dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_res), l_res;
 }
+
+#ifdef __cplusplus
+}
+#endif
