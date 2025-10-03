@@ -47,6 +47,7 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
+#include "dap_chain_cs_class.h"  // For old consensus class registration
 #include "dap_json.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"

@@ -18,9 +18,9 @@
 // Forward declarations
 typedef struct dap_chain dap_chain_t;
 typedef struct dap_chain_datum dap_chain_datum_t;
-typedef struct dap_chain_atom_iter dap_chain_atom_iter_t;
 typedef struct dap_chain_datum_iter dap_chain_datum_iter_t;
 
+typedef struct dap_chain_atom_iter dap_chain_atom_iter_t;
 // Atomic element
 typedef const void * dap_chain_atom_ptr_t;
 
@@ -33,6 +33,16 @@ typedef enum dap_chain_atom_verify_res {
     ATOM_CORRUPTED = -3,
     ATOM_FORK = -4
 } dap_chain_atom_verify_res_t;
+
+// String representation for atom verification results
+static const char* const dap_chain_atom_verify_res_str[] = {
+    [ATOM_ACCEPT]           = "accepted",
+    [ATOM_PASS]             = "skipped",
+    [ATOM_REJECT]           = "rejected",
+    [ATOM_MOVE_TO_THRESHOLD]= "thresholded",
+    [ATOM_FORK]             = "forked",
+    [ATOM_CORRUPTED]        = "corrupted"
+};
 
 // Iterator operation
 typedef enum dap_chain_iter_op {
