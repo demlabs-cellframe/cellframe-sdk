@@ -80,7 +80,13 @@ macro(cellframe_create_final_library)
         endif()
         
         # Link internal STATIC modules
-        target_link_libraries(cellframe_sdk PUBLIC ${CELLFRAME_INTERNAL_MODULES})
+        # For SHARED: use PRIVATE (symbols are inside .so, don't propagate to consumers)
+        # For STATIC: use PUBLIC (consumers need these modules too)
+        if(BUILD_SHARED)
+            target_link_libraries(cellframe_sdk PRIVATE ${CELLFRAME_INTERNAL_MODULES})
+        else()
+            target_link_libraries(cellframe_sdk PUBLIC ${CELLFRAME_INTERNAL_MODULES})
+        endif()
         
         # Link with external Cellframe libraries (those not created via cellframe_add_library)
         # These are STATIC libraries like dap_chain_type_blocks, dap_chain_cs_esbocs, etc.

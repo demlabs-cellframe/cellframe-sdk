@@ -5,6 +5,7 @@ project (dap_chain)
 set(DAP_CHAIN_SRCS 
     dap_chain.c
     dap_chain_cell.c
+    dap_chain_srv.c
 )
 file(GLOB DAP_CHAIN_HEADERS include/*.h)
 

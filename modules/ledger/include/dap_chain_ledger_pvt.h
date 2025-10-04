@@ -39,6 +39,7 @@ typedef struct dap_ledger_token_emission_item {
     size_t datum_token_emission_size;
     dap_chain_hash_fast_t tx_used_out;
     dap_nanotime_t ts_added;
+    bool is_hardfork;  // Mark if emission was created during/after hardfork
     UT_hash_handle hh;
 } dap_ledger_token_emission_item_t;
 

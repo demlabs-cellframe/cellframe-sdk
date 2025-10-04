@@ -1707,10 +1707,10 @@ static int time_compare_orders(const void *a, const void *b) {
 }
 
 int json_object_compare_by_timestamp(const void *a, const void *b) {
-    struct dap_json_t *obj_a = *(struct dap_json_t **)a;
-    struct dap_json_t *obj_b = *(struct dap_json_t **)b;
+    dap_json_t *obj_a = *(dap_json_t **)a;
+    dap_json_t *obj_b = *(dap_json_t **)b;
 
-    struct dap_json_t *timestamp_a = NULL, *timestamp_b = NULL;
+    dap_json_t *timestamp_a = NULL, *timestamp_b = NULL;
     dap_json_object_get_ex(obj_a, "timestamp", &timestamp_a);
     dap_json_object_get_ex(obj_b, "timestamp", &timestamp_b);
 
@@ -2204,11 +2204,11 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
             dap_json_array_add(l_json_arr_reply, dap_json_object_new_string( "No orders found"));
         else {
             //sort by time
-            json_object_array_sort(l_json_arr_reply, json_object_compare_by_timestamp);
+            dap_json_array_sort(l_json_arr_reply, json_object_compare_by_timestamp);
             // Remove the timestamp
             for (size_t i = 0; i < json_array_lenght; i++) {
-                struct dap_json_t *obj = dap_json_array_get_idx(l_json_arr_reply, i);
-                json_object_object_del(obj, "timestamp");
+                dap_json_t *obj = dap_json_array_get_idx(l_json_arr_reply, i);
+                dap_json_object_del(obj, "timestamp");
             }
         }
         dap_json_array_add(*a_json_arr_reply, l_json_arr_reply);
