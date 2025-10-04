@@ -41,7 +41,7 @@ add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 macro(cellframe_add_library TARGET_NAME)
     cmake_parse_arguments(CELLFRAME_LIB "" "" "HEADERS" ${ARGN})
     
-    # Always create modules as STATIC with original name
+    # Create modules as STATIC (OBJECT doesn't support cycles)
     add_library(${TARGET_NAME} STATIC ${CELLFRAME_LIB_UNPARSED_ARGUMENTS} ${CELLFRAME_LIB_HEADERS})
     
     # Track modules for final library creation
@@ -63,7 +63,7 @@ macro(cellframe_create_final_library)
         message("[+] Creating final Cellframe SDK library: cellframe_sdk (${CELLFRAME_BUILD_MODE})")
         message("[+] Internal modules to combine: ${CELLFRAME_INTERNAL_MODULES}")
         
-        # Create final library that combines all internal modules
+        # Create final library
         add_library(cellframe_sdk ${CELLFRAME_FINAL_LIB_TYPE} cellframe-sdk.c)
         
         # Set properties for final library
@@ -79,12 +79,13 @@ macro(cellframe_create_final_library)
             target_compile_definitions(cellframe_sdk INTERFACE CELLFRAME_USING_STATIC)
         endif()
         
-        # Link all internal static modules into final library
+        # Link internal STATIC modules
         target_link_libraries(cellframe_sdk PUBLIC ${CELLFRAME_INTERNAL_MODULES})
         
-        # Link with all Cellframe libraries (filter out problematic DAP SDK libs)
+        # Link with external Cellframe libraries (those not created via cellframe_add_library)
+        # These are STATIC libraries like dap_chain_type_blocks, dap_chain_cs_esbocs, etc.
         if(DEFINED CELLFRAME_LIBS)
-            # Filter out DAP SDK components that are already in the main dap_sdk library
+            # Filter out DAP SDK components
             string(REPLACE "dap_app_cli;" "" FILTERED_LIBS "${CELLFRAME_LIBS}")
             string(REPLACE "dap_core;" "" FILTERED_LIBS "${FILTERED_LIBS}")
             string(REPLACE "dap_plugin;" "" FILTERED_LIBS "${FILTERED_LIBS}")
@@ -93,7 +94,7 @@ macro(cellframe_create_final_library)
             
             if(FILTERED_LIBS)
                 target_link_libraries(cellframe_sdk PUBLIC ${FILTERED_LIBS})
-                message("[+] Cellframe SDK: Linked with filtered libraries: ${FILTERED_LIBS}")
+                message("[+] Cellframe SDK: Linked with external libraries: ${FILTERED_LIBS}")
             endif()
         endif()
         
@@ -112,7 +113,7 @@ macro(cellframe_create_final_library)
             # Built-in DAP SDK targets will be automatically included
         endif()
         
-        # Also inherit include directories from internal modules
+        # Inherit include directories from internal modules
         foreach(module ${CELLFRAME_INTERNAL_MODULES})
             get_target_property(module_includes ${module} INTERFACE_INCLUDE_DIRECTORIES)
             if(module_includes)

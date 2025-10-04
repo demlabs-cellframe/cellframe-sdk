@@ -7,7 +7,13 @@ file(GLOB DAP_AUCTIONS_TESTS_SRC *.c)
 
 add_executable(${PROJECT_NAME} ${DAP_AUCTIONS_TESTS_SRC} ${DAP_AUCTIONS_TESTS_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_test dap_sdk cellframe_sdk)
+target_link_libraries(${PROJECT_NAME} 
+    cellframe_sdk
+    dap_sdk
+    dap_test
+    dap_chain_net_srv
+    dap_chain_net_srv_stake
+)
 
 if (DARWIN)
     target_link_libraries(${PROJECT_NAME} bz2)

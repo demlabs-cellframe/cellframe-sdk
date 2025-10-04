@@ -4,6 +4,7 @@
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_token.h"
 #include "dap_json.h"
 
 #define LOG_TAG "dap_tx_compose_tests"
@@ -83,7 +84,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_json_t *l_error_json = dap_json_array_new();
     dap_test_msg("convert to json");
     int l_json_result = dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
-    if (l_json_result == 0 && dap_json_object_size(l_datum_1_json) > 0) {
+    if (l_json_result == 0 && dap_json_object_length(l_datum_1_json) > 0) {
         dap_test_msg("dap_chain_net_tx_to_json PASS.");
         printf("\n");
         
@@ -109,8 +110,8 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
         dap_test_msg("dap_chain_net_tx_to_json FAILED.");
     }
     
-    dap_json_delete(l_datum_1_json);
-    dap_json_delete(l_error_json);
+    dap_json_object_free(l_datum_1_json);
+    dap_json_object_free(l_error_json);
 }
 
 void s_chain_datum_tx_create_test()
@@ -345,7 +346,7 @@ void s_chain_datum_tx_ser_deser_test()
     // s_chain_datum_vote_voting_test();
 
     if (s_data->config.response_handler) {
-        dap_json_delete(s_data->config.response_handler);
+        dap_json_object_free(s_data->config.response_handler);
     }
     DAP_DEL_Z(s_data);
     for (size_t i = 0; i < KEY_COUNT; ++i)

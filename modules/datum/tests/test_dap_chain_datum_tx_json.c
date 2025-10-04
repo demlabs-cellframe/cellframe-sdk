@@ -670,7 +670,7 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
  * @param[in] a_obj2 Second JSON object
  * @return true if objects are equal, false otherwise
  */
-static bool compare_dap_json_objects(json_object *a_obj1, json_object *a_obj2)
+static bool compare_dap_json_objects(dap_json_t *a_obj1, dap_json_t *a_obj2)
 {
     if (!a_obj1 || !a_obj2) {
         return a_obj1 == a_obj2;

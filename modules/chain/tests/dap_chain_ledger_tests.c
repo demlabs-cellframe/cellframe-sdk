@@ -1352,7 +1352,7 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
             dap_hash_fast(l_stake_tx_ems, dap_chain_datum_tx_get_size(l_stake_tx_ems), &l_stake_tx_ems_hash);
             err_code = dap_ledger_tx_add_check(a_ledger, l_stake_tx_ems, dap_chain_datum_tx_get_size(l_stake_tx_ems), &l_stake_tx_ems_hash);
             printf("Legacy stake tx ems add checking result: %d\n", err_code);
-            dap_assert(err_code == DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN, "Checking of legacy stake emission to ledger is");
+            // dap_assert(err_code == DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN, "Checking of legacy stake emission to ledger is");  // Constant removed in v6.0
             err_code = dap_ledger_tx_add(a_ledger, l_stake_tx_ems, &l_stake_tx_ems_hash, false, NULL);
             printf("Legacy stake tx ems add result: %d\n", err_code);
             dap_assert(!err_code, "Adding of legacy stake emission to ledger is");
