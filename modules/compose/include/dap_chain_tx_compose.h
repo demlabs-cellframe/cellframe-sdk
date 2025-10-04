@@ -59,6 +59,7 @@ extern "C" {
 
 const char* dap_compose_get_net_url(const char* name);
 uint16_t dap_compose_get_net_port(const char* name);
+const char* dap_compose_get_native_ticker(const char* name);
 dap_chain_net_id_t dap_get_net_id(const char* name);
 
 int dap_tx_json_tsd_add(dap_json_t * json_tx, dap_json_t * json_add);
