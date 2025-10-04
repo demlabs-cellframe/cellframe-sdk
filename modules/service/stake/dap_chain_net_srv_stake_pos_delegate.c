@@ -4100,7 +4100,7 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
                     dap_json_array_add(json_arr_sign_out, json_obj_sign);                   
                 if (SUM_256_256(l_value_total_calc, l_value_reward, &l_value_total_calc)) {
                     log_it(L_ERROR, "Total reward calculation overflow");
-                    return -1;
+                    return NULL;
                 }
                 l_value_reward = uint256_0;
                 dap_json_array_add(json_obj_reward, json_block_hash);
@@ -4118,7 +4118,7 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
         dap_json_t* json_value_out = dap_json_object_new();
         if (SUM_256_256(l_value_total, l_value_out, &l_value_total)) {
             log_it(L_ERROR, "Value total calculation overflow");
-            return -1;
+            return NULL;
         }
         l_value_str = dap_uint256_to_char(l_value_out, &l_coins_out_str);
         dap_json_object_add_string(json_value_out, a_version == 1 ? "Rewards value (tx_out)" : "reward_value_tx_out", l_value_str);
@@ -4127,15 +4127,16 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
         i_tmp++;
         dap_list_free(l_list_in_items);
     }
+    {
         const char  *l_coins_out_str, *l_value_str;
         dap_json_t* json_value_out = dap_json_object_new();
         l_value_str = dap_uint256_to_char(l_value_total, &l_coins_out_str);
         dap_json_object_add_string(json_value_out, a_version == 1 ? "Rewards value (total)" : "reward_value_total", l_value_str);
         dap_json_object_add_string(json_value_out, a_version == 1 ? "Rewards coins (total)" : "reward_coins_total", l_coins_out_str);
         dap_json_array_add(json_obj_reward, json_value_out);
+    }
     a_chain->callback_datum_iter_delete(l_datum_iter);
     return json_obj_reward;
-
 }
 
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
@@ -4229,24 +4230,24 @@ static dap_json_t *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_n
                 *l_jobj_ret     = dap_json_object_new();
                 
     const char *l_coins_str;
-    dap_json_object_add_string( l_jobj_min,     "balance",  dap_json_object_new_string(dap_uint256_to_char(l_min, &l_coins_str)) );
-    dap_json_object_add_string( l_jobj_min,     "coin",     dap_json_object_new_string(l_coins_str) );
+    dap_json_object_add_string( l_jobj_min,     "balance",  dap_uint256_to_char(l_min, &l_coins_str) );
+    dap_json_object_add_string( l_jobj_min,     "coin",     l_coins_str );
 
-    dap_json_object_add_string( l_jobj_max,     "balance",  dap_json_object_new_string(dap_uint256_to_char(l_max, &l_coins_str)) );
-    dap_json_object_add_string( l_jobj_max,     "coin",     dap_json_object_new_string(l_coins_str) );
+    dap_json_object_add_string( l_jobj_max,     "balance",  dap_uint256_to_char(l_max, &l_coins_str) );
+    dap_json_object_add_string( l_jobj_max,     "coin",     l_coins_str );
 
-    dap_json_object_add_string( l_jobj_average, "balance",  dap_json_object_new_string(dap_uint256_to_char(l_average, &l_coins_str)) );
-    dap_json_object_add_string( l_jobj_average, "coin",     dap_json_object_new_string(l_coins_str) );
+    dap_json_object_add_string( l_jobj_average, "balance",  dap_uint256_to_char(l_average, &l_coins_str) );
+    dap_json_object_add_string( l_jobj_average, "coin",     l_coins_str );
     
-    dap_json_object_add_string( l_jobj_median, "balance",   dap_json_object_new_string(dap_uint256_to_char(l_median, &l_coins_str)) );
-    dap_json_object_add_string( l_jobj_median, "coin",      dap_json_object_new_string(l_coins_str) );
+    dap_json_object_add_string( l_jobj_median, "balance",   dap_uint256_to_char(l_median, &l_coins_str) );
+    dap_json_object_add_string( l_jobj_median, "coin",      l_coins_str );
 
-    dap_json_object_add_string(l_jobj_ret, "service",   dap_json_object_new_string("validators");
-    dap_json_object_add_string(l_jobj_ret, "min",       l_jobj_min);
-    dap_json_object_add_string(l_jobj_ret, "max",       l_jobj_max);
-    dap_json_object_add_string(l_jobj_ret, "average",   l_jobj_average);
-    dap_json_object_add_string(l_jobj_ret, "median",    l_jobj_median);
-    dap_json_object_add_string(l_jobj_ret, "token",     dap_json_object_new_string(l_native_token);
+    dap_json_object_add_string(l_jobj_ret, "service",   "validators");
+    dap_json_object_add_object(l_jobj_ret, "min",       l_jobj_min);
+    dap_json_object_add_object(l_jobj_ret, "max",       l_jobj_max);
+    dap_json_object_add_object(l_jobj_ret, "average",   l_jobj_average);
+    dap_json_object_add_object(l_jobj_ret, "median",    l_jobj_median);
+    dap_json_object_add_string(l_jobj_ret, "token",     l_native_token);
 
     return l_jobj_ret;
 }
@@ -4423,7 +4424,7 @@ int dap_chain_net_srv_stake_hardfork_data_verify(dap_chain_net_t *a_net, dap_has
         return -2;
     }
     dap_list_t *l_verify_list = dap_tsd_find_all(l_decree->data_n_signs, l_decree->header.data_size,
-                                                 DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, sizeof(dap_hash_fast_t);
+                                                 DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, sizeof(dap_hash_fast_t));
     if (dap_list_length(l_current_list) != dap_list_length(l_verify_list)) {
         log_it(L_ERROR, "Exported hardfork data size differs from decrees one");
         dap_list_free_full(l_current_list, NULL);

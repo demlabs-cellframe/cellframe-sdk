@@ -4,7 +4,7 @@ project (dap_chain_mempool)
 file(GLOB DAP_CHAIN_MEMPOOL_SRC *.c)
 file(GLOB DAP_CHAIN_MEMPOOL_HDR include/*.h)
 
-add_library(${PROJECT_NAME} ${CELLFRAME_MODULE_TYPE} ${DAP_CHAIN_MEMPOOL_SRC} ${DAP_CHAIN_MEMPOOL_HDR})
+cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_MEMPOOL_SRC} HEADERS ${DAP_CHAIN_MEMPOOL_HDR})
 
 target_link_libraries(${PROJECT_NAME} dap_http_server dap_client dap_chain_net dap_global_db dap_core dap_json_rpc dap_chain_ledger)
 target_include_directories(${PROJECT_NAME} INTERFACE .)

@@ -1,13 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
 project (dap_chain_net_srv_stake)
 
-# Temporarily exclude problematic file with syntax errors
-# file(GLOB DAP_SRV_STAKE_SRCS *.c)
-set(DAP_SRV_STAKE_SRCS dap_chain_net_srv_stake_lock.c)
+file(GLOB DAP_SRV_STAKE_SRCS *.c)
 
 file(GLOB DAP_SRV_STAKE_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_SRV_STAKE_SRCS} ${DAP_SRV_STAKE_HEADERS})
+cellframe_add_library(${PROJECT_NAME} ${DAP_SRV_STAKE_SRCS} HEADERS ${DAP_SRV_STAKE_HEADERS})
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)

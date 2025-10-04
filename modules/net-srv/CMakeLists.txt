@@ -3,7 +3,7 @@ project (dap_chain_net_srv)
 
 file(GLOB DAP_CHAIN_NET_SRV_SRCS *.c)
 file(GLOB DAP_CHAIN_NET_SRV_HEADERS *.h include/*.h)
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_SRCS} ${DAP_CHAIN_NET_SRV_HEADERS})
+cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_NET_SRV_SRCS} HEADERS ${DAP_CHAIN_NET_SRV_HEADERS})
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/libmaxminddb ${CMAKE_CURRENT_BINARY_DIR}/../../3rdparty/libmaxminddb)
 
