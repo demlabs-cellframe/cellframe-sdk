@@ -8,7 +8,7 @@ message("[+] Module 'compose'")
 # Use universal Cellframe library macro
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_COMPOSE_SRCS} HEADERS ${DAP_CHAIN_COMPOSE_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_sdk dap_chain_net)
+target_link_libraries(${PROJECT_NAME} dap_sdk dap_app_cli dap_chain_net)
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
 target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
 

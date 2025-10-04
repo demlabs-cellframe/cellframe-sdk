@@ -33,16 +33,6 @@
 
  #include "dap_json.h"
 
-#define NET_COUNT 6
-
-typedef struct {
-    char name[20];
-    char native_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    dap_chain_net_id_t net_id;
-    char url[128];
-    uint16_t port;
-} NetInfo;
-
 typedef struct {
     const char *net_name;
     const char *url_str;
@@ -52,14 +42,13 @@ typedef struct {
     dap_json_t *response_handler;
 } compose_config_t;
 
-static NetInfo netinfo[NET_COUNT] = {
-    {"riemann",  "tKEL",  {.uint64 = 0x000000000000dddd}, "45.76.140.191", 8081},
-    {"raiden",   "tCELL", {.uint64 = 0x000000000000bbbb}, "http://rpc.cellframe.net", 8081},
-    {"KelVPN",   "KEL",   {.uint64 = 0x1807202300000000}, "http://rpc.cellframe.net", 8081},
-    {"Backbone", "CELL",  {.uint64 = 0x0404202200000000}, "http://rpc.cellframe.net", 8081},
-    {"mileena",  "tMIL",  {.uint64 = 0x000000000000cccc}, "http://rpc.cellframe.net", 8081},
-    {"subzero",  "tCELL", {.uint64 = 0x000000000000acca}, "http://rpc.cellframe.net", 8081}
-};
+/**
+ * @brief Register RPC endpoint for network
+ * @param a_net_name Network name
+ * @param a_url RPC URL
+ * @param a_port RPC port
+ */
+void dap_compose_register_rpc(const char *a_net_name, const char *a_url, uint16_t a_port);
 
 
 

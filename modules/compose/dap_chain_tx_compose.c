@@ -109,27 +109,15 @@ static int s_compose_config_deinit(compose_config_t *a_config) {
 }
 
 const char* dap_compose_get_net_url(const char* name) {
-    if (!name) {
-        return NULL;
-    }
-    for (int i = 0; i < NET_COUNT; i++) {
-        if (strcmp(netinfo[i].name, name) == 0) {
-            return netinfo[i].url;
-        }
-    }
-    return NULL;
+    // TODO: Get from network configuration, not hardcoded
+    UNUSED(name);
+    return "http://rpc.cellframe.net";
 }
 
 uint16_t dap_compose_get_net_port(const char* name) {
-    if (!name) {
-        return 0;
-    }
-    for (int i = 0; i < NET_COUNT; i++) {
-        if (strcmp(netinfo[i].name, name) == 0) {
-            return netinfo[i].port;
-        }
-    }
-    return 0;
+    // TODO: Get from network configuration, not hardcoded
+    UNUSED(name);
+    return 8081;
 }
 
 static const char* s_get_native_ticker(const char* name) {
@@ -139,12 +127,9 @@ static const char* s_get_native_ticker(const char* name) {
     if (!name) {
         return NULL;
     }
-    for (int i = 0; i < NET_COUNT; i++) {
-        if (strcmp(netinfo[i].name, name) == 0) {
-            return netinfo[i].native_ticker;
-        }
-    }
-    return NULL;
+    // Use dap_chain_net API to get actual ticker
+    dap_chain_net_t *l_net = dap_chain_net_by_name(name);
+    return l_net ? l_net->pub.native_ticker : NULL;
 }
 
 dap_chain_net_id_t dap_get_net_id(const char* name) {
@@ -155,11 +140,9 @@ dap_chain_net_id_t dap_get_net_id(const char* name) {
     if (!name) {
         return empty_id;
     }
-    for (int i = 0; i < NET_COUNT; i++) {
-        if (strcmp(netinfo[i].name, name) == 0) {
-            return netinfo[i].net_id;
-        }
-    }
+    // Use dap_chain_net API to get actual net ID
+    dap_chain_net_t *l_net = dap_chain_net_by_name(name);
+    return l_net ? l_net->pub.id : empty_id;
 #endif
     return empty_id;
 }
