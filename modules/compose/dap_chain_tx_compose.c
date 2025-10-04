@@ -41,7 +41,7 @@
 #include "dap_chain_node_client.h"
 
 #include "dap_json.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 
 #define LOG_TAG "dap_chain_tx_compose"
 

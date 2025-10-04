@@ -1,5 +1,5 @@
 #include "dap_test.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_net.h"
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx.h"
