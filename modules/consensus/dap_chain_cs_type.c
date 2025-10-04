@@ -29,6 +29,7 @@
 #define DAP_CHAIN_CS_NAME_STRLEN_MAX        32
 #define DAP_CHAIN_CS_CLASS_NAME_STRLEN_MAX  DAP_CHAIN_CS_NAME_STRLEN_MAX
 
+// Chain type registration (blocks, dag, none)
 typedef struct dap_chain_type_callbacks_item {
     char name[DAP_CHAIN_CS_CLASS_NAME_STRLEN_MAX];
     dap_chain_type_callbacks_t callbacks;
@@ -40,20 +41,26 @@ typedef struct dap_chain_type_callbacks_item {
 static dap_chain_type_callbacks_item_t *s_type_callbacks = NULL;
 
 /**
- * @brief dap_chain_cs_init
- * @return
+ * @brief dap_chain_type_init - initialize chain type registry
+ * @return 0 on success
  */
-int dap_chain_cs_init(void)
+int dap_chain_type_init(void)
 {
+    log_it(L_INFO, "Chain type registry initialized");
     return 0;
 }
 
 /**
- * @brief dap_chain_cs_deinit
+ * @brief dap_chain_type_deinit - cleanup chain type registry
  */
-void dap_chain_cs_deinit(void)
+void dap_chain_type_deinit(void)
 {
-
+    dap_chain_type_callbacks_item_t *l_item, *l_tmp;
+    HASH_ITER(hh, s_type_callbacks, l_item, l_tmp) {
+        HASH_DEL(s_type_callbacks, l_item);
+        DAP_DELETE(l_item);
+    }
+    log_it(L_INFO, "Chain type registry cleaned up");
 }
 
 /**
@@ -103,4 +110,3 @@ int dap_chain_type_purge(dap_chain_t *a_chain)
         ? l_item->callbacks.callback_purge(a_chain)
         : 0;
 }
-

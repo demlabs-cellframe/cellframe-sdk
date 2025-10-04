@@ -9,6 +9,25 @@
 #pragma once
 
 #include "dap_chain.h"
+#include "dap_config.h"
+
+// Consensus lifecycle callbacks
+typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t *, dap_config_t *);
+typedef int (*dap_chain_callback_t)(dap_chain_t *);
+
+typedef struct dap_chain_cs_lifecycle {
+    dap_chain_callback_new_cfg_t callback_init;
+    dap_chain_callback_new_cfg_t callback_load;
+    dap_chain_callback_t callback_delete;
+    dap_chain_callback_t callback_created;
+    dap_chain_callback_t callback_start;
+    dap_chain_callback_t callback_stop;
+    dap_chain_callback_t callback_purge;
+} dap_chain_cs_lifecycle_t;
+
+// Consensus system initialization
+int dap_chain_cs_init(void);
+void dap_chain_cs_deinit(void);
 
 /**
  * @brief Register callbacks for specific chain
@@ -46,4 +65,22 @@ int dap_chain_cs_stake_switch_table(dap_chain_t *a_chain, bool a_to_sandbox);
 // Mempool wrappers
 char* dap_chain_cs_mempool_group_new(dap_chain_t *a_chain);
 char* dap_chain_cs_mempool_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
+
+// ===== Consensus registration and lifecycle =====
+
+/**
+ * @brief Register consensus implementation (esbocs, dag_poa, etc)
+ * @param a_cs_str Consensus name
+ * @param a_callbacks Lifecycle callbacks for this consensus
+ */
+void dap_chain_cs_add(const char *a_cs_str, dap_chain_cs_lifecycle_t a_callbacks);
+
+/**
+ * @brief Create consensus from config
+ */
+int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
+int dap_chain_cs_load(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
+int dap_chain_cs_start(dap_chain_t *a_chain);
+int dap_chain_cs_stop(dap_chain_t *a_chain);
+int dap_chain_cs_purge(dap_chain_t *a_chain);
 

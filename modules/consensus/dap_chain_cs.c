@@ -6,8 +6,43 @@
 #include "dap_chain_cs.h"
 #include "dap_chain.h"
 #include "dap_common.h"
+#include "dap_config.h"
+#include "uthash.h"
 
 #define LOG_TAG "dap_chain_cs"
+#define DAP_CHAIN_CS_NAME_STRLEN_MAX 32
+
+// Consensus registration (esbocs, dag_poa, none)
+typedef struct dap_chain_cs_item {
+    char name[DAP_CHAIN_CS_NAME_STRLEN_MAX];
+    dap_chain_cs_lifecycle_t callbacks;
+    UT_hash_handle hh;
+} dap_chain_cs_item_t;
+
+static dap_chain_cs_item_t *s_cs_registry = NULL;
+
+/**
+ * @brief dap_chain_cs_init - initialize consensus registry
+ * @return 0 on success
+ */
+int dap_chain_cs_init(void)
+{
+    log_it(L_INFO, "Consensus registry initialized");
+    return 0;
+}
+
+/**
+ * @brief dap_chain_cs_deinit - cleanup consensus registry
+ */
+void dap_chain_cs_deinit(void)
+{
+    dap_chain_cs_item_t *l_item, *l_tmp;
+    HASH_ITER(hh, s_cs_registry, l_item, l_tmp) {
+        HASH_DEL(s_cs_registry, l_item);
+        DAP_DELETE(l_item);
+    }
+    log_it(L_INFO, "Consensus registry cleaned up");
+}
 
 /**
  * @brief Register consensus callbacks for specific chain
@@ -133,5 +168,85 @@ char* dap_chain_cs_mempool_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
     return (cbs && cbs->mempool_datum_add) ? cbs->mempool_datum_add(a_datum, a_chain, a_hash_out_type) : NULL;
+}
+
+// ===== Consensus registration and lifecycle =====
+
+/**
+ * @brief Register consensus implementation
+ */
+void dap_chain_cs_add(const char *a_cs_str, dap_chain_cs_lifecycle_t a_callbacks)
+{
+    dap_chain_cs_item_t *l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_cs_item_t);
+    dap_strncpy(l_item->name, a_cs_str, sizeof(l_item->name));
+    l_item->callbacks = a_callbacks;
+    HASH_ADD_STR(s_cs_registry, name, l_item);
+    log_it(L_NOTICE, "Consensus '%s' registered", a_cs_str);
+}
+
+/**
+ * @brief Create consensus from config
+ */
+int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
+{
+    const char *l_consensus = dap_config_get_item_str(a_chain_cfg, "chain", "consensus");
+    if (!l_consensus) {
+        log_it(L_ERROR, "No consensus specified in chain config");
+        return -1;
+    }
+    
+    dap_chain_cs_item_t *l_item = NULL;
+    HASH_FIND_STR(s_cs_registry, l_consensus, l_item);
+    if (!l_item) {
+        log_it(L_ERROR, "Consensus '%s' not registered", l_consensus);
+        return -1;
+    }
+    
+    log_it(L_NOTICE, "Creating consensus '%s' for chain", l_item->name);
+    int res = 0;
+    if (l_item->callbacks.callback_init)
+        res = l_item->callbacks.callback_init(a_chain, a_chain_cfg);
+    DAP_CHAIN_PVT(a_chain)->cs_name = l_item->name;
+    return res;
+}
+
+int dap_chain_cs_load(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
+{
+    dap_chain_cs_item_t *l_item = NULL;
+    HASH_FIND_STR(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
+    dap_return_val_if_fail_err(l_item, -1, "Consensus %s not registered!", DAP_CHAIN_PVT(a_chain)->cs_name);
+    return l_item->callbacks.callback_load
+        ? l_item->callbacks.callback_load(a_chain, a_chain_cfg)
+        : 0;
+}
+
+int dap_chain_cs_start(dap_chain_t *a_chain)
+{
+    dap_chain_cs_item_t *l_item = NULL;
+    HASH_FIND_STR(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
+    dap_return_val_if_fail(l_item, -1);
+    return l_item->callbacks.callback_start
+        ? l_item->callbacks.callback_start(a_chain)
+        : 0;
+}
+
+int dap_chain_cs_stop(dap_chain_t *a_chain)
+{
+    dap_chain_cs_item_t *l_item = NULL;
+    HASH_FIND_STR(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
+    dap_return_val_if_fail(l_item, -1);
+    return l_item->callbacks.callback_stop
+        ? l_item->callbacks.callback_stop(a_chain)
+        : 0;
+}
+
+int dap_chain_cs_purge(dap_chain_t *a_chain)
+{
+    dap_chain_cs_item_t *l_item = NULL;
+    HASH_FIND_STR(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
+    dap_return_val_if_fail(l_item, -1);
+    return l_item->callbacks.callback_purge
+        ? l_item->callbacks.callback_purge(a_chain)
+        : 0;
 }
 

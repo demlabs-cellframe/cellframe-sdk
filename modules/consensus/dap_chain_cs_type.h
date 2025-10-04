@@ -24,19 +24,13 @@ typedef struct dap_chain_type_callbacks {
     dap_chain_callback_t callback_purge;
 } dap_chain_type_callbacks_t;
 
-// Chain type registration system
-int dap_chain_cs_init(void);
-void dap_chain_cs_deinit(void);
+// Chain type system initialization
+int dap_chain_type_init(void);
+void dap_chain_type_deinit(void);
 
+// Chain type registration (blocks, dag, none - storage organization)
 void dap_chain_type_add(const char *a_type_str, dap_chain_type_callbacks_t a_callbacks);
 int dap_chain_type_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 int dap_chain_type_delete(dap_chain_t *a_chain);
 int dap_chain_type_purge(dap_chain_t *a_chain);
-
-// Consensus lifecycle functions
-int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
-int dap_chain_cs_load(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
-int dap_chain_cs_stop(dap_chain_t *a_chain);
-int dap_chain_cs_start(dap_chain_t *a_chain);
-int dap_chain_cs_purge(dap_chain_t *a_chain);
 

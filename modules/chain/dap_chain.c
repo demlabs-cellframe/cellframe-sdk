@@ -38,6 +38,7 @@
 #include "dap_cert.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_cs_type.h"
+#include "dap_chain_cs.h"
 #include "dap_cert_file.h"
 #include "dap_chain_ch.h"
 #include "dap_stream_ch_gossip.h"
@@ -88,7 +89,11 @@ int dap_chain_init(void)
 {
     // Cell sharding init
     dap_chain_cell_init();
+    // Type system init (blocks, dag, none)
+    dap_chain_type_init();
+    // Consensus system init (esbocs, dag_poa)
     dap_chain_cs_init();
+    // Services init
     dap_chain_srv_init();
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
@@ -106,6 +111,8 @@ void dap_chain_deinit(void)
           DAP_DELETE(l_item);
     }*/ // TODO!
     dap_chain_srv_deinit();
+    dap_chain_cs_deinit();
+    dap_chain_type_deinit();
 }
 
 /**

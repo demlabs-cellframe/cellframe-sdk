@@ -196,7 +196,16 @@ DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *
 
 int dap_chain_cs_esbocs_init()
 {
-    // Consensus registration moved to s_callback_new where callbacks are set per-chain
+    // Register ESBOCS consensus
+    dap_chain_cs_lifecycle_t l_cs_callbacks = {
+        .callback_init = s_callback_new,
+        .callback_load = s_callback_created,
+        .callback_start = s_callback_start,
+        .callback_stop = s_callback_stop,
+        .callback_purge = s_callback_purge
+    };
+    dap_chain_cs_add(DAP_CHAIN_ESBOCS_CS_TYPE_STR, l_cs_callbacks);
+    
     dap_stream_ch_proc_add(DAP_STREAM_CH_ESBOCS_ID,
                            NULL,
                            NULL,
