@@ -33,7 +33,7 @@
 
  #include "dap_json.h"
 
-typedef struct {
+typedef struct compose_config {
     const char *net_name;
     const char *url_str;
     const char *cert_path;
@@ -72,6 +72,12 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
 bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker,
                                          dap_json_t **l_outs, int *l_outputs_count, compose_config_t *a_config);
 bool check_token_in_ledger(dap_json_t *l_json_coins, const char *a_token);
+
+// Helper functions for compose operations
+dap_json_t* dap_get_remote_tx_outs(const char *a_token_ticker, dap_chain_addr_t *a_addr, compose_config_t *a_config);
+uint256_t get_balance_from_json(dap_json_t *l_json_outs, const char *a_token_sell);
+dap_json_t* dap_compose_config_return_response_handler(compose_config_t *a_config);
+int dap_json_compose_error_add(dap_json_t* a_json_obj_reply, int a_code_error, const char *msg, ...);
 
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer);
 dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(dap_json_t * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer);
