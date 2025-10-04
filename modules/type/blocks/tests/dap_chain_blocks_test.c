@@ -6,6 +6,7 @@
 #include "dap_chain_type_blocks.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs.h"
+#include "dap_chain_cs_type.h"
 
 typedef struct {
     dap_hash_fast_t block_before_fork_hash;

@@ -10,6 +10,7 @@
 #include "dap_math_ops.h"
 #include "dap_config.h"
 #include "dap_chain.h"
+#include "dap_chain_cs_type.h"
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv_vpn.h"

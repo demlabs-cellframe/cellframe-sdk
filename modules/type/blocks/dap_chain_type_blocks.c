@@ -553,8 +553,8 @@ static void s_cli_meta_hex_print(dap_json_t * a_json_obj_out, const char * a_met
 static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_json_t *a_json_obj_out, const char *a_table_name, int a_version)
 {
     size_t l_objs_count = 0;
-    char *l_group = dap_strcmp(a_table_name, a_version == 1 ? "Fees" : "fees") ? dap_chain_type_blocks_get_reward_group(a_net->pub.name)
-                                                     : dap_chain_type_blocks_get_fee_group(a_net->pub.name);
+    char *l_group = dap_strcmp(a_table_name, a_version == 1 ? "Fees" : "fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
+                                                     : dap_chain_cs_blocks_get_fee_group(a_net->pub.name);
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_objs_count);
     DAP_DELETE(l_group);
     uint256_t l_total_value = uint256_0;
@@ -1417,10 +1417,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                         .collecting_addr = l_addr
                 };
                 //Clear gdb
-                char *l_group_fee = dap_chain_type_blocks_get_fee_group(l_net->pub.name);
+                char *l_group_fee = dap_chain_cs_blocks_get_fee_group(l_net->pub.name);
                 dap_global_db_erase_table_sync(l_group_fee);
                 DAP_DELETE(l_group_fee);
-                char *l_group_reward = dap_chain_type_blocks_get_reward_group(l_net->pub.name);
+                char *l_group_reward = dap_chain_cs_blocks_get_reward_group(l_net->pub.name);
                 dap_global_db_erase_table_sync(l_group_reward);
                 DAP_DELETE(l_group_reward);
 

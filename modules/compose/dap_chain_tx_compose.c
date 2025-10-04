@@ -41,6 +41,7 @@
 #include "dap_chain_node_client.h"
 
 #include "dap_json.h"
+#include "rand/dap_rand.h"
 
 #define LOG_TAG "dap_chain_tx_compose"
 
@@ -5258,8 +5259,6 @@ dap_chain_tx_out_cond_t* dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
     *a_hash_out = l_current_hash;
     return l_cond_tx;
 }
-}
-}
 
 dap_chain_datum_tx_t* dap_chain_net_srv_xchange_purchase_compose(dap_hash_fast_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, char **a_hash_out, compose_config_t *a_config){
@@ -5542,3 +5541,5 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
 }
 
 
+}
+}

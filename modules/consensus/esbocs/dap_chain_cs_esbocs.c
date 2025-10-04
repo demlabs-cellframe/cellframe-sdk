@@ -218,7 +218,7 @@ int dap_chain_cs_esbocs_init()
         "esbocs status -net <net_name> [-chain <chain_name>]\n"
             "\tShow current esbocs consensus status\n");
     
-    log_it(L_INFO, "ESBOCS consensus module initialized");
+    log_it(L_INFO, "ESBOCS consensus initialized");
     return 0;
 }
 
@@ -385,8 +385,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         // Register consensus callbacks for this chain 
         static dap_chain_cs_callbacks_t s_cs_callbacks = {
             // Consensus → Chain callbacks
-            .get_fee_group = dap_chain_type_blocks_get_fee_group,
-            .get_reward_group = dap_chain_type_blocks_get_reward_group,
+            .get_fee_group = dap_chain_cs_blocks_get_fee_group,
+            .get_reward_group = dap_chain_cs_blocks_get_reward_group,
             // Chain → Consensus callbacks
             .get_fee = dap_chain_esbocs_get_fee,
             .get_sign_pkey = dap_chain_esbocs_get_sign_pkey,

@@ -95,12 +95,12 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_type_blo
 dap_ledger_hardfork_fees_t *dap_chain_type_blocks_fees_aggregate(dap_chain_t *a_chain);
 int dap_chain_block_add_fork_notificator(dap_chain_type_blocks_callback_fork_resolved_t a_callback, void *a_arg);
 
-DAP_STATIC_INLINE char *dap_chain_type_blocks_get_fee_group(const char *a_net_name)
+DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_fee_group(const char *a_net_name)
 {
     return dap_strdup_printf("local.%s.fees", a_net_name);
 }
 
-DAP_STATIC_INLINE char *dap_chain_type_blocks_get_reward_group(const char *a_net_name)
+DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_reward_group(const char *a_net_name)
 {
     return dap_strdup_printf("local.%s.rewards", a_net_name);
 }

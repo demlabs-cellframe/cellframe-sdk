@@ -33,7 +33,7 @@ int dap_chain_type_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 int dap_chain_type_delete(dap_chain_t *a_chain);
 int dap_chain_type_purge(dap_chain_t *a_chain);
 
-// Consensus lifecycle functions (kept for compatibility, but work with types internally)
+// Consensus lifecycle functions
 int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 int dap_chain_cs_load(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 int dap_chain_cs_stop(dap_chain_t *a_chain);
