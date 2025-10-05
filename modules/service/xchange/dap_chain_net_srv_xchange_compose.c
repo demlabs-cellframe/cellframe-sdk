@@ -111,13 +111,13 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
     dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, a_prev_cond_idx, 0);
     uint256_t l_net_fee = {};
     dap_chain_addr_t* l_addr_fee = NULL;
-    bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+    bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
     uint256_t l_total_fee = a_price->fee;
     if (l_net_fee_used)
         SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
 
     if (!l_single_channel) {
-        dap_json_t *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, a_seller_addr, a_config);
+        dap_json_t *l_outs_native = dap_chain_tx_compose_get_remote_tx_outs(l_native_ticker, a_seller_addr, a_config);
         if (!l_outs_native) {
             return NULL;
         }

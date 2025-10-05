@@ -73,7 +73,7 @@ dap_json_t* dap_cli_voting_compose(const char *a_net_name, const char *a_questio
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS, "Can't get ledger coins list\n");
         return dap_compose_config_return_response_handler(l_config);
     }
-    if (!check_token_in_ledger(l_json_coins, a_token_str)) {
+    if (!dap_chain_tx_compose_check_token_in_ledger(l_json_coins, a_token_str)) {
         dap_json_object_free(l_json_coins);
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN, "Token %s does not exist\n", a_token_str);
         return dap_compose_config_return_response_handler(l_config);
@@ -138,7 +138,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
     const char *l_native_ticker = dap_compose_get_native_ticker(a_config->net_name);
     uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer;
     dap_chain_addr_t *l_addr_fee = NULL;
-    bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+    bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
     SUM_256_256(l_net_fee, a_fee, &l_total_fee);
 
 
@@ -151,7 +151,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_COMPOSE_ERR_WALLET_NOT_FOUND, "Wallet does not exist\n");
         return NULL;
     }
-    if (!dap_get_remote_wallet_outs_and_count(l_addr_from, l_native_ticker, &l_outs, &l_outputs_count, a_config)) {
+    if (!dap_chain_tx_compose_get_remote_wallet_outs_and_count(l_addr_from, l_native_ticker, &l_outs, &l_outputs_count, a_config)) {
         return NULL;
     }
 #else
@@ -567,7 +567,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
 
     uint256_t l_net_fee = {}, l_total_fee = a_fee, l_value_transfer, l_fee_transfer;
     dap_chain_addr_t* l_addr_fee = NULL;
-    bool l_net_fee_used = dap_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+    bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
     if (l_net_fee_used)
         SUM_256_256(l_net_fee, a_fee, &l_total_fee);
 
@@ -576,7 +576,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     dap_json_t *l_outs = NULL;
     int l_outputs_count = 0;
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST   
-    if (!dap_get_remote_wallet_outs_and_count(a_wallet_addr, l_token_ticker, &l_outs, &l_outputs_count, a_config)) {
+    if (!dap_chain_tx_compose_get_remote_wallet_outs_and_count(a_wallet_addr, l_token_ticker, &l_outs, &l_outputs_count, a_config)) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_GET_REMOTE_WALLET_OUTS, "Failed to get remote wallet outs\n");
         return NULL;
     }

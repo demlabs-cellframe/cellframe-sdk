@@ -60,23 +60,23 @@ extern "C" {
 const char* dap_compose_get_net_url(const char* name);
 uint16_t dap_compose_get_net_port(const char* name);
 const char* dap_compose_get_native_ticker(const char* name);
-dap_chain_net_id_t dap_get_net_id(const char* name);
+dap_chain_net_id_t dap_chain_tx_compose_get_net_id(const char* name);
 
-int dap_tx_json_tsd_add(dap_json_t * json_tx, dap_json_t * json_add);
+int dap_chain_tx_compose_json_tsd_add(dap_json_t * json_tx, dap_json_t * json_add);
 dap_json_t* dap_enc_request_command_to_rpc(const char *a_request, const char * a_url, uint16_t a_port, const char * a_cert_path);
 
 dap_json_t* dap_request_command_to_rpc(const char *request, compose_config_t *a_config);
 dap_json_t* dap_request_command_to_rpc_with_params(compose_config_t *a_config, const char *a_method, const char *msg, ...);
 
-bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee, compose_config_t *a_config);
-bool dap_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker,
+bool dap_chain_tx_compose_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **l_addr_fee, compose_config_t *a_config);
+bool dap_chain_tx_compose_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker,
                                          dap_json_t **l_outs, int *l_outputs_count, compose_config_t *a_config);
-bool check_token_in_ledger(dap_json_t *l_json_coins, const char *a_token);
+bool dap_chain_tx_compose_check_token_in_ledger(dap_json_t *l_json_coins, const char *a_token);
 
 // Helper functions for compose operations
 compose_config_t* dap_compose_config_init(const char *a_net_name, const char *a_url_str, uint16_t a_port, const char *a_cert_path);
-dap_json_t* dap_get_remote_tx_outs(const char *a_token_ticker, dap_chain_addr_t *a_addr, compose_config_t *a_config);
-uint256_t get_balance_from_json(dap_json_t *l_json_outs, const char *a_token_sell);
+dap_json_t* dap_chain_tx_compose_get_remote_tx_outs(const char *a_token_ticker, dap_chain_addr_t *a_addr, compose_config_t *a_config);
+uint256_t dap_chain_tx_compose_get_balance_from_json(dap_json_t *l_json_outs, const char *a_token_sell);
 dap_json_t* dap_compose_config_return_response_handler(compose_config_t *a_config);
 int dap_json_compose_error_add(dap_json_t* a_json_obj_reply, int a_code_error, const char *msg, ...);
 
