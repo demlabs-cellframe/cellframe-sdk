@@ -80,10 +80,9 @@ uint256_t dap_chain_tx_compose_get_balance_from_json(dap_json_t *l_json_outs, co
 dap_json_t* dap_chain_tx_compose_config_return_response_handler(dap_chain_tx_compose_config_t *a_config);
 int dap_json_compose_error_add(dap_json_t* a_json_obj_reply, int a_code_error, const char *msg, ...);
 
-dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer);
-dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(dap_json_t * a_outputs_array, int a_outputs_count, uint256_t a_value_need, uint256_t *a_value_transfer);
-dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(dap_json_t * a_outputs_array, int a_outputs_count, uint256_t a_value_need, 
-                                                    uint256_t *a_value_transfer, bool a_need_all_outputs);
+// Note: dap_ledger_get_list_tx_outs_from_json* functions moved to ledger module (dap_chain_ledger.h)
+// Include dap_chain_ledger.h to use them
+
 dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  dap_chain_tx_compose_config_t * a_config, 
                                                   const char **a_ts_created_str, const char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
 
@@ -149,7 +148,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_create_compose(const char *a_tok
 
 dap_chain_datum_tx_t* dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, 
                                                            dap_chain_addr_t *a_seller_addr, const char *a_native_ticker, 
-                                                           compose_config_t *a_config);
+                                                           dap_chain_tx_compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_chain_mempool_tx_create_cond_compose(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
                                                               const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -162,7 +161,7 @@ dap_chain_datum_tx_t* dap_stake_lock_datum_create_compose(dap_chain_addr_t *a_wa
                                                          uint256_t a_value, uint256_t a_value_fee, dap_time_t a_time_staking, 
                                                          uint256_t a_reinvest_percent, const char *a_delegated_ticker_str, 
                                                          uint256_t a_delegated_value, const char *a_chain_id_str, 
-                                                         compose_config_t *a_config);
+                                                         dap_chain_tx_compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_stake_unlock_datum_create_compose(dap_chain_addr_t *a_wallet_addr, dap_hash_fast_t *a_stake_tx_hash, 
                                                            uint32_t a_prev_cond_idx, const char *a_main_ticker, uint256_t a_value,
