@@ -50,7 +50,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(
     bool a_is_vote_changing_allowed, 
     dap_chain_addr_t *a_wallet_addr,
     const char *a_token_ticker, 
-    compose_config_t *a_config);
+    dap_chain_tx_compose_config_t *a_config);
 
 /**
  * @brief CLI vote compose
@@ -75,5 +75,5 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(
     dap_chain_addr_t *a_wallet_addr, 
     dap_hash_fast_t a_hash,
     uint64_t a_option_idx, 
-    compose_config_t *a_config);
+    dap_chain_tx_compose_config_t *a_config);
 

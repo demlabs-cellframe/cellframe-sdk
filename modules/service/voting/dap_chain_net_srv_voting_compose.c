@@ -30,7 +30,7 @@ dap_json_t* dap_cli_voting_compose(const char *a_net_name, const char *a_questio
                                     bool a_is_delegated_key, bool a_is_vote_changing_allowed, dap_chain_addr_t *a_wallet_addr, const char *a_token_str, 
                                     const char *a_url_str, uint16_t a_port, const char *a_cert_path) {
     
-    compose_config_t * l_config = dap_compose_config_init(a_net_name, a_url_str, a_port, a_cert_path);
+    dap_chain_tx_compose_config_t * l_config = dap_chain_tx_compose_config_init(a_net_name, a_url_str, a_port, a_cert_path);
     if (!l_config) {
         dap_json_t * l_json_obj_ret = dap_json_object_new();
         dap_json_compose_error_add(l_json_obj_ret, -1, "Unable to init config\n");
@@ -39,7 +39,7 @@ dap_json_t* dap_cli_voting_compose(const char *a_net_name, const char *a_questio
     
     if (strlen(a_question_str) > DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH){
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH, "The question must contain no more than %d characters\n", DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH);
-        return dap_compose_config_return_response_handler(l_config);
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
 
     dap_list_t *l_options_list = NULL;
@@ -47,12 +47,12 @@ dap_json_t* dap_cli_voting_compose(const char *a_net_name, const char *a_questio
     l_options_list = dap_get_options_list_from_str(a_options_list_str);
     if(!l_options_list || dap_list_length(l_options_list) < 2){
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_NUMBER_OPTIONS_ERROR, "Number of options must be 2 or greater.\n");
-        return dap_compose_config_return_response_handler(l_config);
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
 
     if(dap_list_length(l_options_list)>DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT){
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_CONTAIN_MAX_OPTIONS, "The voting can contain no more than %d options\n", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);            
-        return dap_compose_config_return_response_handler(l_config);
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
     uint256_t l_value_fee = dap_chain_balance_scan(a_fee_str);
 
@@ -62,7 +62,7 @@ dap_json_t* dap_cli_voting_compose(const char *a_net_name, const char *a_questio
         l_time_expire = dap_time_from_str_rfc822(a_voting_expire_str);
     if (a_voting_expire_str && !l_time_expire){
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_WRONG_TIME_FORMAT, "Wrong time format. -expire parameter must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +00\"\n");
-        return dap_compose_config_return_response_handler(l_config);
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
     uint64_t l_max_count = 0;
     if (a_max_votes_count_str)
@@ -71,12 +71,12 @@ dap_json_t* dap_cli_voting_compose(const char *a_net_name, const char *a_questio
     dap_json_t *l_json_coins = dap_request_command_to_rpc_with_params(l_config, "ledger", "list;coins;-net;%s", l_config->net_name);
     if (!l_json_coins) {
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS, "Can't get ledger coins list\n");
-        return dap_compose_config_return_response_handler(l_config);
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
     if (!dap_chain_tx_compose_check_token_in_ledger(l_json_coins, a_token_str)) {
         dap_json_object_free(l_json_coins);
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN, "Token %s does not exist\n", a_token_str);
-        return dap_compose_config_return_response_handler(l_config);
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
     dap_json_object_free(l_json_coins);
 
@@ -88,7 +88,7 @@ dap_json_t* dap_cli_voting_compose(const char *a_net_name, const char *a_questio
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
     }
-    return dap_compose_config_return_response_handler(l_config);
+    return dap_chain_tx_compose_config_return_response_handler(l_config);
 }
 
 typedef enum {
@@ -113,7 +113,7 @@ typedef enum {
 dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
                               uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                               bool a_vote_changing_allowed, dap_chain_addr_t *a_wallet_addr,
-                              const char *a_token_ticker, compose_config_t *a_config) {
+                              const char *a_token_ticker, dap_chain_tx_compose_config_t *a_config) {
     if (!a_config) {
         return NULL;
     }
@@ -135,7 +135,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
         return NULL;
     }
 
-    const char *l_native_ticker = dap_compose_get_native_ticker(a_config->net_name);
+    const char *l_native_ticker = dap_chain_tx_compose_get_native_ticker(a_config->net_name);
     uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer;
     dap_chain_addr_t *l_addr_fee = NULL;
     bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
@@ -316,7 +316,7 @@ typedef enum {
 } dap_cli_vote_compose_error_t;
 dap_json_t* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str, const char *a_cert_name, const char *a_fee_str, dap_chain_addr_t *a_wallet_addr, 
                                     const char *a_option_idx_str, const char *a_url_str, uint16_t a_port, const char *a_cert_path) {
-    compose_config_t *l_config = dap_compose_config_init(a_net_str, a_url_str, a_port, a_cert_path);
+    dap_chain_tx_compose_config_t *l_config = dap_chain_tx_compose_config_init(a_net_str, a_url_str, a_port, a_cert_path);
     if (!l_config) {
         dap_json_t* l_json_obj_ret = dap_json_object_new();
         dap_json_compose_error_add(l_json_obj_ret, DAP_CLI_VOTE_COMPOSE_INVALID_CONFIG, "Can't create compose config");
@@ -326,20 +326,20 @@ dap_json_t* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str, 
     dap_hash_fast_t l_voting_hash = {};
     if (dap_chain_hash_fast_from_str(a_hash_str, &l_voting_hash)) {
         dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_COMPOSE_INVALID_HASH, "Hash string is not recognozed as hex of base58 hash\n");
-        return dap_compose_config_return_response_handler(l_config);
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
 
     dap_cert_t * l_cert = dap_cert_find_by_name(a_cert_name);
     if (a_cert_name){
         if (l_cert == NULL) {
             dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_COMPOSE_CERT_NOT_FOUND, "Can't find \"%s\" certificate\n", a_cert_name);
-            return dap_compose_config_return_response_handler(l_config);
+            return dap_chain_tx_compose_config_return_response_handler(l_config);
         }
     }
     uint256_t l_value_fee = dap_chain_balance_scan(a_fee_str);
     if (IS_ZERO_256(l_value_fee)) {
         dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_COMPOSE_INVALID_FEE, "command requires parameter '-fee' to be valid uint256\n");            
-        return dap_compose_config_return_response_handler(l_config);
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
 
     uint64_t l_option_idx_count = strtoul(a_option_idx_str, NULL, 10);
@@ -349,7 +349,7 @@ dap_json_t* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str, 
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
     }
-    return dap_compose_config_return_response_handler(l_config);
+    return dap_chain_tx_compose_config_return_response_handler(l_config);
 }
 
 
@@ -406,7 +406,7 @@ typedef enum {
     DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_GET_REMOTE_WALLET_OUTS = -23
 } dap_chain_net_vote_compose_error_t;
 dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, dap_hash_fast_t a_hash,
-                              uint64_t a_option_idx, compose_config_t *a_config) {
+                              uint64_t a_option_idx, dap_chain_tx_compose_config_t *a_config) {
     if (!a_config) {
         return NULL;
     }
@@ -571,7 +571,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     if (l_net_fee_used)
         SUM_256_256(l_net_fee, a_fee, &l_total_fee);
 
-    bool l_native_tx = !dap_strcmp(l_token_ticker, dap_compose_get_native_ticker(a_config->net_name));
+    bool l_native_tx = !dap_strcmp(l_token_ticker, dap_chain_tx_compose_get_native_ticker(a_config->net_name));
 
     dap_json_t *l_outs = NULL;
     int l_outputs_count = 0;
@@ -744,7 +744,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     dap_list_free_full(l_cond_outs, NULL);
 #endif
     // Network fee
-    if (l_net_fee_used && dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_fee, l_net_fee, dap_compose_get_native_ticker(a_config->net_name)) != 1) {
+    if (l_net_fee_used && dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_fee, l_net_fee, dap_chain_tx_compose_get_native_ticker(a_config->net_name)) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
@@ -760,7 +760,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_fee_back, dap_compose_get_native_ticker(a_config->net_name)) != 1) {
+    if (!IS_ZERO_256(l_fee_back) && dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_fee_back, dap_chain_tx_compose_get_native_ticker(a_config->net_name)) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }

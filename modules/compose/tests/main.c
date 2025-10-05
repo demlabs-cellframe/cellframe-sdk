@@ -31,7 +31,7 @@ struct tests_data {
     uint32_t idx_2;
     dap_hash_fast_t hash_1;
     dap_chain_srv_uid_t srv_uid;
-    compose_config_t config;
+    dap_chain_tx_compose_config_t config;
     time_t time_staking;
     dap_chain_tx_out_cond_t cond_out; // Variable sized type moved to end
 };
@@ -313,7 +313,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_data->time_staking = dap_time_now() + 10000;
     s_data->reinvest_percent = dap_chain_balance_coins_scan("12.3456789");
     
-    memset(&s_data->config, 0, sizeof(compose_config_t));
+    memset(&s_data->config, 0, sizeof(dap_chain_tx_compose_config_t));
     s_data->addr_from = *dap_chain_addr_from_str("o9z3wUTSTicckJuoxkLc5q1CwaYs23474GbBm8ebgSZd1WmB7EhkPDpsoZPGX3hmhGa1wCqTDKgPjirbp3H45bg3tc6U5k8wCEJX575X");
     s_data->addr_to = *dap_chain_addr_from_str("o9z3wUTSTicckJuoyzRZwr7gJE6GruN5VYiGwWA2TWh5LWXSZC4gS21WrxHD3eqaTJneuoCGVzgrbMNrMPAW3BtWRujQn9TgtJhGqBgS");
     // Initialize addr_any to a valid address

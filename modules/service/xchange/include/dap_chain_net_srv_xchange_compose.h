@@ -40,7 +40,7 @@ dap_chain_net_srv_xchange_price_t *dap_chain_net_srv_xchange_price_from_order_co
     const char *a_token_ticker,
     uint256_t *a_fee, 
     bool a_ret_is_invalid, 
-    compose_config_t *a_config);
+    dap_chain_tx_compose_config_t *a_config);
 
 dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose(
     dap_chain_net_srv_xchange_price_t *a_price, 
@@ -49,4 +49,4 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose(
     dap_chain_addr_t *a_seller_addr, 
     const char *a_tx_ticker, 
     uint32_t a_prev_cond_idx, 
-    compose_config_t *a_config);
+    dap_chain_tx_compose_config_t *a_config);

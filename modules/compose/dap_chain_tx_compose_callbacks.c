@@ -61,3 +61,24 @@ void dap_chain_tx_compose_service_callback_unregister(uint64_t a_srv_uid)
         log_it(L_NOTICE, "Compose callback unregistered for service %"DAP_UINT64_FORMAT_X, a_srv_uid);
     }
 }
+
+int dap_chain_tx_compose_callbacks_init(void)
+{
+    log_it(L_NOTICE, "Initializing compose callbacks system");
+    s_compose_callbacks = NULL;
+    return 0;
+}
+
+void dap_chain_tx_compose_callbacks_deinit(void)
+{
+    log_it(L_NOTICE, "Deinitializing compose callbacks system");
+    
+    dap_tx_compose_callback_item_t *l_item, *l_tmp;
+    HASH_ITER(hh, s_compose_callbacks, l_item, l_tmp) {
+        HASH_DEL(s_compose_callbacks, l_item);
+        log_it(L_INFO, "Unregistering compose callback for service %"DAP_UINT64_FORMAT_X, l_item->srv_uid);
+        DAP_DELETE(l_item);
+    }
+    
+    s_compose_callbacks = NULL;
+}

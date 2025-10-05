@@ -26,7 +26,7 @@
  */
 dap_chain_net_srv_xchange_price_t *dap_chain_net_srv_xchange_price_from_order_compose(dap_chain_tx_out_cond_t *a_cond_tx, 
                                                                                     dap_time_t a_ts_created, dap_hash_fast_t *a_order_hash, dap_hash_fast_t *a_hash_out, const char *a_token_ticker,
-                                                                                    uint256_t *a_fee, bool a_ret_is_invalid, compose_config_t *a_config)
+                                                                                    uint256_t *a_fee, bool a_ret_is_invalid, dap_chain_tx_compose_config_t *a_config)
 {
     if (!a_cond_tx || !a_order_hash || !a_config)
         return NULL;
@@ -62,7 +62,7 @@ dap_chain_net_srv_xchange_price_t *dap_chain_net_srv_xchange_price_from_order_co
 
     return l_price;
 }
-dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchange_price_t *a_price, dap_chain_tx_out_cond_t *a_cond_tx, dap_chain_addr_t *a_wallet_addr, dap_chain_addr_t *a_seller_addr, const char *a_tx_ticker, uint32_t a_prev_cond_idx, compose_config_t *a_config)
+dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchange_price_t *a_price, dap_chain_tx_out_cond_t *a_cond_tx, dap_chain_addr_t *a_wallet_addr, dap_chain_addr_t *a_seller_addr, const char *a_tx_ticker, uint32_t a_prev_cond_idx, dap_chain_tx_compose_config_t *a_config)
 {
     if (!a_config) {
         return NULL;
@@ -76,7 +76,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
         dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS, "An a_wallet_addr NULL argument was passed to the s_xchange_tx_invalidate() function.");
         return NULL;
     }
-    const char *l_native_ticker = dap_compose_get_native_ticker(a_config->net_name);
+    const char *l_native_ticker = dap_chain_tx_compose_get_native_ticker(a_config->net_name);
 
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
 
