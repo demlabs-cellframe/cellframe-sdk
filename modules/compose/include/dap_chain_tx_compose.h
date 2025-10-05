@@ -107,17 +107,8 @@ dap_json_t* dap_cli_hold_compose(const char *a_net_name, const char *a_chain_id_
 dap_json_t* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_str, dap_chain_addr_t *a_wallet_addr, 
                                  const char *a_tx_str, const char *a_value_fee_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
 
-dap_json_t* dap_cli_voting_compose(const char *a_net_name, const char *a_question_str, const char *a_options_list_str, 
-                                   const char *a_voting_expire_str, const char *a_max_votes_count_str, const char *a_fee_str, 
-                                   bool a_is_delegated_key, bool a_is_vote_changing_allowed, dap_chain_addr_t *a_wallet_addr, 
-                                   const char *a_token_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
-
-dap_json_t* dap_cli_vote_compose(const char *a_net_str, const char *a_hash_str, const char *a_cert_name, 
-                                 const char *a_fee_str, dap_chain_addr_t *a_wallet_addr, const char *a_option_idx_str, 
-                                 const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
-
-dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, 
-                                                       dap_hash_fast_t a_hash, uint64_t a_option_idx, compose_config_t *a_config);
+// VOTING compose functions moved to modules/service/voting/include/dap_chain_net_srv_voting_compose.h
+// To use: #include "dap_chain_net_srv_voting_compose.h"
 
 dap_json_t* dap_cli_xchange_purchase_compose(const char *a_net_name, const char *a_order_hash, const char* a_value, 
                                              const char* a_fee, const char *a_wallet_name, const char *a_wallet_path, 

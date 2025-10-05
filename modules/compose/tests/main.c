@@ -2,6 +2,7 @@
 #include "dap_rand.h"
 #include "dap_chain_net.h"
 #include "dap_chain_tx_compose.h"
+#include "dap_chain_net_srv_voting_compose.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_token.h"
