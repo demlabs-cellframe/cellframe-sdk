@@ -213,3 +213,300 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
 
     return l_tx;
 }
+
+/**
+ * @brief Find last transaction in xchange order chain
+ * @details Follows the chain of transactions from initial order to the last one
+ * @note Moved from compose module (was dap_find_last_xchange_tx) to break circular dependency
+ */
+dap_chain_tx_out_cond_t* dap_chain_net_srv_xchange_find_last_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  dap_chain_tx_compose_config_t * a_config, 
+                                                  const char **a_ts_created_str, const char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out) {
+    dap_chain_tx_out_cond_t *l_cond_tx = NULL;
+    dap_hash_fast_t l_current_hash = *a_order_hash;
+    dap_json_t *response = NULL;
+    dap_json_t *l_final_response = NULL;
+    dap_json_t *l_response_array = NULL;
+    bool l_found_last = false;
+    bool l_first_tx = true; // Flag to identify the first transaction
+
+    while (!l_found_last) {
+        response = dap_request_command_to_rpc_with_params(a_config, "ledger", "info;-hash;%s;-net;%s",
+                                                        dap_chain_hash_fast_to_str_static(&l_current_hash), a_config->net_name);
+        if (!response) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_REMOTE_NODE_UNREACHABLE, 
+                                     "Failed to get response from remote node");
+            return NULL;
+        }
+
+        dap_json_t *l_first_item = dap_json_array_get_idx(response, 0);
+        if (!l_first_item) {
+            dap_json_object_free(response);
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_INVALID_RESPONSE_FORMAT,
+                                     "Invalid response format");
+            return NULL;
+        }
+
+        // Get ts_created and token_ticker for the first transaction
+        if (!*a_ts_created_str) {
+            dap_json_t *ts_created_obj = NULL, *token_ticker_obj = NULL;
+            if (dap_json_object_get_ex(l_first_item, "ts_created", &ts_created_obj) &&
+                dap_json_object_get_ex(l_first_item, "token_ticker", &token_ticker_obj)) {
+                const char *l_temp_ts = dap_json_get_string(ts_created_obj);
+                const char *l_temp_ticker = dap_json_get_string(token_ticker_obj);
+                if (l_temp_ts && l_temp_ticker) {
+                    *a_ts_created_str = l_temp_ts;
+                    *a_token_ticker = l_temp_ticker;
+                }
+            }
+        }
+
+        // Extract seller address from the first transaction only
+        if (l_first_tx) {
+            dap_json_t *l_first_items = NULL;
+            if (dap_json_object_get_ex(l_first_item, "items", &l_first_items)) {
+                int l_first_items_count = dap_json_array_length(l_first_items);
+                for (int i = 0; i < l_first_items_count; i++) {
+                    dap_json_t *item = dap_json_array_get_idx(l_first_items, i);
+                    dap_json_t *l_type_obj = NULL;
+                    dap_json_object_get_ex(item, "type", &l_type_obj);
+                    const char *item_type = l_type_obj ? dap_json_get_string(l_type_obj) : NULL;
+                    if (item_type && dap_strcmp(item_type, "SIG") == 0) {
+                        dap_json_t *sender_addr_obj = NULL;
+                        if (dap_json_object_get_ex(item, "sender_addr", &sender_addr_obj)) {
+                            const char *sender_addr_str = dap_json_get_string(sender_addr_obj);
+                            if (sender_addr_str) {
+                                dap_chain_addr_t *l_temp_addr = dap_chain_addr_from_str(sender_addr_str);
+                                if (l_temp_addr) {
+                                    *a_seller_addr = *l_temp_addr;
+                                    DAP_DELETE(l_temp_addr);
+                                    break; // Found seller address, exit the loop
+                                } else {
+                                    // Invalid sender address format
+                                    dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_INVALID_PARAMS, "Invalid sender address format in first transaction");
+                                    dap_json_object_free(response);
+                                    return NULL;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            l_first_tx = false; // No longer the first transaction
+        }
+
+        // First, find the conditional output index in this transaction
+        dap_json_t *l_current_items = NULL;
+        int l_cond_out_idx = -1;
+        if (dap_json_object_get_ex(l_first_item, "items", &l_current_items)) {
+            int l_current_items_count = dap_json_array_length(l_current_items);
+            int l_out_counter = 0;
+            for (int i = 0; i < l_current_items_count; i++) {
+                dap_json_t *item = dap_json_array_get_idx(l_current_items, i);
+                dap_json_t *l_type_obj = NULL;
+                dap_json_object_get_ex(item, "type", &l_type_obj);
+                const char *item_type = l_type_obj ? dap_json_get_string(l_type_obj) : NULL;
+                if (item_type && (dap_strcmp(item_type, "out_cond") == 0 || dap_strcmp(item_type, "out") == 0 || dap_strcmp(item_type, "out_ext") == 0 || dap_strcmp(item_type, "old_out") == 0)) {
+                    if (dap_strcmp(item_type, "out_cond") == 0) {
+                        dap_json_t *l_subtype_obj = NULL;
+                        dap_json_object_get_ex(item, "subtype", &l_subtype_obj);
+                        const char *subtype = l_subtype_obj ? dap_json_get_string(l_subtype_obj) : NULL;
+                        if (subtype && !dap_strcmp(subtype, "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE")) {
+                            l_cond_out_idx = l_out_counter;
+                            break;
+                        }
+                    }
+                    l_out_counter++;
+                }
+            }
+        }
+
+        dap_json_t *l_spent_outs = NULL;
+        if (!dap_json_object_get_ex(l_first_item, "spent_outs", &l_spent_outs) ||
+            !l_spent_outs || dap_json_array_length(l_spent_outs) == 0 || l_cond_out_idx == -1) {
+            l_found_last = true;
+            // Store the final response for processing
+            l_final_response = response;
+            break;
+            
+        }
+
+        // Look for the conditional output index in spent_outs
+        bool l_found_next = false;
+        for (size_t i = 0; i < dap_json_array_length(l_spent_outs); i++) {
+            dap_json_t *l_spent_out = dap_json_array_get_idx(l_spent_outs, i);
+            dap_json_t *out_obj = NULL, *spent_by_tx_obj = NULL;
+            if (dap_json_object_get_ex(l_spent_out, "out", &out_obj) &&
+                dap_json_object_get_ex(l_spent_out, "is_spent_by_tx", &spent_by_tx_obj)) {
+                int out_value = dap_json_object_get_int(out_obj, NULL);
+                if (out_value == l_cond_out_idx) {
+                    const char *l_next_hash = dap_json_get_string(spent_by_tx_obj);
+                    if (l_next_hash && dap_chain_hash_fast_from_str(l_next_hash, &l_current_hash) == 0) {
+                        l_found_next = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!l_found_next) {
+            l_found_last = true;
+            // Store the final response for processing
+            l_final_response = response;
+        } else {
+            // Free the current response as we'll get a new one
+            dap_json_object_free(response);
+        }
+    }
+    
+    if (!l_final_response) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_INVALID_RESPONSE_FORMAT, "No final response available");
+        return NULL;
+    }
+    
+    l_response_array = dap_json_array_get_idx(l_final_response, 0);
+    if (!l_response_array) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_INVALID_RESPONSE_FORMAT, "Can't get the first element from the response array");
+        dap_json_object_free(l_final_response);
+        return NULL;
+    }
+
+    dap_json_t *items = NULL;
+    if (!dap_json_object_get_ex(l_response_array, "items", &items)) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_ITEMS_FOUND, "No items found in response");
+        dap_json_object_free(l_final_response);
+        return NULL;
+    }
+
+    uint32_t l_counter_idx = 0;
+    int items_count = dap_json_array_length(items);
+
+    for (int i = 0; i < items_count; i++) {
+        dap_json_t *item = dap_json_array_get_idx(items, i);
+        dap_json_t *l_type_obj = NULL;
+    dap_json_object_get_ex(item, "type", &l_type_obj);
+    const char *item_type = l_type_obj ? dap_json_get_string(l_type_obj) : NULL;
+        if (!item_type) {
+            continue;
+        }
+
+        if (dap_strcmp(item_type, "out_cond") == 0) {
+            dap_json_t *l_subtype_obj = NULL;
+       dap_json_object_get_ex(item, "subtype", &l_subtype_obj);
+       const char *subtype = l_subtype_obj ? dap_json_get_string(l_subtype_obj) : NULL;
+            if (subtype && !dap_strcmp(subtype, "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE")) {
+                l_cond_tx = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+                if (!l_cond_tx) {
+                    dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_COND_TX, "Memory allocation failed");
+                    dap_json_object_free(l_final_response);
+                    return NULL;
+                }
+
+                l_cond_tx->header.item_type = TX_ITEM_TYPE_OUT_COND;
+
+                dap_json_t *value_obj = NULL, *uid_obj = NULL, *ts_expires_obj = NULL;
+                dap_json_t *buy_token_obj = NULL, *rate_obj = NULL, *tsd_size_obj = NULL;
+
+                if (dap_json_object_get_ex(item, "value", &value_obj)) {
+                    const char *value_str = dap_json_get_string(value_obj);
+                    l_cond_tx->header.value = dap_chain_balance_scan(value_str);
+                }
+
+                l_cond_tx->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
+
+                if (dap_json_object_get_ex(item, "uid", &uid_obj)) {
+                    const char *uid_str = dap_json_get_string(uid_obj);
+                    l_cond_tx->header.srv_uid.uint64 = strtoull(uid_str, NULL, 16);
+                }
+
+                if (dap_json_object_get_ex(item, "ts_expires", &ts_expires_obj)) {
+                    const char *ts_expires_str = dap_json_get_string(ts_expires_obj);
+                    l_cond_tx->header.ts_expires = dap_time_from_str_rfc822(ts_expires_str);
+                }
+
+                if (dap_json_object_get_ex(item, "buy_token", &buy_token_obj)) {
+                    const char *buy_token_str = dap_json_get_string(buy_token_obj);
+                    if (buy_token_str) {
+                        strncpy(l_cond_tx->subtype.srv_xchange.buy_token, buy_token_str, sizeof(l_cond_tx->subtype.srv_xchange.buy_token) - 1);
+                        l_cond_tx->subtype.srv_xchange.buy_token[sizeof(l_cond_tx->subtype.srv_xchange.buy_token) - 1] = '\0';
+                    }
+                }
+
+                if (dap_json_object_get_ex(item, "rate", &rate_obj)) {
+                    const char *rate_str = dap_json_get_string(rate_obj);
+                    l_cond_tx->subtype.srv_xchange.rate = dap_chain_balance_scan(rate_str);
+                }
+
+                if (dap_json_object_get_ex(item, "tsd_size", &tsd_size_obj)) {
+                    l_cond_tx->tsd_size = dap_json_object_get_int(tsd_size_obj, NULL);
+                }
+                // Set seller address from the first transaction
+                l_cond_tx->subtype.srv_xchange.seller_addr = *a_seller_addr;
+                *a_prev_cond_idx = l_counter_idx;
+            }
+            l_counter_idx++;
+        } else if (dap_strcmp(item_type, "out") == 0 || dap_strcmp(item_type, "out_ext") == 0 || dap_strcmp(item_type, "old_out") == 0) {
+            l_counter_idx++;
+        } else {
+            l_counter_idx++;
+        }
+    }
+
+    // Use the final response for extracting final data
+    l_response_array = l_final_response;
+
+    if (!l_cond_tx) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_COND_TX, "No transaction output condition found");
+        dap_json_object_free(l_final_response);
+        return NULL;
+    }
+
+    dap_json_t *final_token_ticker_obj = NULL;
+    if (!dap_json_object_get_ex(l_response_array, "token_ticker", &final_token_ticker_obj)) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_TOKEN_TICKER, "Token_ticker not found in response");
+        dap_json_object_free(l_final_response);
+        return NULL;
+    }
+    const char *l_final_token_ticker = dap_json_get_string(final_token_ticker_obj);
+    if (!l_final_token_ticker) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_TOKEN_TICKER, "Token_ticker not found in response");
+        DAP_DELETE(l_cond_tx);
+        dap_json_object_free(l_final_response);
+        return NULL;
+    }
+    *a_token_ticker = dap_strdup(l_final_token_ticker);
+    if (!*a_token_ticker) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_TOKEN_TICKER, "Failed to allocate token_ticker");
+        DAP_DELETE(l_cond_tx);
+        dap_json_object_free(l_final_response);
+        return NULL;
+    }
+
+    dap_json_t *final_ts_created_obj = NULL;
+    if (!dap_json_object_get_ex(l_response_array, "ts_created", &final_ts_created_obj)) {
+        DAP_DELETE(l_cond_tx);
+        dap_json_object_free(l_final_response);
+        return NULL;
+    }
+    const char *l_final_ts_created = dap_json_get_string(final_ts_created_obj);
+    if (!l_final_ts_created) {
+        DAP_DELETE(l_cond_tx);
+        DAP_DELETE(*a_token_ticker);
+        *a_token_ticker = NULL;
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_TIMESTAMP, "TS_Created not found in response");
+        dap_json_object_free(l_final_response);
+        return NULL;
+    }
+    *a_ts_created_str = dap_strdup(l_final_ts_created);
+    if (!*a_ts_created_str) {
+        DAP_DELETE(l_cond_tx);
+        DAP_DELETE(*a_token_ticker);
+        *a_token_ticker = NULL;
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_TIMESTAMP, "Failed to allocate ts_created");
+        dap_json_object_free(l_final_response);
+        return NULL;
+    }
+
+    dap_json_object_free(l_final_response);
+    *a_hash_out = l_current_hash;
+    return l_cond_tx;
+}

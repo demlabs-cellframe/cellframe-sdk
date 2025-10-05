@@ -81,10 +81,8 @@ dap_json_t* dap_chain_tx_compose_config_return_response_handler(dap_chain_tx_com
 int dap_json_compose_error_add(dap_json_t* a_json_obj_reply, int a_code_error, const char *msg, ...);
 
 // Note: dap_ledger_get_list_tx_outs_from_json* functions moved to ledger module (dap_chain_ledger.h)
-// Include dap_chain_ledger.h to use them
-
-dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  dap_chain_tx_compose_config_t * a_config, 
-                                                  const char **a_ts_created_str, const char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
+// Note: dap_find_last_xchange_tx renamed to dap_chain_net_srv_xchange_find_last_tx and moved to xchange module
+// Include dap_chain_ledger.h and dap_chain_net_srv_xchange_compose.h to use them
 
 dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, 
                                   const char *l_fee_str, const char *addr_base58_to, dap_chain_addr_t *l_addr_from, 

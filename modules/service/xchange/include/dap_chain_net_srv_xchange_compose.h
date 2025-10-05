@@ -50,3 +50,17 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose(
     const char *a_tx_ticker, 
     uint32_t a_prev_cond_idx, 
     dap_chain_tx_compose_config_t *a_config);
+
+/**
+ * @brief Find last transaction in xchange order chain
+ * @details Follows the chain of transactions from initial order to the last one
+ * @note Moved from compose module to break circular dependency
+ */
+dap_chain_tx_out_cond_t *dap_chain_net_srv_xchange_find_last_tx(
+    dap_hash_fast_t *a_order_hash,  
+    dap_chain_addr_t *a_seller_addr,  
+    dap_chain_tx_compose_config_t *a_config, 
+    const char **a_ts_created_str, 
+    const char **a_token_ticker, 
+    uint32_t *a_prev_cond_idx, 
+    dap_hash_fast_t *a_hash_out);
