@@ -104,6 +104,7 @@ void dap_chain_blocks_test()
     dap_chain_id_t l_chain_id = {.uint64 = 1};
 
     dap_chain_t *l_chain =  dap_chain_create(l_chain_net_name, l_chain_name, l_chain_net_id, l_chain_id);
+    dap_chain_set_cs_type(l_chain, "esbocs");
     dap_config_t l_cfg = {};
     dap_assert_PIF(dap_chain_cs_create(l_chain, &l_cfg) == 0, "Chain cs creating: ");
 

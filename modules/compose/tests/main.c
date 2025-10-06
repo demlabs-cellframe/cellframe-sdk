@@ -87,7 +87,7 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_json_t *l_error_json = dap_json_array_new();
     dap_test_msg("convert to json");
     int l_json_result = dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
-    if (l_json_result == 0 && dap_json_object_length(l_datum_1_json) > 0) {
+    if (l_json_result == 0 && l_datum_1_json && dap_json_is_object(l_datum_1_json) && dap_json_object_length(l_datum_1_json) > 0) {
         dap_test_msg("dap_chain_net_tx_to_json PASS.");
         printf("\n");
         

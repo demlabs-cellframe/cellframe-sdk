@@ -1028,11 +1028,13 @@ void dap_ledger_test_run(void){
     l_net->pub.ledger = l_ledger;
 
     dap_chain_t *l_chain_zero =  dap_chain_create(l_net->pub.name, "test_chain_zerochain", l_net->pub.id, (dap_chain_id_t){.uint64 = 0});
+    dap_chain_set_cs_type(l_chain_zero, "dag_poa");
     dap_config_t l_cfg = {};
     dap_assert_PIF(dap_chain_cs_create(l_chain_zero, &l_cfg) == 0, "Chain cs dag_poa creating: ");
     DL_APPEND(l_net->pub.chains, l_chain_zero);
 
     dap_chain_t *l_chain_main =  dap_chain_create(l_net->pub.name, "test_chain_main", l_net->pub.id, (dap_chain_id_t){.uint64 = 1});
+    dap_chain_set_cs_type(l_chain_main, "esbocs");
     dap_assert_PIF(dap_chain_cs_create(l_chain_main, &l_cfg) == 0, "Chain esbocs cs creating: ");
     DL_APPEND(l_net->pub.chains, l_chain_main);
 
