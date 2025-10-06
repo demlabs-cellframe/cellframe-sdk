@@ -588,10 +588,6 @@ dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger);
  * @note Moved from compose module to ledger to break circular dependencies
  */
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, int a_outputs_count, 
-                                                   uint256_t a_value_need, uint256_t *a_value_transfer);
-dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(dap_json_t *a_outputs_array, int a_outputs_count, 
-                                                       uint256_t a_value_need, uint256_t *a_value_transfer);
-dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(dap_json_t *a_outputs_array, int a_outputs_count, 
                                                      uint256_t a_value_need, uint256_t *a_value_transfer, 
                                                      bool a_need_all_outputs);
 

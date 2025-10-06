@@ -12,9 +12,6 @@
 #include "dap_json.h"
 #include "dap_common.h"
 
-#ifdef DAP_CHAIN_TX_COMPOSE_TEST
-#include <sodium.h>
-#endif
 
 #define LOG_TAG "dap_chain_ledger_json"
 
@@ -24,38 +21,10 @@
  * @param a_outputs_count Number of outputs in array
  * @param a_value_need Required value
  * @param a_value_transfer[out] Actual transferred value
- * @return List of dap_chain_tx_used_out_item_t or NULL
- */
-dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, int a_outputs_count, 
-                                                   uint256_t a_value_need, uint256_t *a_value_transfer)
-{
-    return dap_ledger_get_list_tx_outs_from_jso_ex(a_outputs_array, a_outputs_count, a_value_need, a_value_transfer, false);
-}
-
-/**
- * @brief Get all transaction outputs from JSON array
- * @param a_outputs_array JSON array of outputs
- * @param a_outputs_count Number of outputs in array
- * @param a_value_need Required value
- * @param a_value_transfer[out] Actual transferred value
- * @return List of dap_chain_tx_used_out_item_t or NULL
- */
-dap_list_t *dap_ledger_get_list_tx_outs_from_json_all(dap_json_t *a_outputs_array, int a_outputs_count, 
-                                                       uint256_t a_value_need, uint256_t *a_value_transfer)
-{
-    return dap_ledger_get_list_tx_outs_from_jso_ex(a_outputs_array, a_outputs_count, a_value_need, a_value_transfer, true);
-}
-
-/**
- * @brief Get list of transaction outputs from JSON array (extended version)
- * @param a_outputs_array JSON array of outputs
- * @param a_outputs_count Number of outputs in array
- * @param a_value_need Required value
- * @param a_value_transfer[out] Actual transferred value
  * @param a_need_all_outputs Get all outputs or stop when value is reached
  * @return List of dap_chain_tx_used_out_item_t or NULL
  */
-dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(dap_json_t *a_outputs_array, int a_outputs_count, 
+dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, int a_outputs_count, 
                                                      uint256_t a_value_need, uint256_t *a_value_transfer, 
                                                      bool a_need_all_outputs)
 {

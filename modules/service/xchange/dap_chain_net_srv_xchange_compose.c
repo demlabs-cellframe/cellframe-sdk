@@ -10,7 +10,7 @@
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_net_srv_xchange_compose.h"
 #include "dap_chain_tx_compose.h"
-#include "dap_chain_net_srv_stake_lock_compose.h"
+#include "dap_chain_net_srv_stake_compose.h"
 #include "dap_chain_tx_compose_callbacks.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net_srv_order.h"
@@ -127,7 +127,7 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_compose_tx_invalidate(dap_chain_
         // list of transaction with 'out' items to get net fee
         dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
                                                                l_total_fee, 
-                                                               &l_transfer_fee);
+                                                               &l_transfer_fee, false);
         if (!l_list_fee_out) {
             dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INSUFFICIENT_FUNDS, "Not enough funds to pay fee");
             dap_json_object_free(l_outs_native);

@@ -92,31 +92,13 @@ dap_json_t* dap_tx_cond_create_compose(const char *a_net_name, const char *a_tok
                                        const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, const char *a_value_per_unit_max_str,
                                        const char *a_srv_uid_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
 
-dap_json_t* dap_cli_hold_compose(const char *a_net_name, const char *a_chain_id_str, const char *a_ticker_str, 
-                                 dap_chain_addr_t *a_wallet_addr, const char *a_coins_str, 
-                                 const char *a_time_staking_str, const char *a_cert_str, const char *a_value_fee_str, 
-                                 const char *a_reinvest_percent_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
+// VOTING compose functions moved to modules/service/voting/include/dap_chain_net_srv_voting_compose.h
+// STAKE compose functions moved to modules/service/stake/include/dap_chain_net_srv_stake_lock_compose.h
+// To use: #include "dap_chain_net_srv_voting_compose.h" or #include "dap_chain_net_srv_stake_lock_compose.h"
 
+// Note: dap_cli_hold_compose moved to stake module as dap_chain_net_srv_stake_compose_cli_hold
 dap_json_t* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_str, dap_chain_addr_t *a_wallet_addr, 
                                  const char *a_tx_str, const char *a_value_fee_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
-
-// VOTING compose functions moved to modules/service/voting/include/dap_chain_net_srv_voting_compose.h
-// To use: #include "dap_chain_net_srv_voting_compose.h"
-
-dap_json_t* dap_cli_srv_stake_order_create_staker_compose(const char *l_net_str, const char *l_value_str, const char *l_fee_str, 
-                                                          const char *l_tax_str, const char *l_addr_str, dap_chain_addr_t *a_wallet_addr, 
-                                                          const char *l_url_str, uint16_t l_port, const char *l_enc_cert);
-
-dap_json_t* dap_cli_srv_stake_delegate_compose(const char* a_net_str, dap_chain_addr_t *a_wallet_addr, const char* a_cert_str, 
-                                               const char* a_pkey_full_str, const char* a_sign_type_str, const char* a_value_str,
-                                               const char* a_node_addr_str, const char* a_order_hash_str, const char* a_url_str, 
-                                               uint16_t a_port, const char* a_sovereign_addr_str, const char* a_fee_str, const char *a_enc_cert);
-
-dap_chain_datum_tx_t* dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, 
-                                                     dap_chain_tx_compose_config_t *a_config);
-
-dap_json_t* dap_cli_srv_stake_invalidate_compose(const char *a_net_str, const char *a_tx_hash_str, dap_chain_addr_t *a_wallet_addr, 
-                                                 const char *a_cert_str, const char *a_fee_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
 
 dap_chain_datum_tx_t* dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
                                                        const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, 
@@ -130,26 +112,10 @@ dap_chain_datum_tx_t* dap_chain_mempool_tx_create_cond_compose(dap_chain_addr_t 
                                                               dap_chain_srv_uid_t a_srv_uid, uint256_t a_value_fee, 
                                                               const void *a_cond, size_t a_cond_size, dap_chain_tx_compose_config_t *a_config);
 
-dap_chain_datum_tx_t* dap_stake_lock_datum_create_compose(dap_chain_addr_t *a_wallet_addr, const char *a_main_ticker,
-                                                         uint256_t a_value, uint256_t a_value_fee, dap_time_t a_time_staking, 
-                                                         uint256_t a_reinvest_percent, const char *a_delegated_ticker_str, 
-                                                         uint256_t a_delegated_value, const char *a_chain_id_str, 
-                                                         dap_chain_tx_compose_config_t *a_config);
-
-dap_chain_datum_tx_t* dap_stake_unlock_datum_create_compose(dap_chain_addr_t *a_wallet_addr, dap_hash_fast_t *a_stake_tx_hash, 
-                                                           uint32_t a_prev_cond_idx, const char *a_main_ticker, uint256_t a_value,
-                                                           uint256_t a_value_fee, const char *a_delegated_ticker_str, 
-                                                           uint256_t a_delegated_value, dap_chain_tx_compose_config_t *a_config);
-
 dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
                                                        uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                                                        bool a_vote_changing_allowed, dap_chain_addr_t *a_wallet_addr,
                                                        const char *a_token_ticker, dap_chain_tx_compose_config_t *a_config);
-
-dap_chain_datum_tx_t* dap_stake_tx_create_compose(dap_chain_addr_t *a_wallet_addr, uint256_t a_value, uint256_t a_fee,
-                                                 dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
-                                                 dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax,
-                                                 dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey, dap_chain_tx_compose_config_t *a_config);
 
 #ifdef __cplusplus
 }

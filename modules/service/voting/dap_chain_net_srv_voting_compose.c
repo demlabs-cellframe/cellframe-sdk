@@ -162,7 +162,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, 
     dap_list_t *l_list_used_out = NULL;
     l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                             l_total_fee,
-                                                            &l_value_transfer);
+                                                            &l_value_transfer, false);
 
     dap_json_object_free(l_outs);
     if (!l_list_used_out) {
@@ -583,9 +583,9 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
 #endif
 
     // todo replace with func witch will return all outpurs not only enough outputs
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json_all(l_outs, l_outputs_count,
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                             l_total_fee,
-                                                            &l_value_transfer);
+                                                            &l_value_transfer, true);
     dap_json_object_free(l_outs);
     if (!l_list_used_out) {
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_NOT_ENOUGH_FUNDS_TO_TRANSFER, "Not enough funds to transfer");
@@ -653,7 +653,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     if (!l_native_tx) {
         dap_list_t * l_list_fee_outs = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                                l_total_fee, 
-                                                               &l_fee_transfer);
+                                                               &l_fee_transfer, false);
         if (!l_list_fee_outs) {
             dap_json_compose_error_add(a_config->response_handler, -100, "Not enough funds to pay fee");
             dap_json_object_free(l_outs);
@@ -721,9 +721,9 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
 
     size_t l_cond_outputs_count = dap_json_array_length(l_cond_tx_outputs);
 
-    dap_list_t *l_cond_outs = dap_ledger_get_list_tx_outs_from_json_all(l_cond_tx_outputs, l_cond_outputs_count,
+    dap_list_t *l_cond_outs = dap_ledger_get_list_tx_outs_from_json(l_cond_tx_outputs, l_cond_outputs_count,
                                                             l_total_fee,    
-                                                            &l_value_transfer);
+                                                            &l_value_transfer, true);
     for (dap_list_t *it = l_cond_outs; it; it = it->next) {
         dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)it->data;
         if (l_votes_count > 0) { 

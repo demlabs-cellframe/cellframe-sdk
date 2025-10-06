@@ -27,7 +27,7 @@
 #include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_net_srv_stake_lock.h"
+#include "dap_chain_net_srv_stake.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
@@ -253,7 +253,7 @@ static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
  * @brief dap_chain_net_srv_external_stake_init
  * @return
  */
-int dap_chain_net_srv_stake_lock_init()
+int dap_chain_net_srv_stake_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, NULL, NULL, s_stake_lock_callback_updater, NULL, NULL);
     dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, "Stake lock service commands", dap_chain_node_cli_cmd_id_from_str("stake_lock"),
@@ -274,9 +274,9 @@ int dap_chain_net_srv_stake_lock_init()
 }
 
 /**
- * @brief dap_chain_net_srv_stake_lock_deinit
+ * @brief dap_chain_net_srv_stake_deinit
  */
-void dap_chain_net_srv_stake_lock_deinit()
+void dap_chain_net_srv_stake_deinit()
 {
 
 }

@@ -26,8 +26,8 @@
 
 #define DAP_CHAIN_NET_SRV_STAKE_LOCK_ID 0x12
 
-int dap_chain_net_srv_stake_lock_init(void);
-void dap_chain_net_srv_stake_lock_deinit(void);
+int dap_chain_net_srv_stake_init(void);
+void dap_chain_net_srv_stake_deinit(void);
 
 typedef enum s_com_stake_lock_err{
     DAP_CHAIN_NODE_CLI_COM_STAKE_LOCK_OK = 0,
