@@ -49,7 +49,10 @@ typedef struct dap_chain_type_dag_poa_presign_callback{
 } dap_chain_type_dag_poa_presign_callback_t;
 
 typedef struct dap_chain_type_dag_poa_round_item {
-    dap_chain_hash_fast_t datum_hash;
+    union {
+        dap_chain_hash_fast_t hash;     // Datum hash (packed)
+        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+    } datum_hash;
     dap_chain_type_dag_t *dag;
     UT_hash_handle hh;
 } dap_chain_type_dag_poa_round_item_t;
@@ -286,7 +289,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, UNUSED_ARG 
                         ret = 0;
                         if (l_event_is_ready && l_poa_pvt->auto_round_complete) { // cs done (minimum signs & verify passed) 
                             dap_chain_type_dag_poa_round_item_t l_event_item = {
-                                .datum_hash = l_round_item->round_info.datum_hash,
+                                .datum_hash.hash = l_round_item->round_info.datum_hash,
                                 .dag = l_dag
                             };
                             s_round_event_cs_done(&l_event_item, l_poa_pvt->confirmations_timeout);
@@ -549,7 +552,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         }
         dap_chain_type_dag_event_round_item_t *l_round_item = (dap_chain_type_dag_event_round_item_t*)a_values[i].value;
         dap_chain_type_dag_event_t *l_event = (dap_chain_type_dag_event_t *)l_round_item->event_n_signs;
-        if ( dap_hash_fast_compare( &l_arg->datum_hash, &l_round_item->round_info.datum_hash )
+        if ( dap_hash_fast_compare( &l_arg->datum_hash.hash, &l_round_item->round_info.datum_hash )
             && l_round_item->round_info.reject_count < l_poa_pvt->auth_certs_count_verify)
         {
             l_dups_list = dap_list_append(l_dups_list, l_round_item);
@@ -566,7 +569,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     dap_chain_type_dag_event_round_item_t *l_chosen_item = s_round_event_choose_dup(l_dups_list, l_max_signs_count);
     dap_list_free(l_dups_list);
     char l_datum_hash_str[DAP_HASH_FAST_STR_SIZE];
-    dap_hash_fast_to_str(&l_arg->datum_hash, l_datum_hash_str, sizeof(l_datum_hash_str));
+    dap_hash_fast_to_str(&l_arg->datum_hash.hash, l_datum_hash_str, sizeof(l_datum_hash_str));
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
         dap_chain_type_dag_event_t *l_new_atom = (dap_chain_type_dag_event_t *)l_chosen_item->event_n_signs;
@@ -618,14 +621,14 @@ static void s_round_event_cs_done(dap_chain_type_dag_poa_round_item_t *a_event_i
     dap_chain_type_dag_poa_pvt_t *l_poa_pvt = PVT( DAP_CHAIN_TYPE_DAG_POA(a_event_item->dag) );
     dap_chain_type_dag_poa_round_item_t *l_event_item = NULL;
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
-    HASH_FIND(hh, l_poa_pvt->event_items, &a_event_item->datum_hash, sizeof(dap_hash_fast_t), l_event_item);
+    HASH_FIND(hh, l_poa_pvt->event_items, &a_event_item->datum_hash.hash_key, DAP_HASH_FAST_SIZE, l_event_item);
     if (!l_event_item) {
         l_event_item = DAP_DUP(a_event_item);
         if ( !dap_timerfd_start(a_timeout_s * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_event_item) )
             return DAP_DELETE(l_event_item), pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock), log_it(L_CRITICAL, "Timer creation failed");
-        HASH_ADD(hh, l_poa_pvt->event_items, datum_hash, sizeof(dap_hash_fast_t), l_event_item);
+        HASH_ADD(hh, l_poa_pvt->event_items, datum_hash.hash_key, sizeof(l_event_item->datum_hash.hash_key), l_event_item);
         log_it(L_INFO, "Confirmation timer for datum %s started [%d s]",
-                       dap_chain_hash_fast_to_str_static(&l_event_item->datum_hash), a_timeout_s);
+                       dap_chain_hash_fast_to_str_static(&l_event_item->datum_hash.hash), a_timeout_s);
     }
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
 }
@@ -804,7 +807,7 @@ static int s_callback_event_round_sync(dap_chain_type_dag_t * a_dag, const char 
     int l_ret = 0;
     if ( dap_chain_type_dag_event_sign_exists(l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key) ) {
         if (l_poa_pvt->auto_round_complete && s_round_event_ready_minimum_check(a_dag, l_event, l_event_size, (char*)a_key) ) {
-            dap_chain_type_dag_poa_round_item_t l_event_item = { .datum_hash = l_round_item->round_info.datum_hash, .dag = a_dag };
+            dap_chain_type_dag_poa_round_item_t l_event_item = { .datum_hash.hash = l_round_item->round_info.datum_hash, .dag = a_dag };
             return s_round_event_cs_done(&l_event_item, a_by_us ? l_poa_pvt->confirmations_timeout : 2*l_poa_pvt->confirmations_timeout), l_ret;
         }
     } else {
