@@ -1387,12 +1387,24 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
         printf("Legacy burning tx add result: %d\n", err_code);
         dap_assert(!err_code, "Adding of legacy burning transaction to ledger is");
 
+        // Test with wrong key (not owner) - should fail verificator check
+        dap_enc_key_t *l_wrong_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_BLISS, NULL, 0, NULL, 0, 0);
+        dap_chain_datum_tx_t *l_unstake_tx_wrong = dap_ledger_test_create_legacy_unstake_tx_cond(l_wrong_key, &l_stake_tx_hash, &l_burning_tx_hash, a_ledger);
+        dap_hash_fast_t l_unstake_tx_wrong_hash = {};
+        dap_hash_fast(l_unstake_tx_wrong, dap_chain_datum_tx_get_size(l_unstake_tx_wrong), &l_unstake_tx_wrong_hash);
+        err_code = dap_ledger_tx_add_check(a_ledger, l_unstake_tx_wrong, dap_chain_datum_tx_get_size(l_unstake_tx_wrong), &l_unstake_tx_wrong_hash);
+        printf("Legacy unstake with wrong key check err_code = %d\n", err_code);
+        dap_assert(err_code == DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE, "Checking of legacy unstake with wrong key is");
+        dap_enc_key_delete(l_wrong_key);
+        DAP_DELETE(l_unstake_tx_wrong);
+        
+        // Test with correct key (owner) - should pass
         dap_chain_datum_tx_t *l_unstake_tx = dap_ledger_test_create_legacy_unstake_tx_cond(a_from_key, &l_stake_tx_hash, &l_burning_tx_hash, a_ledger);
         dap_hash_fast_t l_unstake_tx_hash = {};
         dap_hash_fast(l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);
         err_code = dap_ledger_tx_add_check(a_ledger, l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);
-        printf("Legacy unstake err_code = %d\n", err_code);
-        dap_assert(err_code == DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE, "Checking of legacy unstake is");
+        printf("Legacy unstake with owner key check err_code = %d\n", err_code);
+        dap_assert(!err_code, "Checking of legacy unstake with owner key is");
         err_code = dap_ledger_tx_add(a_ledger, l_unstake_tx, &l_unstake_tx_hash, false, NULL);
         printf("Legacy unstake add result: %d\n", err_code);
         dap_assert(!err_code, "Adding of legacy unstake to ledger is");
