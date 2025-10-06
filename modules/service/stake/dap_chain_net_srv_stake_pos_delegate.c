@@ -100,7 +100,10 @@ struct cache_data {
 } DAP_ALIGN_PACKED;
 
 struct cache_item {
-    dap_chain_hash_fast_t tx_hash;
+    union {
+        dap_chain_hash_fast_t hash;     // Transaction hash (packed)
+        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+    } tx_hash;
     dap_chain_addr_t signing_addr;
     UT_hash_handle hh;
 };
@@ -459,14 +462,14 @@ static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id)
 
 static void s_stake_add_tx(dap_chain_net_t *a_net, dap_chain_net_srv_stake_item_t *a_stake)
 {
-    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &a_stake->tx_hash);
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &a_stake->tx_hash.hash);
     if (!l_tx) {
-        log_it(L_ERROR, "Can't find tx %s for delegated key update", dap_hash_fast_to_str_static(&a_stake->tx_hash));
+        log_it(L_ERROR, "Can't find tx %s for delegated key update", dap_hash_fast_to_str_static(&a_stake->tx_hash.hash));
         return;
     }
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
     if (!l_cond) {
-        log_it(L_ERROR, "Can't find pos-delegate COND_OUT for tx %s for delegated key update", dap_hash_fast_to_str_static(&a_stake->tx_hash));
+        log_it(L_ERROR, "Can't find pos-delegate COND_OUT for tx %s for delegated key update", dap_hash_fast_to_str_static(&a_stake->tx_hash.hash));
         return;
     }
     a_stake->locked_value = a_stake->value = l_cond->header.value;
@@ -507,8 +510,8 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->signing_addr = *a_signing_addr;
     l_stake->value = l_stake->locked_value = a_value;
     if (a_decree) {
-        dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_stake->decree_hash);
-        dap_chain_datum_decree_get_hash(a_decree, &l_stake->tx_hash);
+        dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_stake->decree_hash.hash);
+        dap_chain_datum_decree_get_hash(a_decree, &l_stake->tx_hash.hash);
     }
     l_stake->is_active = true;
     if (dap_pkey_get_size(a_pkey)) {
@@ -524,8 +527,8 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
         s_stake_recalculate_weights(a_signing_addr->net_id);
         return;
     }
-    if (!dap_hash_fast_is_blank(&l_stake->tx_hash)) {
-        HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
+    if (!dap_hash_fast_is_blank(&l_stake->tx_hash.hash)) {
+        HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash.hash_key, sizeof(l_stake->tx_hash.hash_key), l_stake);
         dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
         if (!l_chain || !l_chain->generation)
             s_stake_add_tx(a_net, l_stake);
@@ -581,8 +584,8 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
     HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
     char *l_old_value_str = dap_chain_balance_coins_print(l_stake->locked_value);
     l_stake->locked_value = l_stake->value = a_new_value;
-    l_stake->tx_hash = *a_new_tx_hash;
-    HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash, sizeof(dap_hash_fast_t), l_stake);
+    l_stake->tx_hash.hash = *a_new_tx_hash;
+    HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash.hash_key, sizeof(l_stake->tx_hash.hash_key), l_stake);
     const char *l_new_value_str; dap_uint256_to_char(a_new_value, &l_new_value_str);
     log_it(L_NOTICE, "Updated key with fingerprint %s and locked value %s to new locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_old_value_str,
@@ -625,7 +628,7 @@ void dap_chain_net_srv_stake_set_allowed_min_value(dap_chain_net_id_t a_net_id, 
     dap_return_if_fail(l_srv_stake);
     l_srv_stake->delegate_allowed_min = a_value;
     for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
-        if (dap_hash_fast_is_blank(&it->tx_hash))
+        if (dap_hash_fast_is_blank(&it->tx_hash.hash))
             it->locked_value = it->value = a_value;
 }
 
@@ -763,7 +766,7 @@ static bool s_stake_cache_check_tx(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx
     struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
     dap_return_val_if_fail(l_srv_stake, false);
     struct cache_item *l_stake = NULL;
-    HASH_FIND(hh, l_srv_stake->cache, a_tx_hash, sizeof(*a_tx_hash), l_stake);
+    HASH_FIND(hh, l_srv_stake->cache, a_tx_hash->raw, DAP_HASH_FAST_SIZE, l_stake);
     if (l_stake) {
         dap_chain_net_srv_stake_key_invalidate(&l_stake->signing_addr);
         return true;
@@ -802,8 +805,8 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
             return -3;
         }
         l_cache->signing_addr   = l_cache_data->signing_addr;
-        l_cache->tx_hash        = l_cache_data->tx_hash;
-        HASH_ADD(hh, l_srv_stake->cache, tx_hash, sizeof(dap_hash_fast_t), l_cache);
+        l_cache->tx_hash.hash   = l_cache_data->tx_hash;
+        HASH_ADD(hh, l_srv_stake->cache, tx_hash.hash_key, sizeof(l_cache->tx_hash.hash_key), l_cache);
     }
     dap_global_db_objs_delete(l_objs, l_objs_count);
     dap_ledger_set_cache_tx_check_callback(l_ledger, s_stake_cache_check_tx);
@@ -1644,7 +1647,7 @@ void dap_chain_net_srv_stake_remove_approving_decree_info(dap_chain_net_t *a_net
     }
 // func work
     char *l_delegated_group = s_get_approved_group(a_net); 
-    const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_stake->tx_hash);
+    const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_stake->tx_hash.hash);
     dap_global_db_del(l_delegated_group, l_tx_hash_str, NULL, NULL);
     DAP_DEL_Z(l_delegated_group);
 }
@@ -2726,7 +2729,7 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
                                                            " Try to update with tx hash instead");
             return -24;
         }
-        l_tx_hash = l_stake->tx_hash;
+        l_tx_hash = l_stake->tx_hash.hash;
     }
 
     const char *l_tx_hash_str_tmp = l_tx_hash_str ? l_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash);
@@ -2903,7 +2906,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
                                                            " Try to invalidate with tx hash instead");
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_INVALIDATE_CERT_PKEY_ERR;
         }
-        l_tx_hash = l_stake->tx_hash;
+        l_tx_hash = l_stake->tx_hash.hash;
     }
 
     const char *l_tx_hash_str_tmp = l_tx_hash_str ? l_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash);
@@ -2934,7 +2937,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_INVALIDATE_NET_NO_STAKE_ERR;
         }
         dap_chain_net_srv_stake_item_t *l_stake = NULL;
-        HASH_FIND(ht, l_srv_stake->tx_itemlist, &l_tx_hash, sizeof(dap_hash_t), l_stake);
+        HASH_FIND(ht, l_srv_stake->tx_itemlist, l_tx_hash.raw, DAP_HASH_FAST_SIZE, l_stake);
         if (l_stake) {
             char l_pkey_hash_str[DAP_HASH_FAST_STR_SIZE]; 
             dap_hash_fast_to_str(&l_stake->signing_addr.data.hash_fast, l_pkey_hash_str, DAP_HASH_FAST_STR_SIZE);
@@ -3013,7 +3016,7 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
 {
     dap_json_t * l_json_obj_stake = dap_json_object_new();
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE], l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE + 1];
-    dap_chain_hash_fast_to_str(&a_stake->tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+    dap_chain_hash_fast_to_str(&a_stake->tx_hash.hash, l_tx_hash_str, sizeof(l_tx_hash_str));
     dap_chain_hash_fast_to_str(&a_stake->signing_addr.data.hash_fast, &l_pkey_hash_str[a_stake->pkey ? 0 : 1], sizeof(l_pkey_hash_str));
     if (!a_stake->pkey)
         l_pkey_hash_str[0] = '.';
@@ -3041,7 +3044,7 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     if (s_debug_more) {
         dap_json_object_add_string(l_json_obj_stake, "debug_info", NULL);
         dap_json_object_add_string(l_json_obj_stake, "pkey_full", a_stake->pkey ? "true" : "false");
-        dap_json_object_add_string(l_json_obj_stake, "decree_hash", dap_hash_fast_to_str_static(&a_stake->decree_hash));
+        dap_json_object_add_string(l_json_obj_stake, "decree_hash", dap_hash_fast_to_str_static(&a_stake->decree_hash.hash));
     }
     if (dap_chain_esbocs_started(a_stake->signing_addr.net_id))
         dap_json_object_add_string(l_json_obj_stake, "active", a_stake->is_active ? "true" : "false");
@@ -4340,7 +4343,7 @@ int dap_chain_net_srv_stake_hardfork_data_export(dap_chain_net_t *a_net, dap_lis
     for (dap_chain_net_srv_stake_item_t *l_item = l_stake_rec->itemlist; l_item; l_item = l_item->hh.next) {
         if (l_item->net->pub.id.uint64 != a_net->pub.id.uint64)
             continue;
-        if(dap_hash_fast_is_blank(&l_item->tx_hash)) {
+        if(dap_hash_fast_is_blank(&l_item->tx_hash.hash)) {
             continue;
         }
         if (!l_item->pkey) {
@@ -4348,12 +4351,14 @@ int dap_chain_net_srv_stake_hardfork_data_export(dap_chain_net_t *a_net, dap_lis
             dap_list_free_full(l_list_cur, NULL);
             return -2;
         }
-        if(dap_hash_fast_is_blank(&l_item->decree_hash)) {
-            log_it(L_ERROR, "Error in hardfork data forming - decree hash to tx %s is blank", dap_chain_hash_fast_to_str_static(&l_item->tx_hash));
+        if(dap_hash_fast_is_blank(&l_item->decree_hash.hash)) {
+            log_it(L_ERROR, "Error in hardfork data forming - decree hash to tx %s is blank", dap_chain_hash_fast_to_str_static(&l_item->tx_hash.hash));
             dap_list_free_full(l_list_cur, NULL);
             return -3;
         }
-        dap_tsd_t *l_tsd_cur = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, &l_item->decree_hash, sizeof(l_item->decree_hash));
+        dap_tsd_t *l_tsd_cur = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, &l_item->decree_hash.hash, sizeof(l_item->decree_hash.hash));
+        l_list_cur = dap_list_append(l_list_cur, l_tsd_cur);
+        l_tsd_cur = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, &l_item->tx_hash.hash, sizeof(l_item->tx_hash.hash));
         l_list_cur = dap_list_append(l_list_cur, l_tsd_cur);
     }
     *a_out = dap_list_concat(*a_out, l_list_cur);
@@ -4477,7 +4482,7 @@ int dap_chain_net_srv_stake_switch_table(dap_chain_net_id_t a_net_id, bool a_to_
         l_srv_stake->itemlist = NULL;
         // restore poa keys
         for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->hardfork.sandbox; it; it = it->hh.next)
-            if (dap_hash_fast_is_blank(&it->tx_hash)) {
+            if (dap_hash_fast_is_blank(&it->tx_hash.hash)) {
                 dap_chain_net_srv_stake_item_t *l_poa = DAP_DUP_RET_VAL_IF_FAIL(it, -4);
                 l_poa->pkey = DAP_DUP_SIZE_RET_VAL_IF_FAIL(it->pkey, dap_pkey_get_size(it->pkey), -4);
                 HASH_ADD(hh, l_srv_stake->itemlist, signing_addr.data.hash_fast, sizeof(dap_hash_fast_t), l_poa);
@@ -4519,7 +4524,7 @@ void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net)
          return;
      }
      for (dap_chain_net_srv_stake_item_t *it = l_srv_stake->itemlist; it; it = it->hh.next)
-        if (!dap_hash_fast_is_blank(&it->tx_hash))
+        if (!dap_hash_fast_is_blank(&it->tx_hash.hash))
             s_stake_add_tx(a_net, it);
     return;
 }
