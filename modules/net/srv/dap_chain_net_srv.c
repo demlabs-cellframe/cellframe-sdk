@@ -78,9 +78,9 @@ static void s_load(const char * a_path);
 static void s_load_all();
 
 static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 static int s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_price_unit_uid_t *a_price_unit);
 
 /**
@@ -92,7 +92,7 @@ int dap_chain_net_srv_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL, NULL);
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
 
-    dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
+    dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, NULL, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
@@ -678,7 +678,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
  * @return
  */
 static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t UNUSED_ARG *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner)
+                                       dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner, bool UNUSED_ARG a_check_for_apply)
 {
     dap_chain_net_t *l_net = a_ledger->net;
     assert(l_net);
@@ -718,7 +718,7 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
  * @return
  */
 static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply)
 {
     if (a_owner)
         return 0;
@@ -737,7 +737,6 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -17;
     }
 
-    // Checking politics
     if (dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
         (!l_receipt || l_receipt->receipt_info.version < 2)){
         log_it(L_ERROR, "Receipt version must be >= 2.");
