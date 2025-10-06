@@ -6,7 +6,7 @@
  * Copyright  (c) 2024
  * All rights reserved.
 
- This file is part of DAP (Distributed Applications Platform) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source position
 
     DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+    along with any DAP based position.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <stdlib.h>
@@ -56,13 +56,13 @@ static void generate_test_hash(uint32_t a_seed, dap_hash_fast_t *a_hash)
 
 /**
  * @brief Create test stake_ext started data
- * @param a_projects_count Number of projects
+ * @param a_positions_count Number of positions
  * @return Allocated stake_ext started data (caller must free)
  */
-static dap_chain_tx_event_data_stake_ext_started_t *create_test_stake_ext_started_data(uint32_t a_projects_count)
+static dap_chain_tx_event_data_stake_ext_started_t *create_test_stake_ext_started_data(uint32_t a_positions_count)
 {
     size_t l_data_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) + 
-                        (a_projects_count * sizeof(uint32_t));
+                        (a_positions_count * sizeof(uint32_t));
     
     dap_chain_tx_event_data_stake_ext_started_t *l_data = DAP_NEW_Z_SIZE(dap_chain_tx_event_data_stake_ext_started_t, l_data_size);
     if (!l_data) return NULL;
@@ -71,11 +71,11 @@ static dap_chain_tx_event_data_stake_ext_started_t *create_test_stake_ext_starte
     l_data->duration = 86400; // 1 day in seconds 
     l_data->time_unit = DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS;
     l_data->calculation_rule_id = 1;
-    l_data->total_positions = a_projects_count;
+    l_data->total_positions = a_positions_count;
     
-    // Fill project IDs array that follows the structure
-    for (uint32_t i = 0; i < a_projects_count; i++) {
-        l_data->project_ids[i] = i + 1; // Project IDs 1, 2, 3, ...
+    // Fill position IDs array that follows the structure
+    for (uint32_t i = 0; i < a_positions_count; i++) {
+        l_data->position_ids[i] = i + 1; // Position IDs 1, 2, 3, ...
     }
     
     return l_data;
@@ -252,7 +252,7 @@ void dap_srv_stake_ext_test_cache_stake_ext_management(void)
     dap_assert_PIF(l_found_stake_ext != NULL, "stake_ext should be found by hash");
     dap_assert_PIF(strcmp(l_found_stake_ext->guuid, l_group_name) == 0, "Group name should match");
     dap_assert_PIF(l_found_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE, "Status should be ACTIVE");
-    dap_assert_PIF(HASH_COUNT(l_found_stake_ext->projects) == 3, "Projects count should be 3");
+    dap_assert_PIF(HASH_COUNT(l_found_stake_ext->positions) == 3, "Positions count should be 3");
     dap_pass_msg("Test 2: Testing stake_ext search by hash: passed");
     
     // Test 3: Find stake_ext by name
@@ -347,11 +347,11 @@ void dap_srv_stake_ext_test_cache_lock_management(void)
     uint256_t l_lock_amount;
     generate_test_amount(100, &l_lock_amount);
     dap_time_t l_lock_time = dap_time_now() + 7776000; // 3 months
-    uint64_t l_project_id = 1;
+    uint64_t l_position_id = 1;
     
     l_result = dap_stake_ext_cache_add_lock(l_cache, &l_stake_ext_hash, &l_lock_hash, 
                                         l_lock_amount, l_lock_time, dap_time_now(),
-                                        l_project_id);
+                                        l_position_id);
     dap_assert_PIF(l_result == 0, "Lock should be added successfully");
     dap_pass_msg("Test 1: Testing lock addition to stake_ext: passed");
     
@@ -379,15 +379,15 @@ void dap_srv_stake_ext_test_cache_lock_management(void)
     
     l_result = dap_stake_ext_cache_add_lock(l_cache, &l_stake_ext_hash, &l_lock_hash2, 
                                         l_lock_amount2, l_lock_time, dap_time_now(),
-                                        l_project_id);
+                                        l_position_id);
     dap_assert_PIF(l_result == 0, "Second lock should be added");
     dap_assert_PIF(l_stake_ext->locks_count == 2, "stake_ext should have 2 locks");
     dap_test_msg("Second lock added");
     
     // Test 5: Unlock lock
     dap_test_msg("Test 5: Unlock lock");
-    dap_stake_ext_project_cache_item_t *l_project = dap_stake_ext_cache_find_project(l_stake_ext, l_project_id);
-    l_result = dap_stake_ext_cache_unlock_lock(l_project, &l_lock_hash);
+    dap_stake_ext_position_cache_item_t *l_position = dap_stake_ext_cache_find_position(l_stake_ext, l_position_id);
+    l_result = dap_stake_ext_cache_unlock_lock(l_position, &l_lock_hash);
     dap_assert_PIF(l_result == 0, "Lock unlockal should succeed");
     dap_assert_PIF(l_found_lock->is_unlocked == true, "Lock should be marked as unlocked");
     dap_pass_msg("Test 5: Testing lock unlockal: passed");
@@ -401,7 +401,7 @@ void dap_srv_stake_ext_test_cache_lock_management(void)
     
     l_result = dap_stake_ext_cache_add_lock(l_cache, &l_nonexistent_stake_ext, &l_lock_hash3, 
                                         l_lock_amount, l_lock_time, dap_time_now(),
-                                        l_project_id);
+                                        l_position_id);
     dap_assert_PIF(l_result != 0, "Lock to non-existent stake_ext should fail");
     dap_pass_msg("Test 7: Testing lock to non-existent stake_ext rejection: passed");
     
@@ -415,8 +415,8 @@ void dap_srv_stake_ext_test_cache_lock_management(void)
     
     // Test 8: Unlock non-existent lock
     dap_test_msg("Test 9: Unlock non-existent lock");
-    dap_stake_ext_project_cache_item_t *l_project2 = dap_stake_ext_cache_find_project(l_stake_ext, l_project_id);
-    l_result = dap_stake_ext_cache_unlock_lock(l_project2, &l_nonexistent_lock);
+    dap_stake_ext_position_cache_item_t *l_position2 = dap_stake_ext_cache_find_position(l_stake_ext, l_position_id);
+    l_result = dap_stake_ext_cache_unlock_lock(l_position2, &l_nonexistent_lock);
     dap_assert_PIF(l_result != 0, "Unlock non-existent lock should fail");
     dap_pass_msg("Test 9: Testing non-existent lock unlockal rejection: passed");
     
@@ -506,17 +506,17 @@ void dap_srv_stake_ext_test_cache_statistics(void)
     generate_test_hash(6002, &l_lock_hash2);
     uint256_t l_lock_amount;
     generate_test_amount(500, &l_lock_amount);
-    uint64_t l_project_id = 1;
+    uint64_t l_position_id = 1;
     
     l_result = dap_stake_ext_cache_add_lock(l_cache, &l_stake_ext_hash1, &l_lock_hash1, 
                                         l_lock_amount, dap_time_now() + 7776000, dap_time_now(),
-                                        l_project_id);
+                                        l_position_id);
     dap_assert_PIF(l_result == 0, "First lock should be added");
     dap_assert_PIF(l_stake_ext->locks_count == 1, "Locks count should be 1");
     
     l_result = dap_stake_ext_cache_add_lock(l_cache, &l_stake_ext_hash1, &l_lock_hash2, 
                                         l_lock_amount, dap_time_now() + 7776000, dap_time_now(),
-                                        l_project_id);
+                                        l_position_id);
     dap_assert_PIF(l_result == 0, "Second lock should be added");
     dap_assert_PIF(l_stake_ext->locks_count == 2, "Locks count should be 2");
     dap_pass_msg("Test 4: Testing lock counter functionality: passed");
@@ -525,8 +525,8 @@ void dap_srv_stake_ext_test_cache_statistics(void)
     dap_test_msg("Test 5: Counter consistency");
     
     // Unlock one lock
-    dap_stake_ext_project_cache_item_t *l_project = dap_stake_ext_cache_find_project(l_stake_ext, l_project_id);
-    l_result = dap_stake_ext_cache_unlock_lock(l_project, &l_lock_hash1);
+    dap_stake_ext_position_cache_item_t *l_position = dap_stake_ext_cache_find_position(l_stake_ext, l_position_id);
+    l_result = dap_stake_ext_cache_unlock_lock(l_position, &l_lock_hash1);
     dap_assert_PIF(l_result == 0, "Lock unlockal should succeed");
     dap_assert_PIF(l_stake_ext->locks_count == 2, "Locks count should remain 2 (unlocked locks still counted)");
     
@@ -795,7 +795,7 @@ void dap_srv_stake_ext_test_event_processing(void)
     // ===== Test 1: DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED Processing =====
     dap_test_msg("Test 1: Testing stake_ext_STARTED event processing");
     
-    // Create stake_ext started event data with 3 projects
+    // Create stake_ext started event data with 3 positions
     dap_chain_tx_event_data_stake_ext_started_t *l_started_data = create_test_stake_ext_started_data(3);
     dap_assert_PIF(l_started_data, "Failed to create stake_ext started data");
     
@@ -821,7 +821,7 @@ void dap_srv_stake_ext_test_event_processing(void)
     dap_stake_ext_cache_item_t *l_found_stake_ext = dap_stake_ext_cache_find_stake_ext_by_name(l_cache, l_group_name);
     dap_assert_PIF(l_found_stake_ext, "stake_ext should be added to cache after creation");
     dap_assert_PIF(l_found_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE, "stake_ext status should be ACTIVE");
-    dap_assert_PIF(HASH_COUNT(l_found_stake_ext->projects) == 3, "Projects count should be 3");
+    dap_assert_PIF(HASH_COUNT(l_found_stake_ext->positions) == 3, "Positions count should be 3");
     dap_assert_PIF(l_cache->active_stake_ext == 1, "Active stake_ext count should be 1");
     dap_assert_PIF(l_cache->total_stake_ext == 1, "Total stake_ext count should be 1");
     
@@ -1044,7 +1044,7 @@ void dap_srv_stake_ext_test_lock_transactions(void)
     uint256_t l_lock_amount = dap_chain_uint256_from(1000);
     uint256_t l_fee = dap_chain_uint256_from(10);
     dap_time_t l_lock_time = dap_time_now() + 3600; // 1 hour
-    uint32_t l_project_id = 1001; // Valid project from create_test_stake_ext_started_data
+    uint32_t l_position_id = 1001; // Valid position from create_test_stake_ext_started_data
     
     dap_pass_msg("Test setup - ");
     
@@ -1056,7 +1056,7 @@ void dap_srv_stake_ext_test_lock_transactions(void)
     
     // Test parameter validation
     dap_assert_PIF(!IS_ZERO_256(l_lock_amount), "Lock amount should not be zero");
-    dap_assert_PIF(l_project_id != 0, "Project ID should not be zero");
+    dap_assert_PIF(l_position_id != 0, "Position ID should not be zero");
     dap_assert_PIF(!IS_ZERO_256(l_fee), "Fee should not be zero");
     dap_assert_PIF(l_lock_time > 0, "Lock time should be valid");
     
@@ -1065,14 +1065,14 @@ void dap_srv_stake_ext_test_lock_transactions(void)
     dap_assert_PIF(l_found_stake_ext, "stake_ext should exist for lock creation");
     dap_assert_PIF(l_found_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE, "stake_ext should be ACTIVE for lockding");
     
-    // Verify project_id exists in stake_ext
-    bool l_project_found = false;
-    if (HASH_COUNT(l_found_stake_ext->projects) > 0 && l_found_stake_ext->projects) {
-        // In real implementation, we would iterate through projects to find project_id
-        // For test, we know project 1001 exists from create_test_stake_ext_started_data()
-        l_project_found = (l_project_id >= 1000 && l_project_id < 1000 + HASH_COUNT(l_found_stake_ext->projects));
+    // Verify position_id exists in stake_ext
+    bool l_position_found = false;
+    if (HASH_COUNT(l_found_stake_ext->positions) > 0 && l_found_stake_ext->positions) {
+        // In real implementation, we would iterate through positions to find position_id
+        // For test, we know position 1001 exists from create_test_stake_ext_started_data()
+        l_position_found = (l_position_id >= 1000 && l_position_id < 1000 + HASH_COUNT(l_found_stake_ext->positions));
     }
-    dap_assert_PIF(l_project_found, "Project ID should exist in stake_ext");
+    dap_assert_PIF(l_position_found, "Position ID should exist in stake_ext");
     
     dap_pass_msg("Valid lock transaction parameters - ");
     
@@ -1083,15 +1083,15 @@ void dap_srv_stake_ext_test_lock_transactions(void)
     uint256_t l_zero_amount = uint256_0;
     dap_assert_PIF(IS_ZERO_256(l_zero_amount), "Zero amount should be detected as invalid");
     
-    // Test zero project_id
-    uint32_t l_invalid_project_id = 0;
-    dap_assert_PIF(l_invalid_project_id == 0, "Zero project_id should be invalid");
+    // Test zero position_id
+    uint32_t l_invalid_position_id = 0;
+    dap_assert_PIF(l_invalid_position_id == 0, "Zero position_id should be invalid");
     
-    // Test project_id not in stake_ext
-    uint32_t l_nonexistent_project_id = 9999;
-    bool l_invalid_project_found = (l_nonexistent_project_id >= 1000 && 
-                                   l_nonexistent_project_id < 1000 + HASH_COUNT(l_found_stake_ext->projects));
-    dap_assert_PIF(!l_invalid_project_found, "Non-existent project_id should be rejected");
+    // Test position_id not in stake_ext
+    uint32_t l_nonexistent_position_id = 9999;
+    bool l_invalid_position_found = (l_nonexistent_position_id >= 1000 && 
+                                   l_nonexistent_position_id < 1000 + HASH_COUNT(l_found_stake_ext->positions));
+    dap_assert_PIF(!l_invalid_position_found, "Non-existent position_id should be rejected");
     
     // Test non-existent stake_ext hash
     dap_hash_fast_t l_fake_stake_ext_hash;
@@ -1111,12 +1111,12 @@ void dap_srv_stake_ext_test_lock_transactions(void)
     struct {
         dap_hash_fast_t stake_ext_hash;
         dap_time_t lock_time;
-        uint32_t project_id;
+        uint32_t position_id;
         uint256_t value;
     } l_simulated_lock_cond = {
         .stake_ext_hash = l_stake_ext_hash,
         .lock_time = l_lock_time,
-        .project_id = l_project_id,
+        .position_id = l_position_id,
         .value = l_lock_amount
     };
     
@@ -1124,7 +1124,7 @@ void dap_srv_stake_ext_test_lock_transactions(void)
     dap_assert_PIF(memcmp(&l_simulated_lock_cond.stake_ext_hash, &l_stake_ext_hash, sizeof(dap_hash_fast_t)) == 0, 
                    "stake_ext hash should be preserved in conditional output");
     dap_assert_PIF(l_simulated_lock_cond.lock_time == l_lock_time, "Lock time should be preserved");
-    dap_assert_PIF(l_simulated_lock_cond.project_id == l_project_id, "Project ID should be preserved");
+    dap_assert_PIF(l_simulated_lock_cond.position_id == l_position_id, "Position ID should be preserved");
     dap_assert_PIF(!compare256(l_simulated_lock_cond.value, l_lock_amount), "Lock amount should be preserved");
     
     dap_pass_msg("Conditional output structure validation - ");
@@ -1218,10 +1218,10 @@ void dap_srv_stake_ext_test_lock_transactions(void)
     bool l_max_amount_reasonable = (compare256(l_max_amount, dap_chain_uint256_from(1000000)) > 0);
     dap_assert_PIF(l_max_amount_reasonable, "Maximum amount handling should work");
     
-    // Test project ID boundary values
-    uint32_t l_max_project_id = UINT32_MAX;
-    bool l_max_project_valid = (l_max_project_id != 0);
-    dap_assert_PIF(l_max_project_valid, "Maximum project ID should be non-zero");
+    // Test position ID boundary values
+    uint32_t l_max_position_id = UINT32_MAX;
+    bool l_max_position_valid = (l_max_position_id != 0);
+    dap_assert_PIF(l_max_position_valid, "Maximum position ID should be non-zero");
     
     dap_pass_msg("Memory management and edge cases - ");
     
@@ -1283,12 +1283,12 @@ void dap_srv_stake_ext_test_unlock_transactions(void)
     uint256_t l_lock_amount = dap_chain_uint256_from(2000);
     uint256_t l_unlockal_fee = dap_chain_uint256_from(5);
     dap_time_t l_lock_time = dap_time_now() + 3600;
-    uint64_t l_project_id = 2;
+    uint64_t l_position_id = 2;
     
     // Simulate adding a lock to the stake_ext cache
     l_result = dap_stake_ext_cache_add_lock(l_cache, &l_stake_ext_hash, &l_lock_tx_hash, 
                                         l_lock_amount, l_lock_time, dap_time_now(),
-                                        l_project_id);
+                                        l_position_id);
     dap_assert_PIF(l_result == 0, "Failed to add test lock to cache");
     
     dap_pass_msg("Test setup - ");
@@ -1323,8 +1323,8 @@ void dap_srv_stake_ext_test_unlock_transactions(void)
     dap_assert_PIF(IS_ZERO_256(l_zero_fee), "Zero fee should be detected as invalid");
     
     // Test unlockal of lock
-    dap_stake_ext_project_cache_item_t *l_project = dap_stake_ext_cache_find_project(l_stake_ext, l_project_id);
-    l_result = dap_stake_ext_cache_unlock_lock(l_project, &l_lock_tx_hash);
+    dap_stake_ext_position_cache_item_t *l_position = dap_stake_ext_cache_find_position(l_stake_ext, l_position_id);
+    l_result = dap_stake_ext_cache_unlock_lock(l_position, &l_lock_tx_hash);
     dap_assert_PIF(l_result == 0, "Should be able to mark lock as unlocked");
     
     l_found_lock = dap_stake_ext_cache_find_lock(l_stake_ext_for_lock, &l_lock_tx_hash);
@@ -1393,10 +1393,10 @@ void dap_srv_stake_ext_test_event_callbacks(void)
     l_started_data->duration = 86400;
     l_started_data->total_positions = 3;
     
-    uint32_t *l_projects_array = (uint32_t*)(l_started_data + 1);
-    l_projects_array[0] = 1001;
-    l_projects_array[1] = 1002; 
-    l_projects_array[2] = 1003;
+    uint32_t *l_positions_array = (uint32_t*)(l_started_data + 1);
+    l_positions_array[0] = 1001;
+    l_positions_array[1] = 1002; 
+    l_positions_array[2] = 1003;
     
     // Generate test hashes
     dap_hash_fast_t l_stake_ext_hash, l_tx_hash;
@@ -1588,9 +1588,9 @@ void dap_srv_stake_ext_test_ledger_sync(void)
     l_stake_ext_data->duration = 172800; // 2 days
     l_stake_ext_data->total_positions = 2;
     
-    uint32_t *l_projects = (uint32_t*)(l_stake_ext_data + 1);
-    l_projects[0] = 2001;
-    l_projects[1] = 2002;
+    uint32_t *l_positions = (uint32_t*)(l_stake_ext_data + 1);
+    l_positions[0] = 2001;
+    l_positions[1] = 2002;
     
     // ===== Test 1: Cache-Ledger Consistency =====
     dap_test_msg("Test 1: Testing cache-ledger consistency");
@@ -1793,7 +1793,7 @@ void dap_srv_stake_ext_test_verificators(void)
     l_stake_ext_data->multiplier = 200;
     l_stake_ext_data->duration = 259200; // 3 days
     l_stake_ext_data->total_positions = 1;
-    *((uint32_t*)(l_stake_ext_data + 1)) = 3001; // Project ID
+    *((uint32_t*)(l_stake_ext_data + 1)) = 3001; // Position ID
     
     int l_result = dap_stake_ext_cache_add_stake_ext(l_cache, &l_stake_ext_hash, l_net_id, 
                                                "verificator_test_stake_ext", l_stake_ext_data, dap_time_now());
@@ -1831,7 +1831,7 @@ void dap_srv_stake_ext_test_verificators(void)
         dap_hash_fast_t stake_ext_hash;
         uint64_t lock_amount;
         uint32_t lock_time;
-        uint32_t project_id;
+        uint32_t position_id;
     } test_lock_data_t;
     
     test_lock_data_t *l_lock_cond = (test_lock_data_t*)(l_out_cond + 1);
@@ -1839,7 +1839,7 @@ void dap_srv_stake_ext_test_verificators(void)
     l_lock_cond->stake_ext_hash = l_stake_ext_hash;
     l_lock_cond->lock_amount = 1000000;  // 1M units
     l_lock_cond->lock_time = 86400;     // 1 day
-    l_lock_cond->project_id = 3001;
+    l_lock_cond->position_id = 3001;
     
     // Test conditional output structure validation
     dap_assert_PIF(l_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK, 
@@ -1855,14 +1855,14 @@ void dap_srv_stake_ext_test_verificators(void)
     dap_assert_PIF(l_found_stake_ext, "stake_ext should exist for lock validation");
     dap_assert_PIF(l_found_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE, "stake_ext should be ACTIVE for lockding");
     
-    // Test project hash validation (simplified - just check if projects exist)
-    bool l_project_valid = false;
-    if(l_found_stake_ext && l_found_stake_ext->projects) {
-        // In a real test we would check for specific project hashes
-        // For testing purposes, just verify projects array is accessible
-        l_project_valid = (HASH_COUNT(l_found_stake_ext->projects) > 0);
+    // Test position hash validation (simplified - just check if positions exist)
+    bool l_position_valid = false;
+    if(l_found_stake_ext && l_found_stake_ext->positions) {
+        // In a real test we would check for specific position hashes
+        // For testing purposes, just verify positions array is accessible
+        l_position_valid = (HASH_COUNT(l_found_stake_ext->positions) > 0);
     }
-    dap_assert_PIF(l_project_valid, "Project ID should be valid in stake_ext");
+    dap_assert_PIF(l_position_valid, "Position ID should be valid in stake_ext");
     
     // Test lock amount validation (should be positive)
     dap_assert_PIF(l_lock_cond->lock_amount > 0, "Lock amount should be positive");
@@ -1890,17 +1890,17 @@ void dap_srv_stake_ext_test_verificators(void)
     l_invalid_lock.lock_amount = 0;
     dap_assert_PIF(l_invalid_lock.lock_amount == 0, "Zero lock amount should be detected");
     
-    // Test lock with invalid project ID
+    // Test lock with invalid position ID
     l_invalid_lock = *l_lock_cond;
-    l_invalid_lock.project_id = 9999; // Not in stake_ext
+    l_invalid_lock.position_id = 9999; // Not in stake_ext
     
-    // For testing - just verify that invalid project ID detection works
-    // In real scenario this would validate against actual project hashes
-    bool l_invalid_project_found = false;
-    // Simplified check - if project_id is > 999, consider it invalid
-    l_invalid_project_found = (l_invalid_lock.project_id <= 999);
+    // For testing - just verify that invalid position ID detection works
+    // In real scenario this would validate against actual position hashes
+    bool l_invalid_position_found = false;
+    // Simplified check - if position_id is > 999, consider it invalid
+    l_invalid_position_found = (l_invalid_lock.position_id <= 999);
     
-    dap_assert_PIF(!l_invalid_project_found, "Invalid project ID should not be found in stake_ext");
+    dap_assert_PIF(!l_invalid_position_found, "Invalid position ID should not be found in stake_ext");
     
     // ===== Test 5: Verificator State Consistency =====
     dap_test_msg("Test 5: Testing verificator state consistency");
@@ -1928,8 +1928,8 @@ void dap_srv_stake_ext_test_verificators(void)
     generate_test_hash(6101, &l_lock_tx_hash);
     
     
-    // Create project hash for lock
-    uint64_t l_project_id = 3001;
+    // Create position hash for lock
+    uint64_t l_position_id = 3001;
     
     // Simulate updater adding lock to cache (simplified for testing)
     uint256_t l_lock_amount_256;
@@ -1937,7 +1937,7 @@ void dap_srv_stake_ext_test_verificators(void)
     l_lock_amount_256.lo = l_lock_cond->lock_amount;
     l_result = dap_stake_ext_cache_add_lock(l_cache, &l_stake_ext_hash, &l_lock_tx_hash, 
                                        l_lock_amount_256, l_lock_cond->lock_time, dap_time_now(),
-                                       l_project_id);
+                                       l_position_id);
     dap_assert_PIF(l_result == 0, "Updater should be able to add valid lock to cache");
     
     // Verify lock was added correctly
@@ -1980,9 +1980,9 @@ void dap_srv_stake_ext_test_verificators(void)
         if(l_perf_stake_ext) {
             // Check stake_ext status (verificator operation)
             volatile bool l_is_active = (l_perf_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE);
-            // Check project validity (verificator operation)
-            volatile uint32_t l_project_count = HASH_COUNT(l_perf_stake_ext->projects);
-            (void)l_is_active; (void)l_project_count; // Prevent optimization
+            // Check position validity (verificator operation)
+            volatile uint32_t l_position_count = HASH_COUNT(l_perf_stake_ext->positions);
+            (void)l_is_active; (void)l_position_count; // Prevent optimization
         }
     }
     
@@ -2024,24 +2024,24 @@ void dap_srv_stake_ext_test_data_parsing(void)
     // Test that total_positions field is accessible
     dap_chain_tx_event_data_stake_ext_started_t l_test_started = {0};
     l_test_started.total_positions = 3;
-    dap_assert_PIF(l_test_started.total_positions == 3, "Projects count field should be accessible");
+    dap_assert_PIF(l_test_started.total_positions == 3, "Positions count field should be accessible");
     
     // Test bounds checking for total_positions (uint8_t range)
-    bool l_projects_valid = (l_test_started.total_positions > 0 && l_test_started.total_positions <= 255);
-    dap_assert_PIF(l_projects_valid, "Projects count should be within uint8_t bounds");
+    bool l_positions_valid = (l_test_started.total_positions > 0 && l_test_started.total_positions <= 255);
+    dap_assert_PIF(l_positions_valid, "Positions count should be within uint8_t bounds");
     
         // ===== Test 2: Data validation and edge cases =====
     dap_test_msg("Test 2: Testing data validation and edge cases");
     
-    // Test zero project count
+    // Test zero position count
     dap_chain_tx_event_data_stake_ext_started_t l_empty_event = {0};
     l_empty_event.total_positions = 0;
-    dap_assert_PIF(l_empty_event.total_positions == 0, "Zero project count should be valid");
+    dap_assert_PIF(l_empty_event.total_positions == 0, "Zero position count should be valid");
     
     // Test maximum uint8_t value
     dap_chain_tx_event_data_stake_ext_started_t l_max_event = {0};
     l_max_event.total_positions = 255;
-    dap_assert_PIF(l_max_event.total_positions == 255, "Maximum uint8_t project count should be valid");
+    dap_assert_PIF(l_max_event.total_positions == 255, "Maximum uint8_t position count should be valid");
     
     dap_test_msg("Data validation and edge cases completed");
     
@@ -2049,9 +2049,9 @@ void dap_srv_stake_ext_test_data_parsing(void)
     dap_test_msg("Test 3: Testing memory layout calculations");
     
     // Test size calculations for flexible array members
-    uint8_t l_test_project_count = 10;
+    uint8_t l_test_position_count = 10;
     size_t l_total_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) + 
-                         (l_test_project_count * sizeof(uint32_t));
+                         (l_test_position_count * sizeof(uint32_t));
     
     dap_assert_PIF(l_total_size > sizeof(dap_chain_tx_event_data_stake_ext_started_t), 
                    "Total size should be larger than base structure");
@@ -2073,7 +2073,7 @@ void dap_srv_stake_ext_test_data_parsing(void)
     for (int i = 0; i < 3; i++) {
         l_test_events[i].total_positions = (uint8_t)(i + 1);
         dap_assert_PIF(l_test_events[i].total_positions == (i + 1), 
-                       "Each event should have correct project count");
+                       "Each event should have correct position count");
     }
     
     dap_test_msg("Structure consistency completed");
@@ -2105,28 +2105,28 @@ void dap_srv_stake_ext_test_boundary_conditions(void)
     // ===== Test 1: Zero and minimum values =====
     dap_test_msg("Test 1: Testing zero and minimum values");
     
-    // Test zero project count
-    dap_chain_tx_event_data_stake_ext_started_t l_zero_projects = {0};
-    l_zero_projects.total_positions = 0;
-    dap_assert_PIF(l_zero_projects.total_positions == 0, "Zero projects count should be valid");
+    // Test zero position count
+    dap_chain_tx_event_data_stake_ext_started_t l_zero_positions = {0};
+    l_zero_positions.total_positions = 0;
+    dap_assert_PIF(l_zero_positions.total_positions == 0, "Zero positions count should be valid");
     
     // Test minimum positive values
-    dap_chain_tx_event_data_stake_ext_started_t l_min_projects = {0};
-    l_min_projects.total_positions = 1;
-    dap_assert_PIF(l_min_projects.total_positions == 1, "Minimum projects count should be valid");
+    dap_chain_tx_event_data_stake_ext_started_t l_min_positions = {0};
+    l_min_positions.total_positions = 1;
+    dap_assert_PIF(l_min_positions.total_positions == 1, "Minimum positions count should be valid");
     
         // ===== Test 2: Maximum uint8_t boundaries =====
     dap_test_msg("Test 2: Testing maximum uint8_t boundaries");
     
     // Test maximum uint8_t value
-    dap_chain_tx_event_data_stake_ext_started_t l_max_projects = {0};
-    l_max_projects.total_positions = 255; // Maximum uint8_t
-    dap_assert_PIF(l_max_projects.total_positions == 255, "Maximum uint8_t projects count should be valid");
+    dap_chain_tx_event_data_stake_ext_started_t l_max_positions = {0};
+    l_max_positions.total_positions = 255; // Maximum uint8_t
+    dap_assert_PIF(l_max_positions.total_positions == 255, "Maximum uint8_t positions count should be valid");
     
     // Test near maximum values
     dap_chain_tx_event_data_stake_ext_started_t l_near_max = {0};
     l_near_max.total_positions = 254;
-    dap_assert_PIF(l_near_max.total_positions == 254, "Near maximum projects count should be valid");
+    dap_assert_PIF(l_near_max.total_positions == 254, "Near maximum positions count should be valid");
     
         // ===== Test 3: Cache capacity limits =====
     dap_test_msg("Test 3: Testing cache capacity limits");
@@ -2148,7 +2148,7 @@ void dap_srv_stake_ext_test_boundary_conditions(void)
             
             // Create test started data
             dap_chain_tx_event_data_stake_ext_started_t l_started_data = {0};
-            l_started_data.total_positions = (i % 10) + 1; // Vary project counts
+            l_started_data.total_positions = (i % 10) + 1; // Vary position counts
             
             int l_result = dap_stake_ext_cache_add_stake_ext(l_cache, &l_stake_ext_hash, l_net_id, 
                                                        l_group_name, &l_started_data, dap_time_now());
@@ -2163,7 +2163,7 @@ void dap_srv_stake_ext_test_boundary_conditions(void)
         // ===== Test 4: Size calculation overflow protection =====
     dap_test_msg("Test 4: Testing size calculation overflow protection");
     
-    // Test size calculations for very large project counts
+    // Test size calculations for very large position counts
     uint8_t l_large_count = 200;
     size_t l_base_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t);
     size_t l_total_size = l_base_size + (l_large_count * sizeof(uint32_t));
@@ -2349,7 +2349,7 @@ void dap_srv_stake_ext_test_error_handling(void)
     // ===== Test 4: Boundary condition errors =====
     dap_test_msg("Test 4: Testing boundary condition errors");
     
-    // Test with extremely large project count
+    // Test with extremely large position count
     dap_chain_tx_event_data_stake_ext_started_t l_large_data;
     l_large_data.total_positions = UINT8_MAX;
     
@@ -2359,7 +2359,7 @@ void dap_srv_stake_ext_test_error_handling(void)
     // This should handle gracefully (may succeed or fail, but shouldn't crash)
     l_add_result = dap_stake_ext_cache_add_stake_ext(l_cache, &l_large_hash, l_net_id, 
                                                l_group_name, &l_large_data, dap_time_now());
-    dap_test_msg("Large project count handling: %s", (l_add_result == 0) ? "accepted" : "rejected");
+    dap_test_msg("Large position count handling: %s", (l_add_result == 0) ? "accepted" : "rejected");
     
     // ===== Test 5: Error recovery scenarios =====
     dap_test_msg("Test 5: Testing error recovery scenarios");
@@ -2642,19 +2642,19 @@ void dap_srv_stake_ext_test_thread_safety(void)
     // Simulate concurrent lock operations
     for(int i = 0; i < 5; i++) {
         dap_hash_fast_t l_lock_hash;
-        uint64_t l_project_id;
+        uint64_t l_position_id;
         uint256_t l_lock_amount;
         
         memset(&l_lock_hash, 0, sizeof(l_lock_hash));
         l_lock_hash.raw[0] = 0x60 + i; // Unique lock hash
-        l_project_id = 0x70 + i; // Unique project id
+        l_position_id = 0x70 + i; // Unique position id
         l_lock_amount.hi = 0;
         l_lock_amount.lo = 1000000 + i * 100000;
         
         // Simulate thread adding lock
         int l_lock_result = dap_stake_ext_cache_add_lock(l_cache, &l_lock_stake_ext_hash, &l_lock_hash, 
                                                    l_lock_amount, 86400, dap_time_now(),
-                                                   l_project_id);
+                                                   l_position_id);
         // Log only lock failures
         if (l_lock_result != 0) {
             dap_test_msg("Concurrent lock operation %d: failed", i);
