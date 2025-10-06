@@ -440,7 +440,7 @@ char *dap_chain_node_cli_com_tx_history_err(int a_code);
  *
  * Transaction history for an address
  */
-int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply);
+int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
 
 // Print statistics
 int com_stats(int a_argc, char **a_argv, void **a_str_reply, int a_version);
@@ -493,4 +493,4 @@ typedef enum s_com_file_err{
 
 
 } s_com_file_err_t;
-int com_file(int a_argc, char ** a_argv, void **a_str_reply);
+int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version);

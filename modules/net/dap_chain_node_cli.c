@@ -437,7 +437,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "policy list - show all policies from table in net\n"
                 "\t-net <net_name>\n");
 
-    dap_cli_server_cmd_add ("file", com_file, "Work with logs and files",
+    dap_cli_server_cmd_add ("file", com_file, NULL, "Work with logs and files",
                 "file print {-num_line <number_of_lines> | -ts_after <Tue, 10 Dec 2024 18:37:47 +0700> } {-log | -path <path_to_file>}\n"
                 "\t print the last <num_line> lines from the log file or all logs after the specified date and time\n"
                 "\t -path <path_to_file> allows printing from a text file, but -ts_after option might not work\n"
