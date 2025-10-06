@@ -104,18 +104,9 @@ dap_chain_datum_tx_t* dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
                                                        const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, 
                                                        size_t a_tx_num, dap_chain_tx_compose_config_t *a_config);
 
-
-dap_chain_datum_tx_t* dap_chain_mempool_tx_create_cond_compose(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
-                                                              const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-                                                              uint256_t a_value, uint256_t a_value_per_unit_max,
-                                                              dap_chain_net_srv_price_unit_uid_t a_unit, 
-                                                              dap_chain_srv_uid_t a_srv_uid, uint256_t a_value_fee, 
-                                                              const void *a_cond, size_t a_cond_size, dap_chain_tx_compose_config_t *a_config);
-
-dap_chain_datum_tx_t* dap_chain_net_vote_create_compose(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
-                                                       uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
-                                                       bool a_vote_changing_allowed, dap_chain_addr_t *a_wallet_addr,
-                                                       const char *a_token_ticker, dap_chain_tx_compose_config_t *a_config);
+// Note: dap_chain_mempool_tx_create_cond_compose moved to mempool module as dap_chain_mempool_compose_tx_create_cond
+// Note: dap_chain_net_vote_create_compose moved to voting module
+// To use: #include "dap_chain_mempool_compose.h" or "dap_chain_net_srv_voting_compose.h"
 
 #ifdef __cplusplus
 }

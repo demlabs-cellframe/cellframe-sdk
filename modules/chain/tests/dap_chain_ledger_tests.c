@@ -14,7 +14,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv_vpn.h"
-#include "dap_chain_net_srv_stake_lock.h"
+#include "dap_chain_net_srv_stake.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_block.h"

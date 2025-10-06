@@ -18,6 +18,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_ledger.h"
 #include "dap_json_rpc_errors.h"
+#include "dap_rand.h"
 
 #define LOG_TAG "stake_compose"
 

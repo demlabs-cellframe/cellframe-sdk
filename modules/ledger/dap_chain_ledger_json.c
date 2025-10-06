@@ -11,7 +11,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_json.h"
 #include "dap_common.h"
-
+#include "dap_rand.h"
 
 #define LOG_TAG "dap_chain_ledger_json"
 

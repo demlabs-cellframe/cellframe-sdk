@@ -26,10 +26,11 @@
 
 #include "dap_common.h"
 #include "dap_chain_tx_compose.h"
+#include "dap_chain_tx_compose_callbacks.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_token.h"
-#include "dap_chain_net_srv_stake_compose.h"
+#include "dap_chain_mempool_compose.h"
 #include "dap_net.h"
 #include "dap_app_cli.h"
 #include "dap_json_rpc.h"
@@ -43,6 +44,44 @@
 #include "dap_rand.h"
 
 #define LOG_TAG "dap_chain_tx_compose"
+
+int dap_chain_tx_compose_init(void)
+{
+    log_it(L_NOTICE, "Initializing compose module");
+    return dap_chain_tx_compose_callbacks_init();
+}
+
+void dap_chain_tx_compose_deinit(void)
+{
+    log_it(L_NOTICE, "Deinitializing compose module");
+    dap_chain_tx_compose_callbacks_deinit();
+}
+
+/**
+ * @brief Universal compose function using registered service callbacks
+ * @param a_config Compose configuration
+ * @param a_srv_uid Service UID
+ * @param a_service_params Service-specific parameters
+ * @return Created transaction or NULL
+ */
+dap_chain_datum_tx_t* dap_chain_tx_compose_for_service(dap_chain_tx_compose_config_t *a_config,
+                                                       uint64_t a_srv_uid, 
+                                                       void *a_service_params)
+{
+    if (!a_config) {
+        log_it(L_ERROR, "Invalid config parameter");
+        return NULL;
+    }
+    
+    dap_chain_tx_compose_callback_t l_callback = dap_chain_tx_compose_service_callback_get(a_srv_uid);
+    
+    if (!l_callback) {
+        log_it(L_ERROR, "No compose callback registered for service %"DAP_UINT64_FORMAT_X, a_srv_uid);
+        return NULL;
+    }
+    
+    return l_callback(a_service_params, a_config);
+}
 
 dap_chain_tx_compose_config_t* dap_chain_tx_compose_config_init(const char *a_net_name, const char *a_url_str,
                                  uint16_t a_port, const char *a_cert_path) {
@@ -1284,19 +1323,6 @@ bool dap_chain_tx_compose_dap_chain_tx_compose_check_token_in_ledger(dap_json_t 
 }
 
 
-typedef enum dap_tx_cond_create_compose_error {
-    TX_COND_CREATE_COMPOSE_ERROR_INVALID_FEE = 1,
-    TX_COND_CREATE_COMPOSE_ERROR_INVALID_SERVICE_UID,
-    TX_COND_CREATE_COMPOSE_ERROR_INVALID_UNIT,
-    TX_COND_CREATE_COMPOSE_ERROR_INVALID_VALUE,
-    TX_COND_CREATE_COMPOSE_ERROR_WALLET_OPEN_FAILED,
-    TX_COND_CREATE_COMPOSE_ERROR_CERT_NOT_FOUND,
-    TX_COND_CREATE_COMPOSE_ERROR_INVALID_CERT_KEY,
-    TX_COND_CREATE_COMPOSE_ERROR_NATIVE_TOKEN_REQUIRED,
-    TX_COND_CREATE_COMPOSE_ERROR_NOT_ENOUGH_FUNDS,
-    TX_COND_CREATE_COMPOSE_ERROR_COND_OUTPUT_FAILED,
-    TX_COND_CREATE_COMPOSE_ERROR_COIN_BACK_FAILED
-} dap_tx_cond_create_compose_error_t;
 dap_json_t* dap_tx_cond_create_compose(const char *a_net_name, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr,
                                         const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str,
                                         const char *a_unit_str, const char *a_value_per_unit_max_str,
@@ -1351,7 +1377,7 @@ dap_json_t* dap_tx_cond_create_compose(const char *a_net_name, const char *a_tok
         return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
 
-    dap_chain_datum_tx_t *l_tx = dap_chain_mempool_tx_create_cond_compose(a_wallet_addr, l_key_cond, a_token_ticker,
+    dap_chain_datum_tx_t *l_tx = dap_chain_mempool_compose_tx_create_cond(a_wallet_addr, l_key_cond, a_token_ticker,
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_config);
     if (l_tx) {
