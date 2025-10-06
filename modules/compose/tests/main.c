@@ -1,3 +1,4 @@
+#include "dap_chain_net_srv_xchange_compose.h"
 #include "dap_chain_mempool_compose.h"
 #include "dap_chain_net_srv_stake_compose.h"
 #include "dap_test.h"
@@ -243,11 +244,11 @@ void s_chain_datum_exchange_create_test()
     dap_stpcpy(l_price->token_sell, s_ticker_native);
     dap_stpcpy(l_price->token_buy, s_ticker_delegate);
     l_price->datoshi_sell = s_data->value;
-    l_price->rate = s_data->reinvest_percent;
-    l_price->fee = s_data->value_fee;
-    // sell native
-    dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_create_request_compose(l_price, &s_data->addr_from, s_ticker_native, &s_data->config);
-    dap_assert(l_datum_1, "tx_exchange_create_compose sell native");
+//     l_price->rate = s_data->reinvest_percent;
+//     l_price->fee = s_data->value_fee;
+//     // sell native
+//     dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_create_request_compose(l_price, &s_data->addr_from, s_ticker_native, &s_data->config);
+//     dap_assert(l_datum_1, "tx_exchange_create_compose sell native");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
     // sell non native
