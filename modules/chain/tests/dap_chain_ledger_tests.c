@@ -1027,15 +1027,18 @@ void dap_ledger_test_run(void){
     dap_ledger_t *l_ledger = dap_ledger_create(l_net, l_flags);
     l_net->pub.ledger = l_ledger;
 
+    // Create zerochain with dag_poa consensus
     dap_chain_t *l_chain_zero =  dap_chain_create(l_net->pub.name, "test_chain_zerochain", l_net->pub.id, (dap_chain_id_t){.uint64 = 0});
-    dap_chain_set_cs_type(l_chain_zero, "dag_poa");
-    dap_config_t l_cfg = {};
-    dap_assert_PIF(dap_chain_cs_create(l_chain_zero, &l_cfg) == 0, "Chain cs dag_poa creating: ");
+    l_chain_zero->config = dap_config_create_empty();
+    dap_config_set_item_str(l_chain_zero->config, "chain", "consensus", "dag_poa");
+    dap_assert_PIF(dap_chain_cs_create(l_chain_zero, l_chain_zero->config) == 0, "Chain cs dag_poa creating: ");
     DL_APPEND(l_net->pub.chains, l_chain_zero);
 
+    // Create main chain with esbocs consensus  
     dap_chain_t *l_chain_main =  dap_chain_create(l_net->pub.name, "test_chain_main", l_net->pub.id, (dap_chain_id_t){.uint64 = 1});
-    dap_chain_set_cs_type(l_chain_main, "esbocs");
-    dap_assert_PIF(dap_chain_cs_create(l_chain_main, &l_cfg) == 0, "Chain esbocs cs creating: ");
+    l_chain_main->config = dap_config_create_empty();
+    dap_config_set_item_str(l_chain_main->config, "chain", "consensus", "esbocs");
+    dap_assert_PIF(dap_chain_cs_create(l_chain_main, l_chain_main->config) == 0, "Chain esbocs cs creating: ");
     DL_APPEND(l_net->pub.chains, l_chain_main);
 
     dap_ledger_decree_init(l_net->pub.ledger);

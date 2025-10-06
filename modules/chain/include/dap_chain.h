@@ -233,6 +233,7 @@ void dap_chain_deinit(void);
 
 dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id);
 void dap_chain_set_cs_type(dap_chain_t *a_chain, const char *a_cs_type);
+void dap_chain_set_cs_name(dap_chain_t *a_chain, const char *a_cs_name);
 
 int dap_chain_load_all(dap_chain_t *a_chain);
 bool dap_chain_has_file_store(dap_chain_t *a_chain);

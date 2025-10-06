@@ -168,6 +168,11 @@ void dap_chain_set_cs_type(dap_chain_t *a_chain, const char *a_cs_type)
     DAP_CHAIN_PVT(a_chain)->cs_type = dap_strdup(a_cs_type);
 }
 
+void dap_chain_set_cs_name(dap_chain_t *a_chain, const char *a_cs_name)
+{
+    DAP_CHAIN_PVT(a_chain)->cs_name = dap_strdup(a_cs_name);
+}
+
 int dap_chain_purge(dap_chain_t *a_chain)
 {
     int ret = dap_chain_type_purge(a_chain);
