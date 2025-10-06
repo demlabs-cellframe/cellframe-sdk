@@ -375,7 +375,7 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
     }
     
     // Initialize basic auction data
-    *l_auction = (dap_auction_cache_item_t) { .auction_tx_hash = *a_auction_hash,
+    *l_auction = (dap_auction_cache_item_t) { .auction_tx_hash.hash = *a_auction_hash,
                                               .net_id = a_net_id,
                                               .created_time = a_tx_timestamp,
                                               .start_time = a_tx_timestamp,
@@ -442,7 +442,7 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
     
     // Add to both hash tables for optimal performance
     HASH_ADD_STR(a_cache->auctions, guuid, l_auction);  // Primary table by GUUID
-    HASH_ADD(hh_hash, a_cache->auctions_by_hash, auction_tx_hash, sizeof(dap_hash_fast_t), l_auction);  // Secondary table by tx hash
+    HASH_ADD(hh_hash, a_cache->auctions_by_hash, auction_tx_hash.hash_key, sizeof(l_auction->auction_tx_hash.hash_key), l_auction);  // Secondary table by tx hash (aligned key for ARM32)
     a_cache->total_auctions++;
     a_cache->active_auctions++;
     
@@ -506,14 +506,14 @@ static int s_auction_cache_add_bid(struct auction *a_cache,
 
 
     // Initialize bid data
-    *l_bid = (dap_auction_bid_cache_item_t) { .bid_tx_hash = *a_bid_hash,
+    *l_bid = (dap_auction_bid_cache_item_t) { .bid_tx_hash.hash = *a_bid_hash,
                                              .bid_amount = a_bid_amount,
                                              .lock_time = a_lock_time,
                                              .created_time = a_created_time
                                             };
     
-    // Add to auction's bids
-    HASH_ADD(hh, l_project->bids, bid_tx_hash, sizeof(dap_hash_fast_t), l_bid);
+    // Add to auction's bids (use aligned hash_key for uthash)
+    HASH_ADD(hh, l_project->bids, bid_tx_hash.hash_key, sizeof(l_bid->bid_tx_hash.hash_key), l_bid);
     l_project->active_bids_count++;
     l_auction->bids_count++;
     l_auction->active_bids_count++;
@@ -683,9 +683,9 @@ static dap_auction_cache_item_t *s_find_auction_by_hash_fast(struct auction *a_c
     if (!a_cache || !a_auction_hash)
         return NULL;
     
-    // Direct O(1) hash lookup using secondary table
+    // Direct O(1) hash lookup using secondary table (use raw bytes for aligned search)
     dap_auction_cache_item_t *l_auction = NULL;
-    HASH_FIND(hh_hash, a_cache->auctions_by_hash, a_auction_hash, sizeof(dap_hash_fast_t), l_auction);
+    HASH_FIND(hh_hash, a_cache->auctions_by_hash, a_auction_hash->raw, DAP_HASH_FAST_SIZE, l_auction);
     return l_auction;
 }
 
@@ -1317,7 +1317,7 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_find(dap_chain_net_t *a_
     }
     
     // Fill auction data from cache
-    l_auction->auction_hash = l_cached_auction->auction_tx_hash;
+    l_auction->auction_hash = l_cached_auction->auction_tx_hash.hash;
     l_auction->guuid = l_cached_auction->guuid ? dap_strdup(l_cached_auction->guuid) : NULL;
     l_auction->status = l_cached_auction->status;
     l_auction->created_time = l_cached_auction->created_time;
@@ -1394,7 +1394,7 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_get_detailed(dap_chain_n
     }
     
     // Fill basic auction data
-    l_auction->auction_hash = l_cached_auction->auction_tx_hash;
+    l_auction->auction_hash = l_cached_auction->auction_tx_hash.hash;
     l_auction->guuid = l_cached_auction->guuid ? dap_strdup(l_cached_auction->guuid) : NULL;
     l_auction->status = l_cached_auction->status;
     l_auction->created_time = l_cached_auction->created_time;
@@ -1530,7 +1530,7 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
             continue;
         
         // Fill basic data
-        l_auction->auction_hash = l_cached_auction->auction_tx_hash;
+        l_auction->auction_hash = l_cached_auction->auction_tx_hash.hash;
         l_auction->guuid = l_cached_auction->guuid ? dap_strdup(l_cached_auction->guuid) : NULL;
         l_auction->status = l_cached_auction->status;
         l_auction->created_time = l_cached_auction->created_time;
@@ -2322,7 +2322,7 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                 // Try resolve by GUUID via auction cache
                 l_auction = s_auction_cache_find_auction_by_name(l_auction_service, l_auction_id_str);
                 if (l_auction)
-                    l_auction_hash = l_auction->auction_tx_hash;
+                    l_auction_hash = l_auction->auction_tx_hash.hash;
             }
             // Check auction is active           
             if (!l_auction) {
@@ -2758,7 +2758,7 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                 // Try resolve by GUUID via auction cache
                 l_auction = s_auction_cache_find_auction_by_name(l_auction_service, l_auction_id_str);
                 if (l_auction)
-                    l_auction_hash = l_auction->auction_tx_hash;
+                    l_auction_hash = l_auction->auction_tx_hash.hash;
             }
             if(!l_auction) {
                 dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_NOT_FOUND_ERROR, "Auction '%s' not found",
@@ -2770,7 +2770,7 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
             dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("info"));
             dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
             dap_json_object_add_object(l_json_obj, "verbose", dap_json_object_new_bool(l_verbose));
-            dap_json_object_add_object(l_json_obj, "auction_tx_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_auction->auction_tx_hash)));
+            dap_json_object_add_object(l_json_obj, "auction_tx_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_auction->auction_tx_hash.hash)));
             dap_json_object_add_object(l_json_obj, "auction_name", dap_json_object_new_string(l_auction->guuid));
             
             // Basic auction information
@@ -2839,7 +2839,7 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                         for (dap_auction_bid_cache_item_t *l_bid = l_project->bids; l_bid; l_bid = l_bid->hh.next) {
                             dap_json_t *l_bid_obj = dap_json_object_new();
                             dap_json_array_add(l_bids_array, l_bid_obj);
-                            dap_json_object_add_object(l_bid_obj, "bid_tx_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_bid->bid_tx_hash)));
+                            dap_json_object_add_object(l_bid_obj, "bid_tx_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_bid->bid_tx_hash.hash)));
                             dap_json_object_add_object(l_bid_obj, "bid_amount", dap_json_object_new_string(dap_uint256_to_char(l_bid->bid_amount, NULL)));
                             dap_json_object_add_object(l_bid_obj, "lock_time", dap_json_object_new_uint64(l_bid->lock_time));
                             char l_bid_created_time_str[DAP_TIME_STR_SIZE] = {'\0'};
@@ -2879,7 +2879,7 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                 // Try resolve by GUUID via auction cache
                 l_auction = s_auction_cache_find_auction_by_name(l_auction_service, l_auction_id_str);
                 if (l_auction)
-                    l_auction_hash = l_auction->auction_tx_hash;
+                    l_auction_hash = l_auction->auction_tx_hash.hash;
             }
             if(!l_auction) {
                 dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_NOT_FOUND_ERROR, "Auction '%s' not found", l_auction_id_str);

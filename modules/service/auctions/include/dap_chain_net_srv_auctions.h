@@ -77,14 +77,17 @@ typedef enum {
 
 // Single bid information in auction cache
 typedef struct dap_auction_bid_cache_item {
-    dap_hash_fast_t bid_tx_hash;       // Transaction hash of the bid
+    union {
+        dap_hash_fast_t hash;          // Transaction hash (packed)
+        uint8_t hash_key[DAP_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+    } bid_tx_hash;
     uint256_t bid_amount;              // Amount of the bid
     uint8_t range_end;                 // Range end (1-8)
     dap_time_t lock_time;              // Lock time in seconds
     dap_time_t created_time;           // When bid was created
     bool is_withdrawn;                 // Whether bid was withdrawn
    
-    UT_hash_handle hh;                 // Hash table handle by bid_tx_hash
+    UT_hash_handle hh;                 // Hash table handle by bid_tx_hash.hash_key
 } dap_auction_bid_cache_item_t;
 
 // Project aggregation in auction
@@ -98,7 +101,10 @@ typedef struct dap_auction_project_cache_item {
 
 // Auction information in cache
 typedef struct dap_auction_cache_item {
-    dap_hash_fast_t auction_tx_hash;   // Transaction hash of auction creation
+    union {
+        dap_hash_fast_t hash;          // Transaction hash (packed)
+        uint8_t hash_key[DAP_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+    } auction_tx_hash;
     dap_chain_net_id_t net_id;         // Network ID
     char *guuid;                       // Event group name for this auction
     dap_auction_status_t status;       // Current auction status
@@ -125,7 +131,7 @@ typedef struct dap_auction_cache_item {
     uint32_t *winners_ids;             // Array of winner project IDs from event data
     
     UT_hash_handle hh;                 // Hash handle for table keyed by GUUID
-    UT_hash_handle hh_hash;            // Hash handle for table keyed by auction_tx_hash
+    UT_hash_handle hh_hash;            // Hash handle for table keyed by auction_tx_hash.hash_key
 } dap_auction_cache_item_t;
 
 // Project information in auction (for external API)
