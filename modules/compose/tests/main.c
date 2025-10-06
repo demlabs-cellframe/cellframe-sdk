@@ -1,11 +1,10 @@
-#include "dap_chain_net_srv_xchange_compose.h"
-#include "dap_chain_mempool_compose.h"
-#include "dap_chain_net_srv_stake_compose.h"
-#include "dap_test.h"
 #include "dap_rand.h"
 #include "dap_chain_net.h"
+#include "dap_test.h"
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_net_srv_voting_compose.h"
+#include "dap_chain_mempool_compose.h"
+#include "dap_chain_net_srv_stake_compose.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_token.h"
@@ -237,62 +236,6 @@ void s_chain_datum_vote_voting_test()
     dap_cert_delete(l_cert);
 }
 
-void s_chain_datum_exchange_create_test()
-{
-    dap_print_module_name("tx_exchange_create_compose");
-//     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
-//     dap_stpcpy(l_price->token_sell, s_ticker_native);
-//     dap_stpcpy(l_price->token_buy, s_ticker_delegate);
-//     l_price->datoshi_sell = s_data->value;
-// //     l_price->rate = s_data->reinvest_percent;
-// //     l_price->fee = s_data->value_fee;
-// //     // sell native
-// //     dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_create_request_compose(l_price, &s_data->addr_from, s_ticker_native, &s_data->config);
-// //     dap_assert(l_datum_1, "tx_exchange_create_compose sell native");
-// //     s_datum_sign_and_check(&l_datum_1);
-// //     dap_chain_datum_tx_delete(l_datum_1);
-// //     // sell non native
-// // //     l_datum_1 = dap_xchange_tx_create_request_compose(l_price, &s_data->addr_from, s_ticker_delegate, &s_data->config);
-// //     dap_assert(l_datum_1, "tx_exchange_create_compose sell non native");
-// //     s_datum_sign_and_check(&l_datum_1);
-// //     dap_chain_datum_tx_delete(l_datum_1);
-// //     DAP_DELETE(l_price);
-// // }
-// // 
-// // void s_chain_datum_exchange_purchase_test(const char *a_token_sell, const char *a_token_buy)
-// // {
-// //     dap_print_module_name("tx_exchange_purchase_compose");
-// //     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
-// //     dap_stpcpy(l_price->token_sell, a_token_sell);
-// //     dap_stpcpy(l_price->token_buy, a_token_buy);
-// //     l_price->datoshi_sell = s_data->value;
-// //     l_price->rate = s_data->reinvest_percent;
-// //     l_price->fee = s_data->value_fee;
-// // //     dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_create_exchange_compose(
-// // //         l_price, &s_data->addr_from, s_data->value_delegate, s_data->value_fee,
-// //         &s_data->cond_out, s_data->idx_1, &s_data->config
-// //     );
-// //     dap_assert(l_datum_1, "tx_exchange_purchase_compose");
-// //     s_datum_sign_and_check(&l_datum_1);
-// //     dap_chain_datum_tx_delete(l_datum_1);
-// //     DAP_DELETE(l_price);
-// // }
-// // 
-// // void s_chain_datum_xchange_invalidate_test(const char *a_token_sell, const char *a_token_buy)
-// // {
-// //     dap_print_module_name("tx_exchange_invalidate_compose");
-// //     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
-// //     dap_stpcpy(l_price->token_sell, a_token_sell);
-// //     dap_stpcpy(l_price->token_buy, a_token_buy);
-// //     l_price->datoshi_sell = s_data->value;
-// //     l_price->rate = s_data->reinvest_percent;
-// //     l_price->fee = s_data->value_fee;
-// // //     dap_chain_datum_tx_t *l_datum_1 = dap_xchange_tx_invalidate_compose(l_price, &s_data->cond_out, &s_data->addr_from, &s_data->addr_to, a_token_buy, 0, &s_data->config);
-// // //     dap_assert(l_datum_1, "tx_exchange_invalidate_compose");
-// //     s_datum_sign_and_check(&l_datum_1);
-// //     dap_chain_datum_tx_delete(l_datum_1);
-// //     DAP_DELETE(l_price);
-}
 
 void s_chain_datum_tx_ser_deser_test()
 {
@@ -339,13 +282,6 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_delegate_test();
     s_chain_datum_stake_unlock_test();
     s_chain_datum_stake_invalidate_test();
-    s_chain_datum_exchange_create_test();
-//     s_chain_datum_exchange_purchase_test(s_ticker_native, s_ticker_delegate);
-    s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_native);
-    s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_custom);
-//     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
-    s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
-    s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
     // s_chain_datum_vote_create_test();
     // s_chain_datum_vote_voting_test();
 
