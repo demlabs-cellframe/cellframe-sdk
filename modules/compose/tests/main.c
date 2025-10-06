@@ -1,3 +1,5 @@
+#include "dap_chain_mempool_compose.h"
+#include "dap_chain_net_srv_stake_compose.h"
 #include "dap_test.h"
 #include "dap_rand.h"
 #include "dap_chain_net.h"
@@ -141,7 +143,7 @@ void s_chain_datum_cond_create_test()
     randombytes(pkey->pkey, l_pkey_size);
     dap_chain_net_srv_price_unit_uid_t price_unit;
     price_unit.enm = SERV_UNIT_B;
-    dap_chain_datum_tx_t *l_datum_1 = dap_chain_mempool_tx_create_cond_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_mempool_compose_tx_create_cond(
         &s_data->addr_from, pkey, s_ticker_native, s_data->value,
         s_data->value_per_unit_max, price_unit,
         s_data->srv_uid, s_data->value_fee, l_rand_data, l_rand_data_size, &s_data->config
@@ -162,7 +164,7 @@ void s_chain_datum_delegate_test()
     pkey->header.size = l_pkey_size;
     randombytes(pkey->pkey, l_pkey_size);
     // TODO fix to delegate
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_create_compose(&s_data->addr_any, s_data->value, s_data->value_fee, &s_data->addr_from, &s_data->node_addr, &s_data->addr_to, s_data->reinvest_percent, NULL, pkey, &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_srv_stake_compose_tx_create(&s_data->addr_any, s_data->value, s_data->value_fee, &s_data->addr_from, &s_data->node_addr, &s_data->addr_to, s_data->reinvest_percent, NULL, pkey, &s_data->config);
     dap_assert(l_datum_1, "tx_delegate_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -172,7 +174,7 @@ void s_chain_datum_delegate_test()
 void s_chain_datum_stake_lock_test()
 {
     dap_print_module_name("tx_lock_compose");
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_lock_datum_create_compose(&s_data->addr_from, s_ticker_native, s_data->value, s_data->value_fee, s_data->time_staking, s_data->reinvest_percent, s_ticker_delegate, s_data->value_delegate, "0x0123456789abcdef", &s_data->config);
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_srv_stake_compose_lock_datum_create(&s_data->addr_from, s_ticker_native, s_data->value, s_data->value_fee, s_data->time_staking, s_data->reinvest_percent, s_ticker_delegate, s_data->value_delegate, "0x0123456789abcdef", &s_data->config);
     dap_assert(l_datum_1, "tx_lock_compose");
     s_datum_sign_and_check(&l_datum_1);
     dap_chain_datum_tx_delete(l_datum_1);
@@ -181,7 +183,7 @@ void s_chain_datum_stake_lock_test()
 void s_chain_datum_stake_unlock_test()
 {
     dap_print_module_name("tx_unlock_compose");
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_unlock_datum_create_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_srv_stake_compose_unlock_datum_create(
         &s_data->addr_from, &s_data->hash_1, s_data->idx_1, s_ticker_native, s_data->value, s_data->value_fee, 
         s_ticker_delegate, s_data->value_delegate, &s_data->config);
     dap_assert(l_datum_1, "tx_unlock_compose");
@@ -192,7 +194,7 @@ void s_chain_datum_stake_unlock_test()
 void s_chain_datum_stake_invalidate_test()
 {
     dap_print_module_name("tx_invalidate_compose");
-    dap_chain_datum_tx_t *l_datum_1 = dap_stake_tx_invalidate_compose(
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_net_srv_stake_compose_tx_invalidate(
         &s_data->hash_1, s_data->value_fee, &s_data->addr_from, &s_data->config);
     dap_assert(l_datum_1, "tx_invalidate_compose");
     s_datum_sign_and_check(&l_datum_1);
