@@ -189,10 +189,17 @@ void dap_chain_cs_add(const char *a_cs_str, dap_chain_cs_lifecycle_t a_callbacks
  */
 int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
+    // Try to get consensus from config first
     const char *l_consensus = dap_config_get_item_str(a_chain_cfg, "chain", "consensus");
+    
+    // If not in config, use cs_type that was set via dap_chain_set_cs_type()
     if (!l_consensus) {
-        log_it(L_ERROR, "No consensus specified in chain config");
-        return -1;
+        l_consensus = DAP_CHAIN_PVT(a_chain)->cs_type;
+        if (!l_consensus) {
+            log_it(L_ERROR, "No consensus specified in chain config or cs_type");
+            return -1;
+        }
+        log_it(L_INFO, "Using consensus '%s' from cs_type (not from config)", l_consensus);
     }
     
     dap_chain_cs_item_t *l_item = NULL;

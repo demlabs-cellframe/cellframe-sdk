@@ -96,7 +96,14 @@ static bool s_debug_more = false;
  */
 int dap_chain_type_dag_poa_init()
 {
-    // Consensus registration moved to s_callback_new where callbacks are set per-chain
+    // Register DAG-PoA consensus
+    dap_chain_cs_lifecycle_t l_cs_callbacks = {
+        .callback_init = s_callback_new,
+        .callback_load = s_callback_created,
+        .callback_start = s_callback_start
+    };
+    dap_chain_cs_add("dag_poa", l_cs_callbacks);
+    
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands", dap_chain_node_cli_cmd_id_from_str("dag_poa"),
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
