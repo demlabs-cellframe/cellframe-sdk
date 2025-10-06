@@ -126,7 +126,7 @@ typedef struct dap_chain_tx_out_cond {
             dap_hash_fast_t stake_ext_hash;    ///< Hash of the stake-ext this lock belongs to
             uint8_t range_end;                 ///< Ending range for CellSlot (1-8, range_start always = 1)
             dap_time_t lock_time;              ///< Token lock time duration
-            uint32_t project_id;               ///< Project ID
+            uint32_t position_id;               ///< Position ID
             byte_t padding[3];                 ///< Padding for alignment (increased by 1)
         } DAP_ALIGN_PACKED srv_stake_ext_lock;
         byte_t free_space[272]; // TODO increase it to 512 with version update

@@ -472,7 +472,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_l
                                                                                   uint256_t a_value,
                                                                                   const dap_hash_fast_t *a_stake_ext_hash,
                                                                                   dap_time_t a_lock_time,
-                                                                                  uint32_t a_project_id,
+                                                                                  uint32_t a_position_id,
                                                                                   const void *a_params, size_t a_params_size)
 {
     if (IS_ZERO_256(a_value) || !a_stake_ext_hash)
@@ -491,7 +491,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_l
     l_item->subtype.srv_stake_ext_lock.stake_ext_hash = *a_stake_ext_hash;
     l_item->subtype.srv_stake_ext_lock.range_end = 1; // Default to 1
     l_item->subtype.srv_stake_ext_lock.lock_time = a_lock_time;
-    l_item->subtype.srv_stake_ext_lock.project_id = a_project_id;
+    l_item->subtype.srv_stake_ext_lock.position_id = a_position_id;
     
     // Copy additional parameters if provided
     if (a_params && a_params_size) {

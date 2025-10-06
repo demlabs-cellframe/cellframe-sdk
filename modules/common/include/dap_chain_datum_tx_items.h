@@ -259,7 +259,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_l
                                                                                   uint256_t a_value,
                                                                                   const dap_hash_fast_t *a_stake_ext_hash,
                                                                                   dap_time_t a_lock_time,
-                                                                                  uint32_t a_project_id,
+                                                                                  uint32_t a_position_id,
                                                                                   const void *a_params, size_t a_params_size);
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,

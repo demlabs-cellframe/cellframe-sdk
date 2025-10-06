@@ -63,7 +63,7 @@ DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_eve
 {
     switch (a_event_type) {
         case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED: return "stake_ext_started";
-        case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_LOCK_PLACED: return "stake_ext_lock_placed";
+        case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_LOCK_PLACED: return "stake_ext_locked";
         case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED: return "stake_ext_ended";
         case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_CANCELLED: return "stake_ext_cancelled";
         default: return "unknown";
@@ -74,7 +74,7 @@ DAP_STATIC_INLINE int dap_chain_tx_item_event_type_from_str(const char *a_event_
 {
     if (!dap_strcmp(a_event_type_str, "stake_ext_started")) 
         return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED;
-    if (!dap_strcmp(a_event_type_str, "stake_ext_lock_placed")) 
+    if (!dap_strcmp(a_event_type_str, "stake_ext_locked")) 
         return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_LOCK_PLACED;
     if (!dap_strcmp(a_event_type_str, "stake_ext_ended")) 
         return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED;

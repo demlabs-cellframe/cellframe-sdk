@@ -60,8 +60,8 @@ typedef struct dap_chain_tx_event_data_stake_ext_started {
     dap_time_t duration;
     dap_chain_tx_event_data_time_unit_t time_unit;
     uint32_t calculation_rule_id;
-    uint8_t projects_cnt;
-    uint32_t project_ids[];
+    uint8_t total_positions;
+    uint32_t position_ids[];
 } DAP_ALIGN_PACKED dap_chain_tx_event_data_stake_ext_started_t;
 
 typedef struct dap_chain_tx_event_data_ended {
@@ -90,14 +90,14 @@ typedef struct dap_stake_ext_lock_cache_item {
     UT_hash_handle hh;                 // Hash table handle by lock_tx_hash
 } dap_stake_ext_lock_cache_item_t;
 
-// Project aggregation in stake-ext
-typedef struct dap_stake_ext_project_cache_item {
-    uint64_t project_id;               // ID of the project
-    uint256_t total_amount;            // Total amount lock for this project
+// Position aggregation in stake-ext
+typedef struct dap_stake_ext_position_cache_item {
+    uint64_t position_id;               // ID of the position
+    uint256_t total_amount;            // Total amount lock for this position
     uint32_t active_locks_count;        // Number of active (non-unlocked) locks
     dap_stake_ext_lock_cache_item_t *locks;// Hash table of locks by lock_tx_hash  
-    UT_hash_handle hh;                 // Hash table handle by project_hash
-} dap_stake_ext_project_cache_item_t;
+    UT_hash_handle hh;                 // Hash table handle by position_hash
+} dap_stake_ext_position_cache_item_t;
 
 // Stake-ext information in cache
 typedef struct dap_stake_ext_cache_item {
@@ -119,13 +119,13 @@ typedef struct dap_stake_ext_cache_item {
     uint32_t locks_count;               // Total number of locks
     uint32_t active_locks_count;        // Number of non-unlocked locks
     
-    // Projects tracking
-    dap_stake_ext_project_cache_item_t *projects; // Hash table of projects by project_id
+    // Positions tracking
+    dap_stake_ext_position_cache_item_t *positions; // Hash table of positions by position_id
     
     // Winner tracking (for ended stake-ext)
     bool has_winner;                   // Whether stake-ext has determined winner
     uint8_t winners_cnt;               // Number of winners in this stake-ext
-    uint32_t *winners_ids;             // Array of winner project IDs from event data
+    uint32_t *winners_ids;             // Array of winner position IDs from event data
     
     UT_hash_handle hh;                 // Hash handle for table keyed by GUUID
     UT_hash_handle hh_hash;            // Hash handle for table keyed by stake_ext_tx_hash
@@ -140,13 +140,13 @@ typedef struct dap_stake_ext_cache {
     pthread_rwlock_t cache_rwlock;      // Read-write lock for cache access
 } dap_stake_ext_cache_t;
 
-// Project information in stake-ext (for external API)
-typedef struct dap_chain_net_srv_stake_ext_project {
-    uint64_t project_id;
+// Position information in stake-ext (for external API)
+typedef struct dap_chain_net_srv_stake_ext_position {
+    uint64_t position_id;
     uint256_t total_amount;
     uint32_t locks_count;
     uint32_t active_locks_count;
-} dap_chain_net_srv_stake_ext_project_t;
+} dap_chain_net_srv_stake_ext_position_t;
 
 // Single stake-ext structure (for external API)
 typedef struct dap_chain_net_srv_stake_ext {
@@ -158,15 +158,15 @@ typedef struct dap_chain_net_srv_stake_ext {
     dap_time_t end_time;
     char *description;
     uint32_t locks_count;
-    uint32_t projects_count;
+    uint32_t positions_count;
     
     // Winner information (if stake-ext ended)
     bool has_winner;                      // Whether stake-ext has determined winner
     uint8_t winners_cnt;                  // Number of winners
-    uint32_t *winners_ids;                // Array of winner project IDs
+    uint32_t *winners_ids;                // Array of winner position IDs
     
-    // Projects array (if requested)
-    dap_chain_net_srv_stake_ext_project_t *projects;
+    // Positions array (if requested)
+    dap_chain_net_srv_stake_ext_position_t *positions;
 } dap_chain_net_srv_stake_ext_t;
 
 #ifdef __cplusplus
@@ -198,7 +198,7 @@ int dap_stake_ext_cache_add_lock(dap_stake_ext_cache_t *a_cache,
                               uint256_t a_lock_amount,
                               dap_time_t a_lock_time,
                               dap_time_t a_created_time,
-                              uint64_t a_project_id);
+                              uint64_t a_position_id);
 
 int dap_stake_ext_cache_update_stake_ext_status(dap_stake_ext_cache_t *a_cache,
                                            dap_hash_fast_t *a_stake_ext_hash,
@@ -209,7 +209,7 @@ int dap_stake_ext_cache_update_stake_ext_status_by_name(dap_stake_ext_cache_t *a
                                                    const char *a_guuid,
                                                    dap_stake_ext_status_t a_new_status);
 
-int dap_stake_ext_cache_unlock_lock(dap_stake_ext_project_cache_item_t *a_cache,
+int dap_stake_ext_cache_unlock_lock(dap_stake_ext_position_cache_item_t *a_cache,
                                   dap_hash_fast_t *a_lock_hash);
 
 int dap_stake_ext_cache_set_winners(dap_stake_ext_cache_t *a_cache,
@@ -234,8 +234,8 @@ dap_stake_ext_cache_item_t *dap_stake_ext_cache_find_stake_ext_by_name(dap_stake
 dap_stake_ext_lock_cache_item_t *dap_stake_ext_cache_find_lock(dap_stake_ext_cache_item_t *a_stake_ext,
                                                          dap_hash_fast_t *a_lock_hash);
 
-dap_stake_ext_project_cache_item_t *dap_stake_ext_cache_find_project(dap_stake_ext_cache_item_t *a_stake_ext,
-                                                                 uint64_t a_project_id);
+dap_stake_ext_position_cache_item_t *dap_stake_ext_cache_find_position(dap_stake_ext_cache_item_t *a_stake_ext,
+                                                                 uint64_t a_position_id);
 
 // External API for frontend and CLI
 dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t *a_net, 
@@ -245,9 +245,9 @@ void dap_chain_net_srv_stake_ext_delete(dap_chain_net_srv_stake_ext_t *a_stake_e
 // Get list of all stake-exts (with optional filtering)
 dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net, 
                                                 dap_stake_ext_status_t a_status_filter, 
-                                                bool a_include_projects);
+                                                bool a_include_positions);
 
-// Get detailed stake-ext information with all projects
+// Get detailed stake-ext information with all positions
 dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chain_net_t *a_net,
                                                                      dap_chain_hash_fast_t *a_hash);
 
@@ -258,7 +258,7 @@ typedef struct {
     uint32_t ended_stake_ext;
     uint32_t cancelled_stake_ext;
     uint32_t total_locks;
-    uint32_t total_projects;
+    uint32_t total_positions;
 } dap_stake_ext_stats_t;
 
 dap_stake_ext_stats_t *dap_chain_net_srv_stake_ext_get_stats(dap_chain_net_t *a_net);
@@ -276,13 +276,13 @@ dap_stake_ext_status_t dap_stake_ext_status_from_event_type(uint16_t a_event_typ
 
 // Transaction creation functions 
 char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_stake_ext_hash, 
-                                uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_project_id, uint256_t a_fee, int *a_ret_code);
+                                uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_position_id, uint256_t a_fee, int *a_ret_code);
 
 char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_lock_tx_hash, uint256_t a_fee, uint256_t *a_value, int *a_ret_code);
 
 byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
     dap_chain_tx_event_data_time_unit_t a_time_unit,
-    uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[]);
+    uint32_t a_calculation_rule_id, uint8_t a_total_positions, uint32_t a_position_ids[]);
 byte_t *dap_chain_srv_stake_ext_ended_tx_event_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[]);
 
 #ifdef __cplusplus

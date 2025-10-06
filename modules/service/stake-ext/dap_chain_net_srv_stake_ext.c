@@ -59,10 +59,10 @@ enum error_code {
     STAKE_EXT_DURATION_ARG_ERROR = 23,
     STAKE_EXT_DURATION_FORMAT_ERROR = 24,
     STAKE_EXT_END_TIME_ERROR = 25,
-    PROJECT_ID_ARG_ERROR = 27,
-    PROJECT_ID_FORMAT_ERROR = 28,
+    POSITION_ID_ARG_ERROR = 27,
+    POSITION_ID_FORMAT_ERROR = 28,
     STAKE_EXT_CACHE_NOT_INITIALIZED = 29,
-    PROJECT_NOT_FOUND_IN_stake_ext = 30,
+    POSITION_NOT_FOUND_IN_stake_ext = 30,
     INVALID_EVENT_TYPE_ERROR = 31
 };
 
@@ -107,15 +107,15 @@ int dap_chain_net_srv_stake_ext_init(void)
     }
     
     dap_cli_server_cmd_add ("stake_ext", com_stake_ext, NULL, "Extended stake commands",
-                "lock -net <network> -stake_ext <stake_ext_name|tx_hash> -amount <value> -lock_period <3..24> -project <project_id> -fee <value> -w <wallet>\n"
-                "\tPlace a lock on a stake_ext for a specific project\n"
-                "\t-project: project ID (uint32) for which the lock is made\n\n"
+                "lock -net <network> -stake_ext <stake_ext_name|tx_hash> -amount <value> -lock_period <3..24> -position <position_id> -fee <value> -w <wallet>\n"
+                "\tPlace a lock on a stake_ext for a specific position\n"
+                "\t-position: position ID (uint32) for which the lock is made\n\n"
                 "unlock -net <network> -lock_tx_hash <hash> -fee <value> -w <wallet>\n"
                 "\tunlock a lock from a stake_ext\n\n"
-                "list -net <network> [-active_only] [-projects]\n"
+                "list -net <network> [-active_only] [-positions]\n"
                 "\tList all stake_ext or active stake_ext only\n"
                 "\t-active_only: show only active stake_ext\n"
-                "\t-projects: include basic project information\n\n"
+                "\t-positions: include basic position information\n\n"
                 "info -net <network> -stake_ext <stake_ext_name|tx_hash>\n"
                 "\tGet detailed information about a specific stake_ext\n\n"
                 "events -net <network> [-stake_ext <stake_ext_name|tx_hash>] [-type <event_type>]\n"
@@ -125,16 +125,16 @@ int dap_chain_net_srv_stake_ext_init(void)
                 "stats -net <network>\n"
                 "\tGet stake_ext statistics\n\n"
                 "  Examples:\n"
-                "  stake_ext list -net myCellFrame -active_only -projects\n"
-                "  stake_ext lock -net myCellFrame -stake_ext <stake_ext_name|tx_hash> -amount 1000 -lock_period 6 -project 1 -fee 0.1 -w myWallet\n"
+                "  stake_ext list -net myCellFrame -active_only -positions\n"
+                "  stake_ext lock -net myCellFrame -stake_ext <stake_ext_name|tx_hash> -amount 1000 -lock_period 6 -position 1 -fee 0.1 -w myWallet\n"
                 "  stake_ext info -net myCellFrame -stake_ext <stake_ext_name|tx_hash>\n"
                 "  stake_ext unlock -net myCellFrame -lock_tx_hash <hash> -fee 0.1 -w myWallet\n"
                 "  stake_ext events -net myCellFrame -stake_ext <stake_ext_name|tx_hash> -type <event_type>\n"
                 "  stake_ext stats -net myCellFrame\n"
                 "  Notes:\n"
                 "  - Each lock has lock period (3-24 months) set by -lock_period option.\n"
-                "    This period is used AFTER the stake_ext ends to lock the lock amount for the winner projects only for provided time.\n"
-                "    For loosed projects lock can be unlocked immediatly after the stake_ext ends.\n"
+                "    This period is used AFTER the stake_ext ends to lock the lock amount for the winner positions only for provided time.\n"
+                "    For loosed positions lock can be unlocked immediatly after the stake_ext ends.\n"
                 "    It's no way to unlock the lock amount before the stake_ext ends.\n\n");
     log_it(L_NOTICE, "stake_ext service initialized successfully with cache monitoring");
     return 0;
@@ -183,21 +183,21 @@ void dap_chain_net_srv_stake_ext_service_delete(dap_stake_ext_cache_t *a_cache)
     
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
     
-    // Clean up all stake_ext and their locks and projects
+    // Clean up all stake_ext and their locks and positions
     dap_stake_ext_cache_item_t *l_stake_ext, *l_tmp_stake_ext;
     HASH_ITER(hh, a_cache->stake_ext, l_stake_ext, l_tmp_stake_ext) {
         
-        // Clean up all projects in this stake_ext
-        dap_stake_ext_project_cache_item_t *l_project, *l_tmp_project;
-        HASH_ITER(hh, l_stake_ext->projects, l_project, l_tmp_project) {
-            HASH_DEL(l_stake_ext->projects, l_project);
-            // Clean up all locks in this project
+        // Clean up all positions in this stake_ext
+        dap_stake_ext_position_cache_item_t *l_position, *l_tmp_position;
+        HASH_ITER(hh, l_stake_ext->positions, l_position, l_tmp_position) {
+            HASH_DEL(l_stake_ext->positions, l_position);
+            // Clean up all locks in this position
             dap_stake_ext_lock_cache_item_t *l_lock, *l_tmp_lock;
-            HASH_ITER(hh, l_project->locks, l_lock, l_tmp_lock) {
-                HASH_DEL(l_project->locks, l_lock);
+            HASH_ITER(hh, l_position->locks, l_lock, l_tmp_lock) {
+                HASH_DEL(l_position->locks, l_lock);
                 DAP_DELETE(l_lock);
             }
-            DAP_DELETE(l_project);
+            DAP_DELETE(l_position);
         }
         
         // Remove stake_ext from both hash tables
@@ -289,34 +289,34 @@ int dap_stake_ext_cache_add_stake_ext(dap_stake_ext_cache_t *a_cache,
                 break;
         }
         
-        // Add projects from the stake_ext started data
-        if (a_started_data->projects_cnt > 0) {
+        // Add positions from the stake_ext started data
+        if (a_started_data->total_positions > 0) {
            
-            // Create project cache entries for each project ID
-            for (uint8_t i = 0; i < a_started_data->projects_cnt; i++) {
-                uint64_t l_project_id = a_started_data->project_ids[i];              
-                // Create project cache item
-                dap_stake_ext_project_cache_item_t *l_project = NULL;
-                HASH_FIND(hh, l_stake_ext->projects, &l_project_id, sizeof(uint64_t), l_project);
-                if (l_project) {
-                    log_it(L_ERROR, "Project %" DAP_UINT64_FORMAT_U " already exists in stake_ext cache", l_project_id);
+            // Create position cache entries for each position ID
+            for (uint8_t i = 0; i < a_started_data->total_positions; i++) {
+                uint64_t l_position_id = a_started_data->position_ids[i];              
+                // Create position cache item
+                dap_stake_ext_position_cache_item_t *l_position = NULL;
+                HASH_FIND(hh, l_stake_ext->positions, &l_position_id, sizeof(uint64_t), l_position);
+                if (l_position) {
+                    log_it(L_ERROR, "Position %" DAP_UINT64_FORMAT_U " already exists in stake_ext cache", l_position_id);
                     continue;
                 }
-                l_project = DAP_NEW_Z(dap_stake_ext_project_cache_item_t);
-                if (!l_project) {
-                    log_it(L_CRITICAL, "Memory allocation error for project cache item");
+                l_position = DAP_NEW_Z(dap_stake_ext_position_cache_item_t);
+                if (!l_position) {
+                    log_it(L_CRITICAL, "Memory allocation error for position cache item");
                     return -4;
                 }
-                l_project->project_id = l_project_id;
+                l_position->position_id = l_position_id;
 
-                // Add to projects hash table
-                HASH_ADD(hh, l_stake_ext->projects, project_id, sizeof(uint64_t), l_project);
+                // Add to positions hash table
+                HASH_ADD(hh, l_stake_ext->positions, position_id, sizeof(uint64_t), l_position);
             }
         }
         
-        log_it(L_DEBUG, "Added stake_ext %s with %u projects, duration: %lu %s", 
+        log_it(L_DEBUG, "Added stake_ext %s with %u positions, duration: %lu %s", 
                dap_chain_hash_fast_to_str_static(a_stake_ext_hash),
-               a_started_data->projects_cnt,
+               a_started_data->total_positions,
                a_started_data->duration,
                a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS ? "hours" :
                a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS ? "days" :
@@ -344,7 +344,7 @@ int dap_stake_ext_cache_add_stake_ext(dap_stake_ext_cache_t *a_cache,
  * @param a_lock_hash Hash of lock transaction
  * @param a_lock_amount lock amount
  * @param a_lock_time Lock time in seconds
- * @param a_project_id ID of project this lock is for
+ * @param a_position_id ID of position this lock is for
  * @return Returns 0 on success, negative error code otherwise
  */
 int dap_stake_ext_cache_add_lock(dap_stake_ext_cache_t *a_cache,
@@ -353,7 +353,7 @@ int dap_stake_ext_cache_add_lock(dap_stake_ext_cache_t *a_cache,
                               uint256_t a_lock_amount,
                               dap_time_t a_lock_time,
                               dap_time_t a_created_time,
-                              uint64_t a_project_id)
+                              uint64_t a_position_id)
 {
     dap_return_val_if_fail(a_cache && a_lock_hash, -1);
     
@@ -367,11 +367,11 @@ int dap_stake_ext_cache_add_lock(dap_stake_ext_cache_t *a_cache,
         return -2;
     }
           
-    // Find project in stake_ext cache
-    dap_stake_ext_project_cache_item_t *l_project = NULL;
-    HASH_FIND(hh, l_stake_ext->projects, &a_project_id, sizeof(uint64_t), l_project);
-    if (!l_project) {
-        log_it(L_ERROR, "Project not found in stake_ext cache for lock add");
+    // Find position in stake_ext cache
+    dap_stake_ext_position_cache_item_t *l_position = NULL;
+    HASH_FIND(hh, l_stake_ext->positions, &a_position_id, sizeof(uint64_t), l_position);
+    if (!l_position) {
+        log_it(L_ERROR, "Position not found in stake_ext cache for lock add");
         return -4;
     }
 
@@ -383,9 +383,9 @@ int dap_stake_ext_cache_add_lock(dap_stake_ext_cache_t *a_cache,
         return -5;
     }
 
-    // Update project aggregation
-    if (SUM_256_256(l_project->total_amount, a_lock_amount, &l_project->total_amount)) {
-        log_it(L_ERROR, "Overflow detected when adding lock amount to project total");
+    // Update position aggregation
+    if (SUM_256_256(l_position->total_amount, a_lock_amount, &l_position->total_amount)) {
+        log_it(L_ERROR, "Overflow detected when adding lock amount to position total");
     }
 
 
@@ -397,8 +397,8 @@ int dap_stake_ext_cache_add_lock(dap_stake_ext_cache_t *a_cache,
                                             };
     
     // Add to stake_ext's locks
-    HASH_ADD(hh, l_project->locks, lock_tx_hash, sizeof(dap_hash_fast_t), l_lock);
-    l_project->active_locks_count++;
+    HASH_ADD(hh, l_position->locks, lock_tx_hash, sizeof(dap_hash_fast_t), l_lock);
+    l_position->active_locks_count++;
     l_stake_ext->locks_count++;
     l_stake_ext->active_locks_count++;
         
@@ -460,7 +460,7 @@ int dap_stake_ext_cache_update_stake_ext_status(dap_stake_ext_cache_t *a_cache,
  * @param a_lock_hash Hash of lock transaction
  * @return Returns 0 on success, negative error code otherwise
  */
-int dap_stake_ext_cache_unlock_lock(dap_stake_ext_project_cache_item_t *a_cache, dap_hash_fast_t *a_lock_hash)
+int dap_stake_ext_cache_unlock_lock(dap_stake_ext_position_cache_item_t *a_cache, dap_hash_fast_t *a_lock_hash)
 {
     dap_return_val_if_fail(a_cache && a_lock_hash, -1);
     // Find matching lock by parameters from conditional output
@@ -485,7 +485,7 @@ int dap_stake_ext_cache_unlock_lock(dap_stake_ext_project_cache_item_t *a_cache,
  * @param a_cache Cache instance
  * @param a_stake_ext_hash Hash of stake_ext transaction
  * @param a_winners_cnt Number of winners
- * @param a_winners_ids Array of winner project IDs
+ * @param a_winners_ids Array of winner position IDs
  * @return Returns 0 on success, negative error code otherwise
  */
 int dap_stake_ext_cache_set_winners(dap_stake_ext_cache_t *a_cache,
@@ -692,9 +692,9 @@ dap_stake_ext_lock_cache_item_t *dap_stake_ext_cache_find_lock(dap_stake_ext_cac
     if (!a_stake_ext || !a_lock_hash)
         return NULL;
     
-    for (dap_stake_ext_project_cache_item_t *l_project = a_stake_ext->projects; l_project; l_project = l_project->hh.next) {
+    for (dap_stake_ext_position_cache_item_t *l_position = a_stake_ext->positions; l_position; l_position = l_position->hh.next) {
         dap_stake_ext_lock_cache_item_t *l_lock = NULL;
-        HASH_FIND(hh, l_project->locks, a_lock_hash, sizeof(dap_hash_fast_t), l_lock);
+        HASH_FIND(hh, l_position->locks, a_lock_hash, sizeof(dap_hash_fast_t), l_lock);
         if (l_lock) {
             return l_lock;
         }
@@ -704,21 +704,21 @@ dap_stake_ext_lock_cache_item_t *dap_stake_ext_cache_find_lock(dap_stake_ext_cac
 }
 
 /**
- * @brief Find project in stake_ext
+ * @brief Find position in stake_ext
  * @param a_stake_ext stake_ext cache item
- * @param a_project_hash Hash of project
- * @return Returns project cache item or NULL if not found
+ * @param a_position_hash Hash of position
+ * @return Returns position cache item or NULL if not found
  */
-dap_stake_ext_project_cache_item_t *dap_stake_ext_cache_find_project(dap_stake_ext_cache_item_t *a_stake_ext,
-                                                                 uint64_t a_project_id)
+dap_stake_ext_position_cache_item_t *dap_stake_ext_cache_find_position(dap_stake_ext_cache_item_t *a_stake_ext,
+                                                                 uint64_t a_position_id)
 {
-    if (!a_stake_ext || !a_project_id)
+    if (!a_stake_ext || !a_position_id)
         return NULL;
     
-    dap_stake_ext_project_cache_item_t *l_project = NULL;
-    HASH_FIND(hh, a_stake_ext->projects, &a_project_id, sizeof(uint64_t), l_project);
+    dap_stake_ext_position_cache_item_t *l_position = NULL;
+    HASH_FIND(hh, a_stake_ext->positions, &a_position_id, sizeof(uint64_t), l_position);
     
-    return l_project;
+    return l_position;
 }
 
 static int s_stake_ext_event_verify(dap_ledger_t *a_ledger, const char *a_event_group_name, int a_event_type, void *a_event_data,
@@ -801,10 +801,10 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                     
                     // Validate buffer size for potential project_ids array access
                     size_t l_required_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) + 
-                                           (l_started_data->projects_cnt * sizeof(uint32_t));
+                                           (l_started_data->total_positions * sizeof(uint32_t));
                     if (a_event->event_data_size < l_required_size) {
                         log_it(L_ERROR, "Event data size %zu is insufficient for %u projects (required: %zu)", 
-                               a_event->event_data_size, l_started_data->projects_cnt, l_required_size);
+                               a_event->event_data_size, l_started_data->total_positions, l_required_size);
                         return;
                     }
                     
@@ -829,7 +829,7 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                     
                     log_it(L_INFO, "stake_ext %s started with %u projects, duration: %"DAP_UINT64_FORMAT_U" %s", 
                            dap_chain_hash_fast_to_str_static(&a_event->tx_hash),
-                           l_started_data->projects_cnt,
+                           l_started_data->total_positions,
                            l_started_data->duration,
                            dap_chain_tx_event_data_time_unit_to_str(l_started_data->time_unit));
                 }
@@ -1020,7 +1020,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
         // 2. Extract lock parameters from conditional output
         dap_hash_fast_t l_stake_ext_hash = l_out_cond->subtype.srv_stake_ext_lock.stake_ext_hash;
         dap_time_t l_lock_time = l_out_cond->subtype.srv_stake_ext_lock.lock_time;
-        uint32_t l_project_id = l_out_cond->subtype.srv_stake_ext_lock.project_id;
+        uint32_t l_position_id = l_out_cond->subtype.srv_stake_ext_lock.position_id;
 
         // 3. Extract lock amount from conditional output value
         uint256_t l_lock_amount = l_out_cond->header.value;
@@ -1033,13 +1033,13 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
                                                      l_lock_amount,
                                                      l_lock_time,
                                                      a_tx_in->header.ts_created,
-                                                     l_project_id);
+                                                     l_position_id);
 
         if (l_add_result == 0) {
-            log_it(L_INFO, "Successfully added lock %s to stake_ext %s cache (project_id=%u, lock_time=%"DAP_UINT64_FORMAT_U", amount=%s)", 
+            log_it(L_INFO, "Successfully added lock %s to stake_ext %s cache (position_id=%u, lock_time=%"DAP_UINT64_FORMAT_U", amount=%s)", 
                    dap_chain_hash_fast_to_str_static(a_tx_in_hash),
                    dap_chain_hash_fast_to_str_static(&l_stake_ext_hash),
-                   l_project_id,
+                   l_position_id,
                    l_lock_time,
                    dap_uint256_to_char(l_lock_amount, NULL));
         } else {
@@ -1075,14 +1075,14 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
                    dap_chain_hash_fast_to_str_static(&l_stake_ext_hash));
             return;
         }
-        uint64_t l_project_id = a_prev_out_item->subtype.srv_stake_ext_lock.project_id;
-        dap_stake_ext_project_cache_item_t *l_project = NULL;
-        HASH_FIND(hh, l_stake_ext->projects, &l_project_id, sizeof(uint64_t), l_project);
-        if (!l_project) {
-            log_it(L_ERROR, "Project %" DAP_UINT64_FORMAT_U " not found in stake_ext cache during lock unlockal", l_project_id);
+        uint64_t l_position_id = a_prev_out_item->subtype.srv_stake_ext_lock.position_id;
+        dap_stake_ext_position_cache_item_t *l_position = NULL;
+        HASH_FIND(hh, l_stake_ext->positions, &l_position_id, sizeof(uint64_t), l_position);
+        if (!l_position) {
+            log_it(L_ERROR, "Position %" DAP_UINT64_FORMAT_U " not found in stake_ext cache during lock unlockal", l_position_id);
             return;
         }
-        int l_result = dap_stake_ext_cache_unlock_lock(l_project, l_lock_hash);
+        int l_result = dap_stake_ext_cache_unlock_lock(l_position, l_lock_hash);
         if (l_result != 0) {
             log_it(L_ERROR, "Failed to unlock lock %s from stake_ext %s",
                     dap_chain_hash_fast_to_str_static(l_lock_hash),
@@ -1117,10 +1117,10 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
         return -2;
     }
 
-    // Validate project_id 
-    uint32_t l_project_id = a_cond->subtype.srv_stake_ext_lock.project_id;
-    if (l_project_id == 0) {
-        log_it(L_WARNING, "Invalid project_id value 0 (must be > 0)");
+    // Validate position_id 
+    uint32_t l_position_id = a_cond->subtype.srv_stake_ext_lock.position_id;
+    if (l_position_id == 0) {
+        log_it(L_WARNING, "Invalid position_id value 0 (must be > 0)");
         return -4;
     }
 
@@ -1167,10 +1167,10 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
         } break;
 
         case DAP_STAKE_EXT_STATUS_ENDED: {
-            // 1. Get project id from lock transaction
-            uint32_t l_lock_project = a_cond->subtype.srv_stake_ext_lock.project_id;
+            // 1. Get position id from lock transaction
+            uint32_t l_lock_position = a_cond->subtype.srv_stake_ext_lock.position_id;
 
-            // 2. Check if this project is among the winners
+            // 2. Check if this position is among the winners
             bool l_is_winner = false;
             if (!l_stake_ext->winners_ids && l_stake_ext->winners_cnt > 0) {
                 log_it(L_ERROR, "Inconsistent winner data: count > 0 but no IDs");
@@ -1179,7 +1179,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
             }
             if (l_stake_ext->winners_cnt > 0 && l_stake_ext->winners_ids) {
                 for (uint32_t i = 0; i < l_stake_ext->winners_cnt; i++) {
-                    if (l_stake_ext->winners_ids[i] == l_lock_project) {
+                    if (l_stake_ext->winners_ids[i] == l_lock_position) {
                         l_is_winner = true;
                         break;
                     }
@@ -1187,7 +1187,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
             }
             
             // 3. Make decision about unlockal validity
-            if (l_is_winner) { // If project is winner, check if lock period expired
+            if (l_is_winner) { // If position is winner, check if lock period expired
                 dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
                 dap_time_t l_lock_end_time = l_stake_ext->end_time + a_cond->subtype.srv_stake_ext_lock.lock_time;
                 
@@ -1199,8 +1199,8 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
                         l_stake_ext_hash_str, l_current_time, l_lock_end_time);
                     ret_code = -7;
                 }
-            } else { // If project is not winner
-                log_it(L_DEBUG, "unlockal allowed: project %u in stake_ext %s lost", l_lock_project, l_stake_ext_hash_str);
+            } else { // If position is not winner
+                log_it(L_DEBUG, "unlockal allowed: position %u in stake_ext %s lost", l_lock_position, l_stake_ext_hash_str);
                 ret_code = 0;
             }
         } break;
@@ -1239,7 +1239,7 @@ void dap_chain_net_srv_stake_ext_delete(dap_chain_net_srv_stake_ext_t *a_stake_e
     DAP_DEL_Z(a_stake_ext->guuid);
     DAP_DEL_Z(a_stake_ext->description);
     DAP_DEL_Z(a_stake_ext->winners_ids);  // Free winners array   
-    DAP_DEL_Z(a_stake_ext->projects);     // Free projects array if present
+    DAP_DEL_Z(a_stake_ext->positions);     // Free positions array if present
     
     DAP_DELETE(a_stake_ext);
 }
@@ -1278,7 +1278,7 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
     l_stake_ext->end_time = l_cached_stake_ext->end_time;
     l_stake_ext->description = l_cached_stake_ext->description ? dap_strdup(l_cached_stake_ext->description) : NULL;
     l_stake_ext->locks_count = l_cached_stake_ext->locks_count;
-    l_stake_ext->projects_count = HASH_COUNT(l_cached_stake_ext->projects);
+    l_stake_ext->positions_count = HASH_COUNT(l_cached_stake_ext->positions);
     
     // Winner information with proper memory management
     l_stake_ext->has_winner = l_cached_stake_ext->has_winner;
@@ -1303,7 +1303,7 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
         l_stake_ext->description = dap_strdup(l_cached_stake_ext->description);
     }
     
-    // Projects array is not filled here - use get_detailed for that
+    // Positions array is not filled here - use get_detailed for that
     
     log_it(L_DEBUG, "Found stake_ext %s in cache with status %s", 
            dap_chain_hash_fast_to_str_static(a_hash),
@@ -1317,7 +1317,7 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
 //====================================================================
 
 /**
- * @brief Get detailed stake_ext information with all projects
+ * @brief Get detailed stake_ext information with all positions
  * @param a_net Network instance
  * @param a_hash stake_ext hash
  * @return Returns detailed stake_ext structure or NULL if not found
@@ -1353,7 +1353,7 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
     l_stake_ext->end_time = l_cached_stake_ext->end_time;
     l_stake_ext->description = l_cached_stake_ext->description ? dap_strdup(l_cached_stake_ext->description) : NULL;
     l_stake_ext->locks_count = l_cached_stake_ext->locks_count;
-    l_stake_ext->projects_count = HASH_COUNT(l_cached_stake_ext->projects);
+    l_stake_ext->positions_count = HASH_COUNT(l_cached_stake_ext->positions);
     
     // Winner information with proper memory management
     l_stake_ext->has_winner = l_cached_stake_ext->has_winner;
@@ -1374,22 +1374,22 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
         l_stake_ext->winners_ids = NULL;
     }
     
-    // Fill projects array
-    if (l_stake_ext->projects_count) {
-        l_stake_ext->projects = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_ext_project_t,
-                                                            sizeof(dap_chain_net_srv_stake_ext_project_t) * l_stake_ext->projects_count,
+    // Fill positions array
+    if (l_stake_ext->positions_count) {
+        l_stake_ext->positions = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_ext_position_t,
+                                                            sizeof(dap_chain_net_srv_stake_ext_position_t) * l_stake_ext->positions_count,
                                                             NULL);
-        if (l_stake_ext->projects) {
+        if (l_stake_ext->positions) {
             uint32_t l_index = 0;
-            for (dap_stake_ext_project_cache_item_t *l_project = l_cached_stake_ext->projects; l_project; l_project = l_project->hh.next) {
-                if (l_index == l_stake_ext->projects_count) {
-                    log_it(L_ERROR, "Projects count mismatch in detailed view (expected %u, got more projects)", l_stake_ext->projects_count);
+            for (dap_stake_ext_position_cache_item_t *l_position = l_cached_stake_ext->positions; l_position; l_position = l_position->hh.next) {
+                if (l_index == l_stake_ext->positions_count) {
+                    log_it(L_ERROR, "Positions count mismatch in detailed view (expected %u, got more positions)", l_stake_ext->positions_count);
                     break;
                 }
-                l_stake_ext->projects[l_index].project_id = l_project->project_id;
-                l_stake_ext->projects[l_index].total_amount = l_project->total_amount;
-                l_stake_ext->projects[l_index].locks_count = HASH_COUNT(l_project->locks);
-                l_stake_ext->projects[l_index].active_locks_count = l_project->active_locks_count; 
+                l_stake_ext->positions[l_index].position_id = l_position->position_id;
+                l_stake_ext->positions[l_index].total_amount = l_position->total_amount;
+                l_stake_ext->positions[l_index].locks_count = HASH_COUNT(l_position->locks);
+                l_stake_ext->positions[l_index].active_locks_count = l_position->active_locks_count; 
                 
                 l_index++;
             }
@@ -1397,8 +1397,8 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
     }
     pthread_rwlock_unlock(&s_stake_ext_cache->cache_rwlock);
     
-    log_it(L_DEBUG, "Retrieved detailed stake_ext %s with %u projects", 
-           dap_chain_hash_fast_to_str_static(a_hash), l_stake_ext->projects_count);
+    log_it(L_DEBUG, "Retrieved detailed stake_ext %s with %u positions", 
+           dap_chain_hash_fast_to_str_static(a_hash), l_stake_ext->positions_count);
     
     return l_stake_ext;
 }
@@ -1407,12 +1407,12 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
  * @brief Get list of stake_ext with optional filtering
  * @param a_net Network instance
  * @param a_status_filter Filter by status (DAP_STAKE_EXT_STATUS_UNKNOWN = no filter)
- * @param a_include_projects Whether to include basic project information
+ * @param a_include_positions Whether to include basic position information
  * @return Returns list of stake_ext (must be freed with dap_list_free)
  */
 dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net, 
                                                 dap_stake_ext_status_t a_status_filter, 
-                                                bool a_include_projects)
+                                                bool a_include_positions)
 {
     if (!a_net || !s_stake_ext_cache)
         return NULL;
@@ -1421,8 +1421,8 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
     pthread_rwlock_rdlock(&s_stake_ext_cache->cache_rwlock);
     
     // Diagnostic: Log current cache state
-    log_it(L_INFO, "Getting stake_ext list for network %s, status_filter=%d, include_projects=%s", 
-           a_net->pub.name, a_status_filter, a_include_projects ? "true" : "false");
+    log_it(L_INFO, "Getting stake_ext list for network %s, status_filter=%d, include_positions=%s", 
+           a_net->pub.name, a_status_filter, a_include_positions ? "true" : "false");
     log_it(L_INFO, "Cache state: total_stake_ext=%u, active_stake_ext=%u, stake_ext_table=%s", 
            s_stake_ext_cache->total_stake_ext, s_stake_ext_cache->active_stake_ext,
            s_stake_ext_cache->stake_ext ? "present" : "NULL");
@@ -1494,7 +1494,7 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
         l_stake_ext->end_time = l_cached_stake_ext->end_time;
         l_stake_ext->description = l_cached_stake_ext->description ? dap_strdup(l_cached_stake_ext->description) : NULL;
         l_stake_ext->locks_count = l_cached_stake_ext->locks_count;
-        l_stake_ext->projects_count = HASH_COUNT(l_cached_stake_ext->projects);
+        l_stake_ext->positions_count = HASH_COUNT(l_cached_stake_ext->positions);
         
         // Winner information with proper memory management
         l_stake_ext->has_winner = l_cached_stake_ext->has_winner;
@@ -1515,34 +1515,34 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
             l_stake_ext->winners_ids = NULL;
         }
         
-        // Fill projects array if requested and available
-        if (a_include_projects && l_stake_ext->projects_count > 0) {
-            l_stake_ext->projects = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_ext_project_t,
-                                                                sizeof(dap_chain_net_srv_stake_ext_project_t) * l_stake_ext->projects_count,
+        // Fill positions array if requested and available
+        if (a_include_positions && l_stake_ext->positions_count > 0) {
+            l_stake_ext->positions = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_ext_position_t,
+                                                                sizeof(dap_chain_net_srv_stake_ext_position_t) * l_stake_ext->positions_count,
                                                                 NULL);
-            if (l_stake_ext->projects) {
+            if (l_stake_ext->positions) {
                 uint32_t l_index = 0;
-                dap_stake_ext_project_cache_item_t *l_project, *l_tmp_project;
-                HASH_ITER(hh, l_cached_stake_ext->projects, l_project, l_tmp_project) {
+                dap_stake_ext_position_cache_item_t *l_position, *l_tmp_position;
+                HASH_ITER(hh, l_cached_stake_ext->positions, l_position, l_tmp_position) {
                     // Safety check to prevent segfault in nested iteration
-                    if (!l_project) {
-                        log_it(L_ERROR, "NULL project found during iteration - project cache corruption detected");
+                    if (!l_position) {
+                        log_it(L_ERROR, "NULL position found during iteration - position cache corruption detected");
                         break;
                     }
-                    if (l_index >= l_stake_ext->projects_count)
+                    if (l_index >= l_stake_ext->positions_count)
                         break;
                     
-                    l_stake_ext->projects[l_index].project_id = l_project->project_id;
-                    l_stake_ext->projects[l_index].total_amount = l_project->total_amount;
-                    l_stake_ext->projects[l_index].locks_count = HASH_COUNT(l_project->locks);
-                    l_stake_ext->projects[l_index].active_locks_count = l_project->active_locks_count;
+                    l_stake_ext->positions[l_index].position_id = l_position->position_id;
+                    l_stake_ext->positions[l_index].total_amount = l_position->total_amount;
+                    l_stake_ext->positions[l_index].locks_count = HASH_COUNT(l_position->locks);
+                    l_stake_ext->positions[l_index].active_locks_count = l_position->active_locks_count;
                     
                     l_index++;
                 }
             } else {
                 // Memory allocation failed - log error but continue
-                log_it(L_ERROR, "Failed to allocate memory for projects array in list view");
-                l_stake_ext->projects_count = 0;
+                log_it(L_ERROR, "Failed to allocate memory for positions array in list view");
+                l_stake_ext->positions_count = 0;
             }
         }
         
@@ -1582,7 +1582,7 @@ dap_stake_ext_stats_t *dap_chain_net_srv_stake_ext_get_stats(dap_chain_net_t *a_
         
         l_stats->total_stake_ext++;
         l_stats->total_locks += l_stake_ext->locks_count;
-        l_stats->total_projects += HASH_COUNT(l_stake_ext->projects);
+        l_stats->total_positions += HASH_COUNT(l_stake_ext->positions);
         
         switch (l_stake_ext->status) {
             case DAP_STAKE_EXT_STATUS_ACTIVE:
@@ -1665,7 +1665,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
         case DAP_STAKE_EXT_STATUS_ENDED:
         {
             // 1. Get project id from lock transaction
-            uint32_t l_lock_project = l_out_cond->subtype.srv_stake_ext_lock.project_id;
+            uint32_t l_lock_project = l_out_cond->subtype.srv_stake_ext_lock.position_id;
             // 2. Get winners from stake_ext ended event
 
             uint32_t l_winners_count = l_stake_ext->winners_cnt;
@@ -1899,15 +1899,15 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
  * @param a_stake_ext_hash Hash of the stake_ext transaction
  * @param a_amount lock amount
  * @param a_lock_time Lock time in seconds
- * @param a_project_id Project ID for which the lock is made
+ * @param a_position_id Position ID for which the lock is made
  * @param a_fee Transaction fee
  * @param a_ret_code Return code for error handling
  * @return Returns transaction hash string or NULL on error
  */
 char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_stake_ext_hash, 
-                                     uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_project_id, uint256_t a_fee, int *a_ret_code)
+                                     uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_position_id, uint256_t a_fee, int *a_ret_code)
 {
-    if (!a_net || !a_key_from || !a_stake_ext_hash || IS_ZERO_256(a_amount) || a_project_id == 0)
+    if (!a_net || !a_key_from || !a_stake_ext_hash || IS_ZERO_256(a_amount) || a_position_id == 0)
         return NULL;
 
     dap_ledger_t *l_ledger = a_net->pub.ledger;
@@ -1917,7 +1917,7 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
         return NULL;
     }
 
-    // Validate project_id exists in stake_ext
+    // Validate position_id exists in stake_ext
     if (!s_stake_ext_cache) {
         log_it(L_ERROR, "stake_ext cache not initialized");
         set_ret_code(a_ret_code, -101);
@@ -1936,12 +1936,12 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
         return NULL;
     }
       
-    uint64_t l_project_id = a_project_id;
-    dap_stake_ext_project_cache_item_t *l_project = NULL;
-    HASH_FIND(hh, l_stake_ext_cache->projects, &l_project_id, sizeof(uint64_t), l_project);    
+    uint64_t l_position_id = a_position_id;
+    dap_stake_ext_position_cache_item_t *l_position = NULL;
+    HASH_FIND(hh, l_stake_ext_cache->positions, &l_position_id, sizeof(uint64_t), l_position);    
     pthread_rwlock_unlock(&s_stake_ext_cache->cache_rwlock);
-    if (!l_project) {
-        log_it(L_ERROR, "Project ID %u not found in stake_ext", a_project_id);
+    if (!l_position) {
+        log_it(L_ERROR, "Position ID %u not found in stake_ext", a_position_id);
         set_ret_code(a_ret_code, -104);
         return NULL;
     }
@@ -2038,7 +2038,7 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
     // 6. Add conditional output (stake_ext lock lock)
     dap_chain_net_srv_uid_t l_srv_uid = {.uint64 = DAP_CHAIN_NET_SRV_STAKE_EXT_ID};
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_lock(
-        l_srv_uid, a_amount, a_stake_ext_hash, a_lock_time, a_project_id, NULL, 0);
+        l_srv_uid, a_amount, a_stake_ext_hash, a_lock_time, a_position_id, NULL, 0);
     if (!l_out_cond) {
         log_it(L_ERROR, "Failed to create stake_ext lock conditional output");
         dap_chain_datum_tx_delete(l_tx);
@@ -2253,16 +2253,16 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                 return -8;
             }
 
-            // Parse project ID
+            // Parse position ID
             str_tmp = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-project", &str_tmp);
+            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-position", &str_tmp);
             if(!str_tmp) {
-                dap_json_rpc_error_add(*l_json_arr_reply, PROJECT_ID_ARG_ERROR, "Project ID not specified");
+                dap_json_rpc_error_add(*l_json_arr_reply, POSITION_ID_ARG_ERROR, "Position ID not specified");
                 return -9;
             }
-            uint32_t l_project_id = (uint32_t)atoi(str_tmp);
-            if(l_project_id == 0) {
-                dap_json_rpc_error_add(*l_json_arr_reply, PROJECT_ID_FORMAT_ERROR, "Invalid project ID format");
+            uint32_t l_position_id = (uint32_t)atoi(str_tmp);
+            if(l_position_id == 0) {
+                dap_json_rpc_error_add(*l_json_arr_reply, POSITION_ID_FORMAT_ERROR, "Invalid position ID format");
                 return -10;
             }
 
@@ -2303,7 +2303,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
             // Create stake_ext lock transaction
             int l_ret_code = 0;
             char *l_tx_hash_str = dap_chain_net_srv_stake_ext_lock_create(l_net, l_enc_key, &l_stake_ext_hash, 
-                                                         l_amount, l_lock_time, l_project_id, l_fee, &l_ret_code);
+                                                         l_amount, l_lock_time, l_position_id, l_fee, &l_ret_code);
             DAP_DELETE(l_enc_key);
             
             // Close wallet
@@ -2348,7 +2348,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                         l_error_msg = "Lock time must be between 3 and 24 months";
                         break;
                     case -104:
-                        l_error_msg = "Project ID not found in stake_ext";
+                        l_error_msg = "Position ID not found in stake_ext";
                         break;
                     case -105:
                         l_error_msg = "Failed to get emission rate for delegated token";
@@ -2556,11 +2556,11 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
 
         case CMD_LIST: {
             bool l_active_only = (dap_cli_server_cmd_check_option(argv, arg_index, argc, "-active_only") != -1);
-            bool l_include_projects = (dap_cli_server_cmd_check_option(argv, arg_index, argc, "-projects") != -1);
+            bool l_include_positions = (dap_cli_server_cmd_check_option(argv, arg_index, argc, "-positions") != -1);
             
             // Get list of stake_ext from cache
             dap_stake_ext_status_t l_status_filter = l_active_only ? DAP_STAKE_EXT_STATUS_ACTIVE : DAP_STAKE_EXT_STATUS_UNKNOWN;
-            dap_list_t *l_stake_ext_list = dap_chain_net_srv_stake_ext_get_list(l_net, l_status_filter, l_include_projects);
+            dap_list_t *l_stake_ext_list = dap_chain_net_srv_stake_ext_get_list(l_net, l_status_filter, l_include_positions);
             
             // Diagnostic: Check returned list
             if (!l_stake_ext_list) {
@@ -2574,7 +2574,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
             json_object_object_add(l_json_obj, "command", json_object_new_string("list"));
             json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
             json_object_object_add(l_json_obj, "active_only", json_object_new_boolean(l_active_only));
-            json_object_object_add(l_json_obj, "include_projects", json_object_new_boolean(l_include_projects));
+            json_object_object_add(l_json_obj, "include_positions", json_object_new_boolean(l_include_positions));
             
             // Create stake_ext array
             json_object *l_stake_ext_array = json_object_new_array();
@@ -2615,15 +2615,15 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                 json_object_object_add(l_stake_ext_obj, "end_time", json_object_new_string(end_time_str));
                 json_object_object_add(l_stake_ext_obj, "locks_count", 
                     json_object_new_uint64(l_stake_ext->locks_count));
-                json_object_object_add(l_stake_ext_obj, "projects_count", 
-                    json_object_new_uint64(l_stake_ext->projects_count));
+                json_object_object_add(l_stake_ext_obj, "positions_count", 
+                    json_object_new_uint64(l_stake_ext->positions_count));
                 
                 // Winners information
                 if (l_stake_ext->has_winner && l_stake_ext->winners_cnt > 0) {
                     json_object *l_winners_array = json_object_new_array();
                     for (uint8_t i = 0; i < l_stake_ext->winners_cnt; i++) {
                     json_object *l_winner_obj = json_object_new_object();
-                        json_object_object_add(l_winner_obj, "project_id", 
+                        json_object_object_add(l_winner_obj, "position_id", 
                             json_object_new_uint64(l_stake_ext->winners_ids[i]));
                         json_object_array_add(l_winners_array, l_winner_obj);
                     }
@@ -2632,40 +2632,40 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                         json_object_new_uint64(l_stake_ext->winners_cnt));
                 }
                 
-                // Projects information (if requested and available)
-                if (l_include_projects && l_stake_ext->projects && l_stake_ext->projects_count > 0) {
-                    json_object *l_projects_array = json_object_new_array();
-                    for (uint32_t i = 0; i < l_stake_ext->projects_count; i++) {
-                        json_object *l_project_obj = json_object_new_object();
+                // Positions information (if requested and available)
+                if (l_include_positions && l_stake_ext->positions && l_stake_ext->positions_count > 0) {
+                    json_object *l_positions_array = json_object_new_array();
+                    for (uint32_t i = 0; i < l_stake_ext->positions_count; i++) {
+                        json_object *l_position_obj = json_object_new_object();
                         
-                        // Project ID
-                        json_object_object_add(l_project_obj, "project_id", json_object_new_uint64(l_stake_ext->projects[i].project_id));
+                        // Position ID
+                        json_object_object_add(l_position_obj, "position_id", json_object_new_uint64(l_stake_ext->positions[i].position_id));
                         
                         // Total amount
-                        char *l_total_amount_str = dap_uint256_uninteger_to_char(l_stake_ext->projects[i].total_amount);
+                        char *l_total_amount_str = dap_uint256_uninteger_to_char(l_stake_ext->positions[i].total_amount);
                         if (l_total_amount_str) {
-                            json_object_object_add(l_project_obj, "total_amount", json_object_new_string(l_total_amount_str));
+                            json_object_object_add(l_position_obj, "total_amount", json_object_new_string(l_total_amount_str));
                             DAP_DELETE(l_total_amount_str);
                         } else {
-                            json_object_object_add(l_project_obj, "total_amount", json_object_new_string("0"));
+                            json_object_object_add(l_position_obj, "total_amount", json_object_new_string("0"));
                         }
                         
                         // Total amount in CELL
-                        char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_stake_ext->projects[i].total_amount);
+                        char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_stake_ext->positions[i].total_amount);
                         if (l_total_amount_coin_str) {
-                            json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string(l_total_amount_coin_str));
+                            json_object_object_add(l_position_obj, "total_amount_coin", json_object_new_string(l_total_amount_coin_str));
                             DAP_DELETE(l_total_amount_coin_str);
                         } else {
-                            json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string("0.0"));
+                            json_object_object_add(l_position_obj, "total_amount_coin", json_object_new_string("0.0"));
                         }
                         
                         // locks counts
-                        json_object_object_add(l_project_obj, "locks_count", json_object_new_uint64(l_stake_ext->projects[i].locks_count));
-                        json_object_object_add(l_project_obj, "active_locks_count", json_object_new_uint64(l_stake_ext->projects[i].active_locks_count));
+                        json_object_object_add(l_position_obj, "locks_count", json_object_new_uint64(l_stake_ext->positions[i].locks_count));
+                        json_object_object_add(l_position_obj, "active_locks_count", json_object_new_uint64(l_stake_ext->positions[i].active_locks_count));
                         
-                        json_object_array_add(l_projects_array, l_project_obj);
+                        json_object_array_add(l_positions_array, l_position_obj);
                     }
-                    json_object_object_add(l_stake_ext_obj, "projects", l_projects_array);
+                    json_object_object_add(l_stake_ext_obj, "positions", l_positions_array);
                 }
                 
                 json_object_array_add(l_stake_ext_array, l_stake_ext_obj);
@@ -2734,7 +2734,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
             json_object_object_add(l_json_obj, "start_time", json_object_new_string(info_start_time_str));
             json_object_object_add(l_json_obj, "end_time", json_object_new_string(info_end_time_str));
             json_object_object_add(l_json_obj, "locks_count", json_object_new_uint64(l_stake_ext->locks_count));
-            json_object_object_add(l_json_obj, "projects_count", json_object_new_uint64(HASH_COUNT(l_stake_ext->projects)));
+            json_object_object_add(l_json_obj, "positions_count", json_object_new_uint64(HASH_COUNT(l_stake_ext->positions)));
             
             if (l_stake_ext->description) {
                 json_object_object_add(l_json_obj, "description", 
@@ -2746,7 +2746,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                 json_object *l_winners_array = json_object_new_array();
                 for (uint8_t i = 0; i < l_stake_ext->winners_cnt; i++) {
                 json_object *l_winner_obj = json_object_new_object();
-                    json_object_object_add(l_winner_obj, "project_id", 
+                    json_object_object_add(l_winner_obj, "position_id", 
                         json_object_new_uint64(l_stake_ext->winners_ids[i]));
                     json_object_array_add(l_winners_array, l_winner_obj);
                 }
@@ -2755,36 +2755,36 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                     json_object_new_uint64(l_stake_ext->winners_cnt));
             }
             
-            // Projects information
-            if (l_stake_ext->projects && HASH_COUNT(l_stake_ext->projects) > 0) {
-                json_object *l_projects_array = json_object_new_array();
+            // Positions information
+            if (l_stake_ext->positions && HASH_COUNT(l_stake_ext->positions) > 0) {
+                json_object *l_positions_array = json_object_new_array();
                 
-                for (dap_stake_ext_project_cache_item_t *l_project = l_stake_ext->projects; l_project; l_project = l_project->hh.next) {
-                    json_object *l_project_obj = json_object_new_object();
-                    json_object_array_add(l_projects_array, l_project_obj);
-                    // Project ID
-                    json_object_object_add(l_project_obj, "project_id", json_object_new_uint64(l_project->project_id));
+                for (dap_stake_ext_position_cache_item_t *l_position = l_stake_ext->positions; l_position; l_position = l_position->hh.next) {
+                    json_object *l_position_obj = json_object_new_object();
+                    json_object_array_add(l_positions_array, l_position_obj);
+                    // Position ID
+                    json_object_object_add(l_position_obj, "position_id", json_object_new_uint64(l_position->position_id));
                    
-                    const char *l_total_amount_str = dap_uint256_to_char(l_project->total_amount, NULL);
-                    json_object_object_add(l_project_obj, "total_amount", json_object_new_string(l_total_amount_str));
+                    const char *l_total_amount_str = dap_uint256_to_char(l_position->total_amount, NULL);
+                    json_object_object_add(l_position_obj, "total_amount", json_object_new_string(l_total_amount_str));
                     
                     // Total amount in CELL
-                    char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_project->total_amount);
+                    char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_position->total_amount);
                     if (l_total_amount_coin_str) {
-                        json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string(l_total_amount_coin_str));
+                        json_object_object_add(l_position_obj, "total_amount_coin", json_object_new_string(l_total_amount_coin_str));
                         DAP_DELETE(l_total_amount_coin_str);
                     } else {
-                        json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string("0.0"));
+                        json_object_object_add(l_position_obj, "total_amount_coin", json_object_new_string("0.0"));
                     }
                     
-                    json_object_object_add(l_project_obj, "locks_count", 
-                        json_object_new_uint64(HASH_COUNT(l_project->locks)));
-                    json_object_object_add(l_project_obj, "active_locks_count", 
-                        json_object_new_uint64(l_project->active_locks_count));
+                    json_object_object_add(l_position_obj, "locks_count", 
+                        json_object_new_uint64(HASH_COUNT(l_position->locks)));
+                    json_object_object_add(l_position_obj, "active_locks_count", 
+                        json_object_new_uint64(l_position->active_locks_count));
                     if (l_verbose) {
                         json_object *l_locks_array = json_object_new_array();
-                        json_object_object_add(l_project_obj, "locks", l_locks_array);
-                        for (dap_stake_ext_lock_cache_item_t *l_lock = l_project->locks; l_lock; l_lock = l_lock->hh.next) {
+                        json_object_object_add(l_position_obj, "locks", l_locks_array);
+                        for (dap_stake_ext_lock_cache_item_t *l_lock = l_position->locks; l_lock; l_lock = l_lock->hh.next) {
                             json_object *l_lock_obj = json_object_new_object();
                             json_object_array_add(l_locks_array, l_lock_obj);
                             json_object_object_add(l_lock_obj, "lock_tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_lock->lock_tx_hash)));
@@ -2798,7 +2798,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                     }
                 }
                 
-                json_object_object_add(l_json_obj, "projects", l_projects_array);
+                json_object_object_add(l_json_obj, "positions", l_positions_array);
             }
             
             json_object_array_add(*l_json_arr_reply, l_json_obj);
@@ -2864,13 +2864,13 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                     json_object_object_add(l_stake_ext_data, "duration", json_object_new_uint64(l_started_data->duration));
                     json_object_object_add(l_stake_ext_data, "time_unit", json_object_new_string(dap_chain_tx_event_data_time_unit_to_str(l_started_data->time_unit)));
                     json_object_object_add(l_stake_ext_data, "calculation_rule_id", json_object_new_uint64(l_started_data->calculation_rule_id));
-                    json_object_object_add(l_stake_ext_data, "projects_cnt", json_object_new_uint64(l_started_data->projects_cnt));
-                    json_object *l_projects_array = json_object_new_array();
-                    json_object_object_add(l_stake_ext_data, "projects", l_projects_array);
-                    for (uint8_t i = 0; i < l_started_data->projects_cnt; i++) {
-                        json_object *l_project_obj = json_object_new_object();
-                        json_object_object_add(l_project_obj, "project_id", json_object_new_uint64(l_started_data->project_ids[i]));
-                        json_object_array_add(l_projects_array, l_project_obj);
+                    json_object_object_add(l_stake_ext_data, "total_positions", json_object_new_uint64(l_started_data->total_positions));
+                    json_object *l_positions_array = json_object_new_array();
+                    json_object_object_add(l_stake_ext_data, "positions", l_positions_array);
+                    for (uint8_t i = 0; i < l_started_data->total_positions; i++) {
+                        json_object *l_position_obj = json_object_new_object();
+                        json_object_object_add(l_position_obj, "position_id", json_object_new_uint64(l_started_data->position_ids[i]));
+                        json_object_array_add(l_positions_array, l_position_obj);
                     }
                 } break;
                 case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED: {
@@ -2907,7 +2907,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                 json_object_object_add(l_json_obj, "ended_stake_ext", json_object_new_uint64(l_stats->ended_stake_ext));
                 json_object_object_add(l_json_obj, "cancelled_stake_ext", json_object_new_uint64(l_stats->cancelled_stake_ext));
                 json_object_object_add(l_json_obj, "total_locks", json_object_new_uint64(l_stats->total_locks));
-                json_object_object_add(l_json_obj, "total_projects", json_object_new_uint64(l_stats->total_projects));
+                json_object_object_add(l_json_obj, "total_positions", json_object_new_uint64(l_stats->total_positions));
                 
                 DAP_DELETE(l_stats);
             } else {
@@ -2967,17 +2967,17 @@ int dap_stake_ext_cache_set_winners_by_name(dap_stake_ext_cache_t *a_cache,
 }
 
 byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
-    dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_projects_cnt, uint32_t a_project_ids[])
+    dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_total_positions, uint32_t a_position_ids[])
 {
-    size_t l_data_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) + a_projects_cnt * sizeof(uint32_t);
+    size_t l_data_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) + a_total_positions * sizeof(uint32_t);
     dap_chain_tx_event_data_stake_ext_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_stake_ext_started_t, l_data_size, NULL);
 
     l_data->multiplier = a_multiplier;
     l_data->duration = a_duration;
     l_data->time_unit = a_time_unit;
     l_data->calculation_rule_id = a_calculation_rule_id;
-    l_data->projects_cnt = a_projects_cnt;
-    memcpy(l_data->project_ids, a_project_ids, a_projects_cnt * sizeof(uint32_t));
+    l_data->total_positions = a_total_positions;
+    memcpy(l_data->position_ids, a_position_ids, a_total_positions * sizeof(uint32_t));
 
     if (a_data_size)
         *a_data_size = l_data_size;

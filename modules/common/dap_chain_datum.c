@@ -487,8 +487,8 @@ void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
                             : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
                     json_object_object_add(json_obj_item, "stake_ext_hash", json_object_new_string(l_stake_ext_hash_str));
                     
-                    // Project ID
-                    json_object_object_add(json_obj_item, "project_id", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.project_id));
+                    // Position ID
+                    json_object_object_add(json_obj_item, "position_id", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.position_id));
                     
                     // Lock time  
                     json_object_object_add(json_obj_item, "lock_time", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.lock_time));

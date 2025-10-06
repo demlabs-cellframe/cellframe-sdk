@@ -71,7 +71,7 @@ static dap_chain_tx_event_data_stake_ext_started_t *create_test_stake_ext_starte
     l_data->duration = 86400; // 1 day in seconds 
     l_data->time_unit = DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS;
     l_data->calculation_rule_id = 1;
-    l_data->projects_cnt = a_projects_count;
+    l_data->total_positions = a_projects_count;
     
     // Fill project IDs array that follows the structure
     for (uint32_t i = 0; i < a_projects_count; i++) {
@@ -1391,7 +1391,7 @@ void dap_srv_stake_ext_test_event_callbacks(void)
     
     l_started_data->multiplier = 150;
     l_started_data->duration = 86400;
-    l_started_data->projects_cnt = 3;
+    l_started_data->total_positions = 3;
     
     uint32_t *l_projects_array = (uint32_t*)(l_started_data + 1);
     l_projects_array[0] = 1001;
@@ -1586,7 +1586,7 @@ void dap_srv_stake_ext_test_ledger_sync(void)
     
     l_stake_ext_data->multiplier = 125;
     l_stake_ext_data->duration = 172800; // 2 days
-    l_stake_ext_data->projects_cnt = 2;
+    l_stake_ext_data->total_positions = 2;
     
     uint32_t *l_projects = (uint32_t*)(l_stake_ext_data + 1);
     l_projects[0] = 2001;
@@ -1792,7 +1792,7 @@ void dap_srv_stake_ext_test_verificators(void)
     
     l_stake_ext_data->multiplier = 200;
     l_stake_ext_data->duration = 259200; // 3 days
-    l_stake_ext_data->projects_cnt = 1;
+    l_stake_ext_data->total_positions = 1;
     *((uint32_t*)(l_stake_ext_data + 1)) = 3001; // Project ID
     
     int l_result = dap_stake_ext_cache_add_stake_ext(l_cache, &l_stake_ext_hash, l_net_id, 
@@ -2021,13 +2021,13 @@ void dap_srv_stake_ext_test_data_parsing(void)
     dap_assert_PIF(l_started_size > 0, "Started event structure should have positive size");
     dap_assert_PIF(l_started_size < 1024, "Started event structure should not be unreasonably large");
     
-    // Test that projects_cnt field is accessible
+    // Test that total_positions field is accessible
     dap_chain_tx_event_data_stake_ext_started_t l_test_started = {0};
-    l_test_started.projects_cnt = 3;
-    dap_assert_PIF(l_test_started.projects_cnt == 3, "Projects count field should be accessible");
+    l_test_started.total_positions = 3;
+    dap_assert_PIF(l_test_started.total_positions == 3, "Projects count field should be accessible");
     
-    // Test bounds checking for projects_cnt (uint8_t range)
-    bool l_projects_valid = (l_test_started.projects_cnt > 0 && l_test_started.projects_cnt <= 255);
+    // Test bounds checking for total_positions (uint8_t range)
+    bool l_projects_valid = (l_test_started.total_positions > 0 && l_test_started.total_positions <= 255);
     dap_assert_PIF(l_projects_valid, "Projects count should be within uint8_t bounds");
     
         // ===== Test 2: Data validation and edge cases =====
@@ -2035,13 +2035,13 @@ void dap_srv_stake_ext_test_data_parsing(void)
     
     // Test zero project count
     dap_chain_tx_event_data_stake_ext_started_t l_empty_event = {0};
-    l_empty_event.projects_cnt = 0;
-    dap_assert_PIF(l_empty_event.projects_cnt == 0, "Zero project count should be valid");
+    l_empty_event.total_positions = 0;
+    dap_assert_PIF(l_empty_event.total_positions == 0, "Zero project count should be valid");
     
     // Test maximum uint8_t value
     dap_chain_tx_event_data_stake_ext_started_t l_max_event = {0};
-    l_max_event.projects_cnt = 255;
-    dap_assert_PIF(l_max_event.projects_cnt == 255, "Maximum uint8_t project count should be valid");
+    l_max_event.total_positions = 255;
+    dap_assert_PIF(l_max_event.total_positions == 255, "Maximum uint8_t project count should be valid");
     
     dap_test_msg("Data validation and edge cases completed");
     
@@ -2071,8 +2071,8 @@ void dap_srv_stake_ext_test_data_parsing(void)
     dap_chain_tx_event_data_stake_ext_started_t l_test_events[3] = {0};
     
     for (int i = 0; i < 3; i++) {
-        l_test_events[i].projects_cnt = (uint8_t)(i + 1);
-        dap_assert_PIF(l_test_events[i].projects_cnt == (i + 1), 
+        l_test_events[i].total_positions = (uint8_t)(i + 1);
+        dap_assert_PIF(l_test_events[i].total_positions == (i + 1), 
                        "Each event should have correct project count");
     }
     
@@ -2107,26 +2107,26 @@ void dap_srv_stake_ext_test_boundary_conditions(void)
     
     // Test zero project count
     dap_chain_tx_event_data_stake_ext_started_t l_zero_projects = {0};
-    l_zero_projects.projects_cnt = 0;
-    dap_assert_PIF(l_zero_projects.projects_cnt == 0, "Zero projects count should be valid");
+    l_zero_projects.total_positions = 0;
+    dap_assert_PIF(l_zero_projects.total_positions == 0, "Zero projects count should be valid");
     
     // Test minimum positive values
     dap_chain_tx_event_data_stake_ext_started_t l_min_projects = {0};
-    l_min_projects.projects_cnt = 1;
-    dap_assert_PIF(l_min_projects.projects_cnt == 1, "Minimum projects count should be valid");
+    l_min_projects.total_positions = 1;
+    dap_assert_PIF(l_min_projects.total_positions == 1, "Minimum projects count should be valid");
     
         // ===== Test 2: Maximum uint8_t boundaries =====
     dap_test_msg("Test 2: Testing maximum uint8_t boundaries");
     
     // Test maximum uint8_t value
     dap_chain_tx_event_data_stake_ext_started_t l_max_projects = {0};
-    l_max_projects.projects_cnt = 255; // Maximum uint8_t
-    dap_assert_PIF(l_max_projects.projects_cnt == 255, "Maximum uint8_t projects count should be valid");
+    l_max_projects.total_positions = 255; // Maximum uint8_t
+    dap_assert_PIF(l_max_projects.total_positions == 255, "Maximum uint8_t projects count should be valid");
     
     // Test near maximum values
     dap_chain_tx_event_data_stake_ext_started_t l_near_max = {0};
-    l_near_max.projects_cnt = 254;
-    dap_assert_PIF(l_near_max.projects_cnt == 254, "Near maximum projects count should be valid");
+    l_near_max.total_positions = 254;
+    dap_assert_PIF(l_near_max.total_positions == 254, "Near maximum projects count should be valid");
     
         // ===== Test 3: Cache capacity limits =====
     dap_test_msg("Test 3: Testing cache capacity limits");
@@ -2148,7 +2148,7 @@ void dap_srv_stake_ext_test_boundary_conditions(void)
             
             // Create test started data
             dap_chain_tx_event_data_stake_ext_started_t l_started_data = {0};
-            l_started_data.projects_cnt = (i % 10) + 1; // Vary project counts
+            l_started_data.total_positions = (i % 10) + 1; // Vary project counts
             
             int l_result = dap_stake_ext_cache_add_stake_ext(l_cache, &l_stake_ext_hash, l_net_id, 
                                                        l_group_name, &l_started_data, dap_time_now());
@@ -2270,7 +2270,7 @@ void dap_srv_stake_ext_test_boundary_conditions(void)
     
     // Test stake_ext structure with minimal data
     dap_chain_tx_event_data_stake_ext_started_t l_minimal = {0};
-    dap_assert_PIF(l_minimal.projects_cnt == 0, "Minimal structure should be properly initialized");
+    dap_assert_PIF(l_minimal.total_positions == 0, "Minimal structure should be properly initialized");
     
     // Test structure size consistency
     size_t l_struct_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t);
@@ -2335,7 +2335,7 @@ void dap_srv_stake_ext_test_error_handling(void)
     dap_chain_net_id_t l_net_id = {.uint64 = 0x333};
     char *l_group_name = "error_test_group";
     dap_chain_tx_event_data_stake_ext_started_t l_started_data;
-    l_started_data.projects_cnt = 1;
+    l_started_data.total_positions = 1;
     
     int l_add_result = dap_stake_ext_cache_add_stake_ext(l_cache, &l_test_hash, l_net_id, 
                                                    l_group_name, &l_started_data, dap_time_now());
@@ -2351,7 +2351,7 @@ void dap_srv_stake_ext_test_error_handling(void)
     
     // Test with extremely large project count
     dap_chain_tx_event_data_stake_ext_started_t l_large_data;
-    l_large_data.projects_cnt = UINT8_MAX;
+    l_large_data.total_positions = UINT8_MAX;
     
     dap_hash_fast_t l_large_hash;
     memset(&l_large_hash, 0x02, sizeof(l_large_hash));
@@ -2452,7 +2452,7 @@ void dap_srv_stake_ext_test_thread_safety(void)
     dap_chain_net_id_t l_net_id = {.uint64 = 0x777};
     char *l_group_name = "thread_test_group";
     dap_chain_tx_event_data_stake_ext_started_t l_started_data;
-    l_started_data.projects_cnt = 2;
+    l_started_data.total_positions = 2;
     
     // Simulate rapid concurrent operations (reader-writer pattern)
     for(int i = 0; i < 10; i++) {
