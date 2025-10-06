@@ -163,7 +163,8 @@ typedef enum s_com_tx_create_err{
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS,
-    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT,
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_MEMORY_ERR
 }s_com_tx_create_err_t;
 typedef enum s_com_tx_cond_create{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_OK = 0,
@@ -382,6 +383,7 @@ int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply, int a_versio
 int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 int com_tx_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
 
 int com_tx_create_json(int a_argc, char **a_argv, void **reply, int a_version);
 int com_tx_cond_create(int a_argc, char **a_argv, void **reply, int a_version);

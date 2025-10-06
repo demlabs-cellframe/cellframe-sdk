@@ -142,7 +142,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
                                   const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
                                   const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX], uint256_t *a_value,
                                   uint256_t a_value_fee, const char *a_hash_out_type,
-                                  size_t a_tx_num, dap_time_t a_time_unlock)
+                                  size_t a_tx_num, dap_time_t *a_time_unlock)
 {
     // check valid param
     dap_return_val_if_pass(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
@@ -202,11 +202,12 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
         uint32_t l_tx_num = a_tx_num;
         dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_tx_num, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
         dap_chain_datum_tx_add_item(&l_tx, l_out_count);
+        DAP_DELETE(l_out_count);
     }
 
     uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
     for (size_t i = 0; i < a_tx_num; ++i) {
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock) != 1) {
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock ? a_time_unlock[i] : 0) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         } else if (l_single_channel){
@@ -569,7 +570,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         return -2;
     }
 
-    dap_global_db_obj_t * l_objs = DAP_NEW_Z_SIZE(dap_global_db_obj_t, a_tx_num * sizeof (dap_global_db_obj_t));
+    dap_global_db_obj_t * l_objs = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_global_db_obj_t, a_tx_num * sizeof (dap_global_db_obj_t), -3);
     uint256_t l_net_fee = {}, l_total_fee = {};
     dap_chain_addr_t l_addr_fee = {};
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
@@ -1526,4 +1527,35 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     dap_global_db_objs_delete(l_objs, l_objs_size);
     log_it(L_NOTICE, "Filter removed: %i records.", l_removed);
     DAP_DELETE(l_gdb_group);
+}
+
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx)
+{
+    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if(!l_gdb_group_mempool){
+        log_it(L_ERROR, "%s: mempool group not found\n", a_net->pub.name);
+        return false;
+    }
+    size_t l_objs_count = 0;
+    dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
+    for (size_t i = 0; i < l_objs_count; i++) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+        if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+            continue;
+        }
+        dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*)l_datum->data;
+        byte_t *l_item; size_t l_size; int index, l_out_idx = 0;
+        TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_IN_ALL, l_size, index, l_datum_tx) {
+            if (*l_item != TX_ITEM_TYPE_IN && *l_item != TX_ITEM_TYPE_IN_COND) {
+                continue;
+            }
+            dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t*)l_item;
+            if (l_tx_in->header.tx_out_prev_idx == a_out_idx && dap_hash_fast_compare(&l_tx_in->header.tx_prev_hash, a_out_hash)) {
+                dap_global_db_objs_delete(l_objs, l_objs_count);
+                return true;
+            }
+        }
+    }
+    dap_global_db_objs_delete(l_objs, l_objs_count);
+    return false;
 }

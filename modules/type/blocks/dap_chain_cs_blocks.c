@@ -172,6 +172,8 @@ static uint64_t s_callback_count_atom(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 // Get TXs callbacks
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain);
+static uint64_t s_callback_count_tx_increase(dap_chain_t *a_chain);
+static uint64_t s_callback_count_tx_decrease(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
 
@@ -190,7 +192,7 @@ int dap_chain_cs_blocks_init()
     dap_chain_cs_type_add("blocks", s_chain_cs_blocks_new, NULL);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
-    dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
+    dap_cli_server_cmd_add ("block", s_cli_blocks, NULL, "Create and explore blockchains",
         "New block create, fill and complete commands:\n"
             "block -net <net_name> [-chain <chain_name>] new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
@@ -213,7 +215,7 @@ int dap_chain_cs_blocks_init()
 
             "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
-            " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>}] [-unspent]\n"
+            " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>}] [-unspent] [-h]\n"
                 "\t\t List blocks\n\n"
 
             "block -net <net_name> [-chain <chain_name>] count\n"
@@ -320,6 +322,8 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_count_atom = s_callback_count_atom;
     a_chain->callback_get_atoms = s_callback_get_atoms;
     a_chain->callback_count_tx = s_callback_count_txs;
+    a_chain->callback_count_tx_increase = s_callback_count_tx_increase;
+    a_chain->callback_count_tx_decrease = s_callback_count_tx_decrease;
     a_chain->callback_get_txs = s_callback_get_txs;
 
 
@@ -539,7 +543,7 @@ static void s_cli_meta_hex_print(json_object* a_json_obj_out, const char * a_met
 static void s_print_autocollect_table(dap_chain_net_t *a_net, json_object *a_json_obj_out, const char *a_table_name, int a_version)
 {
     size_t l_objs_count = 0;
-    char *l_group = dap_strcmp(a_table_name, "Fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
+    char *l_group = dap_strcmp(a_table_name, a_version == 1 ? "Fees" : "fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
                                                      : dap_chain_cs_blocks_get_fee_group(a_net->pub.name);
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_objs_count);
     DAP_DELETE(l_group);
@@ -984,6 +988,21 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
 
+            /**
+             * Validate mutually exclusive flag groups usage
+             * Groups: {-limit/-offset/-head}, {-from_date/-to_date}, {-from_hash/-to_hash}
+             * Only one group can be used at a time, same as in s_cli_dag
+             */
+            bool l_has_loh = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
+            bool l_has_dates = (l_from_date_str != NULL) || (l_to_date_str != NULL);
+            bool l_has_hashes = (l_from_hash_str != NULL) || (l_to_hash_str != NULL);
+            int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_dates ? 1 : 0) + (l_has_hashes ? 1 : 0);
+            if (l_groups_cnt > 1) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
+                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-from_date/-to_date} or {-from_hash/-to_hash}");
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+            }
+
             if (l_signed_flag && l_first_signed_flag) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Choose only one option from 'singed' and 'first_signed'");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
@@ -1041,9 +1060,34 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR, "Can't convert \"%s\" to date", l_to_date_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR;
                 }
-                struct tm *l_localtime = localtime((time_t *)&l_to_time);
-                l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
-                l_to_time = mktime(l_localtime);
+                // Align behavior with DAG: if only to_date is set, make it inclusive by adding one day.
+                // If both dates are set and from_date > to_date, make from_date inclusive (+1 day) and set head traversal.
+                if (!l_from_date_str) {
+                    struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                    l_localtime->tm_mday += 1; // inclusive end
+                    l_to_time = mktime(l_localtime);
+                } else {
+                    if (l_from_time > l_to_time) {
+                        struct tm *l_localtime = localtime((time_t *)&l_from_time);
+                        l_localtime->tm_mday += 1; // inclusive start when dates swapped
+                        l_from_time = mktime(l_localtime);
+                        l_head = true; // traverse from head (oldest first)
+                    } else {
+                        struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                        l_localtime->tm_mday += 1; // inclusive end
+                        l_to_time = mktime(l_localtime);
+                    }
+                }
+            }
+
+            // If both hashes provided, align traversal direction with chronological order as in DAG
+            if (l_from_hash_str && l_to_hash_str) {
+                dap_chain_block_cache_t *l_from_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_from_hash);
+                dap_chain_block_cache_t *l_to_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_to_hash);
+                if (l_from_cache && l_to_cache) {
+                    if (l_from_cache->block->hdr.ts_created < l_to_cache->block->hdr.ts_created)
+                        l_head = true; // oldest -> newest to span [to_hash..from_hash]
+                }
             }
 
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
@@ -1058,14 +1102,23 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 l_block_cache = HASH_LAST(l_block_cache);             
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
-                if (l_from_time && l_ts < l_from_time)
-                    continue;
-                if (l_to_time && l_ts >= l_to_time)
-                    break;
-                if (l_from_hash_str && !l_hash_flag) {
-                   if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
-                       continue;
-                   l_hash_flag = true;
+                // Time window filtering aligned with DAG logic and traversal direction
+                if (l_head) {
+                    // Oldest -> newest
+                    if ((l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time))
+                        continue;
+                } else {
+                    // Newest -> oldest
+                    if ((l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time))
+                        continue;
+                }
+                // Hash range start boundary depends on traversal direction (align with DAG)
+                if (!l_hash_flag) {                    
+                    if (l_from_hash_str) {
+                        if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
+                            continue;
+                        l_hash_flag = true;
+                    }                    
                 }
                 if (l_first_signed_flag) {
                     dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
@@ -1090,7 +1143,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                                 break;
                             }
                         }
-                        if (!l_found)
+                        if(!l_found)
                             continue;
                     }
                 } else if (l_signed_flag) {
@@ -1130,6 +1183,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 json_object_object_add(json_obj_bl_cache, "timestamp", json_object_new_uint64(l_ts));
                 json_object_object_add(json_obj_bl_cache, "ts_create",json_object_new_string(l_buf));
                 json_object_array_add(json_arr_bl_cache_out, json_obj_bl_cache);
+                // Hash range end boundary depends on traversal direction                
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
                     break;
             }
@@ -1459,7 +1513,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                                 break;
                             }
                         }
-                        if(!l_found)
+                        if (!l_found)
                             continue;
                     } else if (!dap_chain_block_sign_match_pkey(l_block_cache->block, l_block_cache->block_size, l_pub_key))
                         continue;
@@ -1645,10 +1699,10 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
 
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
+
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED){ // If this is any datum other than a already cached transaction
             l_ret++;
-            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
-                PVT(a_blocks)->tx_count++;  
+            // Note: tx_count increment moved to dap_ledger_tx_add() to ensure it only increments for successfully verified transactions
             // Save datum hash -> block_hash link in hash table
             dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
             if (!l_datum_index) {
@@ -1843,8 +1897,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
-            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
-                log_it(L_ERROR, "Can't save atom to file, code %d", ret);
+            ssize_t l_err = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL);
+            if (l_err < 0) {
+                log_it(L_ERROR, "Can't save atom to file, code %ld", l_err);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
@@ -2771,7 +2826,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     }
     dap_time_t l_block_time = l_block->hdr.ts_created;
     if (l_block_time < DAP_REWARD_INIT_TIMESTAMP) {
-        log_it(L_WARNING, "Reward is not set for this block");
+        log_it(L_WARNING, "[%s] Reward is not set for this block", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
     }
     l_ret = dap_chain_net_get_reward(l_net, l_block_cache->block_number);
@@ -2784,12 +2839,12 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     l_block_cache = NULL;
     HASH_FIND(hh, PVT(l_blocks)->blocks, &l_prev_block_hash, sizeof(l_prev_block_hash), l_block_cache);
     if (!l_block_cache) {
-        log_it(L_ERROR, "l_block_cache is NULL");
+        log_it(L_ERROR, "[%s] l_block_cache is NULL", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
     }
     l_block = l_block_cache->block;
     if (!l_block) {
-        log_it(L_ERROR, "l_block is NULL");
+        log_it(L_ERROR, "[%s] l_block is NULL", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
     }
     assert(l_block);
@@ -2797,7 +2852,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     if ( l_block_time > l_cur_time ) {
         dap_time_t l_time_diff = l_block_time - l_cur_time;
         if (MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret))
-            return log_it(L_ERROR, "Integer overflow while multiplication execution to calculate final reward"), uint256_0;
+            return log_it(L_ERROR, "[%s] Integer overflow while multiplication execution to calculate final reward", dap_chain_hash_fast_to_str_static(a_block_hash)), uint256_0;
     }
     DIV_256(l_ret, GET_256_FROM_64(s_block_timediff_unit_size * l_signs_count), &l_ret);
     return l_ret;
@@ -2808,6 +2863,15 @@ static uint64_t s_callback_count_txs(dap_chain_t *a_chain)
     return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count;
 }
 
+static uint64_t s_callback_count_tx_increase(dap_chain_t *a_chain)
+{
+    return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count++;
+}
+
+static uint64_t s_callback_count_tx_decrease(dap_chain_t *a_chain)
+{
+    return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count--;
+}
 
 static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
 {

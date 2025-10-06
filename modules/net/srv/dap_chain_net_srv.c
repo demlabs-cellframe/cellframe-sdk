@@ -78,9 +78,9 @@ static void s_load(const char * a_path);
 static void s_load_all();
 
 static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 static int s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_price_unit_uid_t *a_price_unit);
 
 /**
@@ -92,7 +92,7 @@ int dap_chain_net_srv_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL, NULL);
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
 
-    dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
+    dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, NULL, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
@@ -404,7 +404,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                     for (dap_list_t *l_temp = l_orders; l_temp; l_temp = l_temp->next){
                         json_object* json_obj_order = json_object_new_object();
                         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*)l_temp->data;
-                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, a_version);
+                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, false, a_version);
                         json_object_array_add(json_arr_out, json_obj_order);
                     }
                     json_object_object_add(json_obj_net_srv, "orders", json_arr_out);
@@ -416,11 +416,12 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                 }
             } else if(!dap_strcmp( l_order_str, "dump" )) {
                 // Select with specified service uid
+                bool l_need_sign = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-need_sign", NULL);
                 if ( l_order_hash_str ){
                     dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
                     json_obj_net_srv = json_object_new_object();                    
                     if (l_order) {
-                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_net_srv, l_hash_out_type, l_net->pub.native_ticker, a_version);
+                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_net_srv, l_hash_out_type, l_net->pub.native_ticker, l_need_sign, a_version);
                         l_ret = 0;
                     }else{                        
                         if(!dap_strcmp(l_hash_out_type,"hex"))
@@ -447,7 +448,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                         for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
                             json_object* json_obj_order = json_object_new_object();
                             dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
-                            dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, a_version);
+                            dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, l_need_sign, a_version);
                             json_object_array_add(json_arr_out, json_obj_order);
                         }
                         json_object_object_add(json_obj_net_srv, "orders", json_arr_out);
@@ -677,7 +678,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
  * @return
  */
 static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t UNUSED_ARG *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner)
+                                       dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner, bool UNUSED_ARG a_check_for_apply)
 {
     dap_chain_net_t *l_net = a_ledger->net;
     assert(l_net);
@@ -717,7 +718,7 @@ static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
  * @return
  */
 static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply)
 {
     if (a_owner)
         return 0;
@@ -736,7 +737,6 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -17;
     }
 
-    // Checking politics
     if (dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
         (!l_receipt || l_receipt->receipt_info.version < 2)){
         log_it(L_ERROR, "Receipt version must be >= 2.");

@@ -34,6 +34,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
+#include "dap_common.h"
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_cli_server.h"
@@ -127,7 +128,7 @@ int dap_chain_net_srv_voting_init()
     pthread_rwlock_init(&s_votings_rwlock, NULL);
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
     dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
-                "poll", s_cli_voting, "Voting/poll commands",
+                "poll", s_cli_voting, NULL, "Voting/poll commands",
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>]"
                                            " [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll cancel -net <net_name> -hash <poll_hash> -fee <value_datoshi> -w <fee_wallet_name>\n"
@@ -168,11 +169,7 @@ uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash
         return NULL;
     }
 
-    l_voting_results = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t)*dap_list_length(l_voting->voting_params.option_offsets_list));
-    if (!l_voting_results){
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return NULL;
-    }
+    l_voting_results = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint64_t, dap_list_length(l_voting->voting_params.option_offsets_list), NULL);
 
     dap_list_t* l_temp = l_voting->votes;
     while(l_temp){
@@ -431,6 +428,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             return -18;
         }
         const char *l_ticker_in = NULL;
+        
         switch (*l_prev_out_union) {
         case TX_ITEM_TYPE_OUT: {
             dap_chain_tx_out_t *l_prev_out = (dap_chain_tx_out_t *)l_prev_out_union;
@@ -641,7 +639,7 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
     return true;
 }
 
-static dap_list_t* s_get_options_list_from_str(const char* a_str)
+dap_list_t* dap_get_options_list_from_str(const char* a_str)
 {
     dap_list_t* l_ret = NULL;
     char * l_options_str_dup = strdup(a_str);
@@ -752,7 +750,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             return -DAP_CHAIN_NET_VOTE_CREATE_OPTION_PARAM_MISSING;
         }
         // Parse options list
-        l_options_list = s_get_options_list_from_str(l_options_list_str);
+        l_options_list = dap_get_options_list_from_str(l_options_list_str);
         if(!l_options_list || dap_list_length(l_options_list) < 2){
             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_CREATE_NUMBER_OPTIONS_ERROR, "Number of options must be 2 or greater.");
             return -DAP_CHAIN_NET_VOTE_CREATE_NUMBER_OPTIONS_ERROR;
@@ -1138,7 +1136,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     }break;
     case CMD_LIST:{
         json_object* json_vote_out = json_object_new_object();
-        json_object_object_add(json_vote_out, "list_of_polls", json_object_new_string(l_net->pub.name));
+        json_object_object_add(json_vote_out, "net_name", json_object_new_string(l_net->pub.name));
         json_object* json_arr_voting_out = json_object_new_array();
         dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
         const char *l_token_str = NULL;
@@ -1193,7 +1191,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             json_object_array_add(*json_arr_reply, json_obj_no_polls);
             json_object_put(json_arr_voting_out);
         } else {
-            json_object_array_add(*json_arr_reply, json_arr_voting_out);
+            json_object * l_json_arr_polls = json_object_new_object();
+            json_object_object_add(l_json_arr_polls, "polls", json_arr_voting_out);
+            json_object_array_add(*json_arr_reply, l_json_arr_polls);
         }
     }break;
     case CMD_DUMP:{
@@ -1204,6 +1204,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             return -DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_NOT_FOUND;
         }
 
+        bool l_need_vote_list  = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-need_vote_list", NULL);
         dap_hash_fast_t l_voting_hash = {};
         if (dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash)) {
             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_INVALID,
@@ -1233,11 +1234,20 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
         uint256_t l_total_weight = { };
         int l_votes_count = 0, i = 0;
+        json_object* l_json_arr_vote_list = json_object_new_array();
         for (dap_list_t *l_vote_item = l_voting->votes; l_vote_item; l_vote_item = l_vote_item->next, ++l_votes_count) {
             dap_chain_net_vote_t *l_vote = l_vote_item->data;
             ++l_results[l_vote->answer_idx].num_of_votes;
             SUM_256_256(l_results[l_vote->answer_idx].weights, l_vote->weight, &l_results[l_vote->answer_idx].weights);
             SUM_256_256(l_total_weight, l_vote->weight, &l_total_weight);
+            if (l_need_vote_list) {
+                json_object* l_json_obj = json_object_new_object();
+                json_object_object_add(l_json_obj, "vote_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_vote->vote_hash)));
+                json_object_object_add(l_json_obj, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_vote->pkey_hash)));
+                json_object_object_add(l_json_obj, "answer_idx", json_object_new_int(l_vote->answer_idx));
+                json_object_object_add(l_json_obj, "weight", json_object_new_string(dap_uint256_to_char(l_vote->weight, NULL)));
+                json_object_array_add(l_json_arr_vote_list, l_json_obj);
+            }
         }
 
         json_object* json_vote_out = json_object_new_object();
@@ -1334,6 +1344,13 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
         json_object_object_add(json_vote_out, "total_sum", json_object_new_string(l_tw_coins));
         json_object_object_add(json_vote_out, "total_sum_datoshi", json_object_new_string(l_tw_datoshi));
+        if (l_need_vote_list) {
+            if (json_object_array_length(l_json_arr_vote_list) > 0 ) {
+                json_object_object_add(json_vote_out, "votes_list", l_json_arr_vote_list);
+            } else {
+                json_object_object_add(json_vote_out, "votes_list", json_object_new_string("empty"));
+            }
+        }
         json_object_array_add(*json_arr_reply, json_vote_out);
     } break;
     default:

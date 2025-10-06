@@ -42,7 +42,7 @@
  *
  * return type, or TX_ITEM_TYPE_UNKNOWN
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum_name) {
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_type_from_str_short(const char *a_datum_name) {
     if(!a_datum_name)
         return TX_ITEM_TYPE_UNKNOWN;
     if(!dap_strcmp(a_datum_name, "in"))
@@ -83,7 +83,7 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
  *
  * return subtype, or DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED
  */
-dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const char *a_subtype_str) {
+dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(const char *a_subtype_str) {
     if(!a_subtype_str)
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
     if(!dap_strcmp(a_subtype_str, "srv_pay"))
@@ -110,11 +110,19 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
 size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size) {
     dap_return_val_if_fail(a_item, 0);
 #define m_tx_item_size(t) ( !a_max_size || sizeof(t) <= a_max_size ? sizeof(t) : 0 )
-#define m_tx_item_size_ext(t, size_field)                                                                                       \
-    ( !a_max_size ||                                                                                                            \
-    ( sizeof(t) <= a_max_size && a_max_size > ((t*)a_item)->size_field && sizeof(t) <= a_max_size - ((t*)a_item)->size_field )  \
-        ? sizeof(t) + ((t*)a_item)->size_field : 0 );
+/*
+ * Safe calculation for structures with variable-size tail (size_field):
+ * - When a_max_size > 0: ensure header fits, payload fits into a_max_size and no underflow in (a_max_size - size_field)
+ * - When a_max_size == 0: guard against size_t overflow in sizeof(t) + size_field
+ */
+#define m_tx_item_size_ext(t, size_field) \
+    ( a_max_size \
+        ? ( ( sizeof(t) <= a_max_size ) && ( (size_t)((t*)a_item)->size_field <= a_max_size - sizeof(t) ) \
+          ? ( sizeof(t) + (size_t)((t*)a_item)->size_field ) : 0 \
+        ) : ( ( (sizeof(t) + (size_t)((t*)a_item)->size_field) >= sizeof(t) ) ? ( sizeof(t) + (size_t)((t*)a_item)->size_field ) : 0 ) \
+    )
 
+    size_t l_receipt_size = 0;
     switch (*a_item) {
     case TX_ITEM_TYPE_IN:       return m_tx_item_size(dap_chain_tx_in_t);
     case TX_ITEM_TYPE_OUT_OLD:  return m_tx_item_size(dap_chain_tx_out_old_t);
@@ -127,27 +135,27 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_VOTING:   return m_tx_item_size(dap_chain_tx_voting_t);
     case TX_ITEM_TYPE_VOTE:     return m_tx_item_size(dap_chain_tx_vote_t);
     // Access data size by struct field
-    case TX_ITEM_TYPE_TSD:           return m_tx_item_size_ext(dap_chain_tx_tsd_t, header.size);
+    case TX_ITEM_TYPE_TSD:      return m_tx_item_size_ext(dap_chain_tx_tsd_t, header.size);
     case TX_ITEM_TYPE_OUT_COND: return m_tx_item_size_ext(dap_chain_tx_out_cond_t, tsd_size);
-    case TX_ITEM_TYPE_PKEY:         return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.sig_size);
-    case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
+    case TX_ITEM_TYPE_PKEY:     return m_tx_item_size_ext(dap_chain_tx_pkey_t, header.sig_size);
+    case TX_ITEM_TYPE_SIG:      return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
     // Receipt size calculation is non-trivial...
-    case TX_ITEM_TYPE_RECEIPT_OLD:{
-        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
-            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_old_t) < a_max_size && 
-                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size < a_max_size ) ? 
-                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size : 0;
-    }
-    case TX_ITEM_TYPE_RECEIPT:{
-        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version == 2) 
-            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_t) < a_max_size && 
-                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size < a_max_size ) ? 
-                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size : 0;
-    }
-    default: return 0;
+    case TX_ITEM_TYPE_RECEIPT_OLD:
+        if ( ((const dap_chain_datum_tx_receipt_old_t*)a_item)->receipt_info.version > 1 )
+            break;
+        else l_receipt_size = ((const dap_chain_datum_tx_receipt_old_t*)a_item)->size;
+    case TX_ITEM_TYPE_RECEIPT:
+        if ( !l_receipt_size ) {
+            if ( ((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version != 2 )
+                break;
+            else l_receipt_size = ((const dap_chain_datum_tx_receipt_t*)a_item)->size;
+        }
+        return l_receipt_size ? a_max_size ? l_receipt_size <= a_max_size ? l_receipt_size : 0 : l_receipt_size : 0;
+    default: break;
     }
 #undef m_tx_item_size
 #undef m_tx_item_size_ext
+    return 0;
 }
 
 /**
@@ -199,7 +207,8 @@ dap_chain_tx_in_reward_t *dap_chain_datum_tx_item_in_reward_create(dap_chain_has
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size) {
     dap_return_val_if_fail(a_data && a_size, NULL);
     dap_chain_tx_tsd_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_tsd_t, sizeof(dap_chain_tx_tsd_t) + sizeof(dap_tsd_t) + a_size, NULL);
-    *l_item = (dap_chain_tx_tsd_t){ .header = { .type = TX_ITEM_TYPE_TSD, .size = sizeof(dap_tsd_t) + a_size }};
+    l_item->header.type = TX_ITEM_TYPE_TSD;
+    l_item->header.size = sizeof(dap_tsd_t) + a_size;
     dap_tsd_write(l_item->tsd, (uint16_t)a_type, a_data, a_size);
     return l_item;
 }
@@ -277,17 +286,46 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a
 }
 
 /**
- * Create item dap_chain_tx_out_cond_t
- *
- * return item, NULL Error
+ * @brief Create item dap_chain_tx_out_cond_t
+ * @param a_key public key
+ * @param a_srv_uid service uid
+ * @param a_value value
+ * @param a_value_max_per_unit max value per unit
+ * @param a_unit unit
+ * @param a_params additinonal TSD data
+ * @param a_params_size size of additional TSD data
+ * @return item, NULL Error
  */
-dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
+DAP_INLINE dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
                                                                              uint256_t a_value, uint256_t a_value_max_per_unit,
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size)
 {
-    if (!a_key || !a_key->header.size || IS_ZERO_256(a_value))
-        return NULL;
+    dap_return_val_if_pass(!a_key ||!a_key->header.size, NULL);
+    dap_hash_fast_t l_key_hash = { };
+    
+    return dap_hash_fast(a_key->pkey, a_key->header.size, &l_key_hash) ?
+        dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(&l_key_hash, a_srv_uid, a_value, a_value_max_per_unit, a_unit, a_params, a_params_size) :
+        NULL;
+}
+
+/**
+ * @brief Create item dap_chain_tx_out_cond_t
+ * @param a_key_hash pkey hash
+ * @param a_srv_uid service uid
+ * @param a_value value
+ * @param a_value_max_per_unit max value per unit
+ * @param a_unit unit
+ * @param a_params additinonal TSD data
+ * @param a_params_size size of additional TSD data
+ * @return item, NULL Error
+ */
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_net_srv_uid_t a_srv_uid,
+                                                                             uint256_t a_value, uint256_t a_value_max_per_unit,
+                                                                             dap_chain_net_srv_price_unit_uid_t a_unit,
+                                                                             const void *a_params, size_t a_params_size)
+{
+    dap_return_val_if_pass(!a_key_hash || IS_ZERO_256(a_value), NULL);
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
@@ -295,7 +333,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_pay.unit = a_unit;
     l_item->subtype.srv_pay.unit_price_max_datoshi = a_value_max_per_unit;
-    dap_hash_fast(a_key->pkey, a_key->header.size, &l_item->subtype.srv_pay.pkey_hash);
+    memcpy( &l_item->subtype.srv_pay.pkey_hash, a_key_hash, sizeof(l_item->subtype.srv_pay.pkey_hash));
     if (a_params && a_params_size) {
         l_item->tsd_size = (uint32_t)a_params_size;
         memcpy(l_item->tsd, a_params, a_params_size);
@@ -362,17 +400,41 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     return l_item;
 }
 
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_delegate(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                           dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                           uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size)
+{
+    if (IS_ZERO_256(a_value))
+        return NULL;
+    
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
+    l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
+    l_item->tsd_size = a_params_size;
+    if (l_item->tsd_size) {
+        memcpy(l_item->tsd, a_params, l_item->tsd_size);
+        if (dap_tsd_find((byte_t *)a_params, a_params_size, DAP_CHAIN_TX_OUT_COND_TSD_PKEY)) {
+            l_item->subtype.srv_stake_pos_delegate.flags = DAP_SIGN_ADD_PKEY_HASHING_FLAG(l_item->subtype.srv_stake_pos_delegate.flags);
+        }
+    }
+    return l_item;
+}
+
 /**
  * @brief dap_chain_net_srv_stake_lock_create_cond_out
  * @param a_key
  * @param a_srv_uid
  * @param a_value
- * @param a_time_staking
+ * @param a_time_unlock
  * @param token
  * @return
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_net_srv_uid_t a_srv_uid,
-                                                                                uint256_t a_value, uint64_t a_time_staking,
+                                                                                uint256_t a_value, uint64_t a_time_unlock,
                                                                                 uint256_t a_reinvest_percent)
 {
     if (IS_ZERO_256(a_value))
@@ -384,7 +446,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_lock.flags = DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME | DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT;
     l_item->subtype.srv_stake_lock.reinvest_percent = a_reinvest_percent;
-    l_item->subtype.srv_stake_lock.time_unlock = dap_time_now() + a_time_staking;
+    l_item->subtype.srv_stake_lock.time_unlock = a_time_unlock;
     return l_item;
 }
 
@@ -392,9 +454,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(d
                                                                                    uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
                                                                                    size_t a_pkey_hashes_count, const char *a_tag_str)
 {
-    if (IS_ZERO_256(a_value))
-        return NULL;
-    size_t l_tsd_total_size = a_pkey_hashes_count * (sizeof(dap_hash_fast_t) + sizeof(dap_tsd_t)) + (a_tag_str ? sizeof(dap_tsd_t) + strlen(a_tag_str) + 1 : 0);
+    size_t l_tsd_total_size = a_pkey_hashes_count *(sizeof(dap_hash_fast_t) + sizeof(dap_tsd_t)) + (a_tag_str ? sizeof(dap_tsd_t) + strlen(a_tag_str) + 1 : 0);
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + l_tsd_total_size, NULL);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
