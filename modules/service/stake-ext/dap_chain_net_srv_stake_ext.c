@@ -262,30 +262,30 @@ int dap_stake_ext_cache_add_stake_ext(dap_stake_ext_cache_t *a_cache,
     *l_stake_ext = (dap_stake_ext_cache_item_t) { .stake_ext_tx_hash = *a_stake_ext_hash,
                                               .net_id = a_net_id,
                                               .created_time = a_tx_timestamp,
-                                              .start_time = a_tx_timestamp,
-                                              .end_time = a_tx_timestamp,
                                               .guuid = dap_strdup(a_guuid),
                                               .status = DAP_STAKE_EXT_STATUS_ACTIVE
     };
 
     // Calculate end time from stake_ext started data if provided
     if (a_started_data) {
+
+        l_stake_ext->start_time = a_started_data->start_time;
         switch (a_started_data->time_unit) {
             case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS:
-                l_stake_ext->end_time = a_tx_timestamp + (a_started_data->duration * 3600);
+                l_stake_ext->end_time = l_stake_ext->start_time + (a_started_data->duration * 3600);
                 break;
             case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS:
-                l_stake_ext->end_time = a_tx_timestamp + (a_started_data->duration * 24 * 3600);
+                l_stake_ext->end_time = l_stake_ext->start_time + (a_started_data->duration * 24 * 3600);
                 break;
             case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS:
-                l_stake_ext->end_time = a_tx_timestamp + (a_started_data->duration * 7 * 24 * 3600);
+                l_stake_ext->end_time = l_stake_ext->start_time + (a_started_data->duration * 7 * 24 * 3600);
                 break;
             case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS:
-                l_stake_ext->end_time = a_tx_timestamp + (a_started_data->duration * 30 * 24 * 3600);
+                l_stake_ext->end_time = l_stake_ext->start_time + (a_started_data->duration * 30 * 24 * 3600);
                 break;
             default:
                 // Fallback to seconds
-                l_stake_ext->end_time = a_tx_timestamp + a_started_data->duration;
+                l_stake_ext->end_time = l_stake_ext->start_time + a_started_data->duration;
                 break;
         }
         
@@ -468,7 +468,7 @@ int dap_stake_ext_cache_unlock_lock(dap_stake_ext_position_cache_item_t *a_cache
     HASH_FIND(hh, a_cache->locks, a_lock_hash, sizeof(dap_hash_fast_t), l_lock);
 
     if (!l_lock) {
-        log_it(L_WARNING, "lock %s not found in stake_ext cache during lock unlockal",
+        log_it(L_WARNING, "lock %s not found in stake_ext cache during lock unlock",
                 dap_chain_hash_fast_to_str_static(a_lock_hash));
         return -2;
     }
@@ -477,62 +477,6 @@ int dap_stake_ext_cache_unlock_lock(dap_stake_ext_position_cache_item_t *a_cache
         a_cache->active_locks_count--;
     log_it(L_DEBUG, "Marked lock %s as unlocked in cache", 
            dap_chain_hash_fast_to_str_static(a_lock_hash));
-    return 0;
-}
-
-/**
- * @brief Set winners of stake_ext
- * @param a_cache Cache instance
- * @param a_stake_ext_hash Hash of stake_ext transaction
- * @param a_winners_cnt Number of winners
- * @param a_winners_ids Array of winner position IDs
- * @return Returns 0 on success, negative error code otherwise
- */
-int dap_stake_ext_cache_set_winners(dap_stake_ext_cache_t *a_cache,
-                                 dap_hash_fast_t *a_stake_ext_hash,
-                                 uint8_t a_winners_cnt,
-                                 uint32_t *a_winners_ids)
-{
-    dap_return_val_if_fail(a_cache && a_stake_ext_hash && a_winners_ids && a_winners_cnt > 0, -1);
-    
-    pthread_rwlock_wrlock(&a_cache->cache_rwlock);
-    
-    // Find stake_ext using ultra-fast O(1) hash lookup
-    dap_stake_ext_cache_item_t *l_stake_ext = s_find_stake_ext_by_hash_fast(a_cache, a_stake_ext_hash);
-    
-    if (!l_stake_ext) {
-        pthread_rwlock_unlock(&a_cache->cache_rwlock);
-        log_it(L_WARNING, "stake_ext %s not found in cache for setting multiple winners", 
-               dap_chain_hash_fast_to_str_static(a_stake_ext_hash));
-        return -2;
-    }
-    
-    // Clean up previous winners array if exists
-    DAP_DELETE(l_stake_ext->winners_ids);
-    
-    // Set multiple winners information
-    l_stake_ext->has_winner = true;
-    l_stake_ext->winners_cnt = a_winners_cnt;
-    l_stake_ext->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * a_winners_cnt);
-    if (!l_stake_ext->winners_ids) {
-        pthread_rwlock_unlock(&a_cache->cache_rwlock);
-        log_it(L_CRITICAL, "Memory allocation error for winners array");
-        return -3;
-    }
-    
-    // Copy winners IDs
-    memcpy(l_stake_ext->winners_ids, a_winners_ids, sizeof(uint32_t) * a_winners_cnt);
-    
-    // Log the winners for debugging
-    for (uint8_t i = 0; i < a_winners_cnt; i++) {
-        log_it(L_DEBUG, "Winner #%u: project ID %u", i + 1, a_winners_ids[i]);
-    }
-    
-    pthread_rwlock_unlock(&a_cache->cache_rwlock);
-    
-    log_it(L_DEBUG, "Set %u winners for stake_ext %s", 
-           a_winners_cnt, dap_chain_hash_fast_to_str_static(a_stake_ext_hash));
-    
     return 0;
 }
 
@@ -884,7 +828,7 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                     if (l_ended_data->winners_cnt > 0) {
                         const uint32_t *l_winners_ids = (const uint32_t *)((const byte_t *)l_ended_data +
                             offsetof(dap_chain_tx_event_data_ended_t, winners_ids));
-                        dap_stake_ext_cache_set_winners_by_name(s_stake_ext_cache, a_event->group_name,
+                        dap_stake_ext_cache_set_winners_by_name(s_stake_ext_cache, a_event->group_name, l_ended_data->end_time,
                                                              l_ended_data->winners_cnt, (uint32_t *)l_winners_ids);
                         
                         log_it(L_INFO, "stake_ext %s ended with %u winner(s)", 
@@ -1059,7 +1003,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
         dap_chain_tx_in_cond_t *l_in_cond_item = (dap_chain_tx_in_cond_t *)l_in_cond;
         dap_hash_fast_t *l_lock_hash = &l_in_cond_item->header.tx_prev_hash;
         // **lock unlockAL LOGIC** - when a_prev_out_item exists (EXISTING LOGIC)
-        log_it(L_DEBUG, "Processing lock unlockal for transaction %s", 
+        log_it(L_DEBUG, "Processing lock unlock for transaction %s", 
                dap_chain_hash_fast_to_str_static(l_lock_hash));
 
         // Extract stake_ext hash from conditional output
@@ -1071,7 +1015,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
         dap_stake_ext_cache_item_t *l_stake_ext = s_find_stake_ext_by_hash_fast(s_stake_ext_cache, &l_stake_ext_hash);
         if (!l_stake_ext) {
             pthread_rwlock_unlock(&s_stake_ext_cache->cache_rwlock);
-            log_it(L_ERROR, "stake_ext %s not found in cache during lock unlockal",
+            log_it(L_ERROR, "stake_ext %s not found in cache during lock unlock",
                    dap_chain_hash_fast_to_str_static(&l_stake_ext_hash));
             return;
         }
@@ -1079,7 +1023,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
         dap_stake_ext_position_cache_item_t *l_position = NULL;
         HASH_FIND(hh, l_stake_ext->positions, &l_position_id, sizeof(uint64_t), l_position);
         if (!l_position) {
-            log_it(L_ERROR, "Position %" DAP_UINT64_FORMAT_U " not found in stake_ext cache during lock unlockal", l_position_id);
+            log_it(L_ERROR, "Position %" DAP_UINT64_FORMAT_U " not found in stake_ext cache during lock unlock", l_position_id);
             return;
         }
         int l_result = dap_stake_ext_cache_unlock_lock(l_position, l_lock_hash);
@@ -1099,7 +1043,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
  * @brief Verify stake_ext lock conditional output
  * @param a_ledger Ledger instance
  * @param a_cond Conditional output to verify
- * @param a_tx_in Input transaction (unlockal transaction)
+ * @param a_tx_in Input transaction (unlock transaction)
  * @param a_owner Whether the transaction is from the owner (who created the lock)
  * @return Returns 0 on success, negative error code otherwise
  */
@@ -1126,27 +1070,19 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
 
     // Only the owner (who created the lock/lock) can unlock funds
     if (!a_owner) {
-        log_it(L_WARNING, "unlockal denied: only the owner who created the lock can unlock funds");
+        log_it(L_WARNING, "unlock denied: only the owner who created the lock can unlock funds");
         return -9;
     }
 
-    // 1. In unlockal transaction, find the stake_ext transaction hash from the conditional output
+    // 1. In unlock transaction, find the stake_ext transaction hash from the conditional output
     dap_hash_fast_t l_stake_ext_hash = a_cond->subtype.srv_stake_ext_lock.stake_ext_hash;
     char l_stake_ext_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&l_stake_ext_hash, l_stake_ext_hash_str, sizeof(l_stake_ext_hash_str));
     
-    log_it(L_DEBUG, "Verifying unlockal for stake_ext hash %s by owner", l_stake_ext_hash_str);
-
-    // 2. Find the stake_ext transaction by hash
-    dap_chain_datum_tx_t *l_stake_ext_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_stake_ext_hash);
-    if (!l_stake_ext_tx) {
-        log_it(L_WARNING, "stake_ext transaction %s not found in ledger", l_stake_ext_hash_str);
-        return -4;
-    }
+    log_it(L_DEBUG, "Verifying unlock for stake_ext hash %s by owner", l_stake_ext_hash_str);
 
     int ret_code = 0;
     dap_time_t l_stake_ext_end_time = 0;
-    
 
     // 3. Check stake_ext status with thread-safe access
     pthread_rwlock_rdlock(&s_stake_ext_cache->cache_rwlock);
@@ -1162,7 +1098,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
     switch (l_stake_ext->status) {
 
         case DAP_STAKE_EXT_STATUS_CANCELLED: {
-            log_it(L_DEBUG, "unlockal allowed: stake_ext %s was cancelled", l_stake_ext_hash_str);
+            log_it(L_DEBUG, "unlock allowed: stake_ext %s was cancelled", l_stake_ext_hash_str);
             ret_code = 0;
         } break;
 
@@ -1172,7 +1108,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
 
             // 2. Check if this position is among the winners
             bool l_is_winner = false;
-            if (!l_stake_ext->winners_ids && l_stake_ext->winners_cnt > 0) {
+            if (!!l_stake_ext->winners_ids != (l_stake_ext->winners_cnt > 0)) {
                 log_it(L_ERROR, "Inconsistent winner data: count > 0 but no IDs");
                 ret_code = -10;
                 break;
@@ -1185,22 +1121,32 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
                     }
                 }
             }
-            
-            // 3. Make decision about unlockal validity
+            dap_chain_tx_in_cond_t *l_tx_in_cond_item = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
+            assert(l_tx_in_cond_item);
+            dap_hash_fast_t l_lock_tx_hash = l_tx_in_cond_item->header.tx_prev_hash;
+            dap_chain_datum_tx_t *l_lock_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_lock_tx_hash);
+            assert(l_lock_tx);
+            dap_time_t l_lock_time = l_lock_tx->header.ts_created;
+            // 3. Make decision about unlock validity
             if (l_is_winner) { // If position is winner, check if lock period expired
-                dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
-                dap_time_t l_lock_end_time = l_stake_ext->end_time + a_cond->subtype.srv_stake_ext_lock.lock_time;
-                
-                if (l_current_time >= l_lock_end_time) {
-                    log_it(L_DEBUG, "unlockal allowed: stake_ext %s won and lock period expired", l_stake_ext_hash_str);
+                if (l_lock_time > l_stake_ext->end_time) {
+                    log_it(L_DEBUG, "unlock allowed: stake_ext %s won before lock is made", l_stake_ext_hash_str);
                     ret_code = 0;
                 } else {
-                    log_it(L_WARNING, "unlockal denied: stake_ext %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")", 
-                        l_stake_ext_hash_str, l_current_time, l_lock_end_time);
-                    ret_code = -7;
+                    dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
+                    dap_time_t l_lock_end_time = l_stake_ext->end_time + a_cond->subtype.srv_stake_ext_lock.lock_time;
+                    
+                    if (l_current_time >= l_lock_end_time) {
+                        log_it(L_DEBUG, "unlock allowed: stake_ext %s won and lock period expired", l_stake_ext_hash_str);
+                        ret_code = 0;
+                    } else {
+                        log_it(L_WARNING, "unlock denied: stake_ext %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")", 
+                            l_stake_ext_hash_str, l_current_time, l_lock_end_time);
+                        ret_code = -7;
+                    }
                 }
             } else { // If position is not winner
-                log_it(L_DEBUG, "unlockal allowed: position %u in stake_ext %s lost", l_lock_position, l_stake_ext_hash_str);
+                log_it(L_DEBUG, "unlock allowed: position %u in stake_ext %s lost", l_lock_position, l_stake_ext_hash_str);
                 ret_code = 0;
             }
         } break;
@@ -1209,10 +1155,10 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
             // For active stake_ext, check if time has expired based on cache data
             dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
             if (l_stake_ext->end_time > 0 && l_current_time >= l_stake_ext->end_time + a_cond->subtype.srv_stake_ext_lock.lock_time) {
-                log_it(L_DEBUG, "unlockal allowed: stake_ext %s ended by time", l_stake_ext_hash_str);
+                log_it(L_DEBUG, "unlock allowed: stake_ext %s ended by timeout", l_stake_ext_hash_str);
                 ret_code = 0;
             } else {
-                log_it(L_WARNING, "unlockal denied: stake_ext %s still active", l_stake_ext_hash_str);
+                log_it(L_WARNING, "unlock denied: stake_ext %s still active", l_stake_ext_hash_str);
                 ret_code = -7;
             }
         } break;
@@ -1281,7 +1227,6 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
     l_stake_ext->positions_count = HASH_COUNT(l_cached_stake_ext->positions);
     
     // Winner information with proper memory management
-    l_stake_ext->has_winner = l_cached_stake_ext->has_winner;
     if (l_cached_stake_ext->winners_cnt > 0 && l_cached_stake_ext->winners_ids) {
         l_stake_ext->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * l_cached_stake_ext->winners_cnt);
         if (l_stake_ext->winners_ids) {
@@ -1292,7 +1237,6 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
             // Memory allocation failed - reset to consistent state
             log_it(L_ERROR, "Failed to allocate memory for winners array");
             l_stake_ext->winners_cnt = 0;
-            l_stake_ext->has_winner = false;
         }
     } else {
         l_stake_ext->winners_cnt = 0;
@@ -1356,7 +1300,6 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
     l_stake_ext->positions_count = HASH_COUNT(l_cached_stake_ext->positions);
     
     // Winner information with proper memory management
-    l_stake_ext->has_winner = l_cached_stake_ext->has_winner;
     if (l_cached_stake_ext->winners_cnt > 0 && l_cached_stake_ext->winners_ids) {
         l_stake_ext->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * l_cached_stake_ext->winners_cnt);
         if (l_stake_ext->winners_ids) {
@@ -1367,7 +1310,6 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
             // Memory allocation failed - reset to consistent state
             log_it(L_ERROR, "Failed to allocate memory for winners array in detailed view");
             l_stake_ext->winners_cnt = 0;
-            l_stake_ext->has_winner = false;
         }
     } else {
         l_stake_ext->winners_cnt = 0;
@@ -1497,7 +1439,6 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
         l_stake_ext->positions_count = HASH_COUNT(l_cached_stake_ext->positions);
         
         // Winner information with proper memory management
-        l_stake_ext->has_winner = l_cached_stake_ext->has_winner;
         if (l_cached_stake_ext->winners_cnt > 0 && l_cached_stake_ext->winners_ids) {
             l_stake_ext->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * l_cached_stake_ext->winners_cnt);
             if (l_stake_ext->winners_ids) {
@@ -1508,7 +1449,6 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
                 // Memory allocation failed - reset to consistent state
                 log_it(L_ERROR, "Failed to allocate memory for winners array in list view");
                 l_stake_ext->winners_cnt = 0;
-                l_stake_ext->has_winner = false;
             }
         } else {
             l_stake_ext->winners_cnt = 0;
@@ -1660,7 +1600,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
         return NULL;
     }
     
-    // 4. Verify lock unlockal is allowed
+    // 4. Verify lock unlock is allowed
     switch (l_stake_ext->status){
         case DAP_STAKE_EXT_STATUS_ENDED:
         {
@@ -1677,13 +1617,13 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
                     break;
                 }
             }
-            // 4. Make decision about unlockal validity
+            // 4. Make decision about unlock validity
             if (l_is_winner) { // If project is winner, check if lock period expired
                 dap_time_t l_current_time = dap_ledger_get_blockchain_time(l_ledger);
                 dap_time_t l_lock_end_time = l_stake_ext->end_time + l_out_cond->subtype.srv_stake_ext_lock.lock_time;
                 
                 if (l_current_time < l_lock_end_time) {
-                    log_it(L_WARNING, "unlockal denied: stake_ext %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")", 
+                    log_it(L_WARNING, "unlock denied: stake_ext %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")", 
                         dap_chain_hash_fast_to_str_static(&l_stake_ext_hash), l_current_time, l_lock_end_time);
                     set_ret_code(a_ret_code, -106);
                     return NULL;
@@ -1696,7 +1636,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
             dap_time_t l_stake_ext_end_timeout = l_stake_ext->end_time + l_out_cond->subtype.srv_stake_ext_lock.lock_time;
             dap_time_t l_current_time = dap_ledger_get_blockchain_time(l_ledger);
             if (l_current_time < l_stake_ext_end_timeout) {
-                log_it(L_DEBUG, "unlockal debiued: stake_ext %s still active", dap_chain_hash_fast_to_str_static(&l_stake_ext_hash));
+                log_it(L_DEBUG, "unlock debiued: stake_ext %s still active", dap_chain_hash_fast_to_str_static(&l_stake_ext_hash));
                 set_ret_code(a_ret_code, -107);
                 return NULL;
             }
@@ -2498,10 +2438,10 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                         l_error_msg = "stake_ext not found in cache";
                         break;
                     case -106:
-                        l_error_msg = "unlockal denied: stake_ext won but lock period not expired";
+                        l_error_msg = "unlock denied: stake_ext won but lock period not expired";
                         break;
                     case -107:
-                        l_error_msg = "unlockal denied: stake_ext still active";
+                        l_error_msg = "unlock denied: stake_ext still active";
                         break;
                     case -108:
                         l_error_msg = "Failed to get token ticker";
@@ -2619,7 +2559,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                     json_object_new_uint64(l_stake_ext->positions_count));
                 
                 // Winners information
-                if (l_stake_ext->has_winner && l_stake_ext->winners_cnt > 0) {
+                if (l_stake_ext->winners_cnt > 0) {
                     json_object *l_winners_array = json_object_new_array();
                     for (uint8_t i = 0; i < l_stake_ext->winners_cnt; i++) {
                     json_object *l_winner_obj = json_object_new_object();
@@ -2742,7 +2682,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
             }
             
             // Winners information
-            if (l_stake_ext->has_winner && l_stake_ext->winners_cnt > 0) {
+            if (l_stake_ext->winners_cnt > 0) {
                 json_object *l_winners_array = json_object_new_array();
                 for (uint8_t i = 0; i < l_stake_ext->winners_cnt; i++) {
                 json_object *l_winner_obj = json_object_new_object();
@@ -2875,6 +2815,9 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                 } break;
                 case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED: {
                     dap_chain_tx_event_data_ended_t *l_ended_data = (dap_chain_tx_event_data_ended_t *)l_event->event_data;
+                    char l_end_time_str[DAP_TIME_STR_SIZE] = {'\0'};
+                    dap_time_to_str_rfc822(l_end_time_str, sizeof(l_end_time_str), l_ended_data->end_time);
+                    json_object_object_add(l_stake_ext_data, "end_time", json_object_new_string(l_end_time_str));
                     json_object_object_add(l_stake_ext_data, "winners_cnt", json_object_new_uint64(l_ended_data->winners_cnt));
                     json_object *l_winners_array = json_object_new_array();
                     json_object_object_add(l_stake_ext_data, "winners", l_winners_array);
@@ -2928,6 +2871,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
 
 int dap_stake_ext_cache_set_winners_by_name(dap_stake_ext_cache_t *a_cache,
                                          const char *a_guuid,
+                                         dap_time_t a_end_time,
                                          uint8_t a_winners_cnt,
                                          uint32_t *a_winners_ids)
 {
@@ -2949,7 +2893,7 @@ int dap_stake_ext_cache_set_winners_by_name(dap_stake_ext_cache_t *a_cache,
     DAP_DELETE(l_stake_ext->winners_ids);
 
     // Set multiple winners information
-    l_stake_ext->has_winner = true;
+    l_stake_ext->end_time = a_end_time;
     l_stake_ext->winners_cnt = a_winners_cnt;
     l_stake_ext->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * a_winners_cnt);
     if (!l_stake_ext->winners_ids) {
@@ -2966,12 +2910,13 @@ int dap_stake_ext_cache_set_winners_by_name(dap_stake_ext_cache_t *a_cache,
     return 0;
 }
 
-byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
+byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, dap_time_t a_start_time, uint32_t a_multiplier, dap_time_t a_duration,
     dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_total_positions, uint32_t a_position_ids[])
 {
     size_t l_data_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) + a_total_positions * sizeof(uint32_t);
     dap_chain_tx_event_data_stake_ext_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_stake_ext_started_t, l_data_size, NULL);
 
+    l_data->start_time = a_start_time;
     l_data->multiplier = a_multiplier;
     l_data->duration = a_duration;
     l_data->time_unit = a_time_unit;
@@ -2985,10 +2930,11 @@ byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, uin
     return (byte_t *)l_data;
 }
 
-byte_t *dap_chain_srv_stake_ext_ended_tx_event_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[])
+byte_t *dap_chain_srv_stake_ext_ended_tx_event_create(size_t *a_data_size, dap_time_t a_end_time, uint8_t a_winners_cnt, uint32_t a_winners_ids[])
 {
     size_t l_data_size = sizeof(dap_chain_tx_event_data_ended_t) + a_winners_cnt * sizeof(uint32_t);
     dap_chain_tx_event_data_ended_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_ended_t, l_data_size, NULL);
+    l_data->end_time = a_end_time;
     l_data->winners_cnt = a_winners_cnt;
     memcpy(l_data->winners_ids, a_winners_ids, a_winners_cnt * sizeof(uint32_t));
 

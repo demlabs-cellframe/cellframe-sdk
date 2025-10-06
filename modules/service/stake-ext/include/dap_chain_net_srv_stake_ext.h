@@ -23,6 +23,7 @@
 */
 #pragma once
 
+#include "dap_time.h"
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
@@ -57,6 +58,7 @@ DAP_STATIC_INLINE const char *dap_chain_tx_event_data_time_unit_to_str(dap_chain
 
 typedef struct dap_chain_tx_event_data_stake_ext_started {
     uint32_t multiplier;
+    dap_time_t start_time;
     dap_time_t duration;
     dap_chain_tx_event_data_time_unit_t time_unit;
     uint32_t calculation_rule_id;
@@ -65,6 +67,7 @@ typedef struct dap_chain_tx_event_data_stake_ext_started {
 } DAP_ALIGN_PACKED dap_chain_tx_event_data_stake_ext_started_t;
 
 typedef struct dap_chain_tx_event_data_ended {
+    dap_time_t end_time;
     uint8_t winners_cnt;
     uint32_t winners_ids[];
 } DAP_ALIGN_PACKED dap_chain_tx_event_data_ended_t;
@@ -123,7 +126,6 @@ typedef struct dap_stake_ext_cache_item {
     dap_stake_ext_position_cache_item_t *positions; // Hash table of positions by position_id
     
     // Winner tracking (for ended stake-ext)
-    bool has_winner;                   // Whether stake-ext has determined winner
     uint8_t winners_cnt;               // Number of winners in this stake-ext
     uint32_t *winners_ids;             // Array of winner position IDs from event data
     
@@ -161,7 +163,6 @@ typedef struct dap_chain_net_srv_stake_ext {
     uint32_t positions_count;
     
     // Winner information (if stake-ext ended)
-    bool has_winner;                      // Whether stake-ext has determined winner
     uint8_t winners_cnt;                  // Number of winners
     uint32_t *winners_ids;                // Array of winner position IDs
     
@@ -211,15 +212,10 @@ int dap_stake_ext_cache_update_stake_ext_status_by_name(dap_stake_ext_cache_t *a
 
 int dap_stake_ext_cache_unlock_lock(dap_stake_ext_position_cache_item_t *a_cache,
                                   dap_hash_fast_t *a_lock_hash);
-
-int dap_stake_ext_cache_set_winners(dap_stake_ext_cache_t *a_cache,
-                                 dap_hash_fast_t *a_stake_ext_hash,
-                                 uint8_t a_winners_cnt,
-                                 uint32_t *a_winners_ids);
-
 // New: set winners by group name
 int dap_stake_ext_cache_set_winners_by_name(dap_stake_ext_cache_t *a_cache,
                                          const char *a_guuid,
+                                         dap_time_t a_end_time,
                                          uint8_t a_winners_cnt,
                                          uint32_t *a_winners_ids);
 
@@ -280,10 +276,10 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
 
 char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_lock_tx_hash, uint256_t a_fee, uint256_t *a_value, int *a_ret_code);
 
-byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
-    dap_chain_tx_event_data_time_unit_t a_time_unit,
-    uint32_t a_calculation_rule_id, uint8_t a_total_positions, uint32_t a_position_ids[]);
-byte_t *dap_chain_srv_stake_ext_ended_tx_event_create(size_t *a_data_size, uint8_t a_winners_cnt, uint32_t a_winners_ids[]);
+byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, dap_time_t a_start_time, uint32_t a_multiplier, dap_time_t a_duration,
+                                                        dap_chain_tx_event_data_time_unit_t a_time_unit,
+                                                        uint32_t a_calculation_rule_id, uint8_t a_total_positions, uint32_t a_position_ids[]);
+byte_t *dap_chain_srv_stake_ext_ended_tx_event_create(size_t *a_data_size, dap_time_t a_end_time, uint8_t a_winners_cnt, uint32_t a_winners_ids[]);
 
 #ifdef __cplusplus
 }
