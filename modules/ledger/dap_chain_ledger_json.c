@@ -146,3 +146,4 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_jso_ex(dap_json_t *a_outputs_array,
     return NULL;
 }
 
+

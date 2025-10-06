@@ -83,7 +83,7 @@
 #include "dap_chain_datum_tx.h"
 
 // Forward declarations
-typedef struct compose_config dap_chain_tx_compose_config_t;
+typedef struct dap_chain_tx_compose_config dap_chain_tx_compose_config_t;
 typedef struct dap_chain_addr dap_chain_addr_t;
 
 /**

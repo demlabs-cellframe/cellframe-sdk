@@ -10,6 +10,7 @@
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_net_srv_xchange_compose.h"
 #include "dap_chain_tx_compose.h"
+#include "dap_chain_net_srv_stake_lock_compose.h"
 #include "dap_chain_tx_compose_callbacks.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net_srv_order.h"
@@ -24,7 +25,7 @@
 /**
  * @brief Create price structure from order conditional transaction
  */
-dap_chain_net_srv_xchange_price_t *dap_chain_net_srv_xchange_price_from_order_compose(dap_chain_tx_out_cond_t *a_cond_tx, 
+dap_chain_net_srv_xchange_price_t *dap_chain_net_srv_xchange_compose_price_from_order(dap_chain_tx_out_cond_t *a_cond_tx, 
                                                                                     dap_time_t a_ts_created, dap_hash_fast_t *a_order_hash, dap_hash_fast_t *a_hash_out, const char *a_token_ticker,
                                                                                     uint256_t *a_fee, bool a_ret_is_invalid, dap_chain_tx_compose_config_t *a_config)
 {
@@ -62,7 +63,7 @@ dap_chain_net_srv_xchange_price_t *dap_chain_net_srv_xchange_price_from_order_co
 
     return l_price;
 }
-dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchange_price_t *a_price, dap_chain_tx_out_cond_t *a_cond_tx, dap_chain_addr_t *a_wallet_addr, dap_chain_addr_t *a_seller_addr, const char *a_tx_ticker, uint32_t a_prev_cond_idx, dap_chain_tx_compose_config_t *a_config)
+dap_chain_datum_tx_t* dap_chain_net_srv_xchange_compose_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_tx_out_cond_t *a_cond_tx, dap_chain_addr_t *a_wallet_addr, dap_chain_addr_t *a_seller_addr, const char *a_tx_ticker, uint32_t a_prev_cond_idx, dap_chain_tx_compose_config_t *a_config)
 {
     if (!a_config) {
         return NULL;
@@ -219,7 +220,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
  * @details Follows the chain of transactions from initial order to the last one
  * @note Moved from compose module (was dap_find_last_xchange_tx) to break circular dependency
  */
-dap_chain_tx_out_cond_t* dap_chain_net_srv_xchange_find_last_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  dap_chain_tx_compose_config_t * a_config, 
+dap_chain_tx_out_cond_t* dap_chain_net_srv_xchange_compose_find_last_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  dap_chain_tx_compose_config_t * a_config, 
                                                   const char **a_ts_created_str, const char **a_token_ticker, uint32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out) {
     dap_chain_tx_out_cond_t *l_cond_tx = NULL;
     dap_hash_fast_t l_current_hash = *a_order_hash;
@@ -509,4 +510,71 @@ dap_chain_tx_out_cond_t* dap_chain_net_srv_xchange_find_last_tx(dap_hash_fast_t 
     dap_json_object_free(l_final_response);
     *a_hash_out = l_current_hash;
     return l_cond_tx;
+}
+
+/**
+ * @brief Remove xchange order by invalidating it
+ * @details Creates a transaction that invalidates the specified order
+ */
+dap_chain_datum_tx_t* dap_chain_net_srv_xchange_compose_order_remove(dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+                                     dap_chain_addr_t *a_wallet_addr, dap_chain_tx_compose_config_t *a_config) {
+    if (!a_hash_tx || !a_wallet_addr || !a_config) {
+        return NULL;
+    }
+    if(IS_ZERO_256(a_fee)){
+        dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_FEE, "Fee must be greater than 0");
+        return NULL;
+    }
+
+    dap_time_t ts_created = 0;
+
+    dap_chain_addr_t l_seller_addr = {};
+    const char *ts_created_str = NULL;
+    const char *token_ticker = NULL;
+    uint32_t l_prev_cond_idx = 0;
+    dap_hash_fast_t l_hash_out = {};
+    
+    // Use the new xchange function name (not the old dap_find_last_xchange_tx)
+    dap_chain_tx_out_cond_t* l_cond_tx_last = dap_chain_net_srv_xchange_compose_find_last_tx(a_hash_tx, &l_seller_addr, a_config, &ts_created_str, &token_ticker, &l_prev_cond_idx, &l_hash_out);
+
+    dap_chain_net_srv_xchange_price_t *l_price = dap_chain_net_srv_xchange_compose_price_from_order(l_cond_tx_last, ts_created, a_hash_tx, &l_hash_out, token_ticker, &a_fee, false, a_config);
+    if (!l_price) {
+        return NULL;
+    }
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_xchange_compose_tx_invalidate(l_price, l_cond_tx_last, a_wallet_addr, &l_seller_addr, token_ticker, l_prev_cond_idx, a_config);
+
+    DAP_DELETE(l_price);
+    return l_tx;
+}
+
+/**
+ * @brief CLI wrapper for xchange order removal
+ */
+dap_json_t *dap_chain_net_srv_xchange_compose_cli_order_remove(const char *l_net_str, const char *l_order_hash_str, const char *l_fee_str, dap_chain_addr_t *a_wallet_addr, const char *l_url_str, uint16_t l_port, const char *l_cert_path) {
+
+    dap_chain_tx_compose_config_t *l_config = dap_chain_tx_compose_config_init(l_net_str, l_url_str, l_port, l_cert_path);
+    if (!l_config) {
+        dap_json_t *l_json_obj_ret = dap_json_object_new();
+        dap_json_compose_error_add(l_json_obj_ret, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS, "Invalid arguments");
+        return l_json_obj_ret;
+    }
+    uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
+    if (IS_ZERO_256(l_fee)) {
+        dap_json_compose_error_add(l_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_FEE, "Format -fee <256 bit integer>");
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
+    }
+    dap_hash_fast_t l_tx_hash = {};
+    dap_chain_hash_fast_from_str(l_order_hash_str, &l_tx_hash);
+    if (dap_hash_fast_is_blank(&l_tx_hash)) {
+        dap_json_compose_error_add(l_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_ORDER_HASH, "Invalid order hash");
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
+    }
+    char *l_tx_hash_ret = NULL;
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_srv_xchange_compose_order_remove(&l_tx_hash, l_fee, a_wallet_addr, l_config);
+    if (l_tx) {
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
+        dap_chain_datum_tx_delete(l_tx);
+    }
+    
+    return dap_chain_tx_compose_config_return_response_handler(l_config);
 }
