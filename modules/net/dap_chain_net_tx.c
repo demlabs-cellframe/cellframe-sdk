@@ -2141,7 +2141,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 }
                 
                 int64_t l_min_sig_count;
-                if(!s_json_get_int64(l_json_item_obj, "min_sig_count", &l_min_sig_count) || l_min_sig_count <= 0) {
+                if(!s_json_get_int64_uint64(l_json_item_obj, "min_sig_count", &l_min_sig_count, false) || l_min_sig_count <= 0) {
                     log_it(L_ERROR, "Json TX: bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                     break;
                 }
@@ -2247,14 +2247,14 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         case TX_ITEM_TYPE_IN_COND: {
             const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
             uint64_t l_out_prev_idx;
-            bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+            bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, false);
             if(l_prev_hash_str && l_is_out_prev_idx){
                 dap_chain_hash_fast_t l_tx_prev_hash = {};
                 dap_chain_tx_out_cond_t	*l_tx_out_cond = NULL;
                 if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
                     if (!a_net) {
                         uint64_t l_receipt_idx = 0;
-                        s_json_get_int64(l_json_item_obj, "receipt_idx", &l_receipt_idx);
+                        s_json_get_int64_uint64(l_json_item_obj, "receipt_idx", &l_receipt_idx, false);
                         l_item = (const uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
                         break;
                     }
@@ -2288,7 +2288,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                                 if (l_tx_out_cond && (l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE ||
                                                     l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED)) {
                                     uint64_t l_receipt_idx = 0;
-                                    s_json_get_int64(l_json_item_obj, "receipt_idx", &l_receipt_idx);
+                                    s_json_get_int64_uint64(l_json_item_obj, "receipt_idx", &l_receipt_idx, false);
                                     dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
                                     l_item = (const uint8_t*) l_in_cond;
                                     break;
@@ -2383,9 +2383,9 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             int64_t l_tsd_type = 0;
             size_t l_tsd_data_size = 0;
             dap_chain_tx_tsd_t *l_tsd = NULL;
-            s_json_get_int64(l_json_item_obj, "version", &l_version);
+            s_json_get_int64_uint64(l_json_item_obj, "version", &l_version, false);
             if(l_version == 1) {
-                if(!s_json_get_int64(l_json_item_obj, "type_tsd", &l_tsd_type)) {
+                if(!s_json_get_int64_uint64(l_json_item_obj, "type_tsd", &l_tsd_type, false)) {
                     log_it(L_ERROR, "Json TX: bad type_tsd in TYPE_TSD");
                     break;
                 }
@@ -2399,11 +2399,11 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 l_tsd = dap_chain_datum_tx_item_tsd_create((void*)l_tsd_data, (int)l_tsd_type, l_tsd_data_size);
             
             } else {
-                if(!s_json_get_int64(l_json_item_obj, "data_type", &l_tsd_type)) {
+                if(!s_json_get_int64_uint64(l_json_item_obj, "data_type", &l_tsd_type, false)) {
                     log_it(L_ERROR, "Json TX: bad data_type in TYPE_TSD");
                     break;
                 }
-                if(!s_json_get_int64(l_json_item_obj, "data_size", &l_tsd_data_size) || !l_tsd_data_size) {
+                if(!s_json_get_int64_uint64(l_json_item_obj, "data_size", &l_tsd_data_size, false) || !l_tsd_data_size) {
                     log_it(L_ERROR, "Json TX: bad data_size in TYPE_TSD");
                     break;
                 }
@@ -3025,32 +3025,6 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                     json_object_object_add(json_obj_item, "reinvest_percent", json_object_new_string(l_reinvest_percent));
                     DAP_DELETE(l_reinvest_percent);
                     json_object_object_add(json_obj_item, "flags", json_object_new_int(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.flags));
-                } break;
-                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
-                    json_object_object_add(json_obj_item,"subtype", json_object_new_string("wallet_shared"));
-                    json_object_object_add(json_obj_item, "min_sig_count", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.wallet_shared.signers_minimum));
-                    json_object *l_jobj_pkey_hashes = json_object_new_array();
-                    json_object *l_jobj_tags = json_object_new_array();
-                    dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
-                    size_t l_tags_count = 0;
-                    size_t l_pkey_hashes_count = 0;
-                    dap_tsd_iter(l_tsd, l_tsd_size, ((dap_chain_tx_out_cond_t*)item)->tsd, ((dap_chain_tx_out_cond_t*)item)->tsd_size) {
-                        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
-                            json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
-                            l_pkey_hashes_count++;
-                        }
-                        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR) {
-                            json_object_array_add(l_jobj_tags, json_object_new_string((char*)(l_tsd->data)));
-                            l_tags_count++;
-                        }
-                    }
-                    if (!l_pkey_hashes_count) {
-                        log_it(L_ERROR, "Wallet shared condition has no owner pkey hashes");
-                    }
-                    json_object_object_add(json_obj_item, "owner_pkey_hashes", l_jobj_pkey_hashes);
-                    if (l_tags_count > 0) {
-                        json_object_object_add(json_obj_item, "tags", l_jobj_tags);
-                    }
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
                     json_object_object_add(json_obj_item,"subtype", json_object_new_string("wallet_shared"));

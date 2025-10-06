@@ -7043,6 +7043,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     const char * l_token_ticker = NULL;
     const char * l_tx_num_str = NULL;
     const char *l_time_str = NULL;
+    const char *l_value_str = NULL;
     dap_enc_key_t *l_priv_key = NULL;
     size_t l_tx_num = 0;
 
