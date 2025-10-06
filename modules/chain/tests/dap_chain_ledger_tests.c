@@ -1013,7 +1013,7 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(dap_chain_cs_esbocs_init() == 0, "Initialization of esbocs: ");
     dap_assert_PIF(dap_chain_type_dag_init() == 0, "Initialization of esbocs: ");
     dap_assert_PIF(dap_chain_type_dag_poa_init() == 0, "Initialization of esbocs: ");
-    dap_chain_net_srv_stake_lock_init();
+    dap_chain_net_srv_stake_init();
     dap_chain_net_srv_stake_pos_delegate_init();
     dap_assert_PIF(!dap_chain_net_srv_init(), "Srv initializstion");
     
