@@ -374,15 +374,14 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
         return -3;
     }
     
-    // Initialize basic auction data
-    *l_auction = (dap_auction_cache_item_t) { .auction_tx_hash = *a_auction_hash,
-                                              .net_id = a_net_id,
-                                              .created_time = a_tx_timestamp,
-                                              .start_time = a_tx_timestamp,
-                                              .end_time = a_tx_timestamp,
-                                              .guuid = dap_strdup(a_guuid),
-                                              .status = DAP_AUCTION_STATUS_ACTIVE
-    };
+    // Initialize basic auction data (simple field assignment instead of compound literal)
+    l_auction->auction_tx_hash = *a_auction_hash;
+    l_auction->net_id = a_net_id;
+    l_auction->created_time = a_tx_timestamp;
+    l_auction->start_time = a_tx_timestamp;
+    l_auction->end_time = a_tx_timestamp;
+    l_auction->guuid = dap_strdup(a_guuid);
+    l_auction->status = DAP_AUCTION_STATUS_ACTIVE;
 
     // Calculate end time from auction started data if provided
     if (a_started_data) {
