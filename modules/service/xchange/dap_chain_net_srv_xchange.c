@@ -2626,7 +2626,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 }
             }
 
-            bool l_head = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-head", &l_head_str) ? false : true;
+            bool l_head = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-head", &l_head_str) ? true : false;
             
             dap_chain_addr_t *l_addr = NULL;
             const char *l_addr_str = NULL;
@@ -2657,7 +2657,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             json_object* json_obj_order = json_object_new_object();
             json_object* json_arr_orders_limit = json_object_new_array();
             json_object* json_arr_orders_out = json_object_new_array();
-            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), true);
+            dap_chain_set_offset_limit_json(json_arr_orders_limit, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_list_length(l_list), false);
             json_object_object_add(json_obj_order, "page", json_arr_orders_limit);
 
             size_t i_tmp = 0;
