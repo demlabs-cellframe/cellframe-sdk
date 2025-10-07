@@ -3583,7 +3583,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 // Support multiple services that can use delegated m-tokens
                 static const uint16_t l_supported_service_subtypes[] = {
                     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,
-                    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID
+                    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK
                 };
                 static const size_t l_subtypes_count = sizeof(l_supported_service_subtypes) / sizeof(l_supported_service_subtypes[0]);
                 
@@ -3602,7 +3602,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 }
                 
                 if (!l_tx_service_out_cond) {
-                    debug_if(s_debug_more, L_WARNING, "No supported service OUT_COND found for IN_EMS [%s] (checked: stake_lock, auction_bid)", l_tx_in_ems->header.ticker);
+                    debug_if(s_debug_more, L_WARNING, "No supported service OUT_COND found for IN_EMS [%s] (checked: stake_lock, stake_ext lock)", l_tx_in_ems->header.ticker);
                     l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_NO_OUT_COND_FOR_IN_EMS;
                     break;
                 }

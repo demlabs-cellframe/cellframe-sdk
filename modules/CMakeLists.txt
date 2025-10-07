@@ -104,9 +104,9 @@ if (CELLFRAME_MODULES MATCHES "srv-bridge")
     add_subdirectory(service/bridge)
 endif()
 
-# Service for auctions
-if (CELLFRAME_MODULES MATCHES "srv-auctions")
-    add_subdirectory(service/auctions)
+# Service for stake-ext
+if (CELLFRAME_MODULES MATCHES "srv-stake-ext")
+    add_subdirectory(service/stake-ext)
 endif()
 
 # Compose service

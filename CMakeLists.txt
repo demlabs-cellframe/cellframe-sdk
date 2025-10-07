@@ -194,10 +194,10 @@ if (CELLFRAME_MODULES MATCHES "srv-voting")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
 endif()
 
-# Enable service auctions
-if (CELLFRAME_MODULES MATCHES "srv-auctions")
-    message("[+] Module 'srv-auctions'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_auctions)
+# Enable service stake-ext
+if (CELLFRAME_MODULES MATCHES "srv-stake-ext")
+    message("[+] Module 'srv-stake-ext'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_ext)
 endif()
 
 # Enable service TX multisign with consensus
