@@ -229,9 +229,8 @@ int dap_chain_net_srv_xchange_init()
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>\n"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
-    "srv_xchange orders -net <net_name> [-status {opened|closed|all} -token_from <token_ticker> -token_to <token_ticker>]\n"
+    "srv_xchange orders -net <net_name> [-status {opened|closed|all} -token_from <token_ticker> -token_to <token_ticker> -limit <limit> -offset <offset> -head]\n"
          "\t OR [-addr <wallet_addr>]\n"
-         "\t OR [-limit <limit>] [-offset <offset>] [-head]\n"
          "\t [-full] [-h]\n"
          "\tGet the exchange orders list within specified net name\n"
 
@@ -239,7 +238,7 @@ int dap_chain_net_srv_xchange_init()
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
     "srv_xchange tx_list -net <net_name> [-time_from <From_time>] [-time_to <To_time>]"
-        "[-addr <wallet_addr>] [-status {inactive|active|all}] [-limit <limit>] [-offset <offset>] [-head] [-full] [-h]\n"                /* @RRL:  #6294  */
+        "{[-addr <wallet_addr>] | [-status {inactive|active|all}] [-limit <limit>] [-offset <offset>] [-head]} [-full] [-h]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions with pagination support\n"
         "\tAll times are in RFC822. For example: \"7 Dec 2023 21:18:04\"\n"
         "\t-limit <limit>: Maximum number of transactions to display (default: 1000)\n"
@@ -247,7 +246,7 @@ int dap_chain_net_srv_xchange_init()
         "\t-head: Display transactions from newest to oldest (default: oldest to newest)\n"
         "\tNote: Use only one parameter group: pagination {-limit/-offset/-head} OR time filters {-time_from/-time_to/-status} OR address filter {-addr}\n"
 
-    "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-h] [-offset <offset>]\n"
+    "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>] [-h]\n"
         "\tList of all token pairs\n"
     "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-h]\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
@@ -2646,13 +2645,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
-            bool l_has_loh = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
-            bool l_has_tokens = (l_token_to_str != NULL) || (l_token_from_str != NULL) || (l_status_str != NULL);
+            bool l_has_loh_tokens_status = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head || (l_token_to_str != NULL) || (l_token_from_str != NULL) || (l_status_str != NULL);
             bool l_has_addr = (l_addr_str != NULL);
-            int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_tokens ? 1 : 0) + (l_has_addr ? 1 : 0);
+            int l_groups_cnt = (l_has_loh_tokens_status ? 1 : 0) + (l_has_addr ? 1 : 0);
             if (l_groups_cnt > 1) {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_ERR,
-                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-token_to/-token_from/-status} or {-addr}");
+                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head/-token_to/-token_from/-status} or {-addr}");
                 return DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_ERR;
             }
 
@@ -2759,13 +2757,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                     l_owner_addr = dap_strdup(dap_chain_addr_to_str(&l_price->creator_addr));
                     l_proposed = l_price->datoshi_sell;
                     DAP_DEL_Z(l_price);
-                }
-
-                if (l_token_from_str && strcmp(l_sell_token, l_token_from_str))
-                    continue;
-
-                if (l_token_to_str && strcmp(l_buy_token, l_token_to_str))
-                    continue;
+                }                
 
                 if (l_order_status == XCHANGE_ORDER_STATUS_OPENED){
                     if (l_opt_status == 2)
@@ -2778,6 +2770,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 } else {
                     continue;
                 }
+
+                if (l_token_from_str && strcmp(l_sell_token, l_token_from_str))
+                    continue;
+
+                if (l_token_to_str && strcmp(l_buy_token, l_token_to_str))
+                    continue;
 
                 if (i_tmp < l_arr_start) {
                     i_tmp++;
@@ -2997,13 +2995,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
             /* Validate parameter groups - separate pagination from other filters */
-            bool l_has_pagination = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
-            bool l_has_time_filters = (l_time_begin_str != NULL) || (l_time_end_str != NULL) || (l_status_str != NULL);
+            bool l_has_pagination_time_filters = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head || (l_time_begin_str != NULL) || (l_time_end_str != NULL) || (l_status_str != NULL);
             bool l_has_addr_filter = (l_addr_str != NULL);
-            int l_groups_cnt = (l_has_pagination ? 1 : 0) + (l_has_time_filters ? 1 : 0) + (l_has_addr_filter ? 1 : 0);
+            int l_groups_cnt = (l_has_pagination_time_filters ? 1 : 0) + (l_has_addr_filter ? 1 : 0);
             if (l_groups_cnt > 1) {
                 dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_LIST_REQ_PARAM_ERR,
-                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-time_from/-time_to/-status} or {-addr}");
+                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head/ -time_from/-time_to/-status} or {-addr}");
                 return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_LIST_REQ_PARAM_ERR;
             }
 
