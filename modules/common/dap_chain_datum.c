@@ -479,19 +479,19 @@ void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
                     dap_time_to_str_rfc822(l_tmp_buff, DAP_TIME_STR_SIZE, l_ts_unlock);
                     json_object_object_add(json_obj_item,"time_unlock", json_object_new_string(l_tmp_buff));
                 } break;
-                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID: {
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: {
                     // Auction hash
-                    l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_auction_bid.auction_hash;
-                    const char *l_auction_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                    l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.stake_ext_hash;
+                    const char *l_stake_ext_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
                             : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
-                    json_object_object_add(json_obj_item, "auction_hash", json_object_new_string(l_auction_hash_str));
+                    json_object_object_add(json_obj_item, "stake_ext_hash", json_object_new_string(l_stake_ext_hash_str));
                     
-                    // Project ID
-                    json_object_object_add(json_obj_item, "project_id", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_auction_bid.project_id));
+                    // Position ID
+                    json_object_object_add(json_obj_item, "position_id", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.position_id));
                     
                     // Lock time  
-                    json_object_object_add(json_obj_item, "lock_time", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_auction_bid.lock_time));
+                    json_object_object_add(json_obj_item, "lock_time", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.lock_time));
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
                     dap_chain_tx_tsd_t *l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(a_datum, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF);

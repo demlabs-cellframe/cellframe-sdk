@@ -24,104 +24,104 @@
 
 #pragma once
 
-#include "dap_chain_net_srv_auctions.h"
+#include "dap_chain_net_srv_stake_ext.h"
 
 /**
- * @brief Run all auction service tests
+ * @brief Run all stake_ext service tests
  */
-void dap_auctions_test_run(void);
+void dap_srv_stake_ext_test_run(void);
 
-// ===== 1. AUCTION CACHE TESTS =====
-
-/**
- * @brief Test auction cache initialization and cleanup
- */
-void dap_auctions_test_cache_init(void);
+// ===== 1. stake_ext CACHE TESTS =====
 
 /**
- * @brief Test auction management in cache
+ * @brief Test stake_ext cache initialization and cleanup
  */
-void dap_auctions_test_cache_auction_management(void);
+void dap_srv_stake_ext_test_cache_init(void);
+
+/**
+ * @brief Test stake_ext management in cache
+ */
+void dap_srv_stake_ext_test_cache_stake_ext_management(void);
 
 /**
  * @brief Test bid management in cache
  */
-void dap_auctions_test_cache_bid_management(void);
+void dap_srv_stake_ext_test_cache_lock_management(void);
 
 /**
  * @brief Test cache statistics and counters
  */
-void dap_auctions_test_cache_statistics(void);
+void dap_srv_stake_ext_test_cache_statistics(void);
 
-// ===== 2. AUCTION STATE TESTS =====
-
-/**
- * @brief Test auction status transitions
- */
-void dap_auctions_test_status_transitions(void);
+// ===== 2. stake_ext STATE TESTS =====
 
 /**
- * @brief Test auction status validation and conversion
+ * @brief Test stake_ext status transitions
  */
-void dap_auctions_test_status_validation(void);
+void dap_srv_stake_ext_test_status_transitions(void);
+
+/**
+ * @brief Test stake_ext status validation and conversion
+ */
+void dap_srv_stake_ext_test_status_validation(void);
 
 // ===== 3. TRANSACTION TESTS =====
 
 /**
- * @brief Test auction event processing
+ * @brief Test stake_ext event processing
  */
-void dap_auctions_test_event_processing(void);
+void dap_srv_stake_ext_test_event_processing(void);
 
 /**
- * @brief Test auction bid transactions
+ * @brief Test stake_ext lock transactions
  */
-void dap_auctions_test_bid_transactions(void);
+void dap_srv_stake_ext_test_lock_transactions(void);
 
 /**
- * @brief Test bid withdrawal transactions
+ * @brief Test lock unlock transactions
  */
-void dap_auctions_test_withdraw_transactions(void);
+void dap_srv_stake_ext_test_unlock_transactions(void);
 
 // ===== 4. LEDGER INTEGRATION TESTS =====
 
 /**
  * @brief Test event callback handlers
  */
-void dap_auctions_test_event_callbacks(void);
+void dap_srv_stake_ext_test_event_callbacks(void);
 
 /**
  * @brief Test ledger synchronization
  */
-void dap_auctions_test_ledger_sync(void);
+void dap_srv_stake_ext_test_ledger_sync(void);
 
 /**
  * @brief Test verificator functions
  */
-void dap_auctions_test_verificators(void);
+void dap_srv_stake_ext_test_verificators(void);
 
 // ===== 5. DATA PROCESSING TESTS =====
 
 /**
  * @brief Test event data parsing
  */
-void dap_auctions_test_data_parsing(void);
+void dap_srv_stake_ext_test_data_parsing(void);
 
 /**
  * @brief Test boundary conditions
  */
-void dap_auctions_test_boundary_conditions(void);
+void dap_srv_stake_ext_test_boundary_conditions(void);
 
 // ===== 6. SECURITY AND ERROR TESTS =====
 
 /**
  * @brief Test error handling
  */
-void dap_auctions_test_error_handling(void);
+void dap_srv_stake_ext_test_error_handling(void);
 
 /**
  * @brief Test thread safety
  */
-void dap_auctions_test_thread_safety(void);
+void dap_srv_stake_ext_test_thread_safety(void);
 
 
 
