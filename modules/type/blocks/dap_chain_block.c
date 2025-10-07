@@ -478,7 +478,7 @@ static const char *s_meta_type_to_string(uint8_t a_meta_type)
     case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS: return "EXCLUDED_KEYS";
     case DAP_CHAIN_BLOCK_META_EVM_DATA: return "EVM_DATA";
     case DAP_CHAIN_BLOCK_META_GENERATION: return "GENERATION";
-    
+    case DAP_CHAIN_BLOCK_META_BLOCKGEN: return "BLOCKGEN";
     default: return "UNNOWN";
     }
 }
@@ -488,6 +488,7 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
     switch (a_meta->hdr.type) {
     case DAP_CHAIN_BLOCK_META_GENESIS:
     case DAP_CHAIN_BLOCK_META_EMERGENCY:
+    case DAP_CHAIN_BLOCK_META_BLOCKGEN:
         if (a_meta->hdr.data_size == 0)
             return DAP_INT_TO_POINTER(1);
         log_it(L_WARNING, "Meta %s has wrong size %hu when expecting zero size",
@@ -592,12 +593,13 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
                                     bool *a_is_genesis,
                                     uint64_t *a_nonce,
                                     uint64_t *a_nonce2,
-                                    uint16_t *a_generation)
+                                    uint16_t *a_generation,
+                                    bool *a_blockgen)
 {
     dap_return_val_if_fail(a_block && a_block_size, -1);
     // Check for meta that could be faced only once
     bool l_was_prev = false, l_was_genesis = false, l_was_anchor = false, l_was_nonce = false,
-         l_was_nonce2 = false, l_was_merkle = false, l_was_reward = false, l_was_generation = false;
+         l_was_nonce2 = false, l_was_merkle = false, l_was_reward = false, l_was_generation = false, l_was_blockgen = false;
     // Init links parsing
     size_t l_links_count = 0, l_links_count_max = 5;
     if (a_block_size < sizeof(a_block->hdr)) {
@@ -730,6 +732,14 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
                 else
                     return -4;
             }
+        case DAP_CHAIN_BLOCK_META_BLOCKGEN:
+            if (l_was_blockgen) {
+                log_it(L_WARNING, "Blockgen could be only one in the block, meta #%zu is ignored ", i);
+                break;
+            }
+            l_was_blockgen = true;
+            if (a_blockgen)
+                *a_blockgen = s_meta_extract(l_meta);
         break;
         case DAP_CHAIN_BLOCK_META_EMERGENCY:
         case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS:
