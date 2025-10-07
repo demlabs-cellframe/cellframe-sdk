@@ -1777,14 +1777,29 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
 dap_chain_net_voting_info_t *s_voting_extract_info(struct voting *a_voting)
 {
     dap_chain_net_voting_info_t *l_info = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_voting_info_t, NULL);
-    l_info->question.question_size = strlen(a_voting->params->question);
-    l_info->question.question_str = a_voting->params->question;
+    
+    // Create a copy of voting parameters
+    l_info->params = DAP_NEW_Z(dap_chain_datum_tx_voting_params_t);
+    if (!l_info->params) {
+        DAP_DELETE(l_info);
+        return NULL;
+    }
+    
+    // Copy all fields from original params
+    if (a_voting->params->question) {
+        l_info->params->question = dap_strdup(a_voting->params->question);
+    }
+    l_info->params->options = dap_list_copy(a_voting->params->options);
+    l_info->params->voting_expire = a_voting->params->voting_expire;
+    l_info->params->votes_max_count = a_voting->params->votes_max_count;
+    l_info->params->delegate_key_required = a_voting->params->delegate_key_required;
+    l_info->params->vote_changing_allowed = a_voting->params->vote_changing_allowed;
+    strncpy(l_info->params->token_ticker, a_voting->params->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    
+    // Set info-specific fields
     l_info->hash = a_voting->hash;
-    l_info->is_expired = (l_info->expired = a_voting->params->voting_expire);
-    l_info->is_cancelled = !dap_strcmp( s_get_voting_status(a_voting), "cancelled");
-    l_info->is_max_count_votes = (l_info->max_count_votes = a_voting->params->votes_max_count);
-    l_info->is_changing_allowed = a_voting->params->vote_changing_allowed;
-    l_info->is_delegate_key_required = a_voting->params->delegate_key_required;
+    l_info->is_expired = (a_voting->params->voting_expire && a_voting->params->voting_expire < dap_time_now());
+    l_info->is_cancelled = !dap_strcmp(s_get_voting_status(a_voting), "cancelled");
     l_info->options.count_option = dap_list_length(a_voting->params->options);
     dap_chain_net_voting_option_info_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_voting_option_info_t*, l_info->options.count_option);
     for (uint64_t i = 0; i < l_info->options.count_option; i++){
@@ -1841,6 +1856,15 @@ dap_chain_net_voting_info_t *dap_chain_net_voting_extract_info(dap_chain_net_t *
 
 void dap_chain_net_voting_info_free(dap_chain_net_voting_info_t *a_info)
 {
+    if (!a_info)
+        return;
+        
+    // Free voting parameters
+    if (a_info->params) {
+        dap_chain_datum_tx_voting_params_delete(a_info->params);
+    }
+    
+    // Free option info array
     for (size_t i = 0; i < a_info->options.count_option; i++)
         DAP_DELETE(a_info->options.options[i]);
     DAP_DEL_MULTY(a_info->options.options, a_info);
