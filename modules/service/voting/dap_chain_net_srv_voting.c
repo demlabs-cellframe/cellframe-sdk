@@ -2062,8 +2062,7 @@ int dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_ch
     uint256_t l_value_transfer;
     dap_list_t *l_list_used_out = NULL;
     
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, l_addr_from, &l_list_used_out, l_total_fee, &l_value_transfer) == -101)
-        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker, l_addr_from, l_total_fee, &l_value_transfer);
+    l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker, l_addr_from, l_total_fee, &l_value_transfer);
     
     if (!l_list_used_out) {
         return DAP_CHAIN_NET_VOTE_CANCEL_NOT_ENOUGH_FUNDS;
