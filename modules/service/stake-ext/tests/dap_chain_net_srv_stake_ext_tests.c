@@ -1927,9 +1927,7 @@ void dap_srv_stake_ext_test_verificators(void)
     uint64_t l_position_id = 3001;
     
     // Simulate updater adding lock to cache (simplified for testing)
-    uint256_t l_lock_amount_256;
-    l_lock_amount_256.hi = 0;
-    l_lock_amount_256.lo = l_lock_cond->lock_amount;
+    uint256_t l_lock_amount_256 = dap_chain_uint256_from(l_lock_cond->lock_amount);
     l_result = dap_stake_ext_cache_add_lock(l_cache, &l_stake_ext_hash, &l_lock_tx_hash, 
                                        l_lock_amount_256, l_lock_cond->lock_time, dap_time_now(),
                                        l_position_id);
@@ -2020,11 +2018,7 @@ void dap_srv_stake_ext_test_data_parsing(void)
     dap_chain_tx_event_data_stake_ext_started_t l_test_started = {0};
     l_test_started.total_positions = 3;
     dap_assert_PIF(l_test_started.total_positions == 3, "Positions count field should be accessible");
-    
-    // Test bounds checking for total_positions (uint8_t range)
-    bool l_positions_valid = (l_test_started.total_positions > 0 && l_test_started.total_positions <= 255);
-    dap_assert_PIF(l_positions_valid, "Positions count should be within uint8_t bounds");
-    
+      
         // ===== Test 2: Data validation and edge cases =====
     dap_test_msg("Test 2: Testing data validation and edge cases");
     
@@ -2638,13 +2632,11 @@ void dap_srv_stake_ext_test_thread_safety(void)
     for(int i = 0; i < 5; i++) {
         dap_hash_fast_t l_lock_hash;
         uint64_t l_position_id;
-        uint256_t l_lock_amount;
+        uint256_t l_lock_amount = dap_chain_uint256_from(1000000 + i * 100000);
         
         memset(&l_lock_hash, 0, sizeof(l_lock_hash));
         l_lock_hash.raw[0] = 0x60 + i; // Unique lock hash
         l_position_id = 0x70 + i; // Unique position id
-        l_lock_amount.hi = 0;
-        l_lock_amount.lo = 1000000 + i * 100000;
         
         // Simulate thread adding lock
         int l_lock_result = dap_stake_ext_cache_add_lock(l_cache, &l_lock_stake_ext_hash, &l_lock_hash, 
