@@ -8598,9 +8598,36 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ts_after", &l_str_ts_after);
         if (l_str_ts_after) {
             struct tm l_tm = { };
-            strptime(l_str_ts_after, /* "[%x-%X" */ "%m/%d/%Y-%H:%M:%S", &l_tm);
-            l_tm.tm_year += 2000;
+            char *l_parse_result = strptime(l_str_ts_after, /* "[%x-%X" */ "%m/%d/%y-%H:%M:%S", &l_tm);
+            
+            // Check if strptime successfully parsed the date string
+            if (!l_parse_result || *l_parse_result != '\0') {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, 
+                    "Invalid date format in '-ts_after' parameter: '%s'. Expected format: MM/DD/YY-HH:MM:SS (e.g., 01/15/24-14:30:00)", 
+                    l_str_ts_after);
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
+            
+            // Set DST flag to auto-detect to avoid ambiguity
+            l_tm.tm_isdst = -1;
             l_ts_after = mktime(&l_tm);
+            
+            // Check if mktime produced a valid timestamp (invalid dates like 02/30/2024 return -1)
+            if (l_ts_after == -1) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, 
+                    "Invalid or non-existent date in '-ts_after' parameter: '%s'. Please check the date is valid (e.g., not February 30th)", 
+                    l_str_ts_after);
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
+            
+            // Check if date is in the future
+            time_t l_current_time = time(NULL);
+            if (l_ts_after > l_current_time) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, 
+                    "Date in '-ts_after' parameter is in the future: '%s'. Please specify a date that has already occurred", 
+                    l_str_ts_after);
+                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
+            }
         }
 
         if (!l_num_line && l_ts_after<=0) {
@@ -8608,12 +8635,12 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
         } else if (l_num_line) {
             if (l_num_line <= 0) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Wrong line number %d", l_num_line);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Invalid line number: %d. Line number must be greater than 0", l_num_line);
                 return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
             }
         } else if (l_ts_after) {
             if(l_ts_after < 0) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Requires valid parameter '-ts_after'");
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Invalid timestamp in '-ts_after' parameter");
                 return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
             }
         } else {
@@ -8653,7 +8680,23 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         } else {
             l_res = dap_log_get_item(l_file_full_path, l_ts_after, l_limit);
         }
+        
+        // Check if log retrieval failed
+        if (!l_res) {
+            const char *l_operation = l_num_line ? "retrieve last lines from" : "read log entries from";
+            if (l_num_line && l_num_line <= 0) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR, 
+                    "Invalid line number specified: %d. Line number must be greater than 0", l_num_line);
+                return DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR;
+            } else {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, 
+                    "Failed to %s file '%s'. The file may not exist, be inaccessible, or contain no data matching your criteria", 
+                    l_operation, l_file_full_path);
+                return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
+            }
+        }
     }
+    
     switch(l_cmd_num) {
         case CMD_PRINT : {
             if (l_res) {
@@ -8673,22 +8716,25 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
                 return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
             }
             int res = dap_log_export_string_to_file(l_res, l_dest_str);
+            DAP_DELETE(l_res);
             switch (res) {
                 case 0: {
                     json_object_array_add(*a_json_arr_reply, json_object_new_string("Export success"));
                     break;
                 }
                 case -1: {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open source file %s", l_file_full_path);
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't read source data (empty or null)");
                     return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
                 }
                 case -2: {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR, "Can't open dest file %s", l_file_full_path);
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR, 
+                        "Can't create or open destination file '%s'. Check if path is valid and you have write permissions", l_dest_str);
                     return DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR;
                 }
                 case -3: {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR, "Wrong line number %s", l_num_line);
-                    return DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR;
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR, 
+                        "Failed to write complete data to destination file '%s'", l_dest_str);
+                    return DAP_CHAIN_NODE_CLI_COM_FILE_DEST_FILE_ERR;
                 }
                 default:
                     break;

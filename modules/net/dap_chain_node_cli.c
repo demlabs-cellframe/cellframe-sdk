@@ -58,6 +58,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 static int s_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+static int s_print_for_file(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 
 
 /**
@@ -438,7 +439,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\t-net <net_name>\n");
 
     dap_cli_server_cmd_add ("file", com_file, NULL, "Work with logs and files",
-                "file print {-num_line <number_of_lines> | -ts_after <Tue, 10 Dec 2024 18:37:47 +0700> } {-log | -path <path_to_file>}\n"
+                "file print {-num_line <number_of_lines> | -ts_after <10/06/25-22:59:40> } {-log | -path <path_to_file>}\n"
                 "\t print the last <num_line> lines from the log file or all logs after the specified date and time\n"
                 "\t -path <path_to_file> allows printing from a text file, but -ts_after option might not work\n"
                 "file export {-num_line <number_of_lines> | -ts_after <m/d/Y-H:M:S>} {-log | -path <path_to_file>} -dest <destination_path>\n"
@@ -464,6 +465,8 @@ int dap_chain_node_cli_parser_init(void) {
     dap_cli_server_cmd_add("ledger", NULL, s_print_for_ledger_list, NULL, NULL);    
     dap_cli_server_cmd_add("mempool", NULL, s_print_for_mempool_list, NULL, NULL);
     dap_cli_server_cmd_add("srv_xchange", NULL, s_print_for_srv_xchange_list, NULL, NULL);
+    dap_cli_server_cmd_add("file", NULL, s_print_for_file, NULL, NULL);
+
     
     return 0;
 }
@@ -2059,5 +2062,54 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
         return 0;
     }
     
+    return 0;
+}
+
+/**
+ * @brief s_print_for_file - Print handler for file command
+ * Outputs file content without any indentation or extra formatting
+ * @param response - JSON RPC response object
+ * @param cmd_param - Command parameters
+ * @param cmd_cnt - Count of command parameters
+ * @return 0 on success, negative on error
+ */
+static int s_print_for_file(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt)
+{
+    dap_return_val_if_pass(!response || !response->result_json_object, -1);
+    
+    // Check if we have an array response
+    if (json_object_get_type(response->result_json_object) == json_type_array) {
+        int result_count = json_object_array_length(response->result_json_object);
+        
+        // Iterate through all results and print them
+        for (int i = 0; i < result_count; i++) {
+            json_object *json_obj_result = json_object_array_get_idx(response->result_json_object, i);
+            if (!json_obj_result)
+                continue;
+            
+            // If it's a string, print it directly to stdout without any formatting
+            if (json_object_get_type(json_obj_result) == json_type_string) {
+                const char *content = json_object_get_string(json_obj_result);
+                if (content) {
+                    // Output directly to stdout, bypassing any indentation mechanisms
+                    fprintf(stdout, "%s", content);
+                    fflush(stdout);
+                    // Add newline only if content doesn't end with one
+                    size_t len = strlen(content);
+                    if (len > 0 && content[len-1] != '\n') {
+                        fprintf(stdout, "\n");
+                        fflush(stdout);
+                    }
+                }
+            } else {
+                // For non-string objects, print as JSON
+                json_print_object(json_obj_result, 0);
+            }
+        }
+        return 0;
+    }
+    
+    // For single object responses, print as JSON
+    json_print_object(response->result_json_object, 0);
     return 0;
 }
