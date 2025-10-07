@@ -168,6 +168,8 @@ typedef struct dap_chain_esbocs_pvt {
     uint16_t round_start_sync_timeout;
     uint16_t round_attempts_max;
     uint16_t round_attempt_timeout;
+    uint16_t empty_round_count;
+    atomic_uint_fast16_t empty_block_every_times;
     // PoA section
     dap_list_t *poa_validators;
     // Fee & autocollect params
@@ -225,9 +227,14 @@ int dap_chain_cs_esbocs_init()
         "esbocs emergency_validators show -net <net_name> [-chain <chain_name>]\n"
             "\tShow list of validators public key hashes allowed to work in emergency mode\n"
         "esbocs status -net <net_name> [-chain <chain_name>]\n"
-            "\tShow current esbocs consensus status\n");
-    
+            "\tShow current esbocs consensus status\n"
+        "esbocs empty_block_every_times set -net <net_name> [-chain <chain_name>] -round_count <uint16_t value>\n"
+            "\tSets empty block generation every times\n"
+        "esbocs empty_block_every_times show -net <net_name> [-chain <chain_name>]\n"
+            "\tShow empty block generation every times\n");
+                
     log_it(L_INFO, "ESBOCS consensus initialized");
+
     return 0;
 }
 
@@ -323,7 +330,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->new_round_delay          = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "new_round_delay", 10);
     l_esbocs_pvt->round_attempts_max       = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout    = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
-    l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count = l_validators_count;
+    l_esbocs_pvt->start_validators_min     = l_esbocs_pvt->min_validators_count = l_validators_count;
 
     uint16_t i, l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
@@ -1846,10 +1853,24 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     size_t l_candidate_size = 0;
     dap_hash_fast_t l_candidate_hash = {0};
     if (a_session->esbocs->hardfork_state)
-        dap_chain_node_hardfork_process(a_session->chain);
+        dap_chain_node_hardfork_process(l_chain);
     else
-        dap_chain_node_mempool_process_all(a_session->chain, false);
+        dap_chain_node_mempool_process_all(l_chain, false);
     dap_chain_block_t *l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
+    PVT(a_session->esbocs)->empty_round_count += l_candidate && l_candidate_size ? 0 : 1;
+    bool l_empty_block_generation = PVT(a_session->esbocs)->empty_block_every_times && PVT(a_session->esbocs)->empty_round_count >= PVT(a_session->esbocs)->empty_block_every_times;
+    if (!l_candidate && l_empty_block_generation) {
+        if (PVT(a_session->esbocs)->debug)
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                        " I don't have a candidate. I submit a empty candidate.",
+                                l_chain->net_name, l_chain->name,
+                                    a_session->cur_round.id, a_session->cur_round.attempt_num);
+        if (!l_blocks->callback_block_create) {
+            log_it(L_ERROR, "Not found chain callback for block creation");
+            return;
+        }
+        l_candidate = l_blocks->callback_block_create(l_blocks, &l_candidate_size);
+    }
     if (l_candidate && l_candidate_size) {
         if (PVT(a_session->esbocs)->emergency_mode)
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EMERGENCY, NULL, 0);
@@ -1871,6 +1892,8 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_GENERATION,
                                                             &a_session->esbocs->hardfork_generation, sizeof(uint16_t));
         }
+        if (l_empty_block_generation && l_candidate_size)
+            l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_BLOCKGEN, NULL, 0);
         // Add custom metadata if available
         if (l_candidate_size && a_session->esbocs->callback_set_custom_metadata) {
             size_t l_custom_data_size = 0;
@@ -1880,7 +1903,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, l_meta_type, l_custom_data, l_custom_data_size);
                 if (PVT(a_session->esbocs)->debug) {
                     log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu. Added custom metadata, size: %zu",
-                            a_session->chain->net_name, a_session->chain->name,
+                            l_chain->net_name, l_chain->name,
                                 a_session->cur_round.id, a_session->cur_round.attempt_num, l_custom_data_size);
                 }
             }
@@ -1891,9 +1914,11 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
             if (PVT(a_session->esbocs)->debug) {
                 const char *l_candidate_hash_str = dap_chain_hash_fast_to_str_static(&l_candidate_hash);
                 log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu. Submit my candidate %s",
-                        a_session->chain->net_name, a_session->chain->name,
+                        l_chain->net_name, l_chain->name,
                             a_session->cur_round.id, a_session->cur_round.attempt_num, l_candidate_hash_str);
             }
+            // reset empty round count
+            PVT(a_session->esbocs)->empty_round_count = 0;
         }
     }
     if (!l_candidate || !l_candidate_size) { // there is no my candidate, send null hash
@@ -1941,6 +1966,7 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
                                 a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                         a_session->cur_round.attempt_num, l_candidate_hash_str);
         }
+        PVT(a_session->esbocs)->empty_round_count = 0;
     } else {
         // validation - fail, gen event Reject
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_REJECT, a_candidate_hash,
@@ -3266,6 +3292,19 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
     return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
+static dap_chain_datum_decree_t *s_esbocs_decree_set_empty_block_every_times(dap_chain_net_t *a_net, dap_chain_t *a_chain,
+                                                                          uint16_t a_value, dap_cert_t *a_cert)
+{
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint16_t);
+    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
+                                                                    *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+    if (!l_decree)
+        return NULL;
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN;
+    dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD, &a_value, sizeof(uint16_t));
+    return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
+}
+
 static dap_chain_datum_decree_t *s_esbocs_decree_set_signs_check(dap_chain_net_t *a_net, dap_chain_t *a_chain,
                                                                  bool a_enable, dap_cert_t *a_cert)
 {
@@ -3345,7 +3384,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         SUBCMD_MIN_VALIDATORS_COUNT,
         SUBCMD_CHECK_SIGNS_STRUCTURE,
         SUBCMD_EMERGENCY_VALIDATOR,
-        SUBCMD_STATUS
+        SUBCMD_STATUS,
+        SUBCMD_EMPTY_BLOCKGEN_PERIOD
     } l_subcmd = SUBCMD_UNDEFINED;
     const char *l_subcmd_strs[] = {
         [SUBCMD_UNDEFINED] = NULL,
@@ -3353,6 +3393,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         [SUBCMD_CHECK_SIGNS_STRUCTURE] = "check_signs_structure",
         [SUBCMD_EMERGENCY_VALIDATOR] = "emergency_validators",
         [SUBCMD_STATUS] = "status",
+        [SUBCMD_EMPTY_BLOCKGEN_PERIOD] = "empty_block_every_times"
     };
 
     const size_t l_subcmd_str_count = sizeof(l_subcmd_strs) / sizeof(char *);
@@ -3372,7 +3413,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "enable") > 0 && l_subcmd == SUBCMD_CHECK_SIGNS_STRUCTURE) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "disable") > 0 && l_subcmd == SUBCMD_CHECK_SIGNS_STRUCTURE) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "add") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR) ||
-                (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "remove") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR))
+                (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "remove") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR) ||
+                (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "set") > 0 && l_subcmd == SUBCMD_EMPTY_BLOCKGEN_PERIOD))
         {
             if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "enable")  != -1 ||
                     dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "add") != -1)
@@ -3380,7 +3422,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             const char *l_cert_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
             if (!l_cert_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command 'min_validators_count' requires parameter -cert");
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -cert", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
             l_poa_cert = dap_cert_find_by_name(l_cert_str);
@@ -3433,6 +3475,36 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             dap_json_t * json_obj_out = dap_json_object_new();
             dap_json_object_add_uint64(json_obj_out, a_version == 1 ? "Minimum validators count" : "min_validators_count", l_esbocs_pvt->min_validators_count);
             dap_json_array_add(*a_json_arr_reply, json_obj_out);
+        }            
+    } break;
+
+    case SUBCMD_EMPTY_BLOCKGEN_PERIOD: {        
+        if (!l_subcommand_show) {
+            const char *l_value_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-round_count", &l_value_str);
+            if (!l_value_str) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -round_count", l_subcmd_strs[l_subcmd]);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
+            }
+            uint16_t l_value = strtoul(l_value_str, NULL, 10);
+            dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_empty_block_every_times(
+                                                    l_chain_net, l_chain, l_value, l_poa_cert);
+            char *l_decree_hash_str = NULL;
+            if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
+                json_object * json_obj_out = json_object_new_object();
+                json_object_object_add(json_obj_out,"status", json_object_new_string("Blockgen period has been set"));
+                json_object_object_add(json_obj_out, a_version == 1 ? "decree hash" : "decree_hash", json_object_new_string(l_decree_hash_str));
+                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                DAP_DEL_MULTY(l_decree, l_decree_hash_str);
+            } else {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_BLOCKGEN_PERIOD_ERR,"Blockgen period setting failed");
+                DAP_DEL_Z(l_decree);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_BLOCKGEN_PERIOD_ERR;
+            }
+        } else{
+            json_object * json_obj_out = json_object_new_object();
+            json_object_object_add(json_obj_out, "empty_block_every_times", json_object_new_uint64(l_esbocs_pvt->empty_block_every_times));
+            json_object_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
 
@@ -3587,3 +3659,13 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     return ret;
 }
 
+int dap_chain_esbocs_set_empty_block_every_times(dap_chain_t *a_chain, uint16_t a_blockgen_period)
+{
+    dap_return_val_if_pass(!a_chain || !DAP_CHAIN_ESBOCS(a_chain), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_return_val_if_pass(!DAP_CHAIN_ESBOCS(l_blocks) || !PVT(DAP_CHAIN_ESBOCS(l_blocks)), -2);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    l_esbocs_pvt->empty_block_every_times = a_blockgen_period;
+    return 0;
+}

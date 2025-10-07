@@ -1463,9 +1463,8 @@ static int s_dap_chain_net_tx_add_in_and_back(dap_tx_creator_tokenizer_t *a_valu
     // find the transactions from which to take away coins
     dap_list_t *l_list_used_out = NULL;
     uint256_t l_value_transfer = { }; // how many coins to transfer
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_ledger->net, a_value_need->token_ticker, a_addr_from, &l_list_used_out, a_value_need->sum, &l_value_transfer) == -101)
-        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_ledger, a_value_need->token_ticker,
-                                                                a_addr_from, a_value_need->sum, &l_value_transfer);
+    l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_ledger, a_value_need->token_ticker,
+                                                            a_addr_from, a_value_need->sum, &l_value_transfer);
     log_it(L_WARNING, "elements from list - %"DAP_UINT64_FORMAT_U, dap_list_length(l_list_used_out));
     log_it(L_WARNING, "tokens - %s", a_value_need->token_ticker);
     dap_list_t *l_item_out;

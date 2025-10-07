@@ -269,6 +269,7 @@ typedef enum s_com_esbocs_err{
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION,
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_STAKE,
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_WRONG_CHAIN,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_BLOCKGEN_PERIOD_ERR,
 
     /* add custom codes here */
 
@@ -342,3 +343,5 @@ int dap_chain_esbocs_set_custom_metadata_callback(dap_chain_net_id_t a_net_id,
 int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
                                           dap_chain_esbocs_callback_presign_t a_callback);
 
+
+int dap_chain_esbocs_set_empty_block_every_times(dap_chain_t *a_chain, uint16_t a_blockgen_period);

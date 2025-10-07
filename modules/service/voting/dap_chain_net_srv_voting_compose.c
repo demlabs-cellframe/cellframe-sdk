@@ -684,7 +684,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     dap_chain_datum_tx_add_item(&l_tx, l_vote_item);
     DAP_DEL_Z(l_vote_item);
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST  
-    dap_json_t *l_cond_tx_outputs_raw = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-net;%s;-token;%s;-cond",
+    dap_json_t *l_cond_tx_outputs_raw = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-net;%s;-token;%s;-cond;-mempool_check",
                                                                             dap_chain_addr_to_str(a_wallet_addr), a_config->net_name, l_token_ticker);
     if (!l_cond_tx_outputs_raw) {
         dap_chain_datum_tx_delete(l_tx);

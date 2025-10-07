@@ -779,7 +779,7 @@ bool dap_chain_tx_compose_get_remote_net_fee_and_address(uint256_t *a_net_fee, d
 
 bool dap_chain_tx_compose_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker,
                                          dap_json_t **l_outs, int *l_outputs_count, dap_chain_tx_compose_config_t *a_config) {
-    dap_json_t *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s", 
+    dap_json_t *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s;-mempool_check", 
                                                                       dap_chain_addr_to_str(a_addr_from), a_token_ticker, a_config->net_name);
     if (!l_json_outs) {
         return false;
@@ -1208,11 +1208,10 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
     return l_tx;
 }
 
-dap_json_t *dap_chain_tx_compose_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_t * a_addr, dap_chain_tx_compose_config_t *a_config) {
-    if (!a_token_ticker || !a_addr || !a_config) {
-        return NULL;
-    }
-    dap_json_t *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s", 
+dap_json_t *dap_chain_tx_compose_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_t * a_addr, dap_chain_tx_compose_config_t *a_config)
+{
+    dap_return_val_if_pass(!a_token_ticker || !a_addr || !a_config, NULL);
+    dap_json_t *l_json_outs = dap_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s;-mempool_check", 
                                                                       dap_chain_addr_to_str(a_addr), a_token_ticker, a_config->net_name);
     if (!l_json_outs) {
         dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_RESPONSE_NULL, "Failed to get response from RPC request");

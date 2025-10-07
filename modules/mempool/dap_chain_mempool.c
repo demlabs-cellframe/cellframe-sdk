@@ -1461,13 +1461,9 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
 
     // Find outputs to cover fees (following mempool style)
 
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, 
-                                                    &l_addr_from, &l_list_fee_out, 
-                                                    l_total_fee, &l_fee_transfer) == -101) {
-        l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                            &l_addr_from, l_total_fee, 
-                                                            &l_fee_transfer);
-    }
+    l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                        &l_addr_from, l_total_fee, 
+                                                        &l_fee_transfer);
     if (!l_list_fee_out) {
         log_it(L_WARNING, "Not enough funds to pay fee");
         return NULL;
@@ -1589,7 +1585,38 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     
     log_it(L_INFO, "Successfully composed and added event transaction to mempool: %s", l_ret);
     return l_ret;
- }
+}
+
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx)
+{
+    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if(!l_gdb_group_mempool){
+        log_it(L_ERROR, "%s: mempool group not found\n", a_net->pub.name);
+        return false;
+    }
+    size_t l_objs_count = 0;
+    dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
+    for (size_t i = 0; i < l_objs_count; i++) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+        if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+            continue;
+        }
+        dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*)l_datum->data;
+        byte_t *l_item; size_t l_size; int index, l_out_idx = 0;
+        TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_IN_ALL, l_size, index, l_datum_tx) {
+            if (*l_item != TX_ITEM_TYPE_IN && *l_item != TX_ITEM_TYPE_IN_COND) {
+                continue;
+            }
+            dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t*)l_item;
+            if (l_tx_in->header.tx_out_prev_idx == a_out_idx && dap_hash_fast_compare(&l_tx_in->header.tx_prev_hash, a_out_hash)) {
+                dap_global_db_objs_delete(l_objs, l_objs_count);
+                return true;
+            }
+        }
+    }
+    dap_global_db_objs_delete(l_objs, l_objs_count);
+    return false;
+}
 
  /**
   * @brief Compose a transaction with event item for ledger event system
