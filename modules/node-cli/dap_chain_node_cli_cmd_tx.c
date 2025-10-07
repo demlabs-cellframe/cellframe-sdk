@@ -1375,7 +1375,18 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Can't find cert %s", l_service_key_str);
                 return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
             }
-            
+            const char *l_srv_uid_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
+            if (!l_srv_uid_str) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Parameter -srv_uid is required");
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+            }
+            dap_chain_srv_uid_t l_srv_uid = dap_chain_srv_uid_from_str(l_srv_uid_str);
+            if (!l_srv_uid.uint64) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Can't find service UID %s", l_srv_uid_str);
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+            }
+
             // Получаем цепочку
             dap_chain_t *l_chain = l_chain_str ? dap_chain_net_get_chain_by_name(l_net, l_chain_str) :
                                    dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
@@ -1404,6 +1415,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 l_chain,
                 l_key_from,
                 l_service_key->enc_key,
+                l_srv_uid,
                 l_group_str,
                 l_event_type,
                 l_event_data,
@@ -1827,13 +1839,10 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         }
         return 0;
     } else if (l_cmd == CMD_TX_INFO) {
-        //GET hash
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);
-        //get net
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
-        //get search type
-        bool l_unspent_flag = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unspent", NULL);
         bool l_need_sign  = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-need_sign", NULL);
+        bool l_unspent_flag = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unspent", NULL);
         //check input
         if (l_tx_hash_str == NULL){
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Subcommand 'info' requires key -hash");
@@ -1931,9 +1940,9 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         }
         DAP_DELETE(l_tx_hash);
 
-        if (json_datum){
+        if (json_datum)
             json_object_array_add(*a_json_arr_reply, json_datum);
-        }        
+        
     } else {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'ledger' requires parameter 'list', 'info', 'trace', or 'event'");
         return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;

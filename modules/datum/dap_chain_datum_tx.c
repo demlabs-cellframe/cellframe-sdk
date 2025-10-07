@@ -208,7 +208,14 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
  */
 int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
+#ifdef DAP_CHAIN_TX_COMPOSE_TEST
+    if (false)
+        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, rand() % UINT64_MAX ) );
+    else
+        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,  dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
+#else
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, 0) );
+#endif
 }
 
 /**
@@ -309,11 +316,8 @@ int dap_chain_datum_tx_verify_sign_all(dap_chain_datum_tx_t *a_tx)
     TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
         if (*l_item != TX_ITEM_TYPE_SIG)
             continue;
-        if ((l_ret = dap_chain_datum_tx_verify_sign(a_tx, l_sign_num++))) {
+        if ((l_ret = dap_chain_datum_tx_verify_sign(a_tx, l_sign_num++)))
             return l_ret;
-        } else {
-            log_it(L_DEBUG, "Sign %d verified", l_sign_num);
-        }
     }
     return l_ret;
 }

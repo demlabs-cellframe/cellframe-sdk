@@ -113,7 +113,7 @@ static dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, da
                                                int *res);
 // Callbacks
 static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_cond);
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply);
 
 static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
     size_t l_strlen = (size_t)strlen(str);
@@ -292,7 +292,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 {
     const char *l_net_str = NULL, *l_ticker_str = NULL, *l_coins_str = NULL,
             *l_wallet_str = NULL, *l_cert_str = NULL, *l_chain_str = NULL,
-            *l_time_staking_str = NULL, *l_reinvest_percent_str = NULL, *l_value_fee_str = NULL;
+            *l_time_unlock_str = NULL, *l_reinvest_percent_str = NULL, *l_value_fee_str = NULL;
 
     const char *l_wallets_path								=	dap_chain_wallet_get_path(g_config);
     char 	l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
@@ -380,27 +380,24 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return FEE_FORMAT_ERROR;
 
     // Read time staking
-    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
-    ||	!l_time_staking_str)
+    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_unlock_str)
+    ||	!l_time_unlock_str)
         return TIME_ERROR;
 
-    if (dap_strlen(l_time_staking_str) != 6)
+    if (dap_strlen(l_time_unlock_str) != 6)
         return TIME_ERROR;
 
-    char l_time_staking_month_str[3] = {l_time_staking_str[2], l_time_staking_str[3], 0};
-    int l_time_staking_month = atoi(l_time_staking_month_str);
-    if (l_time_staking_month < 1 || l_time_staking_month > 12)
+    char l_time_unlock_month_str[3] = {l_time_unlock_str[2], l_time_unlock_str[3], 0};
+    int l_time_unlock_month = atoi(l_time_unlock_month_str);
+    if (l_time_unlock_month < 1 || l_time_unlock_month > 12)
         return TIME_ERROR;
 
-    char l_time_staking_day_str[3] = {l_time_staking_str[4], l_time_staking_str[5], 0};
-    int l_time_staking_day = atoi(l_time_staking_day_str);
-    if (l_time_staking_day < 1 || l_time_staking_day > 31)
+    char l_time_unlock_day_str[3] = {l_time_unlock_str[4], l_time_unlock_str[5], 0};
+    int l_time_unlock_day = atoi(l_time_unlock_day_str);
+    if (l_time_unlock_day < 1 || l_time_unlock_day > 31)
         return TIME_ERROR;
 
-
-    l_time_unlock = dap_time_from_str_simplified(l_time_staking_str);
-    if (!l_time_unlock)
-        return TIME_ERROR;
+    l_time_unlock = dap_time_from_str_simplified(l_time_unlock_str);
     if (l_time_unlock < dap_time_now())
         return TIME_ERROR;
 
@@ -998,7 +995,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner)
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply)
 {
     dap_chain_datum_tx_t									*l_burning_tx       = NULL;
     dap_chain_datum_tx_receipt_old_t						*l_receipt        = NULL;
@@ -1041,7 +1038,11 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         size_t l_receipt_size = 0;
         l_receipt = (dap_chain_datum_tx_receipt_old_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
         if (l_receipt) {
-
+            if (!a_check_for_apply) { // It's mempool process, so we don't accept f*cking legacy!
+                log_it(L_WARNING, "Legacy stakes are not accepted from mempool anymore! Dismiss unstake tx %s",
+                                   dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
+                return -    DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN;
+            }
             if (dap_chain_datum_tx_receipt_check_size((dap_chain_datum_tx_receipt_t*)l_receipt, l_receipt_size))
                 return -13;
             if (!dap_chain_net_srv_uid_compare_scalar(l_receipt->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
@@ -1103,8 +1104,8 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         }
 
         if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
-            // !!! A terrible legacy crutch, TODO !!!
-            if (SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
+            // A terrible legacy crutch, not applied to new txs anymore.
+            if (!l_receipt || SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated) ||
                     !EQUAL_256(l_blank_out_value, l_value_delegated)) {
                 log_it(L_ERROR, "Burning and delegated value mismatch");
                 return -12;
@@ -1208,9 +1209,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         {
             uint256_t l_value_pack = {}, l_native_pack = {}; // how much coin add to 'out_ext' items
             dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-                                                            l_uid, a_value, a_time_unlock, a_reinvest_percent,
-                                                            DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME |
-                                                            DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT);
+                                                            l_uid, a_value, a_time_unlock, a_reinvest_percent);
             if (l_tx_out_cond) {
                 SUM_256_256(l_value_pack, a_value, &l_value_pack);
                 dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out_cond);

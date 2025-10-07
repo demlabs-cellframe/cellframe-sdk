@@ -692,7 +692,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 
     int l_err = 0;
     int l_tun_fd;
-    #if defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
+#if defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
     // Prepare structs
     struct ctl_info l_ctl_info = {0};
 
@@ -815,6 +815,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     snprintf(buf,sizeof(buf),"route add -net %s -netmask %s -interface %s", inet_ntoa(s_raw_server->ipv4_gw),c_mask,s_raw_server->tun_device_name );
     system(buf);
 #elif defined(DAP_OS_IOS)
+
 #else
 #error "Not defined for your platform"
 #endif

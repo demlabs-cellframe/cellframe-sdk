@@ -524,7 +524,7 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
     // 4. OUT_COND with SRV_STAKE_LOCK subtype
     l_srv_uid.uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID;
     dap_chain_tx_out_cond_t *l_out_cond_lock = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
-        l_srv_uid, dap_chain_uint256_from(500), 3600, dap_chain_uint256_from(5), 0);
+        l_srv_uid, dap_chain_uint256_from(500), 3600, dap_chain_uint256_from(5));
     if (l_out_cond_lock) {
         l_out_cond_lock->header.item_type = TX_ITEM_TYPE_OUT_COND;
         dap_chain_datum_tx_add_item(&l_tx, l_out_cond_lock);
@@ -641,7 +641,7 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
     }
     
     // Add EVENT item
-    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create("test_group", 1, dap_time_now());
+    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create((dap_chain_srv_uid_t){.uint64 = 1}, "test_group", 1, dap_time_now());
     if (l_event_item) {
         l_event_item->type = TX_ITEM_TYPE_EVENT;
         dap_chain_datum_tx_add_item(&l_tx, l_event_item);

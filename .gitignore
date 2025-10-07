@@ -7,6 +7,7 @@ test/build
 *.txt.user
 *.txt.user.*
 *.autosave
+.devcontainer/*
 # Object files
 *.o
 *.ko
@@ -71,8 +72,16 @@ cmake_install.cmake
 # Editor's temp files
 *~
 .idea/
+.context/
+.mcp/
+.cache/
+.slc/
+.clangd
+slc
+
+
 
 # OS files
 .DS_Store
-.vscode
+.vscode/
 .devcontainer

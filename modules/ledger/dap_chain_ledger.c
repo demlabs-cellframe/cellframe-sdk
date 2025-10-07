@@ -885,6 +885,8 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     if ( is_ledger_cached(l_ledger_pvt) )
         // load ledger cache from GDB
         dap_ledger_load_cache(l_ledger);
+#else
+    l_ledger_pvt->blockchain_time = dap_time_now();
 #endif
     // Decrees initializing
     dap_ledger_decree_init(l_ledger);

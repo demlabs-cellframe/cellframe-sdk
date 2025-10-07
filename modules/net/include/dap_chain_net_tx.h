@@ -47,7 +47,7 @@ typedef enum s_net_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR,    
     DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,
     DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED
-}s_net_tx_create_json_err_t;
+} s_com_tx_create_json_err_t;
 
 typedef enum s_type_of_tx {
     DAP_CHAIN_NET_TX_NORMAL = 0,
@@ -123,7 +123,7 @@ dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap
 
 dap_list_t * dap_chain_net_get_tx_all_from_tx(dap_chain_net_t * a_net, dap_hash_fast_t * l_tx_hash);
 
-dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_srv_uid_t a_srv_uid,
+dap_chain_datum_tx_spends_items_t *dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t *a_net, const dap_chain_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type);
 void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_items);
@@ -146,10 +146,9 @@ bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, da
  * @return s_com_tx_create_json_err_t status code
  */
 int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
-    dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
-
+                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_errors, 
-    dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
+                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 
 /**
  * @brief Convert binary transaction to json

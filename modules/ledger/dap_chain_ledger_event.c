@@ -22,6 +22,7 @@
 
 #include <pthread.h>
 #include "dap_chain_ledger_pvt.h"
+#include "dap_chain_srv.h"
 #include "dap_hash.h"
 
 #define LOG_TAG "dap_ledger_event"
@@ -68,7 +69,8 @@ static dap_chain_tx_event_t *s_ledger_event_to_tx_event(dap_ledger_event_t *a_ev
         .pkey_hash = a_event->pkey_hash,
         .event_type = a_event->event_type,
         .event_data_size = a_event->event_data_size,
-        .timestamp = a_event->timestamp
+        .timestamp = a_event->timestamp,
+        .srv_uid = a_event->srv_uid
     };
     if (!l_tx_event->group_name) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -98,10 +100,11 @@ dap_chain_tx_event_t *dap_ledger_event_find(dap_ledger_t *a_ledger, dap_hash_fas
     return s_ledger_event_to_tx_event(l_event);
 }
 
-dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_group_name)
+dap_list_t *dap_ledger_event_get_list_ex(dap_ledger_t *a_ledger, const char *a_group_name, bool a_need_lock)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
+    if (a_need_lock)
+        pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
     dap_list_t *l_list = NULL;
     for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
         if (a_group_name && dap_strcmp(it->group_name, a_group_name))
@@ -109,13 +112,15 @@ dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_grou
         dap_chain_tx_event_t *l_tx_event = s_ledger_event_to_tx_event(it);
         if (!l_tx_event) {
             log_it(L_ERROR, "Can't allocate memory for tx event in dap_ledger_event_get_list()");
-            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+            if (a_need_lock)
+                pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
             dap_list_free_full(l_list, dap_chain_tx_event_delete);
             return NULL;
         }
         l_list = dap_list_append(l_list, l_tx_event);
     }
-    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+    if (a_need_lock)
+        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
     return l_list;
 }
 
@@ -152,7 +157,7 @@ int dap_ledger_pvt_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
     return 0;
  }
  
-int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply)
+int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply, bool a_check_for_apply)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     if (a_apply)
@@ -202,12 +207,18 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
                 return -5;
             }
             dap_tsd_t *l_tsd_data = (dap_tsd_t *)(l_item + sizeof(dap_chain_tx_tsd_t));
+            if (l_tsd_data->size + sizeof(dap_tsd_t) != l_tsd->header.size) {
+                log_it(L_WARNING, "TSD size is not equal to expected in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
+                pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+                return -5;
+            }
             if (!a_ledger->is_hardfork_state) {
-                if (l_tsd_data->type != DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA) {
+                if (l_tsd_data->type != DAP_CHAIN_TX_TSD_TYPE_EVENT_DATA) {
                     log_it(L_WARNING, "TSD type %d is not supported in tx %s", l_tsd_data->type, dap_hash_fast_to_str_static(a_tx_hash));
                     pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
                     return -6;
                 }
+                l_event_tsd = l_tsd_data;
             } else {           
                 switch (l_tsd_data->type) {
                 case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_EVENT_DATA:
@@ -237,7 +248,7 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
             break;
         default:
             break;
-    }
+        }
     }
     if (!l_event_item || !l_event_sign) {
         log_it(L_WARNING, "Event item or sign not found in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
@@ -256,37 +267,42 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -9;
     }
-    for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
-        if (!memcmp(it->group_name, l_event_item->group_name, l_event_item->group_name_size)) {
-            if (!dap_hash_fast_compare(&it->pkey_hash, &l_event_pkey_hash)) {
-                log_it(L_WARNING, "Group %s already exists with pkey_hash %s not matching event sign pkey hash %s",
-                        it->group_name, dap_hash_fast_to_str_static(&it->pkey_hash), dap_hash_fast_to_str_static(&l_event_pkey_hash));
-                pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-                return -11;
-            }
-            break;
-        }
-    }
-    if (!a_apply) {
+    char *l_event_group_name = DAP_NEW_SIZE(char, l_event_item->group_name_size + 1);
+    if (!l_event_group_name) {
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-        return 0;
+        return -11;
+    }
+    dap_strncpy(l_event_group_name, (char *)l_event_item->group_name, l_event_item->group_name_size);
+    if (l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE) {
+        DAP_DELETE(l_event_group_name);
+        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+        int ret = dap_chain_srv_decree(a_ledger->net->pub.id, l_event_item->srv_uid, a_apply,
+                                       (dap_tsd_t *)l_event_tsd->data, l_event_tsd->size);
+        return a_check_for_apply ? 0 : ret;
+    }
+    int l_ret = dap_chain_srv_event_verify(a_ledger->net->pub.id, l_event_item->srv_uid, l_event_group_name,
+                                           l_event_item->event_type, l_event_tsd ? (dap_tsd_t *)l_event_tsd->data : NULL,
+                                           l_event_tsd ? l_event_tsd->size : 0, a_tx_hash);
+    if (l_ret || !a_apply) {
+        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+        DAP_DELETE(l_event_group_name);
+        if (l_ret)
+            log_it(L_WARNING, "Event %s rejected by service verificator with code %d", dap_hash_fast_to_str_static(a_tx_hash), l_ret);
+        return a_check_for_apply ? 0 : l_ret;
     }
 
     l_event = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_event_t, -8);
     *l_event = (dap_ledger_event_t) {
+        .group_name = l_event_group_name,
         .tx_hash = l_tx_hash,
         .event_type = l_event_item->event_type,
         .event_data_size = l_event_tsd ? l_event_tsd->size : 0,
         .pkey_hash = l_event_pkey_hash,
-        .timestamp = l_event_item->timestamp
+        .timestamp = l_event_item->timestamp,
+        .srv_uid = l_event_item->srv_uid
     };
-    l_event->group_name = DAP_NEW_SIZE(char, l_event_item->group_name_size + 1);
-    if (!l_event->group_name) {
-        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-        DAP_DEL_Z(l_event);
-        return -9;
-    }
-    dap_strncpy((char *)l_event->group_name, (char *)l_event_item->group_name, l_event_item->group_name_size);
+
+    
     if (l_event_tsd) {
         l_event->event_data = DAP_DUP_SIZE((byte_t *)l_event_tsd->data, l_event_tsd->size);
         if (!l_event->event_data) {
