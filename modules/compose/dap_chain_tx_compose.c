@@ -697,7 +697,7 @@ bool dap_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t *
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     *a_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
     randombytes(*a_addr_fee, sizeof(dap_chain_addr_t));
-    a_net_fee->_lo.b = rand() % 500;
+    a_net_fee->_lo.b = rand() % 500 + 1;
 #else
     dap_return_val_if_pass(!a_net_fee || !a_addr_fee || !a_config || !a_config->net_name, false);
     *a_addr_fee = NULL;
@@ -3697,7 +3697,7 @@ dap_chain_datum_tx_t *dap_stake_tx_invalidate_compose(dap_hash_fast_t *a_tx_hash
     randombytes(&l_owner_addr, sizeof(l_owner_addr));
     dap_chain_tx_out_cond_t *l_tx_out_cond = DAP_NEW_Z(dap_chain_tx_out_cond_t);
     l_tx_out_cond->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
-    l_tx_out_cond->header.value._lo.b = rand() % 500;
+    l_tx_out_cond->header.value._lo.b = rand() % 500 + 1;
     l_tx_out_cond->header.value._hi.b = rand() % 100;
 #endif
     uint256_t l_fee_transfer = {}; // how many coins to transfer
@@ -3812,7 +3812,7 @@ dap_chain_net_srv_order_t* dap_check_remote_srv_order(const char* l_net_str, con
             l_order->version = json_object_get_int(json_object_object_get(order_obj, "version"));
             l_order->direction = dap_chain_net_srv_order_direction_from_str(json_object_get_string(json_object_object_get(order_obj, "direction")));
             l_order->ts_created = dap_time_from_str_rfc822(json_object_get_string(json_object_object_get(order_obj, "created")));
-            l_order->srv_uid.uint64 = dap_chain_net_srv_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "srv_uid"))).uint64;
+            l_order->srv_uid.uint64 = dap_chain_srv_uid_from_str(json_object_get_string(json_object_object_get(order_obj, "srv_uid"))).uint64;
             l_order->price = dap_uint256_scan_uninteger(json_object_get_string(json_object_object_get(order_obj, "price_datoshi")));
             strncpy(l_order->price_ticker, json_object_get_string(json_object_object_get(order_obj, "price_token")), DAP_CHAIN_TICKER_SIZE_MAX - 1);
             l_order->price_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';

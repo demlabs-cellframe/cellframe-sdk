@@ -185,6 +185,7 @@ typedef struct dap_chain_net_pvt {
 #define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
 static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
+static size_t s_node_list_ttl = 3600 * 2;
 
 static const char *c_net_states[] = {
     [NET_STATE_LOADING]             = "NET_STATE_LOADING",
@@ -273,6 +274,7 @@ int dap_chain_net_init()
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
+    s_node_list_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_ttl", s_node_list_ttl);
     char l_path[MAX_PATH + 1], *l_end = NULL;
     int l_pos = snprintf(l_path, MAX_PATH, "%s/network/", dap_config_path());
     if (l_pos >= MAX_PATH - 4)
@@ -1994,8 +1996,6 @@ static void *s_net_load(void *a_arg)
     dap_return_val_if_fail_err(l_net->pub.config, NULL, "Can't open network %s config", l_net->pub.name);
 
     // Services register & configure
-    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_SRV_VOTING_LITERAL, NULL);                 // Harcoded core service starting for voting capability
-    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_SRV_XCHANGE_LITERAL, NULL);                // Harcoded core service starting for exchange capability
     char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), l_net->pub.name);
     DIR *l_service_cfg_dir = opendir(l_services_path);
     DAP_DELETE(l_services_path);
@@ -2019,6 +2019,8 @@ static void *s_net_load(void *a_arg)
         }
         closedir(l_service_cfg_dir);
     }
+    
+    dap_chain_srv_start_all(l_net->pub.id);                 // Harcoded core service starting for voting capability             // Harcoded core service starting for exchange capability
 
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->balancer_type = dap_config_get_item_bool_default(l_net->pub.config, "general", "use_dns_links", false);
@@ -2101,7 +2103,7 @@ static void *s_net_load(void *a_arg)
     snprintf(l_net->pub.gdb_nodes, sizeof(l_net->pub.gdb_nodes), "%s.%s", l_net->pub.gdb_groups_prefix, s_gdb_nodes_postfix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                          l_net->pub.name, dap_guuid_compose(l_net->pub.id.uint64, 0),
-                                                         l_net->pub.gdb_nodes, 7200, true,
+                                                         l_net->pub.gdb_nodes, s_node_list_ttl, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_TYPE_EMBEDDED);
     dap_return_val_if_fail_err(l_net_pvt->nodes_cluster, NULL, "Net \"%s\" loading error %d: can't initialize nodes cluster",
