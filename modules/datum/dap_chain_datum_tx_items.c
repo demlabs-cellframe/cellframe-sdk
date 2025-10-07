@@ -597,7 +597,7 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
     return ((dap_tsd_t*)(a_tx_tsd->tsd))->data;
 }
 
-dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_name, uint16_t a_type, dap_time_t a_timestamp)
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(dap_chain_srv_uid_t a_srv_uid, const char *a_group_name, uint16_t a_type, dap_time_t a_timestamp)
 {
     dap_return_val_if_fail(a_group_name, NULL);
     size_t l_group_name_size = strlen(a_group_name);
@@ -610,6 +610,7 @@ dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(const char *a_group_n
     l_event->group_name_size = (uint16_t)l_group_name_size;
     l_event->event_type = a_type;
     l_event->timestamp = a_timestamp;
+    l_event->srv_uid = a_srv_uid;
     return l_event;
 }
 void dap_chain_tx_event_delete(void *a_event)
@@ -645,6 +646,7 @@ int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_
     char l_timestamp_str[DAP_TIME_STR_SIZE] = {0};
     dap_time_to_str_rfc822(l_timestamp_str, DAP_TIME_STR_SIZE, a_event->timestamp);
     json_object_object_add(l_object, "timestamp", json_object_new_string(l_timestamp_str));
+    json_object_object_add(l_object, "srv_uid", json_object_new_uint64(a_event->srv_uid.uint64));
     json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     json_object_object_add(l_object, "event_version", json_object_new_int(a_event->version));
     json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_name_size));
@@ -658,6 +660,7 @@ int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event
     char l_timestamp_str[DAP_TIME_STR_SIZE] = {0};
     dap_time_to_str_rfc822(l_timestamp_str, DAP_TIME_STR_SIZE, a_event->timestamp);
     json_object_object_add(l_object, "timestamp", json_object_new_string(l_timestamp_str));
+    json_object_object_add(l_object, "srv_uid", json_object_new_uint64(a_event->srv_uid.uint64));
     json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     json_object_object_add(l_object, "event_group", json_object_new_string(a_event->group_name));
     const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->tx_hash)

@@ -31,13 +31,15 @@
 typedef struct dap_chain_tx_item_event {
     dap_chain_tx_item_type_t type;          /// @param type             @brief Transaction item type
     uint8_t version;                        /// @param version          @brief Version of the event.
-    uint16_t group_name_size;               /// @param group_name_size  @brief Size of the group name
     uint16_t event_type;                    /// @param event_type       @brief Event type.
-    dap_time_t timestamp;                   /// @param timestamp        @brief Timestamp of the event.
+    uint16_t group_name_size;               /// @param group_name_size  @brief Size of the event group name.
+    dap_time_t timestamp;                   /// @param event_ts         @brief Timestamp of the event.
+    dap_chain_srv_uid_t srv_uid;            /// @param srv_uid          @brief Service UID.
     byte_t group_name[];                    /// @param group_name       @brief Event group name
 } DAP_ALIGN_PACKED dap_chain_tx_item_event_t;
 
 typedef struct dap_chain_tx_event {
+    dap_chain_srv_uid_t srv_uid;        /// @param srv_uid              @brief Service UID.
     dap_time_t timestamp;               /// @param timestamp            @brief Timestamp of the event.
     char *group_name;                   /// @param group_name           @brief Event group name
     dap_chain_hash_fast_t tx_hash;      /// @param tx_hash              @brief Hash of the transaction.
@@ -46,6 +48,9 @@ typedef struct dap_chain_tx_event {
     void *event_data;                   /// @param event_data           @brief Event data.
     size_t event_data_size;             /// @param event_data_size      @brief Event data size.
 } dap_chain_tx_event_t;
+
+// Service decree event type
+#define DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE                      0x8000
 
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED             0x0001
 #define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED          0x0002
@@ -76,8 +81,8 @@ DAP_STATIC_INLINE int dap_chain_tx_item_event_type_from_str(const char *a_event_
     return -1;
 }
 
-#define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA                   0x1000
-#define DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA_JSON_STR          "custom_data"
+#define DAP_CHAIN_TX_TSD_TYPE_EVENT_DATA                    0x1000
+#define DAP_CHAIN_TX_TSD_TYPE_EVENT_DATA_JSON_STR           "event_data"
 
 int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_item_event_t *a_event);
 int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type);

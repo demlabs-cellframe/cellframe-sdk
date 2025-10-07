@@ -1423,6 +1423,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
  char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
                                dap_enc_key_t *a_key_from,
                                dap_enc_key_t *a_service_key,
+                               dap_chain_srv_uid_t a_srv_uid,
                                const char *a_group_name,
                                uint16_t a_event_type,
                                const void *a_event_data,
@@ -1482,7 +1483,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     dap_list_free_full(l_list_fee_out, NULL);
 
     // Create and add event item using standard cellframe function
-    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(a_group_name, a_event_type, dap_time_now());
+    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(a_srv_uid, a_group_name, a_event_type, dap_time_now());
     if (!l_event_item) {
         log_it(L_ERROR, "Failed to create event item");
         dap_chain_datum_tx_delete(l_tx);
@@ -1499,7 +1500,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     if (a_event_data && a_event_data_size > 0) {
         // Create TSD section with event data using standard cellframe function
         dap_chain_tx_tsd_t *l_tsd_item = dap_chain_datum_tx_item_tsd_create(
-            (void *)a_event_data, DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA, a_event_data_size);
+            (void *)a_event_data, DAP_CHAIN_TX_TSD_TYPE_EVENT_DATA, a_event_data_size);
         
         if (!l_tsd_item) {
             log_it(L_ERROR, "Failed to create TSD item with event data");
@@ -1562,16 +1563,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         return NULL;
     }
 
-    // Pre-validate transaction against ledger rules (e.g., duplicate AUCTION_STARTED)
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-    dap_hash_fast_t l_tx_hash = {};
-    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
-    int l_check_rc = dap_ledger_tx_add_check(l_ledger, l_tx, l_tx_size, &l_tx_hash);
-    if (l_check_rc) {
-        log_it(L_WARNING, "Reject event tx before mempool: ledger check failed (%d)", l_check_rc);
-        dap_chain_datum_tx_delete(l_tx);
-        return NULL;
-    }
 
     // Create datum and add to mempool (following mempool pattern)
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
@@ -1593,7 +1585,8 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     
     log_it(L_INFO, "Successfully composed and added event transaction to mempool: %s", l_ret);
     return l_ret;
- } 
+}
+
 bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx)
 {
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_net, CHAIN_TYPE_TX);
@@ -1623,4 +1616,28 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
     }
     dap_global_db_objs_delete(l_objs, l_objs_count);
     return false;
+}
+
+ /**
+  * @brief Compose a transaction with event item for ledger event system
+  * @param[in] a_chain Chain to create transaction for
+  * @param[in] a_key_from Private key for signing
+  * @param[in] a_service_key Service key for signing
+  * @param[in] a_group_name Event group name
+  * @param[in] a_event_type Event type
+  * @param[in] a_event_data Event data
+  * @param[in] a_event_data_size Size of event data
+  * @param[in] a_fee_value Fee value
+  * @param[in] a_hash_out_type Hash output format
+  * @return Transaction hash string on success, NULL on error
+  */
+  char *dap_chain_mempool_tx_create_service_decree(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+                                                   dap_enc_key_t *a_service_key, dap_chain_srv_uid_t a_srv_uid,
+                                                    const void *a_service_decree_data,
+                                                    size_t a_service_decree_data_size,
+                                                    uint256_t a_fee_value,
+                                                    const char *a_hash_out_type)
+{
+    return dap_chain_mempool_tx_create_event(a_chain, a_key_from, a_service_key, a_srv_uid, "SERVICE_DECREE", DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE,
+                                             a_service_decree_data, a_service_decree_data_size, a_fee_value, a_hash_out_type);
 }
