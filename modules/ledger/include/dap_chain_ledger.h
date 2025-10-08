@@ -158,6 +158,8 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
     DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX,
     DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL,
+    DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE,
+    DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN,
     /* Emisssion check return codes */
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
     DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN,
@@ -309,6 +311,8 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX: return "Can't find tx in ledger for removing.";
     case DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET: return "The transaction was rejected because it contains multiple outputs to other networks.";
     case DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL: return "Usage of timed locked out is forbidden for this tx";
+    case DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE: return "Event verification failure";
+    case DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN: return "Legacy stakes are not accepted from mempool anymore!";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";
@@ -325,7 +329,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     }
 }
 
-typedef int   (*dap_ledger_cond_in_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner);
+typedef int   (*dap_ledger_cond_in_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_check_for_apply);
 typedef int  (*dap_ledger_cond_out_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 typedef void     (*dap_ledger_cond_in_add_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void    (*dap_ledger_cond_out_add_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);

@@ -1357,7 +1357,7 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
             dap_hash_fast(l_stake_tx_ems, dap_chain_datum_tx_get_size(l_stake_tx_ems), &l_stake_tx_ems_hash);
             err_code = dap_ledger_tx_add_check(a_ledger, l_stake_tx_ems, dap_chain_datum_tx_get_size(l_stake_tx_ems), &l_stake_tx_ems_hash);
             printf("Legacy stake tx ems add checking result: %d\n", err_code);
-            // dap_assert(err_code == DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN, "Checking of legacy stake emission to ledger is");  // Constant removed in v6.0
+            dap_assert(err_code == DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN, "Checking of legacy stake emission to ledger is");
             err_code = dap_ledger_tx_add(a_ledger, l_stake_tx_ems, &l_stake_tx_ems_hash, false, NULL);
             printf("Legacy stake tx ems add result: %d\n", err_code);
             dap_assert(!err_code, "Adding of legacy stake emission to ledger is");
@@ -1403,8 +1403,8 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
         dap_hash_fast_t l_unstake_tx_hash = {};
         dap_hash_fast(l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);
         err_code = dap_ledger_tx_add_check(a_ledger, l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);
-        printf("Legacy unstake with owner key check err_code = %d\n", err_code);
-        dap_assert(!err_code, "Checking of legacy unstake with owner key is");
+        printf("Legacy unstake err_code = %d\n", err_code);
+        dap_assert(err_code == DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE, "Checking of legacy unstake is");
         err_code = dap_ledger_tx_add(a_ledger, l_unstake_tx, &l_unstake_tx_hash, false, NULL);
         printf("Legacy unstake add result: %d\n", err_code);
         dap_assert(!err_code, "Adding of legacy unstake to ledger is");
