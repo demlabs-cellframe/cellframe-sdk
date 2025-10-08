@@ -1,3 +1,4 @@
+#include "dap_math_convert.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_ledger.h"
@@ -1093,7 +1094,7 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(!compare256(l_balance, l_balance_example), "Checking the availability of the necessary balance "
                                                              "on the wallet after the first transaction.");
     char *l_pass_msg = dap_strdup_printf("Starting balance is %s. Validation of the declaration of the token, "
-                                         "creation of an emission and a basic transaction using it in the ledger", dap_chain_balance_datoshi_print(l_balance));
+                                         "creation of an emission and a basic transaction using it in the ledger", dap_uint256_to_char(l_balance, NULL));
     dap_pass_msg(l_pass_msg);
     DAP_DELETE(l_pass_msg);
 
@@ -1236,7 +1237,7 @@ static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond(dap_enc
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
     int l_out_idx = 0;
-    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT, NULL);
+    dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
 
     dap_chain_addr_t l_addr_to = {0};
     dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);

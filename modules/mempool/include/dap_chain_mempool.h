@@ -135,9 +135,12 @@ char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks
 char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
                                       dap_enc_key_t *a_key_from,
                                       dap_enc_key_t *a_service_key,
+                                      dap_chain_srv_uid_t a_srv_uid,
                                       const char *a_group_name,
                                       uint16_t a_event_type,
                                       const void *a_event_data,
                                       size_t a_event_data_size,
                                       uint256_t a_fee_value,
                                       const char *a_hash_out_type);
+
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);

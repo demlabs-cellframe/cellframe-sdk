@@ -230,7 +230,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name>>\n"
-                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [{-cond [-type <cond_type>] | -value <uint256_value>}]\n"
+                            "wallet outputs {-addr <addr> | -w <wallet_name>} -net <net_name> -token <token_tiker> [{-cond [-type <cond_type>] | -value <uint256_value>}] [-mempool_check]\n"
                                 "\t Available conditional output types for -type parameter:\n"
                                 "\t   srv_pay, srv_xchange, srv_stake_pos_delegate, srv_stake_lock, fee\n"
                             "wallet convert -w <wallet_name> {-password <password> | -remove_password }\n"
@@ -359,7 +359,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t Build transaction chain from hash2 to hash1 using backward traversal\n"
             "ledger event list -net <net_name> [-group <group_name>]\n"
             "ledger event dump -net <net_name> -hash <tx_hash>\n"
-            "ledger event create -net <net_name> [-chain <chain_name>] -w <wallet_name> -service_key <cert_name> -group <group_name> -event_type <event_type> [-event_data <event_data>] [-fee <fee_value>] [-H <hex|base58>]\n"
+            "ledger event create -net <net_name> [-chain <chain_name>] -w <wallet_name> -service_key <cert_name> -srv_uid <service_uid> "
+            "-group <group_name> -event_type <event_type> [-event_data <event_data>] [-fee <fee_value>] [-H <hex|base58>]\n"
             "ledger event key add -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
             "ledger event key remove -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
             "ledger event key list -net <net_name> [-H <hex|base58>]\n");

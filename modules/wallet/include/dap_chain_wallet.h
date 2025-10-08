@@ -70,9 +70,24 @@ dap_chain_wallet_t * dap_chain_wallet_create_with_pass(const char * a_wallet_nam
 
 // Get the list of 'out' items from previous transactions with summary value >= than a_value_need
 // Put this summary value to a_value_transfer
-dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                                       uint256_t a_value_need, uint256_t *a_value_transfer);
-dap_list_t *dap_chain_wallet_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from, uint256_t *a_value_transfer);
+
+dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                                       uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check);
+dap_list_t *dap_chain_wallet_get_list_tx_outs_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                        uint256_t *a_value_transfer, bool a_mempool_check);
+
+DAP_STATIC_INLINE dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                                       uint256_t a_value_need, uint256_t *a_value_transfer)
+{
+    return dap_chain_wallet_get_list_tx_outs_with_val_mempool_check(a_ledger, a_token_ticker, a_addr_from, a_value_need, a_value_transfer, true);
+}
+DAP_STATIC_INLINE dap_list_t *dap_chain_wallet_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                        uint256_t *a_value_transfer)
+{
+    return dap_chain_wallet_get_list_tx_outs_mempool_check(a_ledger, a_token_ticker, a_addr_from, a_value_transfer, true);
+}
+
+
 dap_chain_wallet_t  *dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_sign_type_t a_sig_type, const char *a_pass); // Creates new one if not found
 dap_chain_wallet_t  *dap_chain_wallet_open_file(const char * a_file_name, const char *a_pass, unsigned int *a_out_stat);
 dap_chain_wallet_t *dap_chain_wallet_open(const char * a_wallet_name, const char * a_wallets_path, unsigned int * a_out_stat);

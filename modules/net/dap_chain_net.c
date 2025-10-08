@@ -1996,8 +1996,6 @@ static void *s_net_load(void *a_arg)
     dap_return_val_if_fail_err(l_net->pub.config, NULL, "Can't open network %s config", l_net->pub.name);
 
     // Services register & configure
-    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_SRV_VOTING_LITERAL, NULL);                 // Harcoded core service starting for voting capability
-    dap_chain_srv_start(l_net->pub.id, DAP_CHAIN_SRV_XCHANGE_LITERAL, NULL);                // Harcoded core service starting for exchange capability
     char *l_services_path = dap_strdup_printf("%s/network/%s/services", dap_config_path(), l_net->pub.name);
     DIR *l_service_cfg_dir = opendir(l_services_path);
     DAP_DELETE(l_services_path);
@@ -2021,6 +2019,8 @@ static void *s_net_load(void *a_arg)
         }
         closedir(l_service_cfg_dir);
     }
+    
+    dap_chain_srv_start_all(l_net->pub.id);                 // Harcoded core service starting for voting capability             // Harcoded core service starting for exchange capability
 
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->balancer_type = dap_config_get_item_bool_default(l_net->pub.config, "general", "use_dns_links", false);
