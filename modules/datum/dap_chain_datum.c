@@ -813,6 +813,9 @@ void dap_chain_datum_dump_json(json_object* a_json_arr_reply, json_object  *a_ob
             json_object_object_add(json_obj_datum, a_version == 1 ? "decree hash" : "decree_hash", json_object_new_string(l_hash_str));
             dap_chain_datum_anchor_certs_dump_json(json_obj_datum,l_anchor->data_n_sign + l_anchor->header.data_size, l_anchor->header.signs_size, a_hash_out_type, a_version);
         } break;
+        case DAP_CHAIN_DATUM_CUSTOM: {
+            json_object_object_add(json_obj_datum, a_version == 1 ? "hash" : "datum_hash", json_object_new_string(l_hash_str));
+        } break;
     }  
     json_object_object_add(a_obj_out, a_version == 1 ? "Datum" : "datum", json_obj_datum);  
 }

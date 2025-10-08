@@ -52,6 +52,7 @@ typedef struct dap_chain_block_cache {
     uint64_t nonce;
     uint64_t nonce2;
     bool is_genesis;
+    bool is_blockgen;
     uint16_t generation;
 
     // Block's signatures

@@ -172,6 +172,7 @@ static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** 
 static int s_callback_cs_blocks_purge(dap_chain_t *a_chain);
 
 static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
+static dap_chain_block_t *s_block_create(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
 
 //Work with atoms
 static uint64_t s_callback_count_atom(dap_chain_t *a_chain);
@@ -334,6 +335,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
 
 
     l_cs_blocks->callback_new_block_move = s_new_block_move;
+    l_cs_blocks->callback_block_create = s_block_create;
 
     dap_chain_cs_blocks_pvt_t *l_cs_blocks_pvt = DAP_NEW_Z(dap_chain_cs_blocks_pvt_t);
     if (!l_cs_blocks_pvt) {
@@ -862,6 +864,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     break;
                 case DAP_CHAIN_BLOCK_META_EVM_DATA:
                     s_cli_meta_hex_print(json_obj_meta, a_version == 1 ? "EVM_DATA" : "evm_data", l_meta);
+                    break;
+                case DAP_CHAIN_BLOCK_META_BLOCKGEN:
+                    json_object_object_add(json_obj_meta, "blockgen", json_object_new_string(""));
                     break;
                 default: {
                     snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%0X", i);
@@ -1629,7 +1634,7 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
 static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
 {
     if (! a_block_cache->datum_count){
-        log_it(L_WARNING,"Block %s has no datums at all, can't add anything to ledger", a_block_cache->block_hash_str);
+        log_it(L_DEBUG,"Block %s has no datums at all, nothing to add to ledger", a_block_cache->block_hash_str);
         return 1; // No errors just empty block
     }
     int l_ret = 0;
@@ -1650,6 +1655,10 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "UNKNOWN", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
         bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->chain->generation;
+        dap_hash_fast_t l_zero_hash = {0};
+        if (!memcmp(l_datum_hash, &l_zero_hash, sizeof(dap_hash_fast_t)))
+            continue;
+        
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) { // If this is any datum other than a already cached transaction
             l_ret++;
@@ -2696,6 +2705,24 @@ static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size
         a_blocks->block_new = NULL;
         a_blocks->block_new_size = 0;
     }
+    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    if (a_new_block_size)
+        *a_new_block_size = l_ret_size;
+    return l_ret;
+}
+
+static dap_chain_block_t *s_block_create(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size)
+{
+    dap_return_val_if_pass(!a_blocks || !PVT(a_blocks) || !PVT(a_blocks)->blocks, NULL);
+    size_t l_ret_size = 0;
+    dap_chain_block_t *l_ret = NULL;
+    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
+    pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+        dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks->hh.tbl->tail->prev;
+        l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
+        l_ret = dap_chain_block_new(&l_bcache_last->block_hash, &l_ret_size);
+        l_ret->hdr.cell_id.uint64 = a_blocks->chain->cells->id.uint64;
+        l_ret->hdr.chain_id.uint64 = a_blocks->chain->id.uint64;
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     if (a_new_block_size)
         *a_new_block_size = l_ret_size;

@@ -37,17 +37,14 @@ typedef size_t (*dap_chain_cs_blocks_callback_block_sign_t)(dap_chain_cs_blocks_
 typedef dap_chain_block_t *(*dap_chain_cs_block_move_t)(dap_chain_cs_blocks_t *, size_t *);
 typedef void (*dap_chain_cs_blocks_callback_fork_resolved_t)(dap_chain_t *a_chain, dap_hash_fast_t a_block_before_fork_hash, dap_list_t *a_reverted_blocks, 
                                                                 uint64_t a_reverted_blocks_cnt, uint64_t a_main_blocks_cnt, void * a_arg);
-typedef dap_chain_block_t * (*dap_chain_cs_blocks_callback_block_create_t)(dap_chain_cs_blocks_t *,
-                                                                               dap_chain_datum_t *,
-                                                                               dap_chain_hash_fast_t *,
-                                                                               size_t, size_t*);
+
 typedef struct dap_chain_cs_blocks {
    dap_chain_t *chain;
    dap_chain_block_t *block_new; // For new block creating
    size_t block_new_size;
 
    dap_chain_cs_blocks_callback_t callback_delete;
-   dap_chain_cs_blocks_callback_block_create_t callback_block_create;
+   dap_chain_cs_block_move_t callback_block_create;
    dap_chain_cs_blocks_callback_block_verify_t callback_block_verify;
    dap_chain_cs_blocks_callback_block_sign_t callback_block_sign;
    dap_chain_cs_block_move_t callback_new_block_move;
