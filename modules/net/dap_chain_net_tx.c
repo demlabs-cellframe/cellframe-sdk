@@ -1516,9 +1516,8 @@ static int s_dap_chain_net_tx_add_in_and_back(dap_tx_creator_tokenizer_t *a_valu
     // find the transactions from which to take away coins
     dap_list_t *l_list_used_out = NULL;
     uint256_t l_value_transfer = { }; // how many coins to transfer
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_ledger->net, a_value_need->token_ticker, a_addr_from, &l_list_used_out, a_value_need->sum, &l_value_transfer) == -101)
-        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_ledger, a_value_need->token_ticker,
-                                                                a_addr_from, a_value_need->sum, &l_value_transfer);
+    l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_ledger, a_value_need->token_ticker,
+                                                            a_addr_from, a_value_need->sum, &l_value_transfer);
     log_it(L_WARNING, "elements from list - %"DAP_UINT64_FORMAT_U, dap_list_length(l_list_used_out));
     log_it(L_WARNING, "tokens - %s", a_value_need->token_ticker);
     dap_list_t *l_item_out;
@@ -1829,7 +1828,18 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 break;
             }
 
-            dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(l_group_name, (uint16_t)l_event_type_int, dap_time_now());
+            uint64_t l_srv_uid;
+            if (!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid)) {
+                log_it(L_ERROR, "Json TX: bad srv_uid in TX_ITEM_TYPE_EVENT");
+                char *l_str_err = dap_strdup_printf("For item %zu of type 'event' the 'srv_uid' is missing or invalid.", i);
+                json_object *l_jobj_err = json_object_new_string(l_str_err);
+                DAP_DELETE(l_str_err);
+                if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                break;
+            }
+
+            dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create((dap_chain_srv_uid_t){.uint64 = l_srv_uid},
+                                                                                       l_group_name, (uint16_t)l_event_type_int, dap_time_now());
             if (!l_event_item) {
                  char *l_str_err = dap_strdup_printf("Unable to create event item for transaction from item %zu.", i);
                 json_object *l_jobj_err = json_object_new_string(l_str_err);

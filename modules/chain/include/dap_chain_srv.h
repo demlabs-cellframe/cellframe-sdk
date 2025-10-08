@@ -36,11 +36,14 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 // Start service callback
 typedef void * (*dap_chain_srv_callback_start_t)(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
 // Process service decree
-typedef void (*dap_chain_srv_callback_decree_t)(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size);
+typedef int (*dap_chain_srv_callback_decree_t)(dap_chain_net_id_t a_net_id, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
+// Event verify service callback
+typedef int (*dap_chain_srv_callback_event_verify_t)(dap_chain_net_id_t a_net_id, const char *a_event_group_name, int a_event_type,
+                                                     void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_event_tx_hash);
 // Purge service callback
 typedef int (*dap_chain_srv_callback_purge_t)(dap_chain_net_id_t a_net_id, void *a_service_internal);
-// Get fee service callback
-typedef json_object * (*dap_chain_srv_callback_get_fee)(dap_chain_net_id_t a_net_id);
+// Get fee description service callback
+typedef json_object * (*dap_chain_srv_callback_get_fee_descr)(dap_chain_net_id_t a_net_id);
 // Hardfork prepare service callback
 typedef byte_t * (*dap_chain_srv_callback_hardfork_prepare_t)(dap_chain_net_id_t a_net_id, uint64_t *a_state_size, uint32_t *a_state_count, void *a_service_internal);
 // Hardfork data load service callback
@@ -53,10 +56,12 @@ typedef struct dap_chain_static_srv_callbacks {
     dap_chain_srv_callback_start_t start;
     // Decree processing
     dap_chain_srv_callback_decree_t decree;
+    // Event verify
+    dap_chain_srv_callback_event_verify_t event_verify;
     // Purge
     dap_chain_srv_callback_purge_t purge;
-    // Get service fee
-    dap_chain_srv_callback_get_fee get_fee_descr;
+    // Get service fee description
+    dap_chain_srv_callback_get_fee_descr get_fee_descr;
     // Hardfork prepare
     dap_chain_srv_callback_hardfork_prepare_t hardfork_prepare;
     // Hardfork data load
@@ -111,9 +116,12 @@ void dap_chain_srv_deinit();
 
 int dap_chain_srv_add(dap_chain_srv_uid_t a_uid, const char *a_name, dap_chain_static_srv_callbacks_t *a_static_callbacks);
 int dap_chain_srv_start(dap_chain_net_id_t a_net_id, const char *a_name, dap_config_t *a_config);
+int dap_chain_srv_start_all(dap_chain_net_id_t a_net_id);
 int dap_chain_srv_delete(dap_chain_srv_uid_t a_uid);
 void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_id);
 dap_chain_srv_uid_t dap_chain_srv_get_uid_by_name(const char *a_name);
+int dap_chain_srv_event_verify(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, const char *a_event_group_name, int a_event_type, void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_event_tx_hash);
+int dap_chain_srv_decree(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
 size_t dap_chain_srv_count(dap_chain_net_id_t a_net_id);
 dap_list_t *dap_chain_srv_list(dap_chain_net_id_t a_net_id);
 

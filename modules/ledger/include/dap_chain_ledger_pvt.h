@@ -161,6 +161,7 @@ typedef struct dap_ledger_anchor_item {
 } dap_ledger_anchor_item_t;
 
 typedef struct dap_ledger_event {
+    dap_chain_srv_uid_t srv_uid;
     dap_time_t timestamp;
     dap_hash_fast_t tx_hash;
     dap_hash_fast_t pkey_hash;
@@ -267,5 +268,5 @@ dap_ledger_token_emission_item_t *dap_ledger_pvt_emission_item_find(dap_ledger_t
 dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive);
 void dap_ledger_pvt_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
 int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse);
-int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply);
+int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply, bool a_check_for_apply);
 int dap_ledger_pvt_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
