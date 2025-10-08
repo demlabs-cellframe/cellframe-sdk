@@ -411,12 +411,12 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, dap_chain_datum_de
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD:
             if (l_tsd->size != sizeof(uint16_t)) {
-                json_object_object_add(a_json_out, "blockgen_period", json_object_new_string("WRONG SIZE"));
+                dap_json_object_add_object(a_json_out, "blockgen_period", dap_json_object_new_string("WRONG SIZE"));
                 break;
             }
             uint16_t l_blockgen_period = 0;
             _dap_tsd_get_scalar(l_tsd, &l_blockgen_period);
-            json_object_object_add(a_json_out, "blockgen_period", json_object_new_uint64(l_blockgen_period));
+            dap_json_object_add_object(a_json_out, "blockgen_period", dap_json_object_new_uint64(l_blockgen_period));
             break;
         default:
             if (a_version == 1)

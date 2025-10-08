@@ -77,3 +77,24 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(
     uint64_t a_option_idx, 
     dap_chain_tx_compose_config_t *a_config);
 
+/**
+ * @brief CLI vote cancel compose
+ */
+dap_json_t* dap_cli_vote_cancel_compose(
+    const char *a_net_str,
+    const char *a_hash_str,
+    const char *a_fee_str,
+    dap_chain_addr_t *a_wallet_addr,
+    const char *a_url_str,
+    uint16_t a_port,
+    const char *a_enc_cert);
+
+/**
+ * @brief Create vote cancel transaction
+ */
+dap_chain_datum_tx_t* dap_chain_net_vote_cancel_compose(
+    uint256_t a_fee,
+    dap_chain_addr_t *a_wallet_addr,
+    dap_hash_fast_t a_voting_hash,
+    dap_chain_tx_compose_config_t *a_config);
+

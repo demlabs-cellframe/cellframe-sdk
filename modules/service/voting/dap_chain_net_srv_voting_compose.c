@@ -766,3 +766,253 @@ dap_chain_datum_tx_t* dap_chain_net_vote_voting_compose(dap_cert_t *a_cert, uint
     }
     return l_tx;
 }
+
+/**
+ * @brief CLI vote cancel compose
+ * @details Creates a cancel vote transaction through compose interface
+ */
+typedef enum {
+    DAP_CLI_VOTE_CANCEL_COMPOSE_OK = 0,
+    DAP_CLI_VOTE_CANCEL_COMPOSE_INVALID_CONFIG = -1,
+    DAP_CLI_VOTE_CANCEL_COMPOSE_INVALID_HASH = -2,
+    DAP_CLI_VOTE_CANCEL_COMPOSE_INVALID_FEE = -3,
+    DAP_CLI_VOTE_CANCEL_COMPOSE_WALLET_NOT_FOUND = -4,
+    DAP_CLI_VOTE_CANCEL_COMPOSE_NOT_OWNER = -5,
+    DAP_CLI_VOTE_CANCEL_COMPOSE_VOTING_NOT_FOUND = -6
+} dap_cli_vote_cancel_compose_error_t;
+
+dap_json_t* dap_cli_vote_cancel_compose(const char *a_net_str, const char *a_hash_str, const char *a_fee_str, 
+                                         dap_chain_addr_t *a_wallet_addr, const char *a_url_str, 
+                                         uint16_t a_port, const char *a_cert_path) {
+    dap_chain_tx_compose_config_t *l_config = dap_chain_tx_compose_config_init(a_net_str, a_url_str, a_port, a_cert_path);
+    if (!l_config) {
+        dap_json_t* l_json_obj_ret = dap_json_object_new();
+        dap_json_compose_error_add(l_json_obj_ret, DAP_CLI_VOTE_CANCEL_COMPOSE_INVALID_CONFIG, "Can't create compose config");
+        return l_json_obj_ret;
+    }
+
+    dap_hash_fast_t l_voting_hash = {};
+    if (dap_chain_hash_fast_from_str(a_hash_str, &l_voting_hash)) {
+        dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_CANCEL_COMPOSE_INVALID_HASH, 
+                                   "Hash string is not recognized as hex or base58 hash\n");
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
+    }
+
+    uint256_t l_value_fee = dap_chain_balance_scan(a_fee_str);
+    if (IS_ZERO_256(l_value_fee)) {
+        dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_CANCEL_COMPOSE_INVALID_FEE, 
+                                   "Command requires parameter '-fee' to be valid uint256\n");
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
+    }
+
+    if (!a_wallet_addr) {
+        dap_json_compose_error_add(l_config->response_handler, DAP_CLI_VOTE_CANCEL_COMPOSE_WALLET_NOT_FOUND, 
+                                   "Wallet address is required\n");
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
+    }
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_net_vote_cancel_compose(l_value_fee, a_wallet_addr, l_voting_hash, l_config);
+    if (l_tx) {
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
+        dap_chain_datum_tx_delete(l_tx);
+    }
+    return dap_chain_tx_compose_config_return_response_handler(l_config);
+}
+
+/**
+ * @brief Create vote cancel transaction
+ * @details Composes transaction to cancel a voting
+ */
+typedef enum {
+    DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_OK = 0,
+    DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_INVALID_CONFIG = -1,
+    DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_VOTING_NOT_FOUND = -2,
+    DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_NOT_OWNER = -3,
+    DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_EXPIRED = -4,
+    DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_NO_FUNDS = -5,
+    DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_FAILED_TO_CREATE_VOTE_ITEM = -6,
+    DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_FAILED_TO_CREATE_CANCEL_TSD = -7
+} dap_chain_net_vote_cancel_compose_error_t;
+
+dap_chain_datum_tx_t* dap_chain_net_vote_cancel_compose(uint256_t a_fee, dap_chain_addr_t *a_wallet_addr,
+                                                         dap_hash_fast_t a_voting_hash,
+                                                         dap_chain_tx_compose_config_t *a_config) {
+    if (!a_config) {
+        return NULL;
+    }
+
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    // Get voting info from remote node
+    const char *l_hash_str = dap_chain_hash_fast_to_str_static(&a_voting_hash);
+    dap_json_t *l_json_voting = dap_request_command_to_rpc_with_params(a_config, "poll", 
+                                                                        "dump;-net;%s;-hash;%s", 
+                                                                        a_config->net_name, l_hash_str);
+    if (!l_json_voting) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_VOTING_NOT_FOUND,
+                                   "Can't find voting with hash %s\n", l_hash_str);
+        return NULL;
+    }
+
+    dap_json_t *l_voting_info = dap_json_array_get_idx(l_json_voting, 0);
+    if (!l_voting_info) {
+        dap_json_object_free(l_json_voting);
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_VOTING_NOT_FOUND,
+                                   "Can't get voting info from JSON\n");
+        return NULL;
+    }
+
+    // Check status
+    dap_json_t *l_status_obj = NULL;
+    dap_json_object_get_ex(l_voting_info, "status", &l_status_obj);
+    const char *l_status = l_status_obj ? dap_json_get_string(l_status_obj) : NULL;
+    
+    if (l_status && (!dap_strcmp(l_status, "expired") || !dap_strcmp(l_status, "cancelled"))) {
+        dap_json_object_free(l_json_voting);
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_EXPIRED,
+                                   "Voting is already %s\n", l_status);
+        return NULL;
+    }
+
+    // Check owner - get creator address
+    dap_json_t *l_creator_addr_obj = NULL;
+    dap_json_object_get_ex(l_voting_info, "creator_addr", &l_creator_addr_obj);
+    const char *l_creator_addr_str = l_creator_addr_obj ? dap_json_get_string(l_creator_addr_obj) : NULL;
+    
+    if (!l_creator_addr_str) {
+        dap_json_object_free(l_json_voting);
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_VOTING_NOT_FOUND,
+                                   "Can't get creator address from voting info\n");
+        return NULL;
+    }
+
+    dap_chain_addr_t *l_creator_addr = dap_chain_addr_from_str(l_creator_addr_str);
+    if (!l_creator_addr) {
+        dap_json_object_free(l_json_voting);
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_VOTING_NOT_FOUND,
+                                   "Invalid creator address format\n");
+        return NULL;
+    }
+    
+    // Check if wallet address matches creator address
+    if (!dap_chain_addr_compare(a_wallet_addr, l_creator_addr)) {
+        DAP_DELETE(l_creator_addr);
+        dap_json_object_free(l_json_voting);
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_NOT_OWNER,
+                                   "You don't have rights to cancel this voting. Owner: %s, Your address: %s\n",
+                                   l_creator_addr_str, dap_chain_addr_to_str(a_wallet_addr));
+        return NULL;
+    }
+    DAP_DELETE(l_creator_addr);
+
+    dap_json_object_free(l_json_voting);
+#endif
+
+    // Get native ticker and calculate fees
+    const char *l_native_ticker = dap_chain_tx_compose_get_native_ticker(a_config->net_name);
+    uint256_t l_net_fee = {}, l_total_fee = {};
+    dap_chain_addr_t *l_addr_fee = NULL;
+    bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
+    SUM_256_256(l_net_fee, a_fee, &l_total_fee);
+
+    // Get wallet outputs
+    dap_json_t *l_outs = NULL;
+    int l_outputs_count = 0;
+    uint256_t l_value_transfer = {};
+    
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    if (!dap_chain_tx_compose_get_remote_wallet_outs_and_count(a_wallet_addr, l_native_ticker, 
+                                                                &l_outs, &l_outputs_count, a_config)) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_NO_FUNDS,
+                                   "Failed to get wallet outputs\n");
+        return NULL;
+    }
+
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
+                                                                         l_total_fee, &l_value_transfer, false);
+    dap_json_object_free(l_outs);
+    
+    if (!l_list_used_out) {
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_NO_FUNDS,
+                                   "Not enough funds to pay fees\n");
+        return NULL;
+    }
+#else
+    dap_list_t *l_list_used_out = NULL;
+#endif
+
+    // Create transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+    // Create vote item with index 0 (for cancel)
+    uint64_t l_answer_idx = 0;
+    dap_chain_tx_vote_t *l_vote_item = dap_chain_datum_tx_item_vote_create(&a_voting_hash, &l_answer_idx);
+    if (!l_vote_item) {
+        dap_chain_datum_tx_delete(l_tx);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+        dap_list_free_full(l_list_used_out, NULL);
+#endif
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_FAILED_TO_CREATE_VOTE_ITEM,
+                                   "Failed to create vote item\n");
+        return NULL;
+    }
+    dap_chain_datum_tx_add_item(&l_tx, l_vote_item);
+    DAP_DEL_Z(l_vote_item);
+
+    // Add TSD with voting hash to cancel
+    dap_chain_tx_tsd_t *l_cancel_tsd = dap_chain_datum_voting_cancel_tsd_create(a_voting_hash);
+    if (!l_cancel_tsd) {
+        dap_chain_datum_tx_delete(l_tx);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+        dap_list_free_full(l_list_used_out, NULL);
+#endif
+        dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_CANCEL_COMPOSE_FAILED_TO_CREATE_CANCEL_TSD,
+                                   "Failed to create cancel TSD\n");
+        return NULL;
+    }
+    dap_chain_datum_tx_add_item(&l_tx, l_cancel_tsd);
+    DAP_DEL_Z(l_cancel_tsd);
+
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    // Add 'in' items
+    uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+    assert(EQUAL_256(l_value_to_items, l_value_transfer));
+    dap_list_free_full(l_list_used_out, NULL);
+#endif
+
+    uint256_t l_value_pack = {};
+    
+    // Network fee
+    if (l_net_fee_used) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_fee, l_net_fee, l_native_ticker) == 1)
+            SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+        else {
+            dap_chain_datum_tx_delete(l_tx);
+            dap_json_compose_error_add(a_config->response_handler, -1, "Failed to add network fee output\n");
+            return NULL;
+        }
+    }
+
+    // Validator's fee
+    if (!IS_ZERO_256(a_fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) == 1)
+            SUM_256_256(l_value_pack, a_fee, &l_value_pack);
+        else {
+            dap_chain_datum_tx_delete(l_tx);
+            dap_json_compose_error_add(a_config->response_handler, -1, "Failed to add validator fee\n");
+            return NULL;
+        }
+    }
+
+    // Coin back
+    uint256_t l_value_back;
+    SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+    if (!IS_ZERO_256(l_value_back)) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_back, l_native_ticker) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            dap_json_compose_error_add(a_config->response_handler, -1, "Failed to add coin back output\n");
+            return NULL;
+        }
+    }
+
+    return l_tx;
+}
