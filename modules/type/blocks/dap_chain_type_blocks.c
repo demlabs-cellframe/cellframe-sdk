@@ -2044,7 +2044,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             HASH_ADD(hh, forked_branch->forked_branch_atoms, block_hash, sizeof(dap_hash_fast_t), l_new_item);
             
             PVT(l_blocks)->forked_br_cnt++;
-            PVT(l_blocks)->forked_branches = DAP_REALLOC_COUNT(PVT(l_blocks)->forked_branches, PVT(l_blocks)->forked_br_cnt);
+            PVT(l_blocks)->forked_branches = DAP_REALLOC_COUNT((void *)PVT(l_blocks)->forked_branches, PVT(l_blocks)->forked_br_cnt);
             PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1] = forked_branch;
 
             l_prev_bcache->forked_branches = dap_list_append(l_prev_bcache->forked_branches, PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1]);
@@ -2720,12 +2720,12 @@ static dap_chain_block_t *s_new_block_move(dap_chain_type_blocks_t *a_blocks, si
     return l_ret;
 }
 
-static dap_chain_block_t *s_block_create(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size)
+static dap_chain_block_t *s_block_create(dap_chain_type_blocks_t *a_blocks, size_t *a_new_block_size)
 {
     dap_return_val_if_pass(!a_blocks || !PVT(a_blocks) || !PVT(a_blocks)->blocks, NULL);
     size_t l_ret_size = 0;
     dap_chain_block_t *l_ret = NULL;
-    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
+    dap_chain_type_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
     pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
         dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks->hh.tbl->tail->prev;
         l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;

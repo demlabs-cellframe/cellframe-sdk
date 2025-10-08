@@ -3491,10 +3491,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                                                     l_chain_net, l_chain, l_value, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
-                json_object * json_obj_out = json_object_new_object();
-                json_object_object_add(json_obj_out,"status", json_object_new_string("Blockgen period has been set"));
-                json_object_object_add(json_obj_out, a_version == 1 ? "decree hash" : "decree_hash", json_object_new_string(l_decree_hash_str));
-                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_t * json_obj_out = dap_json_object_new();
+                dap_json_object_add_object(json_obj_out,"status", dap_json_object_new_string("Blockgen period has been set"));
+                dap_json_object_add_object(json_obj_out, a_version == 1 ? "decree hash" : "decree_hash", dap_json_object_new_string(l_decree_hash_str));
+                dap_json_array_add(*a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_BLOCKGEN_PERIOD_ERR,"Blockgen period setting failed");
@@ -3502,9 +3502,9 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_BLOCKGEN_PERIOD_ERR;
             }
         } else{
-            json_object * json_obj_out = json_object_new_object();
-            json_object_object_add(json_obj_out, "empty_block_every_times", json_object_new_uint64(l_esbocs_pvt->empty_block_every_times));
-            json_object_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_t * json_obj_out = dap_json_object_new();
+            dap_json_object_add_object(json_obj_out, "empty_block_every_times", dap_json_object_new_uint64(l_esbocs_pvt->empty_block_every_times));
+            dap_json_array_add(*a_json_arr_reply, json_obj_out);
         }            
     } break;
 
@@ -3662,7 +3662,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 int dap_chain_esbocs_set_empty_block_every_times(dap_chain_t *a_chain, uint16_t a_blockgen_period)
 {
     dap_return_val_if_pass(!a_chain || !DAP_CHAIN_ESBOCS(a_chain), -1);
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_return_val_if_pass(!DAP_CHAIN_ESBOCS(l_blocks) || !PVT(DAP_CHAIN_ESBOCS(l_blocks)), -2);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);

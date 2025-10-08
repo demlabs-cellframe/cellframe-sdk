@@ -1422,7 +1422,7 @@ dap_chain_net_voting_info_t *s_voting_extract_info(struct voting *a_voting)
     // Set info-specific fields
     l_info->hash = a_voting->hash;
     l_info->is_expired = (a_voting->params->voting_expire && a_voting->params->voting_expire < dap_time_now());
-    l_info->is_cancelled = !dap_strcmp(s_get_voting_status(a_voting), "cancelled");
+    //l_info->is_cancelled = !dap_strcmp(s_get_voting_status(a_voting), "cancelled");
     l_info->options.count_option = dap_list_length(a_voting->params->options);
     dap_chain_net_voting_option_info_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_voting_option_info_t*, l_info->options.count_option);
     for (uint64_t i = 0; i < l_info->options.count_option; i++){
@@ -1634,7 +1634,7 @@ static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint6
     return 0;
 }
 
-int dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out)
+int dap_chain_net_vote_cancel(dap_json_t *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out)
 {
     if (!a_wallet || !a_net || !a_hash_tx_out)
         return DAP_CHAIN_NET_VOTE_CANCEL_UNKNOWN_ERR;
@@ -1644,26 +1644,16 @@ int dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_ch
         return DAP_CHAIN_NET_VOTE_CANCEL_SERVICE_NOT_FOUND;
     }
     
-    pthread_rwlock_rdlock(&l_service_internal->rwlock);
     struct voting *l_voting = s_voting_find(a_net->pub.id, a_voting_hash);
 
     if (!l_voting) {
-        pthread_rwlock_unlock(&l_service_internal->rwlock);
         return DAP_CHAIN_NET_VOTE_CANCEL_HASH_NOT_FOUND;
     }
 
-    if (l_voting->status != DAP_CHAIN_NET_VOTING_STATUS_ACTIVE) {
-        pthread_rwlock_unlock(&l_service_internal->rwlock);
-        return DAP_CHAIN_NET_VOTE_CANCEL_VOTING_NOT_ACTIVE;
-    }
-
     if (l_voting->params->voting_expire && dap_time_now() > l_voting->params->voting_expire) {
-        pthread_rwlock_unlock(&l_service_internal->rwlock);
         return DAP_CHAIN_NET_VOTE_CANCEL_VOTING_EXPIRED;
     }
     
-    pthread_rwlock_unlock(&l_service_internal->rwlock);
-
     dap_chain_datum_tx_t *l_voting_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_voting_hash);
     if (!l_voting_tx) {
         return DAP_CHAIN_NET_VOTE_CANCEL_VOTING_TX_NOT_FOUND;
@@ -1687,7 +1677,8 @@ int dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_ch
     }
 
     if (!l_is_owner) {
-        log_it(L_ERROR, "Voting %s was not signed by this wallet %s , owner %s", dap_chain_hash_fast_to_str_static(a_voting_hash), dap_chain_addr_to_str_static(l_addr_from), dap_chain_addr_to_str_static(&l_owner_addr));
+        log_it(L_ERROR, "Voting %s was not signed by this wallet %s , owner %s", dap_chain_hash_fast_to_str_static(a_voting_hash),
+                                           dap_chain_addr_to_str_static(l_addr_from), dap_chain_addr_to_str_static(&l_owner_addr));
         return DAP_CHAIN_NET_VOTE_CANCEL_NO_RIGHTS;
     }
     
