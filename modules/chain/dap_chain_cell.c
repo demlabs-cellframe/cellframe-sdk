@@ -437,9 +437,18 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 break;
             }
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
-            dap_chain_atom_verify_res_t l_verif = a_cell->chain->callback_atom_prefetch
-                ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
-                : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
+            dap_chain_atom_verify_res_t l_verif = ATOM_REJECT; // Default if no callbacks
+            if (a_cell->chain->callback_atom_prefetch) {
+                l_verif = a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash);
+            } else if (a_cell->chain->callback_atom_add) {
+                l_verif = a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
+            } else {
+                // No callbacks available - can't process atoms
+                log_it(L_WARNING, "No atom processing callbacks available for chain \"%s : %s\", cell loading incomplete",
+                       a_cell->chain->net_name, a_cell->chain->name);
+                DAP_DELETE(l_atom);
+                break; // Stop loading, but not an error
+            }
             DAP_DELETE(l_atom);
             if ( l_verif == ATOM_CORRUPTED ) {
                 log_it(L_ERROR, "Atom #%ld is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
@@ -450,7 +459,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             ++q;
             l_pos += sizeof(uint64_t) + l_read;
             if ( !a_cell->chain->callback_atom_prefetch ) {
-                if (l_atom_count) {
+                if (l_atom_count && a_cell->chain->callback_count_atom) {
                     uint64_t l_cur_count = a_cell->chain->callback_count_atom(a_cell->chain);
                     a_cell->chain->load_progress = (int)((float)l_cur_count/l_atom_count * 100 + 0.5);
                 } else
@@ -507,12 +516,13 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
                         a_chain->net_name, a_chain->name, a_filename, errno);
                                           
     off_t l_file_size = ftello(l_file);
-    if (l_file_size <= 0 )
+    // For write mode ('w'), file size 0 is normal for new files
+    if (l_file_size <= 0 && a_mode != 'w')
         m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot get file size or file size 0, error %d",
                         a_chain->net_name, a_chain->name, a_filename, errno);
                         
     fseeko(l_file, 0L, SEEK_SET);
-    uint16_t l_mapping_count = l_file_size/DAP_MAPPED_VOLUME_LIMIT + 1;
+    uint16_t l_mapping_count = l_file_size > 0 ? l_file_size/DAP_MAPPED_VOLUME_LIMIT + 1 : 1;
 
     l_cell = DAP_NEW_Z(dap_chain_cell_t);
     *l_cell = (dap_chain_cell_t) {
@@ -522,9 +532,11 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
         .file_storage   = l_file,
         //.storage_rwlock = PTHREAD_RWLOCK_INITIALIZER
     };
-    l_cell->mapping->volumes = DAP_NEW_Z_COUNT(dap_chain_cell_mmap_volume_t*, l_mapping_count);
-    l_cell->mapping->volumes_count = 0;
-    l_cell->mapping->volumes_max = l_mapping_count;
+    if (a_chain->is_mapped) {
+        l_cell->mapping->volumes = DAP_NEW_Z_COUNT(dap_chain_cell_mmap_volume_t*, l_mapping_count);
+        l_cell->mapping->volumes_count = 0;
+        l_cell->mapping->volumes_max = l_mapping_count;
+    }
 
     dap_strncpy(l_cell->file_storage_path, a_filepath, MAX_PATH);
 
@@ -620,12 +632,153 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
         a_cell->mapping->cursor += sizeof(uint64_t) + a_atom_size;
     }
     /* Update local stat */
-    char *l_key_name = s_cell_get_key_count_name(a_cell);
-    char l_value[64];
-    snprintf(l_value, sizeof(l_value), "%"DAP_UINT64_FORMAT_U, a_cell->chain->callback_count_atom(a_cell->chain));
-    dap_global_db_set(DAP_LOCAL_STAT_GROUP_NAME, l_key_name, l_value, strlen(l_value), false, NULL, NULL);
-    DAP_DELETE(l_key_name);
+    if (a_cell->chain->callback_count_atom) {
+        char *l_key_name = s_cell_get_key_count_name(a_cell);
+        char l_value[64];
+        snprintf(l_value, sizeof(l_value), "%"DAP_UINT64_FORMAT_U, a_cell->chain->callback_count_atom(a_cell->chain));
+        dap_global_db_set(DAP_LOCAL_STAT_GROUP_NAME, l_key_name, l_value, strlen(l_value), false, NULL, NULL);
+        DAP_DELETE(l_key_name);
+    }
     return 0;
+}
+
+/**
+ * @brief dap_chain_cell_read_atom_by_offset
+ * Read atom from cell file by offset
+ * @param a_chain Chain object
+ * @param a_cell_id Cell ID where atom is stored
+ * @param a_offset File offset where atom is located (points to size field before atom data)
+ * @param a_atom_size Pointer to store atom size (output parameter)
+ * @return Pointer to atom data (must be freed by caller) or NULL on error
+ * @note The offset should point to the uint64_t size field, not the atom data itself
+ * @note For mapped chains, data is read from memory-mapped region
+ * @note For non-mapped chains, data is read from file using fseeko/fread
+ * @author Olzhas Zharasbaev
+ */
+void *dap_chain_cell_read_atom_by_offset(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, 
+                                          off_t a_offset, size_t *a_atom_size)
+{
+    dap_return_val_if_fail(a_chain && a_atom_size, NULL);
+    dap_return_val_if_fail_err(a_offset >= (off_t)sizeof(dap_chain_cell_file_header_t), NULL,
+                               "Invalid offset %ld, must be >= header size", (long)a_offset);
+    
+    dap_chain_cell_t *l_cell = dap_chain_cell_capture_by_id(a_chain, a_cell_id);
+    dap_return_val_if_fail_err(l_cell, NULL, "Cell #%"DAP_UINT64_FORMAT_x" not found in chain \"%s : %s\"",
+                               a_cell_id.uint64, a_chain->net_name, a_chain->name);
+    
+    uint64_t l_atom_size = 0;
+    void *l_atom_data = NULL;
+    
+    if (a_chain->is_mapped && l_cell->mapping) {
+        // Memory-mapped mode: find the volume containing this offset
+        off_t l_volume_offset = 0;
+        dap_chain_cell_mmap_volume_t *l_target_volume = NULL;
+        
+        // Find which volume contains our offset
+        for (uint16_t i = 0; i < l_cell->mapping->volumes_count; i++) {
+            off_t l_next_volume_offset = l_volume_offset + l_cell->mapping->volumes[i]->size;
+            if (a_offset >= l_volume_offset && a_offset < l_next_volume_offset) {
+                l_target_volume = l_cell->mapping->volumes[i];
+                break;
+            }
+            l_volume_offset = l_next_volume_offset;
+        }
+        
+        if (!l_target_volume) {
+            log_it(L_ERROR, "Offset %ld not found in any mapped volume for cell 0x%016"DAP_UINT64_FORMAT_X,
+                   (long)a_offset, a_cell_id.uint64);
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+        
+        // Calculate position within the volume
+        off_t l_offset_in_volume = a_offset - l_volume_offset;
+        char *l_data_ptr = l_target_volume->base + l_offset_in_volume;
+        
+        // Check if size field fits in current volume
+        if (l_offset_in_volume + (off_t)sizeof(uint64_t) > l_target_volume->size) {
+            log_it(L_ERROR, "Size field at offset %ld crosses volume boundary in cell 0x%016"DAP_UINT64_FORMAT_X,
+                   (long)a_offset, a_cell_id.uint64);
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+        
+        // Read atom size
+        memcpy(&l_atom_size, l_data_ptr, sizeof(uint64_t));
+        l_data_ptr += sizeof(uint64_t);
+        
+        // Check if atom data fits in current volume
+        if (l_offset_in_volume + (off_t)sizeof(uint64_t) + (off_t)l_atom_size > l_target_volume->size) {
+            log_it(L_ERROR, "Atom data at offset %ld (size %"DAP_UINT64_FORMAT_U") crosses volume boundary in cell 0x%016"DAP_UINT64_FORMAT_X,
+                   (long)a_offset, l_atom_size, a_cell_id.uint64);
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+        
+        // Allocate and copy atom data
+        l_atom_data = DAP_NEW_SIZE(byte_t, l_atom_size);
+        if (!l_atom_data) {
+            log_it(L_CRITICAL, "Memory allocation error for atom size %"DAP_UINT64_FORMAT_U, l_atom_size);
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+        memcpy(l_atom_data, l_data_ptr, l_atom_size);
+        
+    } else {
+        // File-based mode: use fseeko/fread
+        if (!l_cell->file_storage) {
+            log_it(L_ERROR, "file_storage is NULL for cell 0x%016"DAP_UINT64_FORMAT_X, a_cell_id.uint64);
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+        if (fseeko(l_cell->file_storage, a_offset, SEEK_SET) != 0) {
+            log_it(L_ERROR, "Cannot seek to offset %ld in cell 0x%016"DAP_UINT64_FORMAT_X", error %d: \"%s\"",
+                   (long)a_offset, a_cell_id.uint64, errno, dap_strerror(errno));
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+        
+        // Read atom size
+        if (fread(&l_atom_size, sizeof(uint64_t), 1, l_cell->file_storage) != 1) {
+            log_it(L_ERROR, "Cannot read atom size at offset %ld in cell 0x%016"DAP_UINT64_FORMAT_X", error %d: \"%s\"",
+                   (long)a_offset, a_cell_id.uint64, errno, dap_strerror(errno));
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+        
+        // Validate atom size
+        if (l_atom_size == 0 || l_atom_size > (1ULL << 30)) { // Max 1GB sanity check
+            log_it(L_ERROR, "Invalid atom size %"DAP_UINT64_FORMAT_U" at offset %ld in cell 0x%016"DAP_UINT64_FORMAT_X,
+                   l_atom_size, (long)a_offset, a_cell_id.uint64);
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+        
+        // Allocate memory for atom data
+        l_atom_data = DAP_NEW_SIZE(byte_t, l_atom_size);
+        if (!l_atom_data) {
+            log_it(L_CRITICAL, "Memory allocation error for atom size %"DAP_UINT64_FORMAT_U, l_atom_size);
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+        
+        // Read atom data
+        if (fread(l_atom_data, l_atom_size, 1, l_cell->file_storage) != 1) {
+            log_it(L_ERROR, "Cannot read atom data (%"DAP_UINT64_FORMAT_U" bytes) at offset %ld in cell 0x%016"DAP_UINT64_FORMAT_X", error %d: \"%s\"",
+                   l_atom_size, (long)a_offset + (long)sizeof(uint64_t), a_cell_id.uint64, errno, dap_strerror(errno));
+            DAP_DELETE(l_atom_data);
+            dap_chain_cell_remit(a_chain);
+            return NULL;
+        }
+    }
+    
+    dap_chain_cell_remit(a_chain);
+    
+    *a_atom_size = (size_t)l_atom_size;
+    log_it(L_DEBUG, "Read atom of size %zu bytes from chain \"%s : %s\", cell 0x%016"DAP_UINT64_FORMAT_X", offset %ld",
+           *a_atom_size, a_chain->net_name, a_chain->name, a_cell_id.uint64, (long)a_offset);
+    
+    return l_atom_data;
 }
 
 /**

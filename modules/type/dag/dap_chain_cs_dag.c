@@ -67,6 +67,9 @@ typedef struct dap_chain_cs_dag_event_item {
     uint64_t event_number;
     int ret_code;
     char *mapped_region;
+    // File location info for wallet cache optimization
+    dap_chain_cell_id_t cell_id;     // Cell ID where event is stored (valid for celled DAG)
+    off_t file_offset;                // File offset of event in cell file (0 if not in file yet)
     UT_hash_handle hh, hh_select, hh_datums;
 } dap_chain_cs_dag_event_item_t;
 
@@ -484,7 +487,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_read(dap_chain_t *a_cha
             .hash       = *a_atom_hash,
             .event      = a_chain->is_mapped ? l_event : DAP_DUP_SIZE(l_event, a_atom_size),
             .event_size = a_atom_size,
-            .ts_created = l_event->header.ts_created
+            .ts_created = l_event->header.ts_created,
+            .cell_id    = l_event->header.cell_id,
+            .file_offset = 0  // Will be calculated by helper function when needed
         };
         HASH_ADD_BYHASHVALUE(hh, PVT(l_dag)->events_prefetched, hash, sizeof(*a_atom_hash), hashval, l_event_item);
         if ( l_last_ts > l_event_item->ts_created )
@@ -554,7 +559,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         .ts_added   = dap_time_now(),
         .event      = a_chain->is_mapped ? l_event : DAP_DUP_SIZE(l_event, a_atom_size),
         .event_size = a_atom_size,
-        .ts_created = l_event->header.ts_created
+        .ts_created = l_event->header.ts_created,
+        .cell_id    = l_event->header.cell_id,
+        .file_offset = 0  // Will be calculated by helper function when needed
     };
 
     switch (ret) {
@@ -1227,11 +1234,19 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_cs
         a_datum_iter->cur_hash = &a_event_item->datum_hash;
         a_datum_iter->cur_atom_hash = &a_event_item->hash;
         a_datum_iter->ret_code = a_event_item->ret_code;
+        
+        // Use pre-calculated file location from event_item
+        a_datum_iter->cur_cell_id = a_event_item->cell_id;
+        a_datum_iter->cur_file_offset = a_event_item->file_offset;
+        a_datum_iter->cur_datum_offset_in_block = 0;  // DAG: datum IS the atom (no block wrapper)
     } else {
         a_datum_iter->cur = NULL;
         a_datum_iter->cur_hash = NULL;
         a_datum_iter->cur_size = 0;
         a_datum_iter->ret_code = 0;
+        a_datum_iter->cur_cell_id.uint64 = 0;
+        a_datum_iter->cur_file_offset = 0;
+        a_datum_iter->cur_datum_offset_in_block = 0;
     }
 }
 

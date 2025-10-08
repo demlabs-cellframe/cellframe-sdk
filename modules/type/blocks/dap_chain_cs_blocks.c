@@ -2624,6 +2624,10 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->action = a_datum_index->action;
         a_datum_iter->uid = a_datum_index->service_uid;    
         a_datum_iter->token_ticker = dap_strcmp(a_datum_index->token_ticker, "") ? a_datum_index->token_ticker : NULL;
+        // Blocks chain stores data in RAM, not in cell files
+        a_datum_iter->cur_cell_id.uint64 = 0;
+        a_datum_iter->cur_file_offset = 0;
+        a_datum_iter->cur_datum_offset_in_block = 0;  // Blocks: data in RAM, no file offset
     } else {
         a_datum_iter->cur = NULL;
         a_datum_iter->cur_hash = NULL;
@@ -2633,6 +2637,9 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->token_ticker = NULL;
         a_datum_iter->action = 0;
         a_datum_iter->uid.uint64 = 0;
+        a_datum_iter->cur_cell_id.uint64 = 0;
+        a_datum_iter->cur_file_offset = 0;
+        a_datum_iter->cur_datum_offset_in_block = 0;
     }
     debug_if(a_datum_index && !a_datum_index->block_cache->datum, L_ERROR, "Chains was deleted with errors");
 }

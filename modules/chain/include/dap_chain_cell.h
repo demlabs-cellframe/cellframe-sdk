@@ -99,6 +99,19 @@ DAP_INLINE void dap_chain_cell_remit(dap_chain_t *a_chain) {
 
 void dap_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
 void dap_chain_cell_close_all(dap_chain_t *a_chain);
+
+/**
+ * @brief Read atom from cell file by offset
+ * @param a_chain Chain object
+ * @param a_cell_id Cell ID where atom is stored
+ * @param a_offset File offset where atom is located (points to size field)
+ * @param a_atom_size Pointer to store atom size (output parameter)
+ * @return Pointer to atom data (must be freed by caller) or NULL on error
+ * @author Olzhas Zharasbaev
+ */
+void *dap_chain_cell_read_atom_by_offset(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
+                                          off_t a_offset, size_t *a_atom_size);
+
 int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
                                    const void *a_atom, size_t a_atom_size, char **a_atom_map);
 int dap_chain_cell_remove(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_archivate);

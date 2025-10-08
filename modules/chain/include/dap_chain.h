@@ -68,6 +68,10 @@ typedef struct dap_chain_datum_iter {
     int ret_code;
     char *token_ticker;
     void *cur_item;
+    // File location info for wallet cache optimization
+    dap_chain_cell_id_t cur_cell_id;     // Cell ID where datum is stored (0 for non-celled chains)
+    off_t cur_file_offset;                // File offset of BLOCK in cell file (points to SIZE field before block data)
+    size_t cur_datum_offset_in_block;     // Offset of THIS datum WITHIN the block (from start of meta_n_datum_n_sign, 0 for DAG where datum=atom)
 } dap_chain_datum_iter_t;
 
 typedef enum dap_chain_atom_verify_res{

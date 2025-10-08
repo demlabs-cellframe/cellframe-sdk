@@ -42,6 +42,8 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain.h"
 #include "dap_common.h"
+#include "dap_chain_cell.h"
+#include "dap_chain_block.h"
 
 
 
@@ -67,7 +69,12 @@ typedef struct dap_wallet_tx_cache_output{
 typedef struct dap_wallet_tx_cache {
     dap_hash_fast_t tx_hash;
     dap_hash_fast_t atom_hash;
-    dap_chain_datum_tx_t *tx;
+    dap_chain_datum_tx_t *tx;  // Legacy: RAM pointer (for backward compatibility, may be NULL)
+    // NEW: File-based storage (RAM → GlobalDB migration)
+    dap_chain_cell_id_t cell_id;    // Cell ID where transaction is stored
+    off_t file_offset;               // File offset of BLOCK in file (points to SIZE field before block data)
+    size_t datum_offset_in_block;    // Offset of THIS datum WITHIN the block (from start of meta_n_datum_n_sign)
+    dap_chain_t *chain;              // Chain context for reading via dap_chain_cell_read_atom_by_offset()
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     bool multichannel;
     int ret_code;
@@ -110,9 +117,11 @@ static dap_wallet_cache_t *s_wallets_cache = NULL;
 static pthread_rwlock_t s_wallet_cache_rwlock;
 static bool s_debug_more = false;
 
+static dap_chain_datum_tx_t* s_get_tx_from_cache_entry(dap_wallet_tx_cache_t *a_entry);
 static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx,
                                     dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_atom_hash, int a_ret_code, char* a_main_token_ticker,
-                                    dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action, char a_cache_op);
+                                    dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action, char a_cache_op,
+                                    dap_chain_cell_id_t a_cell_id, off_t a_file_offset, size_t a_datum_offset_in_block);
 static int s_save_cache_for_addr_in_net(dap_chain_net_t *a_net, dap_chain_addr_t *a_addr);
 static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_hash_fast_t *a_atom_hash, void *a_datum, 
                                     size_t a_datum_size, int a_ret_code, uint32_t a_action, 
@@ -204,7 +213,38 @@ int dap_chain_wallet_cache_init()
 
 int dap_chain_wallet_cache_deinit()
 {
-
+    pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+    
+    // Iterate through all wallets and free their cache entries
+    dap_wallet_cache_t *l_wallet_item, *l_wallet_tmp;
+    HASH_ITER(hh, s_wallets_cache, l_wallet_item, l_wallet_tmp) {
+        // Free all transactions for this wallet
+        dap_wallet_tx_cache_t *l_tx_item, *l_tx_tmp;
+        HASH_ITER(hh, l_wallet_item->wallet_txs, l_tx_item, l_tx_tmp) {
+            HASH_DEL(l_wallet_item->wallet_txs, l_tx_item);
+            
+            // Free transaction data if cached
+            if (l_tx_item->tx) {
+                DAP_DELETE(l_tx_item->tx);
+            }
+            
+            // Free lists
+            dap_list_free_full(l_tx_item->tx_wallet_inputs, NULL);
+            dap_list_free_full(l_tx_item->tx_wallet_outputs, NULL);
+            
+            DAP_DELETE(l_tx_item);
+        }
+        
+        // Free wallet item
+        HASH_DEL(s_wallets_cache, l_wallet_item);
+        DAP_DELETE(l_wallet_item);
+    }
+    
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    pthread_rwlock_destroy(&s_wallet_cache_rwlock);
+    
+    debug_if(s_debug_more, L_INFO, "Wallet cache deinitialized and memory freed");
+    
     return 0;
 }
 
@@ -292,7 +332,7 @@ int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_
         // Now work with it
         *a_tx_hash_curr = l_current_wallet_tx_iter->tx_hash;
         if (a_datum)
-            *a_datum = l_current_wallet_tx_iter->tx;
+            *a_datum = s_get_tx_from_cache_entry(l_current_wallet_tx_iter);  // Lazy loading with file offset
         if(a_ret_code)
             *a_ret_code = l_current_wallet_tx_iter->ret_code;
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
@@ -362,7 +402,7 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
         // Now work with it
         *a_tx_hash_curr = l_current_wallet_tx->tx_hash;
         if (a_datum)
-            *a_datum = l_current_wallet_tx->tx;
+            *a_datum = s_get_tx_from_cache_entry(l_current_wallet_tx);  // Lazy loading with file offset
         if(a_ret_code)
             *a_ret_code = l_current_wallet_tx->ret_code;
         if(a_action)
@@ -628,7 +668,9 @@ static int s_save_cache_for_addr_in_net(dap_chain_net_t *a_net, dap_chain_addr_t
 
                     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
                         s_save_tx_cache_for_addr(l_chain, a_addr, (dap_chain_datum_tx_t*)l_datum->data, l_iter->cur_hash,l_iter->cur_atom_hash,
-                                                 l_iter->ret_code, l_iter->token_ticker, l_iter->uid, l_iter->action, 'a');
+                                                 l_iter->ret_code, l_iter->token_ticker, l_iter->uid, l_iter->action, 'a',
+                                                 l_iter->cur_cell_id, l_iter->cur_file_offset, 
+                                                 l_iter->cur_datum_offset_in_block);  // Get datum offset from iterator!
                 }
                 l_chain->callback_datum_iter_delete(l_iter);
                 break;
@@ -648,9 +690,12 @@ static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_
     if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
         return;
 
+    // NOTE: For new incoming datums, we don't have cell_id/file_offset yet
+    // They will be updated on next full scan via s_save_cache_for_addr_in_net()
     s_save_tx_cache_for_addr(l_arg->chain, NULL, (dap_chain_datum_tx_t*)l_datum->data, a_datum_hash, a_atom_hash, a_ret_code,
                              (char*)dap_ledger_tx_get_token_ticker_by_hash(l_arg->net->pub.ledger, a_datum_hash),
-                             a_uid, a_action, 'a');
+                             a_uid, a_action, 'a',
+                             (dap_chain_cell_id_t){.uint64 = 0}, 0, 0);  // cell_id=0, file_offset=0, datum_offset=0 for new datums
 }
 
 static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_datum_t *a_datum)
@@ -659,8 +704,10 @@ static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *
         return;
 
     dap_atom_notify_arg_t *l_arg = (dap_atom_notify_arg_t*)a_arg;
+    // NOTE: For delete operation, cell_id/file_offset are not needed
     s_save_tx_cache_for_addr(l_arg->chain, NULL, (dap_chain_datum_tx_t*)a_datum->data, a_datum_hash, NULL, 0,
-                             NULL, (dap_chain_srv_uid_t){ }, DAP_CHAIN_TX_TAG_ACTION_UNKNOWN, 'd');
+                             NULL, (dap_chain_srv_uid_t){ }, DAP_CHAIN_TX_TAG_ACTION_UNKNOWN, 'd',
+                             (dap_chain_cell_id_t){.uint64 = 0}, 0, 0);  // cell_id=0, file_offset=0, datum_offset=0 for delete
 }
 
 typedef struct wallet_cache_load_args {
@@ -723,9 +770,94 @@ static int s_out_idx_cmp(dap_list_t *a_l1, dap_list_t *a_l2) {
     return o1->tx_out_idx != o2->tx_out_idx;
 }
 
+/**
+ * @brief Get transaction from cache entry with lazy loading from file
+ * @param a_entry Cache entry
+ * @return Transaction pointer (may be cached or newly loaded), or NULL on error
+ * @note If transaction is loaded from file, it's cached in a_entry->tx for future access
+ */
+static dap_chain_datum_tx_t* s_get_tx_from_cache_entry(dap_wallet_tx_cache_t *a_entry)
+{
+    // If already cached in RAM - return immediately
+    if (a_entry->tx) {
+        return a_entry->tx;
+    }
+    
+    // Check if we have necessary information to read from file
+    if (!a_entry->file_offset || !a_entry->chain) {
+        debug_if(s_debug_more, L_DEBUG, "Cannot read tx from offset: missing file_offset or chain");
+        return NULL;
+    }
+    
+    // Read block from file by offset
+    size_t l_block_size = 0;
+    void *l_block_data = dap_chain_cell_read_atom_by_offset(
+        a_entry->chain,
+        a_entry->cell_id,
+        a_entry->file_offset,
+        &l_block_size
+    );
+    
+    if (!l_block_data) {
+        log_it(L_ERROR, "Failed to read block from offset %ld", a_entry->file_offset);
+        return NULL;
+    }
+    
+    // Cast to block structure
+    dap_chain_block_t *l_block = (dap_chain_block_t *)l_block_data;
+    
+    // Verify block signature
+    if (l_block->hdr.signature != DAP_CHAIN_BLOCK_SIGNATURE) {
+        log_it(L_ERROR, "Invalid block signature at offset %ld", a_entry->file_offset);
+        DAP_DELETE(l_block_data);
+        return NULL;
+    }
+    
+    // Find our datum within the block using datum_offset_in_block
+    if (a_entry->datum_offset_in_block >= l_block_size) {
+        log_it(L_ERROR, "datum_offset_in_block (%zu) exceeds block size (%zu)", 
+               a_entry->datum_offset_in_block, l_block_size);
+        DAP_DELETE(l_block_data);
+        return NULL;
+    }
+    
+    // Extract datum from block
+    byte_t *l_datum_ptr = l_block->meta_n_datum_n_sign + a_entry->datum_offset_in_block;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_datum_ptr;
+    
+    // Verify it's a transaction
+    if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+        log_it(L_ERROR, "Datum at offset is not a transaction (type=%d)", l_datum->header.type_id);
+        DAP_DELETE(l_block_data);
+        return NULL;
+    }
+    
+    // Calculate transaction size
+    size_t l_tx_size = l_datum->header.data_size;
+    
+    // Allocate and copy transaction
+    a_entry->tx = DAP_NEW_SIZE(dap_chain_datum_tx_t, l_tx_size);
+    if (!a_entry->tx) {
+        log_it(L_ERROR, "Failed to allocate memory for transaction (%zu bytes)", l_tx_size);
+        DAP_DELETE(l_block_data);
+        return NULL;
+    }
+    
+    memcpy(a_entry->tx, l_datum->data, l_tx_size);
+    
+    // Free the block (we only need the transaction)
+    DAP_DELETE(l_block_data);
+    
+    debug_if(s_debug_more, L_DEBUG, "Loaded transaction from file: offset=%ld, datum_offset=%zu, size=%zu",
+             a_entry->file_offset, a_entry->datum_offset_in_block, l_tx_size);
+    
+    return a_entry->tx;
+}
+
 static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx, 
                                     dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_atom_hash, int a_ret_code, char* a_main_token_ticker,
-                                    dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action, char a_cache_op)
+                                    dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action, char a_cache_op,
+                                    dap_chain_cell_id_t a_cell_id, off_t a_file_offset, size_t a_datum_offset_in_block)
 {
     int l_ret_val = 0, l_items_cnt = 0, l_out_idx = -1;
     bool l_multichannel = false;
@@ -821,6 +953,8 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             if (!l_wallet_tx_item) {
                 l_wallet_tx_item = DAP_NEW(dap_wallet_tx_cache_t);
                 *l_wallet_tx_item = (dap_wallet_tx_cache_t){ .tx_hash = *a_tx_hash, .atom_hash = *a_atom_hash, .tx = a_tx,
+                    .cell_id = a_cell_id, .file_offset = a_file_offset, .datum_offset_in_block = a_datum_offset_in_block,
+                    .chain = a_chain,  // Store chain context for lazy loading
                     .multichannel = l_multichannel, .ret_code = a_ret_code, .srv_uid = a_srv_uid, .action = a_action };
                 dap_strncpy(l_wallet_tx_item->token_ticker, a_main_token_ticker ? a_main_token_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);
                 HASH_ADD(hh, l_wallet_item->wallet_txs, tx_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
@@ -834,6 +968,10 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                 HASH_DEL(l_wallet_item->wallet_txs, l_wallet_tx_item);
                 dap_list_free_full(l_wallet_tx_item->tx_wallet_inputs, NULL);
                 dap_list_free_full(l_wallet_tx_item->tx_wallet_outputs, NULL);
+                // Free cached transaction data if loaded from file
+                if (l_wallet_tx_item->tx) {
+                    DAP_DELETE(l_wallet_tx_item->tx);
+                }
                 DAP_DELETE(l_wallet_tx_item);
             }
         }
@@ -938,7 +1076,7 @@ static void s_wallet_cache_iter_fill(dap_chain_wallet_cache_iter_t *a_cache_iter
 {
     a_cache_iter->cur_item = (void*)a_cache_index;
     if (a_cache_index) {
-        a_cache_iter->cur_tx = a_cache_index->tx;
+        a_cache_iter->cur_tx = s_get_tx_from_cache_entry(a_cache_index);  // Lazy loading with file offset
         a_cache_iter->cur_hash = &a_cache_index->tx_hash;
         a_cache_iter->cur_atom_hash = &a_cache_index->atom_hash;
         a_cache_iter->ret_code = a_cache_index->ret_code;
