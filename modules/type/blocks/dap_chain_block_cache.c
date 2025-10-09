@@ -115,7 +115,8 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
                                         &a_block_cache->links_hash_count,
                                         &a_block_cache->is_genesis,
                                         &a_block_cache->nonce,
-                                        &a_block_cache->nonce2))
+                                        &a_block_cache->nonce2,
+                                        &a_block_cache->is_blockgen))
         return -1;
 
     DAP_DEL_Z(a_block_cache->datum);
@@ -128,8 +129,7 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
 
     a_block_cache->datum_hash = DAP_NEW_Z_SIZE(dap_hash_fast_t, a_block_cache->datum_count * sizeof(dap_hash_fast_t));
     for (size_t i = 0; i < a_block_cache->datum_count; i++)
-        dap_hash_fast(a_block_cache->datum[i]->data, a_block_cache->datum[i]->header.data_size, &a_block_cache->datum_hash[i]);
-
+        dap_chain_datum_calc_hash(a_block_cache->datum[i], a_block_cache->datum_hash + i);
     return 0;
 }
 
