@@ -1701,8 +1701,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             break;
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
-        dap_hash_fast_t l_zero_hash = {0};
-        if (!memcmp(l_datum_hash, &l_zero_hash, sizeof(dap_hash_fast_t)))
+        if (dap_hash_fast_is_blank(l_datum_hash))
             continue;
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "0", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
 
@@ -2698,7 +2697,7 @@ static dap_chain_block_t *s_block_create(dap_chain_cs_blocks_t *a_blocks, size_t
     dap_chain_block_t *l_ret = NULL;
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
     pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
-        dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks->hh.tbl->tail->prev;
+        dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
         l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
         l_ret = dap_chain_block_new(&l_bcache_last->block_hash, &l_ret_size);
         l_ret->hdr.cell_id.uint64 = a_blocks->chain->cells->id.uint64;
@@ -2799,7 +2798,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     size_t l_end = l_offset + a_count;
 
     if (a_reverse) {
-        dap_chain_block_cache_t *l_ptr = l_blocks_pvt->blocks->hh.tbl->tail->prev;
+        dap_chain_block_cache_t *l_ptr = HASH_LAST(l_blocks_pvt->blocks);
         if (!l_ptr)
             l_ptr = l_blocks_pvt->blocks;
         else
