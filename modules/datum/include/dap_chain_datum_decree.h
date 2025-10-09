@@ -21,39 +21,16 @@
 */
 #pragma once
 
+#include <stdint.h>
 #include "dap_chain_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_math_ops.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_time.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_list.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_cert.h"
 
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 // Forward declaration instead of include to avoid circular dependency
 typedef struct dap_chain_policy dap_chain_policy_t;
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
-#include <stdint.h>
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 
 #define DAP_CHAIN_DATUM_DECREE_VERSION  0
 

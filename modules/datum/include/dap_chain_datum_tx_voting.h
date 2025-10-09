@@ -22,26 +22,11 @@
 #pragma once
 
 #include <stdint.h>
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain.h"
 #include "dap_chain_datum_tx.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_tx_tsd.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_time.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_list.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 
 #define DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH 200
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH 100

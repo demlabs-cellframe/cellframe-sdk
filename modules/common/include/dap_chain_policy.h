@@ -31,9 +31,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 // Forward declarations instead of dap_chain.h to avoid circular dependency
 typedef struct dap_chain dap_chain_t;
 
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
-
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE                      BIT(0)
 
 #define DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS    0x1

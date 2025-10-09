@@ -24,34 +24,12 @@
 */
 #pragma once
 #include "dap_chain_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_hash.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_sign.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
-
 #include "dap_string.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_tsd.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_strfuncs.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 
 // Token declaration
 typedef struct dap_chain_datum_token_old {

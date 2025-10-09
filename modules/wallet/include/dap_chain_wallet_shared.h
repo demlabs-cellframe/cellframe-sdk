@@ -5,13 +5,7 @@
 #define DAP_CHAIN_WALLET_SHARED_TSD_REFILL 0x15
 
 #include "dap_chain_datum_tx.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_mempool.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 
 int dap_chain_wallet_shared_init();
 

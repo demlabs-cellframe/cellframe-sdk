@@ -563,7 +563,9 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
 dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash);
 int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
-dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time, dap_ledger_hardfork_condouts_t **l_cond_outs_list, dap_json_t* a_changed_addrs);
+dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledger, dap_time_t a_hardfork_decree_creation_time,
+                                                            dap_ledger_hardfork_condouts_t **l_cond_outs_list,
+                                                            dap_json_t* a_changed_addrs, dap_ledger_hardfork_fees_t *a_fees_list);
 dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 

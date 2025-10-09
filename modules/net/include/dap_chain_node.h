@@ -22,29 +22,11 @@
 #pragma once
 
 #include <limits.h>
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_list.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_net.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 
 typedef struct dap_chain_net dap_chain_net_t;
 

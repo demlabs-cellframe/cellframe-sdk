@@ -24,25 +24,10 @@
 
 #pragma once
 #include "dap_chain.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_enc_key.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_pkey.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_sign.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_cert.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 
 /* @RRL: #6131 */
 #define DAP_WALLET$SZ_NAME  64                                              /* Maximum length of the wallet's name */

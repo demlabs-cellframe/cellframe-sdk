@@ -23,33 +23,12 @@
 
 #include "dap_chain_common.h"
 
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_math_ops.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_time.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_list.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_tsd.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include <stdint.h>
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
-
 
 typedef struct dap_chain_datum_anchor{
     uint16_t anchor_version;

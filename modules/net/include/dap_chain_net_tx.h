@@ -24,19 +24,8 @@
 #pragma once
 
 #include "dap_chain_net.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_tx_items.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
-
-
 #include "dap_json_rpc_errors.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 
 typedef enum s_net_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_OK = 0,

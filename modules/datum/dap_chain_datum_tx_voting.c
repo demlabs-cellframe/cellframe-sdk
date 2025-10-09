@@ -203,30 +203,13 @@ dap_json_t *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_t
         l_tsd = (dap_tsd_t*)((dap_chain_tx_tsd_t*)l_item)->tsd;
         switch(l_tsd->type) {
         case VOTING_TSD_TYPE_QUESTION:
-            {
-                char *l_question = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
-                memcpy(l_question, l_tsd->data, l_tsd->size);
-                dap_json_object_add_string(l_object, a_version == 1 ? "question" : "voting_question", l_question);
-                DAP_DELETE(l_question);
-            }
+            dap_json_object_add_string_len(l_object, a_version == 1 ? "question" : "voting_question", (char*)l_tsd->data, l_tsd->size);
             break;
         case VOTING_TSD_TYPE_OPTION:
-            {
-                char *l_option = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
-                memcpy(l_option, l_tsd->data, l_tsd->size);
-                dap_json_t *l_option_obj = dap_json_object_new_string(l_option);
-                dap_json_array_add(l_answer_array_object, l_option_obj);
-                DAP_DELETE(l_option);
-            }
+            dap_json_array_add(l_answer_array_object, dap_json_object_new_string_len((char*)l_tsd->data, l_tsd->size));
             break;
         case VOTING_TSD_TYPE_TOKEN:
-            {
-                char *l_token = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
-                memcpy(l_token, l_tsd->data, l_tsd->size);
-                dap_json_object_add_string(l_object, "token", l_token);
-                DAP_DELETE(l_token);
-            }
-            break;
+            dap_json_object_add_string_len(l_object, "token", (char*)l_tsd->data, l_tsd->size);
         case VOTING_TSD_TYPE_EXPIRE:
             dap_json_object_add_uint64(l_object, a_version == 1 ? "exired" : "voting_expire", *(uint64_t*)l_tsd->data);
             break;

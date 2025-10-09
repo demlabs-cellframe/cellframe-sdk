@@ -704,13 +704,36 @@ static void test_dap_chain_datum_dump_tx_json(void)
     dap_chain_net_id_t l_net_id = {.uint64 = 1};
     
    
-    // Test new implementation
-    dap_json_t *l_json = dap_json_object_new();
-    bool l_result = dap_chain_datum_dump_tx_json(NULL, l_tx, "TEST", l_json, "hex", &l_tx_hash, l_net_id, 2);
+
+    // Test old implementation
+    dap_json_t *l_json_old = dap_json_object_new();
+    bool l_result_old = dap_chain_datum_dump_tx_json_old(NULL, l_tx, "TEST", l_json_old, "hex", &l_tx_hash, l_net_id, 2);
     
-     // Cleanup
-    dap_json_object_free(l_json);
+   
+    // Test new implementation
+    dap_json_t *l_json_new = dap_json_object_new();
+    bool l_result_new = dap_chain_datum_dump_tx_json(NULL, l_tx, "TEST", l_json_new, "hex", &l_tx_hash, l_net_id, 2);
+    
+    // Compare results
+    if (l_result_old != l_result_new) {
+        log_it(L_ERROR, "Function return values differ: old=%d, new=%d", l_result_old, l_result_new);
+    } else {
+        log_it(L_INFO, "Function return values match: %d", l_result_old);
+    }
+    
+    if (!compare_dap_json_objects(l_json_old, l_json_new)) {
+        log_it(L_ERROR, "Old output: %s", dap_json_to_string(l_json_old));
+        log_it(L_ERROR, "New output: %s", dap_json_to_string(l_json_new));
+        dap_assert_PIF(0, "JSON outputs differ!");
+    } else {
+        dap_pass_msg("JSON outputs match");
+    }
+    
+    // Cleanup
+    dap_json_object_free(l_json_old);
+    dap_json_object_free(l_json_new);
     dap_chain_datum_tx_delete(l_tx);
+
 }
 
 

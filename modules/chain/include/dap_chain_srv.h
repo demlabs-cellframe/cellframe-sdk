@@ -28,9 +28,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_common.h"
 #include "dap_tsd.h"
 
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
-
 // System services literlas
 #define DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL "PoS-delegate"
 #define DAP_CHAIN_SRV_XCHANGE_LITERAL "eXchange"
@@ -119,6 +116,7 @@ void dap_chain_srv_deinit();
 
 int dap_chain_srv_add(dap_chain_srv_uid_t a_uid, const char *a_name, dap_chain_static_srv_callbacks_t *a_static_callbacks);
 int dap_chain_srv_start(dap_chain_net_id_t a_net_id, const char *a_name, dap_config_t *a_config);
+int dap_chain_srv_start_all(dap_chain_net_id_t a_net_id);
 int dap_chain_srv_delete(dap_chain_srv_uid_t a_uid);
 void *dap_chain_srv_get_internal(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_id);
 dap_chain_srv_uid_t dap_chain_srv_get_uid_by_name(const char *a_name);

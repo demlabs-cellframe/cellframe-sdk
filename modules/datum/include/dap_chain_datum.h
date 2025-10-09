@@ -25,24 +25,10 @@
 #pragma once
 #include <stdint.h>
 
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_common.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_tx.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 #include "dap_chain_datum_token.h"
-
-// Forward declaration for dap_json_t
-typedef struct dap_json dap_json_t;
 
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
