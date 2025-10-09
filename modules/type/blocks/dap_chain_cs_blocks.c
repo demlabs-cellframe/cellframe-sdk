@@ -2697,11 +2697,12 @@ static dap_chain_block_t *s_block_create(dap_chain_cs_blocks_t *a_blocks, size_t
     dap_chain_block_t *l_ret = NULL;
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
     pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
-        dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
-        l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
+    dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
+    if (l_bcache_last) {
         l_ret = dap_chain_block_new(&l_bcache_last->block_hash, &l_ret_size);
         l_ret->hdr.cell_id.uint64 = a_blocks->chain->cells->id.uint64;
         l_ret->hdr.chain_id.uint64 = a_blocks->chain->id.uint64;
+    } // genesis block can't be blank
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     if (a_new_block_size)
         *a_new_block_size = l_ret_size;
