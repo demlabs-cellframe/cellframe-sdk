@@ -365,7 +365,7 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
                dap_chain_hash_fast_to_str_static(a_auction_hash));
         return -2;
     }
-    log_it(L_DEBUG, "Part 1");
+
     // Create new auction cache item
     dap_auction_cache_item_t *l_auction = DAP_NEW_Z(dap_auction_cache_item_t);
     if (!l_auction) {
@@ -373,7 +373,7 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
         log_it(L_CRITICAL, "Memory allocation error for auction cache item");
         return -3;
     }
-    log_it(L_DEBUG, "Part 2");
+
     // Initialize basic auction data
     *l_auction = (dap_auction_cache_item_t) { .auction_tx_hash.hash = *a_auction_hash,
                                               .net_id = a_net_id,
@@ -383,7 +383,7 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
                                               .guuid = dap_strdup(a_guuid),
                                               .status = DAP_AUCTION_STATUS_ACTIVE
     };
-    log_it(L_DEBUG, "Part 3");
+
     // Calculate end time from auction started data if provided
     if (a_started_data) {
         switch (a_started_data->time_unit) {
@@ -404,7 +404,7 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
                 l_auction->end_time = a_tx_timestamp + a_started_data->duration;
                 break;
         }
-        log_it(L_DEBUG, "Part 4");
+
         // Add projects from the auction started data
         if (a_started_data->projects_cnt > 0) {
            
@@ -424,24 +424,20 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
                     return -4;
                 }
                 l_project->project_id = l_project_id;
-                log_it(L_DEBUG, "Part 5");
+
                 // Add to projects hash table
                 HASH_ADD(hh, l_auction->projects, project_id, sizeof(uint64_t), l_project);
             }
         }
-        log_it(L_DEBUG, "Part 6");
+
         const char *l_hash_str = dap_chain_hash_fast_to_str_static(a_auction_hash);
-        log_it(L_DEBUG, "Part 7");
         log_it(L_DEBUG, "Added auction %s with %u projects, duration: %" DAP_UINT64_FORMAT_U " %s", 
                l_hash_str,
                a_started_data->projects_cnt,
                a_started_data->duration,
-               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS ? "hours" :
-               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS ? "days" :
-               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS ? "weeks" :
-               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS ? "months" : "seconds");
+               dap_chain_tx_event_data_time_unit_to_str(a_started_data->time_unit));
     }
-    log_it(L_DEBUG, "Part 8");
+
     // Add to both hash tables for optimal performance
     HASH_ADD_STR(a_cache->auctions, guuid, l_auction);  // Primary table by GUUID
     HASH_ADD(hh_hash, a_cache->auctions_by_hash, auction_tx_hash.hash_key, sizeof(l_auction->auction_tx_hash.hash_key), l_auction);  // Secondary table by tx hash (aligned key for ARM32)
