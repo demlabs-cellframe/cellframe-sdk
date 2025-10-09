@@ -20,11 +20,6 @@ if (CELLFRAME_MODULES MATCHES "dht")
     add_subdirectory(dht)
 endif()
 
-# Node CLI (basic infrastructure)
-if (CELLFRAME_MODULES MATCHES "network")
-    add_subdirectory(node-cli)
-endif()
-
 # Node CLI Commands (high-level, depends on all modules - add last to avoid cycles)
 if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(node-cli-cmd)

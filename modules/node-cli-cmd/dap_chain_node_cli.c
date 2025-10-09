@@ -27,7 +27,6 @@
 #include <assert.h>
 //#include <glib.h>
 #include <pthread.h>
-#include "iputils/iputils.h"
 
 #include "dap_common.h"
 #include "dap_config.h"
