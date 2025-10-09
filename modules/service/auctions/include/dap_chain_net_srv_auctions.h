@@ -34,12 +34,14 @@
 // Auction service ID
 #define DAP_CHAIN_NET_SRV_AUCTION_ID 0x07
 
-typedef enum dap_chain_tx_event_data_time_unit {
+enum dap_chain_tx_event_data_time_unit {
     DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS  = 0,
     DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS   = 1,
     DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS  = 2,
     DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS = 3,
-} dap_chain_tx_event_data_time_unit_t;
+};
+
+typedef uint8_t dap_chain_tx_event_data_time_unit_t;
 
 DAP_STATIC_INLINE const char *dap_chain_tx_event_data_time_unit_to_str(dap_chain_tx_event_data_time_unit_t a_time_unit)
 {
