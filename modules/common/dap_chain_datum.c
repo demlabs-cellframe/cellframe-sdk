@@ -38,6 +38,7 @@
 #include "dap_enc_base58.h"
 #include "dap_sign.h"
 #include "dap_tsd.h"
+#include "dap_chain_wallet_shared.h"
 
 #define LOG_TAG "dap_chain_datum"
 
@@ -97,6 +98,15 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
     default: break;
     }
     dap_tsd_t *l_tsd; size_t l_tsd_size;
+    // Accumulators for address lists to avoid overwriting the same JSON key
+    json_object *l_arr_tx_sender_allowed_add = NULL,
+    *l_arr_tx_sender_allowed_remove = NULL,
+    *l_arr_tx_sender_blocked_add = NULL,
+    *l_arr_tx_sender_blocked_remove = NULL,
+    *l_arr_tx_receiver_allowed_add = NULL,
+    *l_arr_tx_receiver_allowed_remove = NULL,
+    *l_arr_tx_receiver_blocked_add = NULL,
+    *l_arr_tx_receiver_blocked_remove = NULL;
     dap_tsd_iter(l_tsd, l_tsd_size, l_tsd_begin, l_tsd_total_size) {
         switch(l_tsd->type) {
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {
@@ -184,35 +194,52 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD: {
                 dap_chain_addr_t *l_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                json_object_object_add(json_obj_out, "tx_sender_allowed_add", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                if (!l_arr_tx_sender_allowed_add)
+                    l_arr_tx_sender_allowed_add = json_object_new_array();
+                json_object_array_add(l_arr_tx_sender_allowed_add, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             } continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE:{
                 dap_chain_addr_t *l_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                json_object_object_add(json_obj_out, "tx_sender_allowed_remove", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                if (!l_arr_tx_sender_allowed_remove)
+                    l_arr_tx_sender_allowed_remove = json_object_new_array();
+                json_object_array_add(l_arr_tx_sender_allowed_remove, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             } continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD: {
                 dap_chain_addr_t *l_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                json_object_object_add(json_obj_out, "tx_sender_blocked_add", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                if (!l_arr_tx_sender_blocked_add)
+                    l_arr_tx_sender_blocked_add = json_object_new_array();
+                json_object_array_add(l_arr_tx_sender_blocked_add, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             } continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE: {
                 dap_chain_addr_t *l_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                json_object_object_add(json_obj_out, "tx_sender_blocked_remove", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                if (!l_arr_tx_sender_blocked_remove)
+                    l_arr_tx_sender_blocked_remove = json_object_new_array();
+                json_object_array_add(l_arr_tx_sender_blocked_remove, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             } continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD: {
                 dap_chain_addr_t *l_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                json_object_object_add(json_obj_out, "tx_receiver_allowed_add", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                if (!l_arr_tx_receiver_allowed_add)
+                    l_arr_tx_receiver_allowed_add = json_object_new_array();
+                json_object_array_add(l_arr_tx_receiver_allowed_add, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             } continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE: {
                 dap_chain_addr_t *l_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                json_object_object_add(json_obj_out, "tx_receiver_allowed", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                if (!l_arr_tx_receiver_allowed_remove)
+                    l_arr_tx_receiver_allowed_remove = json_object_new_array();
+                // Note: keep historical key name "tx_receiver_allowed" for compatibility
+                json_object_array_add(l_arr_tx_receiver_allowed_remove, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             } continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD: {
                 dap_chain_addr_t *l_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                json_object_object_add(json_obj_out, "tx_receiver_blocked_add", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                if (!l_arr_tx_receiver_blocked_add)
+                    l_arr_tx_receiver_blocked_add = json_object_new_array();
+                json_object_array_add(l_arr_tx_receiver_blocked_add, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             } continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE: {
                 dap_chain_addr_t *l_addr = dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                json_object_object_add(json_obj_out, "tx_receiver_blocked_remove", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+                if (!l_arr_tx_receiver_blocked_remove)
+                    l_arr_tx_receiver_blocked_remove = json_object_new_array();
+                json_object_array_add(l_arr_tx_receiver_blocked_remove, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             } continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION:
             json_object_object_add(json_obj_out, "description", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
@@ -225,6 +252,32 @@ void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datu
             }
         }
     }
+
+    // Flush accumulated arrays into JSON object (or free if empty)
+    if (l_arr_tx_sender_allowed_add)
+        json_object_object_add(json_obj_out, "tx_sender_allowed_add", l_arr_tx_sender_allowed_add);
+
+    if (l_arr_tx_sender_allowed_remove)
+        json_object_object_add(json_obj_out, "tx_sender_allowed_remove", l_arr_tx_sender_allowed_remove);
+
+    if (l_arr_tx_sender_blocked_add)
+        json_object_object_add(json_obj_out, "tx_sender_blocked_add", l_arr_tx_sender_blocked_add);
+
+    if (l_arr_tx_sender_blocked_remove)
+        json_object_object_add(json_obj_out, "tx_sender_blocked_remove", l_arr_tx_sender_blocked_remove);
+
+    if (l_arr_tx_receiver_allowed_add)
+        json_object_object_add(json_obj_out, "tx_receiver_allowed_add", l_arr_tx_receiver_allowed_add);
+
+    // Keep historical key name for allowed remove ("tx_receiver_allowed")
+    if (l_arr_tx_receiver_allowed_remove)
+        json_object_object_add(json_obj_out, "tx_receiver_allowed_remove", l_arr_tx_receiver_allowed_remove);
+
+    if (l_arr_tx_receiver_blocked_add)
+        json_object_object_add(json_obj_out, "tx_receiver_blocked_add", l_arr_tx_receiver_blocked_add);
+
+    if (l_arr_tx_receiver_blocked_remove)
+        json_object_object_add(json_obj_out, "tx_receiver_blocked_remove", l_arr_tx_receiver_blocked_remove);
 }
 
 /**
@@ -478,6 +531,24 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                     dap_time_t l_ts_unlock = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
                     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_unlock);
                     json_object_object_add(json_obj_item,"time_unlock", json_object_new_string(l_tmp_buf));
+                } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
+                    dap_chain_tx_tsd_t *l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(a_datum, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF);
+                    json_object *l_jobj_diff = json_object_new_array();
+                    json_object *l_jobj_diff_obj = json_object_new_object();
+                    if (l_diff_tx_tsd || (l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(a_datum, DAP_CHAIN_WALLET_SHARED_TSD_REFILL))) {
+                        uint256_t l_diff_value = {};
+                        memcpy(&l_diff_value, ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->data, sizeof(uint256_t));
+                        const char *l_value_coins_str = NULL;
+                        l_value_str = dap_uint256_to_char(l_diff_value, &l_value_coins_str);
+                        json_object_object_add(l_jobj_diff_obj, "type", json_object_new_string(((dap_tsd_t *)(l_diff_tx_tsd->tsd))->type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF ? "writeoff" : "refill"));
+                        json_object_object_add(l_jobj_diff_obj, "value", json_object_new_string(l_value_str));
+                        json_object_object_add(l_jobj_diff_obj, "coins", json_object_new_string(l_value_coins_str));
+                    } else {
+                        json_object_object_add(l_jobj_diff_obj, "type", json_object_new_string("hold"));
+                    }
+                    json_object_array_add(l_jobj_diff, l_jobj_diff_obj);
+                    json_object_object_add(json_obj_item, "operation", l_jobj_diff);
                 } break;
                 default: break;
             }
