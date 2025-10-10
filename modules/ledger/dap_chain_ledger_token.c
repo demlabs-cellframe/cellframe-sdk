@@ -127,7 +127,7 @@ bool dap_ledger_pvt_cache_gdb_load_tokens_callback(dap_global_db_instance_t *a_d
             log_it(L_WARNING, "Corrupted token with ticker [%s], need to 'ledger reload' to update cache", a_values[i].key);
             continue;
         }
-        dap_ledger_token_add(l_ledger, (byte_t *)l_token, l_token_size);
+        dap_ledger_token_add(l_ledger, (byte_t *)l_token, l_token_size, dap_time_now());
         dap_ledger_token_item_t *l_token_item = dap_ledger_pvt_find_token(l_ledger, l_token->ticker);
         if (l_token_item)
             l_token_item->current_supply = *(uint256_t*)a_values[i].value;
@@ -165,8 +165,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
     size_t l_new_tx_recv_block_size = a_item_apply_to ? a_item_apply_to->tx_recv_block_size : 0;
     size_t l_new_tx_send_allow_size = a_item_apply_to ? a_item_apply_to->tx_send_allow_size : 0;
     size_t l_new_tx_send_block_size = a_item_apply_to ? a_item_apply_to->tx_send_block_size : 0;
-    dap_chain_addr_t *l_new_tx_recv_allow = NULL, *l_new_tx_recv_block = NULL,
-                     *l_new_tx_send_allow = NULL, *l_new_tx_send_block = NULL;
+    struct spec_address *l_new_tx_recv_allow = NULL, *l_new_tx_recv_block = NULL,
+                        *l_new_tx_send_allow = NULL, *l_new_tx_send_block = NULL;
     bool l_was_tx_recv_allow_copied = false, l_was_tx_recv_block_copied = false,
          l_was_tx_send_allow_copied = false, l_was_tx_send_block_copied = false;
 
@@ -254,7 +254,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_recv_allow && l_new_tx_recv_allow_size && !l_was_tx_recv_allow_copied) {
                 assert(a_item_apply_to->tx_recv_allow);
                 // Deep copy addrs to sandbox
-                l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(struct spec_address));
                 if (!l_new_tx_recv_allow) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -263,15 +263,16 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_was_tx_recv_allow_copied = true;
             // Check if its already present
             for (size_t i = 0; i < l_new_tx_recv_allow_size; i++) { // Check for all the list
-                if (dap_chain_addr_compare(l_new_tx_recv_allow + i, l_add_addr)) { // Found
+                if (dap_chain_addr_compare(&l_new_tx_recv_allow[i].addr, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_RECEIVER_ALLOWED_ADD has address %s thats already present in list",
                                                                     dap_chain_addr_to_str_static(l_add_addr));
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
                 }
             }
-            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_recv_allow, l_new_tx_recv_allow_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            struct spec_address *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_recv_allow, l_new_tx_recv_allow_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
             l_new_tx_recv_allow = l_tmp;
-            l_new_tx_recv_allow[l_new_tx_recv_allow_size++] = *l_add_addr;
+            l_new_tx_recv_allow[l_new_tx_recv_allow_size++].addr = *l_add_addr;
+            l_new_tx_recv_allow[l_new_tx_recv_allow_size - 1].becomes_effective = dap_time_now();
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE: {
@@ -288,7 +289,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_recv_allow && l_new_tx_recv_allow_size && !l_was_tx_recv_allow_copied) {
                 assert(a_item_apply_to->tx_recv_allow);
                 // Deep copy addrs to sandbox
-                l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(struct spec_address));
                 if (!l_new_tx_recv_allow) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -298,7 +299,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             // Check if its already present
             size_t i = 0;
             for ( ; i < l_new_tx_recv_allow_size; i++) // Check for all the list
-                if (dap_chain_addr_compare(l_new_tx_recv_allow + i, l_add_addr))
+                if (dap_chain_addr_compare(&l_new_tx_recv_allow[i].addr, l_add_addr))
                     break;
             if (i == l_new_tx_recv_allow_size) {
                 log_it(L_WARNING, "TSD param TX_RECEIVER_ALLOWED_REMOVE has address %s thats not present in list",
@@ -342,7 +343,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_recv_block && l_new_tx_recv_block_size && !l_was_tx_recv_block_copied) {
                 assert(a_item_apply_to->tx_recv_block);
                 // Deep copy addrs to sandbox
-                l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(struct spec_address));
                 if (!l_new_tx_recv_block) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -351,15 +352,16 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_was_tx_recv_block_copied = true;
             // Check if its already present
             for (size_t i = 0; i < l_new_tx_recv_block_size; i++) { // Check for all the list
-                if (dap_chain_addr_compare(l_new_tx_recv_block + i, l_add_addr)) { // Found
+                if (dap_chain_addr_compare(&l_new_tx_recv_block[i].addr, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_RECEIVER_BLOCKED_ADD has address %s thats already present in list",
                                                                     dap_chain_addr_to_str_static(l_add_addr));
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
                 }
             }
-            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_recv_block, l_new_tx_recv_block_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            struct spec_address *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_recv_block, l_new_tx_recv_block_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
             l_new_tx_recv_block = l_tmp;
-            l_new_tx_recv_block[l_new_tx_recv_block_size++] = *l_add_addr;
+            l_new_tx_recv_block[l_new_tx_recv_block_size++].addr = *l_add_addr;
+            l_new_tx_recv_block[l_new_tx_recv_block_size - 1].becomes_effective = dap_time_now();
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE: {
@@ -376,7 +378,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_recv_block && l_new_tx_recv_block_size && !l_was_tx_recv_block_copied) {
                 assert(a_item_apply_to->tx_recv_block);
                 // Deep copy addrs to sandbox
-                l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(struct spec_address));
                 if (!l_new_tx_recv_block) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -386,7 +388,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             // Check if its already present
             size_t i = 0;
             for ( ; i < l_new_tx_recv_block_size; i++) // Check for all the list
-                if (dap_chain_addr_compare(l_new_tx_recv_block + i, l_add_addr))
+                if (dap_chain_addr_compare(&l_new_tx_recv_block[i].addr, l_add_addr))
                     break;
             if (i == l_new_tx_recv_block_size) {
                 log_it(L_WARNING, "TSD param TX_RECEIVER_BLOCKED_REMOVE has address %s thats not present in list",
@@ -400,7 +402,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_new_tx_recv_block_size = l_last_idx;
             // Memory clearing
             if (l_new_tx_recv_block_size)
-                l_new_tx_recv_block = DAP_REALLOC_COUNT(l_new_tx_recv_block, l_new_tx_recv_block_size);
+                l_new_tx_recv_block = DAP_REALLOC(l_new_tx_recv_block,
+                                                          l_new_tx_recv_block_size * sizeof(struct spec_address));
             else
                 DAP_DEL_Z(l_new_tx_recv_block);
         } break;
@@ -430,7 +433,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_send_allow && l_new_tx_send_allow_size && !l_was_tx_send_allow_copied) {
                 assert(a_item_apply_to->tx_send_allow);
                 // Deep copy addrs to sandbox
-                l_new_tx_send_allow = DAP_DUP_SIZE(a_item_apply_to->tx_send_allow, l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
+                l_new_tx_send_allow = DAP_DUP_SIZE(a_item_apply_to->tx_send_allow, l_new_tx_send_allow_size * sizeof(struct spec_address));
                 if (!l_new_tx_send_allow) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -439,15 +442,16 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_was_tx_send_allow_copied = true;
             // Check if its already present
             for (size_t i = 0; i < l_new_tx_send_allow_size; i++) { // Check for all the list
-                if (dap_chain_addr_compare(l_new_tx_send_allow + i, l_add_addr)) { // Found
+                if (dap_chain_addr_compare(&l_new_tx_send_allow[i].addr, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_SENDER_ALLOWED_ADD has address %s thats already present in list",
                                                                     dap_chain_addr_to_str_static(l_add_addr));
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
                 }
             }
-            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_send_allow, l_new_tx_send_allow_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            struct spec_address *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_send_allow, l_new_tx_send_allow_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
             l_new_tx_send_allow = l_tmp;
-            l_new_tx_send_allow[l_new_tx_send_allow_size++] = *l_add_addr;
+            l_new_tx_send_allow[l_new_tx_send_allow_size++].addr = *l_add_addr;
+            l_new_tx_send_allow[l_new_tx_send_allow_size - 1].becomes_effective = dap_time_now();
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE: {
@@ -465,7 +469,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_send_allow && l_new_tx_send_allow_size && !l_was_tx_send_allow_copied) {
                 assert(a_item_apply_to->tx_send_allow);
                 // Deep copy addrs to sandbox
-                l_new_tx_send_allow = DAP_DUP_SIZE(a_item_apply_to->tx_send_allow, l_new_tx_send_allow_size * sizeof(dap_chain_addr_t));
+                l_new_tx_send_allow = DAP_DUP_SIZE(a_item_apply_to->tx_send_allow, l_new_tx_send_allow_size * sizeof(struct spec_address));
                 if (!l_new_tx_send_allow) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -475,7 +479,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             // Check if its already present
             size_t i = 0;
             for ( ; i < l_new_tx_send_allow_size; i++) // Check for all the list
-                if (dap_chain_addr_compare(l_new_tx_send_allow + i, l_add_addr))
+                if (dap_chain_addr_compare(&l_new_tx_send_allow[i].addr, l_add_addr))
                     break;
             if (i == l_new_tx_send_allow_size) {
                 log_it(L_WARNING, "TSD param TX_SENDER_ALLOWED_REMOVE has address %s thats not present in list",
@@ -489,7 +493,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_new_tx_send_allow_size = l_last_idx;
             // Memory clearing
             if (l_new_tx_send_allow_size)
-                l_new_tx_send_allow = DAP_REALLOC_COUNT(l_new_tx_send_allow, l_new_tx_send_allow_size);
+                l_new_tx_send_allow = DAP_REALLOC(l_new_tx_send_allow,
+                                                          l_new_tx_send_allow_size * sizeof(struct spec_address));
             else
                 DAP_DEL_Z(l_new_tx_send_allow);
         } break;
@@ -519,7 +524,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_send_block && l_new_tx_send_block_size && !l_was_tx_send_block_copied) {
                 assert(a_item_apply_to->tx_send_block);
                 // Deep copy addrs to sandbox
-                l_new_tx_send_block = DAP_DUP_SIZE(a_item_apply_to->tx_send_block, l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
+                l_new_tx_send_block = DAP_DUP_SIZE(a_item_apply_to->tx_send_block, l_new_tx_send_block_size * sizeof(struct spec_address));
                 if (!l_new_tx_send_block) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -528,7 +533,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_was_tx_send_block_copied = true;
             // Check if its already present
             for (size_t i = 0; i < l_new_tx_send_block_size; i++) { // Check for all the list
-                if (dap_chain_addr_compare(l_new_tx_send_block + i, l_add_addr)) { // Found
+                if (dap_chain_addr_compare(&l_new_tx_send_block[i].addr, l_add_addr)) { // Found
                     log_it(L_WARNING, "TSD param TX_SENDER_BLOCKED_ADD has address %s thats already present in list",
                                                                     dap_chain_addr_to_str_static(l_add_addr));
                     return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH);
@@ -536,9 +541,10 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_chain_addr_t *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_send_block, l_new_tx_send_block_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
+            struct spec_address *l_tmp = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_new_tx_send_block, l_new_tx_send_block_size + 1, m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY));
             l_new_tx_send_block = l_tmp;
-            l_new_tx_send_block[l_new_tx_send_block_size++] = *l_add_addr;
+            l_new_tx_send_block[l_new_tx_send_block_size++].addr = *l_add_addr;
+            l_new_tx_send_block[l_new_tx_send_block_size - 1].becomes_effective = dap_time_now();
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE: {
@@ -555,7 +561,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_send_block && l_new_tx_send_block_size && !l_was_tx_send_block_copied) {
                 assert(a_item_apply_to->tx_send_block);
                 // Deep copy addrs to sandbox
-                l_new_tx_send_block = DAP_DUP_SIZE(a_item_apply_to->tx_send_block, l_new_tx_send_block_size * sizeof(dap_chain_addr_t));
+                l_new_tx_send_block = DAP_DUP_SIZE(a_item_apply_to->tx_send_block, l_new_tx_send_block_size * sizeof(struct spec_address));
                 if (!l_new_tx_send_block) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -565,7 +571,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             // Check if its already present
             size_t i = 0;
             for ( ; i < l_new_tx_send_block_size; i++) // Check for all the list
-                if (dap_chain_addr_compare(l_new_tx_send_block + i, l_add_addr))
+                if (dap_chain_addr_compare(&l_new_tx_send_block[i].addr, l_add_addr))
                     break;
             if (i == l_new_tx_send_block_size) {
                 log_it(L_WARNING, "TSD param TX_SENDER_BLOCKED_REMOVE has address %s thats not present in list",
@@ -580,7 +586,6 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             // Memory clearing
             if (l_new_tx_send_block_size)
                 l_new_tx_send_block = DAP_REALLOC_COUNT(l_new_tx_send_block, l_new_tx_send_block_size);
-
             else
                 DAP_DEL_Z(l_new_tx_send_block);
         } break;
@@ -1124,11 +1129,13 @@ bool dap_ledger_pvt_token_supply_check_update(dap_ledger_t *a_ledger, dap_ledger
 
 /**
  * @brief dap_ledger_token_add
- * @param a_token
- * @param a_token_size
- * @return
+ * @param a_ledger Ledger object
+ * @param a_token Token datum bytes
+ * @param a_token_size Token datum size
+ * @param a_creation_time Token creation time (used for address effective time)
+ * @return Error code or DAP_LEDGER_CHECK_OK
  */
-int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size)
+int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time)
 {
     dap_return_val_if_fail(a_ledger && a_token && a_token_size, DAP_LEDGER_CHECK_INVALID_ARGS);
     dap_ledger_token_item_t *l_token_item = NULL;
@@ -1265,7 +1272,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
     return ret;
 }
 
-int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size)
+int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time)
 {
     if (dap_chain_net_get_load_mode(a_ledger->net)) {
         const char *l_ticker = NULL;
@@ -1283,20 +1290,20 @@ int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_toke
         if (l_ticker && dap_ledger_pvt_find_token(a_ledger, l_ticker))
             return DAP_LEDGER_CHECK_OK;
     }
-    return dap_ledger_token_add(a_ledger, a_token, a_token_size);
+    return dap_ledger_token_add(a_ledger, a_token, a_token_size, a_creation_time);
 }
 
 /**
  * @brief dap_ledger_permissions_check
- * @param a_token_item
- * @param a_permission_id
- * @param a_data
- * @param a_data_size
- * @return
+ * @param a_ledger Ledger object
+ * @param a_token_item Token item
+ * @param a_permission_id Permission type
+ * @param a_addr Address to check
+ * @return True if address has permission and effective time has passed
  */
-static bool s_ledger_permissions_check(dap_ledger_token_item_t *a_token_item, enum ledger_permissions a_permission_id, dap_chain_addr_t *a_addr)
+static bool s_ledger_permissions_check(dap_ledger_t *a_ledger, dap_ledger_token_item_t *a_token_item, enum ledger_permissions a_permission_id, dap_chain_addr_t *a_addr)
 {
-    dap_chain_addr_t *l_addrs = NULL;
+    struct spec_address *l_addrs = NULL;
     size_t l_addrs_count = 0;
     switch (a_permission_id) {
     case LEDGER_PERMISSION_RECEIVER_ALLOWED:
@@ -1317,12 +1324,13 @@ static bool s_ledger_permissions_check(dap_ledger_token_item_t *a_token_item, en
     break;
     }
     for (size_t n = 0; n < l_addrs_count; n++)
-        if (dap_chain_addr_compare(l_addrs + n, a_addr))
+        if (dap_chain_addr_compare(&l_addrs[n].addr, a_addr) &&
+                l_addrs[n].becomes_effective <= dap_ledger_get_blockchain_time(a_ledger))
             return true;
     return false;
 }
 
-dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive)
+dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_t *a_ledger, dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive)
 {
     dap_return_val_if_fail(a_token_item && a_addr, DAP_LEDGER_CHECK_INVALID_ARGS);
     if (dap_chain_addr_is_blank(a_addr))
@@ -1331,24 +1339,24 @@ dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_token_item_t *a_to
         if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED) ||
                 (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN)) {
             // Check we are in white list
-            if (!s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_RECEIVER_ALLOWED, a_addr))
+            if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_RECEIVER_ALLOWED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED) ||
                 (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN)) {
             // Check we are in black list
-            if (s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_RECEIVER_BLOCKED, a_addr))
+            if (s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_RECEIVER_BLOCKED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         }
     } else {
         if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED) ||
                 (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN)) {
             // Check we are in white list
-            if (!s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_SENDER_ALLOWED, a_addr))
+            if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_ALLOWED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED) ||
                 (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN)) {
             // Check we are in black list
-            if (s_ledger_permissions_check(a_token_item, LEDGER_PERMISSION_SENDER_BLOCKED, a_addr))
+            if (s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_BLOCKED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         }
     }
@@ -1405,7 +1413,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
     //additional check for private tokens
     if((l_token_item->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
         ||  (l_token_item->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)) {
-        dap_ledger_check_error_t ret = dap_ledger_pvt_addr_check(l_token_item, &l_emission->hdr.address, true);
+        dap_ledger_check_error_t ret = dap_ledger_pvt_addr_check(a_ledger, l_token_item, &l_emission->hdr.address, true);
         if (ret == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
             log_it(L_WARNING, "Address %s is not in allowed to receive for emission of token %s",
                             dap_chain_addr_to_str_static(&l_emission->hdr.address), l_token_item->ticker);
@@ -1736,28 +1744,28 @@ dap_json_t *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_ve
     }
     dap_json_t *l_json_arr_tx_recv_allow = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_recv_allow_size; i++) {
-        dap_chain_addr_t l_addr = a_token_item->tx_recv_allow[i];
+        dap_chain_addr_t l_addr = a_token_item->tx_recv_allow[i].addr;
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
         dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
         dap_json_array_add(l_json_arr_tx_recv_allow, l_addr_obj);
     }
     dap_json_t *l_json_arr_tx_recv_block = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_recv_block_size; i++) {
-        dap_chain_addr_t l_addr = a_token_item->tx_recv_block[i];
+        dap_chain_addr_t l_addr = a_token_item->tx_recv_block[i].addr;
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
         dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
         dap_json_array_add(l_json_arr_tx_recv_block, l_addr_obj);
     }
     dap_json_t *l_json_arr_tx_send_allow = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_send_allow_size; i++) {
-        dap_chain_addr_t l_addr = a_token_item->tx_send_allow[i];
+        dap_chain_addr_t l_addr = a_token_item->tx_send_allow[i].addr;
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
         dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
         dap_json_array_add(l_json_arr_tx_send_allow, l_addr_obj);
     }
     dap_json_t *l_json_arr_tx_send_block = dap_json_array_new();
     for (size_t i = 0; i < a_token_item->tx_send_block_size; i++) {
-        dap_chain_addr_t l_addr = a_token_item->tx_send_block[i];
+        dap_chain_addr_t l_addr = a_token_item->tx_send_block[i].addr;
         const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
         dap_json_t *l_addr_obj = dap_json_object_new_string(l_addr_str);
         dap_json_array_add(l_json_arr_tx_send_block, l_addr_obj);

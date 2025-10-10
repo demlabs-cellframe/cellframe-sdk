@@ -779,7 +779,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     break;
                 }
                 // Check permissions
-                if (dap_ledger_pvt_addr_check(l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+                if (dap_ledger_pvt_addr_check(a_ledger, l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
                     debug_if(g_debug_ledger, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str_static(l_addr_from));
                     l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
                     break;
@@ -1030,7 +1030,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             break;
         }
         // Check permissions
-        if (dap_ledger_pvt_addr_check(l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+        if (dap_ledger_pvt_addr_check(a_ledger, l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
             debug_if(g_debug_ledger, L_WARNING, "No permission to receive for addr %s", dap_chain_addr_to_str_static(&l_tx_out_to));
             l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
             break;

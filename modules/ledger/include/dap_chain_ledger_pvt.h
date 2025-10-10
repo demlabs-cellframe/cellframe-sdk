@@ -33,6 +33,15 @@ enum ledger_permissions {
     LEDGER_PERMISSION_SENDER_BLOCKED
 };
 
+/**
+ * @brief Special address structure with effective time
+ * @details Used for white/black lists with time-based activation
+ */
+struct spec_address {
+    dap_chain_addr_t addr;
+    dap_time_t becomes_effective;
+};
+
 typedef struct dap_ledger_token_emission_item {
     dap_chain_hash_fast_t datum_token_emission_hash;
     dap_chain_datum_token_emission_t *datum_token_emission;
@@ -72,15 +81,15 @@ typedef struct dap_ledger_token_item {
     dap_chain_hash_fast_t *auth_pkey_hashes;
     size_t auth_signs_total;
     size_t auth_signs_valid;
-    uint32_t          flags;
-    dap_chain_addr_t *tx_recv_allow;
-    size_t            tx_recv_allow_size;
-    dap_chain_addr_t *tx_recv_block;
-    size_t            tx_recv_block_size;
-    dap_chain_addr_t *tx_send_allow;
-    size_t            tx_send_allow_size;
-    dap_chain_addr_t *tx_send_block;
-    size_t            tx_send_block_size;
+    uint32_t             flags;
+    struct spec_address *tx_recv_allow;
+    size_t               tx_recv_allow_size;
+    struct spec_address *tx_recv_block;
+    size_t               tx_recv_block_size;
+    struct spec_address *tx_send_allow;
+    size_t               tx_send_allow_size;
+    struct spec_address *tx_send_block;
+    size_t               tx_send_block_size;
     char *description;
     // For delegated tokens
     bool is_delegated;
@@ -269,7 +278,7 @@ bool dap_ledger_pvt_token_supply_check(dap_ledger_token_item_t *a_token_item, ui
 bool dap_ledger_pvt_token_supply_check_update(dap_ledger_t *a_ledger, dap_ledger_token_item_t *a_token_item, uint256_t a_value, bool a_for_removing);
 dap_ledger_token_emission_item_t *dap_ledger_pvt_emission_item_find(dap_ledger_t *a_ledger,
                 const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash, dap_ledger_token_item_t **a_token_item);
-dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive);
+dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_t *a_ledger, dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive);
 void dap_ledger_pvt_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
 int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse);
 int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply, bool a_check_for_apply);
