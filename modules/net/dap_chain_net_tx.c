@@ -967,40 +967,43 @@ static uint8_t *s_dap_chain_net_tx_create_out_std_item (json_object *a_json_item
     bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
     const char *l_token = dap_json_rpc_get_text(a_json_item_obj, "token");
     dap_time_t l_time_unlock = 0;
+    uint64_t l_flags = 0;
+    uint8_t l_version = 0;
+    if (dap_json_rpc_get_uint64(a_json_item_obj, "flags", &l_flags)) {
+    }
+    dap_json_rpc_get_uint8(a_json_item_obj, "version", &l_version);
     const char* l_time_unlock_str = dap_json_rpc_get_text(a_json_item_obj, "time_unlock");
     if (l_time_unlock_str && sscanf(l_time_unlock_str, "%"DAP_UINT64_FORMAT_U, &l_time_unlock) != 1){
         log_it(L_ERROR, "Json TX: bad time_unlock");
         return NULL;
     }
-    if (l_is_value && (l_json_item_addr_str)) {
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
-        dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
+    dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
 #else
-        size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_json_item_addr_str));
-        dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, dap_max(sizeof(dap_chain_addr_t), l_addr_size), NULL);
-        if (l_json_item_addr_str) {
-            if (strcmp("null", l_json_item_addr_str)) {
-                if (dap_enc_base58_decode(l_json_item_addr_str, l_addr) != sizeof(dap_chain_addr_t)) {
-                    DAP_DELETE(l_addr);
-                    return NULL;
-                }
+    size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_json_item_addr_str));
+    dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, dap_max(sizeof(dap_chain_addr_t), l_addr_size), NULL);
+    if (l_json_item_addr_str) {
+        if (strcmp("null", l_json_item_addr_str)) {
+            if (dap_enc_base58_decode(l_json_item_addr_str, l_addr) != sizeof(dap_chain_addr_t)) {
+                DAP_DELETE(l_addr);
+                return NULL;
             }
         }
+    }
 #endif
-        if((!dap_strcmp(l_json_item_addr_str,"null") || l_addr) && !IS_ZERO_256(l_value)) {            
-            // Create OUT item
-            uint8_t *l_out_item = NULL;
-            
-            if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK && l_is_value && !dap_strcmp(l_json_item_addr_str,"null")) {
-                l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(&c_dap_chain_addr_blank_1, l_value, l_token, l_time_unlock);            
-            } else {
-                l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, l_time_unlock);
-            }
-            if (l_addr) DAP_DELETE(l_addr);
-            return l_out_item;      
+    if((!dap_strcmp(l_json_item_addr_str,"null") || l_addr) && !IS_ZERO_256(l_value)) {            
+        // Create OUT item
+        uint8_t *l_out_item = NULL;
+        
+        if (a_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK && l_is_value && !dap_strcmp(l_json_item_addr_str,"null")) {
+            l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(&c_dap_chain_addr_blank_1, l_value, l_token, l_time_unlock);            
+        } else {
+            l_out_item = (uint8_t *)dap_chain_datum_tx_item_out_std_create(l_addr, l_value, l_token, l_time_unlock);
         }
         if (l_addr) DAP_DELETE(l_addr);
+        return l_out_item;      
     }
+    if (l_addr) DAP_DELETE(l_addr);
     return NULL;
 }
 

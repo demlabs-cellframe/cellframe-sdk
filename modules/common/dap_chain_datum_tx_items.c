@@ -261,16 +261,28 @@ dap_chain_tx_out_ext_t *dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
     return l_item;
 }
 
-dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_std_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token, dap_time_t a_ts_unlock)
+dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_std_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token, dap_time_t a_ts_unlock, uint8_t a_version, uint32_t a_flags)
 {
     if (!a_addr || !a_token || IS_ZERO_256(a_value))
         return NULL;
-    dap_chain_tx_out_std_t *l_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_tx_out_std_t, NULL);
+    dap_chain_tx_out_std_t *l_item = NULL;
+    switch (a_version) {
+    case 0:
+        l_item = (dap_chain_tx_out_std_t *)DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_tx_out_std_v0_t, NULL);
+        break;
+    case 1:
+        l_item = (dap_chain_tx_out_std_t *)DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_tx_out_std_t, NULL);
+        l_item->flags = a_flags;
+        break;
+    default:
+        return NULL;
+    }
     l_item->type = TX_ITEM_TYPE_OUT_STD;
     l_item->value = a_value;
     l_item->addr = *a_addr;
     dap_strncpy((char*)l_item->token, a_token, sizeof(l_item->token));
     l_item->ts_unlock = a_ts_unlock;
+    l_item->version = a_version;
     return l_item;
 }
 

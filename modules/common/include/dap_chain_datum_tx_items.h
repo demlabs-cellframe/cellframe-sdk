@@ -197,7 +197,7 @@ dap_chain_tx_out_ext_t *dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_std_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token, dap_time_t a_ts_unlock);
+dap_chain_tx_out_std_t *dap_chain_datum_tx_item_out_std_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token, dap_time_t a_ts_unlock, uint8_t a_version, uint32_t a_flags);
 
 /**
  * Create item dap_chain_tx_out_cond_t with fee subtype
