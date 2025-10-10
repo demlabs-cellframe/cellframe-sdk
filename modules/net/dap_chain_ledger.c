@@ -756,7 +756,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_recv_allow && l_new_tx_recv_allow_size && !l_was_tx_recv_allow_copied) {
                 assert(a_item_apply_to->tx_recv_allow);
                 // Deep copy addrs to sandbox
-                l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_allow = DAP_DUP_SIZE(a_item_apply_to->tx_recv_allow, l_new_tx_recv_allow_size * sizeof(struct spec_address));
                 if (!l_new_tx_recv_allow) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -812,7 +812,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_recv_block && l_new_tx_recv_block_size && !l_was_tx_recv_block_copied) {
                 assert(a_item_apply_to->tx_recv_block);
                 // Deep copy addrs to sandbox
-                l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(struct spec_address));
                 if (!l_new_tx_recv_block) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
@@ -851,7 +851,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!l_new_tx_recv_block && l_new_tx_recv_block_size && !l_was_tx_recv_block_copied) {
                 assert(a_item_apply_to->tx_recv_block);
                 // Deep copy addrs to sandbox
-                l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(dap_chain_addr_t));
+                l_new_tx_recv_block = DAP_DUP_SIZE(a_item_apply_to->tx_recv_block, l_new_tx_recv_block_size * sizeof(struct spec_address));
                 if (!l_new_tx_recv_block) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                     return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
