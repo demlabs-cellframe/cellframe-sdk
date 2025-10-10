@@ -13,7 +13,7 @@
 #include "dap_chain_cs_type.h"
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
-#include "dap_chain_net_srv_vpn.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stake.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"

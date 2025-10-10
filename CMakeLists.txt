@@ -34,7 +34,7 @@ set(CELLFRAME_SDK_INTERNAL_MODE "static" CACHE STRING "Cellframe SDK internal mo
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 #set BUILD_CELLFRAME_SDK_TESTS to ON to build tests
-set(BUILD_CELLFRAME_SDK_TESTS ON)
+set(BUILD_CELLFRAME_SDK_TESTS OFF)
 
 # =========================================
 # INTERNAL MODULE CREATION MACRO
