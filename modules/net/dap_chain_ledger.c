@@ -3849,11 +3849,13 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
                     break;
                 }
-                // Check permissions
-                if (s_ledger_addr_check(l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
-                    debug_if(s_debug_more, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str_static(l_addr_from));
-                    l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
-                    break;
+                // Check permissions (skip in load mode)
+                if (!dap_chain_net_get_load_mode(a_ledger->net)) {
+                    if (s_ledger_addr_check(l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+                        debug_if(s_debug_more, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str_static(l_addr_from));
+                        l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+                        break;
+                    }
                 }
             } else { // l_cond_type == TX_ITEM_TYPE_IN_COND
                 if(*(uint8_t *)l_tx_prev_out != TX_ITEM_TYPE_OUT_COND) {
@@ -4095,11 +4097,13 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
             break;
         }
-        // Check permissions
-        if (s_ledger_addr_check(l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
-            debug_if(s_debug_more, L_WARNING, "[%s] No permission to receive for addr %s", dap_chain_hash_fast_to_str_static(a_tx_hash), dap_chain_addr_to_str_static(&l_tx_out_to));
-            l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
-            break;
+        // Check permissions (skip in load mode)
+        if (!dap_chain_net_get_load_mode(a_ledger->net)) {
+            if (s_ledger_addr_check(l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+                debug_if(s_debug_more, L_WARNING, "[%s] No permission to receive for addr %s", dap_chain_hash_fast_to_str_static(a_tx_hash), dap_chain_addr_to_str_static(&l_tx_out_to));
+                l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+                break;
+            }
         }
         if (l_fee_check && dap_chain_addr_compare(&l_tx_out_to, &a_ledger->net->pub.fee_addr) &&
                 !dap_strcmp(l_value_cur->token_ticker, a_ledger->net->pub.native_ticker))
