@@ -21,6 +21,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
 #include <pthread.h>
@@ -1309,6 +1310,39 @@ static void s_json_dag_pack_event(json_object * a_json_out, dap_chain_cs_dag_eve
     json_object_array_add(a_json_out, json_obj_event_i);
 }
 
+static int s_filter_event(dap_chain_cs_dag_event_item_t * a_event_item, dap_chain_hash_fast_t * a_l_to_hash, 
+     size_t * a_i_tmp, size_t * a_l_arr_end, size_t * a_l_arr_start, bool * a_l_hash_flag, 
+    char * a_l_to_hash_str, dap_time_t * a_l_from_time, dap_time_t * a_l_to_time,
+    json_object * a_json_out, int a_version, bool a_l_head)
+{
+    if (*a_i_tmp >= *a_l_arr_end){
+        return 1; //break;
+    }
+    dap_time_t l_ts = a_event_item->event->header.ts_created;                             
+    if (a_l_to_hash_str && !a_l_hash_flag) {
+        if (!dap_hash_fast_compare(&a_l_to_hash, &a_event_item->hash))
+            return 2;
+        *a_l_hash_flag = true;
+    }
+    if (a_l_head) {
+        if ((a_l_to_time && l_ts < a_l_to_time) || (a_l_from_time && l_ts > a_l_from_time)) {
+            return 2; //continue;
+        }
+    } else {
+        if ((a_l_from_time && l_ts > a_l_from_time) || (a_l_to_time && l_ts < a_l_to_time)) {
+            return 2;
+        }
+    }
+    if (*a_i_tmp < *a_l_arr_start ) {
+        *a_i_tmp++;
+        return 2;
+    }
+    *a_i_tmp++;
+    s_json_dag_pack_event(a_json_out, a_event_item, *a_i_tmp, a_version);
+    if (a_l_from_hash_str && dap_hash_fast_compare(&a_l_from_hash, &a_event_item->hash))
+        return 1;//break;   
+}
+
 /**
  * @brief s_cli_dag
  * @param argc
@@ -1861,54 +1895,17 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     if (l_head){
                         HASH_ITER(hh, PVT(l_dag)->events, l_event_item, l_event_item_tmp) {
-                            if (i_tmp >= l_arr_end){
-                                break;
-                            }
-                            dap_time_t l_ts = l_event_item->event->header.ts_created;                             
-                            if (l_to_hash_str && !l_hash_flag) {
-                                if (!dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
-                                    continue;
-                                l_hash_flag = true;
-                            }
-                            if ((l_to_time && l_ts < l_to_time) || (l_from_time && l_ts > l_from_time)) {
-                                continue;
-                            }
-                            if (i_tmp < l_arr_start ) {
-                                i_tmp++;
-                                continue;
-                            }
-                            i_tmp++;
-                            s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp, a_version);
-                            if (l_from_hash_str && dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
-                                break;                            
+                            s_filter_event(l_event_item, &l_to_hash, &i_tmp, &l_arr_end, &l_arr_start, &l_hash_flag, l_to_hash_str, 
+                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head) == 1 ? break : continue;
                         }
                     }
                     else {
                         l_event_item = HASH_LAST(PVT(l_dag)->events);
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
-                            if (i_tmp >= l_arr_end){
-                                break;
-                            }
-                            dap_time_t l_ts = l_event_item->event->header.ts_created;
-                            if (l_to_hash_str && !l_hash_flag) {
-                                if (!dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
-                                    continue;
-                                l_hash_flag = true;
-                            }
-                            if ((l_to_time && l_ts > l_to_time) || (l_from_time && l_ts < l_from_time)) {
-                                continue;
-                            }
-                            if (i_tmp < l_arr_start ) {
-                                i_tmp++;
-                                continue;
-                            }
-                            i_tmp++;
-                            s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp, a_version);
-                            if (l_from_hash_str && dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
-                                break;
+                            s_filter_event(l_event_item, &l_to_hash, &i_tmp, &l_arr_end, &l_arr_start, &l_hash_flag, l_to_hash_str, 
+                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head) == 1 ? break : continue;
                         }
-                    }
-                    log_it(L_ERROR, "l_head status %d", l_head);
+                    }              
                     
                     json_object_object_add(json_obj_event_list, a_version == 1 ? "EVENTS" : "events", json_arr_obj_event);
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
@@ -1929,41 +1926,15 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                     size_t i_tmp = 0;
                     if (l_head){
                         HASH_ITER(hh, PVT(l_dag)->events_treshold, l_event_item, l_event_item_tmp) {
-                            dap_time_t l_ts = l_event_item->event->header.ts_created;
-                            if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
-                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time)) {
-                                i_tmp++;
-                            } else {
-                                if (l_from_hash_str && !l_hash_flag) {
-                                   if (!dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
-                                       continue;
-                                   l_hash_flag = true;
-                                }
-                                i_tmp++;
-                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp, a_version);
-                                if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
-                                    break;
-                            }
+                            s_filter_event(l_event_item, &l_to_hash, &i_tmp, &l_arr_end, &l_arr_start, &l_hash_flag, l_to_hash_str, 
+                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head) == 1 ? break : continue;
                         }
                     }
                     else {
                         l_event_item = HASH_LAST(PVT(l_dag)->events_treshold);
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
-                            dap_time_t l_ts = l_event_item->event->header.ts_created;
-                            if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time)) {
-                                i_tmp++;
-                            } else {
-                                if (l_from_hash_str && !l_hash_flag) {
-                                   if (!dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
-                                       continue;
-                                   l_hash_flag = true;
-                                }
-                                i_tmp++;
-                                s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp, a_version);
-                                if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
-                                    break;
-                            }
+                            s_filter_event(l_event_item, &l_to_hash, &i_tmp, &l_arr_end, &l_arr_start, &l_hash_flag, l_to_hash_str, 
+                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head) == 1 ? break : continue;
                         }
                     }
                     json_object_object_add(json_obj_event_list, a_version == 1 ? "TRESHOLD" : "threshold", json_arr_obj_event);
