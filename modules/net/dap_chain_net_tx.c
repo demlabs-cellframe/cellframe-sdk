@@ -1024,6 +1024,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             uint256_t l_value = { };
             bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
             if(!l_is_value || IS_ZERO_256(l_value)) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_PAY");
                 log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_PAY");
                 return NULL;
             }
@@ -1066,9 +1067,12 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(&l_pkey_hash, (dap_chain_srv_uid_t){.uint64 = l_srv_uid}, l_value, l_value_max_per_unit,
                     l_price_unit, l_params, l_params_size);
             } else {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad pkey in OUT_COND_SUBTYPE_SRV_PAY");
                 log_it(L_ERROR, "Json TX: bad pkey in OUT_COND_SUBTYPE_SRV_PAY");
+                DAP_DELETE(l_params);
                 return NULL;
             }
+            DAP_DELETE(l_params);
             // Save value for using in In item
             if(!l_out_cond_item) {
                 if (a_jobj_arr_errors)
@@ -1088,27 +1092,32 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             }
             dap_chain_net_id_t l_buy_net_id = {}; 
             if(dap_chain_net_id_parse(s_json_get_text(a_json_item_obj, "buy_net_id"), &l_buy_net_id)) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: buy_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 log_it(L_ERROR, "Json TX: buy_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 return NULL;
             }  
             dap_chain_net_id_t l_sell_net_id = {}; 
             if(dap_chain_net_id_parse(s_json_get_text(a_json_item_obj, "sell_net_id"), &l_sell_net_id)) {
-                log_it(L_ERROR, "Json TX: buy_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: sell_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
+                log_it(L_ERROR, "Json TX: sell_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 return NULL;
             }              
 
             const char *l_token_buy = s_json_get_text(a_json_item_obj, "buy_token");
             if(!l_token_buy) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad buy_token in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 log_it(L_ERROR, "Json TX: bad buy_token in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 return NULL;
             }
             uint256_t l_value = { };
             if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 return NULL;
             }
             uint256_t l_value_rate = { };
             if(!s_json_get_uint256(a_json_item_obj, "rate", &l_value_rate) || IS_ZERO_256(l_value_rate)) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad value rate in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 log_it(L_ERROR, "Json TX: bad value rate in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 return NULL;
             }
@@ -1118,8 +1127,10 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
 #else
                 size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_seller_addr_str));
                 dap_chain_addr_t *l_seller_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, l_addr_size, NULL);
-                if (dap_enc_base58_decode(l_seller_addr_str, l_seller_addr) != sizeof(dap_chain_addr_t))
+                if (dap_enc_base58_decode(l_seller_addr_str, l_seller_addr) != sizeof(dap_chain_addr_t)) {
+                    DAP_DELETE(l_seller_addr);
                     return NULL;
+                }
 #endif
 
             const char *l_params_str = s_json_get_text(a_json_item_obj, "params");
@@ -1138,6 +1149,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                                                                                                             l_seller_addr,
                                                                                                             l_params, l_params_size);
             DAP_DELETE(l_params);
+            DAP_DELETE(l_seller_addr);
             // Save value for using in In item
             if (l_out_cond_item) {
                 return (uint8_t *)l_out_cond_item;
@@ -1155,6 +1167,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             }
             uint256_t l_value = { };
             if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad value in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                 log_it(L_ERROR, "Json TX: bad value in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                 return NULL;
             }
@@ -1162,8 +1175,9 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             dap_time_t l_time_staking = 0;
             const char* l_time_staking_str = s_json_get_text(a_json_item_obj, "time_staking");
             if (sscanf(l_time_staking_str, "%"DAP_UINT64_FORMAT_U, &l_time_staking) != 1 || !l_time_staking){
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                 log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
-                break;
+                return NULL;
             }
             // if (l_time_staking < dap_time_now()){
             //     log_it(L_ERROR, "Json TX: past time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
@@ -1174,13 +1188,15 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             const char* l_reinvest_percent_str = NULL;
             if((l_reinvest_percent_str = s_json_get_text(a_json_item_obj, "reinvest_percent"))!=NULL) {
                 l_reinvest_percent = dap_chain_balance_coins_scan(l_reinvest_percent_str);
-                if (compare256(l_reinvest_percent, dap_chain_balance_coins_scan("100.0")) == 1){
+                if (compare256(l_reinvest_percent, dap_chain_balance_coins_scan("100.0")) == 1) {
+                    dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                     log_it(L_ERROR, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                     return NULL;
                 }
                 if (IS_ZERO_256(l_reinvest_percent)) {
                     int l_reinvest_percent_int = atoi(l_reinvest_percent_str);
                     if (l_reinvest_percent_int < 0 || l_reinvest_percent_int > 100){
+                        dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                         log_it(L_ERROR, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                         return NULL;
                     }
@@ -1190,8 +1206,13 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             }               
 
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock((dap_chain_srv_uid_t){.uint64 = l_srv_uid}, l_value, l_time_staking, l_reinvest_percent);
+            if (l_out_cond_item) {
+                uint64_t l_flags = 0;
+                if (s_json_get_int64_uint64(a_json_item_obj, "flags", &l_flags, true)) {
+                    l_out_cond_item->subtype.srv_stake_lock.flags = l_flags;
+                }
+
             // Save value for using in In item
-            if(l_out_cond_item) {
                 return (uint8_t *)l_out_cond_item;
             } else {
                 if (a_jobj_arr_errors)
@@ -1207,6 +1228,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             }
             uint256_t l_value = { };
             if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 return NULL;
             }
@@ -1221,18 +1243,23 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
 #else
             size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_signing_addr_str));
             dap_chain_addr_t *l_signing_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, l_addr_size, NULL);
-            if (dap_enc_base58_decode(l_signing_addr_str, l_signing_addr) != sizeof(dap_chain_addr_t))
+            if (dap_enc_base58_decode(l_signing_addr_str, l_signing_addr) != sizeof(dap_chain_addr_t)) {
+                DAP_DELETE(l_signing_addr);
                 return NULL;
+            }
 #endif
             if(!l_signing_addr) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad signing_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 log_it(L_ERROR, "Json TX: bad signing_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 return NULL;
-            }                
+            }
 
             dap_chain_node_addr_t l_signer_node_addr;
             const char *l_node_addr_str = s_json_get_text(a_json_item_obj, "signer_node_addr");
             if(!l_node_addr_str || dap_chain_node_addr_from_str(&l_signer_node_addr, l_node_addr_str)) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 log_it(L_ERROR, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
+                DAP_DELETE(l_signing_addr);
                 return NULL;
             }
 
@@ -1248,9 +1275,14 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                                                                                                                 l_value, l_signing_addr,
                                                                                                          &l_signer_node_addr, uint256_0, l_params, l_params_size);
             DAP_DELETE(l_signing_addr);
+            DAP_DELETE(l_params);
             // Save value for using in In item
             if(l_out_cond_item) {
                 SUM_256_256(*a_value_need, l_value, a_value_need);
+                uint64_t l_flags = 0;
+                if (s_json_get_int64_uint64(a_json_item_obj, "flags", &l_flags, true)) {
+                    l_out_cond_item->subtype.srv_stake_pos_delegate.flags = l_flags;
+                }
                 return (uint8_t *)l_out_cond_item;
             } else {
                 if (a_jobj_arr_errors)
