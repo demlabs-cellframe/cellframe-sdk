@@ -1310,37 +1310,37 @@ static void s_json_dag_pack_event(json_object * a_json_out, dap_chain_cs_dag_eve
     json_object_array_add(a_json_out, json_obj_event_i);
 }
 
-static int s_filter_event(dap_chain_cs_dag_event_item_t * a_event_item, dap_chain_hash_fast_t * a_l_to_hash, 
-     size_t * a_i_tmp, size_t * a_l_arr_end, size_t * a_l_arr_start, bool * a_l_hash_flag, 
-    char * a_l_to_hash_str, dap_time_t * a_l_from_time, dap_time_t * a_l_to_time,
-    json_object * a_json_out, int a_version, bool a_l_head)
+static bool s_filter_event(dap_chain_cs_dag_event_item_t * a_event_item, dap_chain_hash_fast_t * a_l_to_hash,
+    dap_chain_hash_fast_t * a_l_from_hash, size_t * a_i_tmp, size_t a_l_arr_end, size_t a_l_arr_start,  
+    char * a_l_to_hash_str, char * a_l_from_hash_str, dap_time_t a_l_from_time, dap_time_t a_l_to_time,
+    json_object * a_json_out, int a_version, bool a_l_head, bool * a_l_hash_flag)
 {
-    if (*a_i_tmp >= *a_l_arr_end){
-        return 1; //break;
+    if (*a_i_tmp >a_l_arr_end){
+        return true; //break;
     }
-    dap_time_t l_ts = a_event_item->event->header.ts_created;                             
-    if (a_l_to_hash_str && !a_l_hash_flag) {
-        if (!dap_hash_fast_compare(&a_l_to_hash, &a_event_item->hash))
-            return 2;
-        *a_l_hash_flag = true;
-    }
+    dap_time_t l_ts = a_event_item->event->header.ts_created;
     if (a_l_head) {
-        if ((a_l_to_time && l_ts < a_l_to_time) || (a_l_from_time && l_ts > a_l_from_time)) {
-            return 2; //continue;
+        if ((a_l_to_time && l_ts > a_l_to_time) || (a_l_from_time && l_ts < a_l_from_time)) {
+            return false; //continue;
         }
     } else {
-        if ((a_l_from_time && l_ts > a_l_from_time) || (a_l_to_time && l_ts < a_l_to_time)) {
-            return 2;
+        if ((a_l_to_time && l_ts < a_l_to_time) || (a_l_from_time && l_ts > a_l_from_time)) {
+            return false;
         }
     }
-    if (*a_i_tmp < *a_l_arr_start ) {
-        *a_i_tmp++;
-        return 2;
+    if (a_l_to_hash_str && !*a_l_hash_flag) {
+        if (!dap_hash_fast_compare(a_l_to_hash, &a_event_item->hash))
+            return false;
+        *a_l_hash_flag = true;
     }
-    *a_i_tmp++;
+    if (*a_i_tmp < a_l_arr_start ) {
+        (*a_i_tmp)++;
+        return false;
+    }
+    (*a_i_tmp)++;
     s_json_dag_pack_event(a_json_out, a_event_item, *a_i_tmp, a_version);
-    if (a_l_from_hash_str && dap_hash_fast_compare(&a_l_from_hash, &a_event_item->hash))
-        return 1;//break;   
+    if (a_l_from_hash_str && dap_hash_fast_compare(a_l_from_hash, &a_event_item->hash))
+        return true;//break;   
 }
 
 /**
@@ -1731,17 +1731,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                 bool l_head = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-head", &l_head_str) ? true : false;
                 char *ptr;
                 size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 1000;
-                size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0; 
-                // Validate mutually exclusive flag groups usage
-                bool l_has_loh = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
-                bool l_has_dates = (l_from_date_str != NULL) || (l_to_date_str != NULL);
-                bool l_has_hashes = (l_from_hash_str != NULL) || (l_to_hash_str != NULL);
-                int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_dates ? 1 : 0) + (l_has_hashes ? 1 : 0);
-               /* if (l_groups_cnt > 1) {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,
-                        "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-from_date/-to_date} or {-from_hash/-to_hash}");
-                    return DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
-                }*/
+                size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0;                 
                 
                 if (l_from_hash_str) {
                     if (dap_chain_hash_fast_from_str(l_from_hash_str, &l_from_hash)) {
@@ -1769,9 +1759,27 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR, "Can't convert \"%s\" to date", l_to_date_str);
                         return DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR;
                     }
+                }
+                if (l_to_date_str && l_head) {
+                    struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                    l_localtime->tm_mday -= 1;  // - 1 day to end date, got it inclusive
+                    l_to_time = mktime(l_localtime);
+                }
+                if (l_from_date_str) {
+                    struct tm *l_localtime = localtime((time_t *)&l_from_time);
+                    l_localtime->tm_mday += l_head ? -1 : 1;  
+                    l_from_time = mktime(l_localtime);
+                }                
+                /*
+                if (l_to_date_str) {
+                    l_to_time = dap_time_from_str_simplified(l_to_date_str);
+                    if (!l_to_time) {
+                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR, "Can't convert \"%s\" to date", l_to_date_str);
+                        return DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR;
+                    }
                     if (!l_from_date_str) {
                         struct tm *l_localtime = localtime((time_t *)&l_to_time);
-                        l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
+                        l_localtime->tm_mday -= 1;  // - 1 day to end date, got it inclusive
                         l_to_time = mktime(l_localtime);
                     } else {
                         if (l_from_time > l_to_time) {
@@ -1787,7 +1795,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         }
                     }
                     
-                } 
+                } */
                 if (l_to_hash_str && l_from_hash_str) {
                     dap_chain_cs_dag_event_item_t * l_event_item_to = NULL;
                     HASH_FIND(hh,PVT(l_dag)->events,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
@@ -1890,20 +1898,22 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                     size_t l_arr_start = 0;
                     size_t l_arr_end = 0;
                     dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events), false);
-                    
+                    log_it(L_ERROR, "l_head: status %d", l_head);
                     size_t i_tmp = 0;
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     if (l_head){
                         HASH_ITER(hh, PVT(l_dag)->events, l_event_item, l_event_item_tmp) {
-                            s_filter_event(l_event_item, &l_to_hash, &i_tmp, &l_arr_end, &l_arr_start, &l_hash_flag, l_to_hash_str, 
-                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head) == 1 ? break : continue;
+                            if (s_filter_event(l_event_item, &l_to_hash, &l_from_hash, &i_tmp, l_arr_end, l_arr_start, (char *)l_to_hash_str, (char *)l_from_hash_str, 
+                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head, &l_hash_flag)) 
+                                break;
                         }
                     }
                     else {
                         l_event_item = HASH_LAST(PVT(l_dag)->events);
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
-                            s_filter_event(l_event_item, &l_to_hash, &i_tmp, &l_arr_end, &l_arr_start, &l_hash_flag, l_to_hash_str, 
-                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head) == 1 ? break : continue;
+                            if (s_filter_event(l_event_item, &l_to_hash, &l_from_hash, &i_tmp, l_arr_end, l_arr_start, (char *)l_to_hash_str, (char *)l_from_hash_str, 
+                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head, &l_hash_flag)) 
+                                break;
                         }
                     }              
                     
@@ -1926,15 +1936,17 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                     size_t i_tmp = 0;
                     if (l_head){
                         HASH_ITER(hh, PVT(l_dag)->events_treshold, l_event_item, l_event_item_tmp) {
-                            s_filter_event(l_event_item, &l_to_hash, &i_tmp, &l_arr_end, &l_arr_start, &l_hash_flag, l_to_hash_str, 
-                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head) == 1 ? break : continue;
+                            if (s_filter_event(l_event_item, &l_to_hash, &l_from_hash, &i_tmp, l_arr_end, l_arr_start, (char *)l_to_hash_str, (char *)l_from_hash_str, 
+                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head, &l_hash_flag)) 
+                                break;
                         }
                     }
                     else {
                         l_event_item = HASH_LAST(PVT(l_dag)->events_treshold);
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
-                            s_filter_event(l_event_item, &l_to_hash, &i_tmp, &l_arr_end, &l_arr_start, &l_hash_flag, l_to_hash_str, 
-                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head) == 1 ? break : continue;
+                            if (s_filter_event(l_event_item, &l_to_hash, &l_from_hash, &i_tmp, l_arr_end, l_arr_start, (char *)l_to_hash_str, (char *) l_from_hash_str, 
+                                            l_from_time, l_to_time, json_arr_obj_event, a_version, l_head, &l_hash_flag)) 
+                                break;
                         }
                     }
                     json_object_object_add(json_obj_event_list, a_version == 1 ? "TRESHOLD" : "threshold", json_arr_obj_event);

@@ -1835,7 +1835,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
         size_t i_tmp = 0;
         if (a_head)
         HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp) {
-            if (i_tmp < l_arr_start || i_tmp >= l_arr_end)
+            if (i_tmp < l_arr_start)
             {
                 i_tmp++;                
                 continue;
@@ -1847,12 +1847,14 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
                 return NULL;
             }            
             l_counter++;
+            if (i_tmp >= l_arr_end)
+                break;
         }
         else
         {
             l_tx_item = HASH_LAST(l_ledger_pvt->threshold_txs);
             for(; l_tx_item; l_tx_item = l_tx_item->hh.prev, i_tmp++){
-                if (i_tmp < l_arr_start || i_tmp >= l_arr_end)
+                if (i_tmp < l_arr_start)
                     continue;
                 if (s_pack_ledger_threshold_info_json(json_arr_out, l_tx_item, a_version)) {
                     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
@@ -1860,6 +1862,8 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
                     return NULL;
                 }
                 l_counter++;
+                if (i_tmp >= l_arr_end)
+                    break;
             }
         }
         if (!l_counter) {
@@ -1887,21 +1891,25 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
     size_t i_tmp = 0;
     if (a_head)
         HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_item, l_balance_tmp) {
-            if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
+            if (i_tmp < l_arr_start) {
                 i_tmp++;
                 continue;
             }
             i_tmp++;
             s_pack_ledger_balance_info_json(json_arr_out, l_balance_item, a_version);
             l_counter +=1;
+            if (i_tmp >= l_arr_end)
+                break;
         }
     else {
         l_balance_item = HASH_LAST(l_ledger_pvt->balance_accounts);
             for(; l_balance_item; l_balance_item = l_balance_item->hh.prev, i_tmp++){
-                if (i_tmp < l_arr_start || i_tmp >= l_arr_end)
+                if (i_tmp < l_arr_start)
                     continue;
                 s_pack_ledger_balance_info_json(json_arr_out, l_balance_item, a_version);
                 l_counter++;
+                if (i_tmp >= l_arr_end)
+                    break;
             }
     }
     if (!l_counter){
@@ -2071,13 +2079,15 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
     }
     size_t i = 0;
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
-        if (i < l_arr_start || i >= l_arr_end) {
+        if (i < l_arr_start) {
             i++;
             continue;
         }
         json_obj_datum = s_token_item_to_json(l_token_item, a_version);
         json_object_array_add(json_arr_out, json_obj_datum);
         i++;
+        if (i >= l_arr_end)
+            break;
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     return json_arr_out;
