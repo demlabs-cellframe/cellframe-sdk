@@ -2607,7 +2607,7 @@ static bool s_ledger_permissions_check(dap_ledger_t *a_ledger, dap_ledger_token_
     }
     for (size_t n = 0; n < l_addrs_count; n++)
         if (dap_chain_addr_compare(&l_addrs[n].addr, a_addr) &&
-                l_addrs[n].becomes_effective >= dap_ledger_get_blockchain_time(a_ledger))
+                l_addrs[n].becomes_effective <= dap_ledger_get_blockchain_time(a_ledger))
             return true;
     return false;
 }
