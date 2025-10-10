@@ -326,7 +326,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t* a_json_arr_reply,
             if (a_version == 1)
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("SIG"));
             dap_sign_get_information_json(l_sign, json_obj_item, a_hash_out_type, a_version);
-            dap_chain_addr_t l_sender_addr;
+            dap_chain_addr_t l_sender_addr = {};
             dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign, a_net_id);
             dap_json_object_add_object(json_obj_item, a_version == 1 ? "Sender addr" : "sender_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&l_sender_addr)));            
         } break;

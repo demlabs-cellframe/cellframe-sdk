@@ -406,19 +406,22 @@ static dap_chain_datum_tx_t *create_test_transaction(void)
     }
     
     // Add an OUT_OLD item
-    dap_chain_addr_t l_addr_old = {};
+    dap_chain_addr_t l_addr;
+    dap_hash_fast_t l_hash;
+    uint64_t seed = dap_nanotime_now();
+    dap_hash_fast(&seed, sizeof(seed), &l_hash);
+    dap_chain_addr_fill(&l_addr, (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM}, &l_hash, (dap_chain_net_id_t){.uint64 = 0xbabae3da});
     uint64_t l_value_old = 500;
     dap_chain_tx_out_old_t *l_out_old_item = DAP_NEW_Z(dap_chain_tx_out_old_t);
     if (l_out_old_item) {
         l_out_old_item->header.type = TX_ITEM_TYPE_OUT_OLD;
         l_out_old_item->header.value = l_value_old;
-        l_out_old_item->addr = l_addr_old;
+        l_out_old_item->addr = l_addr;
         dap_chain_datum_tx_add_item(&l_tx, l_out_old_item);
         DAP_DELETE(l_out_old_item);
     }
     
     // Add an OUT item
-    dap_chain_addr_t l_addr = {};
     uint256_t l_value = dap_chain_uint256_from(1000);
     dap_chain_tx_out_t *l_out_item = dap_chain_datum_tx_item_out_create(&l_addr, l_value);
     if (l_out_item) {
