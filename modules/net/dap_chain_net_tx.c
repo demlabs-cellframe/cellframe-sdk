@@ -1424,9 +1424,12 @@ uint8_t *s_dap_chain_net_tx_create_sig_item(dap_json_t *a_json_item_obj, dap_jso
     if ( !s_json_get_int64_uint64(a_json_item_obj, "sig_size", &l_sign_size, true) )
         log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
 
+    uint64_t l_version = 1;
+    s_json_get_int64_uint64(a_json_item_obj, "sig_version", &l_version, true); 
+    
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
-    l_tx_sig->header.version = 1;
+    l_tx_sig->header.version = l_version;
     l_tx_sig->header.sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE);
 
     if ( l_tx_sig->header.sig_size  != l_sign_size || l_sign_size != dap_sign_get_size((dap_sign_t *)l_tx_sig->sig) ) {
