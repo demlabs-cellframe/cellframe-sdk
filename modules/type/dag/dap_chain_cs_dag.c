@@ -1328,8 +1328,8 @@ static bool s_filter_event(dap_chain_cs_dag_event_item_t * a_event_item, dap_cha
             return false;
         }
     }
-    if (a_l_to_hash_str && !*a_l_hash_flag) {
-        if (!dap_hash_fast_compare(a_l_to_hash, &a_event_item->hash))
+    if (a_l_from_hash_str && !*a_l_hash_flag) {
+        if (!dap_hash_fast_compare(a_l_from_hash, &a_event_item->hash))
             return false;
         *a_l_hash_flag = true;
     }
@@ -1339,8 +1339,9 @@ static bool s_filter_event(dap_chain_cs_dag_event_item_t * a_event_item, dap_cha
     }
     (*a_i_tmp)++;
     s_json_dag_pack_event(a_json_out, a_event_item, *a_i_tmp, a_version);
-    if (a_l_from_hash_str && dap_hash_fast_compare(a_l_from_hash, &a_event_item->hash))
-        return true;//break;   
+    if (a_l_to_hash_str && dap_hash_fast_compare(a_l_to_hash, &a_event_item->hash))
+        return true;//break;
+    return false;
 }
 
 /**
@@ -1760,42 +1761,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         return DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR;
                     }
                 }
-                if (l_to_date_str && l_head) {
-                    struct tm *l_localtime = localtime((time_t *)&l_to_time);
-                    l_localtime->tm_mday -= 1;  // - 1 day to end date, got it inclusive
-                    l_to_time = mktime(l_localtime);
+                if (l_from_date_str && l_to_date_str) {
+                    l_head = (l_to_time > l_from_time) ? true : false;
                 }
-                if (l_from_date_str) {
-                    struct tm *l_localtime = localtime((time_t *)&l_from_time);
-                    l_localtime->tm_mday += l_head ? -1 : 1;  
-                    l_from_time = mktime(l_localtime);
-                }                
-                /*
-                if (l_to_date_str) {
-                    l_to_time = dap_time_from_str_simplified(l_to_date_str);
-                    if (!l_to_time) {
-                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR, "Can't convert \"%s\" to date", l_to_date_str);
-                        return DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR;
-                    }
-                    if (!l_from_date_str) {
-                        struct tm *l_localtime = localtime((time_t *)&l_to_time);
-                        l_localtime->tm_mday -= 1;  // - 1 day to end date, got it inclusive
-                        l_to_time = mktime(l_localtime);
-                    } else {
-                        if (l_from_time > l_to_time) {
-                            struct tm *l_localtime = localtime((time_t *)&l_from_time);
-                            l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
-                            l_from_time = mktime(l_localtime);
-                            l_head = true;
-                        } else {
-                            l_head = false;
-                            struct tm *l_localtime = localtime((time_t *)&l_to_time);
-                            l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
-                            l_to_time = mktime(l_localtime);                        
-                        }
-                    }
-                    
-                } */
                 if (l_to_hash_str && l_from_hash_str) {
                     dap_chain_cs_dag_event_item_t * l_event_item_to = NULL;
                     HASH_FIND(hh,PVT(l_dag)->events,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
@@ -1816,9 +1784,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                                 "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_from_hash));
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
-                    }
-                    
-                    l_head = (l_event_item_from->ts_created > l_event_item_to->ts_created) ? true : false;
+                    }                    
+                    l_head = (l_event_item_from->ts_created > l_event_item_to->ts_created) ? false : true;
                 }
                 // Decide direction when mixing hash and date boundaries
                 // l_to_hash_str + l_from_date_str -> compare from_time with "to" event timestamp
@@ -1833,14 +1800,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
                     }
-                    if (l_from_time > l_event_item_to->ts_created) {
-                        struct tm *l_localtime = localtime((time_t *)&l_from_time);
-                        l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
-                        l_from_time = mktime(l_localtime);
-                        l_head = true;
-                    } else {
-                        l_head = false;
-                    } // English: go forward if from > to
+                    l_head = (l_from_time > l_event_item_to->ts_created) ? false : true;
                 }
                 // l_to_date_str + l_from_hash_str -> compare "from" event timestamp with to_time
                 if (l_to_date_str && l_from_hash_str) {
@@ -1854,14 +1814,18 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
                     }
-                    if (l_event_item_from->ts_created > l_to_time) {
-                        struct tm *l_localtime = localtime((time_t *)&l_to_time);
-                        l_localtime->tm_mday -= 1;  // + 1 day to end date, got it inclusive
-                        l_to_time = mktime(l_localtime);
-                        l_head = true;
-                    } else {                        
-                        l_head = false;
-                    } // English: go forward if from > to
+                    l_head = (l_event_item_from->ts_created > l_to_time) ? false : true;
+                }
+
+                if (l_to_date_str) {
+                    struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                    if (l_head) l_localtime->tm_mday += 1;
+                    l_to_time = mktime(l_localtime);
+                }
+                if (l_from_date_str) {
+                    struct tm *l_localtime = localtime((time_t *)&l_from_time);
+                    if (!l_head)l_localtime->tm_mday += 1;
+                    l_from_time = mktime(l_localtime);
                 }
 
                 if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
