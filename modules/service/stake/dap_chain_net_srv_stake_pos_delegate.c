@@ -2985,7 +2985,7 @@ static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2
         return 0;
     }
     return l_datum1->header.ts_created == l_datum2->header.ts_created
-            ? 0 : l_datum1->header.ts_created > l_datum2->header.ts_created ? 1 : -1;
+            ? 0 : l_datum1->header.ts_created < l_datum2->header.ts_created ? 1 : -1;
 }
 
 int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_chain_ch_validator_test_t * out_data,
