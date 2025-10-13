@@ -133,7 +133,7 @@ static int s_cluters_init(dap_config_t *a_cfg)
     }
     dap_stream_node_addr_t *l_authorized_nodes = NULL;
     uint16_t l_authorized_nodes_count = 0;
-    dap_config_stream_addrs_parse(a_cfg, "rpc", "authorized_nodes_addrs", &l_authorized_nodes, &l_authorized_nodes_count);
+    dap_net_common_parse_stream_addrs(a_cfg, "rpc", "authorized_nodes_addrs", &l_authorized_nodes, &l_authorized_nodes_count);
     for (uint16_t i = 0; i < l_authorized_nodes_count; ++i)
         dap_global_db_cluster_member_add(s_rpc_node_list_cluster, l_authorized_nodes + i, DAP_GDB_MEMBER_ROLE_ROOT);
     DAP_DELETE(l_authorized_nodes);

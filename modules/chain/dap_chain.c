@@ -551,7 +551,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
     } else
         log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
     if (l_chain->id.uint64 == 0) {  // for zerochain only
-        if (dap_config_stream_addrs_parse(a_cfg, "chain", "authorized_nodes_addrs", &l_chain->authorized_nodes_addrs, &l_chain->authorized_nodes_count)) {
+        if (dap_net_common_parse_stream_addrs(a_cfg, "chain", "authorized_nodes_addrs", &l_chain->authorized_nodes_addrs, &l_chain->authorized_nodes_count)) {
             dap_chain_delete(l_chain);
             return NULL;
         }
