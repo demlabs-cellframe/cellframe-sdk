@@ -1093,12 +1093,16 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 // Time window filtering aligned with DAG logic and traversal direction
                 if (l_head) {
                     // Oldest -> newest
-                    if ((l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time))
+                    if (l_from_time && l_ts < l_from_time)
                         continue;
+                    if (l_to_time && l_ts > l_to_time)
+                        break;
                 } else {
                     // Newest -> oldest
-                    if ((l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time))
+                    if (l_from_time && l_ts > l_from_time)
                         continue;
+                    if (l_to_time && l_ts < l_to_time)
+                        break;
                 }
                 // Hash range start boundary depends on traversal direction (align with DAG)
                 if (!l_hash_flag) {                    

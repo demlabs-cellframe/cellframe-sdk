@@ -1320,13 +1320,15 @@ static bool s_filter_event(dap_chain_cs_dag_event_item_t * a_event_item, dap_cha
     }
     dap_time_t l_ts = a_event_item->event->header.ts_created;
     if (a_l_head) {
-        if ((a_l_to_time && l_ts > a_l_to_time) || (a_l_from_time && l_ts < a_l_from_time)) {
+        if (a_l_from_time && l_ts < a_l_from_time)
             return false; //continue;
-        }
+        if (a_l_to_time && l_ts > a_l_to_time)
+            return true;        
     } else {
-        if ((a_l_to_time && l_ts < a_l_to_time) || (a_l_from_time && l_ts > a_l_from_time)) {
+        if (a_l_from_time && l_ts > a_l_from_time)
             return false;
-        }
+        if (a_l_to_time && l_ts < a_l_to_time)
+            return true;
     }
     if (a_l_from_hash_str && !*a_l_hash_flag) {
         if (!dap_hash_fast_compare(a_l_from_hash, &a_event_item->hash))

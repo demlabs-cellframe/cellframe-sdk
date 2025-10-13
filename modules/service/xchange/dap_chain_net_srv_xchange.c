@@ -244,7 +244,6 @@ int dap_chain_net_srv_xchange_init()
         "\t-limit <limit>: Maximum number of transactions to display (default: 1000)\n"
         "\t-offset <offset>: Number of transactions to skip from the beginning (default: 0)\n"
         "\t-head: Display transactions from newest to oldest (default: oldest to newest)\n"
-        "\tNote: Use only one parameter group: pagination {-limit/-offset/-head} OR time filters {-time_from/-time_to/-status} OR address filter {-addr}\n"
 
     "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>] [-h]\n"
         "\tList of all token pairs\n"
@@ -3027,8 +3026,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                         if (l_time[0] && l_item->tx->header.ts_created < l_time[0])
                             continue;
                         if (l_time[1] && l_item->tx->header.ts_created > l_time[1])
-                            continue;
-                        
+                            break;                        
                         // Create temporary structure to store in list
                         xchange_tx_list_t *l_list_item = DAP_NEW_Z(xchange_tx_list_t);
                         l_list_item->hash = l_item->hash;
@@ -3042,8 +3040,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                         if (l_time[0] && l_item->tx->header.ts_created > l_time[0])
                             continue;
                         if (l_time[1] && l_item->tx->header.ts_created < l_time[1])
-                            continue;
-                        
+                            break;                        
                         // Create temporary structure to store in list
                         xchange_tx_list_t *l_list_item = DAP_NEW_Z(xchange_tx_list_t);
                         l_list_item->hash = l_item->hash;
@@ -3127,13 +3124,22 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                         }
                         
                         dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_datum_list->data)->data;
-                        if (l_time[0] && l_datum_tx->header.ts_created < l_time[0]) {
-                            l_current_idx++;
-                            continue;
-                        }
-
-                        if (l_time[1] && l_datum_tx->header.ts_created > l_time[1]) {
-                            break;
+                        if (l_head) {
+                            if (l_time[0] && l_datum_tx->header.ts_created < l_time[0]) {
+                                l_current_idx++;
+                                continue;
+                            }
+                            if (l_time[1] && l_datum_tx->header.ts_created > l_time[1]) {
+                                break;
+                            }
+                        } else {
+                            if (l_time[0] && l_datum_tx->header.ts_created > l_time[0]) {
+                                l_current_idx++;
+                                continue;
+                            }
+                            if (l_time[1] && l_datum_tx->header.ts_created < l_time[1]) {
+                                break;
+                            }
                         }
                         
                         json_object* json_obj_order = json_object_new_object();
