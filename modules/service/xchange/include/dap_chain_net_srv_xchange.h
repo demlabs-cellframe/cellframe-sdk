@@ -26,7 +26,9 @@
 
 #include "dap_chain_net.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_out_cond.h"
+#include "dap_json.h"
 
 #define DAP_CHAIN_NET_SRV_XCHANGE_ID 0x2
 #define GROUP_LOCAL_XCHANGE "local.xchange"
@@ -55,7 +57,7 @@ extern const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid;
 int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();
 
-json_object *dap_chain_net_srv_xchange_print_fee_json(dap_chain_net_t *a_net);
+dap_json_t *dap_chain_net_srv_xchange_print_fee_json(dap_chain_net_t *a_net);
 void dap_chain_net_srv_xchange_print_fee(dap_chain_net_t *a_net, dap_string_t *a_string_ret);
 
 typedef enum s_com_net_srv_xchange_err{
@@ -181,7 +183,6 @@ typedef enum dap_chain_net_srv_xchange_purchase_error_list{
     XCHANGE_PURCHASE_ERROR_SPECIFIED_ORDER_NOT_FOUND,
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_PRICE,
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_EXCHANGE_TX,
-    XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_JSON_OBJECT,
 } dap_chain_net_srv_xchange_purchase_error_t;
 dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out);
