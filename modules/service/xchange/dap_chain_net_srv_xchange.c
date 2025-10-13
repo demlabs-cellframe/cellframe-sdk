@@ -2644,16 +2644,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
-
-            bool l_has_loh_tokens_status = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head || (l_token_to_str != NULL) || (l_token_from_str != NULL) || (l_status_str != NULL);
-            bool l_has_addr = (l_addr_str != NULL);
-            int l_groups_cnt = (l_has_loh_tokens_status ? 1 : 0) + (l_has_addr ? 1 : 0);
-            if (l_groups_cnt > 1) {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_ERR,
-                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head/-token_to/-token_from/-status} or {-addr}");
-                return DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_REQ_PARAM_ERR;
-            }
-
+            
             size_t l_arr_start = 0;            
             size_t l_arr_end = 0;
             json_object* json_obj_order = json_object_new_object();
@@ -2987,8 +2978,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             }
 
             dap_time_t l_time[2];
-            l_time[0] = dap_time_from_str_rfc822(l_time_begin_str);
-            l_time[1] = dap_time_from_str_rfc822(l_time_end_str);
+            l_time[0] = dap_time_from_str_simplified(l_time_begin_str);
+            l_time[1] = dap_time_from_str_simplified(l_time_end_str);
+            //l_time[0] = dap_time_from_str_rfc822(l_time_begin_str);
+            //l_time[1] = dap_time_from_str_rfc822(l_time_end_str);
 
             // Parse pagination parameters
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
@@ -3028,18 +3021,35 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 
                 // First collect all matching transactions
                 dap_list_t *l_matching_txs = NULL;
-                HASH_ITER(hh, l_cache->cache, l_item, l_temp){
-                    if (l_time[0] && l_item->tx->header.ts_created < l_time[0])
-                        continue;
-
-                    if (l_time[1] && l_item->tx->header.ts_created > l_time[1])
-                        continue;
-                    
-                    // Create temporary structure to store in list
-                    xchange_tx_list_t *l_list_item = DAP_NEW_Z(xchange_tx_list_t);
-                    l_list_item->hash = l_item->hash;
-                    l_list_item->tx = l_item->tx;
-                    l_matching_txs = dap_list_append(l_matching_txs, l_list_item);
+                if (l_head) {
+                    // Forward traversal (from beginning)
+                    HASH_ITER(hh, l_cache->cache, l_item, l_temp){
+                        if (l_time[0] && l_item->tx->header.ts_created < l_time[0])
+                            continue;
+                        if (l_time[1] && l_item->tx->header.ts_created > l_time[1])
+                            continue;
+                        
+                        // Create temporary structure to store in list
+                        xchange_tx_list_t *l_list_item = DAP_NEW_Z(xchange_tx_list_t);
+                        l_list_item->hash = l_item->hash;
+                        l_list_item->tx = l_item->tx;
+                        l_matching_txs = dap_list_append(l_matching_txs, l_list_item);
+                    }
+                } else {
+                    // Reverse traversal (from end)
+                    l_item = HASH_LAST(l_cache->cache);
+                    for(; l_item; l_item = l_item->hh.prev){
+                        if (l_time[0] && l_item->tx->header.ts_created > l_time[0])
+                            continue;
+                        if (l_time[1] && l_item->tx->header.ts_created < l_time[1])
+                            continue;
+                        
+                        // Create temporary structure to store in list
+                        xchange_tx_list_t *l_list_item = DAP_NEW_Z(xchange_tx_list_t);
+                        l_list_item->hash = l_item->hash;
+                        l_list_item->tx = l_item->tx;
+                        l_matching_txs = dap_list_append(l_matching_txs, l_list_item);
+                    }
                 }
                 
                 // Apply pagination
