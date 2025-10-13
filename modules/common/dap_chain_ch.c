@@ -40,6 +40,7 @@
 #include "dap_chain_callback.h"  // For ATOM_* enums
 #include "dap_chain_ch_pkt.h"
 #include "dap_stream_ch_gossip.h"
+#include "dap_link_manager.h"
 
 #define LOG_TAG "dap_chain_ch"
 

@@ -40,6 +40,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_sign.h"
+#include "dap_link_manager.h"
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 

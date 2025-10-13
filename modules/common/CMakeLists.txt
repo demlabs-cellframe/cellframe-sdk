@@ -14,7 +14,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC .)
 
 # Only depends on DAP SDK for basic types
 # NO PRIVATE includes - решаем через правильную архитектуру!
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_global_db dap_chain dap_chain_datum)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_global_db dap_chain dap_chain_datum dap_link_manager)
 
 if(INSTALL_SDK)
     INSTALL(FILES ${DAP_COMMON_HEADERS}
