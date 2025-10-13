@@ -40,6 +40,7 @@
 #include "dap_chain_datum_service_state.h"
 #include "dap_chain_node_client.h"
 #include "utlist.h"
+#include "dap_link_manager.h"
 
 #define LOG_TAG "dap_chain_node"
 

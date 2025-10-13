@@ -36,6 +36,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_json.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_node_rpc.h"
+#include "dap_link_manager.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
 
