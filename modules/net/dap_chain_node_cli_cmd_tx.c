@@ -49,6 +49,7 @@
 #include "dap_enc_base64.h"
 
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_wallet_shared.h"
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
@@ -418,7 +419,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         bool l_is_need_correction = false;
         bool l_continue = true;
         uint256_t l_corr_value = {}, l_cond_value = {};
-        bool l_recv_from_cond = false, l_send_to_same_cond = false, l_found_out_to_same_addr_from_out_cond = false;
+        bool l_recv_from_cond = false, l_send_to_same_cond = false, l_found_out_to_same_addr_from_out_cond = false, l_cond_out_shared = false;
         json_object *l_corr_object = NULL, *l_cond_recv_object = NULL, *l_cond_send_object = NULL, 
                     *l_possible_recv_from_cond_object = NULL;
            
@@ -684,8 +685,11 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 else {
                     dap_chain_tx_out_cond_subtype_t l_dst_subtype = ((dap_chain_tx_out_cond_t *)it->data)->header.subtype;
                     l_dst_addr_str = dap_chain_tx_out_cond_subtype_to_str(l_dst_subtype);
-                    if (l_recv_from_cond && l_dst_subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE && l_dst_subtype == l_src_subtype)
+                    if (l_recv_from_cond && l_dst_subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE && l_dst_subtype == l_src_subtype) {
                         l_send_to_same_cond = true;
+                        if (l_dst_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED && !dap_chain_datum_tx_item_get_tsd_by_type(l_datum, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF))
+                            l_cond_out_shared = true;
+                    }
                 }
                 const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
                                 
@@ -721,7 +725,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
         }
-        if (l_send_to_same_cond && l_found_out_to_same_addr_from_out_cond) {
+        if (l_send_to_same_cond && (l_found_out_to_same_addr_from_out_cond || l_cond_out_shared)) {
             uint256_t l_cond_recv_value = l_cond_value;
             json_object *l_cond_send_value_obj = json_object_object_get(l_cond_send_object, "send_datoshi");
             const char *l_cond_send_value_str = json_object_get_string(l_cond_send_value_obj);
