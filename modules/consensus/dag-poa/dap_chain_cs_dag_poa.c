@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include "dap_common.h"
+#include "dap_link_manager.h"
 #include "dap_timerfd.h"
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
@@ -249,7 +250,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, UNUSED_ARG 
 
     if ( l_event_cmd_str != NULL ){
         if (l_poa_pvt->events_sign_cert )
-        ret = -1;
+            ret = -1;
         if ( strcmp(l_event_cmd_str,"sign") == 0) { // Sign event command
             char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
             size_t l_round_item_size = 0;
@@ -885,7 +886,7 @@ static int s_callback_event_verify(dap_chain_type_dag_t *a_dag, dap_chain_type_d
         if (l_signs_verified_count >= l_certs_count_verify)
             return 0;
     }
-    debug_if(s_debug_more, L_ERROR, "Event %s, not enough signs %hu from %hu",
+    debug_if(s_debug_more, L_ERROR, "Event %s, not enough signs %u from %hu",
                                                     dap_hash_fast_to_str_static(a_event_hash),
                                                     l_signs_count >= l_certs_count_verify ? l_signs_verified_count : (uint16_t)l_signs_count,
                                                     l_certs_count_verify);

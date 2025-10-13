@@ -34,6 +34,7 @@
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
+#include "dap_net_common.h"
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
 

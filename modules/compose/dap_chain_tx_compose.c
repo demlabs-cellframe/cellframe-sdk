@@ -465,42 +465,11 @@ static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, dap_jso
     return ret;
 }
 
-static void s_stage_connected_callback(dap_client_t* a_client, void * a_arg) {
-    dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
-    UNUSED(a_arg);
-    if(l_node_client) {
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
-        pthread_cond_signal(&l_node_client->wait_cond);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
-    }
-}
-
-static void s_stage_connected_error_callback(dap_client_t* a_client, void * a_arg) {
-    dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
-    UNUSED(a_arg);
-    if(l_node_client) {
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_ERROR;
-        pthread_cond_signal(&l_node_client->wait_cond);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
-    }
-}
-
-
 dap_json_t* dap_enc_request_command_to_rpc(const char *a_request, const char * a_url, uint16_t a_port, const char * a_cert_path) {
     if (!a_request || !a_url || !a_port) {
         return NULL;
     }
 
-    size_t url_len = strlen(a_url);
-    dap_chain_node_info_t *node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + url_len + 1);
-    if (!node_info) {
-        return NULL;
-    }
-    
-    node_info->ext_port = a_port;
-    node_info->ext_host_len = dap_strncpy(node_info->ext_host, a_url, url_len + 1) - node_info->ext_host;
     dap_json_rpc_params_t * params = dap_json_rpc_params_create();
     char *l_cmd_str = dap_strdup(a_request);
     for(int i = 0; l_cmd_str[i] != '\0'; i++) {
@@ -514,30 +483,11 @@ dap_json_t* dap_enc_request_command_to_rpc(const char *a_request, const char * a
     dap_strfreev(l_cmd_arr_str);
     DAP_DEL_Z(l_cmd_str);
 
-    int timeout_ms = 50000; //5 sec = 5000 ms
-    dap_chain_node_client_t * l_node_client = dap_chain_node_client_create(NULL, node_info, NULL, NULL);
-    //handshake
-    l_node_client->client = dap_client_new(s_stage_connected_error_callback, l_node_client);
-    l_node_client->client->_inheritor = l_node_client;
-    dap_client_set_uplink_unsafe(l_node_client->client, &l_node_client->info->address, node_info->ext_host, node_info->ext_port);
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(l_node_client->client);
-    dap_client_go_stage(l_node_client->client, STAGE_ENC_INIT, s_stage_connected_callback);
-    //wait handshake
-    int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
-    if (res) {
-        dap_chain_node_client_close_unsafe(l_node_client);
-        DAP_DEL_Z(node_info);
-        return NULL;
-    }
-
-
     //send request
     dap_json_t * l_response = NULL;
-    dap_json_rpc_request_send(l_client_internal, l_request, &l_response, a_cert_path);
+    dap_json_rpc_request_send(a_url, a_port, NULL, NULL, l_request, &l_response, a_cert_path);
 
     dap_json_rpc_request_free(l_request);
-    dap_chain_node_client_close_unsafe(l_node_client);
-    DAP_DEL_Z(node_info);
     
     return l_response;
 }

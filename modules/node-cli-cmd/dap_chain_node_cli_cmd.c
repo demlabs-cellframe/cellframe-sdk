@@ -6213,28 +6213,10 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
         dap_json_rpc_error_add(*a_json_arr_reply, -6, "Can't find node with addr: %s", l_addr_str);
         return -6;
     }
-    int timeout_ms = 5000; //5 sec = 5000 ms
-    dap_chain_node_client_t * l_node_client = dap_chain_node_client_create(l_net, node_info, NULL, NULL);
-
-    //handshake
-    l_node_client->client = dap_client_new(s_stage_connected_error_callback, l_node_client);
-    l_node_client->client->_inheritor = l_node_client;
-    dap_client_set_uplink_unsafe(l_node_client->client, &l_node_client->info->address, node_info->ext_host, node_info->ext_port);
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(l_node_client->client);
-    dap_client_go_stage(l_node_client->client, STAGE_ENC_INIT, s_stage_connected_callback);
-    //wait handshake
-    int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
-    if (res) {
-        log_it(L_ERROR, "No response from node");
-        dap_json_rpc_error_add(*a_json_arr_reply, -8, "No reponse from node");
-        dap_chain_node_client_close_unsafe(l_node_client);
-        DAP_DEL_Z(node_info);
-        return -8;
-    }
 
     //send request
     dap_json_t * l_response = NULL;
-    dap_json_rpc_request_send(l_client_internal, l_request, &l_response, NULL);
+    dap_json_rpc_request_send(node_info->ext_host, node_info->ext_port, NULL, NULL, l_request, &l_response, NULL);
 
     if (l_response) {
         dap_json_array_add(*a_json_arr_reply, l_response);
