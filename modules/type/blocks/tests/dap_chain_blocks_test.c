@@ -3,9 +3,10 @@
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_block.h"
-#include "dap_chain_cs_blocks.h"
+#include "dap_chain_type_blocks.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs.h"
+#include "dap_chain_cs_type.h"
 
 typedef struct {
     dap_hash_fast_t block_before_fork_hash;
@@ -93,7 +94,7 @@ bool dap_chain_block_test_compare_chain_hash_lists(dap_chain_t* a_chain, dap_lis
 void dap_chain_blocks_test()
 {
     dap_test_msg("Start of cs block testing...");
-    dap_assert_PIF(dap_chain_cs_blocks_init() == 0, "Initialization of dap consensus block: ");
+    dap_assert_PIF(dap_chain_type_blocks_init() == 0, "Initialization of dap consensus block: ");
 
     dap_assert_PIF(dap_chain_cs_esbocs_init() == 0, "Initialization of esbocs: ");
 
@@ -103,8 +104,9 @@ void dap_chain_blocks_test()
     dap_chain_id_t l_chain_id = {.uint64 = 1};
 
     dap_chain_t *l_chain =  dap_chain_create(l_chain_net_name, l_chain_name, l_chain_net_id, l_chain_id);
-    dap_config_t l_cfg = {};
-    dap_assert_PIF(dap_chain_cs_create(l_chain, &l_cfg) == 0, "Chain cs creating: ");
+    l_chain->config = dap_config_create_empty();
+    dap_config_set_item_str(l_chain->config, "chain", "consensus", "esbocs");
+    dap_assert_PIF(dap_chain_cs_create(l_chain, l_chain->config) == 0, "Chain cs creating: ");
 
 
     notify_arg_t *l_arg = DAP_NEW_Z(notify_arg_t);

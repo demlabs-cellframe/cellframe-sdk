@@ -365,7 +365,7 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
                dap_chain_hash_fast_to_str_static(a_auction_hash));
         return -2;
     }
-    
+
     // Create new auction cache item
     dap_auction_cache_item_t *l_auction = DAP_NEW_Z(dap_auction_cache_item_t);
     if (!l_auction) {
@@ -373,9 +373,9 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
         log_it(L_CRITICAL, "Memory allocation error for auction cache item");
         return -3;
     }
-    
+
     // Initialize basic auction data
-    *l_auction = (dap_auction_cache_item_t) { .auction_tx_hash = *a_auction_hash,
+    *l_auction = (dap_auction_cache_item_t) { .auction_tx_hash.hash = *a_auction_hash,
                                               .net_id = a_net_id,
                                               .created_time = a_tx_timestamp,
                                               .start_time = a_tx_timestamp,
@@ -404,7 +404,7 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
                 l_auction->end_time = a_tx_timestamp + a_started_data->duration;
                 break;
         }
-        
+
         // Add projects from the auction started data
         if (a_started_data->projects_cnt > 0) {
            
@@ -429,20 +429,18 @@ static int s_auction_cache_add_auction(struct auction *a_cache,
                 HASH_ADD(hh, l_auction->projects, project_id, sizeof(uint64_t), l_project);
             }
         }
-        
-        log_it(L_DEBUG, "Added auction %s with %u projects, duration: %lu %s", 
-               dap_chain_hash_fast_to_str_static(a_auction_hash),
+
+        const char *l_hash_str = dap_chain_hash_fast_to_str_static(a_auction_hash);
+        log_it(L_DEBUG, "Added auction %s with %u projects, duration: %" DAP_UINT64_FORMAT_U " %s", 
+               l_hash_str,
                a_started_data->projects_cnt,
                a_started_data->duration,
-               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS ? "hours" :
-               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS ? "days" :
-               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS ? "weeks" :
-               a_started_data->time_unit == DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS ? "months" : "seconds");
+               dap_chain_tx_event_data_time_unit_to_str(a_started_data->time_unit));
     }
-    
+
     // Add to both hash tables for optimal performance
     HASH_ADD_STR(a_cache->auctions, guuid, l_auction);  // Primary table by GUUID
-    HASH_ADD(hh_hash, a_cache->auctions_by_hash, auction_tx_hash, sizeof(dap_hash_fast_t), l_auction);  // Secondary table by tx hash
+    HASH_ADD(hh_hash, a_cache->auctions_by_hash, auction_tx_hash.hash_key, sizeof(l_auction->auction_tx_hash.hash_key), l_auction);  // Secondary table by tx hash (aligned key for ARM32)
     a_cache->total_auctions++;
     a_cache->active_auctions++;
     
@@ -506,14 +504,14 @@ static int s_auction_cache_add_bid(struct auction *a_cache,
 
 
     // Initialize bid data
-    *l_bid = (dap_auction_bid_cache_item_t) { .bid_tx_hash = *a_bid_hash,
+    *l_bid = (dap_auction_bid_cache_item_t) { .bid_tx_hash.hash = *a_bid_hash,
                                              .bid_amount = a_bid_amount,
                                              .lock_time = a_lock_time,
                                              .created_time = a_created_time
                                             };
     
-    // Add to auction's bids
-    HASH_ADD(hh, l_project->bids, bid_tx_hash, sizeof(dap_hash_fast_t), l_bid);
+    // Add to auction's bids (use aligned hash_key for uthash)
+    HASH_ADD(hh, l_project->bids, bid_tx_hash.hash_key, sizeof(l_bid->bid_tx_hash.hash_key), l_bid);
     l_project->active_bids_count++;
     l_auction->bids_count++;
     l_auction->active_bids_count++;
@@ -683,9 +681,9 @@ static dap_auction_cache_item_t *s_find_auction_by_hash_fast(struct auction *a_c
     if (!a_cache || !a_auction_hash)
         return NULL;
     
-    // Direct O(1) hash lookup using secondary table
+    // Direct O(1) hash lookup using secondary table (use raw bytes for aligned search)
     dap_auction_cache_item_t *l_auction = NULL;
-    HASH_FIND(hh_hash, a_cache->auctions_by_hash, a_auction_hash, sizeof(dap_hash_fast_t), l_auction);
+    HASH_FIND(hh_hash, a_cache->auctions_by_hash, a_auction_hash->raw, DAP_HASH_FAST_SIZE, l_auction);
     return l_auction;
 }
 
@@ -1317,7 +1315,7 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_find(dap_chain_net_t *a_
     }
     
     // Fill auction data from cache
-    l_auction->auction_hash = l_cached_auction->auction_tx_hash;
+    l_auction->auction_hash = l_cached_auction->auction_tx_hash.hash;
     l_auction->guuid = l_cached_auction->guuid ? dap_strdup(l_cached_auction->guuid) : NULL;
     l_auction->status = l_cached_auction->status;
     l_auction->created_time = l_cached_auction->created_time;
@@ -1394,7 +1392,7 @@ dap_chain_net_srv_auction_t *dap_chain_net_srv_auctions_get_detailed(dap_chain_n
     }
     
     // Fill basic auction data
-    l_auction->auction_hash = l_cached_auction->auction_tx_hash;
+    l_auction->auction_hash = l_cached_auction->auction_tx_hash.hash;
     l_auction->guuid = l_cached_auction->guuid ? dap_strdup(l_cached_auction->guuid) : NULL;
     l_auction->status = l_cached_auction->status;
     l_auction->created_time = l_cached_auction->created_time;
@@ -1530,7 +1528,7 @@ dap_list_t *dap_chain_net_srv_auctions_get_list(dap_chain_net_t *a_net,
             continue;
         
         // Fill basic data
-        l_auction->auction_hash = l_cached_auction->auction_tx_hash;
+        l_auction->auction_hash = l_cached_auction->auction_tx_hash.hash;
         l_auction->guuid = l_cached_auction->guuid ? dap_strdup(l_cached_auction->guuid) : NULL;
         l_auction->status = l_cached_auction->status;
         l_auction->created_time = l_cached_auction->created_time;
@@ -2185,14 +2183,14 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     const char *str_tmp = NULL;
-    json_object **l_json_arr_reply = (json_object **) str_reply;
+    dap_json_t **l_json_arr_reply = (dap_json_t **) str_reply;
     
     // Ensure JSON reply is an array to avoid segfaults on json_object_array_add
     if (!l_json_arr_reply) {
         return -1;
     }
-    if (!*l_json_arr_reply || !json_object_is_type(*l_json_arr_reply, json_type_array)) {
-        *l_json_arr_reply = json_object_new_array();
+    if (!*l_json_arr_reply || !dap_json_is_array(*l_json_arr_reply)) {
+        *l_json_arr_reply = dap_json_array_new();
     }
     
     // Parse command
@@ -2320,7 +2318,7 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                 // Try resolve by GUUID via auction cache
                 l_auction = s_auction_cache_find_auction_by_name(l_auction_service, l_auction_id_str);
                 if (l_auction)
-                    l_auction_hash = l_auction->auction_tx_hash;
+                    l_auction_hash = l_auction->auction_tx_hash.hash;
             }
             // Check auction is active           
             if (!l_auction) {
@@ -2355,21 +2353,21 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
 
             if (l_tx_hash_str) {
                 // Success - return transaction hash
-                json_object *l_json_obj = json_object_new_object();
-                json_object_object_add(l_json_obj, "command", json_object_new_string("bid"));
-                json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
-                json_object_object_add(l_json_obj, "tx_hash", json_object_new_string(l_tx_hash_str));
-                json_object_object_add(l_json_obj, "auction_tx_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_auction_hash)));
-                json_object_object_add(l_json_obj, "auction_name", json_object_new_string(l_auction->guuid));
+                dap_json_t *l_json_obj = dap_json_object_new();
+                dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("bid"));
+                dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
+                dap_json_object_add_object(l_json_obj, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
+                dap_json_object_add_object(l_json_obj, "auction_tx_hash", dap_json_object_new_string(dap_chain_hash_fast_to_str_static(&l_auction_hash)));
+                dap_json_object_add_object(l_json_obj, "auction_name", dap_json_object_new_string(l_auction->guuid));
                 const char *l_amount_str = dap_uint256_to_char(l_amount, NULL);
-                json_object_object_add(l_json_obj, "amount", json_object_new_string(l_amount_str));
+                dap_json_object_add_object(l_json_obj, "amount", dap_json_object_new_string(l_amount_str));
                 
                 
                 const char *l_fee_str = dap_uint256_to_char(l_fee, NULL);
-                json_object_object_add(l_json_obj, "fee", json_object_new_string(l_fee_str));
+                dap_json_object_add_object(l_json_obj, "fee", dap_json_object_new_string(l_fee_str));
                 
-                json_object_object_add(l_json_obj, "lock_months", json_object_new_int(l_lock_months));
-                json_object_array_add(*l_json_arr_reply, l_json_obj);
+                dap_json_object_add_object(l_json_obj, "lock_months", dap_json_object_new_int(l_lock_months));
+                dap_json_array_add(*l_json_arr_reply, l_json_obj);
                 
                 DAP_DELETE(l_tx_hash_str);
             } else {
@@ -2506,17 +2504,17 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
 
             if (l_ret_code == 0) {
                 // Success - return transaction hash
-                json_object *l_json_obj = json_object_new_object();
-                json_object_object_add(l_json_obj, "command", json_object_new_string("withdraw"));
-                json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
-                json_object_object_add(l_json_obj, "tx_hash", json_object_new_string(l_tx_hash_str));
-                json_object_object_add(l_json_obj, "bid_tx_hash", json_object_new_string(l_bid_tx_hash_str));
+                dap_json_t *l_json_obj = dap_json_object_new();
+                dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("withdraw"));
+                dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
+                dap_json_object_add_object(l_json_obj, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
+                dap_json_object_add_object(l_json_obj, "bid_tx_hash", dap_json_object_new_string(l_bid_tx_hash_str));
                 const char *l_value_str; dap_uint256_to_char(l_value, &l_value_str);
-                json_object_object_add(l_json_obj, "value", json_object_new_string(l_value_str));
+                dap_json_object_add_object(l_json_obj, "value", dap_json_object_new_string(l_value_str));
                 const char *l_fee_str; dap_uint256_to_char(l_fee, &l_fee_str);
-                json_object_object_add(l_json_obj, "fee", json_object_new_string(l_fee_str));
+                dap_json_object_add_object(l_json_obj, "fee", dap_json_object_new_string(l_fee_str));
                 
-                json_object_array_add(*l_json_arr_reply, l_json_obj);
+                dap_json_array_add(*l_json_arr_reply, l_json_obj);
                 
                 DAP_DELETE(l_tx_hash_str);
             } else {
@@ -2614,14 +2612,14 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                 log_it(L_INFO, "CMD_LIST: get_list returned list with %u items", l_list_length);
             }
             
-            json_object *l_json_obj = json_object_new_object();
-            json_object_object_add(l_json_obj, "command", json_object_new_string("list"));
-            json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
-            json_object_object_add(l_json_obj, "active_only", json_object_new_boolean(l_active_only));
-            json_object_object_add(l_json_obj, "include_projects", json_object_new_boolean(l_include_projects));
+            dap_json_t *l_json_obj = dap_json_object_new();
+            dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("list"));
+            dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
+            dap_json_object_add_object(l_json_obj, "active_only", dap_json_object_new_bool(l_active_only));
+            dap_json_object_add_object(l_json_obj, "include_projects", dap_json_object_new_bool(l_include_projects));
             
             // Create auctions array
-            json_object *l_auctions_array = json_object_new_array();
+            dap_json_t *l_auctions_array = dap_json_array_new();
             uint32_t l_count = 0;
             uint32_t l_processed = 0;
             
@@ -2639,88 +2637,88 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                 log_it(L_DEBUG, "CMD_LIST: Auction %u: guuid=%s, status=%d", 
                        l_processed, l_auction->guuid ? l_auction->guuid : "NULL", l_auction->status);
                 
-                json_object *l_auction_obj = json_object_new_object();
+                dap_json_t *l_auction_obj = dap_json_object_new();
                 
                 // Basic auction info
-                json_object_object_add(l_auction_obj, "hash", 
-                    json_object_new_string(dap_chain_hash_fast_to_str_static(&l_auction->auction_hash)));
+                dap_json_object_add_object(l_auction_obj, "hash", 
+                    dap_json_object_new_string(dap_chain_hash_fast_to_str_static(&l_auction->auction_hash)));
                 if (l_auction->guuid)
-                    json_object_object_add(l_auction_obj, "auction_name", json_object_new_string(l_auction->guuid));
-                json_object_object_add(l_auction_obj, "status", 
-                    json_object_new_string(dap_auction_status_to_str(l_auction->status)));
+                    dap_json_object_add_object(l_auction_obj, "auction_name", dap_json_object_new_string(l_auction->guuid));
+                dap_json_object_add_object(l_auction_obj, "status", 
+                    dap_json_object_new_string(dap_auction_status_to_str(l_auction->status)));
                 
                 // Format times as human-readable strings
                 char created_time_str[DAP_TIME_STR_SIZE], start_time_str[DAP_TIME_STR_SIZE], end_time_str[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(created_time_str, DAP_TIME_STR_SIZE, l_auction->created_time);
                 dap_time_to_str_rfc822(start_time_str, DAP_TIME_STR_SIZE, l_auction->start_time);
                 dap_time_to_str_rfc822(end_time_str, DAP_TIME_STR_SIZE, l_auction->end_time);
-                json_object_object_add(l_auction_obj, "created_time", json_object_new_string(created_time_str));
-                json_object_object_add(l_auction_obj, "start_time", json_object_new_string(start_time_str));
-                json_object_object_add(l_auction_obj, "end_time", json_object_new_string(end_time_str));
-                json_object_object_add(l_auction_obj, "bids_count", 
-                    json_object_new_uint64(l_auction->bids_count));
-                json_object_object_add(l_auction_obj, "projects_count", 
-                    json_object_new_uint64(l_auction->projects_count));
+                dap_json_object_add_object(l_auction_obj, "created_time", dap_json_object_new_string(created_time_str));
+                dap_json_object_add_object(l_auction_obj, "start_time", dap_json_object_new_string(start_time_str));
+                dap_json_object_add_object(l_auction_obj, "end_time", dap_json_object_new_string(end_time_str));
+                dap_json_object_add_object(l_auction_obj, "bids_count", 
+                    dap_json_object_new_uint64(l_auction->bids_count));
+                dap_json_object_add_object(l_auction_obj, "projects_count", 
+                    dap_json_object_new_uint64(l_auction->projects_count));
                 
                 // Winners information
                 if (l_auction->has_winner && l_auction->winners_cnt > 0) {
-                    json_object *l_winners_array = json_object_new_array();
+                    dap_json_t *l_winners_array = dap_json_array_new();
                     for (uint8_t i = 0; i < l_auction->winners_cnt; i++) {
-                    json_object *l_winner_obj = json_object_new_object();
-                        json_object_object_add(l_winner_obj, "project_id", 
-                            json_object_new_uint64(l_auction->winners_ids[i]));
-                        json_object_array_add(l_winners_array, l_winner_obj);
+                    dap_json_t *l_winner_obj = dap_json_object_new();
+                        dap_json_object_add_object(l_winner_obj, "project_id", 
+                            dap_json_object_new_uint64(l_auction->winners_ids[i]));
+                        dap_json_array_add(l_winners_array, l_winner_obj);
                     }
-                    json_object_object_add(l_auction_obj, "winners", l_winners_array);
-                    json_object_object_add(l_auction_obj, "winners_count", 
-                        json_object_new_uint64(l_auction->winners_cnt));
+                    dap_json_object_add_object(l_auction_obj, "winners", l_winners_array);
+                    dap_json_object_add_object(l_auction_obj, "winners_count", 
+                        dap_json_object_new_uint64(l_auction->winners_cnt));
                 }
                 
                 // Projects information (if requested and available)
                 if (l_include_projects && l_auction->projects && l_auction->projects_count > 0) {
-                    json_object *l_projects_array = json_object_new_array();
+                    dap_json_t *l_projects_array = dap_json_array_new();
                     for (uint32_t i = 0; i < l_auction->projects_count; i++) {
-                        json_object *l_project_obj = json_object_new_object();
+                        dap_json_t *l_project_obj = dap_json_object_new();
                         
                         // Project ID
-                        json_object_object_add(l_project_obj, "project_id", json_object_new_uint64(l_auction->projects[i].project_id));
+                        dap_json_object_add_object(l_project_obj, "project_id", dap_json_object_new_uint64(l_auction->projects[i].project_id));
                         
                         // Total amount
                         char *l_total_amount_str = dap_uint256_uninteger_to_char(l_auction->projects[i].total_amount);
                         if (l_total_amount_str) {
-                            json_object_object_add(l_project_obj, "total_amount", json_object_new_string(l_total_amount_str));
+                            dap_json_object_add_object(l_project_obj, "total_amount", dap_json_object_new_string(l_total_amount_str));
                             DAP_DELETE(l_total_amount_str);
                         } else {
-                            json_object_object_add(l_project_obj, "total_amount", json_object_new_string("0"));
+                            dap_json_object_add_object(l_project_obj, "total_amount", dap_json_object_new_string("0"));
                         }
                         
                         // Total amount in CELL
                         char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_auction->projects[i].total_amount);
                         if (l_total_amount_coin_str) {
-                            json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string(l_total_amount_coin_str));
+                            dap_json_object_add_object(l_project_obj, "total_amount_coin", dap_json_object_new_string(l_total_amount_coin_str));
                             DAP_DELETE(l_total_amount_coin_str);
                         } else {
-                            json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string("0.0"));
+                            dap_json_object_add_object(l_project_obj, "total_amount_coin", dap_json_object_new_string("0.0"));
                         }
                         
                         // Bids counts
-                        json_object_object_add(l_project_obj, "bids_count", json_object_new_uint64(l_auction->projects[i].bids_count));
-                        json_object_object_add(l_project_obj, "active_bids_count", json_object_new_uint64(l_auction->projects[i].active_bids_count));
+                        dap_json_object_add_object(l_project_obj, "bids_count", dap_json_object_new_uint64(l_auction->projects[i].bids_count));
+                        dap_json_object_add_object(l_project_obj, "active_bids_count", dap_json_object_new_uint64(l_auction->projects[i].active_bids_count));
                         
-                        json_object_array_add(l_projects_array, l_project_obj);
+                        dap_json_array_add(l_projects_array, l_project_obj);
                     }
-                    json_object_object_add(l_auction_obj, "projects", l_projects_array);
+                    dap_json_object_add_object(l_auction_obj, "projects", l_projects_array);
                 }
                 
-                json_object_array_add(l_auctions_array, l_auction_obj);
+                dap_json_array_add(l_auctions_array, l_auction_obj);
                 l_count++;
                 log_it(L_DEBUG, "CMD_LIST: Successfully added auction %u to JSON array", l_count);
             }
             
             log_it(L_INFO, "CMD_LIST: Processed %u items, added %u auctions to JSON array", l_processed, l_count);
-            json_object_object_add(l_json_obj, "auctions", l_auctions_array);
-            json_object_object_add(l_json_obj, "count", json_object_new_uint64(l_count));
-            json_object_array_add(*l_json_arr_reply, l_json_obj);
+            dap_json_object_add_object(l_json_obj, "auctions", l_auctions_array);
+            dap_json_object_add_object(l_json_obj, "count", dap_json_object_new_uint64(l_count));
+            dap_json_array_add(*l_json_arr_reply, l_json_obj);
             
             log_it(L_INFO, "CMD_LIST: JSON response prepared with %u auctions", l_count);
             
@@ -2756,7 +2754,7 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                 // Try resolve by GUUID via auction cache
                 l_auction = s_auction_cache_find_auction_by_name(l_auction_service, l_auction_id_str);
                 if (l_auction)
-                    l_auction_hash = l_auction->auction_tx_hash;
+                    l_auction_hash = l_auction->auction_tx_hash.hash;
             }
             if(!l_auction) {
                 dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_NOT_FOUND_ERROR, "Auction '%s' not found",
@@ -2764,94 +2762,94 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                 return -2;
             }          
             bool l_verbose = (dap_cli_server_cmd_check_option(argv, arg_index, argc, "-verbose") != -1);
-            json_object *l_json_obj = json_object_new_object();
-            json_object_object_add(l_json_obj, "command", json_object_new_string("info"));
-            json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
-            json_object_object_add(l_json_obj, "verbose", json_object_new_boolean(l_verbose));
-            json_object_object_add(l_json_obj, "auction_tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_auction->auction_tx_hash)));
-            json_object_object_add(l_json_obj, "auction_name", json_object_new_string(l_auction->guuid));
+            dap_json_t *l_json_obj = dap_json_object_new();
+            dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("info"));
+            dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
+            dap_json_object_add_object(l_json_obj, "verbose", dap_json_object_new_bool(l_verbose));
+            dap_json_object_add_object(l_json_obj, "auction_tx_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_auction->auction_tx_hash.hash)));
+            dap_json_object_add_object(l_json_obj, "auction_name", dap_json_object_new_string(l_auction->guuid));
             
             // Basic auction information
-            json_object_object_add(l_json_obj, "auction_status", 
-                json_object_new_string(dap_auction_status_to_str(l_auction->status)));
+            dap_json_object_add_object(l_json_obj, "auction_status", 
+                dap_json_object_new_string(dap_auction_status_to_str(l_auction->status)));
             
             // Format times as human-readable strings
             char info_created_time_str[DAP_TIME_STR_SIZE], info_start_time_str[DAP_TIME_STR_SIZE], info_end_time_str[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(info_created_time_str, DAP_TIME_STR_SIZE, l_auction->created_time);
             dap_time_to_str_rfc822(info_start_time_str, DAP_TIME_STR_SIZE, l_auction->start_time);
             dap_time_to_str_rfc822(info_end_time_str, DAP_TIME_STR_SIZE, l_auction->end_time);
-            json_object_object_add(l_json_obj, "created_time", json_object_new_string(info_created_time_str));
-            json_object_object_add(l_json_obj, "start_time", json_object_new_string(info_start_time_str));
-            json_object_object_add(l_json_obj, "end_time", json_object_new_string(info_end_time_str));
-            json_object_object_add(l_json_obj, "bids_count", json_object_new_uint64(l_auction->bids_count));
-            json_object_object_add(l_json_obj, "projects_count", json_object_new_uint64(HASH_COUNT(l_auction->projects)));
+            dap_json_object_add_object(l_json_obj, "created_time", dap_json_object_new_string(info_created_time_str));
+            dap_json_object_add_object(l_json_obj, "start_time", dap_json_object_new_string(info_start_time_str));
+            dap_json_object_add_object(l_json_obj, "end_time", dap_json_object_new_string(info_end_time_str));
+            dap_json_object_add_object(l_json_obj, "bids_count", dap_json_object_new_uint64(l_auction->bids_count));
+            dap_json_object_add_object(l_json_obj, "projects_count", dap_json_object_new_uint64(HASH_COUNT(l_auction->projects)));
             
             if (l_auction->description) {
-                json_object_object_add(l_json_obj, "description", 
-                    json_object_new_string(l_auction->description));
+                dap_json_object_add_object(l_json_obj, "description", 
+                    dap_json_object_new_string(l_auction->description));
             }
             
             // Winners information
             if (l_auction->has_winner && l_auction->winners_cnt > 0) {
-                json_object *l_winners_array = json_object_new_array();
+                dap_json_t *l_winners_array = dap_json_array_new();
                 for (uint8_t i = 0; i < l_auction->winners_cnt; i++) {
-                json_object *l_winner_obj = json_object_new_object();
-                    json_object_object_add(l_winner_obj, "project_id", 
-                        json_object_new_uint64(l_auction->winners_ids[i]));
-                    json_object_array_add(l_winners_array, l_winner_obj);
+                dap_json_t *l_winner_obj = dap_json_object_new();
+                    dap_json_object_add_object(l_winner_obj, "project_id", 
+                        dap_json_object_new_uint64(l_auction->winners_ids[i]));
+                    dap_json_array_add(l_winners_array, l_winner_obj);
                 }
-                json_object_object_add(l_json_obj, "winners", l_winners_array);
-                json_object_object_add(l_json_obj, "winners_count", 
-                    json_object_new_uint64(l_auction->winners_cnt));
+                dap_json_object_add_object(l_json_obj, "winners", l_winners_array);
+                dap_json_object_add_object(l_json_obj, "winners_count", 
+                    dap_json_object_new_uint64(l_auction->winners_cnt));
             }
             
             // Projects information
             if (l_auction->projects && HASH_COUNT(l_auction->projects) > 0) {
-                json_object *l_projects_array = json_object_new_array();
+                dap_json_t *l_projects_array = dap_json_array_new();
                 
                 for (dap_auction_project_cache_item_t *l_project = l_auction->projects; l_project; l_project = l_project->hh.next) {
-                    json_object *l_project_obj = json_object_new_object();
-                    json_object_array_add(l_projects_array, l_project_obj);
+                    dap_json_t *l_project_obj = dap_json_object_new();
+                    dap_json_array_add(l_projects_array, l_project_obj);
                     // Project ID
-                    json_object_object_add(l_project_obj, "project_id", json_object_new_uint64(l_project->project_id));
+                    dap_json_object_add_object(l_project_obj, "project_id", dap_json_object_new_uint64(l_project->project_id));
                    
                     const char *l_total_amount_str = dap_uint256_to_char(l_project->total_amount, NULL);
-                    json_object_object_add(l_project_obj, "total_amount", json_object_new_string(l_total_amount_str));
+                    dap_json_object_add_object(l_project_obj, "total_amount", dap_json_object_new_string(l_total_amount_str));
                     
                     // Total amount in CELL
                     char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_project->total_amount);
                     if (l_total_amount_coin_str) {
-                        json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string(l_total_amount_coin_str));
+                        dap_json_object_add_object(l_project_obj, "total_amount_coin", dap_json_object_new_string(l_total_amount_coin_str));
                         DAP_DELETE(l_total_amount_coin_str);
                     } else {
-                        json_object_object_add(l_project_obj, "total_amount_coin", json_object_new_string("0.0"));
+                        dap_json_object_add_object(l_project_obj, "total_amount_coin", dap_json_object_new_string("0.0"));
                     }
                     
-                    json_object_object_add(l_project_obj, "bids_count", 
-                        json_object_new_uint64(HASH_COUNT(l_project->bids)));
-                    json_object_object_add(l_project_obj, "active_bids_count", 
-                        json_object_new_uint64(l_project->active_bids_count));
+                    dap_json_object_add_object(l_project_obj, "bids_count", 
+                        dap_json_object_new_uint64(HASH_COUNT(l_project->bids)));
+                    dap_json_object_add_object(l_project_obj, "active_bids_count", 
+                        dap_json_object_new_uint64(l_project->active_bids_count));
                     if (l_verbose) {
-                        json_object *l_bids_array = json_object_new_array();
-                        json_object_object_add(l_project_obj, "bids", l_bids_array);
+                        dap_json_t *l_bids_array = dap_json_array_new();
+                        dap_json_object_add_object(l_project_obj, "bids", l_bids_array);
                         for (dap_auction_bid_cache_item_t *l_bid = l_project->bids; l_bid; l_bid = l_bid->hh.next) {
-                            json_object *l_bid_obj = json_object_new_object();
-                            json_object_array_add(l_bids_array, l_bid_obj);
-                            json_object_object_add(l_bid_obj, "bid_tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_bid->bid_tx_hash)));
-                            json_object_object_add(l_bid_obj, "bid_amount", json_object_new_string(dap_uint256_to_char(l_bid->bid_amount, NULL)));
-                            json_object_object_add(l_bid_obj, "lock_time", json_object_new_uint64(l_bid->lock_time));
+                            dap_json_t *l_bid_obj = dap_json_object_new();
+                            dap_json_array_add(l_bids_array, l_bid_obj);
+                            dap_json_object_add_object(l_bid_obj, "bid_tx_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_bid->bid_tx_hash.hash)));
+                            dap_json_object_add_object(l_bid_obj, "bid_amount", dap_json_object_new_string(dap_uint256_to_char(l_bid->bid_amount, NULL)));
+                            dap_json_object_add_object(l_bid_obj, "lock_time", dap_json_object_new_uint64(l_bid->lock_time));
                             char l_bid_created_time_str[DAP_TIME_STR_SIZE] = {'\0'};
                             dap_time_to_str_rfc822(l_bid_created_time_str, sizeof(l_bid_created_time_str), l_bid->created_time);
-                            json_object_object_add(l_bid_obj, "created_time", json_object_new_string(l_bid_created_time_str));
-                            json_object_object_add(l_bid_obj, "is_withdrawn", json_object_new_boolean(l_bid->is_withdrawn));
+                            dap_json_object_add_object(l_bid_obj, "created_time", dap_json_object_new_string(l_bid_created_time_str));
+                            dap_json_object_add_object(l_bid_obj, "is_withdrawn", dap_json_object_new_bool(l_bid->is_withdrawn));
                         }
                     }
                 }
                 
-                json_object_object_add(l_json_obj, "projects", l_projects_array);
+                dap_json_object_add_object(l_json_obj, "projects", l_projects_array);
             }
             
-            json_object_array_add(*l_json_arr_reply, l_json_obj);
+            dap_json_array_add(*l_json_arr_reply, l_json_obj);
 
         } break;
 
@@ -2877,7 +2875,7 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
                 // Try resolve by GUUID via auction cache
                 l_auction = s_auction_cache_find_auction_by_name(l_auction_service, l_auction_id_str);
                 if (l_auction)
-                    l_auction_hash = l_auction->auction_tx_hash;
+                    l_auction_hash = l_auction->auction_tx_hash.hash;
             }
             if(!l_auction) {
                 dap_json_rpc_error_add(*l_json_arr_reply, AUCTION_NOT_FOUND_ERROR, "Auction '%s' not found", l_auction_id_str);
@@ -2898,79 +2896,79 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
 
             dap_list_t *l_events = dap_ledger_event_get_list(l_net->pub.ledger, l_auction->guuid);
             
-            json_object *l_json_obj = json_object_new_object();
-            json_object_object_add(l_json_obj, "command", json_object_new_string("events"));
-            json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
-            json_object_object_add(l_json_obj, "auction_name", json_object_new_string(l_auction->guuid));
-            json_object *l_events_array = json_object_new_array();
+            dap_json_t *l_json_obj = dap_json_object_new();
+            dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("events"));
+            dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
+            dap_json_object_add_object(l_json_obj, "auction_name", dap_json_object_new_string(l_auction->guuid));
+            dap_json_t *l_events_array = dap_json_array_new();
             for (dap_list_t *it = l_events; it; it = it->next) {
                 dap_chain_tx_event_t *l_event = (dap_chain_tx_event_t *)it->data;
                 if (l_event_type_int && l_event->event_type != l_event_type_int)
                     continue;
-                json_object *l_event_obj = json_object_new_object();
-                json_object_array_add(l_events_array, l_event_obj);
+                dap_json_t *l_event_obj = dap_json_object_new();
+                dap_json_array_add(l_events_array, l_event_obj);
                 dap_chain_datum_tx_event_to_json(l_event_obj, l_event, "hex");
-                json_object *l_auction_data = json_object_new_object();
-                json_object_object_add(l_event_obj, "auction_data", l_auction_data);
+                dap_json_t *l_auction_data = dap_json_object_new();
+                dap_json_object_add_object(l_event_obj, "auction_data", l_auction_data);
                 switch (l_event->event_type) {
                 case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED: {
                     dap_chain_tx_event_data_auction_started_t *l_started_data = (dap_chain_tx_event_data_auction_started_t *)l_event->event_data;
-                    json_object_object_add(l_auction_data, "multiplier", json_object_new_uint64(l_started_data->multiplier));
-                    json_object_object_add(l_auction_data, "duration", json_object_new_uint64(l_started_data->duration));
-                    json_object_object_add(l_auction_data, "time_unit", json_object_new_string(dap_chain_tx_event_data_time_unit_to_str(l_started_data->time_unit)));
-                    json_object_object_add(l_auction_data, "calculation_rule_id", json_object_new_uint64(l_started_data->calculation_rule_id));
-                    json_object_object_add(l_auction_data, "projects_cnt", json_object_new_uint64(l_started_data->projects_cnt));
-                    json_object *l_projects_array = json_object_new_array();
-                    json_object_object_add(l_auction_data, "projects", l_projects_array);
+                    dap_json_object_add_object(l_auction_data, "multiplier", dap_json_object_new_uint64(l_started_data->multiplier));
+                    dap_json_object_add_object(l_auction_data, "duration", dap_json_object_new_uint64(l_started_data->duration));
+                    dap_json_object_add_object(l_auction_data, "time_unit", dap_json_object_new_string(dap_chain_tx_event_data_time_unit_to_str(l_started_data->time_unit)));
+                    dap_json_object_add_object(l_auction_data, "calculation_rule_id", dap_json_object_new_uint64(l_started_data->calculation_rule_id));
+                    dap_json_object_add_object(l_auction_data, "projects_cnt", dap_json_object_new_uint64(l_started_data->projects_cnt));
+                    dap_json_t *l_projects_array = dap_json_array_new();
+                    dap_json_object_add_object(l_auction_data, "projects", l_projects_array);
                     for (uint8_t i = 0; i < l_started_data->projects_cnt; i++) {
-                        json_object *l_project_obj = json_object_new_object();
-                        json_object_object_add(l_project_obj, "project_id", json_object_new_uint64(l_started_data->project_ids[i]));
-                        json_object_array_add(l_projects_array, l_project_obj);
+                        dap_json_t *l_project_obj = dap_json_object_new();
+                        dap_json_object_add_object(l_project_obj, "project_id", dap_json_object_new_uint64(l_started_data->project_ids[i]));
+                        dap_json_array_add(l_projects_array, l_project_obj);
                     }
                 } break;
                 case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED: {
                     dap_chain_tx_event_data_ended_t *l_ended_data = (dap_chain_tx_event_data_ended_t *)l_event->event_data;
-                    json_object_object_add(l_auction_data, "winners_cnt", json_object_new_uint64(l_ended_data->winners_cnt));
-                    json_object *l_winners_array = json_object_new_array();
-                    json_object_object_add(l_auction_data, "winners", l_winners_array);
+                    dap_json_object_add_object(l_auction_data, "winners_cnt", dap_json_object_new_uint64(l_ended_data->winners_cnt));
+                    dap_json_t *l_winners_array = dap_json_array_new();
+                    dap_json_object_add_object(l_auction_data, "winners", l_winners_array);
                     for (uint8_t i = 0; i < l_ended_data->winners_cnt; i++) {
-                        json_object *l_winner_obj = json_object_new_object();
-                        json_object_object_add(l_winner_obj, "winner_id", json_object_new_uint64(l_ended_data->winners_ids[i]));
-                        json_object_array_add(l_winners_array, l_winner_obj);
+                        dap_json_t *l_winner_obj = dap_json_object_new();
+                        dap_json_object_add_object(l_winner_obj, "winner_id", dap_json_object_new_uint64(l_ended_data->winners_ids[i]));
+                        dap_json_array_add(l_winners_array, l_winner_obj);
                     }
                 } break;
                 default:
-                    json_object_object_add(l_auction_data, "empty", json_object_new_null());
+                    dap_json_object_add_object(l_auction_data, "empty", dap_json_object_new());
                     break;
                 }
             }
-            json_object_object_add(l_json_obj, "events", l_events_array);
-            json_object_array_add(*l_json_arr_reply, l_json_obj);
+            dap_json_object_add_object(l_json_obj, "events", l_events_array);
+            dap_json_array_add(*l_json_arr_reply, l_json_obj);
         } break;
 
         case CMD_STATS: {
             // Get auction statistics
             dap_auction_stats_t *l_stats = dap_chain_net_srv_auctions_get_stats(l_net);
             
-            json_object *l_json_obj = json_object_new_object();
-            json_object_object_add(l_json_obj, "command", json_object_new_string("stats"));
+            dap_json_t *l_json_obj = dap_json_object_new();
+            dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("stats"));
             
             if (l_stats) {
-                json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
-                json_object_object_add(l_json_obj, "total_auctions", json_object_new_uint64(l_stats->total_auctions));
-                json_object_object_add(l_json_obj, "active_auctions", json_object_new_uint64(l_stats->active_auctions));
-                json_object_object_add(l_json_obj, "ended_auctions", json_object_new_uint64(l_stats->ended_auctions));
-                json_object_object_add(l_json_obj, "cancelled_auctions", json_object_new_uint64(l_stats->cancelled_auctions));
-                json_object_object_add(l_json_obj, "total_bids", json_object_new_uint64(l_stats->total_bids));
-                json_object_object_add(l_json_obj, "total_projects", json_object_new_uint64(l_stats->total_projects));
+                dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
+                dap_json_object_add_object(l_json_obj, "total_auctions", dap_json_object_new_uint64(l_stats->total_auctions));
+                dap_json_object_add_object(l_json_obj, "active_auctions", dap_json_object_new_uint64(l_stats->active_auctions));
+                dap_json_object_add_object(l_json_obj, "ended_auctions", dap_json_object_new_uint64(l_stats->ended_auctions));
+                dap_json_object_add_object(l_json_obj, "cancelled_auctions", dap_json_object_new_uint64(l_stats->cancelled_auctions));
+                dap_json_object_add_object(l_json_obj, "total_bids", dap_json_object_new_uint64(l_stats->total_bids));
+                dap_json_object_add_object(l_json_obj, "total_projects", dap_json_object_new_uint64(l_stats->total_projects));
                 
                 DAP_DELETE(l_stats);
             } else {
-                json_object_object_add(l_json_obj, "status", json_object_new_string("error"));
-                json_object_object_add(l_json_obj, "message", json_object_new_string("Failed to get statistics"));
+                dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("error"));
+                dap_json_object_add_object(l_json_obj, "message", dap_json_object_new_string("Failed to get statistics"));
             }
             
-            json_object_array_add(*l_json_arr_reply, l_json_obj);
+            dap_json_array_add(*l_json_arr_reply, l_json_obj);
         } break;
 
         default:

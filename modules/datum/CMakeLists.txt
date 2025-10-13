@@ -4,15 +4,15 @@ project (dap_chain_datum)
 file(GLOB DAP_CHAIN_DATUM_SRCS  *.c)
 file(GLOB DAP_CHAIN_DATUM_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_DATUM_SRCS} ${DAP_CHAIN_DATUM_HEADERS})
+# Use universal Cellframe library macro
+cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_DATUM_SRCS} HEADERS ${DAP_CHAIN_DATUM_HEADERS})
 
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
 endif()
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_net)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_global_db dap_json_rpc dap_common dap_chain)
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/json-c)
 
 
 if (INSTALL_SDK)

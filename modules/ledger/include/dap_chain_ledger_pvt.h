@@ -39,6 +39,7 @@ typedef struct dap_ledger_token_emission_item {
     size_t datum_token_emission_size;
     dap_chain_hash_fast_t tx_used_out;
     dap_nanotime_t ts_added;
+    bool is_hardfork;  // Mark if emission was created during/after hardfork
     UT_hash_handle hh;
 } dap_ledger_token_emission_item_t;
 
@@ -139,7 +140,10 @@ typedef struct dap_ledger_wallet_balance {
 } dap_ledger_wallet_balance_t;
 
 typedef struct dap_ledger_hal_item {
-    dap_chain_hash_fast_t hash;
+    union {
+        dap_chain_hash_fast_t hash;     // Datum hash (packed)
+        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+    } hash_field;
     UT_hash_handle hh;
 } dap_ledger_hal_item_t;
 
