@@ -1125,45 +1125,33 @@ static int s_print_for_srv_stake_reward(dap_json_rpc_response_t* response, char 
     dap_return_val_if_pass(!response || !response->result_json_object, -1);
     
     // Raw JSON flag - if not in table mode, show raw JSON
-    bool l_table_mode = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-h") != -1;
-    bool l_brief = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-brief") != -1;
-    
+    bool l_table_mode = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-h") != -1;    
     if (!l_table_mode) { 
         json_print_object(response->result_json_object, 0); 
         return 0; 
-    }
-    
+    }    
     if (json_object_get_type(response->result_json_object) == json_type_array) {
         int result_count = json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
-        }
-        
+        }        
         // Get the first array which contains the actual data
         json_object *data_array = json_object_array_get_idx(response->result_json_object, 0);
         if (!data_array || json_object_get_type(data_array) != json_type_array) {
             printf("Invalid data structure in response\n");
             return -4;
-        }
-        
+        }        
         int data_count = json_object_array_length(data_array);
         if (data_count <= 0) {
             printf("No reward data found\n");
             return -5;
-        }
-        
-        // Print table header
-        if (l_brief) {
-            printf("_________________________________________________________________________________________________\n");
-            printf(" %-30s | %-30s |\n", "Reward Value", "Reward Coins");
-            printf("_________________________________________________________________________________________________|\n");
-        } else {
-            printf("_______________________________________________________________________________________________________________________________\n");
-            printf(" %-66s | %-30s | %-30s |\n", "Block Hash", "Reward Value", "Reward Coins");
-            printf("______________________________________________________________________________________________________________________________________|\n");
-        }
-        
+        }        
+        // Print table header        
+        printf("_______________________________________________________________________________________________________________________________\n");
+        printf(" %-66s | %-30s | %-30s |\n", "Block Hash", "Reward Value", "Reward Coins");
+        printf("______________________________________________________________________________________________________________________________________|\n");
+                
         // State variables for tracking current transaction
         char current_tx_hash[70] = {0};
         char current_block_hash[70] = {0};
@@ -1186,39 +1174,33 @@ static int s_print_for_srv_stake_reward(dap_json_rpc_response_t* response, char 
             if (json_object_object_get_ex(item, "tx_hash", &field_obj)) {
                 // If we had a previous transaction, print its totals
                 if (tx_started && (tx_calc_value[0] || tx_out_value[0])) {
-                    if (tx_calc_value[0] && !l_brief) {
+                    if (tx_calc_value[0]) {
                         printf(" %-66s | %-30s | %-30s |\n", "Rewards value (calculated):", tx_calc_value, "");
                         printf(" %-66s | %-30s | %-30s |\n", "Rewards coins (calculated):", "", tx_calc_coins);
                     }
-                    if (tx_out_value[0] && !l_brief) {
+                    if (tx_out_value[0]) {
                         printf(" %-66s | %-30s | %-30s |\n", "Rewards value (tx_out):", tx_out_value, "");
                         printf(" %-66s | %-30s | %-30s |\n", "Rewards coins (tx_out):", "", tx_out_coins);
                     }
                     printf("____________________________________________________________________|________________________________|________________________________|\n");
                     // Add column headers after separator
-                    if (!l_brief) {
-                        printf("%73s%-30s %-30s\n", "", "Reward Value", "Reward Coins");
-                    }
-                }
-                
+                    printf("%73s%-30s %-30s\n", "", "Reward Value", "Reward Coins");
+                }                
                 // Start new transaction
                 strncpy(current_tx_hash, json_object_get_string(field_obj), sizeof(current_tx_hash) - 1);
                 printf(" TX Hash - %s\n", current_tx_hash);
-                tx_started = true;
-                
+                tx_started = true;                
                 // Clear transaction totals
                 tx_calc_value[0] = tx_calc_coins[0] = 0;
                 tx_out_value[0] = tx_out_coins[0] = 0;
                 continue;
-            }
-            
+            }            
             // Check for block hash
             if (json_object_object_get_ex(item, "block hash", &field_obj) ||
                 json_object_object_get_ex(item, "block_hash", &field_obj)) {
                 strncpy(current_block_hash, json_object_get_string(field_obj), sizeof(current_block_hash) - 1);
                 continue;
-            }
-            
+            }            
             // Check for reward array (contains pkey_hash, reward value, reward coins)
             if (json_object_get_type(item) == json_type_array) {
                 int reward_array_len = json_object_array_length(item);
@@ -1235,15 +1217,9 @@ static int s_print_for_srv_stake_reward(dap_json_rpc_response_t* response, char 
                         
                         const char *value_str = json_object_get_string(value_obj);
                         const char *coins_str = json_object_get_string(coins_obj);
-                        
-                        if (l_brief) {
-                            printf(" %-30s | %-30s |\n", value_str, coins_str);
-                        } else {
-                            printf(" %-66s | %-30s | %-30s |\n", 
+                        printf(" %-66s | %-30s | %-30s |\n", 
                                    current_block_hash[0] ? current_block_hash : "N/A", 
-                                   value_str, coins_str);
-                        }
-                        
+                                   value_str, coins_str);                        
                         // Clear block hash after use
                         current_block_hash[0] = 0;
                     }
@@ -1259,8 +1235,7 @@ static int s_print_for_srv_stake_reward(dap_json_rpc_response_t* response, char 
                     strncpy(tx_calc_coins, json_object_get_string(coins_field), sizeof(tx_calc_coins) - 1);
                 }
                 continue;
-            }
-            
+            }            
             // Check for tx_out totals (per transaction)
             if (json_object_object_get_ex(item, "Rewards value (tx_out)", &field_obj)) {
                 strncpy(tx_out_value, json_object_get_string(field_obj), sizeof(tx_out_value) - 1);
@@ -1269,8 +1244,7 @@ static int s_print_for_srv_stake_reward(dap_json_rpc_response_t* response, char 
                     strncpy(tx_out_coins, json_object_get_string(coins_field), sizeof(tx_out_coins) - 1);
                 }
                 continue;
-            }
-            
+            }            
             // Check for final total (overall)
             if (json_object_object_get_ex(item, "Rewards value (total)", &field_obj)) {
                 strncpy(final_total_value, json_object_get_string(field_obj), sizeof(final_total_value) - 1);
@@ -1284,41 +1258,131 @@ static int s_print_for_srv_stake_reward(dap_json_rpc_response_t* response, char 
         
         // Print totals for the last transaction
         if (tx_started && (tx_calc_value[0] || tx_out_value[0])) {
-            if (tx_calc_value[0] && !l_brief) {
+            if (tx_calc_value[0]) {
                 printf(" %-66s | %-30s | %-30s |\n", "Rewards value (calculated):", tx_calc_value, "");
                 printf(" %-66s | %-30s | %-30s |\n", "Rewards coins (calculated):", "", tx_calc_coins);
             }
-            if (tx_out_value[0] && !l_brief) {
+            if (tx_out_value[0]) {
                 printf(" %-66s | %-30s | %-30s |\n", "Rewards value (tx_out):", tx_out_value, "");
                 printf(" %-66s | %-30s | %-30s |\n", "Rewards coins (tx_out):", "", tx_out_coins);
             }
             printf("____________________________________________________________________|________________________________|________________________________|\n");
             // Add column headers after separator
-            if (!l_brief) {
-                printf("%73s%-30s %-30s\n", "", "Reward Value", "Reward Coins");
-            }
+            printf("%73s%-30s %-30s\n", "", "Reward Value", "Reward Coins");
         }
         
         // Print final total if available
         if (final_total_value[0]) {
             printf("\n");
-            if (l_brief) {
-                printf("=================================================================================================\n");
-                printf(" %-66s | %-30s | %-30s |\n", 
+            printf("===============================================================================================================================\n");
+            printf(" %-66s | %-30s | %-30s |\n", 
                        "FINAL TOTAL", final_total_value, final_total_coins);
-                printf("=================================================================================================|\n");
-            } else {
-                printf("===============================================================================================================================\n");
-                printf(" %-66s | %-30s | %-30s |\n", 
-                       "FINAL TOTAL", final_total_value, final_total_coins);
-                printf("===============================================================================================================================|\n");
-            }
+            printf("===============================================================================================================================|\n");
         }
         
     } else {
         json_print_object(response->result_json_object, 0);
     }
     
+    return 0;
+}
+
+/**
+ * @brief Print srv_stake reward response in brief table format
+ * @param response JSON RPC response
+ * @param cmd_param Command parameters array
+ * @param cmd_cnt Command parameters count
+ * @return 0 on success, negative on error
+ */
+static int s_print_for_srv_stake_reward_brief(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt) {
+    dap_return_val_if_pass(!response || !response->result_json_object, -1);
+    
+    // Raw JSON flag - if not in table mode, show raw JSON
+    bool l_table_mode = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-h") != -1;
+    
+    if (!l_table_mode) { 
+        json_print_object(response->result_json_object, 0); 
+        return 0; 
+    }
+    
+    if (json_object_get_type(response->result_json_object) == json_type_array) {
+        int result_count = json_object_array_length(response->result_json_object);
+        if (result_count <= 0) {
+            printf("Response array is empty\n");
+            return 0;
+        }
+        
+        // Get the first element which should be the actual data array
+        json_object *data_array = json_object_array_get_idx(response->result_json_object, 0);
+        if (!data_array || json_object_get_type(data_array) != json_type_array) {
+            printf("First element is not an array\n");
+            return -1;
+        }
+        
+        int data_count = json_object_array_length(data_array);
+        
+        // State variables for tracking current transaction
+        char current_tx_hash[70] = {0};
+        char tx_out_value[50] = {0};
+        char tx_out_coins[50] = {0};
+        char final_total_value[50] = {0};
+        char final_total_coins[50] = {0};
+        bool tx_started = false;
+        
+        // Print table header for brief mode
+        printf("_______________________________________________________________________________________________________________________________\n");
+        printf(" %-66s | %-30s | %-30s |\n", "TX Hash", "Reward Value", "Reward Coins");
+        printf("______________________________________________________________________________________________________________________________________|\n");
+        
+        // Process each element in the data array (corrected logic based on actual JSON structure)
+        for (int i = 0; i < data_count; i++) {
+            json_object *item = json_object_array_get_idx(data_array, i);
+            if (!item) continue;
+            
+            json_object *field_obj = NULL;            
+            // Check for tx_hash - save it for the next tx_out entry
+            if (json_object_object_get_ex(item, "tx_hash", &field_obj)) {
+                strncpy(current_tx_hash, json_object_get_string(field_obj), sizeof(current_tx_hash) - 1);
+                tx_started = true;
+                continue;
+            }            
+            // Check for tx_out totals in the SAME object
+            json_object *tx_out_value_obj = NULL, *tx_out_coins_obj = NULL;
+            if (json_object_object_get_ex(item, "Rewards value (tx_out)", &tx_out_value_obj) &&
+                json_object_object_get_ex(item, "Rewards coins (tx_out)", &tx_out_coins_obj)) {                
+                const char *value_str = json_object_get_string(tx_out_value_obj);
+                const char *coins_str = json_object_get_string(tx_out_coins_obj);                
+                // Print the transaction with tx_out values using the PREVIOUS tx_hash
+                if (tx_started && current_tx_hash[0]) {
+                    printf(" %-66s | %-30s | %-30s |\n", 
+                           current_tx_hash, 
+                           value_str, 
+                           coins_str);
+                }
+                continue;
+            }            
+            // Check for final total
+            if (json_object_object_get_ex(item, "Rewards value (total)", &field_obj)) {
+                strncpy(final_total_value, json_object_get_string(field_obj), sizeof(final_total_value) - 1);
+                json_object *coins_field = NULL;
+                if (json_object_object_get_ex(item, "Rewards coins (total)", &coins_field)) {
+                    strncpy(final_total_coins, json_object_get_string(coins_field), sizeof(final_total_coins) - 1);
+                }
+                continue;
+            }
+        }        
+        // Print final total if available
+        if (final_total_value[0]) {
+            printf("\n");
+            printf("===============================================================================================================================\n");
+            printf(" %-66s | %-30s | %-30s |\n",
+                   "FINAL TOTAL", final_total_value, final_total_coins);
+            printf("===============================================================================================================================|\n");
+        }        
+    } else {
+        printf("Response is not an array\n");
+        return -1;
+    }    
     return 0;
 }
 
@@ -1349,7 +1413,14 @@ static int s_print_for_srv_stake_all(dap_json_rpc_response_t* response, char ** 
             return s_print_for_srv_stake_list(response, cmd_param, cmd_cnt);
         }
     } else if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "reward") != -1) {
-        return s_print_for_srv_stake_reward(response, cmd_param, cmd_cnt);
+        // Check if brief mode is requested
+        bool l_brief = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-brief") != -1;
+        
+        if (l_brief) {
+            return s_print_for_srv_stake_reward_brief(response, cmd_param, cmd_cnt);
+        } else {
+            return s_print_for_srv_stake_reward(response, cmd_param, cmd_cnt);
+        }
     }
     
     
