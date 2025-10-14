@@ -39,6 +39,7 @@
 #include <pthread.h>
 
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_wallet_cache_db.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain.h"
 #include "dap_common.h"
@@ -54,6 +55,12 @@ typedef enum dap_s_wallets_cache_type{
     DAP_WALLET_CACHE_TYPE_LOCAL,
     DAP_WALLET_CACHE_TYPE_ALL
 } dap_s_wallets_cache_type_t;
+
+// Storage backend for wallet cache
+typedef enum dap_wallet_cache_storage_mode {
+    DAP_WALLET_CACHE_STORAGE_RAM = 0,      // Legacy: in-memory hash tables (default)
+    DAP_WALLET_CACHE_STORAGE_GLOBALDB = 1  // New: persistent GlobalDB storage
+} dap_wallet_cache_storage_mode_t;
 
 typedef struct dap_wallet_tx_cache_input{
     dap_chain_hash_fast_t tx_prev_hash; 
@@ -113,11 +120,14 @@ typedef struct dap_atom_notify_arg {
 } dap_atom_notify_arg_t;
 
 static dap_s_wallets_cache_type_t s_wallets_cache_type = DAP_WALLET_CACHE_TYPE_LOCAL;
+static dap_wallet_cache_storage_mode_t s_wallet_cache_storage_mode = DAP_WALLET_CACHE_STORAGE_RAM; // Default: RAM
 static dap_wallet_cache_t *s_wallets_cache = NULL;
 static pthread_rwlock_t s_wallet_cache_rwlock;
 static bool s_debug_more = false;
 
 static dap_chain_datum_tx_t* s_get_tx_from_cache_entry(dap_wallet_tx_cache_t *a_entry);
+static int s_load_wallet_cache_from_gdb(dap_chain_addr_t *a_wallet_addr, dap_chain_t *a_chain);
+static int s_save_wallet_cache_to_gdb(dap_wallet_cache_t *a_wallet_item, dap_chain_t *a_chain);
 static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx,
                                     dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_atom_hash, int a_ret_code, char* a_main_token_ticker,
                                     dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action, char a_cache_op,
@@ -143,6 +153,18 @@ static char * s_wallet_cache_type_to_str(dap_s_wallets_cache_type_t a_type)
     }
 }
 
+static char * s_wallet_cache_storage_mode_to_str(dap_wallet_cache_storage_mode_t a_mode)
+{
+    switch (a_mode){
+        case DAP_WALLET_CACHE_STORAGE_RAM:
+            return "RAM";
+        case DAP_WALLET_CACHE_STORAGE_GLOBALDB:
+            return "GlobalDB";
+        default:
+            return "UNKNOWN";
+    }
+}
+
 int dap_chain_wallet_cache_init()
 {
     const char *l_walet_cache_type_str = dap_config_get_item_str(g_config, "wallets", "wallets_cache");
@@ -160,12 +182,27 @@ int dap_chain_wallet_cache_init()
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"wallet","debug_more", s_debug_more);
 
+    // Read cache storage mode from config
+    const char *l_cache_storage_mode_str = dap_config_get_item_str(g_config, "wallet", "cache_storage_mode");
+    if (l_cache_storage_mode_str) {
+        if (!dap_strcmp(l_cache_storage_mode_str, "ram")) {
+            s_wallet_cache_storage_mode = DAP_WALLET_CACHE_STORAGE_RAM;
+        } else if (!dap_strcmp(l_cache_storage_mode_str, "globaldb") || !dap_strcmp(l_cache_storage_mode_str, "db")) {
+            s_wallet_cache_storage_mode = DAP_WALLET_CACHE_STORAGE_GLOBALDB;
+        } else {
+            log_it(L_WARNING, "Unknown cache storage mode '%s' in config. Using default: %s", 
+                   l_cache_storage_mode_str, s_wallet_cache_storage_mode_to_str(s_wallet_cache_storage_mode));
+        }
+    }
+
     if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED){
         debug_if(s_debug_more, L_DEBUG, "Wallet cache is disabled.");
         return 0;
     }
 
-    log_it(L_INFO, "Wallet cache type: %s", s_wallet_cache_type_to_str(s_wallets_cache_type));
+    log_it(L_INFO, "Wallet cache type: %s, storage mode: %s", 
+           s_wallet_cache_type_to_str(s_wallets_cache_type),
+           s_wallet_cache_storage_mode_to_str(s_wallet_cache_storage_mode));
 
     pthread_rwlock_init(&s_wallet_cache_rwlock, NULL);
 
@@ -203,6 +240,27 @@ int dap_chain_wallet_cache_init()
             debug_if(s_debug_more, L_DEBUG, "Wallet %s saved.", dap_chain_addr_to_str_static(l_addr));
         }
     }
+    
+    // Load wallet caches from GlobalDB if GlobalDB mode is enabled
+    if (s_wallet_cache_storage_mode == DAP_WALLET_CACHE_STORAGE_GLOBALDB) {
+        log_it(L_INFO, "Loading wallet caches from GlobalDB...");
+        int l_loaded_count = 0;
+        
+        // Iterate through all nets and chains to load cache data
+        for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+            for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+                // Load cache for each local wallet address
+                for (dap_list_t *it = l_local_addr_list; it; it = it->next) {
+                    dap_chain_addr_t *l_addr = (dap_chain_addr_t *)it->data;
+                    if (s_load_wallet_cache_from_gdb(l_addr, l_chain) == 0) {
+                        l_loaded_count++;
+                    }
+                }
+            }
+        }
+        log_it(L_INFO, "Loaded %d wallet cache(s) from GlobalDB", l_loaded_count);
+    }
+    
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
     dap_list_free_full(l_local_addr_list, NULL);
     dap_chain_wallet_add_wallet_opened_notify(s_wallet_opened_callback, NULL);
@@ -213,10 +271,42 @@ int dap_chain_wallet_cache_init()
 
 int dap_chain_wallet_cache_deinit()
 {
+    if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED) {
+        return 0;
+    }
+    
     pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
     
-    // Iterate through all wallets and free their cache entries
     dap_wallet_cache_t *l_wallet_item, *l_wallet_tmp;
+    
+    // Save all wallet caches to GlobalDB before cleanup (ONLY if GlobalDB mode enabled)
+    if (s_wallet_cache_storage_mode == DAP_WALLET_CACHE_STORAGE_GLOBALDB) {
+        log_it(L_INFO, "Saving wallet caches to GlobalDB...");
+        int l_saved_count = 0;
+        
+        // Iterate through all nets and chains to save cache data
+        for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+            for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+                // Find wallets for this chain
+                HASH_ITER(hh, s_wallets_cache, l_wallet_item, l_wallet_tmp) {
+                    // Check if wallet has transactions for this chain
+                    dap_wallet_tx_cache_t *l_tx_item, *l_tx_tmp;
+                    HASH_ITER(hh, l_wallet_item->wallet_txs, l_tx_item, l_tx_tmp) {
+                        if (l_tx_item->chain == l_chain) {
+                            // Save this wallet's cache for this chain
+                            if (s_save_wallet_cache_to_gdb(l_wallet_item, l_chain) == 0) {
+                                l_saved_count++;
+                            }
+                            break; // One save per wallet per chain
+                        }
+                    }
+                }
+            }
+        }
+        log_it(L_INFO, "Saved %d wallet cache(s) to GlobalDB", l_saved_count);
+    }
+    
+    // Now free all cache entries
     HASH_ITER(hh, s_wallets_cache, l_wallet_item, l_wallet_tmp) {
         // Free all transactions for this wallet
         dap_wallet_tx_cache_t *l_tx_item, *l_tx_tmp;
@@ -776,6 +866,432 @@ static int s_out_idx_cmp(dap_list_t *a_l1, dap_list_t *a_l2) {
  * @return Transaction pointer (may be cached or newly loaded), or NULL on error
  * @note If transaction is loaded from file, it's cached in a_entry->tx for future access
  */
+/**
+ * @brief Load wallet cache from GlobalDB with full transaction deserialization
+ * @param a_wallet_addr Wallet address to load (must not be NULL)
+ * @param a_chain Chain context for DB key generation (must not be NULL)
+ * @return 0 on success, negative error codes:
+ *         -1: NULL parameters
+ *         -2: Transaction allocation failure
+ *         -3: Input allocation failure
+ *         -4: Output allocation failure
+ *         -5: Unspent output allocation failure
+ * 
+ * @details This function loads wallet cache from GlobalDB and deserializes
+ *          all transactions including their inputs and outputs back into
+ *          RAM-based hash table structures for fast access.
+ * 
+ * @note Lazy Loading: Transaction data (tx pointer) is set to NULL initially
+ *       and will be loaded from disk on first access via s_get_tx_from_cache_entry().
+ *       Only metadata (hashes, offsets, token ticker, etc.) is loaded into RAM.
+ * 
+ * @note For each transaction:
+ *       - tx->chain is set to a_chain for lazy loading context
+ *       - tx->tx is set to NULL (will be lazy-loaded when accessed)
+ *       - tx->cell_id, file_offset, datum_offset_in_block are loaded from DB
+ *       - All inputs and outputs are deserialized into dap_list_t structures
+ * 
+ * @note For unspent outputs:
+ *       - output->output pointer is set to NULL (resolved when tx is loaded)
+ *       - Only key (tx_hash, out_idx) and token_ticker are restored
+ * 
+ * @note If no cache is found in GlobalDB, this is not an error (returns 0).
+ *       This is normal for new wallets that haven't been used yet.
+ * 
+ * @note Error handling: On any allocation failure, all previously allocated
+ *       structures are properly cleaned up to prevent memory leaks.
+ * 
+ * @see s_save_wallet_cache_to_gdb() for serialization
+ * @see s_get_tx_from_cache_entry() for lazy loading implementation
+ * @see dap_wallet_cache_db_load() for actual GlobalDB read operation
+ */
+static int s_load_wallet_cache_from_gdb(dap_chain_addr_t *a_wallet_addr, dap_chain_t *a_chain)
+{
+    if (!a_wallet_addr || !a_chain) {
+        return -1;
+    }
+    
+    // Load from GlobalDB
+    dap_wallet_cache_db_t *l_cache_db = dap_wallet_cache_db_load(
+        a_wallet_addr,
+        a_chain->net_id,
+        a_chain->net_name,
+        a_chain->name
+    );
+    
+    if (!l_cache_db) {
+        // No cache found in DB - this is normal for new wallets
+        debug_if(s_debug_more, L_DEBUG, "No wallet cache found in GlobalDB for wallet=%s, chain=%s",
+                 dap_chain_addr_to_str_static(a_wallet_addr), a_chain->name);
+        return 0; // Not an error
+    }
+    
+    debug_if(s_debug_more, L_INFO, "Loaded wallet cache from GlobalDB: wallet=%s, chain=%s, tx_count=%u, unspent_count=%u",
+             dap_chain_addr_to_str_static(a_wallet_addr), a_chain->name, l_cache_db->tx_count, l_cache_db->unspent_count);
+    
+    // Find or create wallet item in RAM cache
+    dap_wallet_cache_t *l_wallet_item = NULL;
+    HASH_FIND(hh, s_wallets_cache, a_wallet_addr, sizeof(dap_chain_addr_t), l_wallet_item);
+    
+    if (!l_wallet_item) {
+        l_wallet_item = DAP_NEW_Z(dap_wallet_cache_t);
+        memcpy(&l_wallet_item->wallet_addr, a_wallet_addr, sizeof(dap_chain_addr_t));
+        HASH_ADD(hh, s_wallets_cache, wallet_addr, sizeof(dap_chain_addr_t), l_wallet_item);
+    }
+    
+    // Deserialize transactions from DB format into RAM structures
+    uint8_t *l_var_data_ptr = (uint8_t*)DAP_WALLET_CACHE_DB_TXS(l_cache_db);
+    
+    for (uint32_t i = 0; i < l_cache_db->tx_count; i++) {
+        dap_wallet_tx_cache_db_t *l_db_tx = (dap_wallet_tx_cache_db_t*)l_var_data_ptr;
+        
+        // Create RAM transaction entry
+        dap_wallet_tx_cache_t *l_tx_item = DAP_NEW_Z(dap_wallet_tx_cache_t);
+        if (!l_tx_item) {
+            log_it(L_ERROR, "Failed to allocate transaction cache entry (wallet=%s, chain=%s, tx=%u/%u)",
+                   dap_chain_addr_to_str_static(a_wallet_addr),
+                   a_chain->name,
+                   i + 1, l_cache_db->tx_count);
+            dap_wallet_cache_db_free(l_cache_db);
+            return -2;
+        }
+        
+        // Copy transaction metadata
+        l_tx_item->tx_hash = l_db_tx->tx_hash;
+        l_tx_item->atom_hash = l_db_tx->atom_hash;
+        l_tx_item->cell_id = l_db_tx->cell_id;
+        l_tx_item->file_offset = l_db_tx->file_offset;
+        l_tx_item->datum_offset_in_block = l_db_tx->datum_offset_in_block;
+        l_tx_item->chain = a_chain; // Store chain context for lazy loading
+        l_tx_item->tx = NULL; // Will be lazy-loaded when needed
+        
+        dap_stpcpy(l_tx_item->token_ticker, l_db_tx->token_ticker);
+        l_tx_item->multichannel = l_db_tx->multichannel;
+        l_tx_item->ret_code = l_db_tx->ret_code;
+        l_tx_item->srv_uid = l_db_tx->srv_uid;
+        l_tx_item->action = l_db_tx->action;
+        
+        // Move pointer to inputs section
+        l_var_data_ptr += sizeof(dap_wallet_tx_cache_db_t);
+        dap_wallet_tx_cache_input_db_t *l_db_inputs = (dap_wallet_tx_cache_input_db_t*)l_var_data_ptr;
+        
+        // Deserialize inputs
+        l_tx_item->tx_wallet_inputs = NULL;
+        for (uint16_t j = 0; j < l_db_tx->inputs_count; j++) {
+            dap_wallet_tx_cache_input_t *l_input = DAP_NEW_Z(dap_wallet_tx_cache_input_t);
+            if (!l_input) {
+                log_it(L_ERROR, "Failed to allocate input entry (wallet=%s, chain=%s, tx=%u/%u, input=%u/%u)",
+                       dap_chain_addr_to_str_static(a_wallet_addr),
+                       a_chain->name,
+                       i + 1, l_cache_db->tx_count,
+                       j + 1, l_db_tx->inputs_count);
+                // Cleanup already allocated inputs
+                dap_list_free_full(l_tx_item->tx_wallet_inputs, NULL);
+                DAP_DELETE(l_tx_item);
+                dap_wallet_cache_db_free(l_cache_db);
+                return -3;
+            }
+            
+            l_input->tx_prev_hash = l_db_inputs[j].tx_prev_hash;
+            l_input->tx_out_prev_idx = l_db_inputs[j].tx_out_prev_idx;
+            l_input->value = l_db_inputs[j].value;
+            
+            l_tx_item->tx_wallet_inputs = dap_list_append(l_tx_item->tx_wallet_inputs, l_input);
+        }
+        l_var_data_ptr += sizeof(dap_wallet_tx_cache_input_db_t) * l_db_tx->inputs_count;
+        
+        // Deserialize outputs
+        dap_wallet_tx_cache_output_db_t *l_db_outputs = (dap_wallet_tx_cache_output_db_t*)l_var_data_ptr;
+        
+        l_tx_item->tx_wallet_outputs = NULL;
+        for (uint16_t j = 0; j < l_db_tx->outputs_count; j++) {
+            dap_wallet_tx_cache_output_t *l_output = DAP_NEW_Z(dap_wallet_tx_cache_output_t);
+            if (!l_output) {
+                log_it(L_ERROR, "Failed to allocate output entry (wallet=%s, chain=%s, tx=%u/%u, output=%u/%u)",
+                       dap_chain_addr_to_str_static(a_wallet_addr),
+                       a_chain->name,
+                       i + 1, l_cache_db->tx_count,
+                       j + 1, l_db_tx->outputs_count);
+                // Cleanup
+                dap_list_free_full(l_tx_item->tx_wallet_inputs, NULL);
+                dap_list_free_full(l_tx_item->tx_wallet_outputs, NULL);
+                DAP_DELETE(l_tx_item);
+                dap_wallet_cache_db_free(l_cache_db);
+                return -4;
+            }
+            
+            l_output->tx_out_idx = l_db_outputs[j].tx_out_idx;
+            l_output->tx_out = NULL; // Will be resolved when transaction is lazy-loaded
+            
+            l_tx_item->tx_wallet_outputs = dap_list_append(l_tx_item->tx_wallet_outputs, l_output);
+        }
+        l_var_data_ptr += sizeof(dap_wallet_tx_cache_output_db_t) * l_db_tx->outputs_count;
+        
+        // Add transaction to hash table
+        HASH_ADD(hh, l_wallet_item->wallet_txs, tx_hash, sizeof(dap_hash_fast_t), l_tx_item);
+    }
+    
+    // Deserialize unspent outputs
+    dap_wallet_unspent_out_db_t *l_db_unspents = DAP_WALLET_CACHE_DB_UNSPENTS(l_cache_db);
+    
+    for (uint32_t i = 0; i < l_cache_db->unspent_count; i++) {
+        dap_wallet_cache_unspent_outs_t *l_unspent_item = DAP_NEW_Z(dap_wallet_cache_unspent_outs_t);
+        if (!l_unspent_item) {
+            log_it(L_ERROR, "Failed to allocate unspent output entry (wallet=%s, chain=%s, unspent=%u/%u)",
+                   dap_chain_addr_to_str_static(a_wallet_addr),
+                   a_chain->name,
+                   i + 1, l_cache_db->unspent_count);
+            dap_wallet_cache_db_free(l_cache_db);
+            return -5;
+        }
+        
+        // Copy unspent output data
+        l_unspent_item->key.tx_hash = l_db_unspents[i].tx_hash;
+        l_unspent_item->key.out_idx = l_db_unspents[i].out_idx;
+        dap_stpcpy(l_unspent_item->token_ticker, l_db_unspents[i].token_ticker);
+        
+        // Output pointer will be resolved when transaction is loaded
+        l_unspent_item->output = NULL;
+        
+        // Add to hash table
+        HASH_ADD(hh, l_wallet_item->unspent_outputs, key, sizeof(unspent_cache_hh_key), l_unspent_item);
+    }
+    
+    uint32_t l_tx_count = l_cache_db->tx_count;
+    uint32_t l_unspent_count = l_cache_db->unspent_count;
+    
+    dap_wallet_cache_db_free(l_cache_db);
+    
+    debug_if(s_debug_more, L_INFO, "Successfully restored wallet cache: %u transactions, %u unspent outputs",
+             l_tx_count, l_unspent_count);
+    
+    return 0;
+}
+
+/**
+ * @brief Save wallet cache to GlobalDB with full transaction serialization
+ * @param a_wallet_item Wallet cache structure to save (must not be NULL)
+ * @param a_chain Chain context for DB key generation (must not be NULL)
+ * @return 0 on success, negative error codes:
+ *         -1: NULL parameters
+ *         -2: Memory allocation failure
+ *         -3: GlobalDB save failure
+ * 
+ * @details This function performs complete serialization of all transactions
+ *          including their inputs and outputs. The serialized data is stored
+ *          in GlobalDB using the group/key format: 
+ *          wallet.cache.{net_id}.{chain_name}/{wallet_addr_base58}
+ * 
+ * @note Memory layout of serialized structure:
+ *       [dap_wallet_cache_db_t header]
+ *       [tx1: dap_wallet_tx_cache_db_t + inputs[] + outputs[]]
+ *       [tx2: dap_wallet_tx_cache_db_t + inputs[] + outputs[]]
+ *       ...
+ *       [unspent_outputs[]: dap_wallet_unspent_out_db_t array]
+ * 
+ * @note The function dynamically calculates total size based on actual
+ *       number of transactions, inputs, and outputs to avoid wasted space.
+ * 
+ * @note For unspent outputs, file location info is extracted from the
+ *       corresponding transaction's metadata (cell_id, file_offset).
+ * 
+ * @see s_load_wallet_cache_from_gdb() for deserialization
+ * @see dap_wallet_cache_db_save() for actual GlobalDB write operation
+ */
+static int s_save_wallet_cache_to_gdb(dap_wallet_cache_t *a_wallet_item, dap_chain_t *a_chain)
+{
+    if (!a_wallet_item || !a_chain) {
+        return -1;
+    }
+    
+    // Count transactions and calculate total size needed
+    uint32_t l_tx_count = 0;
+    uint32_t l_unspent_count = 0;
+    size_t l_total_size = sizeof(dap_wallet_cache_db_t);
+    
+    // First pass: count and calculate sizes
+    dap_wallet_tx_cache_t *l_tx_item, *l_tx_tmp;
+    HASH_ITER(hh, a_wallet_item->wallet_txs, l_tx_item, l_tx_tmp) {
+        l_tx_count++;
+        
+        // Count inputs and outputs for this transaction
+        uint16_t l_inputs_count = 0;
+        uint16_t l_outputs_count = 0;
+        
+        for (dap_list_t *l_it = l_tx_item->tx_wallet_inputs; l_it; l_it = l_it->next) {
+            l_inputs_count++;
+        }
+        for (dap_list_t *l_it = l_tx_item->tx_wallet_outputs; l_it; l_it = l_it->next) {
+            l_outputs_count++;
+        }
+        
+        // Add size for this transaction record + its inputs/outputs
+        l_total_size += sizeof(dap_wallet_tx_cache_db_t);
+        l_total_size += sizeof(dap_wallet_tx_cache_input_db_t) * l_inputs_count;
+        l_total_size += sizeof(dap_wallet_tx_cache_output_db_t) * l_outputs_count;
+    }
+    
+    // Count unspent outputs
+    dap_wallet_cache_unspent_outs_t *l_unspent_item, *l_unspent_tmp;
+    HASH_ITER(hh, a_wallet_item->unspent_outputs, l_unspent_item, l_unspent_tmp) {
+        l_unspent_count++;
+    }
+    l_total_size += sizeof(dap_wallet_unspent_out_db_t) * l_unspent_count;
+    
+    if (l_tx_count == 0) {
+        // No transactions to save
+        debug_if(s_debug_more, L_DEBUG, "No transactions to save for wallet %s",
+                 dap_chain_addr_to_str_static(&a_wallet_item->wallet_addr));
+        return 0;
+    }
+    
+    // Allocate full structure with all variable data
+    dap_wallet_cache_db_t *l_cache_db = DAP_NEW_Z_SIZE(dap_wallet_cache_db_t, l_total_size);
+    if (!l_cache_db) {
+        log_it(L_ERROR, "Failed to allocate wallet cache DB structure (%zu bytes)", l_total_size);
+        return -2;
+    }
+    
+    // Fill header
+    l_cache_db->version = DAP_WALLET_CACHE_DB_VERSION;
+    l_cache_db->wallet_addr = a_wallet_item->wallet_addr;
+    l_cache_db->net_id = a_chain->net_id;
+    l_cache_db->chain_id = a_chain->id;
+    l_cache_db->tx_count = l_tx_count;
+    l_cache_db->unspent_count = l_unspent_count;
+    l_cache_db->last_update = dap_time_now();
+    
+    // Get pointers to variable data sections
+    dap_wallet_tx_cache_db_t *l_db_txs = DAP_WALLET_CACHE_DB_TXS(l_cache_db);
+    dap_wallet_unspent_out_db_t *l_db_unspents = DAP_WALLET_CACHE_DB_UNSPENTS(l_cache_db);
+    
+    // Second pass: serialize transactions
+    uint8_t *l_var_data_ptr = (uint8_t*)l_db_txs;
+    
+    HASH_ITER(hh, a_wallet_item->wallet_txs, l_tx_item, l_tx_tmp) {
+        dap_wallet_tx_cache_db_t *l_db_tx = (dap_wallet_tx_cache_db_t*)l_var_data_ptr;
+        
+        // Copy transaction metadata
+        l_db_tx->tx_hash = l_tx_item->tx_hash;
+        l_db_tx->atom_hash = l_tx_item->atom_hash;
+        l_db_tx->cell_id = l_tx_item->cell_id;
+        l_db_tx->file_offset = l_tx_item->file_offset;
+        l_db_tx->datum_offset_in_block = l_tx_item->datum_offset_in_block;
+        
+        // Calculate transaction size if available
+        if (l_tx_item->tx) {
+            l_db_tx->tx_size = dap_chain_datum_tx_get_size(l_tx_item->tx);
+        } else {
+            l_db_tx->tx_size = 0; // Will be read from file when needed
+        }
+        
+        dap_stpcpy(l_db_tx->token_ticker, l_tx_item->token_ticker);
+        l_db_tx->multichannel = l_tx_item->multichannel;
+        l_db_tx->ret_code = l_tx_item->ret_code;
+        l_db_tx->srv_uid = l_tx_item->srv_uid;
+        l_db_tx->action = l_tx_item->action;
+        
+        // Count and serialize inputs
+        uint16_t l_inputs_count = 0;
+        for (dap_list_t *l_it = l_tx_item->tx_wallet_inputs; l_it; l_it = l_it->next) {
+            l_inputs_count++;
+        }
+        l_db_tx->inputs_count = l_inputs_count;
+        
+        // Move pointer after transaction header
+        l_var_data_ptr += sizeof(dap_wallet_tx_cache_db_t);
+        dap_wallet_tx_cache_input_db_t *l_db_inputs = (dap_wallet_tx_cache_input_db_t*)l_var_data_ptr;
+        
+        uint16_t l_input_idx = 0;
+        for (dap_list_t *l_it = l_tx_item->tx_wallet_inputs; l_it; l_it = l_it->next) {
+            dap_wallet_tx_cache_input_t *l_input = (dap_wallet_tx_cache_input_t*)l_it->data;
+            l_db_inputs[l_input_idx].tx_prev_hash = l_input->tx_prev_hash;
+            l_db_inputs[l_input_idx].tx_out_prev_idx = l_input->tx_out_prev_idx;
+            l_db_inputs[l_input_idx].value = l_input->value;
+            l_input_idx++;
+        }
+        l_var_data_ptr += sizeof(dap_wallet_tx_cache_input_db_t) * l_inputs_count;
+        
+        // Count and serialize outputs
+        uint16_t l_outputs_count = 0;
+        for (dap_list_t *l_it = l_tx_item->tx_wallet_outputs; l_it; l_it = l_it->next) {
+            l_outputs_count++;
+        }
+        l_db_tx->outputs_count = l_outputs_count;
+        
+        dap_wallet_tx_cache_output_db_t *l_db_outputs = (dap_wallet_tx_cache_output_db_t*)l_var_data_ptr;
+        
+        uint16_t l_output_idx = 0;
+        for (dap_list_t *l_it = l_tx_item->tx_wallet_outputs; l_it; l_it = l_it->next) {
+            dap_wallet_tx_cache_output_t *l_output = (dap_wallet_tx_cache_output_t*)l_it->data;
+            l_db_outputs[l_output_idx].tx_out_idx = l_output->tx_out_idx;
+            // Get output type from the actual output structure
+            if (l_output->tx_out) {
+                l_db_outputs[l_output_idx].out_type = *(uint8_t*)l_output->tx_out;
+            } else {
+                l_db_outputs[l_output_idx].out_type = 0;
+            }
+            l_output_idx++;
+        }
+        l_var_data_ptr += sizeof(dap_wallet_tx_cache_output_db_t) * l_outputs_count;
+    }
+    
+    // Serialize unspent outputs
+    uint32_t l_unspent_idx = 0;
+    HASH_ITER(hh, a_wallet_item->unspent_outputs, l_unspent_item, l_unspent_tmp) {
+        l_db_unspents[l_unspent_idx].tx_hash = l_unspent_item->key.tx_hash;
+        l_db_unspents[l_unspent_idx].out_idx = l_unspent_item->key.out_idx;
+        
+        // Find corresponding transaction to get file location info
+        dap_wallet_tx_cache_t *l_tx_for_unspent = NULL;
+        HASH_FIND(hh, a_wallet_item->wallet_txs, &l_unspent_item->key.tx_hash, sizeof(dap_hash_fast_t), l_tx_for_unspent);
+        
+        if (l_tx_for_unspent) {
+            l_db_unspents[l_unspent_idx].cell_id = l_tx_for_unspent->cell_id;
+            l_db_unspents[l_unspent_idx].file_offset = l_tx_for_unspent->file_offset;
+            if (l_tx_for_unspent->tx) {
+                l_db_unspents[l_unspent_idx].tx_size = dap_chain_datum_tx_get_size(l_tx_for_unspent->tx);
+            } else {
+                l_db_unspents[l_unspent_idx].tx_size = 0;
+            }
+        } else {
+            // No transaction found - zero out file location
+            l_db_unspents[l_unspent_idx].cell_id.uint64 = 0;
+            l_db_unspents[l_unspent_idx].file_offset = 0;
+            l_db_unspents[l_unspent_idx].tx_size = 0;
+        }
+        
+        // Get output type and value from output structure if available
+        if (l_unspent_item->output && l_unspent_item->output->tx_out) {
+            l_db_unspents[l_unspent_idx].out_type = *(uint8_t*)l_unspent_item->output->tx_out;
+            // Try to extract value from output (this depends on output type)
+            // For now, set to zero - can be enhanced later
+            memset(&l_db_unspents[l_unspent_idx].value, 0, sizeof(uint256_t));
+        } else {
+            l_db_unspents[l_unspent_idx].out_type = 0;
+            memset(&l_db_unspents[l_unspent_idx].value, 0, sizeof(uint256_t));
+        }
+        
+        dap_stpcpy(l_db_unspents[l_unspent_idx].token_ticker, l_unspent_item->token_ticker);
+        l_unspent_idx++;
+    }
+    
+    // Save to GlobalDB with proper size
+    int l_ret = dap_wallet_cache_db_save(l_cache_db, l_total_size, a_chain->net_name, a_chain->name);
+    
+    dap_wallet_cache_db_free(l_cache_db);
+    
+    if (l_ret != 0) {
+        log_it(L_ERROR, "Failed to save wallet cache to GlobalDB: %d", l_ret);
+        return -3;
+    }
+    
+    debug_if(s_debug_more, L_DEBUG, "Saved wallet cache to GlobalDB: wallet=%s, %u transactions, %u unspent outputs, %zu bytes",
+             dap_chain_addr_to_str_static(&a_wallet_item->wallet_addr), l_tx_count, l_unspent_count, l_total_size);
+    
+    return 0;
+}
+
 static dap_chain_datum_tx_t* s_get_tx_from_cache_entry(dap_wallet_tx_cache_t *a_entry)
 {
     // If already cached in RAM - return immediately
@@ -799,7 +1315,7 @@ static dap_chain_datum_tx_t* s_get_tx_from_cache_entry(dap_wallet_tx_cache_t *a_
     );
     
     if (!l_block_data) {
-        log_it(L_ERROR, "Failed to read block from offset %ld", a_entry->file_offset);
+        log_it(L_ERROR, "Failed to read block from offset %lld", (long long)a_entry->file_offset);
         return NULL;
     }
     
@@ -808,7 +1324,7 @@ static dap_chain_datum_tx_t* s_get_tx_from_cache_entry(dap_wallet_tx_cache_t *a_
     
     // Verify block signature
     if (l_block->hdr.signature != DAP_CHAIN_BLOCK_SIGNATURE) {
-        log_it(L_ERROR, "Invalid block signature at offset %ld", a_entry->file_offset);
+        log_it(L_ERROR, "Invalid block signature at offset %lld", (long long)a_entry->file_offset);
         DAP_DELETE(l_block_data);
         return NULL;
     }
@@ -848,8 +1364,8 @@ static dap_chain_datum_tx_t* s_get_tx_from_cache_entry(dap_wallet_tx_cache_t *a_
     // Free the block (we only need the transaction)
     DAP_DELETE(l_block_data);
     
-    debug_if(s_debug_more, L_DEBUG, "Loaded transaction from file: offset=%ld, datum_offset=%zu, size=%zu",
-             a_entry->file_offset, a_entry->datum_offset_in_block, l_tx_size);
+    debug_if(s_debug_more, L_DEBUG, "Loaded transaction from file: offset=%lld, datum_offset=%zu, size=%zu",
+             (long long)a_entry->file_offset, a_entry->datum_offset_in_block, l_tx_size);
     
     return a_entry->tx;
 }

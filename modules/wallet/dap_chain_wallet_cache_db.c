@@ -26,6 +26,7 @@
 #include "dap_chain_wallet_cache_db.h"
 #include "dap_strfuncs.h"
 #include "dap_common.h"
+#include "dap_global_db.h"
 
 #define LOG_TAG "dap_chain_wallet_cache_db"
 
@@ -122,4 +123,115 @@ char* dap_wallet_cache_db_get_key(dap_chain_addr_t *a_wallet_addr)
     
     // Return a copy since static buffer will be overwritten on next call
     return dap_strdup(l_addr_str);
+}
+
+/**
+ * @brief Save wallet cache to GlobalDB
+ * @param a_cache Wallet cache data to save
+ * @param a_cache_size Total size of cache including variable data
+ * @param a_net_name Network name
+ * @param a_chain_name Chain name
+ * @return 0 on success, negative error code on failure
+ */
+int dap_wallet_cache_db_save(dap_wallet_cache_db_t *a_cache, size_t a_cache_size, const char *a_net_name, const char *a_chain_name)
+{
+    dap_return_val_if_fail(a_cache && a_cache_size > 0 && a_net_name && a_chain_name, -1);
+    
+    // Generate group and key
+    char *l_group = dap_wallet_cache_db_get_group(a_cache->net_id, a_chain_name);
+    if (!l_group) {
+        log_it(L_ERROR, "Failed to generate GlobalDB group");
+        return -2;
+    }
+    
+    char *l_key = dap_wallet_cache_db_get_key(&a_cache->wallet_addr);
+    if (!l_key) {
+        log_it(L_ERROR, "Failed to generate GlobalDB key");
+        DAP_DELETE(l_group);
+        return -3;
+    }
+    
+    // Update timestamp
+    a_cache->last_update = dap_time_now();
+    
+    // Save to GlobalDB with actual size (including all variable data)
+    bool l_result = dap_global_db_set_sync(l_group, l_key, a_cache, a_cache_size, false);
+    
+    DAP_DELETE(l_group);
+    DAP_DELETE(l_key);
+    
+    if (!l_result) {
+        log_it(L_ERROR, "Failed to save wallet cache to GlobalDB");
+        return -4;
+    }
+    
+    log_it(L_DEBUG, "Saved wallet cache to GlobalDB: %u transactions, %u unspent outputs, %zu bytes",
+             a_cache->tx_count, a_cache->unspent_count, a_cache_size);
+    
+    return 0;
+}
+
+/**
+ * @brief Load wallet cache from GlobalDB
+ * @param a_addr Wallet address
+ * @param a_net_id Network ID
+ * @param a_net_name Network name
+ * @param a_chain_name Chain name
+ * @return Loaded wallet cache or NULL if not found/error
+ */
+dap_wallet_cache_db_t* dap_wallet_cache_db_load(dap_chain_addr_t *a_addr, dap_chain_net_id_t a_net_id,
+                                                 const char *a_net_name, const char *a_chain_name)
+{
+    dap_return_val_if_fail(a_addr && a_net_name && a_chain_name, NULL);
+    
+    // Generate group and key
+    char *l_group = dap_wallet_cache_db_get_group(a_net_id, a_chain_name);
+    if (!l_group) {
+        log_it(L_ERROR, "Failed to generate GlobalDB group");
+        return NULL;
+    }
+    
+    char *l_key = dap_wallet_cache_db_get_key(a_addr);
+    if (!l_key) {
+        log_it(L_ERROR, "Failed to generate GlobalDB key");
+        DAP_DELETE(l_group);
+        return NULL;
+    }
+    
+    // Load from GlobalDB
+    size_t l_data_size = 0;
+    dap_wallet_cache_db_t *l_cache = (dap_wallet_cache_db_t*)dap_global_db_get_sync(
+        l_group, l_key, &l_data_size, NULL, NULL
+    );
+    
+    DAP_DELETE(l_group);
+    DAP_DELETE(l_key);
+    
+    if (!l_cache) {
+        // Not an error - wallet simply doesn't have cached data yet
+        log_it(L_INFO, "No wallet cache found in GlobalDB");
+        return NULL;
+    }
+    
+    // Verify version
+    if (l_cache->version != DAP_WALLET_CACHE_DB_VERSION) {
+        log_it(L_WARNING, "Wallet cache DB version mismatch: expected %u, got %u",
+               DAP_WALLET_CACHE_DB_VERSION, l_cache->version);
+        DAP_DELETE(l_cache);
+        return NULL;
+    }
+    
+    // Verify size
+    size_t l_expected_size = dap_wallet_cache_db_calc_size(l_cache->tx_count, l_cache->unspent_count);
+    if (l_data_size != l_expected_size) {
+        log_it(L_ERROR, "Wallet cache DB size mismatch: expected %zu, got %zu",
+               l_expected_size, l_data_size);
+        DAP_DELETE(l_cache);
+        return NULL;
+    }
+    
+    log_it(L_DEBUG, "Loaded wallet cache from GlobalDB: %u transactions, %u unspent outputs",
+             l_cache->tx_count, l_cache->unspent_count);
+    
+    return l_cache;
 }

@@ -19,3 +19,8 @@ INSTALL(TARGETS ${PROJECT_NAME}
         PUBLIC_HEADER DESTINATION include/modules/wallet/
 )
 endif()
+
+# Add tests subdirectory
+if(BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
