@@ -1791,10 +1791,6 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
         dap_global_db_cluster_delete(l_mempool);
         l_mempool = l_next;
     }
-    dap_global_db_cluster_delete(PVT(a_net)->orders_cluster);
-    dap_global_db_cluster_delete(PVT(a_net)->nodes_cluster);
-    dap_global_db_cluster_delete(PVT(a_net)->nodes_states);
-    dap_global_db_cluster_delete(PVT(a_net)->common_orders);
 
     DAP_DELETE(PVT(a_net)->node_info);
     if (a_net->pub.ledger) {

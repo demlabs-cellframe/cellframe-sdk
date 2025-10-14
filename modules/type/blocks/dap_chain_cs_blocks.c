@@ -1626,12 +1626,12 @@ static void s_callback_delete(dap_chain_t * a_chain)
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     if(l_blocks->callback_delete )
         l_blocks->callback_delete(l_blocks);
+    else
+        DAP_DEL_MULTY(l_blocks->_inheritor, l_blocks->_pvt);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->datums_rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->forked_branches_rwlock);
-    DAP_DEL_Z(l_blocks->_inheritor);
-    DAP_DEL_Z(l_blocks->_pvt);
     log_it(L_INFO, "Block destructed");
 }
 
