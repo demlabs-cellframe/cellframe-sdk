@@ -158,10 +158,10 @@ typedef enum dap_chain_net_srv_xchange_create_error_list{
     XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION,
     XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL
 } dap_chain_net_srv_xchange_create_error_t;
-dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
+DAP_STATIC_INLINE dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
                                      const char *a_token_sell, uint256_t a_datoshi_sell,
                                      uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-                                     char **a_out_tx_hash);
+                                     char **a_out_tx_hash) { return XCHANGE_CREATE_ERROR_OK; }
 
 typedef enum dap_chain_net_srv_xchange_remove_error_list{
     XCHANGE_REMOVE_ERROR_OK = 0,
@@ -171,8 +171,8 @@ typedef enum dap_chain_net_srv_xchange_remove_error_list{
     XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE,
     XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX
 } dap_chain_net_srv_xchange_remove_error_t;
-dap_chain_net_srv_xchange_remove_error_t dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
-                                     dap_chain_wallet_t *a_wallet, char **a_out_hash_tx);
+DAP_STATIC_INLINE dap_chain_net_srv_xchange_remove_error_t dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+                                     dap_chain_wallet_t *a_wallet, char **a_out_hash_tx) { return XCHANGE_REMOVE_ERROR_OK; }
 
 dap_list_t *dap_chain_net_srv_xchange_get_tx_xchange(dap_chain_net_t *a_net);
 dap_list_t *dap_chain_net_srv_xchange_get_prices(dap_chain_net_t *a_net);

@@ -145,39 +145,40 @@ if(CMAKE_C_COMPILER MATCHES "clang")
     add_compile_options(-Wno-sign-compare)
 endif()
 
-if(NOT DEFINED CELLFRAME_MODULES)
-    # =========================================
-    # DAP SDK INTEGRATION - CONDITIONAL
-    # =========================================
-    # Check if DAP SDK is already configured at parent level
-    if(NOT TARGET dap_sdk)
-        # DAP SDK not found - include our own copy
-        message("[+] Cellframe SDK: Using embedded DAP SDK")
+# =========================================
+# DAP SDK INTEGRATION - CONDITIONAL
+# =========================================
+# IMPORTANT: Check if DAP SDK is already configured at parent level
+# This MUST be checked REGARDLESS of CELLFRAME_MODULES to avoid symbol duplication
+if(NOT TARGET dap_sdk)
+    # DAP SDK not found - include our own copy
+    message("[+] Cellframe SDK: Using embedded DAP SDK")
 
-        include (dap-sdk/cmake/OS_Detection.cmake)
+    include (dap-sdk/cmake/OS_Detection.cmake)
 
-        # Configure DAP SDK modules
-        # Default modules are set in dap-sdk/CMakeLists.txt: crypto plugin io network-* global-db
-        if(BUILD_CELLFRAME_SDK_TESTS)
-            # Add test-framework to default modules, don't replace them
-            if(NOT DEFINED DAPSDK_MODULES OR DAPSDK_MODULES STREQUAL "")
-                set(DAPSDK_MODULES "crypto plugin io network-core network-server network-client network-link_manager global-db test-framework")
-            else()
-                set(DAPSDK_MODULES "${DAPSDK_MODULES} test-framework")
-            endif()
+    # Configure DAP SDK modules
+    # Default modules are set in dap-sdk/CMakeLists.txt: crypto plugin io network-* global-db
+    if(BUILD_CELLFRAME_SDK_TESTS)
+        # Add test-framework to default modules, don't replace them
+        if(NOT DEFINED DAPSDK_MODULES OR DAPSDK_MODULES STREQUAL "")
+            set(DAPSDK_MODULES "crypto plugin io network-core network-server network-client network-link_manager global-db test-framework")
+        else()
+            set(DAPSDK_MODULES "${DAPSDK_MODULES} test-framework")
         endif()
-
-        add_subdirectory(dap-sdk)
-        set(CELLFRAME_USING_EXTERNAL_DAP_SDK OFF)
-    else()
-        # DAP SDK already available from parent - use it
-        message("[+] Cellframe SDK: Using external DAP SDK (target: dap_sdk)")
-        message("[+] Cellframe SDK: ✅ No DAP SDK duplication - using shared instance")
-
-        # Set the flag to indicate we're using external DAP SDK
-        set(CELLFRAME_USING_EXTERNAL_DAP_SDK ON)
     endif()
 
+    add_subdirectory(dap-sdk)
+    set(CELLFRAME_USING_EXTERNAL_DAP_SDK OFF)
+else()
+    # DAP SDK already available from parent - use it
+    message("[+] Cellframe SDK: Using external DAP SDK (target: dap_sdk)")
+    message("[+] Cellframe SDK: ✅ No DAP SDK duplication - using shared instance")
+
+    # Set the flag to indicate we're using external DAP SDK
+    set(CELLFRAME_USING_EXTERNAL_DAP_SDK ON)
+endif()
+
+if(NOT DEFINED CELLFRAME_MODULES)
     set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-auctions compose")
 
     if(LINUX OR DARWIN)
@@ -411,36 +412,6 @@ if(ENABLE_CPPCHECK_ANALYSIS)
         message(WARNING "cppcheck not found, cppcheck_analysis target unavailable")
     endif()
 endif()
-
-# =========================================
-# INCLUDE DIRECTORIES FOR HEADERS
-# =========================================
-# Add include paths for missing headers (UPDATED PATHS)
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/net/app-cli/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/core/include/")
-include_directories("${CMAKE_CURRENT_BINARY_DIR}/dap-sdk/module/core/json-c/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/crypto/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/crypto/XKCP/lib/high/Keccak/FIPS202/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/io/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/net/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/net/server/json_rpc/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/global-db/include/")
-include_directories("${CMAKE_CURRENT_BINARY_DIR}/dap-sdk/module/core/json-c/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/3rdparty/uthash/src/")
-
-# Cellframe SDK modules includes
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/chain/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/wallet/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/ledger/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/net/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/mempool/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/datum/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/node/include/")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/node-cli/include/")
-
-# DAP SDK src includes (for headers in src/ directories)
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/module/crypto/src/rand/")
 
 # =========================================
 # CREATE FINAL CELLFRAME SDK LIBRARY

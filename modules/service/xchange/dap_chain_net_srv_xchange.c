@@ -112,7 +112,7 @@ static int s_xchange_verificator_callback(dap_ledger_t * a_ledger,
                             dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply);
 const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid = { .uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID };
 
-dap_json_t *s_print_fee_json(dap_chain_net_id_t a_net_id);
+dap_json_t *s_print_fee_json(dap_chain_net_id_t a_net_id) { return dap_json_object_new(); }
 static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a_json_arr_reply, int a_version);
 static dap_chain_net_srv_xchange_order_status_t s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
