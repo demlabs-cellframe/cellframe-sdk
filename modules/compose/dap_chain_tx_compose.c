@@ -781,11 +781,13 @@ typedef enum {
     TX_CREATE_COMPOSE_FEE_ERROR = -6,
     TX_CREATE_COMPOSE_FUNDS_ERROR = -7,
     TX_CREATE_COMPOSE_OUT_ERROR = -8,
-    TX_CREATE_COMPOSE_INVALID_CONFIG = -9
+    TX_CREATE_COMPOSE_INVALID_CONFIG = -9,
+    TX_CREATE_COMPOSE_TIME_UNLOCK_ERROR = -10
 } tx_create_compose_error_t;
 
-dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_fee_str, const char *addr_base58_to, 
-                                    dap_chain_addr_t *l_addr_from, const char *l_url_str, uint16_t l_port, const char *l_cert_path) {
+dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_time_unlock_str,
+                                  const char *l_fee_str, const char *addr_base58_to, 
+                                  dap_chain_addr_t *l_addr_from, const char *l_url_str, uint16_t l_port, const char *l_cert_path) {
     if (!l_net_str || !l_token_ticker || !l_value_str || !l_addr_from || !l_url_str) {
         return NULL;
     }
@@ -798,10 +800,12 @@ dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_tic
     }
 
     uint256_t *l_value = NULL;
+    dap_time_t *l_time_unlock = NULL;
     uint256_t l_value_fee = {};
     dap_chain_addr_t **l_addr_to = NULL;
     size_t l_addr_el_count = 0;
     size_t l_value_el_count = 0;
+    size_t l_time_el_count = 0;
 
 
     l_value_fee = dap_chain_balance_scan(l_fee_str);
@@ -811,7 +815,8 @@ dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_tic
     }
 
     l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
-
+    if (l_time_unlock_str)
+        l_time_el_count = dap_str_symbol_count(l_time_unlock_str, ',') + 1;
     if (addr_base58_to)
         l_addr_el_count = dap_str_symbol_count(addr_base58_to, ',') + 1;
     else 
@@ -819,6 +824,11 @@ dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_tic
 
     if (addr_base58_to && l_addr_el_count != l_value_el_count) {
         dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_INVALID_PARAMS, "num of '-to_addr' and '-value' should be equal");
+        return dap_chain_tx_compose_config_return_response_handler(l_config);
+    }
+
+    if (l_time_el_count && (l_time_el_count != l_value_el_count || l_time_el_count != l_addr_el_count)) {
+        dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_INVALID_PARAMS, "num of '-to_addr', '-value' and  '-lock_before' should be equal");
         return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
 
@@ -844,6 +854,33 @@ dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_tic
     }
     dap_strfreev(l_value_array);
 
+    if (l_time_unlock_str) {
+        l_time_unlock = DAP_NEW_Z_COUNT(dap_time_t, l_value_el_count);
+        if (!l_time_unlock) {
+            dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_MEMORY_ERROR, "Can't allocate memory");
+            return dap_chain_tx_compose_config_return_response_handler(l_config);
+        }
+        char **l_time_unlock_array = dap_strsplit(l_time_unlock_str, ",", l_value_el_count);
+        if (!l_time_unlock_array) {
+            DAP_DELETE(l_time_unlock);
+            dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Can't read '-to_addr' arg");
+            return dap_chain_tx_compose_config_return_response_handler(l_config);
+        }
+        for (size_t i = 0; i < l_value_el_count; ++i) {
+            if (l_time_unlock_array[i] && !dap_strcmp(l_time_unlock_array[i], "0")) {
+                l_time_unlock[i] = 0;
+                continue;
+            }
+            l_time_unlock[i] = dap_time_from_str_rfc822(l_time_unlock_array[i]);
+            if (!l_time_unlock[i]) {
+                dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Wrong time format. Parameter -lock_before must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +0300\"");
+                DAP_DEL_MULTY(l_time_unlock, l_value);
+                return dap_chain_tx_compose_config_return_response_handler(l_config);
+            }
+        }
+        dap_strfreev(l_time_unlock_array);
+    }
+
     if (addr_base58_to) {
         l_addr_to = DAP_NEW_Z_COUNT(dap_chain_addr_t *, l_addr_el_count);
         if (!l_addr_to) {
@@ -853,7 +890,7 @@ dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_tic
         }
         char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
         if (!l_addr_base58_to_array) {
-            DAP_DEL_MULTY(l_addr_to, l_value);
+            DAP_DEL_MULTY(l_addr_to, l_value, l_time_unlock);
             dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "Can't read '-to_addr' arg");
             return dap_chain_tx_compose_config_return_response_handler(l_config);
         }
@@ -883,7 +920,7 @@ dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_tic
         }
     }
 
-    dap_chain_datum_tx_t* l_tx = dap_chain_datum_tx_create_compose( l_addr_from, l_addr_to, l_token_ticker, l_value, l_value_fee, l_addr_el_count, l_config);
+    dap_chain_datum_tx_t* l_tx = dap_chain_datum_tx_create_compose( l_addr_from, l_addr_to, l_token_ticker, l_value, l_time_unlock, l_value_fee, l_addr_el_count, l_config);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
@@ -930,7 +967,7 @@ int dap_chain_datum_tx_add_out_ext_item_without_addr(dap_chain_datum_tx_t **a_tx
 
 
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
-        const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, size_t a_tx_num, dap_chain_tx_compose_config_t *a_config)
+        const char* a_token_ticker, uint256_t *a_value, dap_time_t *a_time_unlock, uint256_t a_value_fee, size_t a_tx_num, dap_chain_tx_compose_config_t *a_config)
 {
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!a_config) {
@@ -1060,7 +1097,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
         uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
         for (size_t i = 0; i < a_tx_num; ++i) {
             if (a_addr_to) {
-                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_value[i], l_native_ticker) != 1) {
+                if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], l_native_ticker, a_time_unlock ? a_time_unlock[i] : 0) != 1) {
                     dap_chain_datum_tx_delete(l_tx);
                     dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_OUT_ERROR, "Can't add 'out' item");
                     return NULL;
@@ -1107,7 +1144,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr
     } else { // add 'out_ext' items
         for (size_t i = 0; i < a_tx_num; ++i) {
             if (a_addr_to) {
-                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker) != 1) {
+                if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock ? a_time_unlock[i] : 0)) {
                     dap_chain_datum_tx_delete(l_tx);
                     dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_OUT_ERROR, "Can't add 'out_ext' item");
                     return NULL;
