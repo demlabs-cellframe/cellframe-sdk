@@ -1,3 +1,8 @@
+# Common types (header-only, base for all modules - must be first!)
+if (CELLFRAME_MODULES MATCHES "chains")
+    add_subdirectory(common)
+endif()
+
 # Chains
 if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(datum)
@@ -15,9 +20,9 @@ if (CELLFRAME_MODULES MATCHES "dht")
     add_subdirectory(dht)
 endif()
 
-# Node
+# Node CLI Commands (high-level, depends on all modules - add last to avoid cycles)
 if (CELLFRAME_MODULES MATCHES "network")
-    add_subdirectory(node-cli)
+    add_subdirectory(node-cli-cmd)
 endif()
 
 # Network
@@ -54,6 +59,11 @@ endif()
 # Consensus type blocks
 if (CELLFRAME_MODULES MATCHES "cs-block-" OR CELLFRAME_MODULES MATCHES "cs-esbocs")
     add_subdirectory(type/blocks)
+endif()
+
+# Consensus callbacks registry (breaks circular dependencies)
+if (CELLFRAME_MODULES MATCHES "cs-")
+    add_subdirectory(consensus)
 endif()
 
 # ESBOCS

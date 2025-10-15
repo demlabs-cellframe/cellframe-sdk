@@ -5,11 +5,11 @@ file(GLOB DAP_SRV_XCHANGE_SRCS *.c)
 
 file(GLOB DAP_SRV_XCHANGE_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_SRV_XCHANGE_SRCS} ${DAP_SRV_XCHANGE_HEADERS})
+cellframe_add_library(${PROJECT_NAME} ${DAP_SRV_XCHANGE_SRCS} HEADERS ${DAP_SRV_XCHANGE_HEADERS})
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_net dap_chain_net_srv)
+target_link_libraries(${PROJECT_NAME} dap_sdk dap_chain dap_chain_net dap_chain_net_srv dap_compose)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_SRV_XCHANGE_HEADERS}")
