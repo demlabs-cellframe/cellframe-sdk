@@ -40,6 +40,8 @@ typedef struct dap_chain dap_chain_t;
 
 typedef struct dap_chain_cell dap_chain_cell_t;
 
+typedef struct dap_chain_cache dap_chain_cache_t;
+
 typedef struct dap_ledger dap_ledger_t;
 
 // Atomic element
@@ -252,6 +254,10 @@ typedef struct dap_chain {
     dap_hash_fast_t hardfork_decree_hash;
     uint16_t hardfork_generation;
     struct hardfork_states *hardfork_data;
+    
+    // Chain cache for fast blockchain loading
+    dap_chain_cache_t *cache;
+    
     void * _pvt; // private data
     void * _inheritor; // inheritor object
 } dap_chain_t;

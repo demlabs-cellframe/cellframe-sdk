@@ -24,6 +24,8 @@
 #include "uthash.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
+#include "dap_chain_cache.h"
+#include "dap_chain_cache_internal.h"
 #include "dap_global_db.h"
 #include "dap_common.h"
 #include "dap_config.h"
@@ -393,9 +395,42 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 break;
             l_atom = (dap_chain_atom_ptr_t)(a_cell->mapping->cursor + sizeof(uint64_t));
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
-            dap_chain_atom_verify_res_t l_verif = a_cell->chain->callback_atom_prefetch
-                ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
-                : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
+            
+            // Check cache for fast loading (mapped mode)
+            bool l_cache_hit = false;
+            dap_chain_atom_verify_res_t l_verif = ATOM_REJECT;
+            
+            if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+                dap_chain_cache_entry_t l_cache_entry;
+                if (dap_chain_cache_get_block(a_cell->chain->cache, &l_atom_hash, &l_cache_entry) == 0 &&
+                    l_cache_entry.file_offset == (uint64_t)l_pos &&
+                    l_cache_entry.block_size == (uint32_t)l_el_size) {
+                    // CACHE HIT!
+                    l_cache_hit = true;
+                    l_verif = ATOM_ACCEPT;
+                    atomic_fetch_add(&a_cell->chain->cache->cache_hits, 1);
+                }
+            }
+            
+            if (!l_cache_hit) {
+                // CACHE MISS - full validation
+                if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+                    atomic_fetch_add(&a_cell->chain->cache->cache_misses, 1);
+                }
+                
+                l_verif = a_cell->chain->callback_atom_prefetch
+                    ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
+                    : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
+                
+                // Save to cache if accepted
+                if (l_verif == ATOM_ACCEPT && a_cell->chain->cache && 
+                    dap_chain_cache_enabled(a_cell->chain->cache)) {
+                    uint32_t l_tx_count = 0;
+                    dap_chain_cache_save_block(a_cell->chain->cache, &l_atom_hash,
+                        a_cell->id.uint64, l_pos, l_el_size, l_tx_count);
+                }
+            }
+            
             if ( l_verif == ATOM_CORRUPTED ) {
                 log_it(L_ERROR, "Atom #%ld is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
                                 q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
@@ -437,18 +472,58 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 break;
             }
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            
+            // Check cache for fast loading
+            bool l_cache_hit = false;
             dap_chain_atom_verify_res_t l_verif = ATOM_REJECT; // Default if no callbacks
-            if (a_cell->chain->callback_atom_prefetch) {
-                l_verif = a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash);
-            } else if (a_cell->chain->callback_atom_add) {
-                l_verif = a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
-            } else {
-                // No callbacks available - can't process atoms
-                log_it(L_WARNING, "No atom processing callbacks available for chain \"%s : %s\", cell loading incomplete",
-                       a_cell->chain->net_name, a_cell->chain->name);
-                DAP_DELETE(l_atom);
-                break; // Stop loading, but not an error
+            
+            if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+                dap_chain_cache_entry_t l_cache_entry;
+                // Check if block is in cache and offset matches
+                if (dap_chain_cache_get_block(a_cell->chain->cache, &l_atom_hash, &l_cache_entry) == 0 &&
+                    l_cache_entry.file_offset == (uint64_t)l_pos &&
+                    l_cache_entry.block_size == (uint32_t)l_el_size) {
+                    // CACHE HIT! Skip validation, block already verified
+                    l_cache_hit = true;
+                    l_verif = ATOM_ACCEPT; // Assume accepted (was validated before)
+                    atomic_fetch_add(&a_cell->chain->cache->cache_hits, 1);
+                    if (a_cell->chain->cache->debug) {
+                        char l_hash_str[DAP_HASH_FAST_STR_SIZE];
+                        dap_hash_fast_to_str(&l_atom_hash, l_hash_str, sizeof(l_hash_str));
+                        log_it(L_DEBUG, "Cache hit for block %s at offset %"DAP_UINT64_FORMAT_U, 
+                            l_hash_str, (uint64_t)l_pos);
+                    }
+                }
             }
+            
+            if (!l_cache_hit) {
+                // CACHE MISS or cache disabled - full validation
+                if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+                    atomic_fetch_add(&a_cell->chain->cache->cache_misses, 1);
+                }
+                
+                if (a_cell->chain->callback_atom_prefetch) {
+                    l_verif = a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash);
+                } else if (a_cell->chain->callback_atom_add) {
+                    l_verif = a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
+                } else {
+                    // No callbacks available - can't process atoms
+                    log_it(L_WARNING, "No atom processing callbacks available for chain \"%s : %s\", cell loading incomplete",
+                           a_cell->chain->net_name, a_cell->chain->name);
+                    DAP_DELETE(l_atom);
+                    break; // Stop loading, but not an error
+                }
+                
+                // Save to cache if accepted
+                if (l_verif == ATOM_ACCEPT && a_cell->chain->cache && 
+                    dap_chain_cache_enabled(a_cell->chain->cache)) {
+                    // TODO: Get actual tx_count from block
+                    uint32_t l_tx_count = 0;
+                    dap_chain_cache_save_block(a_cell->chain->cache, &l_atom_hash,
+                        a_cell->id.uint64, l_pos, l_el_size, l_tx_count);
+                }
+            }
+            
             DAP_DELETE(l_atom);
             if ( l_verif == ATOM_CORRUPTED ) {
                 log_it(L_ERROR, "Atom #%ld is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",

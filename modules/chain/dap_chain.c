@@ -39,6 +39,7 @@
 #include "dap_chain_cs.h"
 #include "dap_cert_file.h"
 #include "dap_chain_ch.h"
+#include "dap_chain_cache.h"
 #include "dap_stream_ch_gossip.h"
 #include "dap_notify_srv.h"
 #include <uthash.h>
@@ -89,6 +90,10 @@ int dap_chain_init(void)
     dap_chain_cell_init();
     dap_chain_cs_init();
     dap_chain_srv_init();
+    
+    // Initialize chain cache subsystem for fast blockchain loading
+    dap_chain_cache_init();
+    
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
     return 0;
@@ -104,6 +109,10 @@ void dap_chain_deinit(void)
           dap_chain_delete(l_item->chain);
           DAP_DELETE(l_item);
     }*/ // TODO!
+    
+    // Deinitialize chain cache subsystem
+    dap_chain_cache_deinit();
+    
     dap_chain_srv_deinit();
 }
 
@@ -239,6 +248,13 @@ void dap_chain_delete(dap_chain_t *a_chain)
     dap_list_free_full(a_chain->datum_removed_notifiers, NULL);
     dap_list_free_full(a_chain->blockchain_timers, NULL);
     dap_list_free_full(a_chain->atom_confirmed_notifiers, NULL);
+    
+    // Delete chain cache if exists
+    if (a_chain->cache) {
+        dap_chain_cache_delete(a_chain->cache);
+        a_chain->cache = NULL;
+    }
+    
     dap_chain_cs_class_delete(a_chain);
     if (DAP_CHAIN_PVT(a_chain)) {
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
@@ -545,6 +561,14 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
         if (!l_chain->authorized_nodes_count)
             log_it(L_WARNING, "Can't read PoA nodes addresses");
     }
+    
+    // Initialize chain cache for fast blockchain loading
+    l_chain->cache = dap_chain_cache_create(l_chain, a_cfg);
+    if (!l_chain->cache) {
+        log_it(L_WARNING, "Failed to create chain cache for %s:%s, cache disabled",
+            a_chain_net_name, l_chain_name);
+    }
+    
     return l_chain;
 }
 
