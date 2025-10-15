@@ -32,6 +32,12 @@
 #include "dap_chain_net_srv_datum.h"
 
 #define LOG_TAG "chain_net_srv_datum"
+typedef enum s_com_srv_datum_err{
+    DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_REQUIRES_PARAMETER_DATUM,
+    DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CONFIG_WASNT_LOADED,
+    DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CANT_PLACE_DATUM_TO_MEMPOOL
+}s_com_srv_datum_err_t;
 
 static dap_chain_net_srv_t *s_srv_datum = NULL;
 static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, int a_version);
@@ -106,25 +112,28 @@ char* dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, const uint8_t *a
 
 static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
+    json_object ** a_json_arr_reply = (json_object **) a_str_reply;
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;
     dap_chain_t * l_chain = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net, CHAIN_TYPE_INVALID)) {
-        return -3;
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply,&arg_index,argc,argv,&l_chain,&l_chain_net, CHAIN_TYPE_INVALID)) {
+        return -DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_REQUIRES_PARAMETER_DATUM;
     }
 
     const char * l_datum_hash_str = NULL;
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
     if (!l_datum_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command srv_datum requires parameter '-datum' <datum hash>");
-        return -4;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_REQUIRES_PARAMETER_DATUM,
+            "Command srv_datum requires parameter '-datum' <datum hash>");
+        return -DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_REQUIRES_PARAMETER_DATUM;
     }
 
     const char * l_system_datum_folder = dap_config_get_item_str(g_config, "resources", "datum_folder");
     if (!l_system_datum_folder){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Configuration wasn't loaded");
-        return -6;
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CONFIG_WASNT_LOADED,
+            "Configuration wasn't loaded");
+        return -DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CONFIG_WASNT_LOADED;
     }
 
     const char * l_datum_cmd_str = NULL;
@@ -177,13 +186,16 @@ static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply, UNUSED_AR
 
             char *l_ret;
             if ((l_ret = dap_chain_net_srv_datum_custom_add(l_chain, l_datum_data, l_datum_data_size)) == NULL) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Can't place datum custom \"%s\" to mempool", l_datum_hash_str);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CANT_PLACE_DATUM_TO_MEMPOOL,
+                    "Can't place datum custom \"%s\" to mempool", l_datum_hash_str);
             }
             else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Datum custom %s was successfully placed to mempool", l_datum_hash_str); 
+                json_object* json_obj_out = json_object_new_object();
+                char *l_status = dap_strdup_printf("Datum custom %s was successfully placed to mempool", l_datum_hash_str);
+                json_object_object_add(json_obj_out, "status", json_object_new_string(l_status));
+                DAP_DELETE(l_status); 
                 DAP_DELETE(l_ret);
+                json_object_array_add(*a_json_arr_reply, json_obj_out);
                 return 0;
             }
         }

@@ -1628,7 +1628,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_v
                     json_object_array_add(*a_json_arr_reply, json_obj_out);                    
                     return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_INVALID_CHAIN_PARAM_ERR;
                 }
-            }else {
+            } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_REQUIRES_PARAM_DECREE_CHAIN_ERR,
                     "decree requires parameter -decree_chain.");
                 return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_REQUIRES_PARAM_DECREE_CHAIN_ERR;
