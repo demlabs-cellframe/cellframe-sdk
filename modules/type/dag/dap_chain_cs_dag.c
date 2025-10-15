@@ -127,7 +127,9 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain);
 static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_iter);
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter); // Get the fisrt datum from dag
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_last(dap_chain_datum_iter_t *a_datum_iter);  // Get the last datum from dag
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter); // Get the next datum from dag
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_prev(dap_chain_datum_iter_t *a_datum_iter); // Get the prev datum from dag
 
 static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
@@ -241,7 +243,9 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
     a_chain->callback_datum_iter_delete = s_chain_callback_datum_iter_delete; // Datum iterator delete
     a_chain->callback_datum_iter_get_first = s_chain_callback_datum_iter_get_first; // Get the fisrt datum from chain
+    a_chain->callback_datum_iter_get_last = s_chain_callback_datum_iter_get_last;   // Get the last datum from chain
     a_chain->callback_datum_iter_get_next = s_chain_callback_datum_iter_get_next; // Get the next datum from chain from the current one
+    a_chain->callback_datum_iter_get_prev = s_chain_callback_datum_iter_get_prev; // Get the prev datum from chain from the current one
 
     // Get tx list
     a_chain->callback_get_txs = s_dap_chain_callback_get_txs;
@@ -1271,6 +1275,22 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_
     return a_datum_iter->cur;
 }
 
+/**
+ * @brief s_chain_callback_datum_iter_get_last
+ * Get the last datum from DAG chain
+ * @param a_datum_iter Datum iterator
+ * @return Pointer to the last datum or NULL if not found
+ */
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_last(dap_chain_datum_iter_t *a_datum_iter)
+{
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_datum_iter->chain);
+    pthread_mutex_lock(&PVT(l_dag)->events_mutex);
+    dap_chain_cs_dag_event_item_t *l_item = HASH_LAST(PVT(l_dag)->datums);
+    s_datum_iter_fill(a_datum_iter, l_item);
+    pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+    return a_datum_iter->cur;
+}
+
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter)
 {
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_datum_iter->chain);
@@ -1278,6 +1298,24 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
     dap_chain_cs_dag_event_item_t *l_item = a_datum_iter->cur_item;
     if (l_item)
         l_item = l_item->hh_datums.next;
+    s_datum_iter_fill(a_datum_iter, l_item);
+    pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+    return a_datum_iter->cur;
+}
+
+/**
+ * @brief s_chain_callback_datum_iter_get_prev
+ * Get the previous datum from DAG chain
+ * @param a_datum_iter Datum iterator
+ * @return Pointer to the previous datum or NULL if not found
+ */
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_prev(dap_chain_datum_iter_t *a_datum_iter)
+{
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_datum_iter->chain);
+    pthread_mutex_lock(&PVT(l_dag)->events_mutex);
+    dap_chain_cs_dag_event_item_t *l_item = a_datum_iter->cur_item;
+    if (l_item)
+        l_item = l_item->hh_datums.prev;
     s_datum_iter_fill(a_datum_iter, l_item);
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     return a_datum_iter->cur;
