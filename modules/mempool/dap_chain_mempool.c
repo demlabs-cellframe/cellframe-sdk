@@ -60,7 +60,7 @@
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
-#include "dap_chain_cs_blocks.h"
+#include "dap_chain_type_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
@@ -279,7 +279,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
  *
  * return hash_tx Ok, , NULL other Error
  */
-char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
+char *dap_chain_mempool_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
                                            const dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                            uint256_t a_value_fee, const char *a_hash_out_type)
 {
@@ -423,7 +423,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
  *
  * return hash_tx Ok, NULL Error
  */
-char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_sign_key,
+char *dap_chain_mempool_tx_reward_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_sign_key,
                                          dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                          uint256_t a_value_fee, const char *a_hash_out_type)
 {
@@ -545,7 +545,7 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
 }
 
 // get reward and fees from blocks before hardfork
-char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
+char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
                                            const dap_chain_addr_t *a_addr_to, uint256_t a_value_fee, const char *a_hash_out_type)
 {
     uint256_t                   l_net_fee = {};

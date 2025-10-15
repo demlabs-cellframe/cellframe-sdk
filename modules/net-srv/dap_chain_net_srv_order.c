@@ -31,6 +31,7 @@
 #include "dap_global_db.h"
 #include "dap_chain_net_srv_countries.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_json.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"
 #define ORDER_CURRENT_VERSION 3
@@ -587,7 +588,7 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
 
 
 
-void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, json_object *a_json_obj_out,
+void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_order, dap_json_t *a_json_obj_out,
                                             const char *a_hash_out_type, const char *a_native_ticker, bool a_need_sign, int a_version)
 {
     if (a_order && a_json_obj_out ){
@@ -597,39 +598,39 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
                 ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
                 : dap_chain_hash_fast_to_str_static(&l_hash);
 
-        json_object_object_add(a_json_obj_out, "order", json_object_new_string(l_hash_str));
-        json_object_object_add(a_json_obj_out, "version", json_object_new_uint64(a_order->version));
+        dap_json_object_add_string(a_json_obj_out, "order", l_hash_str);
+        dap_json_object_add_uint64(a_json_obj_out, "version", a_order->version);
 
         switch ( a_order->direction) {
-        case SERV_DIR_UNDEFINED:    json_object_object_add(a_json_obj_out, "direction", json_object_new_string("SERV_DIR_UNDEFINED"));   break;
-        case SERV_DIR_SELL:         json_object_object_add(a_json_obj_out, "direction", json_object_new_string("SERV_DIR_SELL"));        break;
-        case SERV_DIR_BUY:          json_object_object_add(a_json_obj_out, "direction", json_object_new_string("SERV_DIR_BUY"));         break;
+        case SERV_DIR_UNDEFINED:    dap_json_object_add_string(a_json_obj_out, "direction", "SERV_DIR_UNDEFINED");   break;
+        case SERV_DIR_SELL:         dap_json_object_add_string(a_json_obj_out, "direction", "SERV_DIR_SELL");        break;
+        case SERV_DIR_BUY:          dap_json_object_add_string(a_json_obj_out, "direction", "SERV_DIR_BUY");         break;
         }
         char buf_time[DAP_TIME_STR_SIZE];
         dap_time_to_str_rfc822(buf_time, DAP_TIME_STR_SIZE, a_order->ts_created);
-        json_object_object_add(a_json_obj_out, "created", json_object_new_string(buf_time));
+        dap_json_object_add_string(a_json_obj_out, "created", buf_time);
         //timestamp remove after sort
-        json_object_object_add(a_json_obj_out, "timestamp", json_object_new_uint64(a_order->ts_created));
+        dap_json_object_add_uint64(a_json_obj_out, "timestamp", a_order->ts_created);
         char buf_srv_uid[64];
         snprintf(buf_srv_uid, sizeof(buf_srv_uid), "0x%016"DAP_UINT64_FORMAT_X"", a_order->srv_uid.uint64);
-        json_object_object_add(a_json_obj_out, "srv_uid", json_object_new_string(buf_srv_uid));
+        dap_json_object_add_string(a_json_obj_out, "srv_uid", buf_srv_uid);
         
         const char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
-        json_object_object_add(a_json_obj_out, "created", json_object_new_string(buf_time));
+        dap_json_object_add_string(a_json_obj_out, "created", buf_time);
 
-        json_object_object_add(a_json_obj_out, a_version == 1 ? "price coins" : "price_coins", json_object_new_string(l_balance_coins));
-        json_object_object_add(a_json_obj_out, a_version == 1 ? "price datoshi" : "price_datoshi", json_object_new_string(l_balance));
-        json_object_object_add(a_json_obj_out, a_version == 1 ? "price token" : "price_token", (*a_order->price_ticker) ?
-                                                              json_object_new_string(a_order->price_ticker) :
-                                                              json_object_new_string(a_native_ticker));
+        dap_json_object_add_string(a_json_obj_out, a_version == 1 ? "price coins" : "price_coins", l_balance_coins);
+        dap_json_object_add_string(a_json_obj_out, a_version == 1 ? "price datoshi" : "price_datoshi", l_balance);
+        dap_json_object_add_object(a_json_obj_out, a_version == 1 ? "price token" : "price_token", (*a_order->price_ticker) ?
+                                                              dap_json_object_new_string(a_order->price_ticker) :
+                                                              dap_json_object_new_string(a_native_ticker));
                                                               
-        json_object_object_add(a_json_obj_out, "units", json_object_new_string(dap_utoa(a_order->units)));
+        dap_json_object_add_string(a_json_obj_out, "units", dap_utoa(a_order->units));
 
         if ( a_order->price_unit.uint32 )
-            json_object_object_add(a_json_obj_out, a_version == 1 ? "price unit" : "price_unit", json_object_new_string(dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit)));
+            dap_json_object_add_string(a_json_obj_out, a_version == 1 ? "price unit" : "price_unit", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit));
         if ( a_order->node_addr.uint64) {
             char *node_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(a_order->node_addr));
-            json_object_object_add(a_json_obj_out, "node_addr", json_object_new_string(node_addr));
+            dap_json_object_add_string(a_json_obj_out, "node_addr", node_addr);
             DAP_DELETE(node_addr);
         }
 
@@ -639,7 +640,7 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         if(dap_chain_net_srv_order_get_continent_region(a_order, &l_continent_num, &l_region))
             l_continent_str = dap_chain_net_srv_order_continent_to_str(l_continent_num);
         char *node_location = dap_strdup_printf("%s - %s", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
-        json_object_object_add(a_json_obj_out, "node_location", json_object_new_string(node_location));
+        dap_json_object_add_string(a_json_obj_out, "node_location", node_location);
         DAP_DELETE(node_location);    
 
         DAP_DELETE(l_region);
@@ -648,20 +649,20 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
                 : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);      
-            json_object_object_add(a_json_obj_out, "tx_cond_hash", json_object_new_string(l_hash_str));
+            dap_json_object_add_string(a_json_obj_out, "tx_cond_hash", l_hash_str);
         }
-        json_object_object_add(a_json_obj_out, "ext_size", json_object_new_uint64(a_order->ext_size));
+        dap_json_object_add_uint64(a_json_obj_out, "ext_size", a_order->ext_size);
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         if (a_need_sign) {
             char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1);
             size_t l_sign_size = dap_sign_get_size(l_sign);
             dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-            json_object_object_add(a_json_obj_out, "sig_b64", json_object_new_string(l_sign_b64));
-            json_object_object_add(a_json_obj_out, "sig_b64_size", json_object_new_uint64(l_sign_size));
+            dap_json_object_add_string(a_json_obj_out, "sig_b64", l_sign_b64);
+            dap_json_object_add_uint64(a_json_obj_out, "sig_b64_size", l_sign_size);
         }
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
         const char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
-        json_object_object_add(a_json_obj_out, "pkey", json_object_new_string(l_sign_pkey_hash_str));
+        dap_json_object_add_string(a_json_obj_out, "pkey", l_sign_pkey_hash_str);
     }
 }
