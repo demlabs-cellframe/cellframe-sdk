@@ -6178,7 +6178,6 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         HASH_FIND(hh, l_ledger_pvt->srv_callbacks_decree, &l_srv_uid, sizeof(uint64_t), l_decree_callback_item);
         int ret = -1;
         if (l_decree_callback_item) {
-            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
             ret = l_decree_callback_item->callback(a_ledger, a_apply, (dap_tsd_t *)l_event_tsd->data, l_event_tsd->size);
         }
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
@@ -6195,7 +6194,6 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     HASH_FIND(hh, l_ledger_pvt->srv_callbacks_event_verify, &l_srv_uid, sizeof(uint64_t), l_event_verify_callback_item);
     int ret = -1;
     if (l_event_verify_callback_item) {
-        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         ret = l_event_verify_callback_item->callback(a_ledger, l_event_group_name, l_event_item->event_type,
                                                      l_event_tsd ? (dap_tsd_t *)l_event_tsd->data : NULL,
                                                      l_event_tsd ? l_event_tsd->size : 0, a_tx_hash);

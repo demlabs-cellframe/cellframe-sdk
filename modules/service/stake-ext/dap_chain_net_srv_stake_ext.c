@@ -261,7 +261,7 @@ int dap_stake_ext_cache_add_stake_ext(dap_stake_ext_cache_t *a_cache,
     // Initialize basic stake_ext data
     *l_stake_ext = (dap_stake_ext_cache_item_t) { .stake_ext_tx_hash = *a_stake_ext_hash,
                                               .net_id = a_net_id,
-                                              .created_time = a_tx_timestamp,
+                                              .start_time = a_tx_timestamp,
                                               .guuid = dap_strdup(a_guuid),
                                               .status = DAP_STAKE_EXT_STATUS_ACTIVE
     };
@@ -269,7 +269,6 @@ int dap_stake_ext_cache_add_stake_ext(dap_stake_ext_cache_t *a_cache,
     // Calculate end time from stake_ext started data if provided
     if (a_started_data) {
 
-        l_stake_ext->start_time = a_started_data->start_time;
         switch (a_started_data->time_unit) {
             case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS:
                 l_stake_ext->end_time = l_stake_ext->start_time + (a_started_data->duration * 3600);
@@ -1219,7 +1218,6 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
     l_stake_ext->stake_ext_hash = l_cached_stake_ext->stake_ext_tx_hash;
     l_stake_ext->guuid = l_cached_stake_ext->guuid ? dap_strdup(l_cached_stake_ext->guuid) : NULL;
     l_stake_ext->status = l_cached_stake_ext->status;
-    l_stake_ext->created_time = l_cached_stake_ext->created_time;
     l_stake_ext->start_time = l_cached_stake_ext->start_time;
     l_stake_ext->end_time = l_cached_stake_ext->end_time;
     l_stake_ext->description = l_cached_stake_ext->description ? dap_strdup(l_cached_stake_ext->description) : NULL;
@@ -1292,7 +1290,6 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
     l_stake_ext->stake_ext_hash = l_cached_stake_ext->stake_ext_tx_hash;
     l_stake_ext->guuid = l_cached_stake_ext->guuid ? dap_strdup(l_cached_stake_ext->guuid) : NULL;
     l_stake_ext->status = l_cached_stake_ext->status;
-    l_stake_ext->created_time = l_cached_stake_ext->created_time;
     l_stake_ext->start_time = l_cached_stake_ext->start_time;
     l_stake_ext->end_time = l_cached_stake_ext->end_time;
     l_stake_ext->description = l_cached_stake_ext->description ? dap_strdup(l_cached_stake_ext->description) : NULL;
@@ -1431,7 +1428,6 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
         l_stake_ext->stake_ext_hash = l_cached_stake_ext->stake_ext_tx_hash;
         l_stake_ext->guuid = l_cached_stake_ext->guuid ? dap_strdup(l_cached_stake_ext->guuid) : NULL;
         l_stake_ext->status = l_cached_stake_ext->status;
-        l_stake_ext->created_time = l_cached_stake_ext->created_time;
         l_stake_ext->start_time = l_cached_stake_ext->start_time;
         l_stake_ext->end_time = l_cached_stake_ext->end_time;
         l_stake_ext->description = l_cached_stake_ext->description ? dap_strdup(l_cached_stake_ext->description) : NULL;
@@ -2546,11 +2542,9 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                     json_object_new_string(dap_stake_ext_status_to_str(l_stake_ext->status)));
                 
                 // Format times as human-readable strings
-                char created_time_str[DAP_TIME_STR_SIZE], start_time_str[DAP_TIME_STR_SIZE], end_time_str[DAP_TIME_STR_SIZE];
-                dap_time_to_str_rfc822(created_time_str, DAP_TIME_STR_SIZE, l_stake_ext->created_time);
+                char start_time_str[DAP_TIME_STR_SIZE], end_time_str[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(start_time_str, DAP_TIME_STR_SIZE, l_stake_ext->start_time);
                 dap_time_to_str_rfc822(end_time_str, DAP_TIME_STR_SIZE, l_stake_ext->end_time);
-                json_object_object_add(l_stake_ext_obj, "created_time", json_object_new_string(created_time_str));
                 json_object_object_add(l_stake_ext_obj, "start_time", json_object_new_string(start_time_str));
                 json_object_object_add(l_stake_ext_obj, "end_time", json_object_new_string(end_time_str));
                 json_object_object_add(l_stake_ext_obj, "locks_count", 
@@ -2666,11 +2660,9 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                 json_object_new_string(dap_stake_ext_status_to_str(l_stake_ext->status)));
             
             // Format times as human-readable strings
-            char info_created_time_str[DAP_TIME_STR_SIZE], info_start_time_str[DAP_TIME_STR_SIZE], info_end_time_str[DAP_TIME_STR_SIZE];
-            dap_time_to_str_rfc822(info_created_time_str, DAP_TIME_STR_SIZE, l_stake_ext->created_time);
+            char info_start_time_str[DAP_TIME_STR_SIZE], info_end_time_str[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(info_start_time_str, DAP_TIME_STR_SIZE, l_stake_ext->start_time);
             dap_time_to_str_rfc822(info_end_time_str, DAP_TIME_STR_SIZE, l_stake_ext->end_time);
-            json_object_object_add(l_json_obj, "created_time", json_object_new_string(info_created_time_str));
             json_object_object_add(l_json_obj, "start_time", json_object_new_string(info_start_time_str));
             json_object_object_add(l_json_obj, "end_time", json_object_new_string(info_end_time_str));
             json_object_object_add(l_json_obj, "locks_count", json_object_new_uint64(l_stake_ext->locks_count));
@@ -2910,13 +2902,12 @@ int dap_stake_ext_cache_set_winners_by_name(dap_stake_ext_cache_t *a_cache,
     return 0;
 }
 
-byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, dap_time_t a_start_time, uint32_t a_multiplier, dap_time_t a_duration,
+byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
     dap_chain_tx_event_data_time_unit_t a_time_unit, uint32_t a_calculation_rule_id, uint8_t a_total_positions, uint32_t a_position_ids[])
 {
     size_t l_data_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) + a_total_positions * sizeof(uint32_t);
     dap_chain_tx_event_data_stake_ext_started_t *l_data = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_event_data_stake_ext_started_t, l_data_size, NULL);
 
-    l_data->start_time = a_start_time;
     l_data->multiplier = a_multiplier;
     l_data->duration = a_duration;
     l_data->time_unit = a_time_unit;
