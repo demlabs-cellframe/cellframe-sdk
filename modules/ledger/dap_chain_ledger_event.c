@@ -275,9 +275,11 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
     dap_strncpy(l_event_group_name, (char *)l_event_item->group_name, l_event_item->group_name_size);
     if (l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE) {
         DAP_DELETE(l_event_group_name);
-        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         int ret = dap_chain_srv_decree(a_ledger->net->pub.id, l_event_item->srv_uid, a_apply,
                                        (dap_tsd_t *)l_event_tsd->data, l_event_tsd->size);
+        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+        if (ret)
+            log_it(L_WARNING, "Decree event %s rejected by service verificator with code %d", dap_hash_fast_to_str_static(a_tx_hash), ret);
         return a_check_for_apply ? 0 : ret;
     }
     int l_ret = dap_chain_srv_event_verify(a_ledger->net->pub.id, l_event_item->srv_uid, l_event_group_name,

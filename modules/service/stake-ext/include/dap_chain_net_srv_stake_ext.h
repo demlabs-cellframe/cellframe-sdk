@@ -41,7 +41,6 @@ enum dap_chain_tx_event_data_time_unit {
     DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS  = 2,
     DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS = 3,
 };
-
 typedef uint8_t dap_chain_tx_event_data_time_unit_t;
 
 DAP_STATIC_INLINE const char *dap_chain_tx_event_data_time_unit_to_str(dap_chain_tx_event_data_time_unit_t a_time_unit)
@@ -60,7 +59,7 @@ typedef struct dap_chain_tx_event_data_stake_ext_started {
     dap_time_t duration;
     dap_chain_tx_event_data_time_unit_t time_unit;
     uint32_t calculation_rule_id;
-    uint8_t total_postions;
+    uint8_t total_positions;
     uint32_t position_ids[];
 } DAP_ALIGN_PACKED dap_chain_tx_event_data_stake_ext_started_t;
 
@@ -113,13 +112,12 @@ typedef struct dap_chain_srv_stake_ext_cache_item {
     char *guuid;                       // Event group name for this stake_ext
     dap_chain_srv_stake_ext_status_t status;       // Current stake_ext status
     
-    // Stake_ext timing
-    dap_time_t created_time;           // When stake_ext was created
+    // Stake-ext timing
     dap_time_t start_time;             // When lockding started
     dap_time_t end_time;               // When stake_ext ends/ended
     
-    // Stake_ext data - TODO: Define specific stake_ext data structure
-    char *description;                 // Stake_ext description (if available)
+    // Stake-ext data - TODO: Define specific stake_ext data structure
+    char *description;                 // Stake-ext description (if available)
     uint256_t min_lock_amount;          // Minimum lock amount (if specified)
     
     // Locks tracking
@@ -149,9 +147,8 @@ typedef struct dap_chain_net_srv_stake_ext_position {
 // Single stake_ext structure (for external API)
 typedef struct dap_chain_net_srv_stake_ext {
     dap_hash_fast_t stake_ext_hash;
-    char *guuid;                        // Stake_ext GUUID from cache
+    char *guuid;                        // Stake-ext GUUID from cache
     dap_chain_srv_stake_ext_status_t status;
-    dap_time_t created_time;
     dap_time_t start_time;
     dap_time_t end_time;
     char *description;
@@ -212,8 +209,8 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
 char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_lock_tx_hash, uint256_t a_fee, uint256_t *a_value, int *a_ret_code);
 
 byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
-    dap_chain_tx_event_data_time_unit_t a_time_unit,
-    uint32_t a_calculation_rule_id, uint8_t a_total_postions, uint32_t a_position_ids[]);
+                                                        dap_chain_tx_event_data_time_unit_t a_time_unit,
+                                                        uint32_t a_calculation_rule_id, uint8_t a_total_positions, uint32_t a_position_ids[]);
 byte_t *dap_chain_srv_stake_ext_ended_tx_event_create(size_t *a_data_size, dap_time_t a_end_time, uint8_t a_winners_cnt, uint32_t a_winners_ids[]);
 #ifdef __cplusplus
 }
