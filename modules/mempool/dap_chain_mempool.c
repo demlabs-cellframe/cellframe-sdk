@@ -141,7 +141,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
                                   const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
                                   const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX], uint256_t *a_value,
                                   uint256_t a_value_fee, const char *a_hash_out_type,
-                                  size_t a_tx_num, dap_time_t a_time_unlock)
+                                  size_t a_tx_num, dap_time_t *a_time_unlock)
 {
     // check valid param
     dap_return_val_if_pass(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
@@ -205,7 +205,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
     
     uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
     for (size_t i = 0; i < a_tx_num; ++i) {
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock) != 1) {
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock ? a_time_unlock[i] : 0) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         } else if (l_single_channel){
