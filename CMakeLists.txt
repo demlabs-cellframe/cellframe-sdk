@@ -13,6 +13,7 @@ set(CELLFRAME_SDK_NATIVE_VERSION "4.0.0")
 # Default: BUILD_SHARED=ON (final library is shared)
 # Override: BUILD_SHARED=OFF (final library is static)
 option(BUILD_SHARED "Build final Cellframe SDK library as shared (default)" ON)
+option(INSTALL_CELLFRAME_SDK "Install Cellframe SDK library and headers (disable when used as subproject)" ON)
 
 # Internal modules are ALWAYS static
 set(CELLFRAME_INTERNAL_LIB_TYPE STATIC)
@@ -422,23 +423,31 @@ cellframe_create_final_library()
 # =========================================
 # INSTALL TARGETS
 # =========================================
-# Install library
-install(TARGETS cellframe_sdk
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+# Only install when INSTALL_CELLFRAME_SDK is enabled
+# Can be disabled by parent project (e.g., cellframe-node) by setting INSTALL_CELLFRAME_SDK to OFF
+if(INSTALL_CELLFRAME_SDK)
+    message(STATUS "[Cellframe-SDK] Installation enabled")
+    
+    # Install library
+    install(TARGETS cellframe_sdk
+            LIBRARY DESTINATION lib
+            ARCHIVE DESTINATION lib)
 
-# Install headers
-install(DIRECTORY modules/
-        DESTINATION include/cellframe-sdk
-        FILES_MATCHING PATTERN "*.h")
-
-# Install DAP SDK headers (only if using embedded DAP SDK)
-if(NOT CELLFRAME_USING_EXTERNAL_DAP_SDK)
-    install(DIRECTORY dap-sdk/module/core/include/
-            DESTINATION include/dap-sdk/core
+    # Install headers
+    install(DIRECTORY modules/
+            DESTINATION include/cellframe-sdk
             FILES_MATCHING PATTERN "*.h")
 
-    install(DIRECTORY dap-sdk/module/crypto/include/
-            DESTINATION include/dap-sdk/crypto
-            FILES_MATCHING PATTERN "*.h")
+    # Install DAP SDK headers (only if using embedded DAP SDK)
+    if(NOT CELLFRAME_USING_EXTERNAL_DAP_SDK)
+        install(DIRECTORY dap-sdk/module/core/include/
+                DESTINATION include/dap-sdk/core
+                FILES_MATCHING PATTERN "*.h")
+
+        install(DIRECTORY dap-sdk/module/crypto/include/
+                DESTINATION include/dap-sdk/crypto
+                FILES_MATCHING PATTERN "*.h")
+    endif()
+else()
+    message(STATUS "[Cellframe-SDK] Installation disabled (build-time dependency only)")
 endif()
