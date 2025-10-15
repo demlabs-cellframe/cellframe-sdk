@@ -84,9 +84,9 @@ int dap_json_compose_error_add(dap_json_t* a_json_obj_reply, int a_code_error, c
 // Note: Xchange compose functions moved to modules/service/xchange/include/dap_chain_net_srv_xchange_compose.h
 // Include dap_chain_ledger.h and dap_chain_net_srv_xchange_compose.h to use them
 
-dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, 
+dap_json_t* dap_tx_create_compose(const char *l_net_str, const char *l_token_ticker, const char *l_value_str, const char *l_time_unlock_str,
                                   const char *l_fee_str, const char *addr_base58_to, dap_chain_addr_t *l_addr_from, 
-                                  const char *l_url_str, uint16_t l_port, const char *l_enc_cert);
+                                  const char *l_url_str, uint16_t l_port, const char *l_cert_path);
 
 dap_json_t* dap_tx_cond_create_compose(const char *a_net_name, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr, const char *a_cert_str, 
                                        const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, const char *a_value_per_unit_max_str,
@@ -101,7 +101,7 @@ dap_json_t* dap_cli_take_compose(const char *a_net_name, const char *a_chain_id_
                                  const char *a_tx_str, const char *a_value_fee_str, const char *a_url_str, uint16_t a_port, const char *a_enc_cert);
 
 dap_chain_datum_tx_t* dap_chain_datum_tx_create_compose(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
-                                                       const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, 
+                                                       const char* a_token_ticker, uint256_t *a_value, dap_time_t *a_time_unlock, uint256_t a_value_fee, 
                                                        size_t a_tx_num, dap_chain_tx_compose_config_t *a_config);
 
 // Note: dap_chain_mempool_tx_create_cond_compose moved to mempool module as dap_chain_mempool_compose_tx_create_cond

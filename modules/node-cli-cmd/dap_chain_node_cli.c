@@ -73,13 +73,20 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "global_db read -group <group_name> -key <key_name>\n"
                 "\tReads a value by key from a specified group.\n\n"
             "global_db delete -group <group_name> -key <key_name>\n"
-                "\tRemoves a value by key from a specified group.\n\n"
-            "global_db group_list\n"
-                "\tGets a list of groups in the database.\n\n"
+                "\tRemoves a value by key from a specified group. Change record to hole type.\n\n"
+            "global_db group_list [-mask <mask>] [-all]\n"
+                "\tGets a list of groups in the database.\n"
+                "\t-mask <mask>: list groups by mask\n"
+                "\t-all: count actual and holes records types\n\n"
             "global_db drop_table -group <group_name>\n"
                 "\tPerforms deletion of the entire group in the database.\n\n"
             "global_db get_keys -group <group_name>\n"
-                "\tGets all record keys from a specified group.\n"
+                "\tGets all record keys from a specified group.\n\n"
+            "global_db clear -group <group_name> | -mask <mask> | -all [-pinned]\n"
+                "\tRemove all hole type records from a specified group or all groups by mask.\n"
+                "\t-mask <mask>: clear groups by mask\n"
+                "\t-all: clear all groups\n"
+                "\t-pinned: remove pinned records too\n\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -306,7 +313,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, "Make transaction", dap_chain_node_cli_cmd_id_from_str("tx_create"),
-                "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822>]"
+                "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822 or YYMMDD>"
                 "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n\n"
                 "Hint:\n"
                 "\texample coins amount syntax (only natural) 1.0 123.4567\n"
