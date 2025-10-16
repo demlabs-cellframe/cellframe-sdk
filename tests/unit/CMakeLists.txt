@@ -15,11 +15,31 @@ target_link_libraries(example_test
 # Register with CTest
 add_test(NAME example_test COMMAND example_test)
 
-# UTXO Blocking tests (to be implemented in Phase 3-6)
-# Uncomment when ready:
-# add_executable(utxo_blocklist_structures_test utxo_blocklist_structures_test.c)
-# add_executable(utxo_blocklist_api_test utxo_blocklist_api_test.c)
-# add_executable(token_update_utxo_test token_update_utxo_test.c)
-# add_executable(ledger_utxo_validation_test ledger_utxo_validation_test.c)
-# add_executable(cli_utxo_commands_test cli_utxo_commands_test.c)
+# UTXO Blocking Unit Tests
+add_executable(utxo_blocking_unit_test
+    utxo_blocking_unit_test.c
+)
 
+target_link_libraries(utxo_blocking_unit_test
+    dap_core
+    dap_chain
+    dap_chain_net
+    dap_crypto
+)
+
+target_include_directories(utxo_blocking_unit_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/common/include
+    ${CMAKE_SOURCE_DIR}/modules/net/include
+    ${CMAKE_SOURCE_DIR}/3rdparty/uthash/src
+)
+
+# Register with CTest
+add_test(NAME utxo_blocking_unit COMMAND utxo_blocking_unit_test)
+
+# Set test properties
+set_tests_properties(utxo_blocking_unit PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;utxo;blocking"
+)
+
+message(STATUS "Unit tests configured: utxo_blocking_unit_test")

@@ -1,11 +1,15 @@
 # Integration Tests for Cellframe SDK
 
-# UTXO Blocking integration tests (to be implemented in Phase 8)
-# Uncomment when ready:
-# add_executable(utxo_blocking_basic_test utxo_blocking_basic_test.c)
-# add_executable(utxo_blocking_static_test utxo_blocking_static_test.c)
-# add_executable(utxo_blocking_mass_test utxo_blocking_mass_test.c)
-# add_executable(utxo_blocking_perf_test utxo_blocking_perf_test.c)
+# Integration tests for UTXO blocking mechanism will be implemented
+# after completion of unit tests and basic infrastructure validation.
+#
+# Planned integration tests:
+# 1. Full token lifecycle with UTXO blocking
+# 2. Transaction validation with blocked UTXOs
+# 3. Token update via TSD sections
+# 4. Concurrent access and thread safety
+# 5. Performance tests with large blocklists
+#
+# These tests require full ledger initialization and real blockchain environment.
 
-# Placeholder for future integration tests
-
+message(STATUS "Integration tests: Pending full implementation after unit test validation")
