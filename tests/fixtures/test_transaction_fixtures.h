@@ -24,7 +24,21 @@ typedef struct test_tx_fixture {
     dap_chain_datum_tx_t *tx;
     dap_chain_hash_fast_t tx_hash;
     uint32_t out_count;
+    dap_chain_addr_t *addr;  ///< Address for transaction outputs
 } test_tx_fixture_t;
+
+/**
+ * @brief Create simple test transaction and add to ledger
+ * @param a_ledger Ledger to add transaction to
+ * @param a_token_ticker Token ticker
+ * @param a_value_str Value as string
+ * @return Created transaction fixture or NULL on error
+ */
+test_tx_fixture_t *test_tx_fixture_create_simple(
+    dap_ledger_t *a_ledger,
+    const char *a_token_ticker,
+    const char *a_value_str
+);
 
 /**
  * @brief Create test transaction with outputs

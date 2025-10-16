@@ -43,25 +43,79 @@ test_token_fixture_t *test_token_fixture_create(
         return NULL;
     }
     
+    test_token_fixture_t *l_fixture = DAP_NEW_Z(test_token_fixture_t);
+    if (!l_fixture) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return NULL;
+    }
+    
+    dap_strncpy(l_fixture->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    l_fixture->token_ticker = dap_strdup(a_ticker);
+    l_fixture->flags = 0;
+    
+    // Create owner certificate FIRST
+    l_fixture->owner_cert = s_test_cert_create();
+    if (!l_fixture->owner_cert) {
+        DAP_DELETE(l_fixture->token_ticker);
+        DAP_DELETE(l_fixture);
+        return NULL;
+    }
+    
     // Parse total supply
     uint256_t l_total_supply = dap_chain_balance_scan(a_total_supply_str);
     
-    // Create token fixture with CF20
-    test_token_fixture_t *l_fixture = test_token_fixture_create_cf20(
-        a_ticker, l_total_supply, 0);
-    if (!l_fixture) {
+    // Create CF20 token datum
+    dap_chain_datum_token_t *l_token = DAP_NEW_Z(dap_chain_datum_token_t);
+    if (!l_token) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        dap_cert_delete(l_fixture->owner_cert);
+        DAP_DELETE(l_fixture->token_ticker);
+        DAP_DELETE(l_fixture);
         return NULL;
     }
     
-    // Create owner certificate
-    l_fixture->owner_cert = s_test_cert_create();
-    if (!l_fixture->owner_cert) {
-        test_token_fixture_destroy(l_fixture);
+    l_token->version = 2;
+    l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
+    l_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
+    strncpy(l_token->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    l_token->ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+    l_token->signs_valid = 1;
+    l_token->total_supply = l_total_supply;
+    l_token->header_native_decl.decimals = 18;
+    l_token->header_native_decl.flags = 0;
+    l_token->header_native_decl.tsd_total_size = 0;
+    l_token->signs_total = 0;
+    
+    // Sign the token with owner certificate
+    dap_sign_t *l_sign = dap_cert_sign(l_fixture->owner_cert, l_token, sizeof(dap_chain_datum_token_t));
+    if (!l_sign) {
+        log_it(L_ERROR, "Failed to sign token");
+        DAP_DELETE(l_token);
+        dap_cert_delete(l_fixture->owner_cert);
+        DAP_DELETE(l_fixture->token_ticker);
+        DAP_DELETE(l_fixture);
         return NULL;
     }
     
-    // Store token ticker
-    l_fixture->token_ticker = dap_strdup(a_ticker);
+    size_t l_sign_size = dap_sign_get_size(l_sign);
+    dap_chain_datum_token_t *l_token_new = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + l_sign_size);
+    if (!l_token_new) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        DAP_DELETE(l_token);
+        DAP_DELETE(l_sign);
+        dap_cert_delete(l_fixture->owner_cert);
+        DAP_DELETE(l_fixture->token_ticker);
+        DAP_DELETE(l_fixture);
+        return NULL;
+    }
+    l_token = l_token_new;
+    
+    memcpy(l_token->tsd_n_signs, l_sign, l_sign_size);
+    l_token->signs_total = 1;
+    DAP_DELETE(l_sign);
+    
+    l_fixture->token = l_token;
+    l_fixture->token_size = sizeof(dap_chain_datum_token_t) + l_sign_size;
     
     // Add token to ledger
     int l_res = dap_ledger_token_add(a_ledger, (byte_t*)l_fixture->token, 
@@ -72,6 +126,9 @@ test_token_fixture_t *test_token_fixture_create(
         test_token_fixture_destroy(l_fixture);
         return NULL;
     }
+    
+    log_it(L_INFO, "Test token created and added to ledger: %s (supply=%s)",
+           a_ticker, a_total_supply_str);
     
     return l_fixture;
 }

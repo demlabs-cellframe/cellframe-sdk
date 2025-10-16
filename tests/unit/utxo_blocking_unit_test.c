@@ -48,6 +48,7 @@
 #include "dap_chain.h"
 #include "dap_chain_net.h"
 #include "dap_chain_cs.h"
+#include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_cert.h"
@@ -265,7 +266,13 @@ static dap_chain_datum_token_t *s_create_token_update_with_utxo_block_tsd(
     // Reallocate to include signature
     size_t l_sign_size = dap_sign_get_size(l_sign);
     size_t l_total_size = l_token_size + l_sign_size;
-    l_token_update = DAP_REALLOC(l_token_update, l_total_size);
+    dap_chain_datum_token_t *l_token_update_new = DAP_REALLOC(l_token_update, l_total_size);
+    if (!l_token_update_new) {
+        DAP_DELETE(l_token_update);
+        DAP_DELETE(l_sign);
+        return NULL;
+    }
+    l_token_update = l_token_update_new;
     memcpy((byte_t*)l_token_update + l_token_size, l_sign, l_sign_size);
     l_token_update->signs_total = 1;
     DAP_DELETE(l_sign);
@@ -289,7 +296,7 @@ static void s_test_utxo_blocking_via_token_update(void)
     
     // Create test token with certificate
     test_token_fixture_t *l_token = test_token_fixture_create(
-        s_net_fixture->ledger, "TEST_UPDATE_BLOCK", "10000.0");
+        s_net_fixture->ledger, "TUTXO", "10000.0");
     dap_assert_PIF(l_token != NULL, "Token fixture creation");
     dap_assert_PIF(l_token->owner_cert != NULL, "Token owner certificate must exist");
     
@@ -327,7 +334,8 @@ static void s_test_utxo_blocking_via_token_update(void)
     log_it(L_DEBUG, "Created token_update datum, size=%zu", l_token_update_size);
     
     // Apply token_update to ledger
-    int l_res = dap_ledger_token_add(s_net_fixture->ledger, l_token_update, l_token_update_size, NULL);
+    int l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_token_update, 
+                                      l_token_update_size, dap_time_now());
     if (l_res != DAP_LEDGER_CHECK_OK) {
         log_it(L_ERROR, "Failed to apply token_update: %s", 
                dap_ledger_check_error_str(l_res));
@@ -349,9 +357,8 @@ static void s_test_utxo_blocking_via_token_update(void)
     dap_chain_hash_fast_t l_tx_blocked_hash = {};
     dap_hash_fast(l_tx_blocked, dap_chain_datum_tx_get_size(l_tx_blocked), &l_tx_blocked_hash);
     
-    char *l_main_ticker = NULL;
     int l_add_res = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_blocked, &l_tx_blocked_hash,
-                                       false, &l_main_ticker);
+                                       false, NULL);
     
     dap_assert(l_add_res == DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED,
                "Transaction with blocked UTXO should be rejected");
@@ -391,7 +398,7 @@ static void s_test_utxo_unblocking_via_token_update(void)
     
     // Create test token
     test_token_fixture_t *l_token = test_token_fixture_create(
-        s_net_fixture->ledger, "TEST_UNBLOCK", "50000.0");
+        s_net_fixture->ledger, "TUNBL", "50000.0");
     dap_assert_PIF(l_token != NULL, "Token fixture creation");
     dap_assert_PIF(l_token->owner_cert != NULL, "Token owner certificate must exist");
     
@@ -414,7 +421,8 @@ static void s_test_utxo_unblocking_via_token_update(void)
         l_token->owner_cert, &l_block_datum_size);
     dap_assert_PIF(l_block_datum != NULL, "Block datum creation");
     
-    int l_res = dap_ledger_token_add(s_net_fixture->ledger, l_block_datum, l_block_datum_size, NULL);
+    int l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_block_datum, 
+                                      l_block_datum_size, dap_time_now());
     dap_assert(l_res == DAP_LEDGER_CHECK_OK, "UTXO blocking should succeed");
     log_it(L_INFO, "✓ UTXO blocked via token_update");
     
@@ -426,9 +434,8 @@ static void s_test_utxo_unblocking_via_token_update(void)
     dap_chain_hash_fast_t l_tx_test1_hash = {};
     dap_hash_fast(l_tx_test1, dap_chain_datum_tx_get_size(l_tx_test1), &l_tx_test1_hash);
     
-    char *l_main_ticker = NULL;
     int l_add_res1 = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_test1, &l_tx_test1_hash,
-                                        false, &l_main_ticker);
+                                        false, NULL);
     dap_assert(l_add_res1 == DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED,
                "Transaction should be blocked");
     log_it(L_INFO, "✓ Transaction correctly rejected while UTXO blocked");
@@ -468,13 +475,16 @@ static void s_test_utxo_unblocking_via_token_update(void)
     
     size_t l_sign_size = dap_sign_get_size(l_sign);
     size_t l_unblock_total_size = l_unblock_token_size + l_sign_size;
-    l_unblock_datum = DAP_REALLOC(l_unblock_datum, l_unblock_total_size);
+    dap_chain_datum_token_t *l_unblock_datum_new = DAP_REALLOC(l_unblock_datum, l_unblock_total_size);
+    dap_assert_PIF(l_unblock_datum_new != NULL, "Token update reallocation");
+    l_unblock_datum = l_unblock_datum_new;
     memcpy((byte_t*)l_unblock_datum + l_unblock_token_size, l_sign, l_sign_size);
     l_unblock_datum->signs_total = 1;
     DAP_DELETE(l_sign);
     
     // Apply unblock token_update
-    l_res = dap_ledger_token_add(s_net_fixture->ledger, l_unblock_datum, l_unblock_total_size, NULL);
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_unblock_datum, 
+                                  l_unblock_total_size, dap_time_now());
     dap_assert(l_res == DAP_LEDGER_CHECK_OK, "UTXO unblocking should succeed");
     log_it(L_INFO, "✓ UTXO unblocked via token_update");
     
@@ -487,7 +497,7 @@ static void s_test_utxo_unblocking_via_token_update(void)
     dap_hash_fast(l_tx_test2, dap_chain_datum_tx_get_size(l_tx_test2), &l_tx_test2_hash);
     
     int l_add_res2 = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_test2, &l_tx_test2_hash,
-                                        false, &l_main_ticker);
+                                        false, NULL);
     dap_assert(l_add_res2 == DAP_LEDGER_CHECK_OK,
                "Transaction should be accepted after unblocking");
     log_it(L_INFO, "✓ Transaction correctly accepted after UTXO unblocked");
@@ -514,7 +524,7 @@ static void s_test_delayed_utxo_blocking(void)
     
     // Create test token
     test_token_fixture_t *l_token = test_token_fixture_create(
-        s_net_fixture->ledger, "TEST_DELAYED", "75000.0");
+        s_net_fixture->ledger, "TDELY", "75000.0");
     dap_assert_PIF(l_token != NULL, "Token fixture creation");
     dap_assert_PIF(l_token->owner_cert != NULL, "Token owner certificate must exist");
     
@@ -569,15 +579,18 @@ static void s_test_delayed_utxo_blocking(void)
     
     size_t l_sign_size = dap_sign_get_size(l_sign);
     size_t l_delayed_total_size = l_token_size + l_sign_size;
-    l_delayed_datum = DAP_REALLOC(l_delayed_datum, l_delayed_total_size);
+    dap_chain_datum_token_t *l_delayed_datum_new = DAP_REALLOC(l_delayed_datum, l_delayed_total_size);
+    dap_assert_PIF(l_delayed_datum_new != NULL, "Token update reallocation");
+    l_delayed_datum = l_delayed_datum_new;
     memcpy((byte_t*)l_delayed_datum + l_token_size, l_sign, l_sign_size);
     l_delayed_datum->signs_total = 1;
     DAP_DELETE(l_sign);
     
     // Apply delayed blocking token_update
-    int l_res = dap_ledger_token_add(s_net_fixture->ledger, l_delayed_datum, l_delayed_total_size, NULL);
+    int l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_delayed_datum, 
+                                      l_delayed_total_size, dap_time_now());
     dap_assert(l_res == DAP_LEDGER_CHECK_OK, "Delayed blocking should be accepted");
-    log_it(L_INFO, "✓ Delayed blocking token_update applied (becomes_effective: %llu, current: %llu)",
+    log_it(L_INFO, "✓ Delayed blocking token_update applied (becomes_effective: %"DAP_UINT64_FORMAT_U", current: %"DAP_UINT64_FORMAT_U")",
            l_future_activation, l_now);
     
     // Verify transaction is still ALLOWED (blocking not effective yet)
@@ -588,9 +601,8 @@ static void s_test_delayed_utxo_blocking(void)
     dap_chain_hash_fast_t l_tx_test1_hash = {};
     dap_hash_fast(l_tx_test1, dap_chain_datum_tx_get_size(l_tx_test1), &l_tx_test1_hash);
     
-    char *l_main_ticker = NULL;
     int l_add_res1 = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_test1, &l_tx_test1_hash,
-                                        false, &l_main_ticker);
+                                        false, NULL);
     
     // Transaction should be accepted because blocking is not effective yet
     dap_assert(l_add_res1 == DAP_LEDGER_CHECK_OK,
