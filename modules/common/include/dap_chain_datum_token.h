@@ -212,13 +212,39 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
 //  Maximal flag
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                      BIT(15)
 
-// UTXO blocking mechanism flags (enabled by default - use flags to DISABLE)
+/// ------ UTXO blocking mechanism flags (BIT 16-19) ------
+/**
+ * @brief Disable UTXO blocking mechanism for this token
+ * @details UTXO blocking is ENABLED by default for all tokens.
+ *          Set this flag to explicitly disable UTXO blocking (opt-out model).
+ *          When disabled, all UTXOs of this token can be spent regardless of blocklist.
+ * @note Default behavior: UTXO blocking is ENABLED (this flag is NOT set)
+ */
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED                   BIT(16)
-// Prohibit any changes to UTXO blocklist after it's set
+
+/**
+ * @brief Make UTXO blocklist immutable after initial creation
+ * @details When set, UTXO blocklist can only be set during token creation.
+ *          All subsequent token_update operations with UTXO_BLOCKED_ADD/REMOVE/CLEAR will be rejected.
+ *          Useful for creating permanent UTXO restrictions.
+ * @warning This is a one-way operation - once set, blocklist cannot be modified
+ */
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST                    BIT(17)
 
-// Address-based blocking disable flags (disable existing address ban-lists)
+/**
+ * @brief Disable address-based sender blocking for this token
+ * @details When set, tx_sender_blocked and tx_sender_blocked_add TSD sections are ignored.
+ *          All sender addresses can create transactions regardless of sender ban-lists.
+ *          Does NOT affect UTXO blocking mechanism (BIT 16).
+ */
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING          BIT(18)
+
+/**
+ * @brief Disable address-based receiver blocking for this token
+ * @details When set, tx_receiver_blocked and tx_receiver_blocked_add TSD sections are ignored.
+ *          All receiver addresses can receive transactions regardless of receiver ban-lists.
+ *          Does NOT affect UTXO blocking mechanism (BIT 16).
+ */
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING        BIT(19)
 
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                                0xffff
@@ -280,9 +306,50 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE             0x0024
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR              0x0025
 
-// UTXO blocklist management (add/remove/clear specific UTXOs)
+/// ------ UTXO blocklist management TSD types (0x0029-0x002B) ------
+/**
+ * @brief Add UTXO to blocklist for this token
+ * @details TSD format (two variants):
+ *          - Basic (immediate blocking, 36 bytes):
+ *            [tx_hash: 32B][out_idx: 4B]
+ *          - Extended (delayed activation, 44 bytes):
+ *            [tx_hash: 32B][out_idx: 4B][becomes_effective: 8B (dap_time_t)]
+ *          
+ *          When timestamp is provided, UTXO becomes blocked only after specified blockchain time.
+ *          When timestamp is omitted, UTXO is blocked immediately (dap_time_now()).
+ *          
+ * @note Requires UTXO_BLOCKING_DISABLED flag to be NOT set
+ * @note Rejected if STATIC_UTXO_BLOCKLIST flag is set after token creation
+ */
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_ADD                     0x0029
+
+/**
+ * @brief Remove UTXO from blocklist or schedule delayed unblocking
+ * @details TSD format (two variants):
+ *          - Basic (immediate removal, 36 bytes):
+ *            [tx_hash: 32B][out_idx: 4B]
+ *          - Extended (delayed unblocking, 44 bytes):
+ *            [tx_hash: 32B][out_idx: 4B][becomes_unblocked: 8B (dap_time_t)]
+ *          
+ *          When timestamp is provided, UTXO remains blocked until specified blockchain time,
+ *          then automatically becomes unblocked.
+ *          When timestamp is omitted (0), UTXO is removed from blocklist immediately.
+ *          
+ * @note Requires UTXO_BLOCKING_DISABLED flag to be NOT set
+ * @note Rejected if STATIC_UTXO_BLOCKLIST flag is set after token creation
+ */
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_REMOVE                  0x002A
+
+/**
+ * @brief Clear entire UTXO blocklist for this token
+ * @details TSD format: empty (0 bytes)
+ *          Removes all blocked UTXOs from in-memory blocklist.
+ *          This operation is immediate and cannot be delayed.
+ *          
+ * @note Requires UTXO_BLOCKING_DISABLED flag to be NOT set
+ * @note Rejected if STATIC_UTXO_BLOCKLIST flag is set after token creation
+ * @warning This is a destructive operation - all UTXO blocks will be removed
+ */
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR                   0x002B
 
 struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {

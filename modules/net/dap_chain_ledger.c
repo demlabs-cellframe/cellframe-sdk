@@ -124,19 +124,35 @@ struct spec_address {
     dap_time_t becomes_effective;
 };
 
-// UTXO blocklist key structure (tx_hash + out_idx identifies unique UTXO)
+/**
+ * @brief UTXO blocklist key structure
+ * @details Composite key for hash table lookup (tx_hash + out_idx identifies unique UTXO).
+ *          Total size: 36 bytes (32B hash + 4B index)
+ */
 typedef struct dap_ledger_utxo_block_key {
-    dap_chain_hash_fast_t tx_hash;  // Transaction hash
-    uint32_t out_idx;                // Output index
+    dap_chain_hash_fast_t tx_hash;  ///< Transaction hash (32 bytes)
+    uint32_t out_idx;                ///< Output index within transaction (4 bytes)
 } dap_ledger_utxo_block_key_t;
 
-// UTXO blocklist item (hash table entry)
+/**
+ * @brief UTXO blocklist item (hash table entry)
+ * @details Each token has its own UTXO blocklist stored as in-memory hash table (uthash).
+ *          This structure represents a single blocked UTXO with temporal semantics:
+ *          - becomes_effective: when blocking activates (delayed activation support)
+ *          - becomes_unblocked: when blocking deactivates (delayed unblocking support)
+ *          
+ *          Blocking state is determined by:
+ *          blocked = (blockchain_time >= becomes_effective) && 
+ *                    (becomes_unblocked == 0 || blockchain_time < becomes_unblocked)
+ *          
+ * @note Thread-safety: Access protected by utxo_blocklist_rwlock in dap_ledger_token_item_t
+ */
 typedef struct dap_ledger_utxo_block_item {
-    dap_ledger_utxo_block_key_t key;  // Key for hash table lookup
-    dap_time_t blocked_time;           // When it was added to blocklist
-    dap_time_t becomes_effective;      // When blocking becomes active (blockchain time)
-    dap_time_t becomes_unblocked;      // When unblocking becomes active (0 = never, for permanent blocks)
-    UT_hash_handle hh;                 // uthash handle
+    dap_ledger_utxo_block_key_t key;  ///< Key for hash table lookup (tx_hash + out_idx)
+    dap_time_t blocked_time;           ///< When it was added to blocklist (for auditing)
+    dap_time_t becomes_effective;      ///< When blocking becomes active (blockchain time)
+    dap_time_t becomes_unblocked;      ///< When unblocking becomes active (0 = never/permanent)
+    UT_hash_handle hh;                 ///< uthash handle (for hash table operations)
 } dap_ledger_utxo_block_item_t;
 
 typedef struct dap_ledger_token_item {
@@ -176,10 +192,27 @@ typedef struct dap_ledger_token_item {
     char delegated_from[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t emission_rate;
 
-    // UTXO blocking mechanism
-    pthread_rwlock_t utxo_blocklist_rwlock;
-    struct dap_ledger_utxo_block_item *utxo_blocklist;  // Hash table of blocked UTXOs
-    size_t utxo_blocklist_count;
+    /**
+     * @brief UTXO blocking mechanism (per-token blocklist)
+     * @details utxo_blocklist: Hash table (uthash) of blocked UTXOs for this token
+     *          utxo_blocklist_rwlock: Read-write lock for thread-safe access
+     *          utxo_blocklist_count: Number of blocked UTXOs (for monitoring/auditing)
+     *          
+     *          Controlled by flags:
+     *          - UTXO_BLOCKING_DISABLED (BIT 16): Disables UTXO blocking entirely
+     *          - STATIC_UTXO_BLOCKLIST (BIT 17): Makes blocklist immutable after token creation
+     *          
+     *          Access pattern:
+     *          - Read operations (lookup): pthread_rwlock_rdlock
+     *          - Write operations (add/remove): pthread_rwlock_wrlock
+     *          
+     * @see dap_ledger_utxo_block_item_t for blocklist entry structure
+     * @see s_ledger_utxo_is_blocked for blocking check logic
+     * @see s_ledger_utxo_block_add, s_ledger_utxo_block_remove for management
+     */
+    pthread_rwlock_t utxo_blocklist_rwlock;           ///< RW lock for thread-safe blocklist access
+    struct dap_ledger_utxo_block_item *utxo_blocklist; ///< Hash table (uthash) of blocked UTXOs
+    size_t utxo_blocklist_count;                       ///< Number of blocked UTXOs (for monitoring)
 
     UT_hash_handle hh;
 } dap_ledger_token_item_t;
