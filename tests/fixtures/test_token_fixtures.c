@@ -4,6 +4,7 @@
  */
 
 #include "test_token_fixtures.h"
+#include "test_emission_fixtures.h"
 #include "dap_common.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_ledger.h"
@@ -137,7 +138,7 @@ test_token_fixture_t *test_token_fixture_create(
 test_token_fixture_t *test_token_fixture_create_cf20(
     const char *a_ticker,
     uint256_t a_total_supply,
-    uint16_t a_flags)
+    uint32_t a_flags)
 {
     if (!a_ticker) {
         log_it(L_ERROR, "Token ticker is NULL");
@@ -218,6 +219,84 @@ test_token_fixture_t *test_token_fixture_create_with_utxo_blocking(
 {
     // Create token with UTXO_BLOCKING_ENABLED flag (BIT(16))
     return test_token_fixture_create_cf20(a_ticker, a_total_supply, (1 << 16));
+}
+
+/**
+ * @brief Create token with emission automatically
+ */
+test_token_fixture_t *test_token_fixture_create_with_emission(
+    dap_ledger_t *a_ledger,
+    const char *a_ticker,
+    const char *a_total_supply_str,
+    const char *a_emission_value_str,
+    dap_chain_addr_t *a_addr,
+    dap_cert_t *a_emission_cert,
+    dap_chain_hash_fast_t *a_emission_hash_out)
+{
+    if (!a_ledger || !a_ticker || !a_total_supply_str || !a_emission_value_str || !a_addr || !a_emission_cert) {
+        log_it(L_ERROR, "Invalid parameters");
+        return NULL;
+    }
+    
+    // Step 1: Create token using existing function
+    test_token_fixture_t *l_token_fixture = test_token_fixture_create(
+        a_ledger,
+        a_ticker,
+        a_total_supply_str
+    );
+    
+    if (!l_token_fixture) {
+        log_it(L_ERROR, "Failed to create token fixture");
+        return NULL;
+    }
+    
+    // Step 2: Create emission using provided certificate
+    uint256_t l_emission_value = dap_chain_balance_scan(a_emission_value_str);
+    if (IS_ZERO_256(l_emission_value)) {
+        log_it(L_ERROR, "Invalid emission value: %s", a_emission_value_str);
+        test_token_fixture_destroy(l_token_fixture);
+        return NULL;
+    }
+    
+    test_emission_fixture_t *l_emission_fixture = test_emission_fixture_create_with_cert(
+        a_ticker,
+        l_emission_value,
+        a_addr,
+        a_emission_cert  // Use provided cert for emission
+    );
+    
+    if (!l_emission_fixture) {
+        log_it(L_ERROR, "Failed to create emission fixture");
+        test_token_fixture_destroy(l_token_fixture);
+        return NULL;
+    }
+    
+    // Step 3: Add emission to ledger using public API
+    int l_result = test_emission_fixture_add_to_ledger(a_ledger, l_emission_fixture);
+    if (l_result != 0) {
+        log_it(L_WARNING, "Failed to add emission to ledger: %s",
+               dap_ledger_check_error_str(l_result));
+        test_emission_fixture_destroy(l_emission_fixture);
+        test_token_fixture_destroy(l_token_fixture);
+        return NULL;
+    }
+    
+    // Step 4: Return emission hash if requested
+    if (a_emission_hash_out) {
+        test_emission_fixture_get_hash(l_emission_fixture, a_emission_hash_out);
+    }
+    
+    // NOTE: Do NOT destroy emission fixture here - ledger may need it
+    // or caller may need emission data. Let caller destroy it if needed.
+    // For now, we accept this small memory leak in tests.
+    // TODO: Better lifecycle management for emission fixtures
+    
+    log_it(L_INFO, "Created token with emission: ticker=%s, total_supply=%s, emission_value=%s",
+           a_ticker, a_total_supply_str, a_emission_value_str);
+    
+    log_it(L_WARNING, "NOTE: Emission fixture not freed - caller must manage lifecycle");
+    
+    return l_token_fixture;
 }
 
 void test_token_fixture_destroy(test_token_fixture_t *a_fixture)

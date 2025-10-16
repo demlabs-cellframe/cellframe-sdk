@@ -7,12 +7,14 @@ Comprehensive test suite for Cellframe SDK using DAP SDK test framework.
 ```
 tests/
 ├── CMakeLists.txt          # Main test suite configuration
+├── FIXTURES_API.md         # 📚 Complete Fixtures API documentation
 ├── fixtures/               # Test fixtures and utilities
 │   ├── test_ledger_fixtures.[ch]      # Ledger initialization helpers
 │   ├── test_token_fixtures.[ch]       # Token creation helpers
+│   ├── test_emission_fixtures.[ch]    # 🆕 Emission creation helpers
 │   └── test_transaction_fixtures.[ch] # Transaction creation helpers
 ├── unit/                   # Unit tests
-│   ├── example_test.c                 # Example demonstrating test framework
+│   ├── utxo_blocking_unit_test.c      # UTXO blocking tests
 │   └── CMakeLists.txt
 └── integration/            # Integration tests
     └── CMakeLists.txt
@@ -94,24 +96,39 @@ int main(void)
 
 ### Test Fixtures
 
-Fixtures are reusable test setups:
+Fixtures are reusable test setups. **See [FIXTURES_API.md](FIXTURES_API.md) for complete API documentation.**
 
 - **Ledger Fixtures**: Network and ledger initialization
 - **Token Fixtures**: CF20 token creation with various flags
-- **Transaction Fixtures**: Transaction and UTXO creation
+- **Emission Fixtures**: 🆕 Token emission creation and management
+- **Transaction Fixtures**: Transaction creation (mock and real)
 
-Example:
+Quick example:
 ```c
+// Create network
 test_net_fixture_t *net = test_net_fixture_create("mynet");
-test_token_fixture_t *token = test_token_fixture_create_cf20("TEST", total_supply, flags);
-test_tx_fixture_t *tx = test_tx_fixture_create_with_outs(10, value, "TEST");
 
-// Use fixtures...
+// Create token WITH emission automatically
+dap_chain_hash_fast_t emission_hash;
+test_token_fixture_t *token = test_token_fixture_create_with_emission(
+    net->ledger, "TEST", "10000.0", "5000.0", &addr, &emission_hash
+);
 
+// Create REAL transaction from emission
+test_tx_fixture_t *tx = test_tx_fixture_create_from_emission(
+    &emission_hash, "TEST", "100.0", &addr_to, token->owner_cert
+);
+
+// Add to ledger and test
+test_tx_fixture_add_to_ledger(net->ledger, tx);
+
+// Cleanup
 test_tx_fixture_destroy(tx);
 test_token_fixture_destroy(token);
 test_net_fixture_destroy(net);
 ```
+
+**📚 For detailed API reference and examples, see [FIXTURES_API.md](FIXTURES_API.md)**
 
 ## Test Coverage
 

@@ -1,15 +1,36 @@
 # Integration Tests for Cellframe SDK
 
-# Integration tests for UTXO blocking mechanism will be implemented
-# after completion of unit tests and basic infrastructure validation.
-#
-# Planned integration tests:
-# 1. Full token lifecycle with UTXO blocking
-# 2. Transaction validation with blocked UTXOs
-# 3. Token update via TSD sections
-# 4. Concurrent access and thread safety
-# 5. Performance tests with large blocklists
-#
-# These tests require full ledger initialization and real blockchain environment.
+# UTXO Blocking Integration Tests
+add_executable(utxo_blocking_integration_test
+    utxo_blocking_integration_test.c
+)
 
-message(STATUS "Integration tests: Pending full implementation after unit test validation")
+target_include_directories(utxo_blocking_integration_test PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+)
+
+target_link_libraries(utxo_blocking_integration_test
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_net
+    dap_chain_common
+    dap_chain_wallet
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
+)
+
+# Register with CTest
+add_test(NAME utxo_blocking_integration COMMAND utxo_blocking_integration_test)
+
+# Set test properties
+set_tests_properties(utxo_blocking_integration PROPERTIES
+    TIMEOUT 120
+    LABELS "integration;utxo;blocking;ledger"
+)
+
+message(STATUS "Integration tests configured: utxo_blocking_integration_test")
