@@ -2977,11 +2977,28 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             }
 
             dap_time_t l_time[2];
-            l_time[0] = dap_time_from_str_simplified(l_time_begin_str);
-            l_time[1] = dap_time_from_str_simplified(l_time_end_str);
-            //l_time[0] = dap_time_from_str_rfc822(l_time_begin_str);
-            //l_time[1] = dap_time_from_str_rfc822(l_time_end_str);
-
+            l_time[0] = dap_time_from_str_rfc822(l_time_begin_str);
+            if (!l_time[0]) {
+                l_time[0] = dap_time_from_str_simplified(l_time_begin_str);
+            }
+            l_time[1] = dap_time_from_str_rfc822(l_time_end_str);
+            if (!l_time[1]) {
+                l_time[1] = dap_time_from_str_simplified(l_time_end_str);
+            }
+            
+            if (l_time_begin_str && l_time_end_str) {
+                l_head = (l_time[0] < l_time[1]) ? true : false;
+            }
+            if (l_time_end_str) {
+                struct tm *l_localtime = localtime((time_t *)&l_time[1]);
+                if (l_head) l_localtime->tm_mday += 1;
+                l_time[1] = mktime(l_localtime);
+            }
+            if (l_time_begin_str) {
+                struct tm *l_localtime = localtime((time_t *)&l_time[0]);
+                if (!l_head) l_localtime->tm_mday += 1;
+                l_time[0] = mktime(l_localtime);
+            }
             // Parse pagination parameters
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
@@ -3019,6 +3036,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 xchange_tx_cache_t* l_temp, *l_item;
                 
                 // First collect all matching transactions
+                
                 dap_list_t *l_matching_txs = NULL;
                 if (l_head) {
                     // Forward traversal (from beginning)
@@ -3059,10 +3077,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 size_t l_current_idx = 0;
                 dap_list_t *l_first = dap_list_first(l_matching_txs);
                 
-                // Iterate through transactions with pagination
-                for (dap_list_t *it = l_head ? l_first : dap_list_last(l_matching_txs);
-                        it; it = l_head ? it->next : (it->prev && it->prev->next ? it->prev : NULL)) {
-                    
+                for (dap_list_t *it = l_matching_txs; it != NULL; it = it->next){
                     if (l_current_idx < l_arr_start) {
                         l_current_idx++;
                         continue;
@@ -3084,8 +3099,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
 
                         json_object_array_add(json_arr_bl_out, json_obj_order);
                         l_show_tx_nr++;
+                        l_current_idx++;
                     }
-                    l_current_idx++;
+                    
                 }
                 
                 // Add page info and results
