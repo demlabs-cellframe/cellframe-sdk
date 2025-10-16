@@ -279,6 +279,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
             "\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
             "\n"
+            "\t UTXO_BLOCKING_DISABLED:\t Disables UTXO blocking mechanism (opt-out, blocking enabled by default)\n"
+            "\t STATIC_UTXO_BLOCKLIST:\t Makes UTXO blocklist immutable after token creation\n"
+            "\t DISABLE_ADDRESS_SENDER_BLOCKING:\t Disables address-based sender blocking (tx_send_block/tx_send_allow ignored)\n"
+            "\t DISABLE_ADDRESS_RECEIVER_BLOCKING:\t Disables address-based receiver blocking (tx_recv_block/tx_recv_allow ignored)\n"
+            "\n"
             "==Params==\n"
             "General:\n"
             "\t -flags <value>:\t List of flags from <value> to token declaration\n"
@@ -379,7 +384,21 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token info
     dap_cli_server_cmd_add("token", com_token, NULL, "Token info",
             "token list -net <net_name> [-full] [-h]\n"
-            "token info -net <net_name> -name <token_ticker> [-h]\n");
+            "\tLists all tokens in specified network. Use -full for detailed information.\n\n"
+            "token info -net <net_name> -name <token_ticker> [-h]\n"
+            "\tDisplays detailed token information including:\n"
+            "\t  - Token properties (ticker, type, supply, decimals)\n"
+            "\t  - Flags (including UTXO blocking flags)\n"
+            "\t  - Permissions (sender/receiver allow/block lists)\n"
+            "\t  - UTXO blocklist (if UTXO blocking is enabled):\n"
+            "\t      * tx_hash: Transaction hash of blocked UTXO\n"
+            "\t      * out_idx: Output index\n"
+            "\t      * blocked_time: When UTXO was added to blocklist\n"
+            "\t      * becomes_effective: When blocking activates (delayed activation)\n"
+            "\t      * becomes_unblocked: When blocking expires (0 = permanent)\n"
+            "\t  - Emission history\n"
+            "\t  - Update history\n\n"
+            "\tNOTE: UTXO blocklist is displayed only if UTXO_BLOCKING_DISABLED flag is NOT set.\n");
 
     // Log
     dap_cli_server_cmd_add ("print_log", com_print_log, NULL, "Print log info",
