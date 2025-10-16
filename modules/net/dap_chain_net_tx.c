@@ -2174,6 +2174,105 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     DAP_DEL_MULTY(l_fee_min_str, l_fee_value_str);
                 }
             } break;
+            
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
+                uint256_t l_value = { };
+                if(!s_json_get_uint256(l_json_item_obj, "value", &l_value)) {
+                    dap_json_rpc_error_add(l_jobj_errors, -1, "Bad value in OUT_COND_SUBTYPE_WALLET_SHARED");
+                    log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_WALLET_SHARED");
+                    break;
+                }
+                
+                int64_t l_min_sig_count;
+                if(!s_json_get_int64_uint64(l_json_item_obj, "min_sig_count", &l_min_sig_count, false)) {
+                    dap_json_rpc_error_add(l_jobj_errors, -1, "Bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
+                    log_it(L_ERROR, "Json TX: bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
+                    break;
+                }
+                
+                // Read owner public key hashes array
+                struct json_object *l_json_pkey_hashes = json_object_object_get(l_json_item_obj, "owner_pkey_hashes");
+                if(!l_json_pkey_hashes || !json_object_is_type(l_json_pkey_hashes, json_type_array)) {
+                    dap_json_rpc_error_add(l_jobj_errors, -1, "Bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
+                    log_it(L_ERROR, "Json TX: bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
+                    break;
+                }
+                
+                size_t l_pkey_hashes_count = json_object_array_length(l_json_pkey_hashes);
+                if(l_pkey_hashes_count == 0) {
+                    dap_json_rpc_error_add(l_jobj_errors, -1, "Empty owner_pkey_hashes array in OUT_COND_SUBTYPE_WALLET_SHARED");
+                    log_it(L_ERROR, "Json TX: empty owner_pkey_hashes array in OUT_COND_SUBTYPE_WALLET_SHARED");
+                    break;
+                }
+                
+                dap_hash_fast_t *l_pkey_hashes = DAP_NEW_Z_SIZE(dap_hash_fast_t, l_pkey_hashes_count * sizeof(dap_hash_fast_t));
+                if(!l_pkey_hashes) {
+                    dap_json_rpc_error_add(l_jobj_errors, -1, "Memory allocation error for pkey_hashes");
+                    log_it(L_ERROR, "Json TX: memory allocation error for pkey_hashes");
+                    break;
+                }
+                
+                bool l_pkey_hashes_valid = true;
+                for(size_t j = 0; j < l_pkey_hashes_count; j++) {
+                    struct json_object *l_json_hash = json_object_array_get_idx(l_json_pkey_hashes, j);
+                    if(!l_json_hash || !json_object_is_type(l_json_hash, json_type_string)) {
+                        dap_json_rpc_error_add(l_jobj_errors, -1, "Invalid pkey hash at index %zu", j);
+                        log_it(L_ERROR, "Json TX: invalid pkey hash at index %zu", j);
+                        l_pkey_hashes_valid = false;
+                        break;
+                    }
+                    const char *l_hash_str = json_object_get_string(l_json_hash);
+                    if(dap_chain_hash_fast_from_str(l_hash_str, l_pkey_hashes + j)) {
+                        dap_json_rpc_error_add(l_jobj_errors, -1, "Can't parse pkey hash '%s' at index %zu", l_hash_str, j);
+                        log_it(L_ERROR, "Json TX: can't parse pkey hash '%s' at index %zu", l_hash_str, j);
+                        l_pkey_hashes_valid = false;
+                        break;
+                    }
+                }
+                
+                if(!l_pkey_hashes_valid) {
+                    DAP_DELETE(l_pkey_hashes);
+                    break;
+                }
+                
+                // Read optional params
+                const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+                char *l_tag_str = NULL;
+                if (l_params_str) {
+                    size_t l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
+                    l_tag_str = DAP_NEW_Z_SIZE(char, l_params_size + 1);
+                    size_t l_decoded_size = dap_enc_base58_decode(l_params_str, l_tag_str);
+                    if (l_decoded_size == 0) {
+                        DAP_DEL_MULTY(l_pkey_hashes, l_tag_str);
+                        dap_json_rpc_error_add(l_jobj_errors, -1, "Failed to decode params");
+                        log_it(L_ERROR, "Json TX: failed to decode params in OUT_COND_SUBTYPE_WALLET_SHARED");
+                        break;
+                    }
+                }
+                
+                dap_chain_net_srv_uid_t l_srv_uid;
+                if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+                    // Default service for wallet shared
+                    l_srv_uid.uint64 = DAP_CHAIN_WALLET_SHARED_ID;
+                }
+                
+                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared(
+                    l_srv_uid, l_value, (uint32_t)l_min_sig_count, l_pkey_hashes, l_pkey_hashes_count, l_tag_str);
+                
+                DAP_DEL_MULTY(l_pkey_hashes, l_tag_str);
+                
+                l_item = (const uint8_t*) l_out_cond_item;
+                if(l_item) {
+                    SUM_256_256(l_value_need, l_value, &l_value_need);
+                } else {
+                    char *l_str_err = dap_strdup_printf("Unable to create conditional out for transaction "
+                                                         "of type wallet_shared described in item %zu.", i);
+                    json_object *l_jobj_err = json_object_new_string(l_str_err);
+                    DAP_DELETE(l_str_err);
+                    if (l_jobj_errors) json_object_array_add(l_jobj_errors, l_jobj_err);
+                }
+            } break;
+
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED:
                 log_it(L_WARNING, "Undefined subtype: '%s' of 'out_cond' item %zu ", l_subtype_str, i);
                 char *l_str_err = dap_strdup_printf("Specified unknown sub type %s of conditional out on item %zu.",
