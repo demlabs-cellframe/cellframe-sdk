@@ -5,6 +5,8 @@ add_executable(example_test
     example_test.c
 )
 
+target_include_directories(example_test PRIVATE ${CELLFRAME_TEST_INCLUDES})
+
 target_link_libraries(example_test
     dap_test
     cellframe_test_fixtures
@@ -20,18 +22,16 @@ add_executable(utxo_blocking_unit_test
     utxo_blocking_unit_test.c
 )
 
+target_include_directories(utxo_blocking_unit_test PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+)
+
 target_link_libraries(utxo_blocking_unit_test
     dap_test
     dap_core
+    dap_crypto
     dap_chain
     dap_chain_net
-    dap_crypto
-)
-
-target_include_directories(utxo_blocking_unit_test PRIVATE
-    ${CMAKE_SOURCE_DIR}/modules/common/include
-    ${CMAKE_SOURCE_DIR}/modules/net/include
-    ${CMAKE_SOURCE_DIR}/3rdparty/uthash/src
 )
 
 # Register with CTest

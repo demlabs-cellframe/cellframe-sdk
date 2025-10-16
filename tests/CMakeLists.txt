@@ -4,23 +4,21 @@ cmake_minimum_required(VERSION 3.10)
 
 project(cellframe-sdk-tests C)
 
-# Test framework from DAP SDK
-set(DAP_TEST_FRAMEWORK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../dap-sdk/test-framework")
+message(STATUS "Configuring Cellframe SDK tests")
 
-# Include DAP test framework headers
-include_directories(
-    ${DAP_TEST_FRAMEWORK_DIR}
+# Test framework from DAP SDK is already built by dap-sdk/test-framework
+# We just need to use it via target_link_libraries(... dap_test)
+
+# Common include directories for all tests
+set(CELLFRAME_TEST_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}/../modules/common/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../modules/chain/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../modules/net/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../dap-sdk/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/../modules/wallet/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../dap-sdk/core/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../dap-sdk/crypto/include
-)
-
-# Link DAP test framework
-add_library(dap_test STATIC 
-    ${DAP_TEST_FRAMEWORK_DIR}/dap_test.c
-    ${DAP_TEST_FRAMEWORK_DIR}/dap_test_generator.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../dap-sdk/test-framework
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../dap-sdk/3rdparty/uthash/src
 )
 
 # Test fixtures - common test utilities
@@ -31,7 +29,4 @@ add_subdirectory(unit)
 
 # Integration tests subdirectory  
 add_subdirectory(integration)
-
-# Enable CTest
-enable_testing()
 
