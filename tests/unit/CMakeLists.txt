@@ -1,21 +1,5 @@
 # Unit Tests for Cellframe SDK
 
-# Example unit test
-add_executable(example_test
-    example_test.c
-)
-
-target_include_directories(example_test PRIVATE ${CELLFRAME_TEST_INCLUDES})
-
-target_link_libraries(example_test
-    dap_test
-    cellframe_test_fixtures
-    dap_core
-    dap_crypto
-)
-
-# Register with CTest
-add_test(NAME example_test COMMAND example_test)
 
 # UTXO Blocking Unit Tests
 add_executable(utxo_blocking_unit_test
@@ -36,6 +20,8 @@ target_link_libraries(utxo_blocking_unit_test
     dap_chain_net
     dap_chain_common
     dap_chain_wallet
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
 )
 
 # Register with CTest

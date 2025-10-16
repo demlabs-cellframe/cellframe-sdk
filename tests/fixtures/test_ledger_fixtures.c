@@ -8,6 +8,7 @@
 #include "dap_config.h"
 #include "dap_chain.h"
 #include "dap_chain_cs.h"
+#include "dap_chain_cs_dag_poa.h"
 
 #define LOG_TAG "test_ledger_fixtures"
 
@@ -71,9 +72,8 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
         return NULL;
     }
     
-    // Create consensus for zero chain
-    dap_config_t l_cfg = {};
-    if (dap_chain_cs_create(l_fixture->chain_zero, &l_cfg) != 0) {
+    // Create consensus for zero chain (DAG PoA)
+    if (dap_chain_cs_type_create("dag_poa", l_fixture->chain_zero, NULL) != 0) {
         log_it(L_ERROR, "Failed to create consensus for zero chain");
         dap_chain_delete(l_fixture->chain_zero);
         dap_ledger_handle_free(l_fixture->ledger);
@@ -106,8 +106,8 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
         return NULL;
     }
     
-    // Create consensus for master chain
-    if (dap_chain_cs_create(l_fixture->chain_main, &l_cfg) != 0) {
+    // Create consensus for master chain (ESBOCS)
+    if (dap_chain_cs_type_create("esbocs", l_fixture->chain_main, NULL) != 0) {
         log_it(L_ERROR, "Failed to create consensus for master chain");
         dap_chain_delete(l_fixture->chain_main);
         DL_DELETE(l_fixture->net->pub.chains, l_fixture->chain_zero);

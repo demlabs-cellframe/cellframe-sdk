@@ -22,10 +22,25 @@ extern "C" {
  */
 typedef struct test_token_fixture {
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    char *token_ticker;
     dap_chain_datum_token_t *token;
     size_t token_size;
     uint16_t flags;
+    dap_cert_t *owner_cert;
 } test_token_fixture_t;
+
+/**
+ * @brief Create test token and add to ledger
+ * @param a_ledger Ledger to add token to
+ * @param a_ticker Token ticker
+ * @param a_total_supply_str Total supply as string
+ * @return Created token fixture or NULL on error
+ */
+test_token_fixture_t *test_token_fixture_create(
+    dap_ledger_t *a_ledger,
+    const char *a_ticker,
+    const char *a_total_supply_str
+);
 
 /**
  * @brief Create test CF20 token

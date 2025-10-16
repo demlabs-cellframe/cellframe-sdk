@@ -6,8 +6,11 @@
 #include "test_token_fixtures.h"
 #include "dap_common.h"
 #include "dap_chain_datum_token.h"
+#include "dap_chain_ledger.h"
 #include "dap_cert.h"
 #include "dap_sign.h"
+#include "dap_math_ops.h"
+#include "dap_time.h"
 
 #define LOG_TAG "test_token_fixtures"
 
@@ -28,6 +31,49 @@ static dap_cert_t *s_test_cert_create(void)
         log_it(L_ERROR, "Failed to generate test certificate");
     }
     return l_cert;
+}
+
+test_token_fixture_t *test_token_fixture_create(
+    dap_ledger_t *a_ledger,
+    const char *a_ticker,
+    const char *a_total_supply_str)
+{
+    if (!a_ledger || !a_ticker || !a_total_supply_str) {
+        log_it(L_ERROR, "Invalid parameters");
+        return NULL;
+    }
+    
+    // Parse total supply
+    uint256_t l_total_supply = dap_chain_balance_scan(a_total_supply_str);
+    
+    // Create token fixture with CF20
+    test_token_fixture_t *l_fixture = test_token_fixture_create_cf20(
+        a_ticker, l_total_supply, 0);
+    if (!l_fixture) {
+        return NULL;
+    }
+    
+    // Create owner certificate
+    l_fixture->owner_cert = s_test_cert_create();
+    if (!l_fixture->owner_cert) {
+        test_token_fixture_destroy(l_fixture);
+        return NULL;
+    }
+    
+    // Store token ticker
+    l_fixture->token_ticker = dap_strdup(a_ticker);
+    
+    // Add token to ledger
+    int l_res = dap_ledger_token_add(a_ledger, (byte_t*)l_fixture->token, 
+                                      l_fixture->token_size, dap_time_now());
+    if (l_res != DAP_LEDGER_CHECK_OK) {
+        log_it(L_ERROR, "Failed to add token to ledger: %s",
+               dap_ledger_check_error_str(l_res));
+        test_token_fixture_destroy(l_fixture);
+        return NULL;
+    }
+    
+    return l_fixture;
 }
 
 test_token_fixture_t *test_token_fixture_create_cf20(
@@ -123,6 +169,12 @@ void test_token_fixture_destroy(test_token_fixture_t *a_fixture)
 
     if (a_fixture->token)
         DAP_DELETE(a_fixture->token);
+    
+    if (a_fixture->owner_cert)
+        dap_cert_delete(a_fixture->owner_cert);
+    
+    if (a_fixture->token_ticker)
+        DAP_DELETE(a_fixture->token_ticker);
     
     DAP_DELETE(a_fixture);
     
