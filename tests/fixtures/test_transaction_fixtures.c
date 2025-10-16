@@ -5,8 +5,36 @@
 
 #include "test_transaction_fixtures.h"
 #include "dap_common.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_items.h"
+#include "dap_hash.h"
+#include "dap_enc_key.h"
+#include "dap_sign.h"
 
 #define LOG_TAG "test_transaction_fixtures"
+
+/**
+ * @brief Create a test key for transaction signing
+ * @return dap_enc_key_t* Key or NULL on error
+ */
+static dap_enc_key_t *s_test_key_create(void)
+{
+    const char *l_seed = "test_tx_fixture_seed_20250416";
+    dap_enc_key_t *l_key = dap_enc_key_new_generate(
+        DAP_ENC_KEY_TYPE_SIG_DILITHIUM,
+        NULL,  // kex_buf
+        0,     // kex_size  
+        l_seed,
+        strlen(l_seed),
+        0      // key_size (use default)
+    );
+    
+    if (!l_key) {
+        log_it(L_ERROR, "Failed to generate test key");
+    }
+    
+    return l_key;
+}
 
 test_tx_fixture_t *test_tx_fixture_create_with_outs(
     uint32_t a_out_count,
@@ -26,11 +54,61 @@ test_tx_fixture_t *test_tx_fixture_create_with_outs(
 
     l_fixture->out_count = a_out_count;
     
-    // TODO: Create actual transaction with outputs (placeholder)
-    // l_fixture->tx = dap_chain_datum_tx_create_with_outs(...);
-    // dap_chain_datum_tx_calc_hash(l_fixture->tx, &l_fixture->tx_hash);
+    // Create test key for signing
+    dap_enc_key_t *l_key = s_test_key_create();
+    if (!l_key) {
+        DAP_DELETE(l_fixture);
+        return NULL;
+    }
     
-    log_it(L_INFO, "Test transaction fixture created with %u outputs", a_out_count);
+    // Create transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to create transaction");
+        dap_enc_key_delete(l_key);
+        DAP_DELETE(l_fixture);
+        return NULL;
+    }
+    
+    // Add outputs
+    dap_chain_addr_t l_addr_to = {};
+    dap_chain_addr_fill_from_key(&l_addr_to, l_key, (dap_chain_net_id_t){.uint64 = 0x0FA0});
+    
+    for (uint32_t i = 0; i < a_out_count; i++) {
+        dap_chain_tx_out_ext_t *l_out = dap_chain_datum_tx_item_out_ext_create(
+            &l_addr_to, 
+            a_value_per_out, 
+            a_token_ticker
+        );
+        if (!l_out) {
+            log_it(L_ERROR, "Failed to create output %u", i);
+            dap_chain_datum_tx_delete(l_tx);
+            dap_enc_key_delete(l_key);
+            DAP_DELETE(l_fixture);
+            return NULL;
+        }
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_out);
+        DAP_DELETE(l_out);
+    }
+    
+    // Sign transaction
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, l_key) != 1) {
+        log_it(L_ERROR, "Failed to sign transaction");
+        dap_chain_datum_tx_delete(l_tx);
+        dap_enc_key_delete(l_key);
+        DAP_DELETE(l_fixture);
+        return NULL;
+    }
+    
+    // Calculate transaction hash
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_hash_fast(l_tx, l_tx_size, &l_fixture->tx_hash);
+    
+    l_fixture->tx = l_tx;
+    dap_enc_key_delete(l_key);
+    
+    log_it(L_INFO, "Test transaction fixture created with %u outputs (size=%zu)", 
+           a_out_count, l_tx_size);
     return l_fixture;
 }
 
