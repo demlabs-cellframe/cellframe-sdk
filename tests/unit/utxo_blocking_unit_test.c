@@ -227,13 +227,14 @@ static int s_test_time_comparison_logic(void)
     dap_time_t l_current_time = dap_time_now();
     dap_time_t l_future_time = l_current_time + 3600; // +1 hour
     dap_time_t l_past_time = l_current_time - 3600;   // -1 hour
+    dap_time_t l_exact_time = l_current_time;          // Exact match for testing
     
     // Test becomes_effective logic (<= comparison)
-    bool l_effective_now = (l_current_time <= l_current_time);
+    bool l_effective_exact = (l_exact_time <= l_current_time);
     bool l_effective_past = (l_past_time <= l_current_time);
     bool l_effective_future = (l_future_time <= l_current_time);
     
-    UTXO_TEST_ASSERT(l_effective_now == true,
+    UTXO_TEST_ASSERT(l_effective_exact == true,
                      "becomes_effective == current_time should be active (<=)");
     UTXO_TEST_ASSERT(l_effective_past == true,
                      "becomes_effective < current_time should be active");
@@ -261,7 +262,7 @@ static int s_test_time_comparison_logic(void)
     log_it(L_DEBUG, "  Past time:      %"DAP_UINT64_FORMAT_U, l_past_time);
     log_it(L_DEBUG, "  Future time:    %"DAP_UINT64_FORMAT_U, l_future_time);
     log_it(L_DEBUG, "Logic test results:");
-    log_it(L_DEBUG, "  Effective now:        %s", l_effective_now ? "true" : "false");
+    log_it(L_DEBUG, "  Effective exact:      %s", l_effective_exact ? "true" : "false");
     log_it(L_DEBUG, "  Effective past:       %s", l_effective_past ? "true" : "false");
     log_it(L_DEBUG, "  Effective future:     %s", l_effective_future ? "true" : "false");
     log_it(L_DEBUG, "  Blocked permanent:    %s", l_blocked_permanent ? "true" : "false");
@@ -349,22 +350,15 @@ static int s_test_error_code_definition(void)
  * @param argv Argument values
  * @return 0 on success, 1 on failure
  */
-int main(int argc, char **argv)
+int main(void)
 {
-    // Save original log format
-    dap_log_format_t l_original_format = dap_log_get_format();
-    
-    // Initialize DAP SDK
-    dap_common_init(argv[0], NULL, NULL);
-    
-    // Setup test environment - NO_PREFIX format is MANDATORY per DAP SDK standards
+    // Setup test environment per DAP SDK standards
     dap_log_level_set(L_DEBUG);
     dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
-    dap_log_set_format(DAP_LOG_FORMAT_NO_PREFIX);
     
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
     dap_print_module_name("UTXO Blocking Mechanism - Unit Tests");
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
     
     // Run all tests
     s_test_utxo_flags_definition();
@@ -376,7 +370,7 @@ int main(int argc, char **argv)
     s_test_error_code_definition();
     
     // Print summary
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "====================================================");
     log_it(L_NOTICE, "  TEST SUMMARY");
     log_it(L_NOTICE, "====================================================");
@@ -385,19 +379,13 @@ int main(int argc, char **argv)
     log_it(L_INFO, "Total:  %d", s_tests_passed + s_tests_failed);
     
     if (s_tests_failed == 0) {
-        log_it(L_NOTICE, "");
+        log_it(L_NOTICE, " ");
         log_it(L_NOTICE, "All tests PASSED!");
     } else {
-        log_it(L_ERROR, "");
+        log_it(L_ERROR, " ");
         log_it(L_ERROR, "Some tests FAILED!");
     }
-    log_it(L_NOTICE, "");
-    
-    // Restore original log format
-    dap_log_set_format(l_original_format);
-    
-    // Cleanup DAP SDK
-    dap_common_deinit();
+    log_it(L_NOTICE, " ");
     
     return (s_tests_failed == 0) ? 0 : 1;
 }
