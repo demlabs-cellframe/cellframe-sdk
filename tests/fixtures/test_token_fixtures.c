@@ -11,6 +11,7 @@
 #include "dap_sign.h"
 #include "dap_math_ops.h"
 #include "dap_time.h"
+#include "dap_hash.h"
 
 #define LOG_TAG "test_token_fixtures"
 
@@ -79,7 +80,7 @@ test_token_fixture_t *test_token_fixture_create(
     l_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
     strncpy(l_token->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     l_token->ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
-    l_token->signs_valid = 1;
+    l_token->signs_valid = 0;  // No auth requirements for test tokens (allows emission without auth)
     l_token->total_supply = l_total_supply;
     l_token->header_native_decl.decimals = 18;
     l_token->header_native_decl.flags = 0;
@@ -127,7 +128,7 @@ test_token_fixture_t *test_token_fixture_create(
         return NULL;
     }
     
-    log_it(L_INFO, "Test token created and added to ledger: %s (supply=%s)",
+    log_it(L_INFO, "Test token created and added to ledger: %s (supply=%s) [emission not created for fixture simplicity]",
            a_ticker, a_total_supply_str);
     
     return l_fixture;

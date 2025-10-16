@@ -42,6 +42,18 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name);
  */
 void test_net_fixture_destroy(test_net_fixture_t *a_fixture);
 
+/**
+ * @brief Get first emission hash for token (for testing)
+ * @param a_ledger Ledger instance
+ * @param a_token_ticker Token ticker
+ * @param a_emission_hash Output emission hash
+ * @return true if emission found, false otherwise
+ * @note This function uses internal ledger structures for testing purposes
+ */
+bool test_ledger_get_token_emission_hash(dap_ledger_t *a_ledger, 
+                                          const char *a_token_ticker,
+                                          dap_chain_hash_fast_t *a_emission_hash);
+
 #ifdef __cplusplus
 }
 #endif

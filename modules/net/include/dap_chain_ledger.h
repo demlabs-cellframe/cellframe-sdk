@@ -352,6 +352,15 @@ int dap_ledger_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const da
 
 dap_chain_datum_token_emission_t *dap_ledger_token_emission_find(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
 
+/**
+ * @brief Get first emission hash for token
+ * @param a_ledger Ledger instance
+ * @param a_token_ticker Token ticker
+ * @param a_emission_hash Output parameter for emission hash
+ * @return true if emission found, false otherwise
+ */
+bool dap_ledger_token_get_first_emission_hash(dap_ledger_t *a_ledger, const char *a_token_ticker, dap_chain_hash_fast_t *a_emission_hash);
+
 const char* dap_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,dap_chain_hash_fast_t *a_tx_hash);
 
 void dap_ledger_addr_get_token_ticker_all_deprecated(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,

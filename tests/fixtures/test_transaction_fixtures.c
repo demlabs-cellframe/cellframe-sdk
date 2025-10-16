@@ -4,6 +4,7 @@
  */
 
 #include "test_transaction_fixtures.h"
+#include "test_ledger_fixtures.h"
 #include "dap_common.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
@@ -43,7 +44,12 @@ test_tx_fixture_t *test_tx_fixture_create_simple(
     const char *a_token_ticker,
     const char *a_value_str)
 {
-    if (!a_ledger || !a_token_ticker || !a_value_str) {
+    // For UTXO blocking tests, we only need tx_hash and out_idx
+    // We create a mock transaction (without real inputs) just to have valid hash
+    
+    UNUSED(a_ledger); // Not used in mock transaction creation
+    
+    if (!a_token_ticker || !a_value_str) {
         log_it(L_ERROR, "Invalid parameters");
         return NULL;
     }
@@ -54,14 +60,13 @@ test_tx_fixture_t *test_tx_fixture_create_simple(
         return NULL;
     }
     
-    // Create test key
+    // Create test key and address
     dap_enc_key_t *l_key = s_test_key_create();
     if (!l_key) {
         DAP_DELETE(l_fixture);
         return NULL;
     }
     
-    // Create address
     l_fixture->addr = DAP_NEW_Z(dap_chain_addr_t);
     if (!l_fixture->addr) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -74,7 +79,7 @@ test_tx_fixture_t *test_tx_fixture_create_simple(
     // Parse value
     uint256_t l_value = dap_chain_balance_scan(a_value_str);
     
-    // Create emission transaction
+    // Create mock transaction (without inputs)
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx) {
         log_it(L_ERROR, "Failed to create transaction");
@@ -84,9 +89,9 @@ test_tx_fixture_t *test_tx_fixture_create_simple(
         return NULL;
     }
     
-    // Add output with the specified value
+    // Add output
     if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_fixture->addr, l_value, a_token_ticker) != 1) {
-        log_it(L_ERROR, "Failed to add output to transaction");
+        log_it(L_ERROR, "Failed to add output");
         dap_chain_datum_tx_delete(l_tx);
         dap_enc_key_delete(l_key);
         DAP_DELETE(l_fixture->addr);
@@ -104,27 +109,18 @@ test_tx_fixture_t *test_tx_fixture_create_simple(
         return NULL;
     }
     
-    // Calculate transaction hash
+    // Calculate hash (this is what we need for UTXO blocking tests)
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     dap_hash_fast(l_tx, l_tx_size, &l_fixture->tx_hash);
     
-    // Add transaction to ledger (emission)
-    int l_res = dap_ledger_tx_add(a_ledger, l_tx, &l_fixture->tx_hash, true, NULL);
-    if (l_res != DAP_LEDGER_CHECK_OK) {
-        log_it(L_ERROR, "Failed to add transaction to ledger: %s",
-               dap_ledger_check_error_str(l_res));
-        dap_chain_datum_tx_delete(l_tx);
-        dap_enc_key_delete(l_key);
-        DAP_DELETE(l_fixture->addr);
-        DAP_DELETE(l_fixture);
-        return NULL;
-    }
+    // DON'T add to ledger - this is just a mock for testing UTXO blocking
+    // The fixture provides tx_hash and out_idx that can be blocked/unblocked
     
     l_fixture->tx = l_tx;
     l_fixture->out_count = 1;
     dap_enc_key_delete(l_key);
     
-    log_it(L_INFO, "Simple test transaction created: value=%s, ticker=%s, hash=%s",
+    log_it(L_INFO, "Mock transaction created for UTXO blocking tests: value=%s, ticker=%s, hash=%s",
            a_value_str, a_token_ticker, dap_chain_hash_fast_to_str_static(&l_fixture->tx_hash));
     
     return l_fixture;

@@ -157,3 +157,15 @@ void test_net_fixture_destroy(test_net_fixture_t *a_fixture)
     
     log_it(L_INFO, "Test network fixture destroyed");
 }
+
+/**
+ * @brief Helper function to get token emission hash (wrapper around public API)
+ * @details This is a convenience wrapper for test fixtures
+ */
+bool test_ledger_get_token_emission_hash(dap_ledger_t *a_ledger, 
+                                          const char *a_token_ticker,
+                                          dap_chain_hash_fast_t *a_emission_hash)
+{
+    // Use new public API function
+    return dap_ledger_token_get_first_emission_hash(a_ledger, a_token_ticker, a_emission_hash);
+}

@@ -3262,6 +3262,43 @@ dap_chain_datum_token_emission_t *dap_ledger_token_emission_find(dap_ledger_t *a
 }
 
 /**
+ * @brief Get first emission hash for token
+ * @param a_ledger Ledger instance
+ * @param a_token_ticker Token ticker
+ * @param a_emission_hash Output parameter for emission hash
+ * @return true if emission found, false otherwise
+ */
+bool dap_ledger_token_get_first_emission_hash(dap_ledger_t *a_ledger, const char *a_token_ticker, dap_chain_hash_fast_t *a_emission_hash)
+{
+    if (!a_ledger || !a_token_ticker || !a_emission_hash) {
+        return false;
+    }
+    
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    dap_ledger_token_item_t *l_token_item = NULL;
+    HASH_FIND_STR(PVT(a_ledger)->tokens, a_token_ticker, l_token_item);
+    
+    if (!l_token_item) {
+        pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+        return false;
+    }
+    
+    pthread_rwlock_rdlock(&l_token_item->token_emissions_rwlock);
+    dap_ledger_token_emission_item_t *l_emission = l_token_item->token_emissions;
+    
+    if (l_emission) {
+        *a_emission_hash = l_emission->datum_token_emission_hash;
+        pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
+        pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+        return true;
+    }
+    
+    pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    return false;
+}
+
+/**
  * @brief dap_ledger_set_local_cell_id
  * @param a_local_cell_id
  */
