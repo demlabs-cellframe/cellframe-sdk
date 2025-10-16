@@ -1170,8 +1170,35 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 l_becomes_effective = dap_time_now();
             }
 
-            // Validate UTXO exists 
-            // TODO: Add validation if UTXO exists in ledger
+            // Validate UTXO exists (optional validation with warning)
+            // Note: UTXO may not exist yet at token_update time, but will exist later
+            // This is a sanity check, not a blocking error
+            if (a_apply) {
+                dap_ledger_tx_item_t *l_tx_item = NULL;
+                dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, l_tx_hash, &l_tx_item, false);
+                if (l_tx) {
+                    // Check if output index exists
+                    void *l_tx_out = dap_chain_datum_tx_item_get_nth(l_tx, TX_ITEM_TYPE_OUT_ALL, l_out_idx);
+                    if (!l_tx_out) {
+                        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                        dap_chain_hash_fast_to_str(l_tx_hash, l_hash_str, sizeof(l_hash_str));
+                        log_it(L_WARNING, "UTXO validation: output index %u not found in tx %s (may not exist yet)", 
+                               l_out_idx, l_hash_str);
+                    } else {
+                        // Check if already spent
+                        if (l_tx_item && l_tx_item->cache_data.n_outs_used > l_out_idx &&
+                            !dap_hash_fast_is_blank(&l_tx_item->cache_data.tx_hash_spent_fast[l_out_idx])) {
+                            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                            dap_chain_hash_fast_to_str(l_tx_hash, l_hash_str, sizeof(l_hash_str));
+                            log_it(L_WARNING, "UTXO validation: output %s:%u is already spent", l_hash_str, l_out_idx);
+                        }
+                    }
+                } else {
+                    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_chain_hash_fast_to_str(l_tx_hash, l_hash_str, sizeof(l_hash_str));
+                    log_it(L_DEBUG, "UTXO validation: transaction %s not found in ledger (may not exist yet)", l_hash_str);
+                }
+            }
 
             if (!a_apply)
                 break;
@@ -2223,19 +2250,17 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
         json_object_put(l_json_arr_tx_send_block);
     
     // UTXO blocklist information
-    json_object_object_add(json_obj_datum, "utxo_blocklist_count", json_object_new_int64((int64_t)a_token_item->utxo_blocklist_count));
-    if (a_token_item->utxo_blocklist_count > 0) {
+    // Read all data under single rwlock protection to avoid race conditions
+    pthread_rwlock_rdlock(&a_token_item->utxo_blocklist_rwlock);
+    size_t l_utxo_count = a_token_item->utxo_blocklist_count;
+    json_object_object_add(json_obj_datum, "utxo_blocklist_count", json_object_new_int64((int64_t)l_utxo_count));
+    
+    if (l_utxo_count > 0) {
         json_object *l_json_arr_utxo_blocklist = json_object_new_array();
-        pthread_rwlock_rdlock(&a_token_item->utxo_blocklist_rwlock);
         
         dap_ledger_utxo_block_item_t *l_utxo_item, *l_tmp;
-        size_t l_count = 0;
-        size_t l_max_display = 100;  // Limit display to first 100 entries
         
         HASH_ITER(hh, a_token_item->utxo_blocklist, l_utxo_item, l_tmp) {
-            if (l_count >= l_max_display)
-                break;
-            
             json_object *l_json_utxo = json_object_new_object();
             char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_utxo_item->key.tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
@@ -2249,17 +2274,12 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
             }
             
             json_object_array_add(l_json_arr_utxo_blocklist, l_json_utxo);
-            l_count++;
         }
-        
-        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
         
         json_object_object_add(json_obj_datum, "utxo_blocklist", l_json_arr_utxo_blocklist);
-        if (a_token_item->utxo_blocklist_count > l_max_display) {
-            json_object_object_add(json_obj_datum, "utxo_blocklist_note",
-                json_object_new_string("Showing first 100 entries only"));
-        }
     }
+    
+    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
     
     json_object_object_add(json_obj_datum, a_version == 1 ? "Total emissions" : "total_emissions", json_object_new_int(HASH_COUNT(a_token_item->token_emissions)));
     return json_obj_datum;
@@ -4025,7 +4045,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 !(l_token_item_for_utxo_check->datum_token->header_private_decl.flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
                 !a_check_for_removing) {
                 // UTXO blocking is enabled (default behavior) - check if this UTXO is in blocklist
-                if (s_ledger_utxo_is_blocked(a_ledger, l_token_item_for_utxo_check, l_tx_prev_hash, l_tx_prev_out_idx)) {
+                if (s_ledger_utxo_is_blocked(l_token_item_for_utxo_check, l_tx_prev_hash, l_tx_prev_out_idx, a_ledger)) {
                     l_err_num = DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED;
                     debug_if(s_debug_more, L_WARNING, "UTXO %s:%u is blocked for token '%s'", 
                              l_tx_prev_hash_str, l_tx_prev_out_idx, l_token);
