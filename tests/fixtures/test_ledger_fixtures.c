@@ -11,37 +11,6 @@
 
 #define LOG_TAG "test_ledger_fixtures"
 
-/**
- * @brief Initialize minimal test network for fixture testing
- * @details Creates a simplified network without full consensus initialization
- * @param a_net_name Network name
- * @return dap_chain_net_t* or NULL on error
- */
-static dap_chain_net_t *s_test_net_create_minimal(const char *a_net_name)
-{
-    // Try to initialize test network infrastructure if not already done
-    dap_chain_net_test_init();
-    
-    // Get or create test network with ID 0xFA0
-    dap_chain_net_id_t l_net_id = {.uint64 = 0x0FA0};
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_net_id);
-    
-    if (!l_net) {
-        log_it(L_WARNING, "Could not create test network - network infrastructure may not be initialized");
-        log_it(L_INFO, "Creating stub network fixture (limited functionality)");
-        
-        // Create a minimal stub for testing without full network initialization
-        l_net = DAP_NEW_Z(dap_chain_net_t);
-        if (!l_net) {
-            return NULL;
-        }
-        l_net->pub.id = l_net_id;
-        dap_strncpy(l_net->pub.name, a_net_name, sizeof(l_net->pub.name));
-    }
-    
-    return l_net;
-}
-
 test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
 {
     if (!a_net_name) {
@@ -57,10 +26,15 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
 
     l_fixture->net_name = dap_strdup(a_net_name);
     
-    // Create minimal test network
-    l_fixture->net = s_test_net_create_minimal(a_net_name);
+    // Initialize test network infrastructure
+    dap_chain_net_test_init();
+    
+    // Get or create test network with ID 0xFA0
+    dap_chain_net_id_t l_net_id = {.uint64 = 0x0FA0};
+    l_fixture->net = dap_chain_net_by_id(l_net_id);
+    
     if (!l_fixture->net) {
-        log_it(L_ERROR, "Failed to create test network");
+        log_it(L_ERROR, "Failed to get test network");
         DAP_DELETE(l_fixture->net_name);
         DAP_DELETE(l_fixture);
         return NULL;
@@ -71,7 +45,6 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
     l_fixture->ledger = dap_ledger_create(l_fixture->net, l_flags);
     if (!l_fixture->ledger) {
         log_it(L_ERROR, "Failed to create ledger");
-        // Note: net cleanup handled by global infrastructure
         DAP_DELETE(l_fixture->net_name);
         DAP_DELETE(l_fixture);
         return NULL;
@@ -80,7 +53,75 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
     // Link ledger to network
     l_fixture->net->pub.ledger = l_fixture->ledger;
     
-    log_it(L_INFO, "Test network fixture created: %s (net_id=0x%016"DAP_UINT64_FORMAT_X")", 
+    // Create zero chain (like in production networks)
+    char l_zero_chain_name[128];
+    snprintf(l_zero_chain_name, sizeof(l_zero_chain_name), "%s_zero", a_net_name);
+    l_fixture->chain_zero = dap_chain_create(
+        l_fixture->net->pub.name,
+        l_zero_chain_name,
+        l_fixture->net->pub.id,
+        (dap_chain_id_t){.uint64 = 0}
+    );
+    
+    if (!l_fixture->chain_zero) {
+        log_it(L_ERROR, "Failed to create zero chain");
+        dap_ledger_handle_free(l_fixture->ledger);
+        DAP_DELETE(l_fixture->net_name);
+        DAP_DELETE(l_fixture);
+        return NULL;
+    }
+    
+    // Create consensus for zero chain
+    dap_config_t l_cfg = {};
+    if (dap_chain_cs_create(l_fixture->chain_zero, &l_cfg) != 0) {
+        log_it(L_ERROR, "Failed to create consensus for zero chain");
+        dap_chain_delete(l_fixture->chain_zero);
+        dap_ledger_handle_free(l_fixture->ledger);
+        DAP_DELETE(l_fixture->net_name);
+        DAP_DELETE(l_fixture);
+        return NULL;
+    }
+    
+    // Add zero chain to network
+    DL_APPEND(l_fixture->net->pub.chains, l_fixture->chain_zero);
+    
+    // Create master/main chain (like in production networks)
+    char l_main_chain_name[128];
+    snprintf(l_main_chain_name, sizeof(l_main_chain_name), "%s_master", a_net_name);
+    l_fixture->chain_main = dap_chain_create(
+        l_fixture->net->pub.name,
+        l_main_chain_name,
+        l_fixture->net->pub.id,
+        (dap_chain_id_t){.uint64 = 1}
+    );
+    
+    if (!l_fixture->chain_main) {
+        log_it(L_ERROR, "Failed to create master chain");
+        // Cleanup zero chain
+        DL_DELETE(l_fixture->net->pub.chains, l_fixture->chain_zero);
+        dap_chain_delete(l_fixture->chain_zero);
+        dap_ledger_handle_free(l_fixture->ledger);
+        DAP_DELETE(l_fixture->net_name);
+        DAP_DELETE(l_fixture);
+        return NULL;
+    }
+    
+    // Create consensus for master chain
+    if (dap_chain_cs_create(l_fixture->chain_main, &l_cfg) != 0) {
+        log_it(L_ERROR, "Failed to create consensus for master chain");
+        dap_chain_delete(l_fixture->chain_main);
+        DL_DELETE(l_fixture->net->pub.chains, l_fixture->chain_zero);
+        dap_chain_delete(l_fixture->chain_zero);
+        dap_ledger_handle_free(l_fixture->ledger);
+        DAP_DELETE(l_fixture->net_name);
+        DAP_DELETE(l_fixture);
+        return NULL;
+    }
+    
+    // Add master chain to network
+    DL_APPEND(l_fixture->net->pub.chains, l_fixture->chain_main);
+    
+    log_it(L_INFO, "Test network fixture created: %s (net_id=0x%016"DAP_UINT64_FORMAT_X") with zero and master chains", 
            a_net_name, l_fixture->net->pub.id.uint64);
     return l_fixture;
 }
@@ -90,6 +131,19 @@ void test_net_fixture_destroy(test_net_fixture_t *a_fixture)
     if (!a_fixture)
         return;
 
+    // Remove chains from network and delete them
+    if (a_fixture->chain_main) {
+        DL_DELETE(a_fixture->net->pub.chains, a_fixture->chain_main);
+        dap_chain_delete(a_fixture->chain_main);
+        a_fixture->chain_main = NULL;
+    }
+    
+    if (a_fixture->chain_zero) {
+        DL_DELETE(a_fixture->net->pub.chains, a_fixture->chain_zero);
+        dap_chain_delete(a_fixture->chain_zero);
+        a_fixture->chain_zero = NULL;
+    }
+    
     // Cleanup ledger
     if (a_fixture->ledger) {
         dap_ledger_handle_free(a_fixture->ledger);
@@ -104,4 +158,3 @@ void test_net_fixture_destroy(test_net_fixture_t *a_fixture)
     
     log_it(L_INFO, "Test network fixture destroyed");
 }
-

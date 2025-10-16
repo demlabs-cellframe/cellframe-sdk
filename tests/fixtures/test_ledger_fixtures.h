@@ -11,6 +11,7 @@
 
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
+#include "dap_chain.h"
 #include "dap_test.h"
 
 #ifdef __cplusplus
@@ -23,6 +24,8 @@ extern "C" {
 typedef struct test_net_fixture {
     dap_chain_net_t *net;
     dap_ledger_t *ledger;
+    dap_chain_t *chain_zero;       ///< Zero chain (like in production networks)
+    dap_chain_t *chain_main;        ///< Master/main chain (like in production networks)
     char *net_name;
 } test_net_fixture_t;
 
