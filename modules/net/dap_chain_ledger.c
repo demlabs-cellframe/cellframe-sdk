@@ -124,6 +124,21 @@ struct spec_address {
     dap_time_t becomes_effective;
 };
 
+// UTXO blocklist key structure (tx_hash + out_idx identifies unique UTXO)
+typedef struct dap_ledger_utxo_block_key {
+    dap_chain_hash_fast_t tx_hash;  // Transaction hash
+    uint32_t out_idx;                // Output index
+} dap_ledger_utxo_block_key_t;
+
+// UTXO blocklist item (hash table entry)
+typedef struct dap_ledger_utxo_block_item {
+    dap_ledger_utxo_block_key_t key;  // Key for hash table lookup
+    dap_time_t blocked_time;           // When it was added to blocklist
+    dap_time_t becomes_effective;      // When blocking becomes active (blockchain time)
+    dap_time_t becomes_unblocked;      // When unblocking becomes active (0 = never, for permanent blocks)
+    UT_hash_handle hh;                 // uthash handle
+} dap_ledger_utxo_block_item_t;
+
 typedef struct dap_ledger_token_item {
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint16_t subtype;
@@ -160,6 +175,11 @@ typedef struct dap_ledger_token_item {
     bool is_delegated;
     char delegated_from[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t emission_rate;
+
+    // UTXO blocking mechanism
+    pthread_rwlock_t utxo_blocklist_rwlock;
+    struct dap_ledger_utxo_block_item *utxo_blocklist;  // Hash table of blocked UTXOs
+    size_t utxo_blocklist_count;
 
     UT_hash_handle hh;
 } dap_ledger_token_item_t;
@@ -235,6 +255,23 @@ typedef struct dap_ledger_wallet_balance {
     uint256_t balance;
     UT_hash_handle hh;
 } dap_ledger_wallet_balance_t;
+
+// ============================================================================
+// UTXO BLOCKLIST INTERNAL API DECLARATIONS
+// ============================================================================
+static bool s_ledger_utxo_is_blocked(dap_ledger_token_item_t *a_token_item,
+                                      dap_chain_hash_fast_t *a_tx_hash,
+                                      uint32_t a_out_idx,
+                                      dap_ledger_t *a_ledger);
+static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
+                                     dap_chain_hash_fast_t *a_tx_hash,
+                                     uint32_t a_out_idx,
+                                     dap_time_t a_becomes_effective);
+static int s_ledger_utxo_block_remove(dap_ledger_token_item_t *a_token_item,
+                                        dap_chain_hash_fast_t *a_tx_hash,
+                                        uint32_t a_out_idx,
+                                        dap_time_t a_becomes_unblocked);
+static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item);
 
 typedef struct dap_ledger_cache_item {
     dap_chain_hash_fast_t *hash;
@@ -1087,6 +1124,140 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             l_was_tx_send_block_copied = true;
         } break;
 
+        // ============================================================================
+        // UTXO BLOCKLIST TSD SECTIONS
+        // ============================================================================
+
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_ADD: {
+            // Two formats supported:
+            // Basic:    [tx_hash: 32B][out_idx: 4B] = 36 bytes (immediate activation)
+            // Extended: [tx_hash: 32B][out_idx: 4B][timestamp: 8B] = 44 bytes (delayed activation)
+            size_t l_expected_size_basic = sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t);
+            size_t l_expected_size_extended = l_expected_size_basic + sizeof(dap_time_t);
+            
+            if (l_tsd->size != l_expected_size_basic && l_tsd->size != l_expected_size_extended) {
+                log_it(L_WARNING, "Wrong UTXO_BLOCKED_ADD TSD size %"DAP_UINT64_FORMAT_U", expected %zu or %zu, exiting TSD parse", 
+                       l_tsd_size, l_expected_size_basic, l_expected_size_extended);
+                return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
+            }
+
+            // Check if UTXO blocking is disabled for this token
+            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
+                log_it(L_WARNING, "UTXO blocking is disabled for token %s, cannot add UTXO to blocklist", 
+                       a_item_apply_to->ticker);
+                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
+            }
+
+            // Check if blocklist is static
+            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+                log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", 
+                       a_item_apply_to->ticker);
+                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
+            }
+
+            // Parse UTXO data (tx_hash + out_idx)
+            dap_chain_hash_fast_t *l_tx_hash = (dap_chain_hash_fast_t *)l_tsd->data;
+            uint32_t l_out_idx = *(uint32_t *)(l_tsd->data + sizeof(dap_chain_hash_fast_t));
+            
+            // Parse activation time (optional)
+            dap_time_t l_becomes_effective;
+            if (l_tsd->size == l_expected_size_extended) {
+                // Extended format with explicit timestamp
+                l_becomes_effective = *(dap_time_t *)(l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t));
+                log_it(L_DEBUG, "UTXO blocking with delayed activation at %"DAP_UINT64_FORMAT_U, l_becomes_effective);
+            } else {
+                // Basic format - immediate activation
+                l_becomes_effective = dap_time_now();
+            }
+
+            // Validate UTXO exists 
+            // TODO: Add validation if UTXO exists in ledger
+
+            if (!a_apply)
+                break;
+
+            // Add UTXO to blocklist with specified activation time
+            if (s_ledger_utxo_block_add(a_item_apply_to, l_tx_hash, l_out_idx, l_becomes_effective) != 0) {
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(l_tx_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_ERROR, "Failed to add UTXO to blocklist: tx=%s, out_idx=%u", l_hash_str, l_out_idx);
+                return m_ret_cleanup(DAP_LEDGER_CHECK_APPLY_ERROR);
+            }
+        } break;
+
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_REMOVE: {
+            // Two formats supported:
+            // 1. Basic (36 bytes): [tx_hash: 32B][out_idx: 4B] → immediate removal
+            // 2. Extended (44 bytes): [tx_hash: 32B][out_idx: 4B][timestamp: 8B] → delayed unblocking
+            size_t l_basic_size = sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t);
+            size_t l_extended_size = l_basic_size + sizeof(uint64_t);
+            
+            if (l_tsd->size != l_basic_size && l_tsd->size != l_extended_size) {
+                log_it(L_WARNING, "Wrong UTXO_BLOCKED_REMOVE TSD size %"DAP_UINT64_FORMAT_U", expected %zu (basic) or %zu (extended)", 
+                       l_tsd_size, l_basic_size, l_extended_size);
+                return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
+            }
+
+            // Check if blocklist is static
+            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+                log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", 
+                       a_item_apply_to->ticker);
+                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
+            }
+
+            // Parse UTXO data
+            dap_chain_hash_fast_t *l_tx_hash = (dap_chain_hash_fast_t *)l_tsd->data;
+            uint32_t l_out_idx = *(uint32_t *)(l_tsd->data + sizeof(dap_chain_hash_fast_t));
+            
+            // Parse optional timestamp for delayed unblocking
+            dap_time_t l_becomes_unblocked = 0;  // 0 = immediate removal
+            if (l_tsd->size == l_extended_size) {
+                uint64_t l_timestamp = *(uint64_t *)(l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t));
+                l_becomes_unblocked = (dap_time_t)l_timestamp;
+            }
+
+            if (!a_apply)
+                break;
+
+            // Remove UTXO from blocklist (or schedule delayed unblocking)
+            if (s_ledger_utxo_block_remove(a_item_apply_to, l_tx_hash, l_out_idx, l_becomes_unblocked) != 0) {
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(l_tx_hash, l_hash_str, sizeof(l_hash_str));
+                if (l_becomes_unblocked == 0) {
+                    log_it(L_WARNING, "Failed to remove UTXO from blocklist (may not exist): tx=%s, out_idx=%u", 
+                           l_hash_str, l_out_idx);
+                } else {
+                    log_it(L_WARNING, "Failed to schedule UTXO unblocking (may not exist): tx=%s, out_idx=%u, unblock_time=%"DAP_UINT64_FORMAT_U, 
+                           l_hash_str, l_out_idx, (uint64_t)l_becomes_unblocked);
+                }
+                // Don't fail if UTXO wasn't in blocklist
+            }
+        } break;
+
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR: {
+            if (l_tsd->size != 0) {
+                log_it(L_WARNING, "Wrong UTXO_BLOCKED_CLEAR TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", 
+                       l_tsd_size);
+                return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
+            }
+
+            // Check if blocklist is static
+            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+                log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot clear", 
+                       a_item_apply_to->ticker);
+                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
+            }
+
+            if (!a_apply)
+                break;
+
+            // Clear entire UTXO blocklist
+            if (s_ledger_utxo_block_clear(a_item_apply_to) != 0) {
+                log_it(L_ERROR, "Failed to clear UTXO blocklist for token %s", a_item_apply_to->ticker);
+                return m_ret_cleanup(DAP_LEDGER_CHECK_APPLY_ERROR);
+            }
+        } break;
+
         case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION: {
             if (l_tsd->size == 0 || l_tsd->data[l_tsd->size - 1] != 0) {
                 log_it(L_ERROR, "Wrong TOKEN_DESCRIPTION TSD format or size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
@@ -1659,7 +1830,10 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
                 .token_ts_updated_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
                 .auth_pkeys         = DAP_NEW_Z_SIZE(dap_pkey_t*, sizeof(dap_pkey_t*) * l_token->signs_total),
                 .auth_pkey_hashes   = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token->signs_total),
-                .flags = 0
+                .flags = 0,
+                .utxo_blocklist_rwlock      = PTHREAD_RWLOCK_INITIALIZER,
+                .utxo_blocklist             = NULL,
+                .utxo_blocklist_count       = 0
         };
         switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
@@ -2047,6 +2221,46 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
         json_object_put(l_json_arr_tx_send_allow);
     a_token_item->tx_send_block_size ? json_object_object_add(json_obj_datum, "tx_send_block", l_json_arr_tx_send_block) :
         json_object_put(l_json_arr_tx_send_block);
+    
+    // UTXO blocklist information
+    json_object_object_add(json_obj_datum, "utxo_blocklist_count", json_object_new_int64((int64_t)a_token_item->utxo_blocklist_count));
+    if (a_token_item->utxo_blocklist_count > 0) {
+        json_object *l_json_arr_utxo_blocklist = json_object_new_array();
+        pthread_rwlock_rdlock(&a_token_item->utxo_blocklist_rwlock);
+        
+        dap_ledger_utxo_block_item_t *l_utxo_item, *l_tmp;
+        size_t l_count = 0;
+        size_t l_max_display = 100;  // Limit display to first 100 entries
+        
+        HASH_ITER(hh, a_token_item->utxo_blocklist, l_utxo_item, l_tmp) {
+            if (l_count >= l_max_display)
+                break;
+            
+            json_object *l_json_utxo = json_object_new_object();
+            char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_utxo_item->key.tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+            
+            json_object_object_add(l_json_utxo, "tx_hash", json_object_new_string(l_tx_hash_str));
+            json_object_object_add(l_json_utxo, "out_idx", json_object_new_int(l_utxo_item->key.out_idx));
+            json_object_object_add(l_json_utxo, "blocked_time", json_object_new_uint64((uint64_t)l_utxo_item->blocked_time));
+            json_object_object_add(l_json_utxo, "becomes_effective", json_object_new_uint64((uint64_t)l_utxo_item->becomes_effective));
+            if (l_utxo_item->becomes_unblocked != 0) {
+                json_object_object_add(l_json_utxo, "becomes_unblocked", json_object_new_uint64((uint64_t)l_utxo_item->becomes_unblocked));
+            }
+            
+            json_object_array_add(l_json_arr_utxo_blocklist, l_json_utxo);
+            l_count++;
+        }
+        
+        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+        
+        json_object_object_add(json_obj_datum, "utxo_blocklist", l_json_arr_utxo_blocklist);
+        if (a_token_item->utxo_blocklist_count > l_max_display) {
+            json_object_object_add(json_obj_datum, "utxo_blocklist_note",
+                json_object_new_string("Showing first 100 entries only"));
+        }
+    }
+    
     json_object_object_add(json_obj_datum, a_version == 1 ? "Total emissions" : "total_emissions", json_object_new_int(HASH_COUNT(a_token_item->token_emissions)));
     return json_obj_datum;
 }
@@ -2617,6 +2831,20 @@ dap_ledger_check_error_t s_ledger_addr_check(dap_ledger_t *a_ledger, dap_ledger_
     dap_return_val_if_fail(a_token_item && a_addr, DAP_LEDGER_CHECK_INVALID_ARGS);
     if (dap_chain_addr_is_blank(a_addr))
         return DAP_LEDGER_CHECK_OK;
+    
+    // Check if address-based blocking is disabled for this token
+    if (a_receive) {
+        // Skip all receiver address checks if DISABLE_ADDRESS_RECEIVER_BLOCKING is set
+        if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING) {
+            return DAP_LEDGER_CHECK_OK;
+        }
+    } else {
+        // Skip all sender address checks if DISABLE_ADDRESS_SENDER_BLOCKING is set
+        if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING) {
+            return DAP_LEDGER_CHECK_OK;
+        }
+    }
+    
     if (a_receive) {
         if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED) ||
                 (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN)) {
@@ -3788,6 +4016,21 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 dap_chain_hash_fast_to_str(&l_spender, l_hash, sizeof(l_hash));
                 debug_if(s_debug_more, L_INFO, "'Out' item %u of previous tx %s already spent by %s", l_tx_prev_out_idx, l_tx_prev_hash_str, l_hash);
                 break;
+            }
+
+            // 3. Check if UTXO is blocked in token-specific blocklist (UTXO blocking mechanism)
+            // This check is skipped if UTXO_BLOCKING_DISABLED flag is set for this token
+            dap_ledger_token_item_t *l_token_item_for_utxo_check = s_ledger_find_token(a_ledger, l_token);
+            if (l_token_item_for_utxo_check && 
+                !(l_token_item_for_utxo_check->datum_token->header_private_decl.flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
+                !a_check_for_removing) {
+                // UTXO blocking is enabled (default behavior) - check if this UTXO is in blocklist
+                if (s_ledger_utxo_is_blocked(a_ledger, l_token_item_for_utxo_check, l_tx_prev_hash, l_tx_prev_out_idx)) {
+                    l_err_num = DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED;
+                    debug_if(s_debug_more, L_WARNING, "UTXO %s:%u is blocked for token '%s'", 
+                             l_tx_prev_hash_str, l_tx_prev_out_idx, l_token);
+                    break;
+                }
             }
 
             // Get one 'out' item in previous transaction bound with current 'in' item
@@ -5124,6 +5367,9 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         DAP_DEL_Z(l_token_current->tx_send_allow);
         DAP_DEL_Z(l_token_current->tx_send_block);
         pthread_rwlock_destroy(&l_token_current->token_emissions_rwlock);
+        // Clear UTXO blocklist and destroy rwlock
+        s_ledger_utxo_block_clear(l_token_current);
+        pthread_rwlock_destroy(&l_token_current->utxo_blocklist_rwlock);
         DAP_DELETE(l_token_current);
     }
     if (!a_preserve_db) {
@@ -5862,4 +6108,239 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
     if (a_ledger_rc)
         *a_ledger_rc = l_rc;
     return l_ret;
+}
+
+// ============================================================================
+// UTXO BLOCKLIST INTERNAL API IMPLEMENTATIONS
+// ============================================================================
+
+/**
+ * @brief Check if UTXO is blocked for given token
+ * @param a_token_item Token item to check
+ * @param a_tx_hash Transaction hash
+ * @param a_out_idx Output index
+ * @param a_ledger Ledger instance (for blockchain_time)
+ * @return true if blocked, false otherwise
+ */
+static bool s_ledger_utxo_is_blocked(dap_ledger_token_item_t *a_token_item,
+                                      dap_chain_hash_fast_t *a_tx_hash,
+                                      uint32_t a_out_idx,
+                                      dap_ledger_t *a_ledger)
+{
+    if (!a_token_item || !a_tx_hash || !a_ledger) {
+        return false;
+    }
+
+    // Check if UTXO blocking is disabled for this token
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
+        return false;
+    }
+
+    // Read lock for checking
+    pthread_rwlock_rdlock(&a_token_item->utxo_blocklist_rwlock);
+
+    // Create lookup key
+    dap_ledger_utxo_block_key_t lookup_key = {
+        .tx_hash = *a_tx_hash,
+        .out_idx = a_out_idx
+    };
+
+    // Search in hash table
+    dap_ledger_utxo_block_item_t *l_found = NULL;
+    HASH_FIND(hh, a_token_item->utxo_blocklist, &lookup_key, sizeof(dap_ledger_utxo_block_key_t), l_found);
+
+    // Check if found AND becomes_effective time has passed AND not yet unblocked
+    bool l_is_blocked = false;
+    if (l_found) {
+        dap_time_t l_blockchain_time = dap_ledger_get_blockchain_time(a_ledger);
+        // UTXO is blocked if:
+        // 1. Blocking time has come (becomes_effective <= blockchain_time)
+        // 2. AND (no unblock time set OR unblock time hasn't come yet)
+        l_is_blocked = (l_found->becomes_effective <= l_blockchain_time) &&
+                       (l_found->becomes_unblocked == 0 || l_found->becomes_unblocked > l_blockchain_time);
+    }
+
+    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+
+    return l_is_blocked;
+}
+
+/**
+ * @brief Add UTXO to blocklist
+ * @param a_token_item Token item
+ * @param a_tx_hash Transaction hash
+ * @param a_out_idx Output index
+ * @param a_becomes_effective Time when blocking becomes active (blockchain time)
+ * @return 0 if success, -1 on error
+ */
+static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
+                                     dap_chain_hash_fast_t *a_tx_hash,
+                                     uint32_t a_out_idx,
+                                     dap_time_t a_becomes_effective)
+{
+    if (!a_token_item || !a_tx_hash) {
+        log_it(L_ERROR, "Invalid arguments for s_ledger_utxo_block_add");
+        return -1;
+    }
+
+    // Check if UTXO blocking is disabled
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
+        log_it(L_WARNING, "UTXO blocking is disabled for token %s", a_token_item->ticker);
+        return -1;
+    }
+
+    // Check if blocklist is static
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+        log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", a_token_item->ticker);
+        return -1;
+    }
+
+    // Write lock for modification
+    pthread_rwlock_wrlock(&a_token_item->utxo_blocklist_rwlock);
+
+    // Check if already exists
+    dap_ledger_utxo_block_key_t lookup_key = {
+        .tx_hash = *a_tx_hash,
+        .out_idx = a_out_idx
+    };
+
+    dap_ledger_utxo_block_item_t *l_found = NULL;
+    HASH_FIND(hh, a_token_item->utxo_blocklist, &lookup_key, sizeof(dap_ledger_utxo_block_key_t), l_found);
+
+    if (l_found) {
+        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+        log_it(L_DEBUG, "UTXO already blocked");
+        return 0;  // Already blocked
+    }
+
+    // Create new block item
+    dap_ledger_utxo_block_item_t *l_item = DAP_NEW_Z(dap_ledger_utxo_block_item_t);
+    if (!l_item) {
+        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+        log_it(L_ERROR, "Memory allocation failed for UTXO block item");
+        return -1;
+    }
+
+    l_item->key.tx_hash = *a_tx_hash;
+    l_item->key.out_idx = a_out_idx;
+    l_item->blocked_time = dap_time_now();
+    l_item->becomes_effective = a_becomes_effective;
+    l_item->becomes_unblocked = 0;  // 0 = permanent block (no scheduled unblock)
+
+    // Add to hash table
+    HASH_ADD(hh, a_token_item->utxo_blocklist, key, sizeof(dap_ledger_utxo_block_key_t), l_item);
+    a_token_item->utxo_blocklist_count++;
+
+    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+
+    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(a_tx_hash, l_hash_str, sizeof(l_hash_str));
+    log_it(L_INFO, "Added UTXO to blocklist: token=%s, tx=%s, out_idx=%u, becomes_effective=%"DAP_UINT64_FORMAT_U,
+           a_token_item->ticker, l_hash_str, a_out_idx, a_becomes_effective);
+
+    return 0;
+}
+
+/**
+ * @brief Remove UTXO from blocklist (with optional delayed unblocking)
+ * @param a_token_item Token item
+ * @param a_tx_hash Transaction hash
+ * @param a_out_idx Output index
+ * @param a_becomes_unblocked Time when unblocking becomes active (0 = immediate removal)
+ * @return 0 if success, -1 on error
+ */
+static int s_ledger_utxo_block_remove(dap_ledger_token_item_t *a_token_item,
+                                        dap_chain_hash_fast_t *a_tx_hash,
+                                        uint32_t a_out_idx,
+                                        dap_time_t a_becomes_unblocked)
+{
+    if (!a_token_item || !a_tx_hash) {
+        log_it(L_ERROR, "Invalid arguments for s_ledger_utxo_block_remove");
+        return -1;
+    }
+
+    // Check if blocklist is static
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+        log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", a_token_item->ticker);
+        return -1;
+    }
+
+    // Write lock for modification
+    pthread_rwlock_wrlock(&a_token_item->utxo_blocklist_rwlock);
+
+    // Find item
+    dap_ledger_utxo_block_key_t lookup_key = {
+        .tx_hash = *a_tx_hash,
+        .out_idx = a_out_idx
+    };
+
+    dap_ledger_utxo_block_item_t *l_found = NULL;
+    HASH_FIND(hh, a_token_item->utxo_blocklist, &lookup_key, sizeof(dap_ledger_utxo_block_key_t), l_found);
+
+    if (!l_found) {
+        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+        log_it(L_WARNING, "UTXO not found in blocklist");
+        return -1;
+    }
+
+    if (a_becomes_unblocked == 0) {
+        // Immediate removal - delete from hash table
+        HASH_DEL(a_token_item->utxo_blocklist, l_found);
+        a_token_item->utxo_blocklist_count--;
+        DAP_DELETE(l_found);
+    } else {
+        // Delayed unblocking - set becomes_unblocked timestamp (keep in hash table)
+        l_found->becomes_unblocked = a_becomes_unblocked;
+    }
+
+    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+
+    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(a_tx_hash, l_hash_str, sizeof(l_hash_str));
+    if (a_becomes_unblocked == 0) {
+        log_it(L_INFO, "Removed UTXO from blocklist: token=%s, tx=%s, out_idx=%u",
+               a_token_item->ticker, l_hash_str, a_out_idx);
+    } else {
+        log_it(L_INFO, "Scheduled UTXO unblocking: token=%s, tx=%s, out_idx=%u, unblock_time=%"DAP_UINT64_FORMAT_U,
+               a_token_item->ticker, l_hash_str, a_out_idx, (uint64_t)a_becomes_unblocked);
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Clear entire UTXO blocklist for token
+ * @param a_token_item Token item
+ * @return 0 if success, -1 on error
+ */
+static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item)
+{
+    if (!a_token_item) {
+        log_it(L_ERROR, "Invalid arguments for s_ledger_utxo_block_clear");
+        return -1;
+    }
+
+    // Check if blocklist is static
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+        log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot clear", a_token_item->ticker);
+        return -1;
+    }
+
+    // Write lock for modification
+    pthread_rwlock_wrlock(&a_token_item->utxo_blocklist_rwlock);
+
+    dap_ledger_utxo_block_item_t *l_item, *l_tmp;
+    HASH_ITER(hh, a_token_item->utxo_blocklist, l_item, l_tmp) {
+        HASH_DEL(a_token_item->utxo_blocklist, l_item);
+        DAP_DELETE(l_item);
+    }
+
+    a_token_item->utxo_blocklist = NULL;
+    a_token_item->utxo_blocklist_count = 0;
+
+    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+
+    log_it(L_INFO, "Cleared UTXO blocklist for token %s", a_token_item->ticker);
+
+    return 0;
 }

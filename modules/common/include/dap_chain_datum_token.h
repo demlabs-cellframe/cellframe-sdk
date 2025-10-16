@@ -212,6 +212,15 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
 //  Maximal flag
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                      BIT(15)
 
+// UTXO blocking mechanism flags (enabled by default - use flags to DISABLE)
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED                   BIT(16)
+// Prohibit any changes to UTXO blocklist after it's set
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST                    BIT(17)
+
+// Address-based blocking disable flags (disable existing address ban-lists)
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING          BIT(18)
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING        BIT(19)
+
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                                0xffff
 
 /// -------- General tsd types ----
@@ -270,6 +279,11 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD                0x0023
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE             0x0024
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR              0x0025
+
+// UTXO blocklist management (add/remove/clear specific UTXOs)
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_ADD                     0x0029
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_REMOVE                  0x002A
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR                   0x002B
 
 struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
     uint8_t version;
@@ -383,6 +397,10 @@ DAP_STATIC_INLINE const char *dap_chain_datum_token_flag_to_str(uint32_t a_flag)
     case DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE: return "STATIC_PERMISSIONS_DATUM_TYPE";
     case DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER: return "TATIC_PERMISSIONS_TX_SENDER";
     case DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER: return "STATIC_PERMISSIONS_TX_RECEIVER";
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED: return "UTXO_BLOCKING_DISABLED";
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST: return "STATIC_UTXO_BLOCKLIST";
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING: return "DISABLE_ADDRESS_SENDER_BLOCKING";
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING: return "DISABLE_ADDRESS_RECEIVER_BLOCKING";
     default: return "UNKNOWN FLAG OR FLAGS GROUP";
     }
 }
