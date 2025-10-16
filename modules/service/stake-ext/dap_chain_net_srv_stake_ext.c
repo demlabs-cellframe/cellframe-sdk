@@ -112,10 +112,6 @@ int dap_chain_net_srv_stake_ext_init(void)
                 "\t-position: position ID (uint32) for which the lock is made\n\n"
                 "unlock -net <network> -lock_tx_hash <hash> -fee <value> -w <wallet>\n"
                 "\tunlock a lock from a stake_ext\n\n"
-                "list -net <network> [-active_only] [-positions]\n"
-                "\tList all stake_ext or active stake_ext only\n"
-                "\t-active_only: show only active stake_ext\n"
-                "\t-positions: include basic position information\n\n"
                 "info -net <network> -stake_ext <stake_ext_name|tx_hash>\n"
                 "\tGet detailed information about a specific stake_ext\n\n"
                 "events -net <network> [-stake_ext <stake_ext_name|tx_hash>] [-type <event_type>]\n"
@@ -125,7 +121,6 @@ int dap_chain_net_srv_stake_ext_init(void)
                 "stats -net <network>\n"
                 "\tGet stake_ext statistics\n\n"
                 "  Examples:\n"
-                "  stake_ext list -net myCellFrame -active_only -positions\n"
                 "  stake_ext lock -net myCellFrame -stake_ext <stake_ext_name|tx_hash> -amount 1000 -lock_period 6 -position 1 -fee 0.1 -w myWallet\n"
                 "  stake_ext info -net myCellFrame -stake_ext <stake_ext_name|tx_hash>\n"
                 "  stake_ext unlock -net myCellFrame -lock_tx_hash <hash> -fee 0.1 -w myWallet\n"
@@ -2077,7 +2072,7 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
 int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_version)
 {
     enum {
-        CMD_NONE, CMD_lock, CMD_unlock, CMD_LIST, CMD_INFO, CMD_EVENTS, CMD_STATS
+        CMD_NONE, CMD_lock, CMD_UNLOCK, CMD_INFO, CMD_EVENTS, CMD_STATS
     };
 
     int arg_index = 1;
@@ -2103,9 +2098,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
     if(!strcmp(str_tmp, "lock"))
         cmd_num = CMD_lock;
     else if(!strcmp(str_tmp, "unlock"))
-        cmd_num = CMD_unlock;
-    else if(!strcmp(str_tmp, "list"))
-        cmd_num = CMD_LIST;
+        cmd_num = CMD_UNLOCK;
     else if(!strcmp(str_tmp, "info"))
         cmd_num = CMD_INFO;
     else if(!strcmp(str_tmp, "events"))
@@ -2343,7 +2336,7 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
             }
         } break;
 
-        case CMD_unlock: {
+        case CMD_UNLOCK: {
             // Parse lock transaction hash
             const char *l_lock_tx_hash_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-lock_tx_hash", &l_lock_tx_hash_str);
@@ -2487,139 +2480,6 @@ int com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_vers
                 }
                 dap_json_rpc_error_add(*l_json_arr_reply, UNLOCK_CREATE_ERROR, "Error creating unlock transaction: %s (code: %d)", l_error_msg, l_ret_code);
                 return -7;
-            }
-        } break;
-
-        case CMD_LIST: {
-            bool l_active_only = (dap_cli_server_cmd_check_option(argv, arg_index, argc, "-active_only") != -1);
-            bool l_include_positions = (dap_cli_server_cmd_check_option(argv, arg_index, argc, "-positions") != -1);
-            
-            // Get list of stake_ext from cache
-            dap_stake_ext_status_t l_status_filter = l_active_only ? DAP_STAKE_EXT_STATUS_ACTIVE : DAP_STAKE_EXT_STATUS_UNKNOWN;
-            dap_list_t *l_stake_ext_list = dap_chain_net_srv_stake_ext_get_list(l_net, l_status_filter, l_include_positions);
-            
-            // Diagnostic: Check returned list
-            if (!l_stake_ext_list) {
-                log_it(L_INFO, "CMD_LIST: get_list returned NULL");
-            } else {
-                uint32_t l_list_length = dap_list_length(l_stake_ext_list);
-                log_it(L_INFO, "CMD_LIST: get_list returned list with %u items", l_list_length);
-            }
-            
-            json_object *l_json_obj = json_object_new_object();
-            json_object_object_add(l_json_obj, "command", json_object_new_string("list"));
-            json_object_object_add(l_json_obj, "status", json_object_new_string("success"));
-            json_object_object_add(l_json_obj, "active_only", json_object_new_boolean(l_active_only));
-            json_object_object_add(l_json_obj, "include_positions", json_object_new_boolean(l_include_positions));
-            
-            // Create stake_ext array
-            json_object *l_stake_ext_array = json_object_new_array();
-            uint32_t l_count = 0;
-            uint32_t l_processed = 0;
-            
-            log_it(L_INFO, "CMD_LIST: Starting stake_ext processing loop");
-            for (dap_list_t *l_item = l_stake_ext_list; l_item; l_item = dap_list_next(l_item)) {
-                l_processed++;
-                log_it(L_DEBUG, "CMD_LIST: Processing stake_ext item %u", l_processed);
-                
-                dap_chain_net_srv_stake_ext_t *l_stake_ext = (dap_chain_net_srv_stake_ext_t *)l_item->data;
-                if (!l_stake_ext) {
-                    log_it(L_WARNING, "CMD_LIST: Item %u has NULL data", l_processed);
-                    continue;
-                }
-                
-                log_it(L_DEBUG, "CMD_LIST: stake_ext %u: guuid=%s, status=%d", 
-                       l_processed, l_stake_ext->guuid ? l_stake_ext->guuid : "NULL", l_stake_ext->status);
-                
-                json_object *l_stake_ext_obj = json_object_new_object();
-                
-                // Basic stake_ext info
-                json_object_object_add(l_stake_ext_obj, "hash", 
-                    json_object_new_string(dap_chain_hash_fast_to_str_static(&l_stake_ext->stake_ext_hash)));
-                if (l_stake_ext->guuid)
-                    json_object_object_add(l_stake_ext_obj, "stake_ext_name", json_object_new_string(l_stake_ext->guuid));
-                json_object_object_add(l_stake_ext_obj, "status", 
-                    json_object_new_string(dap_stake_ext_status_to_str(l_stake_ext->status)));
-                
-                // Format times as human-readable strings
-                char start_time_str[DAP_TIME_STR_SIZE], end_time_str[DAP_TIME_STR_SIZE];
-                dap_time_to_str_rfc822(start_time_str, DAP_TIME_STR_SIZE, l_stake_ext->start_time);
-                dap_time_to_str_rfc822(end_time_str, DAP_TIME_STR_SIZE, l_stake_ext->end_time);
-                json_object_object_add(l_stake_ext_obj, "start_time", json_object_new_string(start_time_str));
-                json_object_object_add(l_stake_ext_obj, "end_time", json_object_new_string(end_time_str));
-                json_object_object_add(l_stake_ext_obj, "locks_count", 
-                    json_object_new_uint64(l_stake_ext->locks_count));
-                json_object_object_add(l_stake_ext_obj, "positions_count", 
-                    json_object_new_uint64(l_stake_ext->positions_count));
-                
-                // Winners information
-                if (l_stake_ext->winners_cnt > 0) {
-                    json_object *l_winners_array = json_object_new_array();
-                    for (uint8_t i = 0; i < l_stake_ext->winners_cnt; i++) {
-                    json_object *l_winner_obj = json_object_new_object();
-                        json_object_object_add(l_winner_obj, "position_id", 
-                            json_object_new_uint64(l_stake_ext->winners_ids[i]));
-                        json_object_array_add(l_winners_array, l_winner_obj);
-                    }
-                    json_object_object_add(l_stake_ext_obj, "winners", l_winners_array);
-                    json_object_object_add(l_stake_ext_obj, "winners_count", 
-                        json_object_new_uint64(l_stake_ext->winners_cnt));
-                }
-                
-                // Positions information (if requested and available)
-                if (l_include_positions && l_stake_ext->positions && l_stake_ext->positions_count > 0) {
-                    json_object *l_positions_array = json_object_new_array();
-                    for (uint32_t i = 0; i < l_stake_ext->positions_count; i++) {
-                        json_object *l_position_obj = json_object_new_object();
-                        
-                        // Position ID
-                        json_object_object_add(l_position_obj, "position_id", json_object_new_uint64(l_stake_ext->positions[i].position_id));
-                        
-                        // Total amount
-                        char *l_total_amount_str = dap_uint256_uninteger_to_char(l_stake_ext->positions[i].total_amount);
-                        if (l_total_amount_str) {
-                            json_object_object_add(l_position_obj, "total_amount", json_object_new_string(l_total_amount_str));
-                            DAP_DELETE(l_total_amount_str);
-                        } else {
-                            json_object_object_add(l_position_obj, "total_amount", json_object_new_string("0"));
-                        }
-                        
-                        // Total amount in CELL
-                        char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_stake_ext->positions[i].total_amount);
-                        if (l_total_amount_coin_str) {
-                            json_object_object_add(l_position_obj, "total_amount_coin", json_object_new_string(l_total_amount_coin_str));
-                            DAP_DELETE(l_total_amount_coin_str);
-                        } else {
-                            json_object_object_add(l_position_obj, "total_amount_coin", json_object_new_string("0.0"));
-                        }
-                        
-                        // locks counts
-                        json_object_object_add(l_position_obj, "locks_count", json_object_new_uint64(l_stake_ext->positions[i].locks_count));
-                        json_object_object_add(l_position_obj, "active_locks_count", json_object_new_uint64(l_stake_ext->positions[i].active_locks_count));
-                        
-                        json_object_array_add(l_positions_array, l_position_obj);
-                    }
-                    json_object_object_add(l_stake_ext_obj, "positions", l_positions_array);
-                }
-                
-                json_object_array_add(l_stake_ext_array, l_stake_ext_obj);
-                l_count++;
-                log_it(L_DEBUG, "CMD_LIST: Successfully added stake_ext %u to JSON array", l_count);
-            }
-            
-            log_it(L_INFO, "CMD_LIST: Processed %u items, added %u stake_ext to JSON array", l_processed, l_count);
-            json_object_object_add(l_json_obj, "stake_ext", l_stake_ext_array);
-            json_object_object_add(l_json_obj, "count", json_object_new_uint64(l_count));
-            json_object_array_add(*l_json_arr_reply, l_json_obj);
-            
-            log_it(L_INFO, "CMD_LIST: JSON response prepared with %u stake_ext", l_count);
-            
-            // Cleanup
-            if (l_stake_ext_list) {
-                for (dap_list_t *l_item = l_stake_ext_list; l_item; l_item = dap_list_next(l_item)) {
-                    dap_chain_net_srv_stake_ext_delete((dap_chain_net_srv_stake_ext_t *)l_item->data);
-                }
-                dap_list_free(l_stake_ext_list);
             }
         } break;
 
