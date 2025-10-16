@@ -24,6 +24,7 @@
 
 #pragma once
 #include <stdint.h>
+
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
@@ -72,40 +73,36 @@
 
 #define DAP_CHAIN_DATUM_CUSTOM              0xffff
 
-#define DAP_DATUM_TYPE_STR(t, s)            \
-    switch (t) {                            \
-    case DAP_CHAIN_DATUM_TX:                \
-        s = "DATUM_TX"; break;              \
-    case DAP_CHAIN_DATUM_TX_REQUEST:        \
-        s = "DATUM_TX_REQUEST"; break;      \
-    case DAP_CHAIN_DATUM_WASM_CODE:         \
-        s = "DATUM_WASM_CODE"; break;       \
-    case DAP_CHAIN_DATUM_WASM_DATA:         \
-        s = "DATUM_WASM_DATA"; break;       \
-    case DAP_CHAIN_DATUM_EVM_CODE:          \
-        s = "DATUM_EVM_CODE"; break;        \
-    case DAP_CHAIN_DATUM_EVM_DATA:          \
-        s = "DATUM_EVM_DATA"; break;        \
-    case DAP_CHAIN_DATUM_CA:                \
-        s = "DATUM_CA"; break;              \
-    case DAP_CHAIN_DATUM_SIGNER:            \
-        s = "DATUM_SIGNER"; break;          \
-    case DAP_CHAIN_DATUM_CUSTOM:            \
-        s = "DATUM_CUSTOM"; break;          \
-    case DAP_CHAIN_DATUM_TOKEN:             \
-        s = "DATUM_TOKEN"; break;           \
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION:    \
-        s = "DATUM_TOKEN_EMISSION"; break;  \
-    case DAP_CHAIN_DATUM_TOKEN_DISMISSAL:   \
-        s = "DATUM_TOKEN_DISMISSAL"; break; \
-    case DAP_CHAIN_DATUM_DECREE:            \
-        s = "DATUM_DECREE"; break;          \
-    case DAP_CHAIN_DATUM_ANCHOR:            \
-        s = "DATUM_ANCHOR"; break;          \
-    case DAP_CHAIN_DATUM_SERVICE_STATE:     \
-        s = "DATUM_SERVICE_STATE"; break;   \
-    default:                                \
-        s = "DATUM_UNKNOWN"; break;         \
+#define DAP_DATUM_TYPE_STR(t, s)        \
+    switch (t) {                        \
+    case DAP_CHAIN_DATUM_TX:            \
+        s = "DATUM_TX"; break;          \
+    case DAP_CHAIN_DATUM_TX_REQUEST:    \
+        s = "DATUM_WASM_CODE"; break;   \
+    case DAP_CHAIN_DATUM_WASM_CODE:     \
+        s = "DATUM_WASM_CODE"; break;   \
+    case DAP_CHAIN_DATUM_WASM_DATA:     \
+        s = "DATUM_WASM_DATA"; break;   \
+    case DAP_CHAIN_DATUM_EVM_CODE:      \
+        s = "DATUM_EVM_CODE"; break;    \
+    case DAP_CHAIN_DATUM_EVM_DATA:      \
+        s = "DATUM_EVM_DATA"; break;    \
+    case DAP_CHAIN_DATUM_CA:            \
+        s = "DATUM_CA"; break;          \
+    case DAP_CHAIN_DATUM_SIGNER:        \
+        s = "DATUM_SIGNER"; break;      \
+    case DAP_CHAIN_DATUM_CUSTOM:        \
+        s = "DATUM_CUSTOM"; break;      \
+    case DAP_CHAIN_DATUM_TOKEN:    \
+        s = "DATUM_TOKEN"; break;  \
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
+        s = "DATUM_TOKEN_EMISSION"; break;\
+    case DAP_CHAIN_DATUM_DECREE:        \
+        s = "DATUM_DECREE"; break;      \
+    case DAP_CHAIN_DATUM_ANCHOR:        \
+        s = "DATUM_ANCHOR"; break;      \
+    default:                            \
+        s = "DATUM_UNKNOWN"; break;     \
     }
 
 #define DAP_CHAIN_DATUM_ID_SIZE 2
@@ -155,7 +152,9 @@ DAP_STATIC_INLINE void dap_chain_datum_calc_hash(const dap_chain_datum_t *a_datu
 {
     if (!a_datum || !a_out_hash)
         return;
-    dap_hash_fast(a_datum->header.data_size ? a_datum->data : a_datum, a_datum->header.data_size ? a_datum->header.data_size : dap_chain_datum_size(a_datum), a_out_hash);
+    dap_hash_fast(a_datum->header.data_size ? a_datum->data : (void *)a_datum,
+                  a_datum->header.data_size ? a_datum->header.data_size : dap_chain_datum_size(a_datum),
+                  a_out_hash);
 }
 
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
@@ -168,34 +167,17 @@ DAP_STATIC_INLINE const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
     return l_ret;
 }
 
-void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
-
-/**
- * @brief Unified function to dump transaction items to JSON
- * @param[in] a_json_arr_items JSON array to add items to
- * @param[in] a_datum Transaction datum
- * @param[in] a_hash_out_type Hash output format ("hex" or "base58")
- * @param[in] a_net_id Network ID for address generation
- * @param[in] a_version JSON format version (1 for old format, 2 for new format)
- * @param[in] a_json_arr_reply JSON array for additional information (can be NULL)
- */
-void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
-                                  dap_chain_datum_tx_t *a_datum,
-                                  const char *a_hash_out_type,
-                                  dap_chain_net_id_t a_net_id,
-                                  int a_version,
-                                  json_object* a_json_arr_reply);
-
-bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
+void dap_datum_token_dump_tsd_to_json(dap_json_t *json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
+bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
                              dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
-                             json_object* json_obj_out,
+                             dap_json_t *json_obj_out,
                              const char *a_hash_out_type,
                              dap_hash_fast_t *a_tx_hash,
                              dap_chain_net_id_t a_net_id,
                              int a_version);
-json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
-void dap_chain_datum_dump_json(json_object* a_json_arr_reply,json_object  *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose, int a_version);
+dap_json_t *dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
+void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose, int a_version);
 
 #ifdef __cplusplus
 }
