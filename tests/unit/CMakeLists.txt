@@ -21,6 +21,7 @@ add_executable(utxo_blocking_unit_test
 )
 
 target_link_libraries(utxo_blocking_unit_test
+    dap_test
     dap_core
     dap_chain
     dap_chain_net

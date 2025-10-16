@@ -31,12 +31,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_chain_datum_token.h"
+#include "dap_test.h"
 
 #define LOG_TAG "utxo_blocking_unit_test"
 
@@ -44,18 +44,15 @@
 static int s_tests_passed = 0;
 static int s_tests_failed = 0;
 
-// Test assertion macro following DAP SDK standards
+// Wrapper macro to count tests before using dap_assert
 #define UTXO_TEST_ASSERT(condition, message) \
     do { \
-        if (!(condition)) { \
-            log_it(L_ERROR, "FAILED: %s", message); \
-            log_it(L_ERROR, "  at %s:%d", __FILE__, __LINE__); \
-            s_tests_failed++; \
-            return -1; \
-        } else { \
-            log_it(L_INFO, "PASSED: %s", message); \
+        if (condition) { \
             s_tests_passed++; \
+        } else { \
+            s_tests_failed++; \
         } \
+        dap_assert(condition, message); \
     } while(0)
 
 /**
@@ -66,7 +63,6 @@ static int s_tests_failed = 0;
 static int s_test_utxo_flags_definition(void)
 {
     log_it(L_NOTICE, "TEST 1: UTXO Blocking Flags Definition");
-    log_it(L_NOTICE, "==========================================");
     
     // Verify flag values are unique and don't overlap
     uint32_t l_utxo_blocking_disabled = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
@@ -115,7 +111,6 @@ static int s_test_utxo_flags_definition(void)
 static int s_test_utxo_tsd_types(void)
 {
     log_it(L_NOTICE, "TEST 2: UTXO TSD Type Definitions");
-    log_it(L_NOTICE, "==========================================");
     
     uint16_t l_tsd_add = DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_ADD;
     uint16_t l_tsd_remove = DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_REMOVE;
@@ -147,7 +142,6 @@ static int s_test_utxo_tsd_types(void)
 static int s_test_tsd_data_formats(void)
 {
     log_it(L_NOTICE, "TEST 3: TSD Data Format Sizes");
-    log_it(L_NOTICE, "==========================================");
     
     size_t l_hash_size = sizeof(dap_chain_hash_fast_t);
     size_t l_idx_size = sizeof(uint32_t);
@@ -181,7 +175,6 @@ static int s_test_tsd_data_formats(void)
 static int s_test_utxo_block_key_structure(void)
 {
     log_it(L_NOTICE, "TEST 4: UTXO Block Key Structure");
-    log_it(L_NOTICE, "==========================================");
     
     // Create test hash
     dap_chain_hash_fast_t l_test_hash;
@@ -230,7 +223,6 @@ static int s_test_utxo_block_key_structure(void)
 static int s_test_time_comparison_logic(void)
 {
     log_it(L_NOTICE, "TEST 5: Time Comparison Logic");
-    log_it(L_NOTICE, "==========================================");
     
     dap_time_t l_current_time = dap_time_now();
     dap_time_t l_future_time = l_current_time + 3600; // +1 hour
@@ -287,7 +279,6 @@ static int s_test_time_comparison_logic(void)
 static int s_test_flag_combinations(void)
 {
     log_it(L_NOTICE, "TEST 6: Flag Combination Logic");
-    log_it(L_NOTICE, "==========================================");
     
     uint32_t l_flags_empty = 0;
     uint32_t l_flags_utxo_disabled = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
@@ -340,7 +331,6 @@ static int s_test_flag_combinations(void)
 static int s_test_error_code_definition(void)
 {
     log_it(L_NOTICE, "TEST 7: Error Code Definition");
-    log_it(L_NOTICE, "==========================================");
     
     // We can't directly access the enum value without including private headers,
     // but we can verify the error message function works
@@ -373,9 +363,7 @@ int main(int argc, char **argv)
     dap_log_set_format(DAP_LOG_FORMAT_NO_PREFIX);
     
     log_it(L_NOTICE, "");
-    log_it(L_NOTICE, "====================================================");
-    log_it(L_NOTICE, "  UTXO Blocking Mechanism - Unit Tests");
-    log_it(L_NOTICE, "====================================================");
+    dap_print_module_name("UTXO Blocking Mechanism - Unit Tests");
     log_it(L_NOTICE, "");
     
     // Run all tests
