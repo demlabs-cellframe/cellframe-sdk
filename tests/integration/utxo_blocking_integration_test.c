@@ -134,6 +134,82 @@ static dap_chain_datum_token_t *s_create_token_update_with_utxo_block_tsd(
 }
 
 /**
+ * @brief Helper: Create token_update datum with TSD section for UTXO unblocking
+ */
+static dap_chain_datum_token_t *s_create_token_update_with_utxo_unblock_tsd(
+    const char *a_ticker,
+    dap_chain_hash_fast_t *a_tx_hash,
+    uint32_t a_out_idx,
+    dap_cert_t *a_cert,
+    dap_time_t a_becomes_unblocked,
+    size_t *a_datum_size)
+{
+    // Create TSD section for UTXO_BLOCKED_REMOVE
+    size_t l_tsd_data_size = sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t);
+    if (a_becomes_unblocked > 0) {
+        l_tsd_data_size += sizeof(dap_time_t);
+    }
+    
+    byte_t *l_tsd_data = DAP_NEW_Z_SIZE(byte_t, l_tsd_data_size);
+    memcpy(l_tsd_data, a_tx_hash, sizeof(dap_chain_hash_fast_t));
+    memcpy(l_tsd_data + sizeof(dap_chain_hash_fast_t), &a_out_idx, sizeof(uint32_t));
+    if (a_becomes_unblocked > 0) {
+        memcpy(l_tsd_data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t),
+               &a_becomes_unblocked, sizeof(dap_time_t));
+    }
+    
+    dap_tsd_t *l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_REMOVE,
+                                      l_tsd_data, l_tsd_data_size);
+    DAP_DELETE(l_tsd_data);
+    
+    // Create token_update datum
+    dap_chain_datum_token_t *l_token = DAP_NEW_Z(dap_chain_datum_token_t);
+    l_token->version = 2;
+    l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
+    l_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
+    strncpy(l_token->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    l_token->ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+    l_token->signs_valid = 0;
+    l_token->total_supply = uint256_0;
+    l_token->header_native_decl.decimals = 0;
+    l_token->signs_total = 0;
+    l_token->header_native_decl.flags = 0;
+    
+    size_t l_tsd_size = dap_tsd_size(l_tsd);
+    l_token->header_native_decl.tsd_total_size = l_tsd_size;
+    
+    // Realloc to fit TSD
+    l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + l_tsd_size);
+    if (!l_token) {
+        DAP_DELETE(l_tsd);
+        return NULL;
+    }
+    memcpy(l_token->tsd_n_signs, l_tsd, l_tsd_size);
+    DAP_DELETE(l_tsd);
+    
+    // Sign token_update
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_token, sizeof(dap_chain_datum_token_t) + l_tsd_size);
+    if (!l_sign) {
+        DAP_DELETE(l_token);
+        return NULL;
+    }
+    
+    size_t l_sign_size = dap_sign_get_size(l_sign);
+    l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + l_tsd_size + l_sign_size);
+    if (!l_token) {
+        DAP_DELETE(l_sign);
+        return NULL;
+    }
+    memcpy(l_token->tsd_n_signs + l_tsd_size, l_sign, l_sign_size);
+    DAP_DELETE(l_sign);
+    
+    l_token->signs_total = 1;
+    *a_datum_size = sizeof(dap_chain_datum_token_t) + l_tsd_size + l_sign_size;
+    
+    return l_token;
+}
+
+/**
  * @brief Integration Test 1: Full UTXO blocking lifecycle with REAL emission
  * @details End-to-end: Token+Emission → TX → Block via token_update → Verify rejection
  */
@@ -229,6 +305,7 @@ static void s_test_full_utxo_blocking_lifecycle(void)
     dap_chain_datum_tx_t *l_tx_blocked = dap_chain_datum_tx_create();
     dap_chain_datum_tx_add_in_item(&l_tx_blocked, &l_tx->tx_hash, 0);
     dap_chain_datum_tx_add_out_ext_item(&l_tx_blocked, &l_addr, dap_chain_balance_scan("100.0"), "INTG1");
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_blocked, &l_addr, dap_chain_balance_scan("900.0"), "INTG1"); // Change
     dap_chain_datum_tx_add_sign_item(&l_tx_blocked, l_key);
     
     dap_chain_hash_fast_t l_blocked_hash;
@@ -275,11 +352,113 @@ static void s_test_utxo_unblocking(void)
 {
     dap_print_module_name("Integration Test 2: UTXO Unblocking");
     
-    // Similar to Test 1, but then unblock and verify transaction passes
-    // (Implementation continues...)
+    // Step 1: Create key and address
+    log_it(L_INFO, "Step 1: Creating key and address...");
+    dap_enc_key_t *l_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_key != NULL, "Key generation");
     
-    log_it(L_WARNING, "UTXO unblocking test - TODO: Implement");
-    dap_pass_msg("UTXO unblocking test skipped (not yet implemented)");
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_addr_fill_from_key(&l_addr, l_key, s_net_fixture->net->pub.id);
+    
+    dap_cert_t *l_cert = DAP_NEW_Z(dap_cert_t);
+    dap_assert_PIF(l_cert != NULL, "Certificate allocation");
+    l_cert->enc_key = l_key;
+    snprintf(l_cert->name, sizeof(l_cert->name), "test_unblock_cert");
+    
+    // Step 2: Create token with emission
+    log_it(L_INFO, "Step 2: Creating token with emission...");
+    dap_chain_hash_fast_t l_emission_hash;
+    test_token_fixture_t *l_token = test_token_fixture_create_with_emission(
+        s_net_fixture->ledger, "INTG2", "10000.0", "3000.0", &l_addr, l_cert, &l_emission_hash);
+    dap_assert_PIF(l_token != NULL, "Token with emission created");
+    
+    log_it(L_INFO, "✓ Token 'INTG2' created with emission (3000.0)");
+    
+    // Step 3: Create transaction from emission
+    log_it(L_INFO, "Step 3: Creating transaction from emission...");
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "INTG2", "500.0", &l_addr, l_cert);
+    dap_assert_PIF(l_tx != NULL, "Transaction from emission created");
+    
+    // Step 4: Add transaction to ledger
+    log_it(L_INFO, "Step 4: Adding transaction to ledger...");
+    int l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
+    dap_assert_PIF(l_res == 0, "Transaction added to ledger");
+    
+    log_it(L_INFO, "✓ Transaction added: %s", dap_chain_hash_fast_to_str_static(&l_tx->tx_hash));
+    
+    // Step 5: Block UTXO
+    log_it(L_INFO, "Step 5: Blocking UTXO via token_update...");
+    size_t l_block_size = 0;
+    dap_chain_datum_token_t *l_block_update = s_create_token_update_with_utxo_block_tsd(
+        "INTG2", &l_tx->tx_hash, 0, l_token->owner_cert, 0, &l_block_size);
+    dap_assert_PIF(l_block_update != NULL, "Block token update created");
+    
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_block_update, l_block_size, dap_time_now());
+    dap_assert_PIF(l_res == 0, "Block token update applied");
+    DAP_DELETE(l_block_update);
+    
+    log_it(L_INFO, "✓ UTXO blocked");
+    
+    // Step 6: Verify UTXO is blocked
+    log_it(L_INFO, "Step 6: Verifying UTXO is blocked...");
+    dap_chain_datum_tx_t *l_tx_blocked = dap_chain_datum_tx_create();
+    dap_chain_datum_tx_add_in_item(&l_tx_blocked, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_blocked, &l_addr, dap_chain_balance_scan("100.0"), "INTG2");
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_blocked, &l_addr, dap_chain_balance_scan("400.0"), "INTG2"); // Change
+    dap_chain_datum_tx_add_sign_item(&l_tx_blocked, l_key);
+    
+    dap_chain_hash_fast_t l_blocked_hash;
+    dap_hash_fast(l_tx_blocked, dap_chain_datum_tx_get_size(l_tx_blocked), &l_blocked_hash);
+    
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_blocked, &l_blocked_hash, false, NULL);
+    log_it(L_INFO, "  Spending blocked UTXO result: %d (expected: %d)", 
+           l_res, DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED);
+    dap_assert(l_res == DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED, 
+               "Spending blocked UTXO should be rejected");
+    
+    log_it(L_INFO, "✓ Blocked UTXO correctly rejected");
+    
+    // Step 7: Unblock UTXO
+    log_it(L_INFO, "Step 7: Unblocking UTXO via token_update...");
+    size_t l_unblock_size = 0;
+    dap_chain_datum_token_t *l_unblock_update = s_create_token_update_with_utxo_unblock_tsd(
+        "INTG2", &l_tx->tx_hash, 0, l_token->owner_cert, 0, &l_unblock_size);
+    dap_assert_PIF(l_unblock_update != NULL, "Unblock token update created");
+    
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_unblock_update, l_unblock_size, dap_time_now());
+    dap_assert_PIF(l_res == 0, "Unblock token update applied");
+    DAP_DELETE(l_unblock_update);
+    
+    log_it(L_INFO, "✓ UTXO unblocked");
+    
+    // Step 8: Verify UTXO can be spent after unblocking
+    log_it(L_INFO, "Step 8: Verifying UTXO can be spent after unblocking...");
+    dap_chain_datum_tx_t *l_tx_unblocked = dap_chain_datum_tx_create();
+    dap_chain_datum_tx_add_in_item(&l_tx_unblocked, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_unblocked, &l_addr, dap_chain_balance_scan("100.0"), "INTG2");
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_unblocked, &l_addr, dap_chain_balance_scan("400.0"), "INTG2"); // Change
+    dap_chain_datum_tx_add_sign_item(&l_tx_unblocked, l_key);
+    
+    dap_chain_hash_fast_t l_unblocked_hash;
+    dap_hash_fast(l_tx_unblocked, dap_chain_datum_tx_get_size(l_tx_unblocked), &l_unblocked_hash);
+    
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_unblocked, &l_unblocked_hash, false, NULL);
+    log_it(L_INFO, "  Spending unblocked UTXO result: %d (expected: 0 = success)", l_res);
+    dap_assert(l_res == 0, "Spending unblocked UTXO should succeed");
+    
+    log_it(L_INFO, "✓ Unblocked UTXO successfully spent");
+    
+    // Cleanup
+    DAP_DELETE(l_tx_unblocked);
+    DAP_DELETE(l_tx_blocked);
+    test_tx_fixture_destroy(l_tx);
+    test_token_fixture_destroy(l_token);
+    l_cert->enc_key = NULL;
+    DAP_DELETE(l_cert);
+    dap_enc_key_delete(l_key);
+    
+    dap_pass_msg("UTXO unblocking test passed");
 }
 
 /**
@@ -290,13 +469,143 @@ static void s_test_delayed_activation(void)
 {
     dap_print_module_name("Integration Test 3: Delayed Activation");
     
-    // Block with becomes_effective in future
-    // Try to spend before - should work
-    // Simulate time passing
-    // Try to spend after - should fail
+    // Step 1: Create key and address
+    log_it(L_INFO, "Step 1: Creating key and address...");
+    dap_enc_key_t *l_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_key != NULL, "Key generation");
     
-    log_it(L_WARNING, "Delayed activation test - TODO: Implement");
-    dap_pass_msg("Delayed activation test skipped (not yet implemented)");
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_addr_fill_from_key(&l_addr, l_key, s_net_fixture->net->pub.id);
+    
+    dap_cert_t *l_cert = DAP_NEW_Z(dap_cert_t);
+    dap_assert_PIF(l_cert != NULL, "Certificate allocation");
+    l_cert->enc_key = l_key;
+    snprintf(l_cert->name, sizeof(l_cert->name), "test_delayed_cert");
+    
+    // Step 2: Create token with emission
+    log_it(L_INFO, "Step 2: Creating token with emission...");
+    dap_chain_hash_fast_t l_emission_hash;
+    test_token_fixture_t *l_token = test_token_fixture_create_with_emission(
+        s_net_fixture->ledger, "INTG3", "10000.0", "4000.0", &l_addr, l_cert, &l_emission_hash);
+    dap_assert_PIF(l_token != NULL, "Token with emission created");
+    
+    log_it(L_INFO, "✓ Token 'INTG3' created with emission (4000.0)");
+    
+    // Step 3: Create transaction from emission
+    log_it(L_INFO, "Step 3: Creating transaction from emission...");
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "INTG3", "600.0", &l_addr, l_cert);
+    dap_assert_PIF(l_tx != NULL, "Transaction from emission created");
+    
+    // Step 4: Add transaction to ledger
+    log_it(L_INFO, "Step 4: Adding transaction to ledger...");
+    int l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
+    dap_assert_PIF(l_res == 0, "Transaction added to ledger");
+    
+    log_it(L_INFO, "✓ Transaction added: %s", dap_chain_hash_fast_to_str_static(&l_tx->tx_hash));
+    
+    // Step 5: Block UTXO with becomes_effective in the FUTURE
+    log_it(L_INFO, "Step 5: Blocking UTXO with delayed activation...");
+    dap_time_t l_current_time = dap_time_now();
+    dap_time_t l_future_time = l_current_time + 3600; // +1 hour in future
+    
+    log_it(L_INFO, "  Current blockchain time: %llu", (unsigned long long)l_current_time);
+    log_it(L_INFO, "  Becomes effective at: %llu (+3600 sec)", (unsigned long long)l_future_time);
+    
+    size_t l_block_size = 0;
+    dap_chain_datum_token_t *l_block_update = s_create_token_update_with_utxo_block_tsd(
+        "INTG3", &l_tx->tx_hash, 0, l_token->owner_cert, l_future_time, &l_block_size);
+    dap_assert_PIF(l_block_update != NULL, "Delayed block token update created");
+    
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_block_update, l_block_size, l_current_time);
+    dap_assert_PIF(l_res == 0, "Delayed block token update applied");
+    DAP_DELETE(l_block_update);
+    
+    log_it(L_INFO, "✓ UTXO blocked with delayed activation (becomes_effective = %llu)", 
+           (unsigned long long)l_future_time);
+    
+    // Step 6: Try to spend UTXO BEFORE activation time - should SUCCEED (block not active yet)
+    log_it(L_INFO, "Step 6: Trying to spend UTXO BEFORE activation time...");
+    dap_chain_datum_tx_t *l_tx_before = dap_chain_datum_tx_create();
+    dap_chain_datum_tx_add_in_item(&l_tx_before, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_before, &l_addr, dap_chain_balance_scan("200.0"), "INTG3");
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_before, &l_addr, dap_chain_balance_scan("400.0"), "INTG3"); // Change
+    dap_chain_datum_tx_add_sign_item(&l_tx_before, l_key);
+    
+    dap_chain_hash_fast_t l_before_hash;
+    dap_hash_fast(l_tx_before, dap_chain_datum_tx_get_size(l_tx_before), &l_before_hash);
+    
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_before, &l_before_hash, false, NULL);
+    log_it(L_INFO, "  Result: %d (expected: 0 = success, block not active yet)", l_res);
+    dap_assert(l_res == 0, "Spending UTXO before activation time should succeed");
+    
+    log_it(L_INFO, "✓ UTXO spent successfully BEFORE activation time");
+    
+    // Step 7: Create second transaction from CHANGE output of first transaction
+    // Note: l_tx has 2 outputs: 0=600.0 (spent in Step 6), 1=3400.0 (change, still available)
+    log_it(L_INFO, "Step 7: Creating second transaction from change output...");
+    dap_chain_datum_tx_t *l_tx2_datum = dap_chain_datum_tx_create();
+    dap_chain_datum_tx_add_in_item(&l_tx2_datum, &l_tx->tx_hash, 1); // Use change output
+    dap_chain_datum_tx_add_out_ext_item(&l_tx2_datum, &l_addr, dap_chain_balance_scan("700.0"), "INTG3");
+    dap_chain_datum_tx_add_out_ext_item(&l_tx2_datum, &l_addr, dap_chain_balance_scan("2700.0"), "INTG3"); // Change
+    dap_chain_datum_tx_add_sign_item(&l_tx2_datum, l_key);
+    
+    dap_chain_hash_fast_t l_tx2_hash;
+    dap_hash_fast(l_tx2_datum, dap_chain_datum_tx_get_size(l_tx2_datum), &l_tx2_hash);
+    
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_tx2_datum, &l_tx2_hash, false, NULL);
+    dap_assert_PIF(l_res == 0, "Second transaction added to ledger");
+    
+    log_it(L_INFO, "✓ Second transaction added: %s", dap_chain_hash_fast_to_str_static(&l_tx2_hash));
+    
+    // Step 8: Block second UTXO with becomes_effective in the PAST (already active)
+    log_it(L_INFO, "Step 8: Blocking second UTXO with PAST activation time...");
+    dap_time_t l_past_time = l_current_time - 100; // -100 sec (already active)
+    
+    log_it(L_INFO, "  Becomes effective at: %llu (-100 sec, already active)", 
+           (unsigned long long)l_past_time);
+    
+    size_t l_block2_size = 0;
+    dap_chain_datum_token_t *l_block2_update = s_create_token_update_with_utxo_block_tsd(
+        "INTG3", &l_tx2_hash, 0, l_token->owner_cert, l_past_time, &l_block2_size);
+    dap_assert_PIF(l_block2_update != NULL, "Second block token update created");
+    
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_block2_update, l_block2_size, l_current_time);
+    dap_assert_PIF(l_res == 0, "Second block token update applied");
+    DAP_DELETE(l_block2_update);
+    
+    log_it(L_INFO, "✓ Second UTXO blocked with PAST activation time (immediately active)");
+    
+    // Step 9: Try to spend second UTXO - should FAIL (block already active)
+    log_it(L_INFO, "Step 9: Trying to spend UTXO with PAST activation time...");
+    dap_chain_datum_tx_t *l_tx_after = dap_chain_datum_tx_create();
+    dap_chain_datum_tx_add_in_item(&l_tx_after, &l_tx2_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_after, &l_addr, dap_chain_balance_scan("300.0"), "INTG3");
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_after, &l_addr, dap_chain_balance_scan("400.0"), "INTG3"); // Change
+    dap_chain_datum_tx_add_sign_item(&l_tx_after, l_key);
+    
+    dap_chain_hash_fast_t l_after_hash;
+    dap_hash_fast(l_tx_after, dap_chain_datum_tx_get_size(l_tx_after), &l_after_hash);
+    
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_after, &l_after_hash, false, NULL);
+    log_it(L_INFO, "  Result: %d (expected: %d = blocked, already active)", 
+           l_res, DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED);
+    dap_assert(l_res == DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED, 
+               "Spending UTXO with past activation time should be blocked");
+    
+    log_it(L_INFO, "✓ UTXO with PAST activation time correctly blocked");
+    
+    // Cleanup
+    DAP_DELETE(l_tx_after);
+    DAP_DELETE(l_tx_before);
+    DAP_DELETE(l_tx2_datum);
+    test_tx_fixture_destroy(l_tx);
+    test_token_fixture_destroy(l_token);
+    l_cert->enc_key = NULL;
+    DAP_DELETE(l_cert);
+    dap_enc_key_delete(l_key);
+    
+    dap_pass_msg("Delayed activation test passed");
 }
 
 /**
