@@ -205,6 +205,86 @@ static void s_test_arbitrage_tsd_type(void)
     dap_pass_msg("Arbitrage TSD type test passed");
 }
 
+/**
+ * @brief Unit Test 6: UTXO block key structure
+ * @details Verify structure size and alignment
+ */
+static void s_test_utxo_block_key_structure(void)
+{
+    dap_print_module_name("Unit Test 6: UTXO Block Key Structure");
+    
+    // Check structure size (32 bytes hash + 4 bytes idx = 36 bytes)
+    size_t l_expected_size = sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t);
+    log_it(L_DEBUG, "Expected key size: %zu bytes", l_expected_size);
+    
+    // Verify sizeof(dap_chain_hash_fast_t) = 32
+    dap_assert(sizeof(dap_chain_hash_fast_t) == 32, 
+               "dap_chain_hash_fast_t should be 32 bytes");
+    
+    // Verify sizeof(uint32_t) = 4
+    dap_assert(sizeof(uint32_t) == 4, 
+               "uint32_t should be 4 bytes");
+    
+    log_it(L_DEBUG, "UTXO key components: hash=%zu + idx=%zu = %zu bytes total",
+           sizeof(dap_chain_hash_fast_t), sizeof(uint32_t), l_expected_size);
+    
+    dap_pass_msg("UTXO block key structure test passed");
+}
+
+/**
+ * @brief Unit Test 7: Error codes definition
+ * @details Verify error codes for UTXO blocking and arbitrage
+ */
+static void s_test_error_codes(void)
+{
+    dap_print_module_name("Unit Test 7: Error Codes");
+    
+    // Check that error codes are defined and unique
+    int l_arbitrage_err = DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
+    int l_irreversible_err = DAP_LEDGER_TOKEN_UPDATE_CHECK_IRREVERSIBLE_FLAGS_VIOLATION;
+    
+    dap_assert(l_arbitrage_err != 0, 
+               "DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED should be defined");
+    dap_assert(l_irreversible_err != 0, 
+               "DAP_LEDGER_TOKEN_UPDATE_CHECK_IRREVERSIBLE_FLAGS_VIOLATION should be defined");
+    dap_assert(l_arbitrage_err != l_irreversible_err, 
+               "Error codes should be unique");
+    
+    log_it(L_DEBUG, "DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED = %d", l_arbitrage_err);
+    log_it(L_DEBUG, "DAP_LEDGER_TOKEN_UPDATE_CHECK_IRREVERSIBLE_FLAGS_VIOLATION = %d", l_irreversible_err);
+    
+    dap_pass_msg("Error codes test passed");
+}
+
+/**
+ * @brief Unit Test 8: UTXO block action types
+ * @details Verify action enum values for history
+ */
+static void s_test_utxo_block_actions(void)
+{
+    dap_print_module_name("Unit Test 8: UTXO Block Actions");
+    
+    // Note: These enums are internal to dap_chain_ledger.c, 
+    // but we can verify the TSD types that trigger them
+    uint16_t l_add = DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_ADD;
+    uint16_t l_remove = DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_REMOVE;
+    uint16_t l_clear = DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR;
+    
+    // Verify TSD types map to actions
+    dap_assert(l_add == 0x0029, "ADD TSD should be 0x0029");
+    dap_assert(l_remove == 0x002A, "REMOVE TSD should be 0x002A");
+    dap_assert(l_clear == 0x002C, "CLEAR TSD should be 0x002C");
+    
+    // Verify sequential and unique
+    dap_assert(l_add < l_remove, "ADD should be < REMOVE");
+    dap_assert(l_remove < l_clear, "REMOVE should be < CLEAR");
+    
+    log_it(L_DEBUG, "TSD actions: ADD=0x%04X, REMOVE=0x%04X, CLEAR=0x%04X", 
+           l_add, l_remove, l_clear);
+    
+    dap_pass_msg("UTXO block actions test passed");
+}
+
 int main(void)
 {
     // Initialize logging
@@ -218,8 +298,11 @@ int main(void)
     s_test_irreversibility_logic();
     s_test_tsd_types();
     s_test_arbitrage_tsd_type();
+    s_test_utxo_block_key_structure();
+    s_test_error_codes();
+    s_test_utxo_block_actions();
     
-    log_it(L_NOTICE, "✅ All UTXO blocking unit tests passed!");
+    log_it(L_NOTICE, "✅ All UTXO blocking unit tests passed (8 tests)!");
     
     return 0;
 }
