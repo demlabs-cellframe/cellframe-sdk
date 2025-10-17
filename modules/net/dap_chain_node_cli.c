@@ -388,7 +388,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "token info -net <net_name> -name <token_ticker> [-h]\n"
             "\tDisplays detailed token information including:\n"
             "\t  - Token properties (ticker, type, supply, decimals)\n"
-            "\t  - Flags (including UTXO blocking flags)\n"
+            "\t  - Flags (including UTXO blocking and arbitrage flags)\n"
             "\t  - Permissions (sender/receiver allow/block lists)\n"
             "\t  - UTXO blocklist (if UTXO blocking is enabled):\n"
             "\t      * tx_hash: Transaction hash of blocked UTXO\n"
@@ -396,9 +396,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t      * blocked_time: When UTXO was added to blocklist\n"
             "\t      * becomes_effective: When blocking activates (delayed activation)\n"
             "\t      * becomes_unblocked: When blocking expires (0 = permanent)\n"
+            "\t      * history_recent: Last 10 blocking history changes (ADD/REMOVE/CLEAR)\n"
+            "\t      * history_total_count: Total number of history records\n"
             "\t  - Emission history\n"
             "\t  - Update history\n\n"
-            "\tNOTE: UTXO blocklist is displayed only if UTXO_BLOCKING_DISABLED flag is NOT set.\n");
+            "\tNOTE: UTXO blocklist is displayed only if UTXO_BLOCKING_DISABLED flag is NOT set.\n"
+            "\tNOTE: History limit (10) is defined by DAP_LEDGER_UTXO_HISTORY_DEFAULT_LIMIT constant.\n");
 
     // Log
     dap_cli_server_cmd_add ("print_log", com_print_log, NULL, "Print log info",

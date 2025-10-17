@@ -182,6 +182,9 @@ typedef struct dap_ledger_datum_iter_data {
 
 #define DAP_LEDGER_THRESHOLD_ENABLED        0x0800
 
+// UTXO blocking history display defaults
+#define DAP_LEDGER_UTXO_HISTORY_DEFAULT_LIMIT   10      ///< Default number of history items to display in token info
+
 // Error code for no previous transaction (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
 // Error code for no emission for a transaction (for stay in mempool)
