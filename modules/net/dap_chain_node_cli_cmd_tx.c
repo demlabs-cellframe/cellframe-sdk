@@ -1251,7 +1251,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
 int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
-    enum { CMD_NONE, CMD_LIST, CMD_INFO, CMD_TX, CMD_UTXO_HISTORY, CMD_UTXO_STATE };
+    enum { CMD_NONE, CMD_LIST, CMD_INFO, CMD_TX };
     int arg_index = 1;
     const char *l_net_str = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -1285,10 +1285,6 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         l_cmd = CMD_INFO;
     else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "tx", NULL))
         l_cmd = CMD_TX;
-    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "utxo_history", NULL))
-        l_cmd = CMD_UTXO_HISTORY;
-    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "utxo_state", NULL))
-        l_cmd = CMD_UTXO_STATE;
     // token list
     if(l_cmd == CMD_LIST) {
         json_object* json_obj_tx = json_object_new_object();
@@ -1456,50 +1452,6 @@ int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             return -1;
         }
 #endif
-    }
-    // token utxo_history
-    else if (l_cmd == CMD_UTXO_HISTORY) {
-        const char *l_token_name_str = NULL;
-        const char *l_chain_name_str = NULL;
-        const char *l_time_str = NULL;
-        const char *l_limit_str = NULL;
-        
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_name_str);
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-time", &l_time_str);
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
-        
-        if (!l_token_name_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-name' <token name>");
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
-        }
-        
-        int l_limit = l_limit_str ? atoi(l_limit_str) : 0; // 0 = unlimited
-        
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN,
-                               "token utxo_history: Full UTXO history is available via 'token info -name %s -history_limit %d'.\n"
-                               "This dedicated command is planned for Phase 14.5 completion.", l_token_name_str, l_limit ? l_limit : 100);
-        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
-    }
-    // token utxo_state
-    else if (l_cmd == CMD_UTXO_STATE) {
-        const char *l_token_name_str = NULL;
-        const char *l_chain_name_str = NULL;
-        const char *l_time_str = NULL;
-        
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_name_str);
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-time", &l_time_str);
-        
-        if (!l_token_name_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR, "command requires parameter '-name' <token name>");
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
-        }
-        
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN,
-                               "token utxo_state: UTXO state reconstruction at specific time is planned for Phase 14.5 completion.\n"
-                               "Current state is available via 'token info -name %s'", l_token_name_str);
-        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
     }
 
     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN, "unknown command code %d", l_cmd);
