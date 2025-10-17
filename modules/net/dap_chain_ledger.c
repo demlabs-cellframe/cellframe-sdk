@@ -1697,6 +1697,35 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         }
         if (a_token_update_hash)
             *a_token_update_hash = l_token_update_hash;
+        
+        // Check irreversible flags - they can only be SET, never UNSET
+        // This applies to: UTXO_BLOCKING_DISABLED, ARBITRAGE_TX_DISABLED
+        uint32_t l_old_irreversible = l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK;
+        uint32_t l_new_flags = 0;
+        
+        // Get new flags from token datum (different header structure for PRIVATE vs NATIVE)
+        switch (l_token->subtype) {
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+            l_new_flags = l_token->header_private_decl.flags;
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+            l_new_flags = l_token->header_native_decl.flags;
+            break;
+        default:
+            l_new_flags = 0;
+        }
+        
+        uint32_t l_new_irreversible = l_new_flags & DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK;
+        
+        // Validate: new irreversible flags must be >= old irreversible flags
+        // This means: once a bit is set, it stays set forever
+        if (l_new_irreversible < l_old_irreversible) {
+            log_it(L_WARNING, "Attempt to unset irreversible flags for token '%s': old=0x%08X new=0x%08X",
+                   l_token->ticker, l_old_irreversible, l_new_irreversible);
+            DAP_DELETE(l_token);
+            return DAP_LEDGER_TOKEN_UPDATE_CHECK_IRREVERSIBLE_FLAGS_VIOLATION;
+        }
+        
     } else if (l_update_token) {
         log_it(L_WARNING, "Can't update token that doesn't exist for ticker '%s'", l_token->ticker);
         DAP_DELETE(l_token);
