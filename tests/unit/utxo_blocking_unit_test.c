@@ -71,7 +71,138 @@ static void s_test_flag_string_conversion(void)
     dap_assert(l_str4 != NULL, "DISABLE_ADDRESS_RECEIVER_BLOCKING should have string representation");
     log_it(L_DEBUG, "DISABLE_ADDRESS_RECEIVER_BLOCKING = '%s'", l_str4);
     
+    const char *l_str5 = dap_chain_datum_token_flag_to_str(DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED);
+    dap_assert(l_str5 != NULL, "ARBITRAGE_TX_DISABLED should have string representation");
+    log_it(L_DEBUG, "ARBITRAGE_TX_DISABLED = '%s'", l_str5);
+    
     dap_pass_msg("Flag string conversion test passed");
+}
+
+/**
+ * @brief Unit Test 2: Irreversible flags mask validation
+ * @details Verify DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK contains all required flags
+ */
+static void s_test_irreversible_flags_mask(void)
+{
+    dap_print_module_name("Unit Test 2: Irreversible Flags Mask");
+    
+    uint32_t l_mask = DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK;
+    
+    // Check that mask includes all 4 irreversible flags
+    dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) != 0,
+               "Mask should include UTXO_BLOCKING_DISABLED");
+    dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED) != 0,
+               "Mask should include ARBITRAGE_TX_DISABLED");
+    dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING) != 0,
+               "Mask should include DISABLE_ADDRESS_SENDER_BLOCKING");
+    dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING) != 0,
+               "Mask should include DISABLE_ADDRESS_RECEIVER_BLOCKING");
+    
+    log_it(L_DEBUG, "Irreversible mask = 0x%08X", l_mask);
+    
+    // Test that other flags are NOT in irreversible mask
+    dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED) == 0,
+               "Mask should NOT include ALL_SENDER_BLOCKED (reversible flag)");
+    dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) == 0,
+               "Mask should NOT include STATIC_UTXO_BLOCKLIST (reversible flag)");
+    
+    dap_pass_msg("Irreversible flags mask test passed");
+}
+
+/**
+ * @brief Unit Test 3: Irreversibility logic simulation
+ * @details Test that new_flags & MASK >= old_flags & MASK
+ */
+static void s_test_irreversibility_logic(void)
+{
+    dap_print_module_name("Unit Test 3: Irreversibility Logic");
+    
+    uint32_t l_mask = DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK;
+    
+    // Test Case 1: No flags set -> Set one flag (ALLOWED)
+    uint32_t l_old1 = 0;
+    uint32_t l_new1 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
+    dap_assert((l_new1 & l_mask) >= (l_old1 & l_mask),
+               "Setting UTXO_BLOCKING_DISABLED from 0 should be allowed");
+    
+    // Test Case 2: One flag set -> Same flag (ALLOWED)
+    uint32_t l_old2 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
+    uint32_t l_new2 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
+    dap_assert((l_new2 & l_mask) >= (l_old2 & l_mask),
+               "Keeping UTXO_BLOCKING_DISABLED set should be allowed");
+    
+    // Test Case 3: One flag set -> Two flags (ALLOWED)
+    uint32_t l_old3 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
+    uint32_t l_new3 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED | 
+                      DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED;
+    dap_assert((l_new3 & l_mask) >= (l_old3 & l_mask),
+               "Adding ARBITRAGE_TX_DISABLED to existing flag should be allowed");
+    
+    // Test Case 4: One flag set -> Zero flags (FORBIDDEN)
+    uint32_t l_old4 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
+    uint32_t l_new4 = 0;
+    dap_assert((l_new4 & l_mask) < (l_old4 & l_mask),
+               "Unsetting UTXO_BLOCKING_DISABLED should be FORBIDDEN");
+    
+    // Test Case 5: Two flags set -> One flag (FORBIDDEN)
+    uint32_t l_old5 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED | 
+                      DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED;
+    uint32_t l_new5 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
+    dap_assert((l_new5 & l_mask) < (l_old5 & l_mask),
+               "Unsetting ARBITRAGE_TX_DISABLED should be FORBIDDEN");
+    
+    // Test Case 6: All 4 flags set -> All 4 flags (ALLOWED)
+    uint32_t l_old6 = DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK;
+    uint32_t l_new6 = DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK;
+    dap_assert((l_new6 & l_mask) >= (l_old6 & l_mask),
+               "Keeping all irreversible flags should be allowed");
+    
+    dap_pass_msg("Irreversibility logic test passed");
+}
+
+/**
+ * @brief Unit Test 4: TSD types for UTXO blocking
+ * @details Verify TSD type definitions exist and are unique
+ */
+static void s_test_tsd_types(void)
+{
+    dap_print_module_name("Unit Test 4: TSD Types");
+    
+    // Check TSD type values are defined and unique
+    uint16_t l_add = DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_ADD;
+    uint16_t l_remove = DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_REMOVE;
+    uint16_t l_clear = DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR;
+    
+    dap_assert(l_add == 0x0029, "UTXO_BLOCKED_ADD should be 0x0029");
+    dap_assert(l_remove == 0x002A, "UTXO_BLOCKED_REMOVE should be 0x002A");
+    dap_assert(l_clear == 0x002C, "UTXO_BLOCKED_CLEAR should be 0x002C");
+    
+    // Check uniqueness
+    dap_assert(l_add != l_remove, "ADD and REMOVE should be different");
+    dap_assert(l_add != l_clear, "ADD and CLEAR should be different");
+    dap_assert(l_remove != l_clear, "REMOVE and CLEAR should be different");
+    
+    log_it(L_DEBUG, "UTXO_BLOCKED_ADD = 0x%04X", l_add);
+    log_it(L_DEBUG, "UTXO_BLOCKED_REMOVE = 0x%04X", l_remove);
+    log_it(L_DEBUG, "UTXO_BLOCKED_CLEAR = 0x%04X", l_clear);
+    
+    dap_pass_msg("TSD types test passed");
+}
+
+/**
+ * @brief Unit Test 5: Arbitrage TX TSD type
+ * @details Verify arbitrage transaction TSD marker
+ */
+static void s_test_arbitrage_tsd_type(void)
+{
+    dap_print_module_name("Unit Test 5: Arbitrage TX TSD Type");
+    
+    uint16_t l_arbitrage = DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE;
+    
+    dap_assert(l_arbitrage == 0x0001, "ARBITRAGE TSD type should be 0x0001");
+    log_it(L_DEBUG, "DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE = 0x%04X", l_arbitrage);
+    
+    dap_pass_msg("Arbitrage TSD type test passed");
 }
 
 int main(void)
@@ -83,6 +214,10 @@ int main(void)
     
     // Run all unit tests
     s_test_flag_string_conversion();
+    s_test_irreversible_flags_mask();
+    s_test_irreversibility_logic();
+    s_test_tsd_types();
+    s_test_arbitrage_tsd_type();
     
     log_it(L_NOTICE, "✅ All UTXO blocking unit tests passed!");
     
