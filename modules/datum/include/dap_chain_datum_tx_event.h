@@ -52,32 +52,32 @@ typedef struct dap_chain_tx_event {
 // Service decree event type
 #define DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE                      0x8000
 
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED             0x0001
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED          0x0002
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED               0x0003
-#define DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED           0x0004
+#define DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED                   0x0001
+#define DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_LOCK_PLACED               0x0002
+#define DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED                     0x0003
+#define DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_CANCELLED                 0x0004
 
 DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_event_type)
 {
     switch (a_event_type) {
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED: return "auction_started";
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED: return "auction_bid_placed";
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED: return "auction_ended";
-        case DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED: return "auction_cancelled";
+        case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED: return "stake_ext_started";
+        case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_LOCK_PLACED: return "stake_ext_lock_placed";
+        case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED: return "stake_ext_ended";
+        case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_CANCELLED: return "stake_ext_cancelled";
         default: return "unknown";
     }
 }
 
 DAP_STATIC_INLINE int dap_chain_tx_item_event_type_from_str(const char *a_event_type_str)
 {
-    if (!dap_strcmp(a_event_type_str, "auction_started")) 
-        return DAP_CHAIN_TX_EVENT_TYPE_AUCTION_STARTED;
-    if (!dap_strcmp(a_event_type_str, "auction_bid_placed")) 
-        return DAP_CHAIN_TX_EVENT_TYPE_AUCTION_BID_PLACED;
-    if (!dap_strcmp(a_event_type_str, "auction_ended")) 
-        return DAP_CHAIN_TX_EVENT_TYPE_AUCTION_ENDED;
-    if (!dap_strcmp(a_event_type_str, "auction_cancelled")) 
-        return DAP_CHAIN_TX_EVENT_TYPE_AUCTION_CANCELLED;
+    if (!dap_strcmp(a_event_type_str, "stake_ext_started")) 
+        return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED;
+    if (!dap_strcmp(a_event_type_str, "stake_ext_lock_placed")) 
+        return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_LOCK_PLACED;
+    if (!dap_strcmp(a_event_type_str, "stake_ext_ended")) 
+        return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED;
+    if (!dap_strcmp(a_event_type_str, "stake_ext_cancelled")) 
+        return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_CANCELLED;
     return -1;
 }
 

@@ -2916,14 +2916,14 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                     return;
                 }
                 dap_json_object_add_object(l_jobj_datum, "srv_emit_delegate", l_jobj_emit_delegate_list);
-                dap_json_t *l_jobj_auction_bid_list = dap_json_array_new();
-                if (!l_jobj_auction_bid_list) {
+                dap_json_t *l_jobj_stake_ext_lock_list = dap_json_array_new();
+                if (!l_jobj_stake_ext_lock_list) {
                     dap_json_object_free(l_obj_chain);
                     dap_global_db_objs_delete(l_objs, l_objs_count);
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     return;
                 }
-                dap_json_object_add_object(l_jobj_datum, "srv_auction_bid", l_jobj_auction_bid_list);
+                dap_json_object_add_object(l_jobj_datum, "srv_stake_ext_lock", l_jobj_stake_ext_lock_list);
                 dap_json_t *l_jobj_pay_list = dap_json_array_new();
                 if (!l_jobj_pay_list) {
                     dap_json_object_free(l_obj_chain);
@@ -2941,7 +2941,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                     OUT_COND_TYPE_XCHANGE,
                     OUT_COND_TYPE_POS_DELEGATE,
                     OUT_COND_TYPE_EMIT_DELEGATE,
-                    OUT_COND_TYPE_AUCTION_BID
+                    OUT_COND_TYPE_STAKE_EXT_LOCK
                 } l_out_cond_subtype = {0};
 
                 dap_list_t *l_list_in_reward = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
@@ -3137,8 +3137,8 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                             case OUT_COND_TYPE_EMIT_DELEGATE:
                                  dap_json_array_add(l_jobj_emit_delegate_list, l_jobj_money);
                                 break;
-                            case OUT_COND_TYPE_AUCTION_BID:
-                                 dap_json_array_add(l_jobj_auction_bid_list, l_jobj_money);
+                            case OUT_COND_TYPE_STAKE_EXT_LOCK:
+                                 dap_json_array_add(l_jobj_stake_ext_lock_list, l_jobj_money);
                                 break;
                             default:
                                 log_it(L_ERROR,

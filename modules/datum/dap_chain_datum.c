@@ -476,6 +476,36 @@ bool dap_chain_datum_dump_tx_json(dap_json_t* a_json_arr_reply,
                     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_unlock);
                     dap_json_object_add_object(json_obj_item,"time_unlock", dap_json_object_new_string(l_tmp_buf));
                 } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: {
+                    // Auction hash
+                    l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.stake_ext_hash;
+                    const char *l_stake_ext_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
+                            : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
+                    dap_json_object_add_string(json_obj_item, "stake_ext_hash", l_stake_ext_hash_str);
+                    // Position ID
+                    dap_json_object_add_uint64(json_obj_item, "position_id", ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.position_id);
+                    // Lock time  
+                    dap_json_object_add_uint64(json_obj_item, "lock_time", ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.lock_time);
+                } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
+                    dap_chain_tx_tsd_t *l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(a_datum, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF);
+                    dap_json_t *l_jobj_diff = dap_json_array_new();
+                    dap_json_t *l_jobj_diff_obj = dap_json_object_new();
+                    if (l_diff_tx_tsd || (l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(a_datum, DAP_CHAIN_WALLET_SHARED_TSD_REFILL))) {
+                        uint256_t l_diff_value = {};
+                        memcpy(&l_diff_value, ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->data, sizeof(uint256_t));
+                        const char *l_value_coins_str = NULL;
+                        l_value_str = dap_uint256_to_char(l_diff_value, &l_value_coins_str);
+                        dap_json_object_add_string(l_jobj_diff_obj, "type", ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF ? "writeoff" : "refill");
+                        dap_json_object_add_string(l_jobj_diff_obj, "value", l_value_str);
+                        dap_json_object_add_string(l_jobj_diff_obj, "coins", l_value_coins_str);
+                    } else {
+                        dap_json_object_add_string(l_jobj_diff_obj, "type", "hold");
+                    }
+                    dap_json_array_add(l_jobj_diff, l_jobj_diff_obj);
+                    dap_json_object_add_object(json_obj_item, "operation", l_jobj_diff);
+                } break;
                 default: break;
             }
         } break;
