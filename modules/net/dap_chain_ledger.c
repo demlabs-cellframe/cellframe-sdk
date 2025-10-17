@@ -53,6 +53,7 @@
 #include "dap_cert.h"
 #include "dap_timerfd.h"
 #include "dap_chain_datum_tx_in_ems.h"
+#include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_token.h"
 #include "dap_global_db.h"
 #include "dap_chain_ledger.h"
@@ -423,6 +424,9 @@ typedef struct dap_ledger_private {
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
     // White- and blacklist
     dap_ledger_hal_item_t *hal_items, *hrl_items;
+    // Arbitrage transaction rate limiting
+    pthread_rwlock_t arbitrage_rate_limits_rwlock;
+    dap_ledger_arbitrage_rate_limit_t *arbitrage_rate_limits;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -653,6 +657,8 @@ static dap_ledger_t *dap_ledger_handle_new(void)
     pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock , NULL);
     pthread_rwlock_init(&l_ledger_pvt->stake_lock_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->rewards_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->arbitrage_rate_limits_rwlock, NULL);
+    l_ledger_pvt->arbitrage_rate_limits = NULL;  // Hash table initialized to NULL
     return l_ledger;
 }
 
@@ -666,6 +672,14 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     if(!a_ledger)
         return;
     log_it(L_INFO,"Ledger for network %s destroyed", a_ledger->net->pub.name);
+    
+    // Cleanup arbitrage rate limiting
+    dap_ledger_arbitrage_rate_limit_t *l_rate_limit, *l_rate_tmp;
+    HASH_ITER(hh, PVT(a_ledger)->arbitrage_rate_limits, l_rate_limit, l_rate_tmp) {
+        HASH_DEL(PVT(a_ledger)->arbitrage_rate_limits, l_rate_limit);
+        DAP_DELETE(l_rate_limit);
+    }
+    
     // Destroy Read/Write Lock
     pthread_rwlock_destroy(&PVT(a_ledger)->ledger_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->tokens_rwlock);
@@ -673,6 +687,7 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     pthread_rwlock_destroy(&PVT(a_ledger)->balance_accounts_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->stake_lock_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->rewards_rwlock);
+    pthread_rwlock_destroy(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
     DAP_DELETE(PVT(a_ledger));
     DAP_DELETE(a_ledger);
 
@@ -6671,4 +6686,253 @@ static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item,
            a_token_item->ticker, l_cleared_count);
 
     return 0;
+}
+
+// ============================================================================
+// Arbitrage Transaction Support
+// ============================================================================
+
+/**
+ * @brief Check if transaction is marked as arbitrage
+ * @details Arbitrage TX are marked with DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE TSD section.
+ *          These transactions allow token owners to claim ANY output (blocked/conditional).
+ * @param a_tx Transaction to check
+ * @return true if transaction has arbitrage marker, false otherwise
+ */
+static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
+{
+    if (!a_tx) {
+        return false;
+    }
+
+    // Iterate through TX items looking for TSD with arbitrage marker
+    byte_t *l_tx_item = a_tx->tx_items;
+    size_t l_tx_items_pos = 0;
+    size_t l_tx_items_size = a_tx->header.tx_items_size;
+
+    while (l_tx_items_pos < l_tx_items_size) {
+        uint8_t *l_item = l_tx_item + l_tx_items_pos;
+        size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item);
+        
+        if (!l_item_size) {
+            log_it(L_ERROR, "Zero item size in TX");
+            return false;
+        }
+
+        dap_chain_tx_item_type_t l_type = dap_chain_datum_tx_item_get_type(l_item);
+        
+        if (l_type == TX_ITEM_TYPE_TSD) {
+            dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)l_item;
+            
+            // Check if TSD contains arbitrage marker
+            dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_tsd->tsd;
+            size_t l_tsd_offset = 0;
+            size_t l_tsd_total_size = l_tsd->header.size;
+            
+            while (l_tsd_offset < l_tsd_total_size) {
+                if (l_tsd_data->type == DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE) {
+                    return true;  // Found arbitrage marker
+                }
+                l_tsd_offset += sizeof(dap_tsd_t) + l_tsd_data->size;
+                l_tsd_data = (dap_tsd_t *)(l_tsd->tsd + l_tsd_offset);
+            }
+        }
+        
+        l_tx_items_pos += l_item_size;
+    }
+
+    return false;  // No arbitrage marker found
+}
+
+/**
+ * @brief Rate limiting structure for arbitrage transactions
+ * @details Tracks arbitrage TX count per token owner within time window
+ */
+typedef struct dap_ledger_arbitrage_rate_limit {
+    dap_pkey_hash_t owner_pkey_hash;    ///< Token owner public key hash
+    dap_time_t window_start;             ///< Start of current time window
+    uint32_t tx_count;                   ///< Number of arbitrage TX in current window
+    UT_hash_handle hh;
+} dap_ledger_arbitrage_rate_limit_t;
+
+#define ARBITRAGE_RATE_LIMIT_WINDOW     3600    ///< 1 hour in seconds
+#define ARBITRAGE_RATE_LIMIT_MAX_TX     10      ///< Max 10 arbitrage TX per hour
+
+/**
+ * @brief Check arbitrage transaction rate limit
+ * @details Enforces limit of 10 arbitrage TX per hour per token owner
+ * @param a_ledger Ledger instance
+ * @param a_owner_pkey_hash Token owner public key hash
+ * @return 0 if within limit, -1 if rate limit exceeded
+ */
+static int s_ledger_arbitrage_check_rate_limit(dap_ledger_t *a_ledger, dap_pkey_hash_t *a_owner_pkey_hash)
+{
+    if (!a_ledger || !a_owner_pkey_hash) {
+        log_it(L_ERROR, "Invalid arguments for rate limit check");
+        return -1;
+    }
+
+    dap_time_t l_current_time = dap_time_now();
+    
+    // Find existing rate limit entry
+    dap_ledger_arbitrage_rate_limit_t *l_rate_limit = NULL;
+    pthread_rwlock_wrlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
+    
+    HASH_FIND(hh, PVT(a_ledger)->arbitrage_rate_limits, a_owner_pkey_hash, 
+              sizeof(dap_pkey_hash_t), l_rate_limit);
+    
+    if (!l_rate_limit) {
+        // First arbitrage TX from this owner - create new entry
+        l_rate_limit = DAP_NEW_Z(dap_ledger_arbitrage_rate_limit_t);
+        if (!l_rate_limit) {
+            pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            return -1;
+        }
+        
+        l_rate_limit->owner_pkey_hash = *a_owner_pkey_hash;
+        l_rate_limit->window_start = l_current_time;
+        l_rate_limit->tx_count = 1;
+        
+        HASH_ADD(hh, PVT(a_ledger)->arbitrage_rate_limits, owner_pkey_hash, 
+                 sizeof(dap_pkey_hash_t), l_rate_limit);
+        
+        pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
+        return 0;  // Within limit
+    }
+    
+    // Check if current window expired
+    if ((l_current_time - l_rate_limit->window_start) >= ARBITRAGE_RATE_LIMIT_WINDOW) {
+        // Reset window
+        l_rate_limit->window_start = l_current_time;
+        l_rate_limit->tx_count = 1;
+        pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
+        return 0;  // Within limit (new window)
+    }
+    
+    // Within same window - check count
+    if (l_rate_limit->tx_count >= ARBITRAGE_RATE_LIMIT_MAX_TX) {
+        pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
+        
+        char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str((dap_chain_hash_fast_t *)a_owner_pkey_hash, 
+                                     l_pkey_hash_str, sizeof(l_pkey_hash_str));
+        log_it(L_WARNING, "Arbitrage rate limit exceeded for owner %s: %u TX in window", 
+               l_pkey_hash_str, l_rate_limit->tx_count);
+        
+        return -1;  // Rate limit exceeded
+    }
+    
+    // Increment counter
+    l_rate_limit->tx_count++;
+    pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
+    
+    return 0;  // Within limit
+}
+
+/**
+ * @brief Check arbitrage transaction authorization
+ * @details Validates that TX is signed by required number of token owners.
+ *          Token owners are determined from token datum (auth_pkeys).
+ * @param a_tx Transaction to validate
+ * @param a_token_item Token item with owner information
+ * @param a_ledger Ledger instance (for rate limiting)
+ * @return 0 if authorized, -1 if not authorized or rate limit exceeded
+ */
+static int s_ledger_tx_check_arbitrage_auth(dap_chain_datum_tx_t *a_tx, 
+                                              dap_ledger_token_item_t *a_token_item,
+                                              dap_ledger_t *a_ledger)
+{
+    if (!a_tx || !a_token_item || !a_ledger) {
+        log_it(L_ERROR, "Invalid arguments for arbitrage auth check");
+        return -1;
+    }
+
+    // Check if arbitrage is disabled for this token
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED) {
+        log_it(L_WARNING, "Arbitrage transactions disabled for token %s", a_token_item->ticker);
+        return -1;
+    }
+
+    // Get TX signatures
+    int l_sign_count = 0;
+    dap_list_t *l_list_tx_sign = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_SIG, &l_sign_count);
+    
+    if (!l_list_tx_sign || l_sign_count == 0) {
+        log_it(L_WARNING, "Arbitrage TX has no signatures");
+        dap_list_free(l_list_tx_sign);
+        return -1;
+    }
+
+    // Check that at least one signature is from token owner
+    size_t l_valid_owner_signs = 0;
+    
+    for (dap_list_t *l_iter = l_list_tx_sign; l_iter; l_iter = l_iter->next) {
+        dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t *)l_iter->data;
+        if (!l_sig) {
+            continue;
+        }
+
+        // Get public key from signature
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_sig);
+        if (!l_sign) {
+            continue;
+        }
+
+        // Get pkey hash from signature
+        dap_pkey_t *l_pkey = dap_pkey_from_sign(l_sign);
+        if (!l_pkey) {
+            continue;
+        }
+
+        dap_pkey_hash_t l_pkey_hash;
+        if (dap_pkey_get_hash(l_pkey, &l_pkey_hash) != 0) {
+            dap_pkey_delete(l_pkey);
+            continue;
+        }
+
+        // Check if this pkey is in token's auth_pkeys
+        bool l_is_owner = false;
+        for (uint16_t i = 0; i < a_token_item->auth_pkeys_count; i++) {
+            dap_pkey_hash_t l_owner_hash;
+            if (dap_pkey_get_hash(&a_token_item->auth_pkeys[i], &l_owner_hash) == 0) {
+                if (memcmp(&l_pkey_hash, &l_owner_hash, sizeof(dap_pkey_hash_t)) == 0) {
+                    l_is_owner = true;
+                    
+                    // Check rate limit for this owner
+                    if (s_ledger_arbitrage_check_rate_limit(a_ledger, &l_pkey_hash) != 0) {
+                        dap_pkey_delete(l_pkey);
+                        dap_list_free(l_list_tx_sign);
+                        return -1;  // Rate limit exceeded
+                    }
+                    
+                    l_valid_owner_signs++;
+                    break;
+                }
+            }
+        }
+
+        dap_pkey_delete(l_pkey);
+        
+        if (l_is_owner) {
+            break;  // Found at least one owner signature - sufficient for arbitrage
+        }
+    }
+
+    dap_list_free(l_list_tx_sign);
+
+    if (l_valid_owner_signs == 0) {
+        log_it(L_WARNING, "Arbitrage TX for token %s not signed by token owner", 
+               a_token_item->ticker);
+        return -1;
+    }
+
+    // Check if we need minimum number of signatures (auth_signs_valid)
+    if (l_valid_owner_signs < a_token_item->auth_signs_valid) {
+        log_it(L_WARNING, "Arbitrage TX for token %s requires %zu owner signatures, found %zu",
+               a_token_item->ticker, a_token_item->auth_signs_valid, l_valid_owner_signs);
+        return -1;
+    }
+
+    return 0;  // Authorized
 }
