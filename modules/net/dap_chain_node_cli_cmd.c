@@ -6709,6 +6709,8 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     const char *l_emission_hash_str = NULL;
     const char *l_cert_str = NULL;
     const char *l_time_str = NULL;
+    const char *l_arbitrage_str = NULL;
+    bool l_is_arbitrage = false;
     dap_cert_t *l_cert = NULL;
     dap_enc_key_t *l_priv_key = NULL;
     dap_chain_hash_fast_t l_emission_hash = {};
@@ -6744,6 +6746,9 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx_num", &l_tx_num_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-lock_before", &l_time_str);
+    
+    // Check for arbitrage flag
+    l_is_arbitrage = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-arbitrage", &l_arbitrage_str);
 
 
     if(l_tx_num_str)
@@ -7049,8 +7054,41 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         l_jobj_transfer_status = json_object_new_string((l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
         json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
     } else {
-        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
-                                                          l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count, l_time_unlock);
+        char *l_tx_hash_str = NULL;
+        
+        // If arbitrage flag is set, use extended API with TSD
+        if (l_is_arbitrage) {
+            // Create arbitrage TSD marker
+            dap_chain_tx_tsd_t *l_tsd_arbitrage = dap_chain_datum_tx_item_tsd_create(NULL, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 0);
+            if (!l_tsd_arbitrage) {
+                log_it(L_ERROR, "Failed to create arbitrage TSD marker");
+                dap_chain_wallet_close(l_wallet);
+                dap_enc_key_delete(l_priv_key);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, "Failed to create arbitrage TSD marker");
+                json_object_put(l_jobj_result);
+                DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+                DAP_DEL_MULTY(l_addr_to, l_value);
+                return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
+            }
+            
+            // Create TSD list
+            dap_list_t *l_tsd_list = dap_list_append(NULL, l_tsd_arbitrage);
+            
+            // Create arbitrage transaction
+            l_tx_hash_str = dap_chain_mempool_tx_create_extended(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
+                                                                 l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count, l_time_unlock, l_tsd_list);
+            
+            // Cleanup
+            dap_list_free(l_tsd_list);
+            DAP_DELETE(l_tsd_arbitrage);
+            
+            log_it(L_INFO, "Arbitrage transaction created: %s", l_tx_hash_str ? l_tx_hash_str : "FAILED");
+        } else {
+            // Normal transaction
+            l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
+                                                        l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count, l_time_unlock);
+        }
+        
         if (l_tx_hash_str) {
             l_jobj_transfer_status = json_object_new_string("Ok");
             l_jobj_tx_hash = json_object_new_string(l_tx_hash_str);

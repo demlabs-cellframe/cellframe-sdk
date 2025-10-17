@@ -349,8 +349,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, NULL, "Make transaction",
-            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822 or YYMMDD>]"
-            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n");
+            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822 or YYMMDD>] [-arbitrage]"
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n"
+            "OPTIONS:\n"
+            "  -arbitrage: Create arbitrage transaction (requires token owner signature, bypasses UTXO blocking)\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, NULL, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool",
