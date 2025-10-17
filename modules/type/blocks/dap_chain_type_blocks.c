@@ -1608,6 +1608,7 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         DAP_DEL_Z(PVT(l_blocks)->forked_branches[i]);
     }
     DAP_DEL_Z(PVT(l_blocks)->forked_branches);
+    PVT(l_blocks)->forked_br_cnt = 0;
     pthread_rwlock_unlock(&PVT(l_blocks)->forked_branches_rwlock);
 
     int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
@@ -2043,9 +2044,31 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             forked_branch->connected_block = l_prev_bcache;
             HASH_ADD(hh, forked_branch->forked_branch_atoms, block_hash, sizeof(dap_hash_fast_t), l_new_item);
             
+            size_t l_old_cnt = PVT(l_blocks)->forked_br_cnt;
             PVT(l_blocks)->forked_br_cnt++;
-            PVT(l_blocks)->forked_branches = DAP_REALLOC_COUNT((void *)PVT(l_blocks)->forked_branches, PVT(l_blocks)->forked_br_cnt);
-            PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1] = forked_branch;
+            
+            // If this is first allocation, calloc instead of realloc to zero memory
+            if (!PVT(l_blocks)->forked_branches) {
+                PVT(l_blocks)->forked_branches = DAP_NEW_Z_COUNT(dap_chain_block_forked_branch_t *, PVT(l_blocks)->forked_br_cnt);
+                if (!PVT(l_blocks)->forked_branches) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    PVT(l_blocks)->forked_br_cnt = l_old_cnt;
+                    pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
+                    DAP_DELETE(l_block_cache);
+                    return ATOM_REJECT;
+                }
+            } else {
+                dap_chain_block_forked_branch_t **l_new_branches = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(
+                    PVT(l_blocks)->forked_branches, 
+                    PVT(l_blocks)->forked_br_cnt, 
+                    ATOM_REJECT
+                );
+                PVT(l_blocks)->forked_branches = l_new_branches;
+                // Zero out new element to avoid garbage (realloc doesn't initialize memory)
+                PVT(l_blocks)->forked_branches[l_old_cnt] = NULL;
+            }
+            
+            PVT(l_blocks)->forked_branches[l_old_cnt] = forked_branch;
 
             l_prev_bcache->forked_branches = dap_list_append(l_prev_bcache->forked_branches, PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1]);
             pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
@@ -2208,6 +2231,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             assert(!err);
             for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++) {
                 dap_chain_block_forked_branch_t *l_cur_branch = PVT(l_blocks)->forked_branches[i];
+                if (!l_cur_branch) {
+                    log_it(L_ERROR, "Forked branch at index %zu is NULL", i);
+                    continue;
+                }
                 dap_chain_block_forked_branch_atoms_table_t *l_item = NULL;
                 // Check block already present in forked branch
                 HASH_FIND(hh, l_cur_branch->forked_branch_atoms, &l_block_hash, sizeof(dap_hash_fast_t), l_item);
