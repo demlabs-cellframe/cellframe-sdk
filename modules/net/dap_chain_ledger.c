@@ -345,12 +345,18 @@ static bool s_ledger_utxo_is_blocked(dap_ledger_token_item_t *a_token_item,
 static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
                                      dap_chain_hash_fast_t *a_tx_hash,
                                      uint32_t a_out_idx,
-                                     dap_time_t a_becomes_effective);
+                                     dap_time_t a_becomes_effective,
+                                     dap_hash_fast_t *a_token_update_hash,
+                                     dap_ledger_t *a_ledger);
 static int s_ledger_utxo_block_remove(dap_ledger_token_item_t *a_token_item,
                                         dap_chain_hash_fast_t *a_tx_hash,
                                         uint32_t a_out_idx,
-                                        dap_time_t a_becomes_unblocked);
-static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item);
+                                        dap_time_t a_becomes_unblocked,
+                                        dap_hash_fast_t *a_token_update_hash,
+                                        dap_ledger_t *a_ledger);
+static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item,
+                                       dap_hash_fast_t *a_token_update_hash,
+                                       dap_ledger_t *a_ledger);
 
 typedef struct dap_ledger_cache_item {
     dap_chain_hash_fast_t *hash;
@@ -721,14 +727,18 @@ inline static dap_ledger_token_item_t *s_ledger_find_token(dap_ledger_t *a_ledge
 /**
  * @brief s_token_tsd_parse
  *
- * @param a_ledger
- * @param a_item_apply_to
- * @param a_token
- * @param a_token_size
- * @return int
+ * @param a_item_apply_to Token item to apply changes to
+ * @param a_current_datum Current token datum
+ * @param a_ledger Ledger instance
+ * @param a_tsd TSD data
+ * @param a_tsd_total_size Total TSD size
+ * @param a_apply Whether to apply changes
+ * @param a_token_update_hash Hash of token_update datum (for history tracking, Phase 14)
+ * @return int Status code
  */
 static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain_datum_token_t *a_current_datum,
-                             dap_ledger_t *a_ledger, byte_t *a_tsd, size_t a_tsd_total_size, bool a_apply)
+                             dap_ledger_t *a_ledger, byte_t *a_tsd, size_t a_tsd_total_size, bool a_apply,
+                             dap_hash_fast_t *a_token_update_hash)
 {
     if (!a_tsd_total_size) {
         debug_if(a_item_apply_to, L_NOTICE, "No TSD sections in datum token");
@@ -1283,7 +1293,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 break;
 
             // Add UTXO to blocklist with specified activation time
-            if (s_ledger_utxo_block_add(a_item_apply_to, l_tx_hash, l_out_idx, l_becomes_effective) != 0) {
+            if (s_ledger_utxo_block_add(a_item_apply_to, l_tx_hash, l_out_idx, l_becomes_effective, 
+                                         a_token_update_hash, a_ledger) != 0) {
                 char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(l_tx_hash, l_hash_str, sizeof(l_hash_str));
                 log_it(L_ERROR, "Failed to add UTXO to blocklist: tx=%s, out_idx=%u", l_hash_str, l_out_idx);
@@ -1791,7 +1802,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     }
     // Check content & size of enclosed TSD sections
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
-    int ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_size_tsd_section, false);
+    int ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_size_tsd_section, false, NULL);
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     dap_ledger_hal_item_t *l_hash_found = NULL;
     if (ret != DAP_LEDGER_CHECK_OK) {
@@ -2020,7 +2031,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
         l_token_item->last_update_token_time = l_token_update_item->updated_time;
     }
     if (ret != DAP_LEDGER_CHECK_WHITELISTED) {
-        ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_tsd_total_size, true);
+        ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_tsd_total_size, true, &l_token_update_hash);
         assert(ret == DAP_LEDGER_CHECK_OK);
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
@@ -6435,12 +6446,16 @@ static int s_ledger_utxo_block_history_add(dap_ledger_utxo_block_item_t *a_utxo_
  * @param a_tx_hash Transaction hash
  * @param a_out_idx Output index
  * @param a_becomes_effective Time when blocking becomes active (blockchain time)
+ * @param a_token_update_hash Hash of token_update datum (for history)
+ * @param a_ledger Ledger instance (for blockchain time)
  * @return 0 if success, -1 on error
  */
 static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
                                      dap_chain_hash_fast_t *a_tx_hash,
                                      uint32_t a_out_idx,
-                                     dap_time_t a_becomes_effective)
+                                     dap_time_t a_becomes_effective,
+                                     dap_hash_fast_t *a_token_update_hash,
+                                     dap_ledger_t *a_ledger)
 {
     if (!a_token_item || !a_tx_hash) {
         log_it(L_ERROR, "Invalid arguments for s_ledger_utxo_block_add");
@@ -6511,6 +6526,15 @@ static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
     dap_chain_hash_fast_to_str(a_tx_hash, l_hash_str, sizeof(l_hash_str));
     log_it(L_INFO, "Added UTXO to blocklist: token=%s, tx=%s, out_idx=%u, becomes_effective=%"DAP_UINT64_FORMAT_U,
            a_token_item->ticker, l_hash_str, a_out_idx, a_becomes_effective);
+    
+    // Phase 14: Add to history if token_update_hash is provided
+    if (a_token_update_hash && a_ledger) {
+        dap_time_t l_bc_time = dap_ledger_get_blockchain_time(a_ledger);
+        if (s_ledger_utxo_block_history_add(l_item, BLOCK_ACTION_ADD, l_bc_time, a_token_update_hash) != 0) {
+            log_it(L_WARNING, "Failed to add UTXO block history entry for token %s", a_token_item->ticker);
+            // Continue anyway - history is for audit, not critical for blocking functionality
+        }
+    }
 
     return 0;
 }
