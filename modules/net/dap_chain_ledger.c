@@ -2408,6 +2408,51 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
                 json_object_object_add(l_json_utxo, "becomes_unblocked", json_object_new_uint64((uint64_t)l_utxo_item->becomes_unblocked));
             }
             
+            // Add history for this UTXO (last 10 changes by default)
+            pthread_rwlock_rdlock(&l_utxo_item->history_rwlock);
+            if (l_utxo_item->history_head) {
+                json_object *l_json_arr_history = json_object_new_array();
+                int l_history_count = 0;
+                const int MAX_HISTORY_DISPLAY = 10;
+                
+                // Iterate from tail (newest) to head (oldest), display last 10
+                dap_ledger_utxo_block_history_item_t *l_hist = l_utxo_item->history_tail;
+                while (l_hist && l_history_count < MAX_HISTORY_DISPLAY) {
+                    json_object *l_json_hist = json_object_new_object();
+                    
+                    const char *l_action_str = "";
+                    switch (l_hist->action) {
+                        case BLOCK_ACTION_ADD: l_action_str = "ADD"; break;
+                        case BLOCK_ACTION_REMOVE: l_action_str = "REMOVE"; break;
+                        case BLOCK_ACTION_CLEAR: l_action_str = "CLEAR"; break;
+                        default: l_action_str = "UNKNOWN";
+                    }
+                    
+                    char l_update_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_chain_hash_fast_to_str(&l_hist->token_update_hash, l_update_hash_str, sizeof(l_update_hash_str));
+                    
+                    json_object_object_add(l_json_hist, "action", json_object_new_string(l_action_str));
+                    json_object_object_add(l_json_hist, "bc_time", json_object_new_uint64((uint64_t)l_hist->bc_time));
+                    json_object_object_add(l_json_hist, "token_update_hash", json_object_new_string(l_update_hash_str));
+                    
+                    json_object_array_add(l_json_arr_history, l_json_hist);
+                    l_history_count++;
+                    l_hist = l_hist->prev;  // Go backwards (newest to oldest)
+                }
+                
+                json_object_object_add(l_json_utxo, "history_recent", l_json_arr_history);
+                
+                // Count total history items
+                int l_total_history = 0;
+                l_hist = l_utxo_item->history_head;
+                while (l_hist) {
+                    l_total_history++;
+                    l_hist = l_hist->next;
+                }
+                json_object_object_add(l_json_utxo, "history_total_count", json_object_new_int(l_total_history));
+            }
+            pthread_rwlock_unlock(&l_utxo_item->history_rwlock);
+            
             json_object_array_add(l_json_arr_utxo_blocklist, l_json_utxo);
         }
         
