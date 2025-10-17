@@ -247,6 +247,16 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
  */
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING        BIT(19)
 
+/**
+ * @brief Disable arbitrage transactions for this token
+ * @details When set, arbitrage transactions (signed by token owners) are disabled.
+ *          Arbitrage TX allow token owners to claim ANY output (even blocked/conditional)
+ *          in emergency situations. By default, arbitrage is ENABLED for all CF20 tokens.
+ * @warning This is IRREVERSIBLE - once set, arbitrage cannot be re-enabled
+ * @note Default behavior: Arbitrage is ENABLED (this flag is NOT set)
+ */
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED                    BIT(20)
+
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                                0xffff
 
 /// -------- General tsd types ----
@@ -468,6 +478,7 @@ DAP_STATIC_INLINE const char *dap_chain_datum_token_flag_to_str(uint32_t a_flag)
     case DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST: return "STATIC_UTXO_BLOCKLIST";
     case DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING: return "DISABLE_ADDRESS_SENDER_BLOCKING";
     case DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING: return "DISABLE_ADDRESS_RECEIVER_BLOCKING";
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED: return "ARBITRAGE_TX_DISABLED";
     default: return "UNKNOWN FLAG OR FLAGS GROUP";
     }
 }
