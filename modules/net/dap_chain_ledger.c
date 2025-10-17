@@ -135,6 +135,40 @@ typedef struct dap_ledger_utxo_block_key {
 } dap_ledger_utxo_block_key_t;
 
 /**
+ * @brief UTXO blocking action types (for history tracking)
+ * @details Each history entry records what action was performed:
+ *          - BLOCK_ACTION_ADD: UTXO was blocked (added to blocklist)
+ *          - BLOCK_ACTION_REMOVE: UTXO was unblocked (removed from blocklist)
+ *          - BLOCK_ACTION_CLEAR: All UTXOs for token were cleared
+ */
+typedef enum dap_ledger_utxo_block_action {
+    BLOCK_ACTION_ADD = 1,      ///< UTXO blocked
+    BLOCK_ACTION_REMOVE = 2,   ///< UTXO unblocked
+    BLOCK_ACTION_CLEAR = 3     ///< All UTXOs cleared
+} dap_ledger_utxo_block_action_t;
+
+/**
+ * @brief UTXO blocking history item (for Zero/Main Chain sync)
+ * @details Stores a single change event in UTXO blocking history.
+ *          History is needed because token_update appears on Zero Chain earlier than
+ *          Main Chain updates blockchain_time. Without history, sync order can cause
+ *          inconsistencies.
+ *          
+ *          History forms a double-linked list sorted chronologically by bc_time.
+ *          
+ * @note Critical for Zero/Main Chain synchronization
+ */
+typedef struct dap_ledger_utxo_block_history_item {
+    dap_ledger_utxo_block_action_t action;  ///< What happened (ADD/REMOVE/CLEAR)
+    dap_time_t bc_time;                      ///< Blockchain time when action occurred
+    dap_hash_fast_t token_update_hash;       ///< Which token_update caused this
+    
+    // Double-linked list for chronological ordering
+    struct dap_ledger_utxo_block_history_item *next;
+    struct dap_ledger_utxo_block_history_item *prev;
+} dap_ledger_utxo_block_history_item_t;
+
+/**
  * @brief UTXO blocklist item (hash table entry)
  * @details Each token has its own UTXO blocklist stored as in-memory hash table (uthash).
  *          This structure represents a single blocked UTXO with temporal semantics:
@@ -145,13 +179,25 @@ typedef struct dap_ledger_utxo_block_key {
  *          blocked = (blockchain_time >= becomes_effective) && 
  *                    (becomes_unblocked == 0 || blockchain_time < becomes_unblocked)
  *          
+ *          Full history tracking for Zero/Main Chain sync.
+ *          History is stored as double-linked list, separate RW lock prevents blocking.
+ *          
  * @note Thread-safety: Access protected by utxo_blocklist_rwlock in dap_ledger_token_item_t
+ * @note History thread-safety: Access protected by history_rwlock (separate lock)
  */
 typedef struct dap_ledger_utxo_block_item {
     dap_ledger_utxo_block_key_t key;  ///< Key for hash table lookup (tx_hash + out_idx)
+    
+    // Current state (for fast lookup without history replay)
     dap_time_t blocked_time;           ///< When it was added to blocklist (for auditing)
     dap_time_t becomes_effective;      ///< When blocking becomes active (blockchain time)
     dap_time_t becomes_unblocked;      ///< When unblocking becomes active (0 = never/permanent)
+    
+    // Phase 14: Full history for Zero/Main Chain sync
+    dap_ledger_utxo_block_history_item_t *history_head;  ///< Start of history (oldest)
+    dap_ledger_utxo_block_history_item_t *history_tail;  ///< End of history (newest)
+    pthread_rwlock_t history_rwlock;                      ///< Separate lock for history access
+    
     UT_hash_handle hh;                 ///< uthash handle (for hash table operations)
 } dap_ledger_utxo_block_item_t;
 
@@ -6205,7 +6251,108 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
 // ============================================================================
 
 /**
- * @brief Check if UTXO is blocked for given token
+ * @brief Get UTXO blocking state at specific blockchain time (Phase 14)
+ * @details Reconstructs UTXO blocking state by replaying history up to specified time.
+ *          Critical for Zero/Main Chain synchronization where token_update arrives
+ *          on Zero Chain before Main Chain updates blockchain_time.
+ *          
+ *          Algorithm:
+ *          1. Find UTXO in hash table
+ *          2. If no history → return current state (backward compatibility!)
+ *          3. Walk history chronologically
+ *          4. For each event with bc_time <= query_time:
+ *             - BLOCK_ACTION_ADD → mark as blocked
+ *             - BLOCK_ACTION_REMOVE → mark as unblocked
+ *             - BLOCK_ACTION_CLEAR → mark as unblocked
+ *          5. Return final reconstructed state
+ * 
+ * @param a_token_item Token containing UTXO blocklist
+ * @param a_tx_hash Transaction hash
+ * @param a_out_idx Output index
+ * @param a_blockchain_time Blockchain time to query state at
+ * @return true if UTXO was blocked at that time, false otherwise
+ */
+static bool s_ledger_utxo_block_get_state_at_time(dap_ledger_token_item_t *a_token_item,
+                                                    dap_chain_hash_fast_t *a_tx_hash,
+                                                    uint32_t a_out_idx,
+                                                    dap_time_t a_blockchain_time)
+{
+    if (!a_token_item || !a_tx_hash) {
+        return false;
+    }
+    
+    // Check if UTXO blocking is disabled for this token
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
+        return false;
+    }
+    
+    // Read lock for checking
+    pthread_rwlock_rdlock(&a_token_item->utxo_blocklist_rwlock);
+    
+    // Create lookup key
+    dap_ledger_utxo_block_key_t lookup_key = {
+        .tx_hash = *a_tx_hash,
+        .out_idx = a_out_idx
+    };
+    
+    // Search in hash table
+    dap_ledger_utxo_block_item_t *l_found = NULL;
+    HASH_FIND(hh, a_token_item->utxo_blocklist, &lookup_key, sizeof(dap_ledger_utxo_block_key_t), l_found);
+    
+    if (!l_found) {
+        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+        return false;  // UTXO not in blocklist
+    }
+    
+    // Phase 14: Replay history if available
+    pthread_rwlock_rdlock(&l_found->history_rwlock);
+    
+    if (!l_found->history_head) {
+        // No history → fallback to current state (backward compatibility)
+        pthread_rwlock_unlock(&l_found->history_rwlock);
+        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+        
+        // Use current state logic
+        bool l_is_blocked = (l_found->becomes_effective <= a_blockchain_time) &&
+                           (l_found->becomes_unblocked == 0 || l_found->becomes_unblocked > a_blockchain_time);
+        return l_is_blocked;
+    }
+    
+    // Replay history chronologically
+    bool l_current_state_blocked = false;
+    dap_ledger_utxo_block_history_item_t *l_history_item = l_found->history_head;
+    
+    while (l_history_item) {
+        // Only process events that occurred before or at query time
+        if (l_history_item->bc_time <= a_blockchain_time) {
+            switch (l_history_item->action) {
+                case BLOCK_ACTION_ADD:
+                    l_current_state_blocked = true;
+                    break;
+                case BLOCK_ACTION_REMOVE:
+                case BLOCK_ACTION_CLEAR:
+                    l_current_state_blocked = false;
+                    break;
+                default:
+                    log_it(L_WARNING, "Unknown UTXO block history action: %d", l_history_item->action);
+                    break;
+            }
+        } else {
+            // Future events don't affect state at query time
+            break;
+        }
+        
+        l_history_item = l_history_item->next;
+    }
+    
+    pthread_rwlock_unlock(&l_found->history_rwlock);
+    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+    
+    return l_current_state_blocked;
+}
+
+/**
+ * @brief Check if UTXO is blocked for given token (current time)
  * @param a_token_item Token item to check
  * @param a_tx_hash Transaction hash
  * @param a_out_idx Output index
@@ -6220,39 +6367,66 @@ static bool s_ledger_utxo_is_blocked(dap_ledger_token_item_t *a_token_item,
     if (!a_token_item || !a_tx_hash || !a_ledger) {
         return false;
     }
+    
+    // Phase 14: Use history-aware function for accurate state reconstruction
+    dap_time_t l_blockchain_time = dap_ledger_get_blockchain_time(a_ledger);
+    return s_ledger_utxo_block_get_state_at_time(a_token_item, a_tx_hash, a_out_idx, l_blockchain_time);
+}
 
-    // Check if UTXO blocking is disabled for this token
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
-        return false;
+/**
+ * @brief Add entry to UTXO blocking history
+ * @details Phase 14: Records all changes to UTXO blocking state for Zero/Main Chain sync.
+ *          History is stored as chronologically sorted double-linked list.
+ * @param a_utxo_item UTXO block item to add history to
+ * @param a_action Action type (ADD/REMOVE/CLEAR)
+ * @param a_bc_time Blockchain time when action occurred
+ * @param a_token_update_hash Hash of token_update that caused this change
+ * @return 0 on success, -1 on error
+ */
+static int s_ledger_utxo_block_history_add(dap_ledger_utxo_block_item_t *a_utxo_item,
+                                             dap_ledger_utxo_block_action_t a_action,
+                                             dap_time_t a_bc_time,
+                                             dap_hash_fast_t *a_token_update_hash)
+{
+    if (!a_utxo_item || !a_token_update_hash) {
+        log_it(L_ERROR, "Invalid arguments for s_ledger_utxo_block_history_add");
+        return -1;
     }
-
-    // Read lock for checking
-    pthread_rwlock_rdlock(&a_token_item->utxo_blocklist_rwlock);
-
-    // Create lookup key
-    dap_ledger_utxo_block_key_t lookup_key = {
-        .tx_hash = *a_tx_hash,
-        .out_idx = a_out_idx
-    };
-
-    // Search in hash table
-    dap_ledger_utxo_block_item_t *l_found = NULL;
-    HASH_FIND(hh, a_token_item->utxo_blocklist, &lookup_key, sizeof(dap_ledger_utxo_block_key_t), l_found);
-
-    // Check if found AND becomes_effective time has passed AND not yet unblocked
-    bool l_is_blocked = false;
-    if (l_found) {
-        dap_time_t l_blockchain_time = dap_ledger_get_blockchain_time(a_ledger);
-        // UTXO is blocked if:
-        // 1. Blocking time has come (becomes_effective <= blockchain_time)
-        // 2. AND (no unblock time set OR unblock time hasn't come yet)
-        l_is_blocked = (l_found->becomes_effective <= l_blockchain_time) &&
-                       (l_found->becomes_unblocked == 0 || l_found->becomes_unblocked > l_blockchain_time);
+    
+    // Allocate new history item
+    dap_ledger_utxo_block_history_item_t *l_history_item = DAP_NEW_Z(dap_ledger_utxo_block_history_item_t);
+    if (!l_history_item) {
+        log_it(L_ERROR, "Memory allocation failed for UTXO block history item");
+        return -1;
     }
-
-    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-
-    return l_is_blocked;
+    
+    l_history_item->action = a_action;
+    l_history_item->bc_time = a_bc_time;
+    l_history_item->token_update_hash = *a_token_update_hash;
+    l_history_item->next = NULL;
+    l_history_item->prev = NULL;
+    
+    // Write lock for history modification
+    pthread_rwlock_wrlock(&a_utxo_item->history_rwlock);
+    
+    // Add to tail (newest)
+    if (!a_utxo_item->history_head) {
+        // First history entry
+        a_utxo_item->history_head = l_history_item;
+        a_utxo_item->history_tail = l_history_item;
+    } else {
+        // Append to tail
+        l_history_item->prev = a_utxo_item->history_tail;
+        a_utxo_item->history_tail->next = l_history_item;
+        a_utxo_item->history_tail = l_history_item;
+    }
+    
+    pthread_rwlock_unlock(&a_utxo_item->history_rwlock);
+    
+    log_it(L_DEBUG, "Added UTXO block history entry: action=%d, bc_time=%"DAP_UINT64_FORMAT_U,
+           a_action, a_bc_time);
+    
+    return 0;
 }
 
 /**
@@ -6316,6 +6490,16 @@ static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
     l_item->blocked_time = dap_time_now();
     l_item->becomes_effective = a_becomes_effective;
     l_item->becomes_unblocked = 0;  // 0 = permanent block (no scheduled unblock)
+    
+    // Phase 14: Initialize history
+    l_item->history_head = NULL;
+    l_item->history_tail = NULL;
+    if (pthread_rwlock_init(&l_item->history_rwlock, NULL) != 0) {
+        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
+        DAP_DELETE(l_item);
+        log_it(L_ERROR, "Failed to initialize history rwlock for UTXO block item");
+        return -1;
+    }
 
     // Add to hash table
     HASH_ADD(hh, a_token_item->utxo_blocklist, key, sizeof(dap_ledger_utxo_block_key_t), l_item);
