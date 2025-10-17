@@ -3758,6 +3758,27 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                             bool a_check_for_apply)
 {
     dap_return_val_if_fail(a_ledger && a_tx && a_tx_hash, DAP_LEDGER_CHECK_INVALID_ARGS);
+    
+    // ARBITRAGE TRANSACTION CHECK
+    // Arbitrage TX (marked with TSD) bypass ALL blocking checks:
+    // - UTXO blocking
+    // - Conditional outputs
+    // - Address ban-lists (sender/receiver)
+    // This allows token owners to claim ANY output in emergency situations.
+    bool l_is_arbitrage = s_ledger_tx_is_arbitrage(a_tx);
+    
+    if (l_is_arbitrage) {
+        // For arbitrage TX, we need to:
+        // 1. Determine which token this TX is for
+        // 2. Check if arbitrage is disabled for that token
+        // 3. Validate token owner signatures
+        // 4. Check rate limiting
+        // We'll do full validation later when we know the token
+        // For now, just mark that this is arbitrage TX
+        debug_if(s_debug_more, L_INFO, "Arbitrage TX detected: %s", 
+                 dap_chain_hash_fast_to_str_static(a_tx_hash));
+    }
+    
     if (!a_from_threshold) {
         dap_ledger_tx_item_t *l_ledger_item = NULL;
         pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
@@ -4182,9 +4203,12 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             }
 
             // 3. Check if UTXO is blocked in token-specific blocklist (UTXO blocking mechanism)
-            // This check is skipped if UTXO_BLOCKING_DISABLED flag is set for this token
+            // This check is skipped if:
+            // - UTXO_BLOCKING_DISABLED flag is set for this token
+            // - Transaction is an arbitrage TX (bypasses all checks)
             dap_ledger_token_item_t *l_token_item_for_utxo_check = s_ledger_find_token(a_ledger, l_token);
-            if (l_token_item_for_utxo_check && 
+            if (!l_is_arbitrage &&  // Arbitrage TX bypasses UTXO blocking
+                l_token_item_for_utxo_check && 
                 !(l_token_item_for_utxo_check->datum_token->header_private_decl.flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
                 !a_check_for_removing) {
                 // UTXO blocking is enabled (default behavior) - check if this UTXO is in blocklist
@@ -4194,6 +4218,16 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                              l_tx_prev_hash_str, l_tx_prev_out_idx, l_token);
                     break;
                 }
+            } else if (l_is_arbitrage && l_token_item_for_utxo_check) {
+                // Arbitrage TX - validate authorization and rate limiting
+                if (s_ledger_tx_check_arbitrage_auth(a_tx, l_token_item_for_utxo_check, a_ledger) != 0) {
+                    l_err_num = DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
+                    log_it(L_WARNING, "Arbitrage TX %s not authorized for token '%s'",
+                           dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
+                    break;
+                }
+                debug_if(s_debug_more, L_INFO, "Arbitrage TX %s authorized for token '%s' - bypassing all checks",
+                         dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
             }
 
             // Get one 'out' item in previous transaction bound with current 'in' item
