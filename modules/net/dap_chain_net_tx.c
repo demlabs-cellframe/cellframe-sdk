@@ -1328,7 +1328,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 break;
             }
             
-            size_t l_pkey_hashes_count = json_object_array_length(l_json_pkey_hashes);
+            size_t l_pkey_hashes_count = dap_json_array_length(l_json_pkey_hashes);
             if(l_pkey_hashes_count == 0) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Empty owner_pkey_hashes array in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: empty owner_pkey_hashes array in OUT_COND_SUBTYPE_WALLET_SHARED");
@@ -1369,7 +1369,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             char *l_tag_str = NULL;
             dap_json_t *l_json_tags = dap_json_object_get_object(a_json_item_obj, "tags");
             if(l_json_tags && dap_json_is_array(l_json_tags)) {
-                size_t l_tags_count = json_object_array_length(l_json_tags);
+                size_t l_tags_count = dap_json_array_length(l_json_tags);
                 if(l_tags_count > 0) {
                     // form one string from all tags elements using dap_string_t
                     dap_string_t *l_tags_string = dap_string_new(NULL);
