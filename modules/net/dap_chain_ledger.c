@@ -4219,8 +4219,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     break;
                 }
             } else if (l_is_arbitrage && l_token_item_for_utxo_check) {
-                // Arbitrage TX - validate authorization and rate limiting
-                if (s_ledger_tx_check_arbitrage_auth(a_tx, l_token_item_for_utxo_check, a_ledger) != 0) {
+                // Arbitrage TX - validate authorization
+                if (s_ledger_tx_check_arbitrage_auth(a_tx, l_token_item_for_utxo_check) != 0) {
                     l_err_num = DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
                     log_it(L_WARNING, "Arbitrage TX %s not authorized for token '%s'",
                            dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
@@ -6779,105 +6779,17 @@ static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
 }
 
 /**
- * @brief Rate limiting structure for arbitrage transactions
- * @details Tracks arbitrage TX count per token owner within time window
- */
-typedef struct dap_ledger_arbitrage_rate_limit {
-    dap_pkey_hash_t owner_pkey_hash;    ///< Token owner public key hash
-    dap_time_t window_start;             ///< Start of current time window
-    uint32_t tx_count;                   ///< Number of arbitrage TX in current window
-    UT_hash_handle hh;
-} dap_ledger_arbitrage_rate_limit_t;
-
-#define ARBITRAGE_RATE_LIMIT_WINDOW     3600    ///< 1 hour in seconds
-#define ARBITRAGE_RATE_LIMIT_MAX_TX     10      ///< Max 10 arbitrage TX per hour
-
-/**
- * @brief Check arbitrage transaction rate limit
- * @details Enforces limit of 10 arbitrage TX per hour per token owner
- * @param a_ledger Ledger instance
- * @param a_owner_pkey_hash Token owner public key hash
- * @return 0 if within limit, -1 if rate limit exceeded
- */
-static int s_ledger_arbitrage_check_rate_limit(dap_ledger_t *a_ledger, dap_pkey_hash_t *a_owner_pkey_hash)
-{
-    if (!a_ledger || !a_owner_pkey_hash) {
-        log_it(L_ERROR, "Invalid arguments for rate limit check");
-        return -1;
-    }
-
-    dap_time_t l_current_time = dap_time_now();
-    
-    // Find existing rate limit entry
-    dap_ledger_arbitrage_rate_limit_t *l_rate_limit = NULL;
-    pthread_rwlock_wrlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
-    
-    HASH_FIND(hh, PVT(a_ledger)->arbitrage_rate_limits, a_owner_pkey_hash, 
-              sizeof(dap_pkey_hash_t), l_rate_limit);
-    
-    if (!l_rate_limit) {
-        // First arbitrage TX from this owner - create new entry
-        l_rate_limit = DAP_NEW_Z(dap_ledger_arbitrage_rate_limit_t);
-        if (!l_rate_limit) {
-            pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            return -1;
-        }
-        
-        l_rate_limit->owner_pkey_hash = *a_owner_pkey_hash;
-        l_rate_limit->window_start = l_current_time;
-        l_rate_limit->tx_count = 1;
-        
-        HASH_ADD(hh, PVT(a_ledger)->arbitrage_rate_limits, owner_pkey_hash, 
-                 sizeof(dap_pkey_hash_t), l_rate_limit);
-        
-        pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
-        return 0;  // Within limit
-    }
-    
-    // Check if current window expired
-    if ((l_current_time - l_rate_limit->window_start) >= ARBITRAGE_RATE_LIMIT_WINDOW) {
-        // Reset window
-        l_rate_limit->window_start = l_current_time;
-        l_rate_limit->tx_count = 1;
-        pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
-        return 0;  // Within limit (new window)
-    }
-    
-    // Within same window - check count
-    if (l_rate_limit->tx_count >= ARBITRAGE_RATE_LIMIT_MAX_TX) {
-        pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
-        
-        char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str((dap_chain_hash_fast_t *)a_owner_pkey_hash, 
-                                     l_pkey_hash_str, sizeof(l_pkey_hash_str));
-        log_it(L_WARNING, "Arbitrage rate limit exceeded for owner %s: %u TX in window", 
-               l_pkey_hash_str, l_rate_limit->tx_count);
-        
-        return -1;  // Rate limit exceeded
-    }
-    
-    // Increment counter
-    l_rate_limit->tx_count++;
-    pthread_rwlock_unlock(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
-    
-    return 0;  // Within limit
-}
-
-/**
  * @brief Check arbitrage transaction authorization
  * @details Validates that TX is signed by required number of token owners.
  *          Token owners are determined from token datum (auth_pkeys).
  * @param a_tx Transaction to validate
  * @param a_token_item Token item with owner information
- * @param a_ledger Ledger instance (for rate limiting)
- * @return 0 if authorized, -1 if not authorized or rate limit exceeded
+ * @return 0 if authorized, -1 if not authorized
  */
 static int s_ledger_tx_check_arbitrage_auth(dap_chain_datum_tx_t *a_tx, 
-                                              dap_ledger_token_item_t *a_token_item,
-                                              dap_ledger_t *a_ledger)
+                                              dap_ledger_token_item_t *a_token_item)
 {
-    if (!a_tx || !a_token_item || !a_ledger) {
+    if (!a_tx || !a_token_item) {
         log_it(L_ERROR, "Invalid arguments for arbitrage auth check");
         return -1;
     }
@@ -6932,14 +6844,6 @@ static int s_ledger_tx_check_arbitrage_auth(dap_chain_datum_tx_t *a_tx,
             if (dap_pkey_get_hash(&a_token_item->auth_pkeys[i], &l_owner_hash) == 0) {
                 if (memcmp(&l_pkey_hash, &l_owner_hash, sizeof(dap_pkey_hash_t)) == 0) {
                     l_is_owner = true;
-                    
-                    // Check rate limit for this owner
-                    if (s_ledger_arbitrage_check_rate_limit(a_ledger, &l_pkey_hash) != 0) {
-                        dap_pkey_delete(l_pkey);
-                        dap_list_free(l_list_tx_sign);
-                        return -1;  // Rate limit exceeded
-                    }
-                    
                     l_valid_owner_signs++;
                     break;
                 }
