@@ -194,6 +194,10 @@ typedef struct dap_chain {
     
     // Chain cache for fast blockchain loading
     dap_chain_cache_t *cache;
+
+    // Callbacks (break circular dependencies between modules)
+    // All callbacks unified in single structure
+    dap_chain_cs_callbacks_t *cs_callbacks;
     
     void * _pvt; // private data
     void * _inheritor; // inheritor object

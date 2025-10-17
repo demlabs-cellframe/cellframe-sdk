@@ -4,6 +4,7 @@ project (dap_chain)
 # Exclude files moved to common and consensus modules
 set(DAP_CHAIN_SRCS 
     dap_chain.c
+    dap_chain_cache.c
     dap_chain_cell.c
     dap_chain_srv.c
 )
