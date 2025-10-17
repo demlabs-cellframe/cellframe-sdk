@@ -162,6 +162,8 @@ typedef enum dap_ledger_utxo_block_action {
 typedef struct dap_ledger_utxo_block_history_item {
     dap_ledger_utxo_block_action_t action;  ///< What happened (ADD/REMOVE/CLEAR)
     dap_time_t bc_time;                      ///< Blockchain time when action occurred
+    dap_time_t becomes_effective;            ///< When blocking becomes active (for ADD)
+    dap_time_t becomes_unblocked;            ///< When blocking expires (for REMOVE)
     dap_hash_fast_t token_update_hash;       ///< Which token_update caused this
     
     // Double-linked list for chronological ordering
@@ -433,7 +435,7 @@ static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_free(dap_ledger_t *a_ledger);
 static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* b);
 
-// Arbitrage transaction helpers (Phase 14.3)
+// Arbitrage transaction helpers 
 static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx);
 static int s_ledger_tx_check_arbitrage_auth(dap_chain_datum_tx_t *a_tx, dap_ledger_token_item_t *a_token_item);
 
@@ -1262,8 +1264,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 l_becomes_effective = *(dap_time_t *)(l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t));
                 log_it(L_DEBUG, "UTXO blocking with delayed activation at %"DAP_UINT64_FORMAT_U, l_becomes_effective);
             } else {
-                // Basic format - immediate activation
-                l_becomes_effective = dap_time_now();
+                // Basic format - immediate activation (use blockchain time, not wall clock!)
+                l_becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
             }
 
             // Validate UTXO exists (optional validation with warning)
@@ -6456,9 +6458,18 @@ static bool s_ledger_utxo_block_get_state_at_time(dap_ledger_token_item_t *a_tok
         if (l_history_item->bc_time <= a_blockchain_time) {
             switch (l_history_item->action) {
                 case BLOCK_ACTION_ADD:
-                    l_current_state_blocked = true;
+                    // Check if blocking is effective at query time
+                    if (l_history_item->becomes_effective <= a_blockchain_time) {
+                        l_current_state_blocked = true;
+                    }
                     break;
                 case BLOCK_ACTION_REMOVE:
+                    // Check if unblocking is effective at query time
+                    if (l_history_item->becomes_unblocked == 0 || 
+                        l_history_item->becomes_unblocked <= a_blockchain_time) {
+                        l_current_state_blocked = false;
+                    }
+                    break;
                 case BLOCK_ACTION_CLEAR:
                     l_current_state_blocked = false;
                     break;
@@ -6515,6 +6526,8 @@ static bool s_ledger_utxo_is_blocked(dap_ledger_token_item_t *a_token_item,
 static int s_ledger_utxo_block_history_add(dap_ledger_utxo_block_item_t *a_utxo_item,
                                              dap_ledger_utxo_block_action_t a_action,
                                              dap_time_t a_bc_time,
+                                             dap_time_t a_becomes_effective,
+                                             dap_time_t a_becomes_unblocked,
                                              dap_hash_fast_t *a_token_update_hash)
 {
     if (!a_utxo_item || !a_token_update_hash) {
@@ -6531,6 +6544,8 @@ static int s_ledger_utxo_block_history_add(dap_ledger_utxo_block_item_t *a_utxo_
     
     l_history_item->action = a_action;
     l_history_item->bc_time = a_bc_time;
+    l_history_item->becomes_effective = a_becomes_effective;
+    l_history_item->becomes_unblocked = a_becomes_unblocked;
     l_history_item->token_update_hash = *a_token_update_hash;
     l_history_item->next = NULL;
     l_history_item->prev = NULL;
@@ -6648,7 +6663,8 @@ static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
     // Add to history if token_update_hash is provided
     if (a_token_update_hash && a_ledger) {
         dap_time_t l_bc_time = dap_ledger_get_blockchain_time(a_ledger);
-        if (s_ledger_utxo_block_history_add(l_item, BLOCK_ACTION_ADD, l_bc_time, a_token_update_hash) != 0) {
+        if (s_ledger_utxo_block_history_add(l_item, BLOCK_ACTION_ADD, l_bc_time, 
+                                              a_becomes_effective, 0, a_token_update_hash) != 0) {
             log_it(L_WARNING, "Failed to add UTXO block history entry for token %s", a_token_item->ticker);
             // Continue anyway - history is for audit, not critical for blocking functionality
         }
@@ -6725,7 +6741,8 @@ static int s_ledger_utxo_block_remove(dap_ledger_token_item_t *a_token_item,
     // Add to history if token_update_hash is provided
     if (a_token_update_hash && a_ledger) {
         dap_time_t l_bc_time = dap_ledger_get_blockchain_time(a_ledger);
-        if (s_ledger_utxo_block_history_add(l_found, BLOCK_ACTION_REMOVE, l_bc_time, a_token_update_hash) != 0) {
+        if (s_ledger_utxo_block_history_add(l_found, BLOCK_ACTION_REMOVE, l_bc_time, 
+                                              0, a_becomes_unblocked, a_token_update_hash) != 0) {
             log_it(L_WARNING, "Failed to add UTXO unblock history entry for token %s", a_token_item->ticker);
             // Continue anyway - history is for audit, not critical for unblocking functionality
         }
@@ -6774,7 +6791,8 @@ static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item,
     // Items must remain for accurate history replay during sync.
     if (a_token_update_hash && a_ledger) {
         HASH_ITER(hh, a_token_item->utxo_blocklist, l_item, l_tmp) {
-            if (s_ledger_utxo_block_history_add(l_item, BLOCK_ACTION_CLEAR, l_bc_time, a_token_update_hash) != 0) {
+            if (s_ledger_utxo_block_history_add(l_item, BLOCK_ACTION_CLEAR, l_bc_time, 
+                                                  0, 0, a_token_update_hash) != 0) {
                 log_it(L_WARNING, "Failed to add CLEAR history entry for UTXO in token %s", a_token_item->ticker);
             } else {
                 l_cleared_count++;

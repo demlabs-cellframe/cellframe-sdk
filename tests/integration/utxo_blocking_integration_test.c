@@ -507,10 +507,10 @@ static void s_test_delayed_activation(void)
     // Step 5: Block UTXO with becomes_effective in the FUTURE
     log_it(L_INFO, "Step 5: Blocking UTXO with delayed activation...");
     dap_time_t l_current_time = dap_time_now();
-    dap_time_t l_future_time = l_current_time + 3600; // +1 hour in future
+    dap_time_t l_future_time = l_current_time + 100000; // +100000 sec (far future, immune to test timing)
     
     log_it(L_INFO, "  Current blockchain time: %llu", (unsigned long long)l_current_time);
-    log_it(L_INFO, "  Becomes effective at: %llu (+3600 sec)", (unsigned long long)l_future_time);
+    log_it(L_INFO, "  Becomes effective at: %llu (+100000 sec)", (unsigned long long)l_future_time);
     
     size_t l_block_size = 0;
     dap_chain_datum_token_t *l_block_update = s_create_token_update_with_utxo_block_tsd(
@@ -526,6 +526,13 @@ static void s_test_delayed_activation(void)
     
     // Step 6: Try to spend UTXO BEFORE activation time - should SUCCEED (block not active yet)
     log_it(L_INFO, "Step 6: Trying to spend UTXO BEFORE activation time...");
+    dap_time_t l_time_before_tx = dap_time_now();
+    dap_time_t l_ledger_time = dap_ledger_get_blockchain_time(s_net_fixture->ledger);
+    log_it(L_INFO, "  Current time: %llu", (unsigned long long)l_time_before_tx);
+    log_it(L_INFO, "  Ledger blockchain time: %llu", (unsigned long long)l_ledger_time);
+    log_it(L_INFO, "  Future activation time: %llu", (unsigned long long)l_future_time);
+    log_it(L_INFO, "  Time diff (future - ledger): %lld sec", (long long)(l_future_time - l_ledger_time));
+    
     dap_chain_datum_tx_t *l_tx_before = dap_chain_datum_tx_create();
     dap_chain_datum_tx_add_in_item(&l_tx_before, &l_tx->tx_hash, 0);
     dap_chain_datum_tx_add_out_ext_item(&l_tx_before, &l_addr, dap_chain_balance_scan("200.0"), "INTG3");
@@ -537,6 +544,10 @@ static void s_test_delayed_activation(void)
     
     l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_before, &l_before_hash, false, NULL);
     log_it(L_INFO, "  Result: %d (expected: 0 = success, block not active yet)", l_res);
+    if (l_res != 0) {
+        log_it(L_ERROR, "  TX REJECTED! Error code: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
+        log_it(L_ERROR, "  This means UTXO is ALREADY BLOCKED even though activation time is in future!");
+    }
     dap_assert(l_res == 0, "Spending UTXO before activation time should succeed");
     
     log_it(L_INFO, "✓ UTXO spent successfully BEFORE activation time");
@@ -630,12 +641,12 @@ static void s_test_utxo_clear_operation(void)
     // Create token with emission
     dap_chain_hash_fast_t l_emission_hash;
     test_token_fixture_t *l_token = test_token_fixture_create_with_emission(
-        l_ledger, "CLEAR", "10000.0", "5000.0", &l_addr, l_cert, &l_emission_hash);
+        l_ledger, "CLRTEST", "10000.0", "5000.0", &l_addr, l_cert, &l_emission_hash);
     dap_assert_PIF(l_token != NULL, "Token created");
     
     // Create TX from emission
     test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
-        l_ledger, &l_emission_hash, "CLEAR", "1000.0", &l_addr, l_cert);
+        l_ledger, &l_emission_hash, "CLRTEST", "1000.0", &l_addr, l_cert);
     dap_assert_PIF(l_tx != NULL, "TX created");
     
     int l_add_res = test_tx_fixture_add_to_ledger(l_ledger, l_tx);
@@ -644,7 +655,7 @@ static void s_test_utxo_clear_operation(void)
     // Block UTXO
     size_t l_block_size = 0;
     dap_chain_datum_token_t *l_block_update = s_create_token_update_with_utxo_block_tsd(
-        "CLEAR", &l_tx->tx_hash, 0, l_token->owner_cert, 0, &l_block_size);
+        "CLRTEST", &l_tx->tx_hash, 0, l_token->owner_cert, 0, &l_block_size);
     int l_block_ret = dap_ledger_token_add(l_ledger, (byte_t*)l_block_update, l_block_size, dap_time_now());
     dap_assert_PIF(l_block_ret == 0, "UTXO blocked");
     DAP_DELETE(l_block_update);
@@ -656,7 +667,7 @@ static void s_test_utxo_clear_operation(void)
     l_clear_base->version = 2;
     l_clear_base->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
     l_clear_base->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
-    strncpy(l_clear_base->ticker, "CLEAR", DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    strncpy(l_clear_base->ticker, "CLRTEST", DAP_CHAIN_TICKER_SIZE_MAX - 1);
     
     dap_tsd_t *l_clear_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR, NULL, 0);
     l_clear_base->header_native_decl.tsd_total_size = l_clear_tsd->size;
