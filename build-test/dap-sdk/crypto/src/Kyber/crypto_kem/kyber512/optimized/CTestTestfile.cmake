@@ -1,0 +1,6 @@
+# CMake generated Testfile for 
+# Source directory: /home/naeper/work/cellframe-node/cellframe-sdk/dap-sdk/crypto/src/Kyber/crypto_kem/kyber512/optimized
+# Build directory: /home/naeper/work/cellframe-node/cellframe-sdk/build-test/dap-sdk/crypto/src/Kyber/crypto_kem/kyber512/optimized
+# 
+# This file includes the relevant testing commands required for 
+# testing this directory and lists subdirectories to be tested as well.

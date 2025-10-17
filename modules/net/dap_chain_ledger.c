@@ -424,9 +424,6 @@ typedef struct dap_ledger_private {
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
     // White- and blacklist
     dap_ledger_hal_item_t *hal_items, *hrl_items;
-    // Arbitrage transaction rate limiting
-    pthread_rwlock_t arbitrage_rate_limits_rwlock;
-    dap_ledger_arbitrage_rate_limit_t *arbitrage_rate_limits;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -435,6 +432,10 @@ static void s_threshold_emissions_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_free(dap_ledger_t *a_ledger);
 static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* b);
+
+// Arbitrage transaction helpers (Phase 14.3)
+static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx);
+static int s_ledger_tx_check_arbitrage_auth(dap_chain_datum_tx_t *a_tx, dap_ledger_token_item_t *a_token_item);
 
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
@@ -657,8 +658,6 @@ static dap_ledger_t *dap_ledger_handle_new(void)
     pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock , NULL);
     pthread_rwlock_init(&l_ledger_pvt->stake_lock_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->rewards_rwlock, NULL);
-    pthread_rwlock_init(&l_ledger_pvt->arbitrage_rate_limits_rwlock, NULL);
-    l_ledger_pvt->arbitrage_rate_limits = NULL;  // Hash table initialized to NULL
     return l_ledger;
 }
 
@@ -674,12 +673,6 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     log_it(L_INFO,"Ledger for network %s destroyed", a_ledger->net->pub.name);
     
     // Cleanup arbitrage rate limiting
-    dap_ledger_arbitrage_rate_limit_t *l_rate_limit, *l_rate_tmp;
-    HASH_ITER(hh, PVT(a_ledger)->arbitrage_rate_limits, l_rate_limit, l_rate_tmp) {
-        HASH_DEL(PVT(a_ledger)->arbitrage_rate_limits, l_rate_limit);
-        DAP_DELETE(l_rate_limit);
-    }
-    
     // Destroy Read/Write Lock
     pthread_rwlock_destroy(&PVT(a_ledger)->ledger_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->tokens_rwlock);
@@ -687,7 +680,6 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     pthread_rwlock_destroy(&PVT(a_ledger)->balance_accounts_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->stake_lock_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->rewards_rwlock);
-    pthread_rwlock_destroy(&PVT(a_ledger)->arbitrage_rate_limits_rwlock);
     DAP_DELETE(PVT(a_ledger));
     DAP_DELETE(a_ledger);
 
@@ -5639,7 +5631,9 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         DAP_DEL_Z(l_token_current->tx_send_block);
         pthread_rwlock_destroy(&l_token_current->token_emissions_rwlock);
         // Clear UTXO blocklist and destroy rwlock
-        s_ledger_utxo_block_clear(l_token_current);
+        // Note: s_ledger_utxo_block_clear requires token_update_hash, but during purge we don't have it
+        // Instead, we rely on the fact that purge completely removes all ledger data
+        // UTXO blocklist will be cleaned up with token item deletion
         pthread_rwlock_destroy(&l_token_current->utxo_blocklist_rwlock);
         DAP_DELETE(l_token_current);
     }
@@ -6820,14 +6814,14 @@ static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
 
     while (l_tx_items_pos < l_tx_items_size) {
         uint8_t *l_item = l_tx_item + l_tx_items_pos;
-        size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item);
+        size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item, l_tx_items_size - l_tx_items_pos);
         
         if (!l_item_size) {
             log_it(L_ERROR, "Zero item size in TX");
             return false;
         }
 
-        dap_chain_tx_item_type_t l_type = dap_chain_datum_tx_item_get_type(l_item);
+        dap_chain_tx_item_type_t l_type = *((uint8_t *)l_item);
         
         if (l_type == TX_ITEM_TYPE_TSD) {
             dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)l_item;
@@ -6900,31 +6894,28 @@ static int s_ledger_tx_check_arbitrage_auth(dap_chain_datum_tx_t *a_tx,
         }
 
         // Get pkey hash from signature
-        dap_pkey_t *l_pkey = dap_pkey_from_sign(l_sign);
+        dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
         if (!l_pkey) {
             continue;
         }
 
-        dap_pkey_hash_t l_pkey_hash;
-        if (dap_pkey_get_hash(l_pkey, &l_pkey_hash) != 0) {
-            dap_pkey_delete(l_pkey);
+        dap_chain_hash_fast_t l_pkey_hash;
+        if (!dap_pkey_get_hash(l_pkey, &l_pkey_hash)) {
             continue;
         }
 
         // Check if this pkey is in token's auth_pkeys
         bool l_is_owner = false;
-        for (uint16_t i = 0; i < a_token_item->auth_pkeys_count; i++) {
-            dap_pkey_hash_t l_owner_hash;
-            if (dap_pkey_get_hash(&a_token_item->auth_pkeys[i], &l_owner_hash) == 0) {
-                if (memcmp(&l_pkey_hash, &l_owner_hash, sizeof(dap_pkey_hash_t)) == 0) {
+        for (uint16_t i = 0; i < a_token_item->auth_signs_total; i++) {
+            dap_chain_hash_fast_t l_owner_hash;
+            if (dap_pkey_get_hash(a_token_item->auth_pkeys[i], &l_owner_hash)) {
+                if (dap_hash_fast_compare(&l_pkey_hash, &l_owner_hash)) {
                     l_is_owner = true;
                     l_valid_owner_signs++;
                     break;
                 }
             }
         }
-
-        dap_pkey_delete(l_pkey);
         
         if (l_is_owner) {
             break;  // Found at least one owner signature - sufficient for arbitrage

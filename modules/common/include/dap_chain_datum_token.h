@@ -378,7 +378,7 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
  * @note Rejected if STATIC_UTXO_BLOCKLIST flag is set after token creation
  * @warning This is a destructive operation - all UTXO blocks will be removed
  */
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR                   0x002B
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR                   0x002C
 
 struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
     uint8_t version;

@@ -1,0 +1,66 @@
+Start testing: Oct 16 21:13 +07
+----------------------------------------------------------
+1/6 Testing: utxo_blocking_unit
+1/6 Test: utxo_blocking_unit
+Command: "/home/naeper/work/cellframe-node/cellframe-sdk/build-test/tests/unit/utxo_blocking_unit_test"
+Directory: /home/naeper/work/cellframe-node/cellframe-sdk/build-test/tests/unit
+"utxo_blocking_unit" start time: Oct 16 21:13 +07
+Output:
+----------------------------------------------------------
+[36mUTXO Blocking Unit Tests passing the tests... [0m
+[36mUnit Test 1: Flag String Conversion passing the tests... [0m
+	[32mUTXO_BLOCKING_DISABLED should have string representation PASS.[0m
+	[32mSTATIC_UTXO_BLOCKLIST should have string representation PASS.[0m
+	[32mDISABLE_ADDRESS_SENDER_BLOCKING should have string representation PASS.[0m
+	[32mDISABLE_ADDRESS_RECEIVER_BLOCKING should have string representation PASS.[0m
+	[32mFlag string conversion test passed PASS.[0m
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"utxo_blocking_unit" end time: Oct 16 21:13 +07
+"utxo_blocking_unit" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/6 Testing: utxo_blocking_integration
+2/6 Test: utxo_blocking_integration
+Command: "/home/naeper/work/cellframe-node/cellframe-sdk/build-test/tests/integration/utxo_blocking_integration_test"
+Directory: /home/naeper/work/cellframe-node/cellframe-sdk/build-test/tests/integration
+"utxo_blocking_integration" start time: Oct 16 21:13 +07
+Output:
+----------------------------------------------------------
+[36mUTXO Blocking Integration Tests passing the tests... [0m
+	[32mNetwork fixture initialization PASS.[0m
+	[32mLedger initialization PASS.[0m
+[36mIntegration Test 1: Full Lifecycle (REAL Emission) passing the tests... [0m
+	[32mTransaction with blocked UTXO should be rejected PASS.[0m
+	[32mBalance should not change PASS.[0m
+	[32mFull UTXO blocking lifecycle test passed PASS.[0m
+[36mIntegration Test 2: UTXO Unblocking passing the tests... [0m
+	[32mSpending blocked UTXO should be rejected PASS.[0m
+	[32mSpending unblocked UTXO should succeed PASS.[0m
+	[32mUTXO unblocking test passed PASS.[0m
+[36mIntegration Test 3: Delayed Activation passing the tests... [0m
+	[32mSpending UTXO before activation time should succeed PASS.[0m
+	[32mSpending UTXO with past activation time should be blocked PASS.[0m
+	[32mDelayed activation test passed PASS.[0m
+<end of output>
+Test time =   0.04 sec
+----------------------------------------------------------
+Test Passed.
+"utxo_blocking_integration" end time: Oct 16 21:13 +07
+"utxo_blocking_integration" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 16 21:13 +07
+
+blocking =   0.04 sec*proc
+
+integration =   0.04 sec*proc
+
+ledger =   0.04 sec*proc
+
+unit =   0.00 sec*proc
+
+utxo =   0.04 sec*proc
+
