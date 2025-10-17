@@ -2313,7 +2313,7 @@ uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char 
     return l_token_item->emission_rate;
 }
 
-json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_version)
+json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_version, int a_history_limit)
 {
     json_object *json_obj_datum = json_object_new_object();
     const char *l_type_str = NULL;
@@ -2415,9 +2415,9 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
                 int l_history_count = 0;
                 
                 // Iterate from tail (newest) to head (oldest)
-                // Use default limit from header constant
+                // Use limit from parameter (0 = unlimited)
                 dap_ledger_utxo_block_history_item_t *l_hist = l_utxo_item->history_tail;
-                while (l_hist && l_history_count < DAP_LEDGER_UTXO_HISTORY_DEFAULT_LIMIT) {
+                while (l_hist && (a_history_limit == 0 || l_history_count < a_history_limit)) {
                     json_object *l_json_hist = json_object_new_object();
                     
                     const char *l_action_str = "";
@@ -2470,7 +2470,7 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
  * @param a_ledger
  * @return
  */
-json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version)
+json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version, int a_history_limit)
 {
     json_object * json_obj_datum;
     json_object * json_arr_out = json_object_new_array();
@@ -2499,7 +2499,7 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
             i++;
             continue;
         }
-        json_obj_datum = s_token_item_to_json(l_token_item, a_version);
+        json_obj_datum = s_token_item_to_json(l_token_item, a_version, a_history_limit);
         json_object_array_add(json_arr_out, json_obj_datum);
         i++;
     }
@@ -2513,12 +2513,12 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
  * @param a_token_ticker
  * @return
  */
-json_object *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version)
+json_object *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version, int a_history_limit)
 {
     dap_ledger_token_item_t *l_token_item = NULL;
     HASH_FIND_STR(PVT(a_ledger)->tokens, a_token_ticker, l_token_item);
     if (l_token_item)
-        return s_token_item_to_json(l_token_item, a_version);
+        return s_token_item_to_json(l_token_item, a_version, a_history_limit);
     return json_object_new_null();
 }
 

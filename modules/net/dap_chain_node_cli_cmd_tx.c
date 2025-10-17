@@ -950,7 +950,7 @@ static json_object* dap_db_chain_history_token_list(json_object* a_json_arr_repl
         if (!l_jobj_ticker) {
             l_jobj_ticker = json_object_new_object();
             dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
-            json_object *l_current_state = dap_ledger_token_info_by_name(l_ledger, l_token->ticker, a_version);
+            json_object *l_current_state = dap_ledger_token_info_by_name(l_ledger, l_token->ticker, a_version, DAP_LEDGER_UTXO_HISTORY_DEFAULT_LIMIT);
             json_object_object_add(l_jobj_ticker, a_version == 1 ? "current state" : "current_state", l_current_state);
             l_jobj_decls = json_object_new_array();
             l_jobj_updates = json_object_new_array();
@@ -1083,11 +1083,14 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
         }
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
+        const char *l_history_limit_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-history_limit", &l_history_limit_str);
         bool l_head = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-head", &l_head_str) ? true : false;
         size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
         size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+        int l_history_limit = l_history_limit_str ? atoi(l_history_limit_str) : DAP_LEDGER_UTXO_HISTORY_DEFAULT_LIMIT;
         if (l_net_str == NULL){
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR, "Command 'list' requires key -net");
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR;
@@ -1118,7 +1121,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             }
             return 0;
         }
-        json_object *json_obj_datum = dap_ledger_token_info(l_ledger, l_limit, l_offset, a_version);
+        json_object *json_obj_datum = dap_ledger_token_info(l_ledger, l_limit, l_offset, a_version, l_history_limit);
 
         if (json_obj_datum) {
             json_object_array_add(*a_json_arr_reply, json_obj_datum);
