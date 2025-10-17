@@ -47,7 +47,7 @@
 #include "dap_stream_ch_proc.h"
 #include "dap_chain_net_ch_pkt.h"
 #include "dap_chain_net_ch.h"
-
+#include "dap_link_manager.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_chain_net_ch"

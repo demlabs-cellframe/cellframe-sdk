@@ -27,6 +27,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define DAP_CHAIN_NET_SRV_VOTING_ID 0x06
 
@@ -44,15 +45,7 @@ typedef struct dap_chain_net_voting_info {
     dap_chain_net_id_t net_id;
     bool is_expired;
     bool is_cancelled;
-    dap_time_t expired;
-    bool is_max_count_votes;
-    uint64_t max_count_votes;
-    bool is_changing_allowed;
-    bool is_delegate_key_required;
-    struct {
-        size_t question_size;
-        char *question_str;
-    } question;
+    dap_chain_datum_tx_voting_params_t *params;
     struct {
         uint64_t count_option;
         dap_chain_net_voting_option_info_t **options;
@@ -173,7 +166,8 @@ dap_list_t *dap_chain_net_voting_list(dap_chain_net_t *a_net);
 dap_chain_net_voting_info_t *dap_chain_net_voting_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash);
 void dap_chain_net_voting_info_free(dap_chain_net_voting_info_t *a_info);
 dap_list_t* dap_get_options_list_from_str(const char* a_str);
-int dap_chain_net_vote_cancel(json_object *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash, dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out);
+int dap_chain_net_vote_cancel(dap_json_t *a_json_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash,
+                              dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out);
 
 #if defined(__cplusplus)
 }

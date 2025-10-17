@@ -21,14 +21,16 @@
 */
 #pragma once
 
+#include <stdint.h>
 #include "dap_chain_common.h"
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_cert.h"
-#include "dap_chain_policy.h"
-#include <stdint.h>
+
+// Forward declaration instead of include to avoid circular dependency
+typedef struct dap_chain_policy dap_chain_policy_t;
 
 #define DAP_CHAIN_DATUM_DECREE_VERSION  0
 
@@ -84,6 +86,8 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE             0x0014
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY                0x001E
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL               0x001F
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN                0x0020
+
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                                0x0101
@@ -107,6 +111,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STRING                              0x0115
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS              0x0116
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CANCEL_CHAIN_ID            0x0117
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD                     0x0118
 
 #ifdef __cplusplus
 extern "C" {
@@ -152,6 +157,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
         return "DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE:
         return "DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN:
+        return "DECREE_COMMON_SUBTYPE_BLOCKGEN";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
     }
@@ -195,6 +202,8 @@ DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_de
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD;
     } else if (!dap_strcmp(a_decree_type, "event_pkey_remove")) {
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE;
+    } else if (!dap_strcmp(a_decree_type, "blockgen")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN;
     } else {
         return 0;
     }
@@ -242,6 +251,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCK_NUM";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE:
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD:
+         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD";
     default:
         return "DECREE_TSD_TYPE_UNKNOWN";
     }
@@ -364,6 +375,14 @@ dap_chain_policy_t *dap_chain_datum_decree_get_policy(dap_chain_datum_decree_t *
 int dap_chain_datum_decree_get_atom_num(dap_chain_datum_decree_t *a_decree, uint64_t *a_atom_num);
 
 /**
+ * @brief get empty block every times from decree
+ * @param a_decree
+ * @param a_blockgen_period
+ * @return result code. 0 - success
+ */
+int dap_chain_datum_decree_get_empty_block_every_times(dap_chain_datum_decree_t *a_decree, uint16_t *a_blockgen_period);
+
+/**
  * @breif dap_chain_datum_decree_dump Dump information about decree
  * @param a_str_out pointer to output text buffer
  * @param a_decree pointer to decree
@@ -379,7 +398,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
  * @param a_decree_size size data
  * @param a_hash_out_type
  */
-void dap_chain_datum_decree_dump_json(json_object  *a_obj_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type, int a_version);
+void dap_chain_datum_decree_dump_json(dap_json_t *a_obj_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type, int a_version);
 
 /**
  * @brief dap_chain_datum_decree_certs_dump compose decree signatures output string
@@ -389,7 +408,7 @@ void dap_chain_datum_decree_dump_json(json_object  *a_obj_out, dap_chain_datum_d
  */
 void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
 
-void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version);
+void dap_chain_datum_decree_certs_dump_json(dap_json_t * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version);
 
 /**
  * @brief dap_chain_datum_decree_sign_in_cycle

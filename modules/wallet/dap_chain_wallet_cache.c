@@ -41,6 +41,7 @@
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_wallet_cache_db.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_datum.h"  // For full dap_chain_datum_t structure
 #include "dap_chain.h"
 #include "dap_common.h"
 #include "dap_chain_cell.h"
@@ -522,8 +523,8 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
     return 0;
 }
 
-int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
-                                                    dap_list_t **a_outs_list, uint256_t *a_value_transfer)
+int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
+                                                    dap_list_t **a_outs_list, uint256_t *a_value_transfer, bool a_mempool_check)
 {
 
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
@@ -608,6 +609,9 @@ int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_to
                 continue;
             }
 
+            if (a_mempool_check && dap_chain_mempool_out_is_used(a_net, &l_item_cur->key.tx_hash, l_item_cur->key.out_idx))
+                continue;
+
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_item_cur->key.tx_hash, (uint32_t)l_item_cur->key.out_idx, l_value};
             l_list_used_out = dap_list_append(l_list_used_out, l_item);
@@ -623,8 +627,8 @@ int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_to
     return 0;
 }
 
-int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
-                                                    dap_list_t **a_outs_list, uint256_t a_value_need, uint256_t *a_value_transfer)
+int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
+                                                    dap_list_t **a_outs_list, uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check)
 {
 
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
@@ -718,6 +722,9 @@ int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const c
             default:
                 continue;
             }
+
+            if (a_mempool_check && dap_chain_mempool_out_is_used(a_net, &l_item_cur->key.tx_hash, l_item_cur->key.out_idx))
+                continue;
 
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_item_cur->key.tx_hash, (uint32_t)l_item_cur->key.out_idx, l_value};

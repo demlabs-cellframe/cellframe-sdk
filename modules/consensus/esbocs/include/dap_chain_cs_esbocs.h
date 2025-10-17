@@ -24,8 +24,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #pragma once
 
 #include "dap_chain.h"
+#include "dap_json.h"
 #include "dap_chain_block.h"
-#include "dap_chain_cs_blocks.h"
+#include "dap_chain_type_blocks.h"
 #include "dap_global_db_driver.h"
 
 #define DAP_STREAM_CH_ESBOCS_ID                     'E'
@@ -140,12 +141,12 @@ typedef struct dap_chain_esbocs_store {
 
 typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
-    dap_chain_cs_blocks_t *blocks;
+    dap_chain_type_blocks_t *blocks;
     dap_chain_esbocs_session_t *session;
     bool hardfork_state;
     uint16_t hardfork_generation;
     uint64_t hardfork_from;
-    json_object *hardfork_changed_addrs;
+    dap_json_t *hardfork_changed_addrs;
     dap_list_t *hardfork_trusted_addrs;
     dap_time_t last_directive_vote_timestamp, last_directive_accept_timestamp,
                last_submitted_candidate_timestamp, last_accepted_block_timestamp;
@@ -256,6 +257,7 @@ typedef enum s_com_esbocs_err{
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION,
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_STAKE,
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_WRONG_CHAIN,
+    DAP_CHAIN_NODE_CLI_COM_ESBOCS_BLOCKGEN_PERIOD_ERR,
 
     /* add custom codes here */
 
@@ -292,7 +294,7 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
 uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id);
 int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);
-int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, json_object* a_changed_addrs);
+int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs);
 int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain);
 bool dap_chain_esbocs_hardfork_engaged(dap_chain_t *a_chain);
 int dap_chain_esbocs_set_hardfork_state(dap_chain_t *a_chain, bool a_state);
@@ -329,3 +331,5 @@ int dap_chain_esbocs_set_custom_metadata_callback(dap_chain_net_id_t a_net_id,
 int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
                                           dap_chain_esbocs_callback_presign_t a_callback);
 
+
+int dap_chain_esbocs_set_empty_block_every_times(dap_chain_t *a_chain, uint16_t a_blockgen_period);
