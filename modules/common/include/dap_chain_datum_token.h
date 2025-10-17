@@ -262,10 +262,18 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
  * @details Flags that once set CANNOT be unset in token_update.
  *          These are critical security flags with opt-out behavior.
  *          Validation: (new_flags & MASK) >= (old_flags & MASK)
+ *          
+ *          Irreversible flags:
+ *          - UTXO_BLOCKING_DISABLED: Once disabled, cannot re-enable UTXO blocking
+ *          - ARBITRAGE_TX_DISABLED: Once disabled, cannot re-enable arbitrage TX
+ *          - DISABLE_ADDRESS_SENDER_BLOCKING: Once disabled, cannot re-enable sender address bans
+ *          - DISABLE_ADDRESS_RECEIVER_BLOCKING: Once disabled, cannot re-enable receiver address bans
  */
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK  \
     (DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED | \
-     DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED)
+     DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED | \
+     DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING | \
+     DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING)
 
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                                0xffff
 
