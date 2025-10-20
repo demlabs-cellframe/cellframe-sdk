@@ -1,5 +1,0 @@
-<?xml version="1.0"?>
-<group>
-	<target name="libdap-XKCP-armv7.a" inherits="FIPS202  K1600-plain-64bits-lcua"/>
-	<target name="libdap-XKCP-armv7-native.a" inherits="FIPS202 K1600-plain-64bits-lcua optimized-march-native"/>
-</group>
