@@ -953,19 +953,19 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 const char *l_hash_str = !dap_strcmp(l_hash_out_type, "base58") ?
                         dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
                         dap_chain_hash_fast_to_str_static(&l_pkey_hash);
-                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
-                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "size" : "sig_size",json_object_new_uint64(l_sign_size));
-                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",json_object_new_string(l_hash_str));
+                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
+                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "size" : "sig_size",dap_json_object_new_uint64(l_sign_size));
+                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",dap_json_object_new_string(l_hash_str));
                 dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
                 uint256_t l_reward = l_chain->callback_calc_reward(l_chain, &l_block_cache->block_hash, l_pkey);
                 DAP_DELETE(l_pkey);
                 const char *l_reward_coins_str = NULL;
                 const char *l_reward_value_str = dap_uint256_to_char(l_reward, &l_reward_coins_str);
                 dap_json_t *json_obj_reward = dap_json_object_new();
-                dap_json_object_add_object(json_obj_reward, "coins", json_object_new_string(l_reward_coins_str));
-                dap_json_object_add_object(json_obj_reward, "value", json_object_new_string(l_reward_value_str));
+                dap_json_object_add_object(json_obj_reward, "coins", dap_json_object_new_string(l_reward_coins_str));
+                dap_json_object_add_object(json_obj_reward, "value", dap_json_object_new_string(l_reward_value_str));
                 dap_json_object_add_object(json_obj_sign, "reward", json_obj_reward);
-                json_object_array_add(json_arr_sign_out, json_obj_sign);
+                dap_json_array_add(json_arr_sign_out, json_obj_sign);
             }
             if (a_version == 1)
                 dap_json_array_add(*a_json_arr_reply, json_arr_sign_out);

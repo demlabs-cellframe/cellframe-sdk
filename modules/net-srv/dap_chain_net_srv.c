@@ -364,12 +364,12 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                             uint64_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
                             char *l_tx_hash_str = dap_hash_fast_str_new(l_order, dap_chain_net_srv_order_get_size(l_order));
 
-                            dap_json_object_add_object(json_obj_net_srv, "data_hash", json_object_new_string(l_tx_hash_str));
+                            dap_json_object_add_object(json_obj_net_srv, "data_hash", dap_json_object_new_string(l_tx_hash_str));
                             DAP_DELETE(l_tx_hash_str);
-                            dap_json_object_add_object(json_obj_net_srv,"data_type", json_object_new_string("order"));
-                            dap_json_object_add_object(json_obj_net_srv,"data_size", json_object_new_uint64(l_order_size));
+                            dap_json_object_add_object(json_obj_net_srv,"data_type", dap_json_object_new_string("order"));
+                            dap_json_object_add_object(json_obj_net_srv,"data_size", dap_json_object_new_uint64(l_order_size));
                             char *l_data_str = dap_enc_base58_encode_to_str(l_order, l_order_size);
-                            dap_json_object_add_object(json_obj_net_srv,"data", json_object_new_string(l_data_str));
+                            dap_json_object_add_object(json_obj_net_srv,"data", dap_json_object_new_string(l_data_str));
                         } else {
                             dap_chain_net_srv_order_dump_to_json(l_order, json_obj_net_srv, l_hash_out_type, l_net->pub.native_ticker, a_version);
                             l_ret = 0;
@@ -395,8 +395,8 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
 
                 //     if( !dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_num) ){
                 //         json_obj_net_srv = dap_json_object_new();
-                //         dap_json_object_add_object(json_obj_net_srv, "count", json_object_new_uint64(l_orders_num));
-                //         dap_json_t *json_arr_out = json_object_new_array();
+                //         dap_json_object_add_object(json_obj_net_srv, "count", dap_json_object_new_uint64(l_orders_num));
+                //         dap_json_t *json_arr_out = dap_json_array_new();
                 //         for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
                 //             dap_json_t *json_obj_order = dap_json_object_new();
                 //             dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;

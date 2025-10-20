@@ -603,10 +603,7 @@ static bool s_json_get_srv_uid(dap_json_t *a_json, const char *a_key_service_id,
         // Read service as name
         const char *l_service = dap_json_rpc_get_text(a_json, a_key_service);
         if(l_service) {
-            dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get_by_name(l_service);
-            if(!l_srv)
-                return false;
-            *a_out = l_srv->uid.uint64;
+            *a_out = dap_chain_srv_get_uid_by_name(l_service).uint64;
             return true;
         }
     }
@@ -1344,13 +1341,13 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             bool l_pkey_hashes_valid = true;
             for(size_t j = 0; j < l_pkey_hashes_count; j++) {
                 dap_json_t *l_json_hash = dap_json_array_get_idx(l_json_pkey_hashes, j);
-                if(!l_json_hash || !json_object_is_type(l_json_hash, json_type_string)) {
+                if(!l_json_hash || !dap_json_is_string(json_type_string)) {
                     dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Invalid pkey hash at index %zu", j);
                     log_it(L_ERROR, "Json TX: invalid pkey hash at index %zu", j);
                     l_pkey_hashes_valid = false;
                     break;
                 }
-                const char *l_hash_str = dap_json_object_get_string(l_json_hash);
+                const char *l_hash_str = dap_json_get_string(l_json_hash);
                 if(dap_chain_hash_fast_from_str(l_hash_str, l_pkey_hashes + j)) {
                     dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Can't parse pkey hash '%s' at index %zu", l_hash_str, j);
                     log_it(L_ERROR, "Json TX: can't parse pkey hash '%s' at index %zu", l_hash_str, j);
@@ -1375,8 +1372,8 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                     
                     for(size_t j = 0; j < l_tags_count; j++) {
                         dap_json_t *l_json_tag = dap_json_array_get_idx(l_json_tags, j);
-                        if(l_json_tag && json_object_is_type(l_json_tag, json_type_string)) {
-                            const char *l_tag_value = dap_json_object_get_string(l_json_tag);
+                        if(l_json_tag && dap_json_is_string(l_json_tag)) {
+                            const char *l_tag_value = dap_json_get_string(l_json_tag);
                             if(l_tag_value) {
                                 if(j > 0) {
                                     dap_string_append_c(l_tags_string, ' ');
@@ -1909,20 +1906,20 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
                     DAP_DELETE(l_reinvest_percent);
                 } break;
                  case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
-                    dap_json_object_add_object(json_obj_item,"subtype", json_object_new_string("wallet_shared"));
-                    dap_json_object_add_object(json_obj_item, "min_sig_count", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.wallet_shared.signers_minimum));
-                    dap_json_t *l_jobj_pkey_hashes = json_object_new_array();
-                    dap_json_t *l_jobj_tags = json_object_new_array();
+                    dap_json_object_add_object(json_obj_item,"subtype", dap_json_object_new_string("wallet_shared"));
+                    dap_json_object_add_object(json_obj_item, "min_sig_count", dap_json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.wallet_shared.signers_minimum));
+                    dap_json_t *l_jobj_pkey_hashes = dap_json_array_new();
+                    dap_json_t *l_jobj_tags = dap_json_array_new();
                     dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
                     size_t l_tags_count = 0;
                     size_t l_pkey_hashes_count = 0;
                     dap_tsd_iter(l_tsd, l_tsd_size, ((dap_chain_tx_out_cond_t*)item)->tsd, ((dap_chain_tx_out_cond_t*)item)->tsd_size) {
                         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
-                            json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
+                            dap_json_array_add(l_jobj_pkey_hashes, dap_json_object_new_string(dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
                             l_pkey_hashes_count++;
                         }
                         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR) {
-                            json_object_array_add(l_jobj_tags, json_object_new_string((char*)(l_tsd->data)));
+                            dap_json_array_add(l_jobj_tags, dap_json_object_new_string((char*)(l_tsd->data)));
                             l_tags_count++;
                         }
                     }

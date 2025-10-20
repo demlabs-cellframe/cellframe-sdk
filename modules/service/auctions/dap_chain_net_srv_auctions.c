@@ -2185,7 +2185,7 @@ static int s_com_auction(int argc, char **argv, void **str_reply, UNUSED_ARG int
     const char *str_tmp = NULL;
     dap_json_t **l_json_arr_reply = (dap_json_t **) str_reply;
     
-    // Ensure JSON reply is an array to avoid segfaults on json_object_array_add
+    // Ensure JSON reply is an array to avoid segfaults on dap_json_array_add
     if (!l_json_arr_reply) {
         return -1;
     }

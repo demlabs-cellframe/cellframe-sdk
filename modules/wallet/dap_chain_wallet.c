@@ -1329,7 +1329,7 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
         dap_json_object_add_object(l_json_ret, "signs", l_jobj_signs);
         dap_hash_fast_t l_pkey_hash = {};
         dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash);
-        dap_json_object_add_object(l_json_ret, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
+        dap_json_object_add_object(l_json_ret, "pkey_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
         dap_json_t *l_jobj_network = dap_json_object_new();
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             dap_json_t *l_jobj_net = dap_json_object_new();

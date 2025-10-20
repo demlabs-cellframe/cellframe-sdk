@@ -1809,7 +1809,7 @@ static void s_wallet_list(const char *a_wallet_path, dap_json_t *a_json_arr_out,
                     dap_json_t *l_jobj_sings = NULL;
                     dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
                     if (l_w_internal->certs_count == 1) {
-                        l_jobj_sings = json_object_new_string(
+                        l_jobj_sings = dap_json_object_new_string(
                             dap_sign_type_to_str(
                                 dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type)));
                     } else {
@@ -1820,7 +1820,7 @@ static void s_wallet_list(const char *a_wallet_path, dap_json_t *a_json_arr_out,
                                                         l_w_internal->certs[i]->enc_key->type)),
                                                     ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
                         }
-                        l_jobj_sings = json_object_new_string(l_str_signs->str);
+                        l_jobj_sings = dap_json_object_new_string(l_str_signs->str);
                         dap_string_free(l_str_signs, true);
                     }
                     dap_json_object_add_object(json_obj_wall, "signs", l_jobj_sings);
@@ -1995,9 +1995,9 @@ int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
                                                                   dap_chain_wallet_check_sign(l_wallet) : "correct"));
                 dap_json_object_add_string(json_obj_wall, "wallet", l_wallet->name);
             }
-            dap_json_object_add_object(json_obj_wall, "addr", l_addr_str ? json_object_new_string(l_addr_str) : json_object_new_string("-"));
-            dap_json_object_add_object(json_obj_wall, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_addr->data.hash_fast)));
-            dap_json_object_add_object(json_obj_wall, "network", l_net_name? json_object_new_string(l_net_name) : json_object_new_string("-"));
+            dap_json_object_add_object(json_obj_wall, "addr", l_addr_str ? dap_json_object_new_string(l_addr_str) : dap_json_object_new_string("-"));
+            dap_json_object_add_object(json_obj_wall, "pkey_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_addr->data.hash_fast)));
+            dap_json_object_add_object(json_obj_wall, "network", l_net_name? dap_json_object_new_string(l_net_name) : dap_json_object_new_string("-"));
 
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
@@ -3821,7 +3821,7 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
     } else {
         dap_chain_datum_dump_json(*a_json_arr_reply, l_jobj_datum, l_datum, a_hash_out_type, a_net_id, true, a_version);
     }
-    json_object_array_add(*a_json_arr_reply, l_jobj_datum);
+    dap_json_array_add(*a_json_arr_reply, l_jobj_datum);
     return 0;
 }
 

@@ -198,7 +198,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
             , "Links from balancer %s:%u in net %s can't be prepared, connection errno %d"
             , a_host_addr, a_host_port, a_request->net->pub.name, a_errno);
     log_it(L_WARNING, "%s", l_err_str);
-    dap_json_object_add_object(l_json, dap_cli_server_get_version() == 1 ? "errorMessage" : "error_message", json_object_new_string(l_err_str));
+    dap_json_object_add_object(l_json, dap_cli_server_get_version() == 1 ? "errorMessage" : "error_message", dap_json_object_new_string(l_err_str));
     char *l_json_str = dap_json_to_string(l_json);
     dap_notify_server_send(l_json_str);
     DAP_DELETE(l_json_str);
