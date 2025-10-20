@@ -76,5 +76,6 @@ cmake_install.cmake
 # OS files
 .DS_Store
 .vscode/
+.cache
 .devcontainer/
 
