@@ -24,7 +24,6 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <pthread.h>
 #include "uthash.h"
 #include "dap_cli_server.h"
@@ -53,69 +52,7 @@
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
-typedef struct s_tx_addr_history_entry {
-    dap_chain_datum_tx_t *tx;
-    dap_chain_hash_fast_t hash;
-} tx_addr_history_entry_t;
 
-static void s_tx_address_history_entry_free(void *a_data)
-{
-    DAP_DELETE((tx_addr_history_entry_t *)a_data);
-}
-
-static int s_tx_address_history_compare_desc(dap_list_t *a_list1, dap_list_t *a_list2)
-{
-    if (!a_list1 || !a_list2)
-        return 0;
-    const tx_addr_history_entry_t *l_entry1 = (const tx_addr_history_entry_t *)a_list1->data;
-    const tx_addr_history_entry_t *l_entry2 = (const tx_addr_history_entry_t *)a_list2->data;
-    if (!l_entry1 || !l_entry2 || !l_entry1->tx || !l_entry2->tx)
-        return 0;
-    if (l_entry1->tx->header.ts_created > l_entry2->tx->header.ts_created)
-        return -1;
-    if (l_entry1->tx->header.ts_created < l_entry2->tx->header.ts_created)
-        return 1;
-    return 0;
-}
-
-static int s_tx_address_history_compare_asc(dap_list_t *a_list1, dap_list_t *a_list2)
-{
-    return -s_tx_address_history_compare_desc(a_list1, a_list2);
-}
-
-static bool s_tx_address_history_collect(dap_list_t **a_entries,
-                                         dap_chain_tx_hash_processed_ht_t **a_seen,
-                                         dap_chain_datum_tx_t *a_tx,
-                                         const dap_chain_addr_t *a_addr)
-{
-    if (!a_entries || !a_seen || !a_tx || !a_addr)
-        return false;
-    if (!dap_chain_tx_belongs_to_addr(a_tx, a_addr))
-        return false;
-    dap_chain_hash_fast_t l_hash = {0};
-    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size((dap_chain_datum_tx_t *)a_tx), &l_hash);
-    dap_chain_tx_hash_processed_ht_t *l_found = NULL;
-    HASH_FIND(hh, *a_seen, &l_hash, sizeof(l_hash), l_found);
-    if (l_found)
-        return false;
-    l_found = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
-    if (!l_found)
-        return false;
-    l_found->hash = l_hash;
-    HASH_ADD(hh, *a_seen, hash, sizeof(l_hash), l_found);
-    tx_addr_history_entry_t *l_entry = DAP_NEW_Z(tx_addr_history_entry_t);
-    if (!l_entry) {
-        HASH_DEL(*a_seen, l_found);
-        DAP_DELETE(l_found);
-        return false;
-    }
-    l_entry->tx = a_tx;
-    l_entry->hash = l_hash;
-    *a_entries = dap_list_prepend(*a_entries, l_entry);
-    return true;
-}
-
-static int s_cli_tx_address_history(int a_argc, char **a_argv, int a_subcmd_index, void **a_str_reply, int a_version);
 
 /**
  * @brief s_chain_tx_hash_processed_ht_free
@@ -144,214 +81,6 @@ void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_
  * @param a_tx_hash_processed
  * @param l_tx_num
  */
-
-static int s_cli_tx_address_history(int a_argc, char **a_argv, int a_subcmd_index, void **a_str_reply, int a_version)
-{
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
-    const int l_opt_index = a_subcmd_index + 1;
-    const char *l_addr_str = NULL, *l_net_name = NULL, *l_chain_name = NULL;
-    const char *l_offset_str = NULL, *l_limit_str = NULL;
-    bool l_json = dap_cli_server_cmd_find_option_val(a_argv, l_opt_index, a_argc, "-json", NULL);
-    bool l_newest_first = true;
-    if (dap_cli_server_cmd_find_option_val(a_argv, l_opt_index, a_argc, "-asc", NULL))
-        l_newest_first = false;
-    dap_cli_server_cmd_find_option_val(a_argv, l_opt_index, a_argc, "-addr", &l_addr_str);
-    dap_cli_server_cmd_find_option_val(a_argv, l_opt_index, a_argc, "-net", &l_net_name);
-    dap_cli_server_cmd_find_option_val(a_argv, l_opt_index, a_argc, "-chain", &l_chain_name);
-    dap_cli_server_cmd_find_option_val(a_argv, l_opt_index, a_argc, "-offset", &l_offset_str);
-    dap_cli_server_cmd_find_option_val(a_argv, l_opt_index, a_argc, "-limit", &l_limit_str);
-
-    if (!l_addr_str) {
-        if (a_json_arr_reply && *a_json_arr_reply)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR,
-                                   "tx address_history requires parameter '-addr'");
-        return DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR;
-    }
-
-    dap_chain_addr_t *l_addr_ptr = dap_chain_addr_from_str(l_addr_str);
-    if (!l_addr_ptr) {
-        if (a_json_arr_reply && *a_json_arr_reply)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_ADDR_ERR, "Wallet address not recognized");
-        return DAP_CHAIN_NODE_CLI_COM_TX_CMD_ADDR_ERR;
-    }
-    dap_chain_addr_t l_addr = *l_addr_ptr;
-    DAP_DELETE(l_addr_ptr);
-
-    dap_chain_net_t *l_net = NULL;
-    if (l_net_name) {
-        l_net = dap_chain_net_by_name(l_net_name);
-        if (!l_net) {
-            if (a_json_arr_reply && *a_json_arr_reply)
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_NET_ERR,
-                                       "Can't find network '%s'", l_net_name);
-            return DAP_CHAIN_NODE_CLI_COM_TX_CMD_NET_ERR;
-        }
-    } else if (!dap_chain_addr_is_blank(&l_addr) && l_addr.net_id.uint64) {
-        l_net = dap_chain_net_by_id(l_addr.net_id);
-    }
-    if (!l_net) {
-        if (a_json_arr_reply && *a_json_arr_reply)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_NET_ERR,
-                                   "Network not defined. Use '-net' parameter.");
-        return DAP_CHAIN_NODE_CLI_COM_TX_CMD_NET_ERR;
-    }
-    if (!dap_chain_addr_is_blank(&l_addr) && l_addr.net_id.uint64 &&
-            l_addr.net_id.uint64 != l_net->pub.id.uint64) {
-        if (a_json_arr_reply && *a_json_arr_reply)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_NET_ERR,
-                                   "Address belongs to network 0x%016" DAP_UINT64_FORMAT_x ", but requested net is 0x%016"
-                                   DAP_UINT64_FORMAT_x, l_addr.net_id.uint64, l_net->pub.id.uint64);
-        return DAP_CHAIN_NODE_CLI_COM_TX_CMD_NET_ERR;
-    }
-
-    dap_chain_t *l_chain = NULL;
-    if (l_chain_name) {
-        l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
-        if (!l_chain) {
-            if (a_json_arr_reply && *a_json_arr_reply)
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_CHAIN_ERR,
-                                       "Can't find chain '%s' in network %s", l_chain_name, l_net->pub.name);
-            return DAP_CHAIN_NODE_CLI_COM_TX_CMD_CHAIN_ERR;
-        }
-    } else {
-        l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
-        if (!l_chain) {
-            if (a_json_arr_reply && *a_json_arr_reply)
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_CHAIN_ERR,
-                                       "No default transaction chain in network %s. Use '-chain' option.", l_net->pub.name);
-            return DAP_CHAIN_NODE_CLI_COM_TX_CMD_CHAIN_ERR;
-        }
-    }
-
-    if (!l_chain->callback_datum_iter_create || !l_chain->callback_datum_iter_get_first || !l_chain->callback_datum_iter_get_next) {
-        if (a_json_arr_reply && *a_json_arr_reply)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_INTERNAL_ERR,
-                                   "Chain iterator callbacks are not set.");
-        return DAP_CHAIN_NODE_CLI_COM_TX_CMD_INTERNAL_ERR;
-    }
-
-    if (l_offset_str && l_offset_str[0] == '-') {
-        if (a_json_arr_reply && *a_json_arr_reply)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR, "Offset must be non-negative");
-        return DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR;
-    }
-    if (l_limit_str && l_limit_str[0] == '-') {
-        if (a_json_arr_reply && *a_json_arr_reply)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR, "Limit must be non-negative");
-        return DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR;
-    }
-    size_t l_offset = l_offset_str ? strtoull(l_offset_str, NULL, 10) : 0;
-    size_t l_limit = l_limit_str ? strtoull(l_limit_str, NULL, 10) : 50;
-
-    dap_list_t *l_entries = NULL;
-    dap_chain_tx_hash_processed_ht_t *l_seen = NULL;
-    size_t l_total = 0;
-    int l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CMD_OK;
-
-    bool l_use_cache = false;
-    dap_chain_wallet_cache_iter_t *l_cache_iter = dap_chain_wallet_cache_iter_create(l_addr);
-    if (l_cache_iter) {
-        for (dap_chain_datum_tx_t *l_tx = dap_chain_wallet_cache_iter_get(l_cache_iter, DAP_CHAIN_WALLET_CACHE_GET_FIRST);
-                l_tx;
-                l_tx = dap_chain_wallet_cache_iter_get(l_cache_iter, DAP_CHAIN_WALLET_CACHE_GET_NEXT)) {
-            if (s_tx_address_history_collect(&l_entries, &l_seen, l_tx, &l_addr))
-                ++l_total;
-        }
-        l_use_cache = l_entries != NULL;
-        dap_chain_wallet_cache_iter_delete(l_cache_iter);
-    }
-
-    if (!l_use_cache) {
-        dap_chain_datum_iter_t *l_datum_iter = l_chain->callback_datum_iter_create(l_chain);
-        if (!l_datum_iter) {
-            if (a_json_arr_reply && *a_json_arr_reply)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_INTERNAL_ERR,
-                                       "Unable to create datum iterator for chain %s", l_chain->name);
-            l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CMD_INTERNAL_ERR;
-            goto cleanup;
-        }
-        for (dap_chain_datum_t *l_datum = l_chain->callback_datum_iter_get_first(l_datum_iter);
-                l_datum;
-                l_datum = l_chain->callback_datum_iter_get_next(l_datum_iter)) {
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
-                continue;
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-            if (s_tx_address_history_collect(&l_entries, &l_seen, l_tx, &l_addr))
-                ++l_total;
-        }
-        l_chain->callback_datum_iter_delete(l_datum_iter);
-    }
-
-    if (l_entries)
-        l_entries = dap_list_sort(l_entries, l_newest_first ? s_tx_address_history_compare_desc : s_tx_address_history_compare_asc);
-
-    if (l_json) {
-        json_object *l_root = json_object_new_object();
-        json_object_object_add(l_root, "count", json_object_new_int64((int64_t)l_total));
-        json_object *l_items = json_object_new_array();
-        dap_list_t *l_start = dap_list_nth(l_entries, l_offset);
-        size_t l_emitted = 0;
-        for (dap_list_t *it = l_start; it && (l_limit == 0 || l_emitted < l_limit); it = it->next) {
-            tx_addr_history_entry_t *l_entry = it->data;
-            if (!l_entry || !l_entry->tx)
-                continue;
-            json_object *l_tx_obj = json_object_new_object();
-            if (dap_chain_net_tx_to_json(l_entry->tx, l_tx_obj) != 0) {
-                json_object_put(l_tx_obj);
-                continue;
-            }
-            json_object_array_add(l_items, l_tx_obj);
-            ++l_emitted;
-        }
-        json_object_object_add(l_root, "items", l_items);
-        if (a_json_arr_reply && *a_json_arr_reply)
-            json_object_array_add(*a_json_arr_reply, l_root);
-        else
-            json_object_put(l_root);
-    } else {
-        dap_string_t *l_out = dap_string_new(NULL);
-        dap_string_append_printf(l_out, "count=%zu\n", l_total);
-        dap_list_t *l_start = dap_list_nth(l_entries, l_offset);
-        size_t l_emitted = 0;
-        for (dap_list_t *it = l_start; it && (l_limit == 0 || l_emitted < l_limit); it = it->next) {
-            tx_addr_history_entry_t *l_entry = it->data;
-            if (!l_entry)
-                continue;
-            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {0};
-            dap_chain_hash_fast_to_str(&l_entry->hash, l_hash_str, sizeof(l_hash_str));
-            dap_string_append_printf(l_out, "%s\n", l_hash_str);
-            ++l_emitted;
-        }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_out->str);
-        dap_string_free(l_out, true);
-    }
-
-cleanup:
-    s_dap_chain_tx_hash_processed_ht_free(&l_seen);
-    if (l_entries)
-        dap_list_free_full(l_entries, s_tx_address_history_entry_free);
-    return l_ret;
-}
-
-int com_tx(int a_argc, char **a_argv, void **a_str_reply, int a_version)
-{
-    if (a_argc < 2) {
-        json_object **a_json_arr_reply = (json_object **)a_str_reply;
-        if (a_json_arr_reply && *a_json_arr_reply)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR,
-                                   "tx command requires subcommand. Use 'address_history'.");
-        return DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR;
-    }
-    const char *l_subcmd = a_argv[1];
-    if (!dap_strcmp(l_subcmd, "address_history"))
-        return s_cli_tx_address_history(a_argc, a_argv, 1, a_str_reply, a_version);
-
-    json_object **a_json_arr_reply = (json_object **)a_str_reply;
-    if (a_json_arr_reply && *a_json_arr_reply)
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR,
-                               "Unknown tx subcommand '%s'", l_subcmd);
-    return DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR;
-}
 
 bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
                                           dap_chain_datum_tx_t *a_datum,
@@ -773,9 +502,6 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             
         }        
 
-        if (!dap_chain_tx_belongs_to_addr(l_tx, a_addr))
-            goto next_step;
-
         // find OUT items
         bool l_header_printed = false;
         uint256_t l_fee_sum = uint256_0;
@@ -787,6 +513,37 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             json_object_put(j_obj_tx);
             json_object_put(j_arr_data);
             return NULL;
+        }
+        if (!l_src_addr) {
+            bool l_dst_addr_present = false;
+            for (dap_list_t *it = l_list_out_items; it; it = it->next) {
+                uint8_t l_type = *(uint8_t *)it->data;
+                dap_chain_addr_t *l_dst_addr = NULL;
+                switch (l_type) {
+                case TX_ITEM_TYPE_OUT:
+                    l_dst_addr = &((dap_chain_tx_out_t *)it->data)->addr;
+                    break;
+                case TX_ITEM_TYPE_OUT_EXT:
+                    l_dst_addr = &((dap_chain_tx_out_ext_t *)it->data)->addr;
+                    break;
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_dst_addr = &((dap_chain_tx_out_std_t *)it->data)->addr;
+                default:
+                    break;
+                }
+                if (l_dst_addr && dap_chain_addr_compare(l_dst_addr, a_addr)) {
+                    l_dst_addr_present = true;
+                    break;
+                }
+            }
+            if (!l_dst_addr_present)
+            {
+                json_object_put(j_arr_data);
+                j_arr_data = NULL;
+                json_object_put(j_obj_tx);
+                dap_list_free(l_list_out_items);
+                goto next_step;
+            }                
         }
 
         for (dap_list_t *it = l_list_out_items; it; it = it->next) {

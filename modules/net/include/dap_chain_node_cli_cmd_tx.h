@@ -59,17 +59,6 @@ typedef enum s_com_token_err{
     DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN /* MAX */
 } s_com_token_err_t;
 
-typedef enum s_com_tx_cmd_err{
-    DAP_CHAIN_NODE_CLI_COM_TX_CMD_OK = 0,
-    DAP_CHAIN_NODE_CLI_COM_TX_CMD_PARAM_ERR,
-    DAP_CHAIN_NODE_CLI_COM_TX_CMD_ADDR_ERR,
-    DAP_CHAIN_NODE_CLI_COM_TX_CMD_NET_ERR,
-    DAP_CHAIN_NODE_CLI_COM_TX_CMD_CHAIN_ERR,
-    DAP_CHAIN_NODE_CLI_COM_TX_CMD_INTERNAL_ERR,
-
-    DAP_CHAIN_NODE_CLI_COM_TX_CMD_UNKNOWN /* MAX */
-} s_com_tx_cmd_err_t;
-
 typedef struct dap_chain_tx_hash_processed_ht{
     dap_chain_hash_fast_t hash;
     UT_hash_handle hh;
@@ -128,12 +117,6 @@ int com_ledger(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
  *
  */
 int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
-
-/**
- * tx command
- *
- */
-int com_tx(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 /**
  * decree command

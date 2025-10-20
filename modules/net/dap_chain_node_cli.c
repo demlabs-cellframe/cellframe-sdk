@@ -342,9 +342,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         " -fee <value> -srv_uid <numeric_uid>\n" );
         dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, NULL, "Find cond transactions by wallet",
                                         "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
-    dap_cli_server_cmd_add ("tx", com_tx, NULL, "Transaction helper commands",
-            "tx address_history -addr <base58_addr> [-net <net_name>] [-chain <chain_name>] "
-            "[-offset <N>] [-limit <N>] [-asc] [-json]\n");
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, NULL, "Verifing transaction in mempool",
             "tx_verify -net <net_name> [-chain <chain_name>] -tx <tx_hash>\n" );
