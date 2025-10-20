@@ -23,7 +23,7 @@ typedef enum dex_tx_type{
 dap_hash_fast_t *dap_chain_net_srv_dex_match_hashes(
         dap_chain_net_t *a_net, const char *a_sell_token, const char *a_buy_token,
         dap_chain_net_id_t *a_sell_net_id, dap_chain_net_id_t *a_buy_net_id,
-        uint256_t *a_max_buy_value, uint256_t *a_min_rate, size_t *a_num_matches);
+        uint256_t *a_max_value, uint256_t *a_min_rate, size_t *a_num_matches, bool a_is_budget_buy);
     
 int dap_chain_net_srv_dex_init();
 void dap_chain_net_srv_dex_deinit();
@@ -34,6 +34,7 @@ typedef enum dap_chain_net_srv_dex_create_error_list{
     DEX_CREATE_ERROR_INVALID_ARGUMENT,
     DEX_CREATE_ERROR_TOKEN_TICKER_SELL_NOT_FOUND,
     DEX_CREATE_ERROR_TOKEN_TICKER_BUY_NOT_FOUND,
+    DEX_CREATE_ERROR_PAIR_NOT_ALLOWED,
     DEX_CREATE_ERROR_RATE_IS_ZERO,
     DEX_CREATE_ERROR_FEE_IS_ZERO,
     DEX_CREATE_ERROR_VALUE_SELL_IS_ZERO,
@@ -92,7 +93,8 @@ typedef enum dap_chain_net_srv_dex_purchase_error_list{
 
 dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
     dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash,
-    uint256_t a_value_buy, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+    uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+    bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
     dap_chain_datum_tx_t **a_tx);
 
 // Multi-purchase against list of orders (M:1). Orders must belong to one pair (sell/buy).
@@ -101,12 +103,13 @@ typedef enum dap_chain_net_srv_dex_purchase_multi_error_list{
     DEX_PURCHASE_MULTI_ERROR_INVALID_ARGUMENT,
     DEX_PURCHASE_MULTI_ERROR_ORDERS_EMPTY,
     DEX_PURCHASE_MULTI_ERROR_PAIR_MISMATCH,
+    DEX_PURCHASE_MULTI_ERROR_SIDE_MISMATCH,
     DEX_PURCHASE_MULTI_ERROR_COMPOSE_TX
 } dap_chain_net_srv_dex_purchase_multi_error_t;
 
 dap_chain_net_srv_dex_purchase_multi_error_t dap_chain_net_srv_dex_purchase_multi(
     dap_chain_net_t *a_net,
-    dap_hash_fast_t *a_order_hashes, size_t a_orders_count, uint256_t a_value_buy, uint256_t a_fee,
+    dap_hash_fast_t *a_order_hashes, size_t a_orders_count, uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee,
     dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
     dap_chain_datum_tx_t **a_tx);
 
@@ -122,7 +125,7 @@ typedef struct dex_match_table_entry dex_match_table_entry_t;
 dap_chain_net_srv_dex_purchase_auto_error_t dap_chain_net_srv_dex_purchase_auto(
         dap_chain_net_t *a_net,
         const char *a_sell_token, const char *a_buy_token,
-        uint256_t a_value_buy, uint256_t a_fee, uint256_t a_min_rate,
+        uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee, uint256_t a_min_rate,
         dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
         dap_chain_datum_tx_t **a_tx, dex_match_table_entry_t **a_matches);
 
@@ -140,4 +143,28 @@ dap_chain_net_srv_dex_migrate_error_t dap_chain_net_srv_dex_migrate(
         dap_chain_net_t *a_net, dap_hash_fast_t *a_prev_hash,
         uint256_t a_rate_new, uint256_t a_fee,
         dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx);
+
+// Cancel all orders by seller for a specific canonical pair (BASE/QUOTE)
+typedef enum dap_chain_net_srv_dex_cancel_all_error_list{
+    DEX_CANCEL_ALL_ERROR_OK = 0,
+    DEX_CANCEL_ALL_ERROR_INVALID_ARGUMENT,
+    DEX_CANCEL_ALL_ERROR_WALLET,
+    DEX_CANCEL_ALL_ERROR_ORDERS_EMPTY,
+    DEX_CANCEL_ALL_ERROR_WALLET_MISMATCH,
+    DEX_CANCEL_ALL_NOT_ENOUGH_CASH_FOR_FEE,
+    DEX_CANCEL_ALL_ERROR_COMPOSE_TX
+} dap_chain_net_srv_dex_cancel_all_error_t;
+
+dap_chain_net_srv_dex_cancel_all_error_t dap_chain_net_srv_dex_cancel_all_by_seller(
+        dap_chain_net_t *a_net,
+        const dap_chain_addr_t *a_seller,
+        const char *a_base_token, const char *a_quote_token,
+        int a_limit,
+        uint256_t a_fee,
+        dap_chain_wallet_t *a_wallet,
+        dap_chain_datum_tx_t **a_tx);
+
+// Decree callback type and getter (uses dex_pair_key_t for TSD)
+typedef int (*dap_chain_net_srv_dex_decree_callback_t)(const char *a_method, byte_t *a_tsd, size_t a_tsd_size);
+dap_chain_net_srv_dex_decree_callback_t dap_chain_net_srv_dex_get_decree_callback(void);
 

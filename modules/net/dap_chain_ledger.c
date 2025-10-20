@@ -3144,7 +3144,7 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
             return a_unspent_only ? (dap_hash_fast_t){} : l_hash;
         // Determine chain root: blank => this tx is the root
         dap_hash_fast_t l_root = dap_hash_fast_is_blank(&l_oc->subtype.srv_dex.order_root_hash) ? l_hash : l_oc->subtype.srv_dex.order_root_hash;
-        // Traverse while the current chain out is spent and the spender creates an UPDATE for the same root
+        // Traverse while the current chain out is spent and the spender continues the same root (UPDATE or seller residual)
         for (;;) {
             dap_hash_fast_t l_spender = l_item ? l_item->cache_data.tx_hash_spent_fast[l_out_idx] : (dap_hash_fast_t){};
             if (dap_hash_fast_is_blank(&l_spender))
@@ -3155,7 +3155,7 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
                 // Spender not found in cache, return current known hash
                 break;
             }
-            // Find SRV_DEX UPDATE out that continues the same root and its output index
+            // Find SRV_DEX OUT_COND that continues the same root (UPDATE or seller residual) and its output index
             int l_idx = -1, l_found_idx = -1;
             byte_t *it; size_t sz = 0;
             TX_ITEM_ITER_TX(it, sz, l_tx) {
@@ -3167,18 +3167,18 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
                     dap_chain_tx_out_cond_t *oc = (dap_chain_tx_out_cond_t*)it; l_idx++;
                     if (oc->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
                         if (!dap_hash_fast_compare(&oc->subtype.srv_dex.order_root_hash, &l_root)
-                            && oc->subtype.srv_dex.tx_type == DEX_TX_TYPE_UPDATE) {
+                            && !dap_hash_fast_is_blank(&oc->subtype.srv_dex.order_root_hash)) {
                             l_found_idx = l_idx;
                         }
                     }
                 } break;
-                default: break; }
+                default: break;
+                }
             }
-            if (l_found_idx < 0) {
-                // No continuation UPDATE for this root in spender tx => chain ended at previous hash
+            if (l_found_idx < 0)
+                // No continuation (UPDATE or seller residual) for this root in spender tx => chain ended at previous hash
                 break;
-            }
-            // Continue traversal from spender UPDATE out
+            // Continue traversal from spender OUT_COND (UPDATE or seller residual)
             l_hash = l_spender;
             l_out_idx = l_found_idx;
             // loop continues
