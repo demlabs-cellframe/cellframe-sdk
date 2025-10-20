@@ -50,14 +50,11 @@ extern "C" {
 int dap_tx_json_tsd_add(dap_json_t *json_tx, dap_json_t *json_add);
 dap_json_t *dap_enc_request_command_to_rpc(const char *a_request, const char * a_url, uint16_t a_port, const char * a_cert_path);
 
-bool s_dap_chain_tx_compose_check_token_in_ledger(dap_json_t *l_json_coins, const char *a_token);
 
-dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  dap_chain_tx_compose_config_t * a_config, 
-                                                  dap_time_t *a_ts_created, char **a_token_ticker, int32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
 
 dap_json_t *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                  uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, const char *a_value_str, 
-                                  const char *a_fee_str, const char *addr_base58_to, dap_chain_addr_t *a_addr_from);
+                                    uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, const char *a_value_str, const char *l_time_unlock_str, const char *a_fee_str, 
+                                    const char *a_addr_base58_to, dap_chain_addr_t *a_addr_from);
 
 dap_json_t *dap_chain_tx_compose_xchange_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                           uint16_t a_port, const char *a_enc_cert_path, const char *a_token_sell, const char *a_token_buy, 
@@ -71,17 +68,6 @@ dap_json_t *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, con
 dap_json_t *dap_cli_xchange_purchase_compose(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                              uint16_t a_port, const char *a_enc_cert_path, const char *a_order_hash, const char* a_value, 
                                              const char* a_fee, const char *a_wallet_name, const char *a_wallet_path);
-
-dap_chain_datum_tx_t *dap_chain_tx_compose_datum_xchange_order_remove(dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
-                                                              dap_chain_addr_t *a_wallet_addr, dap_chain_tx_compose_config_t *a_config);
-
-dap_json_t *dap_chain_tx_compose_xchange_order_remove(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                                 uint16_t a_port, const char *a_enc_cert_path, const char *a_order_hash_str, const char *a_fee_str, 
-                                                 dap_chain_addr_t *a_wallet_addr);
-
-dap_chain_datum_tx_t *dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchange_price_t *a_price, dap_chain_tx_out_cond_t *a_cond_tx, 
-                                                        dap_chain_addr_t *a_wallet_addr, dap_chain_addr_t *a_seller_addr, const char *a_tx_ticker, 
-                                                        uint32_t a_prev_cond_idx, dap_chain_tx_compose_config_t *a_config);
 
 dap_json_t *dap_chain_tx_compose_xchange_purchase(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                                    uint16_t a_port, const char *a_enc_cert_path, const char *a_order_hash, const char* a_value, 
@@ -105,16 +91,9 @@ dap_json_t *dap_chain_tx_compose_wallet_shared_sign(dap_chain_net_id_t a_net_id,
 
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
-                                                       const char* a_token_ticker, uint256_t *a_value, uint256_t a_value_fee, 
-                                                       size_t a_tx_num, dap_chain_tx_compose_config_t *a_config);
+        const char *a_token_ticker, uint256_t *a_value, dap_time_t *a_time_unlock, uint256_t a_value_fee,
+        size_t a_tx_num, dap_chain_tx_compose_config_t *a_config);
 
-dap_chain_datum_tx_t *dap_chain_tx_compose_datum_xchange_create(const char *a_token_buy, const char *a_token_sell, 
-                                                              uint256_t a_datoshi_sell, uint256_t a_rate, uint256_t a_fee, 
-                                                              dap_chain_addr_t *a_wallet_addr, dap_chain_tx_compose_config_t *a_config);
-
-dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xchange_price_t *a_price, 
-                                                           dap_chain_addr_t *a_seller_addr, const char *a_native_ticker, 
-                                                           dap_chain_tx_compose_config_t *a_config);
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
                                                               const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -123,16 +102,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t
                                                               dap_chain_srv_uid_t a_srv_uid, uint256_t a_value_fee, 
                                                               const void *a_cond, size_t a_cond_size, dap_chain_tx_compose_config_t *a_config);
 
-dap_chain_datum_tx_t *dap_chain_tx_compose_datum_xchange_purchase(dap_hash_fast_t *a_order_hash, uint256_t a_value,
-                                                                uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, 
-                                                                char **a_hash_out, dap_chain_tx_compose_config_t *a_config);
 
-dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_xchange_price_t *a_price, 
-                                                            dap_chain_addr_t *a_buyer_addr, uint256_t a_datoshi_buy,
-                                                            uint256_t a_datoshi_fee, dap_chain_tx_out_cond_t* a_cond_tx, 
-                                                            uint32_t a_prev_cond_idx, dap_chain_tx_compose_config_t *a_config);
-
-dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee, 
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee, 
                                                       uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str, 
                                                       dap_chain_tx_compose_config_t *a_config);
 
@@ -150,6 +121,17 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_get_datum_from_rpc(
     dap_chain_tx_out_cond_t **a_cond_tx, char **a_spent_by_hash, 
     char **a_token_ticker, int *a_out_idx, bool a_is_ledger);
 
+dap_json_t *dap_request_command_to_rpc_with_params(dap_chain_tx_compose_config_t *a_config, const char *a_method, const char *msg, ...);
+dap_chain_tx_compose_config_t *dap_chain_tx_compose_config_init(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
+                                 uint16_t a_port, const char *a_enc_cert_path);
+dap_json_t *dap_chain_tx_compose_config_return_response_handler(dap_chain_tx_compose_config_t *a_config);
+bool dap_chain_tx_compose_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, const char *a_token_ticker,
+                                         dap_json_t **l_outs, int *l_outputs_count, dap_chain_tx_compose_config_t *a_config);
+bool dap_chain_tx_compose_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **a_addr_fee, dap_chain_tx_compose_config_t *a_config);
+int dap_json_compose_error_add(dap_json_t *a_json_obj_reply, int a_code_error, const char *msg, ...);
+bool dap_chain_tx_compose_check_token_in_ledger(dap_json_t *l_json_coins, const char *a_token);
+uint256_t dap_chain_tx_compose_get_balance_from_json(dap_json_t *l_json_outs, const char *a_token_sell);
+dap_json_t *dap_chain_tx_compose_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_t * a_addr, dap_chain_tx_compose_config_t *a_config);
 #ifdef __cplusplus
 }
 #endif

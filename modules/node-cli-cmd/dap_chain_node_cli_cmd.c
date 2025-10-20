@@ -90,7 +90,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_policy.h"
 #include "dap_time.h"
-#include "dap_chain_cs_blocks.h"
+
 
 #define LOG_TAG "chain_node_cli_cmd"
 

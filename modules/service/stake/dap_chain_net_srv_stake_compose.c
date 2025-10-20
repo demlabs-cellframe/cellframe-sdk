@@ -18,6 +18,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_ledger.h"
 #include "dap_json_rpc_errors.h"
+#include "dap_json_rpc.h"
 #include "dap_rand.h"
 
 #define LOG_TAG "stake_compose"
@@ -61,7 +62,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_
     dap_json_t *l_outs_main = NULL;
     int l_out_main_count = 0;
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
-    l_outs_native = dap_get_remote_tx_outs(l_native_ticker, a_wallet_addr, a_config);
+    l_outs_native = dap_chain_tx_compose_get_remote_tx_outs(l_native_ticker, a_wallet_addr, a_config);
     if (!l_outs_native) {
         log_it(L_ERROR, "Can't get remote tx outs");
         DAP_DEL_Z(l_addr_fee);
@@ -70,7 +71,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_
     if (!dap_strcmp(a_main_ticker, l_native_ticker)) {
         l_outs_main = l_outs_native;
     } else {
-        l_outs_main = dap_get_remote_tx_outs(a_main_ticker, a_wallet_addr, a_config);
+        l_outs_main = dap_chain_tx_compose_get_remote_tx_outs(a_main_ticker, a_wallet_addr, a_config);
     }
     int l_out_native_count = dap_json_array_length(l_outs_native);
     l_out_main_count = dap_json_array_length(l_outs_main);
@@ -80,7 +81,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_
     else if (!IS_ZERO_256(l_total_fee)) {
         l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
                                                                l_total_fee, 
-                                                               &l_fee_transfer);
+                                                               &l_fee_transfer, false);
         if (!l_list_fee_out) {
             log_it(L_ERROR, "not enough funds to pay fee");
             dap_json_compose_error_add(a_config->response_handler, STAKE_LOCK_DATUM_CREATE_ERROR_NOT_ENOUGH_FUNDS_TO_PAY_FEE, "Not enough funds to pay fee");
@@ -94,7 +95,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_
     // list of transaction with 'out' items
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_main, l_out_main_count,
                                                             l_value_need,
-                                                            &l_value_transfer);
+                                                            &l_value_transfer, false);
     if (!l_list_used_out) {
         log_it(L_ERROR, "not enough funds to transfer");
         dap_json_compose_error_add(a_config->response_handler, STAKE_LOCK_DATUM_CREATE_ERROR_NOT_ENOUGH_FUNDS_TO_TRANSFER, "Not enough funds to transfer");
@@ -348,14 +349,14 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_take(dap_chain_addr_
     bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
 
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST    
-    dap_json_t *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, a_wallet_addr, a_config);
+    dap_json_t *l_outs_native = dap_chain_tx_compose_get_remote_tx_outs(l_native_ticker, a_wallet_addr, a_config);
     if (!l_outs_native) {
         log_it(L_ERROR, "Can't get remote tx outs");
         DAP_DEL_Z(l_addr_fee);
         return NULL;
     }
 
-    dap_json_t *l_outs_delegated = dap_get_remote_tx_outs(a_delegated_ticker_str, a_wallet_addr, a_config);
+    dap_json_t *l_outs_delegated = dap_chain_tx_compose_get_remote_tx_outs(a_delegated_ticker_str, a_wallet_addr, a_config);
     if (!l_outs_delegated) {
         log_it(L_ERROR, "Can't get remote tx outs");
         DAP_DEL_Z(l_addr_fee);
@@ -375,7 +376,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_take(dap_chain_addr_
         if (!l_main_native) {
             l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
                                                                 l_total_fee, 
-                                                                &l_fee_transfer);
+                                                                &l_fee_transfer, false);
             if (!l_list_fee_out) {
                 log_it(L_ERROR, "not enough funds to pay fee");
                 dap_json_compose_error_add(a_config->response_handler, TX_STAKE_LOCK_TAKE_COMPOSE_NOT_ENOUGH_FUNDS, "Not enough funds to pay fee");
@@ -399,7 +400,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_take(dap_chain_addr_
     if (!IS_ZERO_256(a_delegated_value)) {
         l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_delegated, l_out_delegated_count,
                                                                a_delegated_value, 
-                                                               &l_value_transfer);
+                                                               &l_value_transfer, false);
         if (!l_list_used_out) {
             log_it(L_ERROR, "not enough funds to pay fee");
             dap_json_compose_error_add(a_config->response_handler, TX_STAKE_LOCK_TAKE_COMPOSE_NOT_ENOUGH_FUNDS, "Not enough funds to pay fee");
@@ -740,7 +741,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_invalidate(dap_hash_f
     
     const char *l_native_ticker = a_config->native_ticker;
 
-    dap_json_t *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, &l_owner_addr, a_config);
+    dap_json_t *l_outs_native = dap_chain_tx_compose_get_remote_tx_outs(l_native_ticker, &l_owner_addr, a_config);
     if (!l_outs_native) {
         log_it(L_ERROR, "Transaction outputs not found");
         DAP_DEL_MULTY(l_token_ticker, l_tx_out_cond);
@@ -774,7 +775,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_invalidate(dap_hash_f
     dap_list_t *l_list_fee_out = NULL; 
     l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
                                                                 l_fee_total, 
-                                                                &l_fee_transfer);
+                                                                &l_fee_transfer, false);
     if (!l_list_fee_out) {
         log_it(L_ERROR, "Not enough funds to pay fees");
         dap_json_object_free(l_outs_native);
@@ -984,7 +985,7 @@ static dap_chain_net_srv_order_t *s_get_remote_srv_order(const char* l_order_has
         return NULL;
     }
 
-    char *l_data_type = dap_json_object_get_string(l_responce, "data_type");
+    const char *l_data_type = dap_json_object_get_string(l_responce, "data_type");
     if (!l_data_type || strcmp("order", l_data_type)) {
         log_it(L_ERROR, "current type is '%s', not 'order'", l_data_type);
         dap_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_BAD_DATA_TYPE, "Current type is '%s', not 'order'", l_data_type);
@@ -1350,7 +1351,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_delegate(dap_chain_ad
     dap_list_t *l_list_fee_out = NULL;
 
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST   
-    dap_json_t *l_outs_native = dap_get_remote_tx_outs(l_native_ticker, a_wallet_addr, a_config);
+    dap_json_t *l_outs_native = dap_chain_tx_compose_get_remote_tx_outs(l_native_ticker, a_wallet_addr, a_config);
     if (!l_outs_native) {
         log_it(L_ERROR, "failed to get remote tx outs");
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_NOT_ENOUGH_FUNDS_FEE, "Not enough funds to pay fee");
@@ -1358,7 +1359,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_delegate(dap_chain_ad
         return NULL;
     }
 
-    dap_json_t *l_outs_delegated = dap_get_remote_tx_outs(l_delegated_ticker, a_wallet_addr, a_config);
+    dap_json_t *l_outs_delegated = dap_chain_tx_compose_get_remote_tx_outs(l_delegated_ticker, a_wallet_addr, a_config);
     if (!l_outs_delegated) {
         log_it(L_ERROR, "failed to get remote tx outs");
         dap_json_compose_error_add(a_config->response_handler, DAP_STAKE_TX_CREATE_COMPOSE_NOT_ENOUGH_FUNDS_VALUE, "Not enough funds for value");
@@ -1377,7 +1378,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_delegate(dap_chain_ad
 
     l_list_fee_out = dap_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
                                                     l_fee_total, 
-                                                    &l_fee_transfer);
+                                                    &l_fee_transfer, false);
     if (!l_list_fee_out) {
         log_it(L_ERROR, "Failed to get list tx outs from json");
         dap_json_object_free(l_outs_native);
@@ -1393,7 +1394,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_delegate(dap_chain_ad
     if (!a_prev_tx) {
         dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs_delegated, l_out_delegated_count,
                                                                a_value, 
-                                                               &l_value_transfer);
+                                                               &l_value_transfer, false);
         if (!l_list_used_out) {
             log_it(L_ERROR, "Failed to get list tx outs from json");
             dap_json_object_free(l_outs_native);
@@ -1721,7 +1722,7 @@ dap_json_t *dap_chain_tx_compose_stake_lock_hold(dap_chain_net_id_t a_net_id, co
     dap_json_t *l_json_outs = dap_request_command_to_rpc_with_params(l_config, "wallet", "info;-addr;%s;-net;%s", 
                                                                        dap_chain_addr_to_str(a_wallet_addr), l_config->net_name);
 
-    uint256_t l_value_balance = s_get_balance_from_json(l_json_outs, a_ticker_str);
+    uint256_t l_value_balance = dap_chain_tx_compose_get_balance_from_json(l_json_outs, a_ticker_str);
     dap_json_object_free(l_json_outs);
     if (compare256(l_value_balance, l_value) == -1) {
         log_it(L_ERROR, "insufficient funds in wallet");

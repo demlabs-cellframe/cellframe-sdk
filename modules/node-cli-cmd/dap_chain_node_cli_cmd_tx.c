@@ -2249,7 +2249,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **reply, int a_version)
     size_t l_items_ready = 0, l_items_count = 0;
     dap_chain_datum_tx_t *l_tx = NULL;
     int l_ret = 0;
-    if((l_ret = dap_chain_net_tx_create_by_json(l_json, l_net, l_jobj_errors, &l_tx, &l_items_count, &l_items_ready)) != DAP_CHAIN_NET_TX_CREATE_JSON_OK) {
+    if((l_ret = dap_chain_tx_datum_from_json(l_json, l_net, l_jobj_errors, &l_tx, &l_items_count, &l_items_ready)) != DAP_CHAIN_NET_TX_CREATE_JSON_OK) {
         dap_json_rpc_error_add(*a_json_arr_reply, l_ret,
                                "Can't create transaction from json file");
         return l_ret;

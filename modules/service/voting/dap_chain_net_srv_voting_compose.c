@@ -82,7 +82,7 @@ dap_json_t *dap_chain_tx_compose_poll_create(dap_chain_net_id_t a_net_id, const 
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS, "Can't get ledger coins list\n");
         return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
-    if (!s_dap_chain_tx_compose_check_token_in_ledger(l_json_coins, a_token_str)) {
+    if (!!dap_chain_tx_compose_check_token_in_ledger(l_json_coins, a_token_str)) {
         log_it(L_ERROR, "Token does not exist");
         dap_json_object_free(l_json_coins);
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN, "Token %s does not exist\n", a_token_str);
@@ -176,7 +176,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_create(const char *a_quest
     dap_list_t *l_list_used_out = NULL;
     l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                             l_total_fee,
-                                                            &l_value_transfer);
+                                                            &l_value_transfer, false);
 
     dap_json_object_free(l_outs);
     if (!l_list_used_out) {
@@ -409,7 +409,7 @@ static bool s_datum_tx_voting_coin_check_spent_compose(dap_json_t *a_votes_list,
         const char
             *l_vote_hash = dap_json_object_get_string(l_vote, "vote_hash"),
             *l_pkey_hash = dap_json_object_get_string(l_vote, "pkey_hash");
-        if (!dap_strcmp(l_vote_hash, dap_chain_hash_fast_to_str_static(&a_tx_hash)) && a_out_idx == dap_json_object_get_int(dap_json_object_get_object(l_vote, "answer_idx"))) {
+        if (!dap_strcmp(l_vote_hash, dap_chain_hash_fast_to_str_static(&a_tx_hash)) && a_out_idx == dap_json_object_get_int(l_vote, "answer_idx")) {
             log_it_fl(L_DEBUG, "Found matching vote at index %zu", i);
             return a_pkey_hash ? !dap_strcmp(l_pkey_hash, dap_chain_hash_fast_to_str_static(a_pkey_hash)) : true;
         }
@@ -442,7 +442,8 @@ typedef enum {
     DAP_CHAIN_NET_VOTE_COMPOSE_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE = -20,
     DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS = -21,
     DAP_CHAIN_NET_VOTE_COMPOSE_ERR_NOT_ENOUGH_FUNDS = -22,
-    DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_GET_REMOTE_WALLET_OUTS = -23
+    DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_GET_REMOTE_WALLET_OUTS = -23,
+    DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_FEE = -24
 } dap_chain_net_vote_compose_error_t;
 
 dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, dap_hash_fast_t a_hash,
@@ -598,7 +599,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
     // todo replace with func witch will return all outpurs not only enough outputs
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                             l_total_fee,
-                                                            &l_value_transfer);
+                                                            &l_value_transfer, true);
     dap_json_object_free(l_outs);
     if (!l_list_used_out) {
         log_it(L_ERROR, "not enough funds to transfer");
@@ -674,10 +675,10 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
     if (!l_native_tx) {
         dap_list_t *l_list_fee_outs = dap_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
                                                                l_total_fee, 
-                                                               &l_fee_transfer);
+                                                               &l_fee_transfer, false);
         if (!l_list_fee_outs) {
             log_it(L_ERROR, "not enough funds to pay fee");
-            dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FEE_ERROR, "Not enough funds to pay fee");
+            dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_FEE, "Not enough funds to pay fee");
             dap_json_object_free(l_outs);
             DAP_DELETE(l_addr_fee);
             return NULL;
@@ -758,7 +759,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
 
     dap_list_t *l_cond_outs = dap_ledger_get_list_tx_outs_from_json(l_cond_tx_outputs, l_cond_outputs_count,
                                                             l_total_fee,    
-                                                            &l_value_transfer);
+                                                            &l_value_transfer, true);
     for (dap_list_t *it = l_cond_outs; it; it = it->next) {
         dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)it->data;
         if (l_votes_count > 0) { 
@@ -822,10 +823,9 @@ typedef enum {
     DAP_CLI_VOTE_CANCEL_COMPOSE_VOTING_NOT_FOUND = -6
 } dap_cli_vote_cancel_compose_error_t;
 
-dap_json_t *dap_cli_vote_cancel_compose(const char *a_net_str, const char *a_hash_str, const char *a_fee_str, 
-                                         dap_chain_addr_t *a_wallet_addr, const char *a_url_str, 
-                                         uint16_t a_port, const char *a_cert_path) {
-    dap_chain_tx_compose_config_t *l_config = dap_chain_tx_compose_config_init(a_net_str, a_url_str, a_port, a_cert_path);
+dap_json_t *dap_cli_vote_cancel_compose(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
+                                    uint16_t a_port, const char *a_enc_cert_path, const char *a_hash_str, const char *a_cert_name, const char *a_fee_str, dap_chain_addr_t *a_wallet_addr) {
+    dap_chain_tx_compose_config_t *l_config = dap_chain_tx_compose_config_init(a_net_id, a_net_name, a_native_ticker, a_url_str, a_port, a_enc_cert_path);
     if (!l_config) {
         dap_json_t *l_json_obj_ret = dap_json_object_new();
         dap_json_compose_error_add(l_json_obj_ret, DAP_CLI_VOTE_CANCEL_COMPOSE_INVALID_CONFIG, "Can't create compose config");
@@ -949,7 +949,7 @@ dap_chain_datum_tx_t* dap_chain_net_vote_cancel_compose(uint256_t a_fee, dap_cha
 #endif
 
     // Get native ticker and calculate fees
-    const char *l_native_ticker = dap_chain_tx_compose_get_native_ticker(a_config->net_name);
+    const char *l_native_ticker = a_config->native_ticker;
     uint256_t l_net_fee = {}, l_total_fee = {};
     dap_chain_addr_t *l_addr_fee = NULL;
     bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);

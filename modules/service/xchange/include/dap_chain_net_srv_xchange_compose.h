@@ -22,7 +22,9 @@ typedef enum dap_chain_net_srv_xchange_purchase_compose_error {
     DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_TOKEN_TICKER,
     DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_TIMESTAMP,
     DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_PRICE_CREATE,
-    DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_TX_CREATE
+    DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_TX_CREATE,
+    DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_TX_FEE,
+    DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_TX_FUNDS
 } dap_chain_net_srv_xchange_purchase_compose_error_t;
 
 /**
@@ -48,13 +50,13 @@ dap_chain_net_srv_xchange_price_t *dap_chain_net_srv_xchange_compose_price_from_
 /**
  * @brief Invalidate xchange transaction (create invalidation tx)
  */
-dap_chain_datum_tx_t* dap_chain_net_srv_xchange_compose_tx_invalidate(
-    dap_chain_net_srv_xchange_price_t *a_price, 
-    dap_chain_tx_out_cond_t *a_cond_tx, 
-    dap_chain_addr_t *a_wallet_addr, 
-    dap_chain_addr_t *a_seller_addr, 
-    const char *a_tx_ticker, 
-    uint32_t a_prev_cond_idx, 
+dap_chain_datum_tx_t *dap_chain_net_srv_xchange_compose_tx_invalidate(
+    dap_chain_net_srv_xchange_price_t *a_price,
+    dap_chain_tx_out_cond_t *a_cond_tx,
+    dap_chain_addr_t *a_wallet_addr,
+    dap_chain_addr_t *a_seller_addr,
+    const char *a_tx_ticker,
+    uint32_t a_prev_cond_idx,
     dap_chain_tx_compose_config_t *a_config);
 
 /**
@@ -62,12 +64,12 @@ dap_chain_datum_tx_t* dap_chain_net_srv_xchange_compose_tx_invalidate(
  * @details Follows the chain of transactions from initial order to the last one
  */
 dap_chain_tx_out_cond_t *dap_chain_net_srv_xchange_compose_find_last_tx(
-    dap_hash_fast_t *a_order_hash,  
-    dap_chain_addr_t *a_seller_addr,  
-    dap_chain_tx_compose_config_t *a_config, 
-    const char **a_ts_created_str, 
-    const char **a_token_ticker, 
-    uint32_t *a_prev_cond_idx, 
+    dap_hash_fast_t *a_order_hash,
+    dap_chain_addr_t *a_seller_addr,
+    dap_chain_tx_compose_config_t *a_config,
+    dap_time_t *a_ts_created,
+    char **a_token_ticker,
+    int32_t *a_prev_cond_idx,
     dap_hash_fast_t *a_hash_out);
 
 /**
@@ -78,20 +80,54 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_xchange_compose_find_last_tx(
  * @param a_config Compose configuration
  * @return Created transaction or NULL on error
  */
-dap_chain_datum_tx_t* dap_chain_net_srv_xchange_compose_order_remove(
-    dap_hash_fast_t *a_hash_tx, 
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_xchange_order_remove(
+    dap_hash_fast_t *a_hash_tx,
     uint256_t a_fee,
-    dap_chain_addr_t *a_wallet_addr, 
+    dap_chain_addr_t *a_wallet_addr,
     dap_chain_tx_compose_config_t *a_config);
 
 /**
  * @brief CLI wrapper for xchange order removal
  */
-dap_json_t *dap_chain_net_srv_xchange_compose_cli_order_remove(
-    const char *l_net_str, 
-    const char *l_order_hash_str, 
-    const char *l_fee_str, 
-    dap_chain_addr_t *a_wallet_addr, 
-    const char *l_url_str, 
-    uint16_t l_port, 
-    const char *l_cert_path);
+dap_json_t *dap_chain_tx_compose_xchange_order_remove(
+    dap_chain_net_id_t a_net_id,
+    const char *a_net_name,
+    const char *a_native_ticker,
+    const char *a_url_str,
+    uint16_t a_port,
+    const char *a_enc_cert_path,
+    const char *a_order_hash_str,
+    const char *a_fee_str,
+    dap_chain_addr_t *a_wallet_addr);
+
+dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(
+    dap_chain_net_srv_xchange_price_t *a_price,
+    dap_chain_addr_t *a_seller_addr,
+    const char *a_native_ticker,
+    dap_chain_tx_compose_config_t *a_config);
+
+dap_chain_datum_tx_t* dap_chain_tx_compose_datum_xchange_create(
+    const char *a_token_buy,
+    const char *a_token_sell,
+    uint256_t a_datoshi_sell,
+    uint256_t a_rate,
+    uint256_t a_fee,
+    dap_chain_addr_t *a_wallet_addr,
+    dap_chain_tx_compose_config_t *a_config);
+
+dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(
+    dap_chain_net_srv_xchange_price_t *a_price,
+    dap_chain_addr_t *a_buyer_addr,
+    uint256_t a_datoshi_buy,
+    uint256_t a_datoshi_fee,
+    dap_chain_tx_out_cond_t* a_cond_tx,
+    uint32_t a_prev_cond_idx,
+    dap_chain_tx_compose_config_t *a_config);
+
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_xchange_purchase(
+    dap_hash_fast_t *a_order_hash,
+    uint256_t a_value,
+    uint256_t a_fee,
+    dap_chain_addr_t *a_wallet_addr,
+    char **a_hash_out,
+    dap_chain_tx_compose_config_t *a_config);
