@@ -3214,41 +3214,79 @@ cancel_all_ret_err:
     return l_err;
 }
 
+// TSD section types for decree parameters
+#define DEX_DECREE_TSD_TOKEN_BASE    0x0001
+#define DEX_DECREE_TSD_TOKEN_QUOTE   0x0002
+#define DEX_DECREE_TSD_NET_BASE      0x0003
+#define DEX_DECREE_TSD_NET_QUOTE     0x0004
+#define DEX_DECREE_TSD_FEE_CONFIG    0x0005
+#define DEX_DECREE_TSD_FEE_AMOUNT    0x0020
+#define DEX_DECREE_TSD_FEE_ADDR      0x0021
+
+// Decree method types
+typedef enum {
+    DEX_DECREE_UNKNOWN, DEX_DECREE_FEE_SET,
+    DEX_DECREE_PAIR_ADD, DEX_DECREE_PAIR_REMOVE,
+    DEX_DECREE_PAIR_FEE_SET,
+    DEX_DECREE_PAIR_FEE_SET_ALL
+} dex_decree_method_t;
+
 /*
  * s_dex_decree_callback
  * Decree callback for DEX service governance.
  * Methods:
- *   - fee_set: Set global fee (TSD: 0x0020=amount, 0x0021=addr)
+ *   - fee_set: Set global fee (TSD: DEX_DECREE_TSD_FEE_AMOUNT, DEX_DECREE_TSD_FEE_ADDR)
  *   - pair_add: Add pair to whitelist with fee_config (TSD: 0x0001-0x0005)
  *   - pair_remove: Remove pair from whitelist (TSD: 0x0001-0x0004)
  *   - pair_fee_set: Update fee_config for specific pair (TSD: 0x0001-0x0005)
- *   - pair_fee_set_all: Update fee_config for all pairs (TSD: 0x0005)
+ *   - pair_fee_set_all: Update fee_config for all pairs (TSD: DEX_DECREE_TSD_FEE_CONFIG)
  * Returns 0 on success, negative on error.
  */
 static int s_dex_decree_callback(const char *a_method, byte_t *a_tsd, size_t a_tsd_size)
 {
     dap_ret_val_if_any(-1, !a_method, !a_tsd);
     
-    // Global fee configuration
-    if (!dap_strcmp(a_method, "fee_set")) {
-        dap_tsd_t *l_amount = dap_tsd_find(a_tsd, a_tsd_size, 0x0020);
-        dap_tsd_t *l_addr = dap_tsd_find(a_tsd, a_tsd_size, 0x0021);
-        dap_ret_val_if_any(-2, !l_amount, !l_addr);
+    // Parse method into enum
+    dex_decree_method_t l_method = DEX_DECREE_UNKNOWN;
+    if (!dap_strcmp(a_method, "fee_set"))               l_method = DEX_DECREE_FEE_SET;
+    else if (!dap_strcmp(a_method, "pair_add"))         l_method = DEX_DECREE_PAIR_ADD;
+    else if (!dap_strcmp(a_method, "pair_remove"))      l_method = DEX_DECREE_PAIR_REMOVE;
+    else if (!dap_strcmp(a_method, "pair_fee_set"))     l_method = DEX_DECREE_PAIR_FEE_SET;
+    else if (!dap_strcmp(a_method, "pair_fee_set_all")) l_method = DEX_DECREE_PAIR_FEE_SET_ALL;
+    
+    // Collect all TSD sections in one pass
+    dap_tsd_t *l_tsd_token_base = NULL, *l_tsd_token_quote = NULL;
+    dap_tsd_t *l_tsd_net_base = NULL, *l_tsd_net_quote = NULL;
+    dap_tsd_t *l_tsd_fee_config = NULL, *l_tsd_fee_amount = NULL, *l_tsd_fee_addr = NULL;
+    dap_tsd_t *l_tsd = NULL;
+    size_t l_tsd_size = 0;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+        switch (l_tsd->type) {
+        case DEX_DECREE_TSD_TOKEN_BASE:  l_tsd_token_base = l_tsd; break;
+        case DEX_DECREE_TSD_TOKEN_QUOTE: l_tsd_token_quote = l_tsd; break;
+        case DEX_DECREE_TSD_NET_BASE:    l_tsd_net_base = l_tsd; break;
+        case DEX_DECREE_TSD_NET_QUOTE:   l_tsd_net_quote = l_tsd; break;
+        case DEX_DECREE_TSD_FEE_CONFIG:  l_tsd_fee_config = l_tsd; break;
+        case DEX_DECREE_TSD_FEE_AMOUNT:  l_tsd_fee_amount = l_tsd; break;
+        case DEX_DECREE_TSD_FEE_ADDR:    l_tsd_fee_addr = l_tsd; break;
+        }
+    }
+    
+    switch (l_method) {
+    case DEX_DECREE_FEE_SET:
+        dap_ret_val_if_any(-2, !l_tsd_fee_amount, !l_tsd_fee_addr);
         pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-        memcpy(&s_dex_native_fee_amount, l_amount->data, sizeof(uint256_t));
-        memcpy(&s_dex_service_fee_addr, l_addr->data, sizeof(dap_chain_addr_t));
+        memcpy(&s_dex_native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
+        memcpy(&s_dex_service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
         pthread_rwlock_unlock(&s_dex_cache_rwlock);
         log_it(L_NOTICE, "Service fee set: %s to %s",
                dap_uint256_to_char_ex(s_dex_native_fee_amount).str,
                dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
         return 0;
-    }
     
-    // pair_fee_set_all: special case (only fee_config, no pair)
-    if (!dap_strcmp(a_method, "pair_fee_set_all")) {
-        dap_tsd_t *l_cfg = dap_tsd_find(a_tsd, a_tsd_size, 0x0005);
-        dap_ret_val_if_any(-2, !l_cfg);
-        uint8_t l_new_cfg = dap_tsd_get_scalar(l_cfg, uint8_t);
+    case DEX_DECREE_PAIR_FEE_SET_ALL:
+        dap_ret_val_if_any(-2, !l_tsd_fee_config);
+        uint8_t l_new_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
         pthread_rwlock_wrlock(&s_dex_cache_rwlock);
         dex_pair_index_t *l_it, *l_tmp;
         int l_count = 0;
@@ -3259,60 +3297,49 @@ static int s_dex_decree_callback(const char *a_method, byte_t *a_tsd, size_t a_t
         pthread_rwlock_unlock(&s_dex_cache_rwlock);
         log_it(L_NOTICE, "Updated fee for %d pairs: 0x%02x", l_count, l_new_cfg);
         return 0;
-    }
     
-    // Pair-specific methods (require pair TSD sections)
-    dap_tsd_t *l_tsd_token_base = dap_tsd_find(a_tsd, a_tsd_size, 0x0001);
-    dap_tsd_t *l_tsd_token_quote = dap_tsd_find(a_tsd, a_tsd_size, 0x0002);
-    dap_tsd_t *l_tsd_net_base = dap_tsd_find(a_tsd, a_tsd_size, 0x0003);
-    dap_tsd_t *l_tsd_net_quote = dap_tsd_find(a_tsd, a_tsd_size, 0x0004);
-    dap_ret_val_if_any(-2, !l_tsd_token_base, !l_tsd_token_quote, !l_tsd_net_base, !l_tsd_net_quote);
-    
-    const char *l_token_base = dap_tsd_get_string_const(l_tsd_token_base);
-    const char *l_token_quote = dap_tsd_get_string_const(l_tsd_token_quote);
-    uint64_t l_net_base = dap_tsd_get_scalar(l_tsd_net_base, uint64_t);
-    uint64_t l_net_quote = dap_tsd_get_scalar(l_tsd_net_quote, uint64_t);
-    if (!dap_strcmp(l_token_base, DAP_TSD_CORRUPTED_STRING) || !dap_strcmp(l_token_quote, DAP_TSD_CORRUPTED_STRING))
-        return log_it(L_ERROR, "Corrupted token strings in decree TSD"), -3;
-    
-    dex_pair_key_t l_key = {
-        .net_id_base = { .uint64 = l_net_base },
-        .net_id_quote = { .uint64 = l_net_quote }
-    };
-    dap_strncpy(l_key.token_base, l_token_base, sizeof(l_key.token_base) - 1);
-    dap_strncpy(l_key.token_quote, l_token_quote, sizeof(l_key.token_quote) - 1);
-    
-    if (!dap_strcmp(a_method, "pair_add")) {
-        dap_tsd_t *l_cfg = dap_tsd_find(a_tsd, a_tsd_size, 0x0005);
-        if (l_cfg)
-            l_key.fee_config = dap_tsd_get_scalar(l_cfg, uint8_t);
-        pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-        int l_ret = s_dex_pair_index_add(&l_key);
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        return l_ret;
-    }
-    else if (!dap_strcmp(a_method, "pair_remove")) {
-        pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-        int l_ret = s_dex_pair_index_remove(&l_key);
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        return l_ret;
-    }
-    else if (!dap_strcmp(a_method, "pair_fee_set")) {
-        dap_tsd_t *l_cfg = dap_tsd_find(a_tsd, a_tsd_size, 0x0005);
-        dap_ret_val_if_any(-2, !l_cfg);
-        uint8_t l_new_cfg = dap_tsd_get_scalar(l_cfg, uint8_t);
-        pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-        dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
-        if (l_pair) {
-            l_pair->key.fee_config = l_new_cfg;
-            log_it(L_NOTICE, "Updated fee for pair %s/%s: 0x%02x",
-                   l_key.token_base, l_key.token_quote, l_new_cfg);
+    case DEX_DECREE_PAIR_ADD:
+    case DEX_DECREE_PAIR_REMOVE:
+    case DEX_DECREE_PAIR_FEE_SET:
+        dap_ret_val_if_any(-2, !l_tsd_token_base, !l_tsd_token_quote, !l_tsd_net_base, !l_tsd_net_quote);
+        const char *l_token_base = dap_tsd_get_string_const(l_tsd_token_base), *l_token_quote = dap_tsd_get_string_const(l_tsd_token_quote);
+        dap_ret_val_if_any(-3, !dap_strcmp(l_token_base, DAP_TSD_CORRUPTED_STRING), 
+                                !dap_strcmp(l_token_quote, DAP_TSD_CORRUPTED_STRING),
+                                !dap_strcmp(l_token_base, l_token_quote));
+        dap_chain_net_id_t l_net_base = { .uint64 = dap_tsd_get_scalar(l_tsd_net_base, uint64_t) },
+            l_net_quote = { .uint64 = dap_tsd_get_scalar(l_tsd_net_quote, uint64_t) };
+        // Canonicalize pair (BTC/ETH and ETH/BTC → always BASE/QUOTE)
+        dex_pair_key_t l_key = { };
+        s_pair_normalize(l_token_base, l_net_base, l_token_quote, l_net_quote, uint256_0, &l_key, NULL, NULL);
+        if (l_method == DEX_DECREE_PAIR_ADD) {
+            if (l_tsd_fee_config)
+                l_key.fee_config = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
+            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+            int l_ret = s_dex_pair_index_add(&l_key);
+            pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            return l_ret;
+        } else if (l_method == DEX_DECREE_PAIR_REMOVE) {
+            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+            int l_ret = s_dex_pair_index_remove(&l_key);
+            pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            return l_ret;
+        } else {
+            dap_ret_val_if_any(-2, !l_tsd_fee_config);
+            uint8_t l_new_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
+            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+            dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
+            if (l_pair) {
+                l_pair->key.fee_config = l_new_cfg;
+                log_it(L_NOTICE, "Updated fee for pair %s/%s: 0x%02x",
+                       l_key.token_base, l_key.token_quote, l_new_cfg);
+            }
+            pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            return l_pair ? 0 : -3;
         }
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        return l_pair ? 0 : -3;
-    }
-    else
+    
+    default:
         return log_it(L_WARNING, "Unknown decree method for DEX service: %s", a_method), -4;
+    }
 }
 
 /*
