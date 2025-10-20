@@ -536,6 +536,30 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         }
         pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
 
+        // Mark conditional outs
+        pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
+        if (l_old_vote) {
+            dap_hash_fast_t *l_vote_hash = &((dap_chain_net_vote_t *)l_old_vote->data)->vote_hash;
+            dap_chain_net_voting_cond_outs_t *it = NULL, *tmp;
+            HASH_ITER(hh, l_voting->voting_spent_cond_outs, it, tmp) {
+                if (!dap_hash_fast_compare(l_vote_hash, &it->pkey_hash))
+                    continue;
+                HASH_DEL(l_voting->voting_spent_cond_outs, it);
+                DAP_DELETE(it);
+            }
+        }
+        for (dap_list_t *it = l_tsd_list; it; it = it->next) {
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)it->data)->tsd;
+            if (l_tsd->type != VOTING_TSD_TYPE_VOTE_TX_COND)
+                continue;
+            dap_chain_net_voting_cond_outs_t *l_tx_out = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_voting_cond_outs_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
+            l_tx_out->tx_hash = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->tx_hash;
+            l_tx_out->out_idx = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->out_idx;
+            l_tx_out->pkey_hash = l_pkey_hash;
+            HASH_ADD(hh, l_voting->voting_spent_cond_outs, tx_hash, sizeof(dap_hash_fast_t), l_tx_out);
+        }
+        pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
+
         dap_chain_net_vote_t *l_vote_item = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_vote_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
         l_vote_item->vote_hash = *a_tx_hash;
         l_vote_item->pkey_hash = l_pkey_hash;
