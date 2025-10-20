@@ -3390,3 +3390,19 @@ bool dap_chain_net_stop(dap_chain_net_t *a_net)
 }
 
 /*------------------------------------State machine block end---------------------------------*/
+
+
+bool dap_chain_net_is_bridged(dap_chain_net_t *a_net, dap_chain_net_id_t a_net_id)
+{
+    dap_return_val_if_pass(!a_net, false);
+    // null  addr always pass
+    if (!a_net_id.uint64 || a_net->pub.id.uint64 == a_net_id.uint64)
+        return true;
+    if (!a_net->pub.bridged_networks_count)
+        return false;
+    bool l_ret = false;
+    for(uint16_t i = 0; i < a_net->pub.bridged_networks_count && !l_ret; ++i) {
+            l_ret = a_net->pub.bridged_networks[i].uint64 == a_net_id.uint64;
+    }
+    return l_ret;
+}
