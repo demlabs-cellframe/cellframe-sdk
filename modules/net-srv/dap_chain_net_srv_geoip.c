@@ -25,6 +25,7 @@
 #include <stddef.h>
 
 #include "dap_client_http.h"
+#include "dap_http_status_code.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
