@@ -24,10 +24,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #include "dap_chain_net_node_list.h"
-#include "http_status_code.h"
+#include "dap_net_common.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_client.h"
 #include "dap_client_http.h"
+#include "dap_http_status_code.h"
 
 #define LOG_TAG "dap_chain_net_node_list"
 
@@ -81,11 +82,11 @@ static int s_dap_chain_net_node_list_del(dap_chain_net_t *a_net, dap_chain_node_
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
     log_it(L_DEBUG,"Proc enc http request");
-    http_status_code_t *l_return_code = (http_status_code_t*)a_arg;    
+    dap_http_status_code_t *l_return_code = (dap_http_status_code_t*)a_arg;    
     if ( strcmp(a_http_simple->http_client->url_path, DAP_NODE_LIST_URI_HASH) ) {
         log_it(L_ERROR, "Wrong path '%s' in the request to dap_chain_net_node_list module",
                         a_http_simple->http_client->url_path);
-        *l_return_code = Http_Status_BadRequest;
+        *l_return_code = DAP_HTTP_STATUS_BAD_REQUEST;
         return;
     }
     int l_protocol_version = 0;
@@ -97,24 +98,24 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
                                                                   &l_protocol_version, &l_issue_method, &addr, &port) )
     {
         log_it( L_ERROR, "Bad request \"%s\"", a_http_simple->http_client->in_query_string );
-        *l_return_code = Http_Status_BadRequest;
+        *l_return_code = DAP_HTTP_STATUS_BAD_REQUEST;
         return;
     }
     if (l_protocol_version != 1) {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_node_list module");
-        *l_return_code = Http_Status_MethodNotAllowed;
+        *l_return_code = DAP_HTTP_STATUS_METHOD_NOT_ALLOWED;
         return;
     }
     const char *l_key = dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} );
     if (!l_key) {
         log_it(L_ERROR, "Bad node address %"DAP_UINT64_FORMAT_U, addr);
-        *l_return_code = Http_Status_BadRequest;
+        *l_return_code = DAP_HTTP_STATUS_BAD_REQUEST;
         return;
     }
     char *l_net_str = strstr(a_http_simple->http_client->in_query_string, l_net_token);
     if (!l_net_str) {
         log_it(L_ERROR, "Net name token not found in the request to dap_chain_net_node_list module");
-        *l_return_code = Http_Status_NotFound;
+        *l_return_code = DAP_HTTP_STATUS_NOT_FOUND;
         return;
     }
     l_net_str += strlen(l_net_token);
@@ -134,7 +135,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         l_response = !dap_chain_net_balancer_handshake(l_node_info, l_net)
             ? s_dap_chain_net_node_list_add(l_net, l_node_info)
             : ( log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ]", l_key, l_node_info->ext_host, l_node_info->ext_port), ERR_HANDSHAKE );
-        *l_return_code = Http_Status_OK;
+        *l_return_code = DAP_HTTP_STATUS_OK;
     } break;
 
     case 'r': {
@@ -144,26 +145,26 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         } else {
             if ( dap_strcmp(l_node_info->ext_host, a_http_simple->es_hostaddr) ) {
                 l_response = ERR_NOT_PINNER;
-                *l_return_code = Http_Status_Forbidden;
+                *l_return_code = DAP_HTTP_STATUS_FORBIDDEN;
             } else {
                 l_response = !dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key)
                     ? ( log_it(L_DEBUG, "Node %s successfully deleted from nodelist", l_key), DELETED_OK )
                     : ( log_it(L_DEBUG, "Can't delete node %s from nodelist", l_key), ERR_EXISTS );
-                *l_return_code = Http_Status_OK;
+                *l_return_code = DAP_HTTP_STATUS_OK;
             }
             DAP_DELETE(l_node_info);
         }
     } break;
 
     default:
-        return *l_return_code = Http_Status_MethodNotAllowed, log_it(L_ERROR, "Unsupported protocol version/method");
+        return *l_return_code = DAP_HTTP_STATUS_METHOD_NOT_ALLOWED, log_it(L_ERROR, "Unsupported protocol version/method");
     }
 
     dap_http_simple_reply(a_http_simple, &l_response, sizeof(uint8_t));
 }
 
 static void s_net_node_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg,
-                                            http_status_code_t http_status_code) {
+                                            dap_http_status_code_t http_status_code) {
     (void)http_status_code;
     struct node_link_request *l_node_list_request = (struct node_link_request *)a_arg;
 #ifdef DAP_OS_WINDOWS
