@@ -36,14 +36,6 @@
 #define NET_COUNT 6
 
 typedef struct {
-    char name[20];
-    char native_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    dap_chain_net_id_t net_id;
-    char url[128];
-    uint16_t port;
-} NetInfo;
-
-typedef struct {
     dap_chain_net_id_t net_id;
     const char *net_name;
     const char *native_ticker;

@@ -144,6 +144,7 @@ static int s_json_compose_error_add(json_object* a_json_obj_reply, int a_code_er
     return 0;
 }
 
+
 int dap_tx_json_tsd_add(json_object *json_tx, json_object *json_add) {
     dap_return_val_if_pass(!json_tx || !json_add, -1);
     log_it_fl(L_DEBUG, "json_tx: %p, json_add: %p", json_tx, json_add);
@@ -712,7 +713,54 @@ static json_object* s_request_command_to_rpc_with_params(compose_config_t *a_con
 
     return dap_request_command_to_rpc(data, a_config);
 }
-    
+
+
+static dap_chain_net_id_t *s_get_bridged_networks(const char *a_net_name, uint16_t *a_bridget_count, compose_config_t* a_config)
+{
+    dap_return_val_if_pass(!a_net_name, NULL);
+    json_object *l_json_net = s_request_command_to_rpc_with_params(a_config, "net", "get;status;-net;%s", a_config->net_name);
+    if (!l_json_net || !json_object_is_type(l_json_net, json_type_array)) {
+        log_it(L_ERROR, "can't get net status");
+        s_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_RESPONSE_NULL, "can't get net status");
+        return NULL;
+    }
+    json_object *l_first_result = json_object_array_get_idx(l_json_net, 0);
+    if (!l_first_result || !json_object_is_type(l_first_result, json_type_object)) {
+        log_it(L_ERROR, "failed to get first result element");
+        s_json_compose_error_add(a_config->response_handler, -6, "failed to get first result element");
+        json_object_put(l_json_net);
+        return NULL;
+    }
+    json_object *l_status;
+    if (!json_object_object_get_ex(l_first_result, "status", &l_status)) {
+        log_it(L_ERROR, "can't get status from json answer");
+        s_json_compose_error_add(a_config->response_handler, -6, "can't get status from json answer");
+        json_object_put(l_json_net);
+        return NULL;
+    }
+    json_object *l_bridget_arr;
+    if (!json_object_object_get_ex(l_status, "bridged_networks", &l_bridget_arr) || !json_object_is_type(l_bridget_arr, json_type_array)) {
+        log_it(L_DEBUG, "net has no any bridget networks", a_config->net_name);
+        json_object_put(l_json_net);
+        if (a_bridget_count)
+            *a_bridget_count = 0;
+        return NULL;
+    }
+    uint16_t l_bridget_count = json_object_array_length(l_bridget_arr);
+    uint16_t l_bridget_count_total = 0;
+    dap_chain_net_id_t *l_ret = DAP_NEW_Z_COUNT(dap_chain_net_id_t, l_bridget_count);
+    for (uint16_t i = 0; i < l_bridget_count; ++i) {
+        json_object *l_curr_bridge = json_object_array_get_idx(l_bridget_arr, i);
+        const char *l_curr_bridge_id_str = dap_json_rpc_get_text(l_curr_bridge, "id");
+        sscanf(l_curr_bridge_id_str,"0x%016"DAP_UINT64_FORMAT_x, l_ret + i);
+        ++l_bridget_count_total;
+    }
+    if (a_bridget_count)
+        *a_bridget_count = l_bridget_count_total;
+    if (!l_bridget_count_total)
+        DAP_DEL_Z(l_ret);
+    return l_ret;
+}
 
 static bool s_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **a_addr_fee, compose_config_t *a_config) {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
@@ -5882,6 +5930,16 @@ json_object *dap_chain_tx_compose_wallet_shared_take(dap_chain_net_id_t a_net_id
         log_it(L_ERROR, "num of '-to_addr' and '-value' should be equal");
         return s_compose_config_return_response_handler(l_config);
     }
+
+    // // bridge check
+    // for (uint32_t i = 0; i < l_addr_el_count; ++i) {
+    //     if (!dap_chain_net_is_bridged(a_net, l_to_addr[i].net_id)) {
+    //         DAP_DELETE(l_to_addr);
+    //         s_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_ADDR_VALUE_MISMATCH, "num of '-to_addr' and '-value' should be equal");
+    //         log_it(L_ERROR, "num of '-to_addr' and '-value' should be equal");
+    //         return s_compose_config_return_response_handler(l_config);
+    //     }
+    // }
 
     l_value = DAP_NEW_Z_COUNT(uint256_t, l_value_el_count);
     if (!l_value) {
