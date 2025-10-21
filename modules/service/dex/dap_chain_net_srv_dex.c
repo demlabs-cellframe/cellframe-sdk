@@ -205,7 +205,7 @@ static void s_ledger_tx_add_notify_dex(void *a_arg, dap_ledger_t *a_ledger,
 static dex_tx_type_t s_dex_tx_classify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_in_cond_t **a_in_cond,
                              dap_chain_tx_out_cond_t **a_out_cond, int *a_out_idx);
 static char* s_dex_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net);
-static int s_dex_decree_callback(const char *a_method, byte_t *a_tsd, size_t a_tsd_size);
+static int s_dex_decree_callback(dap_chain_net_id_t a_net_id, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
 
 static dex_match_table_entry_t *s_dex_matches_build_by_criteria(dap_chain_net_t *a_net, const dex_match_criteria_t *a_criteria, uint256_t *a_out_leftover_budget);
 static int s_dex_match_snapshot_by_tail(dap_chain_net_t *a_net, const dap_hash_fast_t *a_tail, dex_match_table_entry_t *a_out, dex_pair_key_t *a_out_key);
@@ -258,6 +258,7 @@ typedef enum {
     DEXV_SERVICE_FEE_UNDERPAID,
     DEXV_NETWORK_FEE_UNDERPAID,
     DEXV_BUY_TOKEN_LEAK,
+    DEXV_SELL_TOKEN_LEAK,
     DEXV_SELLER_PAID_IN_UPDATE,
     DEXV_SELLER_PAYOUT_MISMATCH,
     DEXV_BUYER_ADDR_MISSING,
@@ -293,6 +294,7 @@ static const char *s_dex_verif_err_strs[] = {
     [DEXV_SERVICE_FEE_UNDERPAID]    = "Service fee underpaid or misrouted",
     [DEXV_NETWORK_FEE_UNDERPAID]    = "Network fee underpaid",
     [DEXV_BUY_TOKEN_LEAK]           = "Unexpected buy-token payouts (non-seller/non-service)",
+    [DEXV_SELL_TOKEN_LEAK]          = "Unexpected sell-token payouts (non-buyer/non-seller)",
     [DEXV_SELLER_PAID_IN_UPDATE]    = "Seller paid in owner update",
     [DEXV_SELLER_PAYOUT_MISMATCH]   = "Seller payout in buy token mismatch",
     [DEXV_BUYER_ADDR_MISSING]       = "Buyer address not found",
@@ -314,29 +316,9 @@ static inline const char *s_dex_verif_err_str(int a_ret)
         ? s_dex_verif_err_strs[l_code] : "unknown error";
 }
 
-// Service fee storage by net id
-static dap_chain_net_srv_fee_item_t *s_dex_service_fees = NULL;
-static pthread_rwlock_t s_dex_service_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
-
 // Per-pair service fee configuration (uses s_dex_cache_rwlock for synchronization)
 static uint256_t s_dex_native_fee_amount = { 0 };
 static dap_chain_addr_t s_dex_service_fee_addr = { 0 };
-
-static bool s_dex_get_service_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type)
-{
-    dap_chain_net_srv_fee_item_t *l_fee = NULL;
-    bool l_res = false;
-    pthread_rwlock_rdlock(&s_dex_service_fees_rwlock);
-    HASH_FIND(hh, s_dex_service_fees, &a_net_id, sizeof(a_net_id), l_fee);
-    if (l_fee && !IS_ZERO_256(l_fee->fee)) {
-        if (a_type) *a_type = l_fee->fee_type;
-        if (a_addr) *a_addr = l_fee->fee_addr;
-        if (a_fee)  *a_fee  = l_fee->fee;
-        l_res = true;
-    }
-    pthread_rwlock_unlock(&s_dex_service_fees_rwlock);
-    return l_res;
-}
 
 /* History cache (OHLCV) switches */
 static bool s_dex_history_enabled = false; // enabled via config
@@ -700,21 +682,23 @@ static dex_match_table_entry_t *s_dex_matches_build_by_hashes(dap_chain_net_t *a
             else
                 DIV_256_COIN(l_cur->match.value, l_cur->match.rate, &l_available_base); // QUOTE→BASE
             
+            // Dust order: available < min_fill (treated as AON, no partial fills)
+            bool l_order_exhausted = ( l_pct > 0 && compare256(l_available_base, l_cur->exec_min) < 0 );
+            
             if ( compare256(a_budget, l_available_base) >= 0 ) {
-                // Full fill
+                // Full fill: take entire order
                 l_cur->exec_sell = l_available_base;
                 SUBTRACT_256_256(a_budget, l_available_base, &a_budget);
                     continue;
-            } else if ( l_pct != 100 ) {
-                // Partial fill
+            } else if ( l_pct != 100 && !l_order_exhausted ) {
+                // Partial fill: skip AON and dust orders
                 l_cur->exec_sell = a_budget;
-                if ( ( l_pct == 0 || ( !IS_ZERO_256(l_cur->exec_sell) && compare256(l_cur->exec_sell, l_cur->exec_min) >= 0 ) ) ) {
-                    // No min_fill: accept any partial OR min_fill is enough for budget
+                if ( l_pct == 0 || ( !IS_ZERO_256(l_cur->exec_sell) && compare256(l_cur->exec_sell, l_cur->exec_min) >= 0 ) ) {
                     a_budget = uint256_0;
-                        continue;
-                    }
+                    continue;
                 }
-            // AON or min_fill not met: drop
+            }
+            // Reject: AON/dust without full budget, or min_fill not met
             HASH_DEL(l_entries, l_cur); DAP_DELETE(l_cur);
         }
         if (a_out_leftover_quote) *a_out_leftover_quote = a_budget;
@@ -726,30 +710,37 @@ static dex_match_table_entry_t *s_dex_matches_build_by_hashes(dap_chain_net_t *a
                             continue;
                         }
             uint8_t l_pct = l_cur->match.min_fill & 0x7F;
-            // Calculate required QUOTE for this order
-            uint256_t l_need_q;
-            if ( l_side0 == DEX_SIDE_ASK )
+            // Calculate required QUOTE for this order and available in BASE for exhaustion check
+            uint256_t l_available_base, l_need_q;
+            if ( l_side0 == DEX_SIDE_ASK ) {
                 MULT_256_COIN(l_cur->match.value, l_cur->match.rate, &l_need_q); // ASK: BASE * rate
-            else
+                l_available_base = l_cur->match.value;
+            } else {
                 l_need_q = l_cur->match.value; // BID: already QUOTE
+                DIV_256_COIN(l_cur->match.value, l_cur->match.rate, &l_available_base);
+            }
+
+            // Dust order: available < min_fill (treated as AON, no partial fills)
+            bool l_order_exhausted = (l_pct > 0 && compare256(l_available_base, l_cur->exec_min) < 0);
             
             if ( compare256(a_budget, l_need_q) >= 0 ) {
-                // Full fill: direction-dependent exec_sell calculation
+                // Full fill: take entire order
                 if ( l_side0 == DEX_SIDE_ASK )
                     l_cur->exec_sell = l_cur->match.value; // ASK: order value is BASE
                 else
                     DIV_256_COIN(l_cur->match.value, l_cur->match.rate, &l_cur->exec_sell); // BID: QUOTE→BASE
                 SUBTRACT_256_256(a_budget, l_need_q, &a_budget);
                 continue;
-            } else if ( l_pct != 100 ) {
-                // Partial fill: same for both sides (QUOTE→BASE conversion)
+            } else if ( l_pct != 100 && !l_order_exhausted ) {
+                // Partial fill: skip AON and dust orders
                 DIV_256_COIN(a_budget, l_cur->match.rate, &l_cur->exec_sell);
-                if ( ( l_pct == 0 ) || ( !IS_ZERO_256(l_cur->exec_sell) && compare256(l_cur->exec_sell, l_cur->exec_min) >= 0 ) ) {
+                if ( l_pct == 0 || ( !IS_ZERO_256(l_cur->exec_sell) && compare256(l_cur->exec_sell, l_cur->exec_min) >= 0 ) )
+                {
                     a_budget = uint256_0;
                     continue;
                 }
             }
-            // AON or min_fill not met: drop
+            // Reject: AON/dust without full budget, or min_fill not met
             HASH_DEL(l_entries, l_cur); DAP_DELETE(l_cur);
         }
         if (a_out_leftover_quote) *a_out_leftover_quote = a_budget;
@@ -810,76 +801,84 @@ static dex_match_table_entry_t *s_dex_matches_build_by_criteria(dap_chain_net_t 
                     // BASE budget: limit exec_sell directly (direction-independent)
                     uint8_t l_pct = l_entry->level.match.min_fill & 0x7F;
                     uint256_t l_available_base;
-                    // Available BASE in this order
                     if ( l_side == DEX_SIDE_ASK )
-                        l_available_base = l_entry->level.match.value; // Order value is in BASE
+                        l_available_base = l_entry->level.match.value;
                     else
-                        DIV_256_COIN(l_entry->level.match.value, l_entry->level.match.rate, &l_available_base); // QUOTE→BASE
+                        DIV_256_COIN(l_entry->level.match.value, l_entry->level.match.rate, &l_available_base);
+                    
+                    // Compute min_fill threshold (in BASE) once for both exhaustion and partial checks
+                    uint256_t l_exec_min = uint256_0;
+                    int l_fetch_min = 0;
+                    bool l_order_exhausted = false;
+                    if ( l_pct > 0 ) {
+                        if ( l_entry->level.match.min_fill & 0x80 ) {
+                            l_fetch_min = s_dex_fetch_min_abs(a_net->pub.ledger, &l_entry->level.match.root, &l_exec_min);
+                        } else {
+                            uint256_t l_min_value = s_calc_pct(l_entry->level.match.value, l_pct);
+                            if ( l_side == DEX_SIDE_ASK )
+                                l_exec_min = l_min_value;
+                            else
+                                DIV_256_COIN(l_min_value, l_entry->level.match.rate, &l_exec_min);
+                        }
+                        // Dust order: available < min_fill (treated as AON, no partial fills)
+                        l_order_exhausted = (!l_fetch_min && compare256(l_available_base, l_exec_min) < 0);
+                    }
                     
                     if ( compare256(l_budget, l_available_base) >= 0 ) {
-                        // Full fill
+                        // Full fill: take entire order
                         l_exec_sell = l_available_base;
                         SUBTRACT_256_256(l_budget, l_available_base, &l_budget);
-                    } else if ( l_pct != 100 ) {
-                        // Partial fill: take all remaining budget
+                    } else if ( l_pct != 100 && !l_order_exhausted ) {
+                        // Partial fill: skip AON and dust orders
                         l_exec_sell = l_budget;
-                        if ( l_pct > 0 ) {
-                            // Check min_fill (convert to BASE for universal comparison)
-                            uint256_t l_exec_min;
-                            int l_fetch_min = 0;
-                            if ( l_entry->level.match.min_fill & 0x80 ) {
-                                l_fetch_min = s_dex_fetch_min_abs(a_net->pub.ledger, &l_entry->level.match.root, &l_exec_min);
-                            } else {
-                                uint256_t l_min_value = s_calc_pct(l_entry->level.match.value, l_pct);
-                                // Convert to BASE if needed
-                                if ( l_side == DEX_SIDE_ASK )
-                                    l_exec_min = l_min_value; // Already BASE
-                                else
-                                    DIV_256_COIN(l_min_value, l_entry->level.match.rate, &l_exec_min); // QUOTE→BASE for BID
-                            }
-                            if ( !l_fetch_min && compare256(l_exec_sell, l_exec_min) >= 0 )
-                                l_budget = uint256_0; // Accept partial, exhaust budget
-                            else continue; // Skip: min_fill not met
-                        } else
-                            l_budget = uint256_0; // No min_fill, accept partial
-                    } else continue; // AON order, can't afford
+                        if ( l_pct == 0 || (!l_fetch_min && compare256(l_exec_sell, l_exec_min) >= 0) )
+                            l_budget = uint256_0;
+                        else continue;
+                    } else continue; // Reject: AON/dust without full budget
                 } else {
                     // QUOTE budget: direction-dependent conversion
                     uint8_t l_pct = l_entry->level.match.min_fill & 0x7F;
-                    // Calculate required QUOTE for this order
                     uint256_t l_need_q;
                     if ( l_side == DEX_SIDE_ASK )
                         MULT_256_COIN(l_entry->level.match.value, l_entry->level.match.rate, &l_need_q);
                     else
                         l_need_q = l_entry->level.match.value;
                     
-                    if ( compare256(l_budget, l_need_q) >= 0 ) {
-                        // Full fill: direction-dependent exec_sell calculation
-                        if ( l_side == DEX_SIDE_ASK )
-                            l_exec_sell = l_entry->level.match.value; // ASK: order value is BASE
+                    uint256_t l_available_base;
+                    if ( l_side == DEX_SIDE_ASK )
+                        l_available_base = l_entry->level.match.value;
+                    else
+                        DIV_256_COIN(l_entry->level.match.value, l_entry->level.match.rate, &l_available_base);
+                    
+                    // Compute min_fill threshold (in BASE) once for both exhaustion and partial checks
+                    uint256_t l_exec_min = uint256_0;
+                    int l_fetch_min = 0;
+                    bool l_order_exhausted = false;
+                    if ( l_pct > 0 ) {
+                        if ( l_entry->level.match.min_fill & 0x80 )
+                            l_fetch_min = s_dex_fetch_min_abs(a_net->pub.ledger, &l_entry->level.match.root, &l_exec_min);
                         else
-                            DIV_256_COIN(l_entry->level.match.value, l_entry->level.match.rate, &l_exec_sell); // BID: QUOTE→BASE
+                            l_exec_min = s_calc_pct(l_entry->level.match.value, l_pct);
+                        if ( l_side == DEX_SIDE_BID )
+                            DIV_256_COIN(l_exec_min, l_entry->level.match.rate, &l_exec_min);
+                        // Dust order: available < min_fill (treated as AON, no partial fills)
+                        l_order_exhausted = (!l_fetch_min && compare256(l_available_base, l_exec_min) < 0);
+                    }
+                    
+                    if ( compare256(l_budget, l_need_q) >= 0 ) {
+                        // Full fill: take entire order
+                        if ( l_side == DEX_SIDE_ASK )
+                            l_exec_sell = l_entry->level.match.value;
+                        else
+                            DIV_256_COIN(l_entry->level.match.value, l_entry->level.match.rate, &l_exec_sell);
                         SUBTRACT_256_256(l_budget, l_need_q, &l_budget);
-                    } else if ( l_pct != 100 ) {
-                        // Partial fill: same for both sides (QUOTE→BASE conversion)
+                    } else if ( l_pct != 100 && !l_order_exhausted ) {
+                        // Partial fill: skip AON and dust orders
                         DIV_256_COIN(l_budget, l_entry->level.match.rate, &l_exec_sell);
-                        if ( l_pct == 0 ) {
-                            l_budget = uint256_0; // No min_fill: accept any partial
-                        } else if ( l_pct > 0 && !IS_ZERO_256(l_exec_sell) ) {
-                            uint256_t l_exec_min;
-                            int l_fetch_min = 0;
-                            if ( l_entry->level.match.min_fill & 0x80 )
-                                l_fetch_min = s_dex_fetch_min_abs(a_net->pub.ledger, &l_entry->level.match.root, &l_exec_min);
-                            else
-                                l_exec_min = s_calc_pct(l_entry->level.match.value, l_pct);
-                            // BID-specific: convert min from QUOTE to BASE
-                            if ( l_side == DEX_SIDE_BID )
-                                DIV_256_COIN(l_exec_min, l_entry->level.match.rate, &l_exec_min);
-                            if ( !l_fetch_min && compare256(l_exec_sell, l_exec_min) >= 0 )
-                                l_budget = uint256_0;
-                            else continue;
-                            }
-                    } else continue;
+                        if ( l_pct == 0 || (!IS_ZERO_256(l_exec_sell) && !l_fetch_min && compare256(l_exec_sell, l_exec_min) >= 0) )
+                            l_budget = uint256_0;
+                        else continue;
+                    } else continue; // Reject: AON/dust without full budget
                         }
                 if ( IS_ZERO_256(l_exec_sell) ) continue;
                 // Snapshot entry for composer (attach common pair key)
@@ -2507,11 +2506,23 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
     case 0:
         if ( !l_out_cond || l_out_cond->subtype.srv_dex.tx_type != DEX_TX_TYPE_ORDER || !dap_hash_fast_is_blank(&l_out_cond->subtype.srv_dex.order_root_hash) )
             RET_ERR(DEXV_TX_TYPE_MISMATCH);
+        
+        // ORDER path: structural validation
+        // Note: sell_ticker not available yet (determined by ledger when TX is added)
+        // Network fee will be validated at the common check (line 3031)
+        if (!*l_out_cond->subtype.srv_dex.buy_token)
+            RET_ERR(DEXV_BASELINE_BUY_TOKEN);
+        
+        log_it(L_DEBUG, "[DEX VERIFY] ORDER validated: buy_token=%s (network fee check deferred)", l_out_cond->subtype.srv_dex.buy_token);
+        // Fall-through: ORDER continues to Phase 2 for network fee OUT aggregation
     case 1:
         if ( l_out_cond && ( l_out_cond->subtype.srv_dex.tx_type == DEX_TX_TYPE_UPDATE ) 
                 && ( !a_owner || dap_hash_fast_is_blank(&l_out_cond->subtype.srv_dex.order_root_hash) ) )
             RET_ERR(DEXV_TX_TYPE_MISMATCH);
     default:
+        // Validate residual value/rate
+        if ( l_out_cond && (IS_ZERO_256(l_out_cond->header.value) || IS_ZERO_256(l_out_cond->subtype.srv_dex.rate)) )
+            RET_ERR(DEXV_INVALID_RESIDUAL);
         break;
     }
     
@@ -2523,6 +2534,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         l_is_invalidate = !l_out_cond;
     int l_uniq_sllrs_cnt = 0, l_in_idx = 0, l_out_idx = 0;
     uint256_t l_executed_total = uint256_0;
+    dex_pair_index_t *l_pair_idx = NULL;  // Pair whitelist entry (set on first IN/IN_COND)
 
     // Allocate arrays for processing
     l_sellers = DAP_NEW_Z_COUNT(struct dex_seller_info, l_in_cond_cnt);
@@ -2562,12 +2574,13 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 l_buy_net_id = l_prev->subtype.srv_dex.buy_net_id;
                 
                 // Whitelist check: pair must be whitelisted via decree
+                // Also save l_pair_idx for fee_config extraction later
                 dex_pair_key_t l_check_key = { };
                 s_pair_normalize(l_sell_ticker, l_sell_net_id, l_buy_ticker, l_buy_net_id, l_prev->subtype.srv_dex.rate, &l_check_key, NULL, NULL);
                 pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-                dex_pair_index_t *l_pair_check = s_dex_pair_index_get(&l_check_key);
+                l_pair_idx = s_dex_pair_index_get(&l_check_key);
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
-                if (!l_pair_check)
+                if (!l_pair_idx)
                     RET_ERR(DEXV_PAIR_NOT_ALLOWED);
             } else {
                 // Validate baseline consistency
@@ -2658,10 +2671,13 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                         // Base = current remain
                         l_base_val = l_prev->header.value;
                     // executed_i must be >= pct% of base
+                    // EXCEPTIONS: 1) Full close (no OUT_COND) handled outside this block
+                    //             2) UPDATE with executed_i == 0 (value increase or rate-only change)
                     uint256_t l_min_exec = uint256_0;
                     MULT_256_COIN(l_base_val, dap_chain_uint256_from(l_pct), &l_min_exec);
                     DIV_256_COIN(l_min_exec, dap_chain_uint256_from(100), &l_min_exec);
-                    if ( compare256(l_executed_i, l_min_exec) < 0 )
+                    
+                    if ( compare256(l_executed_i, l_min_exec) < 0 && !IS_ZERO_256(l_executed_i) )
                         RET_ERR(DEXV_MIN_FILL_NOT_REACHED);
                 }
                 
@@ -2683,6 +2699,36 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             SUM_256_256(l_sellers[l_seller_idx].expected_buy, l_buy_i, &l_sellers[l_seller_idx].expected_buy);
             SUM_256_256(l_executed_total, l_executed_i, &l_executed_total);
             ++l_in_idx;
+        } break;
+        
+        case TX_ITEM_TYPE_IN: {
+            // ORDER path: extract sell_ticker from first regular IN and check whitelist
+            if (l_in_cond_cnt == 0 && !l_sell_ticker) {
+                dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t*)it;
+                const char *l_order_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in->header.tx_prev_hash);
+                if (!l_order_sell_ticker)
+                    RET_ERR(DEXV_BASELINE_BUY_TOKEN);
+                
+                // Set baseline (ORDER uses OUT_COND for buy_token, sell_net_id, buy_net_id)
+                l_sell_ticker = l_order_sell_ticker;
+                l_buy_ticker = l_out_cond->subtype.srv_dex.buy_token;
+                l_sell_net_id = l_out_cond->subtype.srv_dex.sell_net_id;
+                l_buy_net_id = l_out_cond->subtype.srv_dex.buy_net_id;
+                
+                // Whitelist check: pair must be whitelisted via decree
+                // Also save l_pair_idx for fee_config extraction later
+                dex_pair_key_t l_order_pair = { };
+                s_pair_normalize(l_sell_ticker, l_sell_net_id, l_buy_ticker, l_buy_net_id,
+                                 l_out_cond->subtype.srv_dex.rate, &l_order_pair, NULL, NULL);
+                pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+                l_pair_idx = s_dex_pair_index_get(&l_order_pair);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                
+                if (!l_pair_idx)
+                    RET_ERR(DEXV_PAIR_NOT_ALLOWED);
+                
+                log_it(L_DEBUG, "[DEX VERIFY] ORDER whitelist validated: %s/%s", l_sell_ticker, l_buy_ticker);
+            }
         } break;
         
         case TX_ITEM_TYPE_OUT_EXT:
@@ -2724,32 +2770,25 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         
         default: break;
         }
-    }    
+    }
+
+    if (!l_pair_idx)
+        RET_ERR(DEXV_PAIR_NOT_ALLOWED);  // Should never happen (defensive check)
+    
     // Configure fees before Phase 3
     dap_chain_addr_t l_net_addr = { };
     uint256_t l_net_fee_req = uint256_0;
     bool l_net_used = dap_chain_net_tx_get_fee(a_ledger->net->pub.id, &l_net_fee_req, &l_net_addr);
     
-    // Service fee from pair's fee_config
+    // Service fee from pair's fee_config (l_pair_idx already set in Phase 2)
     dap_chain_addr_t l_srv_addr = { };
     uint256_t l_srv_fee_req = uint256_0;
     const char *l_srv_ticker = NULL;
     bool l_srv_used = false;
     
-    // Canonize pair and lookup fee_config from whitelist
-    dex_pair_key_t l_canon_pair = { };
-    uint8_t l_order_side = 0;
-    uint256_t l_canon_rate = uint256_0;
-    s_pair_normalize(l_sell_ticker, l_sell_net_id, l_buy_ticker, l_buy_net_id,
-                     l_prev_outs[0]->subtype.srv_dex.rate, &l_canon_pair, &l_order_side, &l_canon_rate);
+    // Read global service address (l_pair_idx was validated in Phase 2)
     
-    // Read fee_config from pair whitelist and global service address (single lock)
     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-    dex_pair_index_t *l_pair_idx = s_dex_pair_index_get(&l_canon_pair);
-    if (!l_pair_idx) {
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        RET_ERR(DEXV_PAIR_NOT_ALLOWED);
-    }
     uint8_t l_fee_cfg = l_pair_idx->key.fee_config;
     l_srv_addr = s_dex_service_fee_addr;
     bool l_srv_addr_blank = dap_chain_addr_is_blank(&s_dex_service_fee_addr);
@@ -2761,7 +2800,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             pthread_rwlock_unlock(&s_dex_cache_rwlock);
             RET_ERR(DEXV_INVALID_FEE_CONFIG);
         }
-        l_srv_ticker = l_canon_pair.token_quote;
+        l_srv_ticker = l_pair_idx->key.token_quote;
         if (l_pct > 0) {
             // Calculate service fee from sum of sellers' expected_buy (QUOTE)
             // This matches composer logic: fee = pct * SUM(exec_sell_i * rate_i)
@@ -2788,7 +2827,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
     const dap_chain_addr_t *l_buyer_addr = NULL;
     bool l_buyer_addr_uniq = true;
     uint256_t l_paid_net_fee = uint256_0, l_paid_srv_fee = uint256_0;
-    uint256_t l_buyer_received = uint256_0, l_buy_others = uint256_0;
+    uint256_t l_buyer_received = uint256_0, l_buy_others = uint256_0, l_sell_others = uint256_0;
     
     for (int i = 0; i < l_out_cnt; ++i) {
         struct dex_out_info *o = &l_outs[i];
@@ -2801,6 +2840,11 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             SUM_256_256(l_paid_net_fee, o->value, &l_paid_net_fee);
             continue;
         }
+
+        // ORDER (l_in_cond_cnt==0): skip seller/buyer logic and service fee logic (no tickers, no sellers, no service fee)
+        if (l_in_cond_cnt == 0)
+            continue;
+
         if (is_srv_fee) {
             // Distinguish service fee OUT from buyer payout by value (when service==buyer)
             // Service fee OUT: value == l_srv_fee_req (exact match)
@@ -2833,9 +2877,12 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             else if ( !dap_chain_addr_compare(l_buyer_addr, o->addr) )
                 l_buyer_addr_uniq = false;
             
-            // Aggregate buyer received amount (for EXCHANGE full close validation)
+            // Aggregate buyer received amount (for EXCHANGE validation)
             if ( l_buyer_addr && dap_chain_addr_compare(o->addr, l_buyer_addr) )
                 SUM_256_256(l_buyer_received, o->value, &l_buyer_received);
+            else if ( o->seller_idx < 0 )
+                // sell_token OUT to non-buyer, non-seller → leak!
+                SUM_256_256(l_sell_others, o->value, &l_sell_others);
         } else if ( !strcmp(o->token, l_buy_ticker) && o->seller_idx < 0 ) {
             // buy_token payout to non-seller: either buyer cashback or leak
             if ( !l_buyer_addr || !dap_chain_addr_compare(l_buyer_addr, o->addr) )
@@ -2845,6 +2892,14 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             // No explicit tracking needed - cashback is legitimate, leak check handles security
         }
     }
+    
+    // Validate network fee (unified for all TX types: ORDER, INVALIDATE, EXCHANGE, UPDATE)
+    if (l_net_used && !IS_ZERO_256(l_net_fee_req) && compare256(l_paid_net_fee, l_net_fee_req) < 0)
+        RET_ERR(DEXV_NETWORK_FEE_UNDERPAID);
+    
+    // ORDER (l_in_cond_cnt == 0): network fee validated, exit early
+    if (l_in_cond_cnt == 0)
+        goto dex_verif_ret_err;
     
     // Waive service fee if service collector participates (seller or buyer, avoid circular payment)
     // Safe: sellers from IN_COND (not manipulable), buyer detection by OUT value (not order)
@@ -2877,8 +2932,15 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 log_it(L_DEBUG, "[DEX VERIF] Adjusted expected_buy for service seller (aggregation)");
             }
             l_srv_fee_req = uint256_0;
+            l_paid_srv_fee = uint256_0;
         }
     }
+    
+    // Validate service fee (INVALIDATE, EXCHANGE, UPDATE only — after waive logic)
+    if (l_srv_used && compare256(l_paid_srv_fee, l_srv_fee_req) < 0)
+        RET_ERR(DEXV_SERVICE_FEE_UNDERPAID);
+    
+    // TX-type specific validation (INVALIDATE, EXCHANGE, UPDATE)
     
     // INVALIDATE path: no OUT_COND and no seller received buy_token (only refunds in sell_token)        
     if (l_is_invalidate) {
@@ -2893,6 +2955,10 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         if (!IS_ZERO_256(l_buy_others))
             RET_ERR(DEXV_BUY_TOKEN_LEAK);
         
+        // No unexpected sell_token payouts (refund must go to seller only)
+        if (!IS_ZERO_256(l_sell_others))
+            RET_ERR(DEXV_SELL_TOKEN_LEAK);
+        
         // Validate refund matches sum of consumed order values
         uint256_t l_expected_refund = uint256_0;
         for (int i = 0; i < l_in_idx; ++i)
@@ -2900,10 +2966,6 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         
         if (compare256(l_sellers[0].paid_sell, l_expected_refund))
             RET_ERR(DEXV_REFUND_MISMATCH);
-        
-        // Validate network fee
-        if (l_net_used && !IS_ZERO_256(l_net_fee_req) && compare256(l_paid_net_fee, l_net_fee_req) < 0)
-            RET_ERR(DEXV_NETWORK_FEE_UNDERPAID);
         
         // Warn if service fee paid during INVALIDATE (no trade)
         if ( !IS_ZERO_256(l_paid_srv_fee) )
@@ -2932,6 +2994,27 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             RET_ERR(DEXV_SELLER_PAYOUT_MISMATCH);
     }
     
+    // EXCHANGE partial: validate buyer payout
+    if (l_out_cond && l_out_cond->subtype.srv_dex.tx_type == DEX_TX_TYPE_EXCHANGE) {
+        if (!l_buyer_addr)
+            RET_ERR(DEXV_BUYER_ADDR_MISSING);
+        if (!l_buyer_addr_uniq)
+            RET_ERR(DEXV_MULTI_BUYER_DEST);
+        
+        uint256_t l_buyer_expected = l_executed_total;
+        if (l_srv_used && l_srv_ticker && !strcmp(l_sell_ticker, l_srv_ticker))
+            SUBTRACT_256_256(l_buyer_expected, l_srv_fee_req, &l_buyer_expected);
+        
+        if (compare256(l_buyer_received, l_buyer_expected) < 0)
+            RET_ERR(DEXV_BUYER_PAYOUT_ADDR_MISMATCH);
+        
+        if (!IS_ZERO_256(l_buy_others))
+            RET_ERR(DEXV_BUY_TOKEN_LEAK);
+        
+        if (!IS_ZERO_256(l_sell_others))
+            RET_ERR(DEXV_SELL_TOKEN_LEAK);
+    }
+    
     // Buyer-leftover: validate OUT_COND seller_addr matches buyer
     if (l_out_cond && dap_hash_fast_is_blank(&l_out_cond->subtype.srv_dex.order_root_hash)) {
         if (!l_buyer_addr)
@@ -2952,6 +3035,8 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
     if (!l_out_cond) {
         if (!l_buyer_addr)
             RET_ERR(DEXV_BUYER_ADDR_MISSING);
+        if (!l_buyer_addr_uniq)
+            RET_ERR(DEXV_MULTI_BUYER_DEST);
         
         // Calculate expected buyer payout
         // Buyer receives executed_total in sell_token, MINUS service fee if sell==srv (BID + QUOTE fee)
@@ -2970,14 +3055,12 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         // No unexpected buy_token payouts (only sellers, service fee, and buyer cashback)
         if (!IS_ZERO_256(l_buy_others))
             RET_ERR(DEXV_BUY_TOKEN_LEAK);
+        
+        // No unexpected sell_token payouts
+        if (!IS_ZERO_256(l_sell_others))
+            RET_ERR(DEXV_SELL_TOKEN_LEAK);
     }
-    
-    // Validate fees
-    if (l_net_used && !IS_ZERO_256(l_net_fee_req) && compare256(l_paid_net_fee, l_net_fee_req) < 0)
-        RET_ERR(DEXV_NETWORK_FEE_UNDERPAID);
-    if (l_srv_used && compare256(l_paid_srv_fee, l_srv_fee_req) < 0)
-        RET_ERR(DEXV_SERVICE_FEE_UNDERPAID);
-    
+        
     // Final conservation check: sellers' payouts in sell_token (ONLY for UPDATE)
     // l_paid_sell_total = sum of ALL sellers' OUTs in sell_token (EXCLUDES buyer)
     // 
@@ -3021,6 +3104,10 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         // Global ledger conservation (SUM(INs) == SUM(OUTs) + fees) prevents theft
         if ( compare256(l_paid_sell_total, l_expected_seller_total) < 0 )
             RET_ERR(!strcmp(l_sell_ticker, l_native_ticker) ? DEXV_FINAL_NATIVE_MISMATCH : DEXV_FINAL_NONNATIVE_MISMATCH);
+        
+        // No unexpected sell_token payouts (except seller cashback)
+        if (!IS_ZERO_256(l_sell_others))
+            RET_ERR(DEXV_SELL_TOKEN_LEAK);
     }
 
 dex_verif_ret_err:
@@ -3215,6 +3302,7 @@ cancel_all_ret_err:
 }
 
 // TSD section types for decree parameters
+#define DEX_DECREE_TSD_METHOD        0x0000  // uint8_t decree method
 #define DEX_DECREE_TSD_TOKEN_BASE    0x0001
 #define DEX_DECREE_TSD_TOKEN_QUOTE   0x0002
 #define DEX_DECREE_TSD_NET_BASE      0x0003
@@ -3225,43 +3313,35 @@ cancel_all_ret_err:
 
 // Decree method types
 typedef enum {
-    DEX_DECREE_UNKNOWN, DEX_DECREE_FEE_SET,
-    DEX_DECREE_PAIR_ADD, DEX_DECREE_PAIR_REMOVE,
-    DEX_DECREE_PAIR_FEE_SET,
-    DEX_DECREE_PAIR_FEE_SET_ALL
+    DEX_DECREE_UNKNOWN,
+    DEX_DECREE_FEE_SET, DEX_DECREE_PAIR_ADD, DEX_DECREE_PAIR_REMOVE, DEX_DECREE_PAIR_FEE_SET, DEX_DECREE_PAIR_FEE_SET_ALL
 } dex_decree_method_t;
 
 /*
  * s_dex_decree_callback
  * Decree callback for DEX service governance.
- * Methods:
- *   - fee_set: Set global fee (TSD: DEX_DECREE_TSD_FEE_AMOUNT, DEX_DECREE_TSD_FEE_ADDR)
- *   - pair_add: Add pair to whitelist with fee_config (TSD: 0x0001-0x0005)
- *   - pair_remove: Remove pair from whitelist (TSD: 0x0001-0x0004)
- *   - pair_fee_set: Update fee_config for specific pair (TSD: 0x0001-0x0005)
- *   - pair_fee_set_all: Update fee_config for all pairs (TSD: DEX_DECREE_TSD_FEE_CONFIG)
+ * Methods (first TSD section type=0x0000):
+ *   - DEX_DECREE_FEE_SET (1): Set global fee (TSD: FEE_AMOUNT, FEE_ADDR)
+ *   - DEX_DECREE_PAIR_ADD (2): Add pair to whitelist (TSD: TOKEN_BASE, TOKEN_QUOTE, NET_BASE, NET_QUOTE, FEE_CONFIG)
+ *   - DEX_DECREE_PAIR_REMOVE (3): Remove pair (TSD: TOKEN_BASE, TOKEN_QUOTE, NET_BASE, NET_QUOTE)
+ *   - DEX_DECREE_PAIR_FEE_SET (4): Update fee_config for pair (TSD: TOKEN_BASE, TOKEN_QUOTE, NET_BASE, NET_QUOTE, FEE_CONFIG)
+ *   - DEX_DECREE_PAIR_FEE_SET_ALL (5): Update fee_config for all pairs (TSD: FEE_CONFIG)
  * Returns 0 on success, negative on error.
  */
-static int s_dex_decree_callback(const char *a_method, byte_t *a_tsd, size_t a_tsd_size)
+static int s_dex_decree_callback(dap_chain_net_id_t a_net_id, bool a_apply, dap_tsd_t *a_params, size_t a_params_size)
 {
-    dap_ret_val_if_any(-1, !a_method, !a_tsd);
+    dap_ret_val_if_any(-1, !a_params);
     
-    // Parse method into enum
-    dex_decree_method_t l_method = DEX_DECREE_UNKNOWN;
-    if (!dap_strcmp(a_method, "fee_set"))               l_method = DEX_DECREE_FEE_SET;
-    else if (!dap_strcmp(a_method, "pair_add"))         l_method = DEX_DECREE_PAIR_ADD;
-    else if (!dap_strcmp(a_method, "pair_remove"))      l_method = DEX_DECREE_PAIR_REMOVE;
-    else if (!dap_strcmp(a_method, "pair_fee_set"))     l_method = DEX_DECREE_PAIR_FEE_SET;
-    else if (!dap_strcmp(a_method, "pair_fee_set_all")) l_method = DEX_DECREE_PAIR_FEE_SET_ALL;
-    
-    // Collect all TSD sections in one pass
+    // Collect all TSD sections in one pass (including method)
+    dap_tsd_t *l_tsd_method = NULL;
     dap_tsd_t *l_tsd_token_base = NULL, *l_tsd_token_quote = NULL;
     dap_tsd_t *l_tsd_net_base = NULL, *l_tsd_net_quote = NULL;
     dap_tsd_t *l_tsd_fee_config = NULL, *l_tsd_fee_amount = NULL, *l_tsd_fee_addr = NULL;
     dap_tsd_t *l_tsd = NULL;
     size_t l_tsd_size = 0;
-    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+    dap_tsd_iter(l_tsd, l_tsd_size, a_params, a_params_size) {
         switch (l_tsd->type) {
+        case DEX_DECREE_TSD_METHOD:      l_tsd_method = l_tsd; break;
         case DEX_DECREE_TSD_TOKEN_BASE:  l_tsd_token_base = l_tsd; break;
         case DEX_DECREE_TSD_TOKEN_QUOTE: l_tsd_token_quote = l_tsd; break;
         case DEX_DECREE_TSD_NET_BASE:    l_tsd_net_base = l_tsd; break;
@@ -3272,36 +3352,55 @@ static int s_dex_decree_callback(const char *a_method, byte_t *a_tsd, size_t a_t
         }
     }
     
-    switch (l_method) {
-    case DEX_DECREE_FEE_SET:
-        dap_ret_val_if_any(-2, !l_tsd_fee_amount, !l_tsd_fee_addr);
-        pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-        memcpy(&s_dex_native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
-        memcpy(&s_dex_service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        log_it(L_NOTICE, "Service fee set: %s to %s",
-               dap_uint256_to_char_ex(s_dex_native_fee_amount).str,
-               dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
-        return 0;
+    // Extract method from first TSD section
+    dap_ret_val_if_any(-1, !l_tsd_method);
+    dex_decree_method_t l_method = (dex_decree_method_t)dap_tsd_get_scalar(l_tsd_method, uint8_t);
     
-    case DEX_DECREE_PAIR_FEE_SET_ALL:
-        dap_ret_val_if_any(-2, !l_tsd_fee_config);
-        uint8_t l_new_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
-        pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-        dex_pair_index_t *l_it, *l_tmp;
-        int l_count = 0;
-        HASH_ITER(hh, s_dex_pair_index, l_it, l_tmp) {
-            l_it->key.fee_config = l_new_cfg;
-            l_count++;
+    switch (l_method) {
+    case DEX_DECREE_FEE_SET: {
+        // Required: FEE_AMOUNT, FEE_ADDR
+        dap_ret_val_if_any(-2, !l_tsd_fee_amount, !l_tsd_fee_addr);
+        // Reject unexpected parameters
+        dap_ret_val_if_any(-2, l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote, l_tsd_fee_config);
+        if (a_apply) {
+            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+            memcpy(&s_dex_native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
+            memcpy(&s_dex_service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
+            pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            log_it(L_NOTICE, "Service fee set: %s to %s",
+                   dap_uint256_to_char_ex(s_dex_native_fee_amount).str,
+                   dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
         }
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        log_it(L_NOTICE, "Updated fee for %d pairs: 0x%02x", l_count, l_new_cfg);
         return 0;
+    }
+    
+    case DEX_DECREE_PAIR_FEE_SET_ALL: {
+        // Required: FEE_CONFIG
+        dap_ret_val_if_any(-2, !l_tsd_fee_config);
+        // Reject unexpected parameters
+        dap_ret_val_if_any(-2, l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote, l_tsd_fee_amount, l_tsd_fee_addr);
+        uint8_t l_new_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
+        if (a_apply) {
+            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+            dex_pair_index_t *l_it, *l_tmp;
+            int l_count = 0;
+            HASH_ITER(hh, s_dex_pair_index, l_it, l_tmp) {
+                l_it->key.fee_config = l_new_cfg;
+                l_count++;
+            }
+            pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            log_it(L_NOTICE, "Updated fee for %d pairs: 0x%02x", l_count, l_new_cfg);
+        }
+        return 0;
+    }
     
     case DEX_DECREE_PAIR_ADD:
     case DEX_DECREE_PAIR_REMOVE:
-    case DEX_DECREE_PAIR_FEE_SET:
+    case DEX_DECREE_PAIR_FEE_SET: {
+        // Required: TOKEN_BASE, TOKEN_QUOTE, NET_BASE, NET_QUOTE
         dap_ret_val_if_any(-2, !l_tsd_token_base, !l_tsd_token_quote, !l_tsd_net_base, !l_tsd_net_quote);
+        // Reject unexpected parameters (FEE_AMOUNT, FEE_ADDR not allowed for pair operations)
+        dap_ret_val_if_any(-2, l_tsd_fee_amount, l_tsd_fee_addr);
         const char *l_token_base = dap_tsd_get_string_const(l_tsd_token_base), *l_token_quote = dap_tsd_get_string_const(l_tsd_token_quote);
         dap_ret_val_if_any(-3, !dap_strcmp(l_token_base, DAP_TSD_CORRUPTED_STRING), 
                                 !dap_strcmp(l_token_quote, DAP_TSD_CORRUPTED_STRING),
@@ -3312,33 +3411,47 @@ static int s_dex_decree_callback(const char *a_method, byte_t *a_tsd, size_t a_t
         dex_pair_key_t l_key = { };
         s_pair_normalize(l_token_base, l_net_base, l_token_quote, l_net_quote, uint256_0, &l_key, NULL, NULL);
         if (l_method == DEX_DECREE_PAIR_ADD) {
+            // FEE_CONFIG is optional for PAIR_ADD
             if (l_tsd_fee_config)
                 l_key.fee_config = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
-            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-            int l_ret = s_dex_pair_index_add(&l_key);
-            pthread_rwlock_unlock(&s_dex_cache_rwlock);
-            return l_ret;
+            if (a_apply) {
+                pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+                int l_ret = s_dex_pair_index_add(&l_key);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                return l_ret;
+            }
+            return 0;
         } else if (l_method == DEX_DECREE_PAIR_REMOVE) {
-            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-            int l_ret = s_dex_pair_index_remove(&l_key);
-            pthread_rwlock_unlock(&s_dex_cache_rwlock);
-            return l_ret;
+            // FEE_CONFIG not allowed for PAIR_REMOVE
+            dap_ret_val_if_any(-2, l_tsd_fee_config);
+            if (a_apply) {
+                pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+                int l_ret = s_dex_pair_index_remove(&l_key);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                return l_ret;
+            }
+            return 0;
         } else {
+            // PAIR_FEE_SET: FEE_CONFIG is required
             dap_ret_val_if_any(-2, !l_tsd_fee_config);
             uint8_t l_new_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
-            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-            dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
-            if (l_pair) {
-                l_pair->key.fee_config = l_new_cfg;
-                log_it(L_NOTICE, "Updated fee for pair %s/%s: 0x%02x",
-                       l_key.token_base, l_key.token_quote, l_new_cfg);
+            if (a_apply) {
+                pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+                dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
+                if (l_pair) {
+                    l_pair->key.fee_config = l_new_cfg;
+                    log_it(L_NOTICE, "Updated fee for pair %s/%s: 0x%02x",
+                           l_key.token_base, l_key.token_quote, l_new_cfg);
+                }
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                return l_pair ? 0 : -3;
             }
-            pthread_rwlock_unlock(&s_dex_cache_rwlock);
-            return l_pair ? 0 : -3;
+            return 0;
         }
+    }
     
     default:
-        return log_it(L_WARNING, "Unknown decree method for DEX service: %s", a_method), -4;
+        return log_it(L_WARNING, "Unknown decree method for DEX service: %u", (unsigned)l_method), -4;
     }
 }
 
@@ -3441,15 +3554,6 @@ void dap_chain_net_srv_dex_deinit()
     }
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
     pthread_rwlock_destroy(&s_dex_cache_rwlock);
-
-    // Free service fee table
-    pthread_rwlock_wrlock(&s_dex_service_fees_rwlock);
-    dap_chain_net_srv_fee_item_t *sf_it, *sf_tmp; HASH_ITER(hh, s_dex_service_fees, sf_it, sf_tmp) {
-        HASH_DELETE(hh, s_dex_service_fees, sf_it);
-        DAP_DELETE(sf_it);
-    }
-    pthread_rwlock_unlock(&s_dex_service_fees_rwlock);
-    pthread_rwlock_destroy(&s_dex_service_fees_rwlock);
 }
 
 // Determine DEX TX type; simplified: ORDER if OUT_COND(SRV_DEX) and no IN_COND; EXCHANGE if IN_COND with SRV_DEX; INVALIDATE if IN_COND and no SRV_DEX OUT_COND
@@ -5921,6 +6025,10 @@ dap_chain_net_srv_dex_create_error_t dap_chain_net_srv_dex_create(dap_chain_net_
     // New parameters (fallback to previous values when not provided)
     uint256_t l_new_rate = a_has_new_rate ? a_new_rate : l_prev->subtype.srv_dex.rate;
     uint256_t l_new_value = a_has_new_value ? a_new_value : l_prev->header.value;
+    
+    // Validate new parameters: value and rate must be non-zero
+    // UPDATE with value=0 is not allowed (use INVALIDATE for full closure)
+    dap_ret_val_if_any(DEX_UPDATE_ERROR_INVALID_ARGUMENT, IS_ZERO_256(l_new_value), IS_ZERO_256(l_new_rate));
 
     // Compose 1-TX update: IN_COND(l_tail[idx]) + OUT_COND(SRV_DEX new state)
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();

@@ -164,7 +164,9 @@ dap_chain_net_srv_dex_cancel_all_error_t dap_chain_net_srv_dex_cancel_all_by_sel
         dap_chain_wallet_t *a_wallet,
         dap_chain_datum_tx_t **a_tx);
 
-// Decree callback type and getter (uses dex_pair_key_t for TSD)
-typedef int (*dap_chain_net_srv_dex_decree_callback_t)(const char *a_method, byte_t *a_tsd, size_t a_tsd_size);
+// Decree callback type (new prototype: method in TSD, net_id, apply flag)
+typedef int (*dap_chain_net_srv_dex_decree_callback_t)(dap_chain_net_id_t a_net_id, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
+
+// Decree callback getter
 dap_chain_net_srv_dex_decree_callback_t dap_chain_net_srv_dex_get_decree_callback(void);
 
