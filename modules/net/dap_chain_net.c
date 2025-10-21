@@ -910,7 +910,7 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_objec
             dap_chain_net_t *l_bridget_net = dap_chain_net_by_id(a_net->pub.bridged_networks[i]); 
             if (l_bridget_net) {
                 json_object *l_net_item = json_object_new_object();
-                sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x"", a_net->pub.bridged_networks[i].uint64);
+                sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, a_net->pub.bridged_networks[i].uint64);
                     
                 json_object_object_add(l_net_item, "name", json_object_new_string(l_bridget_net->pub.name));
                 json_object_object_add(l_net_item, "id", json_object_new_string(l_id_buff));
