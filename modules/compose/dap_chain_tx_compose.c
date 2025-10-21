@@ -588,7 +588,74 @@ dap_json_t *dap_request_command_to_rpc_with_params(dap_chain_tx_compose_config_t
 
     return s_request_command_to_rpc(data, a_config);
 }
-    
+
+
+static dap_chain_net_id_t *s_get_bridged_networks(uint16_t *a_bridget_count, compose_config_t *a_config)
+{
+    dap_return_val_if_pass(!a_config, NULL);
+    json_object *l_json_net = s_request_command_to_rpc_with_params(a_config, "net", "get;status;-net;%s", a_config->net_name);
+    if (!l_json_net || !json_object_is_type(l_json_net, json_type_array)) {
+        log_it(L_ERROR, "can't get net status");
+        s_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_RESPONSE_NULL, "can't get net status");
+        return NULL;
+    }
+    json_object *l_first_result = json_object_array_get_idx(l_json_net, 0);
+    if (!l_first_result || !json_object_is_type(l_first_result, json_type_object)) {
+        log_it(L_ERROR, "failed to get first result element");
+        s_json_compose_error_add(a_config->response_handler, -6, "failed to get first result element");
+        json_object_put(l_json_net);
+        return NULL;
+    }
+    json_object *l_status;
+    if (!json_object_object_get_ex(l_first_result, "status", &l_status)) {
+        log_it(L_ERROR, "can't get status from json answer");
+        s_json_compose_error_add(a_config->response_handler, -6, "can't get status from json answer");
+        json_object_put(l_json_net);
+        return NULL;
+    }
+    json_object *l_bridget_arr;
+    if (!json_object_object_get_ex(l_status, "bridged_networks", &l_bridget_arr) || !json_object_is_type(l_bridget_arr, json_type_array)) {
+        log_it(L_DEBUG, "net %s has no any bridget networks", a_config->net_name);
+        json_object_put(l_json_net);
+        if (a_bridget_count)
+            *a_bridget_count = 0;
+        return NULL;
+    }
+    uint16_t l_bridget_count = json_object_array_length(l_bridget_arr);
+    uint16_t l_bridget_count_total = 0;
+    dap_chain_net_id_t *l_ret = DAP_NEW_Z_COUNT(dap_chain_net_id_t, l_bridget_count);
+    for (uint16_t i = 0; i < l_bridget_count; ++i) {
+        json_object *l_curr_bridge = json_object_array_get_idx(l_bridget_arr, i);
+        const char *l_curr_bridge_id_str = dap_json_rpc_get_text(l_curr_bridge, "id");
+        sscanf(l_curr_bridge_id_str,"0x%016"DAP_UINT64_FORMAT_x, &(l_ret + i)->uint64);
+        ++l_bridget_count_total;
+    }
+    if (a_bridget_count)
+        *a_bridget_count = l_bridget_count_total;
+    if (!l_bridget_count_total)
+        DAP_DEL_Z(l_ret);
+    return l_ret;
+}
+
+static bool s_chain_net_is_bridged(dap_chain_addr_t *l_addr, size_t a_addr_count, compose_config_t *a_config)
+{
+    // bridge check
+    uint16_t l_bridget_count = 0;
+    dap_chain_net_id_t *l_bridged_nets = s_get_bridged_networks(&l_bridget_count, a_config);
+    // check each addr, if any fail - all tx fail
+    for (uint32_t i = 0; i < a_addr_count; ++i) {
+        bool l_bridged = !l_addr[i].net_id.uint64 || l_addr[i].net_id.uint64 == a_config->net_id.uint64;  // with burn addr all nets bridget
+        for (uint32_t j = 0; !l_bridged && j < l_bridget_count; ++j) {
+            l_bridged |= l_bridged_nets[j].uint64 == l_addr[i].net_id.uint64;
+        }
+        if (!l_bridged) {
+            DAP_DELETE(l_bridged_nets);
+            return false;
+        }
+    }
+    DAP_DELETE(l_bridged_nets);
+    return true;
+}
 
 bool dap_chain_tx_compose_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_addr_t **a_addr_fee, dap_chain_tx_compose_config_t *a_config) {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
@@ -729,7 +796,7 @@ typedef enum {
 dap_json_t *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                     uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, const char *a_value_str, const char *l_time_unlock_str, const char *a_fee_str, 
                                     const char *a_addr_base58_to, dap_chain_addr_t *a_addr_from) {
-    dap_return_val_if_pass(!a_net_name || !a_native_ticker || !a_url_str || !a_port, NULL);
+    dap_return_val_if_pass(!a_net_name || !a_native_ticker || !a_url_str || !a_port || !a_addr_base58_to, NULL);
     
     dap_chain_tx_compose_config_t *l_config = dap_chain_tx_compose_config_init(a_net_id, a_net_name, a_native_ticker, a_url_str, a_port, a_enc_cert_path);
     if (!l_config) {
@@ -855,6 +922,15 @@ dap_json_t *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const ch
                 dap_strfreev(l_addr_base58_to_array);
                 dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "destination address is invalid");
                 return dap_chain_tx_compose_config_return_response_handler(l_config);
+            }
+            // bridge check
+            if (!s_chain_net_is_bridged(l_addr_to[i], 1, l_config)) {
+                for (size_t j = 0; j < i; ++j) {
+                    DAP_DELETE(l_addr_to[j]);
+                }
+                s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_ADDR_ERROR, "destination source network is not bridget with recepient network");
+                log_it(L_ERROR, "destination source network is not bridget with recepient network");
+                return s_compose_config_return_response_handler(l_config);
             }
         }
         dap_strfreev(l_addr_base58_to_array);
@@ -2296,6 +2372,14 @@ dap_json_t *dap_chain_tx_compose_wallet_shared_take(dap_chain_net_id_t a_net_id,
         DAP_DELETE(l_to_addr);
         dap_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_ADDR_VALUE_MISMATCH, "num of '-to_addr' and '-value' should be equal");
         return dap_chain_tx_compose_config_return_response_handler(l_config);
+    }
+
+    // bridge check
+    if (!s_chain_net_is_bridged(l_to_addr, l_addr_el_count, l_config)) {
+        DAP_DELETE(l_to_addr);
+        s_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_ADDR_VALUE_MISMATCH, "destination source network is not bridget with recepient network");
+        log_it(L_ERROR, "destination source network is not bridget with recepient network");
+        return s_compose_config_return_response_handler(l_config);
     }
 
     l_value = DAP_NEW_Z_COUNT(uint256_t, l_value_el_count);

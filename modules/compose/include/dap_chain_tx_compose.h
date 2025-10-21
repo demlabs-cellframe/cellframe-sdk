@@ -56,22 +56,10 @@ dap_json_t *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const ch
                                     uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, const char *a_value_str, const char *l_time_unlock_str, const char *a_fee_str, 
                                     const char *a_addr_base58_to, dap_chain_addr_t *a_addr_from);
 
-dap_json_t *dap_chain_tx_compose_xchange_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                          uint16_t a_port, const char *a_enc_cert_path, const char *a_token_sell, const char *a_token_buy, 
-                                          dap_chain_addr_t *a_wallet_addr, const char *a_value_str, const char *a_rate_str, const char *a_fee_str);
-
 dap_json_t *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                         uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr, const char *a_cert_str, 
                                         const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, const char *a_value_per_unit_max_str,
                                         const char *a_srv_uid_str);
-
-dap_json_t *dap_cli_xchange_purchase_compose(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                             uint16_t a_port, const char *a_enc_cert_path, const char *a_order_hash, const char* a_value, 
-                                             const char* a_fee, const char *a_wallet_name, const char *a_wallet_path);
-
-dap_json_t *dap_chain_tx_compose_xchange_purchase(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                                   uint16_t a_port, const char *a_enc_cert_path, const char *a_order_hash, const char* a_value, 
-                                                   const char* a_fee, dap_chain_addr_t *a_wallet_addr);
 
 dap_json_t *dap_chain_tx_compose_wallet_shared_hold(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                                     uint16_t a_port, const char *a_enc_cert_path, dap_chain_addr_t *a_owner_addr, const char *a_token_str, const char *a_value_str, 

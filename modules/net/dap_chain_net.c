@@ -870,8 +870,11 @@ dap_string_t* dap_cli_list_net()
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version) {
     if (!a_net || !a_json_out)
         return;
-    dap_json_t *l_jobj_net_name  = dap_json_object_new_string(a_net->pub.name);
-    dap_json_object_add_object(a_json_out, "net", l_jobj_net_name);
+    char l_id_buff[17]={0};
+    sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, a_net->pub.id.uint64);
+    dap_json_object_add_object(a_json_out, "net", dap_json_object_new_string(a_net->pub.name));
+    dap_json_object_add_object(a_json_out, "id", dap_json_object_new_string(l_id_buff));
+    dap_json_object_add_object(a_json_out, "native_ticker", dap_json_object_new_string(a_net->pub.native_ticker));
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
     l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
     dap_json_t *l_jobj_cur_node_addr;
@@ -893,6 +896,25 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
         dap_json_object_add_object(l_jobj_links, "active", l_jobj_active_links);
         dap_json_object_add_object(l_jobj_links, "required", l_jobj_required_links);
         dap_json_object_add_object(a_json_out, "links", l_jobj_links);
+    }
+    if (a_net->pub.bridged_networks_count) {
+        json_object *l_bridget = json_object_new_array();
+        uint16_t l_bridget_count = 0;  // if can't get any info about bridget net
+        for (uint16_t i = 0; i < a_net->pub.bridged_networks_count; ++i) {
+            dap_chain_net_t *l_bridget_net = dap_chain_net_by_id(a_net->pub.bridged_networks[i]); 
+            if (l_bridget_net) {
+                json_object *l_net_item = dap_json_object_new();
+                sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, a_net->pub.bridged_networks[i].uint64);
+                    
+                dap_json_object_add_object(l_net_item, "name", dap_json_object_new_string(l_bridget_net->pub.name));
+                dap_json_object_add_object(l_net_item, "id", dap_json_object_new_string(l_id_buff));
+                dap_json_object_add_object(l_net_item, "native_ticker", dap_json_object_new_string(l_bridget_net->pub.native_ticker));
+                dap_json_object_array_add(l_bridget, l_net_item);
+                ++l_bridget_count;
+            }
+        }
+        if (l_bridget_count)
+            dap_json_object_add_object(a_json_out, "bridged_networks", l_bridget);
     }
 
     dap_json_t *l_json_sync_status = s_net_sync_status(a_net, a_version);
@@ -3298,3 +3320,19 @@ bool dap_chain_net_stop(dap_chain_net_t *a_net)
 }
 
 /*------------------------------------State machine block end---------------------------------*/
+
+
+bool dap_chain_net_is_bridged(dap_chain_net_t *a_net, dap_chain_net_id_t a_net_id)
+{
+    dap_return_val_if_pass(!a_net, false);
+    // null  addr always pass
+    if (!a_net_id.uint64 || a_net->pub.id.uint64 == a_net_id.uint64)
+        return true;
+    if (!a_net->pub.bridged_networks_count)
+        return false;
+    bool l_ret = false;
+    for(uint16_t i = 0; i < a_net->pub.bridged_networks_count && !l_ret; ++i) {
+            l_ret = a_net->pub.bridged_networks[i].uint64 == a_net_id.uint64;
+    }
+    return l_ret;
+}

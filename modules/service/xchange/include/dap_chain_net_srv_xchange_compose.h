@@ -131,3 +131,29 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_xchange_purchase(
     dap_chain_addr_t *a_wallet_addr,
     char **a_hash_out,
     dap_chain_tx_compose_config_t *a_config);
+
+dap_json_t *dap_chain_tx_compose_xchange_create(
+    dap_chain_net_id_t a_net_id,
+    const char *a_net_name,
+    const char *a_native_ticker,
+    const char *a_url_str,
+    uint16_t a_port,
+    const char *a_enc_cert_path,
+    const char *a_token_sell,
+    const char *a_token_buy,
+    dap_chain_addr_t *a_wallet_addr,
+    const char *a_value_str,
+    const char *a_rate_str,
+    const char *a_fee_str);
+
+dap_json_t *dap_chain_tx_compose_xchange_purchase(
+    dap_chain_net_id_t a_net_id,
+    const char *a_net_name,
+    const char *a_native_ticker,
+    const char *a_url_str,
+    uint16_t a_port,
+    const char *a_enc_cert_path,
+    const char *a_order_hash,
+    const char* a_value,
+    const char* a_fee,
+    dap_chain_addr_t *a_wallet_addr);

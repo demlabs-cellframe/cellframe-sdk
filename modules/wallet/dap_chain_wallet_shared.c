@@ -1023,6 +1023,15 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "num of '-to_addr' and '-value' should be equal");
         return ERROR_VALUE;
     }
+    // bridge check
+    for (uint32_t i = 0; i < l_addr_el_count; ++i) {
+        if (!dap_chain_net_is_bridged(a_net, l_to_addr[i].net_id)) {
+            DAP_DELETE(l_to_addr);
+            dap_enc_key_delete(l_enc_key);
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_NETWORK, "destination source network is not bridget with recepient network");
+            return ERROR_NETWORK;
+        }
+    }
 
     l_value = DAP_NEW_Z_COUNT(uint256_t, l_value_el_count);
     if (!l_value) {

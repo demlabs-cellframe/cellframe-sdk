@@ -2534,6 +2534,13 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, int a_vers
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID, "destination address is invalid");
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID;
             }
+            if(!dap_chain_net_is_bridged(l_net, l_addr_to[i]->net_id)) {
+                DAP_DEL_ARRAY(l_addr_to, i);
+                DAP_DEL_MULTY(l_addr_to, l_value);
+                dap_strfreev(l_addr_base58_to_array);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID, "destination source network is not bridget with recepient network");
+                return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID;
+            }
         }
         dap_strfreev(l_addr_base58_to_array);
     }
