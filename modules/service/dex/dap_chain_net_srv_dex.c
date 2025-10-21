@@ -3356,29 +3356,18 @@ static int s_dex_decree_callback(dap_chain_net_id_t a_net_id, bool a_apply, dap_
     dap_ret_val_if_any(-1, !l_tsd_method);
     dex_decree_method_t l_method = (dex_decree_method_t)dap_tsd_get_scalar(l_tsd_method, uint8_t);
     
+    int l_ret = 0;
     switch (l_method) {
-    case DEX_DECREE_FEE_SET: {
-        // Required: FEE_AMOUNT, FEE_ADDR
-        dap_ret_val_if_any(-2, !l_tsd_fee_amount, !l_tsd_fee_addr);
-        // Reject unexpected parameters
-        dap_ret_val_if_any(-2, l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote, l_tsd_fee_config);
-        if (a_apply) {
-            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-            memcpy(&s_dex_native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
-            memcpy(&s_dex_service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
-            pthread_rwlock_unlock(&s_dex_cache_rwlock);
-            log_it(L_NOTICE, "Service fee set: %s to %s",
-                   dap_uint256_to_char_ex(s_dex_native_fee_amount).str,
-                   dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
-        }
-        return 0;
-    }
+    case DEX_DECREE_FEE_SET:
+        // Required: FEE_AMOUNT, FEE_ADDR; prohibited tokens and net-ids
+        dap_ret_val_if_any(-2, !l_tsd_fee_amount, !l_tsd_fee_addr,
+            l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote);
+        break;
     
     case DEX_DECREE_PAIR_FEE_SET_ALL: {
         // Required: FEE_CONFIG
-        dap_ret_val_if_any(-2, !l_tsd_fee_config);
-        // Reject unexpected parameters
-        dap_ret_val_if_any(-2, l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote, l_tsd_fee_amount, l_tsd_fee_addr);
+        dap_ret_val_if_any(-2, !l_tsd_fee_config, l_tsd_fee_amount, l_tsd_fee_addr,
+            l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote);
         uint8_t l_new_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
         if (a_apply) {
             pthread_rwlock_wrlock(&s_dex_cache_rwlock);
@@ -3391,68 +3380,85 @@ static int s_dex_decree_callback(dap_chain_net_id_t a_net_id, bool a_apply, dap_
             pthread_rwlock_unlock(&s_dex_cache_rwlock);
             log_it(L_NOTICE, "Updated fee for %d pairs: 0x%02x", l_count, l_new_cfg);
         }
-        return 0;
-    }
+    } break;
     
     case DEX_DECREE_PAIR_ADD:
     case DEX_DECREE_PAIR_REMOVE:
     case DEX_DECREE_PAIR_FEE_SET: {
-        // Required: TOKEN_BASE, TOKEN_QUOTE, NET_BASE, NET_QUOTE
+        // Common validation and parsing for all pair operations
         dap_ret_val_if_any(-2, !l_tsd_token_base, !l_tsd_token_quote, !l_tsd_net_base, !l_tsd_net_quote);
-        // Reject unexpected parameters (FEE_AMOUNT, FEE_ADDR not allowed for pair operations)
-        dap_ret_val_if_any(-2, l_tsd_fee_amount, l_tsd_fee_addr);
         const char *l_token_base = dap_tsd_get_string_const(l_tsd_token_base), *l_token_quote = dap_tsd_get_string_const(l_tsd_token_quote);
         dap_ret_val_if_any(-3, !dap_strcmp(l_token_base, DAP_TSD_CORRUPTED_STRING), 
                                 !dap_strcmp(l_token_quote, DAP_TSD_CORRUPTED_STRING),
-                                !dap_strcmp(l_token_base, l_token_quote));
+                                !dap_strcmp(l_token_base, l_token_quote),
+                                !dap_isstralnum(l_token_base), !dap_isstralnum(l_token_quote));
         dap_chain_net_id_t l_net_base = { .uint64 = dap_tsd_get_scalar(l_tsd_net_base, uint64_t) },
             l_net_quote = { .uint64 = dap_tsd_get_scalar(l_tsd_net_quote, uint64_t) };
-        // Canonicalize pair (BTC/ETH and ETH/BTC → always BASE/QUOTE)
+        
         dex_pair_key_t l_key = { };
         s_pair_normalize(l_token_base, l_net_base, l_token_quote, l_net_quote, uint256_0, &l_key, NULL, NULL);
-        if (l_method == DEX_DECREE_PAIR_ADD) {
-            // FEE_CONFIG is optional for PAIR_ADD
+        
+        // Method-specific validation and operations
+        switch (l_method) {
+        case DEX_DECREE_PAIR_ADD: {
+            // FEE_CONFIG is optional
+            uint8_t l_fee_cfg = 0;
             if (l_tsd_fee_config)
-                l_key.fee_config = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
+                l_fee_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
+            l_key.fee_config = l_fee_cfg;
             if (a_apply) {
                 pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-                int l_ret = s_dex_pair_index_add(&l_key);
+                l_ret = s_dex_pair_index_add(&l_key);
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
-                return l_ret;
             }
-            return 0;
-        } else if (l_method == DEX_DECREE_PAIR_REMOVE) {
-            // FEE_CONFIG not allowed for PAIR_REMOVE
+        } break;
+        
+        case DEX_DECREE_PAIR_REMOVE:
+            // FEE_CONFIG is forbidden
             dap_ret_val_if_any(-2, l_tsd_fee_config);
             if (a_apply) {
                 pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-                int l_ret = s_dex_pair_index_remove(&l_key);
+                l_ret = s_dex_pair_index_remove(&l_key);
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
-                return l_ret;
             }
-            return 0;
-        } else {
-            // PAIR_FEE_SET: FEE_CONFIG is required
+            break;
+        
+        case DEX_DECREE_PAIR_FEE_SET: {
+            // FEE_CONFIG is required
             dap_ret_val_if_any(-2, !l_tsd_fee_config);
-            uint8_t l_new_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
-            if (a_apply) {
-                pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-                dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
-                if (l_pair) {
-                    l_pair->key.fee_config = l_new_cfg;
-                    log_it(L_NOTICE, "Updated fee for pair %s/%s: 0x%02x",
-                           l_key.token_base, l_key.token_quote, l_new_cfg);
-                }
-                pthread_rwlock_unlock(&s_dex_cache_rwlock);
-                return l_pair ? 0 : -3;
+            uint8_t l_fee_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
+            
+            a_apply ? pthread_rwlock_wrlock(&s_dex_cache_rwlock) : pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+            dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
+            if (l_pair && a_apply) {
+                l_pair->key.fee_config = l_fee_cfg;
+                log_it(L_NOTICE, "Updated fee for pair %s/%s: 0x%02x", l_key.token_base, l_key.token_quote, l_fee_cfg);
             }
-            return 0;
+            pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            l_ret = l_pair ? 0 : -3;
+        } break;
+        
+        default: break;
         }
-    }
+    } break;
     
     default:
         return log_it(L_WARNING, "Unknown decree method for DEX service: %u", (unsigned)l_method), -4;
     }
+    
+    // Apply optional fee_set (if FEE_AMOUNT and FEE_ADDR present, for any method)
+    if ( !l_ret && a_apply && (l_tsd_fee_amount || l_tsd_fee_addr) ) {
+        pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+        if ( l_tsd_fee_amount )
+            memcpy(&s_dex_native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
+        if ( l_tsd_fee_addr )
+            memcpy(&s_dex_service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
+        pthread_rwlock_unlock(&s_dex_cache_rwlock);
+        log_it(L_NOTICE, "Service fee set: %s to %s",
+               dap_uint256_to_char_ex(s_dex_native_fee_amount).str,
+               dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
+    }
+    return l_ret;
 }
 
 /*
@@ -3508,6 +3514,13 @@ int dap_chain_net_srv_dex_init()
         "srv_dex purchase_auto -net <net_name> -token_sell <ticker> -token_buy <ticker> -w <wallet> -value <value> [-unit sell|buy] [-min_rate <r>] [-fee <value>] [-create_leftover_order] [-leftover_rate <rate>] [-dry-run]\n"
         "srv_dex cancel_all_by_seller -net <net_name> -seller <addr> -w <wallet> -fee <fee> [-limit <N>] [-dry-run]\n"
         "srv_dex pairs -net <net_name>\n"
+        "srv_dex decree -net <net_name> -method <fee_set|pair_add|pair_remove|pair_fee_set|pair_fee_set_all> <params>\n"
+        "  All methods support optional: -fee_amount <amount> -fee_addr <addr> (to set global native fee)\n"
+        "  fee_set: (requires -fee_amount and -fee_addr)\n"
+        "  pair_add: -token_base <ticker> -token_quote <ticker> [-net_base <net>] [-net_quote <net>] [-fee_config <byte>]\n"
+        "  pair_remove: -token_base <ticker> -token_quote <ticker> [-net_base <net>] [-net_quote <net>]\n"
+        "  pair_fee_set: -token_base <ticker> -token_quote <ticker> [-net_base <net>] [-net_quote <net>] -fee_config <byte>\n"
+        "  pair_fee_set_all: -fee_config <byte>\n"
     );
     return 0;
 }
@@ -3990,7 +4003,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         CMD_PURCHASE, CMD_PURCHASE_MULTI, CMD_PURCHASE_AUTO,
         CMD_CANCEL_ALL_BY_SELLER,
         CMD_MARKET_RATE, CMD_TVL, CMD_SPREAD, CMD_VOLUME, CMD_SLIPPAGE,
-        CMD_MIGRATE, CMD_PAIRS,
+        CMD_MIGRATE, CMD_PAIRS, CMD_DECREE,
         CMD_MAX_NUM
     } l_cmd = CMD_MAX_NUM;
     static const char *l_cmd_str[CMD_MAX_NUM] = { 
@@ -3999,7 +4012,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         [CMD_PURCHASE] = "purchase", [CMD_PURCHASE_MULTI] = "purchase_multi", [CMD_PURCHASE_AUTO] = "purchase_auto",
         [CMD_CANCEL_ALL_BY_SELLER] = "cancel_all_by_seller",
         [CMD_MARKET_RATE] = "market_rate", [CMD_TVL] = "tvl", [CMD_SPREAD] = "spread", [CMD_VOLUME] = "volume", [CMD_SLIPPAGE] = "slippage",
-        [CMD_MIGRATE] = "migrate", [CMD_PAIRS] = "pairs"
+        [CMD_MIGRATE] = "migrate", [CMD_PAIRS] = "pairs", [CMD_DECREE] = "decree"
     };
     
     if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "order")) >= 0 ) l_cmd = CMD_ORDER;
@@ -4018,6 +4031,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
     else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "migrate")) >= 0) l_cmd = CMD_MIGRATE;
     else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "cancel_all_by_seller")) >= 0) l_cmd = CMD_CANCEL_ALL_BY_SELLER;
     else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "pairs")) >= 0) l_cmd = CMD_PAIRS;
+    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "decree")) >= 0) l_cmd = CMD_DECREE;
 
     if (l_cmd == CMD_MAX_NUM)
         return dap_json_rpc_error_add(*json_arr_reply, -2, "unknown command %s", a_argv[l_arg_index]), -2;
@@ -5809,6 +5823,130 @@ tvl_output:
         json_object_object_add(l_json_reply, "pairs", l_pairs_arr);
         json_object_object_add(l_json_reply, "count", json_object_new_int(json_object_array_length(l_pairs_arr)));
     } break; // PAIRS
+
+    case CMD_DECREE: {
+        // Parse and validate decree method
+        const char *l_method_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-method", &l_method_str);
+        if (!l_method_str) return dap_json_rpc_error_add(*json_arr_reply, -2, "missing -method"), -2;
+        
+        // Map string to dex_decree_method_t (early validation)
+        dex_decree_method_t l_method = DEX_DECREE_UNKNOWN;
+        if (!dap_strcmp(l_method_str, "fee_set")) l_method = DEX_DECREE_FEE_SET;
+        else if (!dap_strcmp(l_method_str, "pair_add")) l_method = DEX_DECREE_PAIR_ADD;
+        else if (!dap_strcmp(l_method_str, "pair_remove")) l_method = DEX_DECREE_PAIR_REMOVE;
+        else if (!dap_strcmp(l_method_str, "pair_fee_set")) l_method = DEX_DECREE_PAIR_FEE_SET;
+        else if (!dap_strcmp(l_method_str, "pair_fee_set_all")) l_method = DEX_DECREE_PAIR_FEE_SET_ALL;
+        if (l_method == DEX_DECREE_UNKNOWN)
+            return dap_json_rpc_error_add(*json_arr_reply, -2, "unknown method '%s'", l_method_str), -2;
+        
+        // Max TSD buffer: METHOD(1) + FEE_AMOUNT(32) + FEE_ADDR(49) + TOKEN_BASE(10) + TOKEN_QUOTE(10) + NET_BASE(8) + NET_QUOTE(8) + FEE_CONFIG(1)
+        // = sizeof(dap_tsd_t) * 8 + 119 bytes data ≈ 200 bytes (conservative estimate)
+        byte_t l_tsd_buf[512] = { };
+        byte_t *l_ptr = l_tsd_buf;
+        
+        // Write METHOD TSD
+        uint8_t l_method_byte = (uint8_t)l_method;
+        l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_METHOD, &l_method_byte, sizeof(uint8_t));
+        
+        // Optional global fee params (can be combined with any method)
+        const char *l_fee_amount_str = NULL, *l_fee_addr_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_amount", &l_fee_amount_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_addr", &l_fee_addr_str);
+        
+        switch (l_method) {
+        case DEX_DECREE_FEE_SET:
+            // fee_set requires both -fee_amount and -fee_addr
+            if (!l_fee_amount_str || !l_fee_addr_str)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "fee_set requires -fee_amount and -fee_addr"), -2;
+            break;
+        
+        case DEX_DECREE_PAIR_FEE_SET_ALL: {
+            const char *l_fee_config_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_config", &l_fee_config_str);
+            if (!l_fee_config_str)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "pair_fee_set_all requires -fee_config"), -2;
+            
+            uint8_t l_fee_config = (uint8_t)strtoul(l_fee_config_str, NULL, 0);
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_CONFIG, &l_fee_config, sizeof(uint8_t));
+        } break;
+        
+        case DEX_DECREE_PAIR_ADD:
+        case DEX_DECREE_PAIR_REMOVE:
+        case DEX_DECREE_PAIR_FEE_SET: {
+            // Common parameters for all pair operations
+            const char *l_token_base = NULL, *l_token_quote = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_base", &l_token_base);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_quote", &l_token_quote);
+            if (!l_token_base || !l_token_quote)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "pair operations require -token_base and -token_quote"), -2;
+            
+            const char *l_net_base_str = NULL, *l_net_quote_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net_base", &l_net_base_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net_quote", &l_net_quote_str);
+            
+            dap_chain_net_id_t l_net_base = l_net->pub.id, l_net_quote = l_net->pub.id;
+            if (l_net_base_str) {
+                dap_chain_net_t *l_net_tmp = dap_chain_net_by_name(l_net_base_str);
+                if (!l_net_tmp)
+                    return dap_json_rpc_error_add(*json_arr_reply, -2, "invalid -net_base"), -2;
+                l_net_base = l_net_tmp->pub.id;
+            }
+            if (l_net_quote_str) {
+                dap_chain_net_t *l_net_tmp = dap_chain_net_by_name(l_net_quote_str);
+                if (!l_net_tmp)
+                    return dap_json_rpc_error_add(*json_arr_reply, -2, "invalid -net_quote"), -2;
+                l_net_quote = l_net_tmp->pub.id;
+            }
+            
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_BASE, l_token_base, dap_strlen(l_token_base));
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_QUOTE, l_token_quote, dap_strlen(l_token_quote));
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_NET_BASE, &l_net_base, sizeof(uint64_t));
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_NET_QUOTE, &l_net_quote, sizeof(uint64_t));
+            
+            // Handle -fee_config (method-specific)
+            const char *l_fee_config_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_config", &l_fee_config_str);
+            
+            if (l_method == DEX_DECREE_PAIR_FEE_SET && !l_fee_config_str)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "pair_fee_set requires -fee_config"), -2;
+            
+            if (l_fee_config_str && l_method != DEX_DECREE_PAIR_REMOVE) {
+                uint8_t l_fee_config = (uint8_t)strtoul(l_fee_config_str, NULL, 0);
+                l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_CONFIG, &l_fee_config, sizeof(uint8_t));
+            }
+        } break;
+        
+        default:
+            return dap_json_rpc_error_add(*json_arr_reply, -2, "unknown decree method"), -2;
+        }
+        
+        // Write optional global fee params (if provided, can be independent)
+        if (l_fee_amount_str) {
+            uint256_t l_fee_amount = dap_chain_coins_to_balance(l_fee_amount_str);
+            if (IS_ZERO_256(l_fee_amount))
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "invalid -fee_amount"), -2;
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_AMOUNT, &l_fee_amount, sizeof(uint256_t));
+        }
+        if (l_fee_addr_str) {
+            dap_chain_addr_t *l_fee_addr = dap_chain_addr_from_str(l_fee_addr_str);
+            if (!l_fee_addr)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "invalid -fee_addr"), -2;
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_ADDR, l_fee_addr, sizeof(dap_chain_addr_t));
+            DAP_DELETE(l_fee_addr);
+        }
+        
+        // Calculate actual TSD size
+        size_t l_tsd_size = l_ptr - l_tsd_buf;
+        
+        // TODO: Create decree datum and place to mempool
+        // This is a stub - actual mempool integration will be added later
+        l_json_reply = json_object_new_object();
+        json_object_object_add(l_json_reply, "status", json_object_new_string("decree_created"));
+        json_object_object_add(l_json_reply, "method", json_object_new_string(l_method_str));
+        json_object_object_add(l_json_reply, "tsd_size", json_object_new_int64(l_tsd_size));
+        json_object_object_add(l_json_reply, "note", json_object_new_string("mempool submission not implemented yet"));
+    } break; // DECREE
 
     default: return dap_json_rpc_error_add(*json_arr_reply, -1, "unknown command"), -1; }
 
