@@ -105,7 +105,7 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_chain_node_cli_cmd.h"
 
 #include "dap_http_simple.h"
-#include "http_status_code.h"
+#include "dap_http_status_code.h"
 
 #define LOG_TAG "dap_chain_net_srv_vpn"
 
@@ -2125,8 +2125,8 @@ static int s_tun_deattach_queue(int fd)
 
 static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_arg)
 {
-    http_status_code_t * l_return_code = (http_status_code_t*)a_arg;
-    *l_return_code = Http_Status_OK;
+    dap_http_status_code_t * l_return_code = (dap_http_status_code_t*)a_arg;
+    *l_return_code = DAP_HTTP_STATUS_OK;
     strcpy(a_http_simple->reply_mime, "text/text");
     const char *l_net_id_str = NULL, *l_user_pkey_hash_str = NULL;
     dap_chain_net_id_t l_net_id = {};
@@ -2137,7 +2137,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
     if (!l_second_param || strlen(l_second_param) == 1){
         dap_http_simple_reply_f(a_http_simple, "Wrong parameters!");
         DAP_DELETE(l_first_param);
-        *l_return_code = Http_Status_OK;
+        *l_return_code = DAP_HTTP_STATUS_OK;
         return;
     }
     *l_second_param++ = '\0';
@@ -2164,7 +2164,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
 
     if (!l_net_id_str || !l_user_pkey_hash_str){
         dap_http_simple_reply_f(a_http_simple, "Wrong parameters!");
-        *l_return_code = Http_Status_OK;
+        *l_return_code = DAP_HTTP_STATUS_OK;
         DAP_DELETE(l_first_param);
         return;
     }
@@ -2182,7 +2182,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
         {
             log_it(L_ERROR, "Can't get pkey from cert %s.", l_cert_name);
             dap_http_simple_reply_f(a_http_simple, "Internal error!");
-            *l_return_code = Http_Status_OK;
+            *l_return_code = DAP_HTTP_STATUS_OK;
             DAP_DELETE(l_first_param);
             return;
         }
@@ -2193,7 +2193,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
         if (!l_server_pkey_hash){
             log_it(L_DEBUG, "Can't get server pkey hash.");
             dap_http_simple_reply_f(a_http_simple, "Internal error!");
-            *l_return_code = Http_Status_OK;
+            *l_return_code = DAP_HTTP_STATUS_OK;
             DAP_DELETE(l_first_param);
             return;
         }
@@ -2203,7 +2203,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
             log_it(L_DEBUG, "Can't find net with id %"DAP_UINT64_FORMAT_U, l_net_id.uint64);
             dap_http_simple_reply_f(a_http_simple, "Can't find net with id %"DAP_UINT64_FORMAT_U"!", l_net_id.uint64);
             DAP_DEL_Z(l_server_pkey_hash);
-            *l_return_code = Http_Status_OK;
+            *l_return_code = DAP_HTTP_STATUS_OK;
             DAP_DELETE(l_first_param);
             return;
         }
@@ -2241,7 +2241,7 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
         DAP_DEL_Z(l_server_pkey_hash);
     } else {
         dap_http_simple_reply_f(a_http_simple, "Internal error!");
-        *l_return_code = Http_Status_InternalServerError;
+        *l_return_code = DAP_HTTP_STATUS_INTERNAL_SERVER_ERROR;
     }
     DAP_DELETE(l_first_param);
 }

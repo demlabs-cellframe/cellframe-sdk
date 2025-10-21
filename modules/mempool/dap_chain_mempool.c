@@ -42,7 +42,7 @@
 #include "dap_http_simple.h"
 #include "dap_enc_base58.h"
 #include "dap_enc_http.h"
-#include "http_status_code.h"
+#include "dap_http_status_code.h"
 #include "dap_chain_common.h"
 #include "dap_chain_node.h"
 #include "dap_global_db.h"

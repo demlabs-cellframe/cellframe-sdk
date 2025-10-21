@@ -106,7 +106,7 @@ typedef struct xchange_orders_cache_net {
 static dap_list_t *s_net_cache = NULL;
 static xchange_cache_state_t s_xchange_cache_state = XCHANGE_CACHE_DISABLED;
 
-static void s_callback_decree(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size);
+static int s_callback_decree(dap_chain_net_id_t a_net_id, bool a_decree_type, dap_tsd_t *a_params, size_t a_params_size);
 static void *s_callback_start(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
 static int s_xchange_verificator_callback(dap_ledger_t * a_ledger,
                             dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply);
@@ -518,37 +518,33 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datu
  * @param a_decree
  * @param a_decree_size
  */
-static void s_callback_decree(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size)
+static int s_callback_decree(dap_chain_net_id_t a_net_id, bool a_decree_type, dap_tsd_t *a_params, size_t a_params_size)
 {
-
+    (void)a_decree_type; // Unused parameter
     dap_chain_srv_fee_t *l_fee = dap_chain_srv_get_internal(a_net_id, c_dap_chain_net_srv_xchange_uid);
     if (l_fee == NULL) {
         log_it(L_WARNING, "Decree for net id 0x%016" DAP_UINT64_FORMAT_X " which haven't xchange service registered", a_net_id.uint64);
-        return;
+        return -1;
     }
     size_t l_tsd_offset = 0;
-    int l_decree_type = 0;
-    switch (l_decree_type) {
-    //case XCHANGE_CTRL_FEE_UPDATE: {
-    default:
-        while (l_tsd_offset < a_params_size) {
-            dap_tsd_t *l_tsd = (dap_tsd_t *)((byte_t *)a_params + l_tsd_offset);
-            switch((dap_chain_srv_fee_tsd_type_t)l_tsd->type) {
-            case TSD_FEE_TYPE:
-                l_fee->type = dap_tsd_get_scalar(l_tsd, uint16_t);
-                break;
-            case TSD_FEE:
-                l_fee->value = dap_tsd_get_scalar(l_tsd, uint256_t);
-                break;
-            case TSD_FEE_ADDR:
-                l_fee->addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
-            default:
-                break;
-            }
-            l_tsd_offset += dap_tsd_size(l_tsd);
+    while (l_tsd_offset < a_params_size) {
+        dap_tsd_t *l_tsd = (dap_tsd_t *)((byte_t *)a_params + l_tsd_offset);
+        switch((dap_chain_srv_fee_tsd_type_t)l_tsd->type) {
+        case TSD_FEE_TYPE:
+            l_fee->type = dap_tsd_get_scalar(l_tsd, uint16_t);
+            break;
+        case TSD_FEE:
+            l_fee->value = dap_tsd_get_scalar(l_tsd, uint256_t);
+            break;
+        case TSD_FEE_ADDR:
+            l_fee->addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+            break;
+        default:
+            break;
         }
-        break;
+        l_tsd_offset += dap_tsd_size(l_tsd);
     }
+    return 0;
 }
 
 bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr, uint16_t *a_type)

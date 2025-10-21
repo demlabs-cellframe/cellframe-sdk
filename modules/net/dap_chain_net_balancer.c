@@ -27,7 +27,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_net.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_net.h"
-#include "http_status_code.h"
+#include "dap_http_status_code.h"
 #include "dap_chain_node_client.h"
 #include "dap_dns_client.h"
 #include "dap_dns_server.h"
@@ -212,7 +212,7 @@ static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request
  * @param a_arg - callback arg (l_balancer_request)
  */
 void s_http_balancer_link_prepare_success(void *a_response,
-                                          size_t a_response_size, void *a_arg, http_status_code_t a_response_code)
+                                          size_t a_response_size, void *a_arg, dap_http_status_code_t a_response_code)
 {
     dap_balancer_link_request_t *l_balancer_request = (dap_balancer_link_request_t *)a_arg;
     if (a_response_code != 200) {
@@ -400,7 +400,7 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
  * @param a_http_simple - http request
  * @param a_return_code - http return code
  */
-void s_http_node_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t *a_return_code)
+void s_http_node_issue_link(dap_http_simple_t *a_http_simple, dap_http_status_code_t *a_return_code)
 {
     dap_return_if_pass(!a_return_code);
     int l_protocol_version = 0;
@@ -411,13 +411,13 @@ void s_http_node_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t
                                                             &l_protocol_version, &l_issue_method, &l_links_need);
     if (l_protocol_version > DAP_BALANCER_PROTOCOL_VERSION || l_protocol_version < 1 || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_balancer module");
-        *a_return_code = Http_Status_MethodNotAllowed;
+        *a_return_code = DAP_HTTP_STATUS_METHOD_NOT_ALLOWED;
         return;
     }
     char *l_net_str = strstr(a_http_simple->http_client->in_query_string, l_net_token);
     if (!l_net_str) {
         log_it(L_ERROR, "Net name token not found in the request to dap_chain_net_balancer module");
-        *a_return_code = Http_Status_NotFound;
+        *a_return_code = DAP_HTTP_STATUS_NOT_FOUND;
         return;
     }
     l_net_str += sizeof(l_net_token) - 1;
@@ -427,7 +427,7 @@ void s_http_node_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t
         l_ignored_str = strstr(a_http_simple->http_client->in_query_string, l_ignored_token);
         if (!l_ignored_str) {
             log_it(L_ERROR, "Net ignored token not found in the request to dap_chain_net_balancer module");
-            *a_return_code = Http_Status_NotFound;
+            *a_return_code = DAP_HTTP_STATUS_NOT_FOUND;
             return;
         }
         *(l_ignored_str - 1) = 0; // set 0 terminator to split string
@@ -437,10 +437,10 @@ void s_http_node_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t
     dap_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, l_links_need, l_protocol_version, l_ignored_str);
     if (!l_link_full_node_list) {
         log_it(L_DEBUG, "Can't issue link for network %s, no acceptable links found", l_net_str);
-        *a_return_code = Http_Status_NoContent;
+        *a_return_code = DAP_HTTP_STATUS_NO_CONTENT;
         return;
     }
-    *a_return_code = Http_Status_OK;
+    *a_return_code = DAP_HTTP_STATUS_OK;
     size_t l_data_send_size = sizeof(dap_net_links_t);
     if (l_protocol_version == 1)
         l_data_send_size += sizeof(dap_chain_node_info_old_t) * l_link_full_node_list->count_node;
@@ -456,12 +456,12 @@ void s_http_node_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t
  * @param a_http_simple - http request
  * @param a_return_code - http return code
  */
-void s_http_rpc_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t *a_return_code)
+void s_http_rpc_issue_link(dap_http_simple_t *a_http_simple, dap_http_status_code_t *a_return_code)
 {
     dap_return_if_pass(!a_return_code);
     if (!dap_chain_node_rpc_is_balancer()) {
         log_it(L_ERROR, "Balancer rpc mode is off");
-        *a_return_code = Http_Status_MethodNotAllowed;
+        *a_return_code = DAP_HTTP_STATUS_METHOD_NOT_ALLOWED;
         return;
     }
     int l_protocol_version = 0;
@@ -470,17 +470,17 @@ void s_http_rpc_issue_link(dap_http_simple_t *a_http_simple, http_status_code_t 
                                                             &l_protocol_version, &l_issue_method);
     if (l_protocol_version > DAP_BALANCER_PROTOCOL_VERSION || l_protocol_version < 1 || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_balancer module");
-        *a_return_code = Http_Status_MethodNotAllowed;
+        *a_return_code = DAP_HTTP_STATUS_METHOD_NOT_ALLOWED;
         return;
     }
     size_t l_count = 0;
     dap_chain_node_rpc_states_info_t *l_rpc_info = dap_chain_node_rpc_get_states_sort(&l_count);
     if (!l_rpc_info) {
         log_it(L_DEBUG, "Can't issue rpc node states, no any info found");
-        *a_return_code = Http_Status_NoContent;
+        *a_return_code = DAP_HTTP_STATUS_NO_CONTENT;
         return;
     }
-    *a_return_code = Http_Status_OK;
+    *a_return_code = DAP_HTTP_STATUS_OK;
     dap_http_simple_reply(a_http_simple, l_rpc_info, sizeof(dap_chain_node_rpc_states_info_t) *l_count);
     DAP_DELETE(l_rpc_info);
 }
@@ -494,7 +494,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
 {
     dap_return_if_pass(!a_http_simple || !a_arg);
     log_it(L_DEBUG,"Proc enc http request from %s", a_http_simple->es_hostaddr);
-    http_status_code_t *l_return_code = (http_status_code_t *)a_arg;
+    dap_http_status_code_t *l_return_code = (dap_http_status_code_t *)a_arg;
 
     switch (s_get_uri_type(a_http_simple->http_client->url_path)) {
         case DAP_BALANCER_NODE_URI_HASH:
@@ -505,7 +505,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
             break;
         default:
             log_it(L_ERROR, "Wrong path '%s' in the request to dap_chain_net_balancer module", a_http_simple->http_client->url_path);
-            *l_return_code = Http_Status_BadRequest;
+            *l_return_code = DAP_HTTP_STATUS_BAD_REQUEST;
             break;
     }
     return;
