@@ -936,35 +936,58 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
     DAP_DELETE(l_node_address_text_block);
 }
 /**
- * @brief reload ledger
- * command cellframe-node-cli net -net <network_name> ledger reload
- * @param l_net
- * @return true
- * @return false
+ * @brief Reload ledger and purge chain data
+ * @details Cleanly purges all chain data while maintaining proper cleanup order.
+ *          Used by command: cellframe-node-cli net -net <network_name> ledger reload
+ * @param l_net Network object to purge
  */
 void dap_chain_net_purge(dap_chain_net_t *l_net)
 {
+    if (!l_net) {
+        log_it(L_WARNING, "Invalid argument: l_net is NULL");
+        return;
+    }
+    
     dap_chain_net_srv_stake_purge(l_net);
     dap_chain_net_decree_deinit(l_net);
-    dap_ledger_purge(l_net->pub.ledger, false);
+    
+    if (l_net->pub.ledger) {
+        dap_ledger_purge(l_net->pub.ledger, false);
+    }
+    
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
+        // Reset esbocs validators count BEFORE purging the chain
+        // This must be done while the consensus data is still valid
+        if (l_chain && !dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+            dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+            if (l_blocks && l_blocks->_inheritor) {
+                // Check that esbocs structure is still valid before accessing it
+                dap_chain_esbocs_set_min_validators_count(l_chain, 0);
+            }
+        }
+        
+        // Now purge the chain data
         if (l_chain->callback_purge) {
             l_chain->callback_purge(l_chain);
         }
-        if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-            dap_chain_esbocs_set_min_validators_count(l_chain, 0);
-        }
+        
+        // Reload chain from disk
         dap_chain_load_all(l_chain);
+        
+        // Reset network fees
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
     }
+    
+    // Process atoms from threshold
     DL_FOREACH(l_net->pub.chains, l_chain) {
-        if (l_chain->callback_atom_add_from_treshold) {
+        if (l_chain && l_chain->callback_atom_add_from_treshold) {
             while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
                 debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
     }
+    
     dap_chain_net_decree_init(l_net);
 }
 

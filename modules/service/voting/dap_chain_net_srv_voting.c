@@ -1475,9 +1475,23 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
 }
 
 
+/**
+ * @brief Check if coin was spent in voting transaction
+ * @param a_net Network object
+ * @param a_voting_hash Voting hash
+ * @param a_tx_prev_hash Previous transaction hash
+ * @param a_out_idx Output index
+ * @param a_pkey_hash Public key hash (optional)
+ * @return 0 if not spent, 1 if spent, negative on error
+ */
 static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash,
                                               dap_hash_fast_t a_tx_prev_hash, int a_out_idx, dap_hash_fast_t *a_pkey_hash)
 {
+    if (!a_net) {
+        log_it(L_ERROR, "Invalid argument: a_net is NULL");
+        return -1;
+    }
+
     int l_coin_is_spent = 0;
 
     dap_chain_net_votings_t *l_voting = NULL;
@@ -1490,10 +1504,15 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
     }
 
     dap_ledger_t *l_ledger = a_net->pub.ledger;
+    if (!l_ledger) {
+        log_it(L_ERROR, "Ledger is NULL for network %s", a_net->pub.name);
+        return -2;
+    }
+    
     dap_chain_datum_tx_t *l_voting_tx = dap_ledger_tx_find_by_hash(l_ledger, &a_voting_hash);
     if (!l_voting_tx) {
         log_it(L_ERROR, "Can't find poll tx %s", dap_hash_fast_to_str_static(&a_voting_hash));
-        return -2;
+        return -3;
     }
 
     if (s_datum_tx_voting_coin_check_cond_out(a_net, a_voting_hash, a_tx_prev_hash, a_out_idx, a_pkey_hash) != 0)

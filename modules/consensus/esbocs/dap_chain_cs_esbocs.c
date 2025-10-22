@@ -786,22 +786,52 @@ dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain)
     return l_esbocs_pvt->blocks_sign_key;
 }
 
+/**
+ * @brief Set minimum validators count for esbocs consensus
+ * @param a_chain Chain object
+ * @param a_new_value New minimum validators count (0 to reset to default)
+ * @return 0 on success, negative error code otherwise
+ */
 int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value)
 {
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
+    
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    if (!l_blocks) {
+        log_it(L_WARNING, "Chain %s has no blocks structure", a_chain->name);
+        return -2;
+    }
+    
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    if (!l_esbocs) {
+        log_it(L_WARNING, "Chain %s has no esbocs consensus structure", a_chain->name);
+        return -3;
+    }
+    
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    if (a_new_value)
+    if (!l_esbocs_pvt) {
+        log_it(L_WARNING, "Chain %s esbocs has no private structure", a_chain->name);
+        return -4;
+    }
+    
+    if (a_new_value) {
         l_esbocs_pvt->min_validators_count = a_new_value;
-    else {
+    } else {
+        // Reset to default value
         dap_hash_fast_t l_stake_tx_hash = {};
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        if (!l_net) {
+            log_it(L_WARNING, "Cannot find network for chain %s", a_chain->name);
+            return -5;
+        }
+        
         uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
         for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
             dap_chain_esbocs_validator_t *l_validator = it->data;
-            dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
-                                                 l_weight, &l_validator->node_addr, NULL);
+            if (l_validator) {
+                dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
+                                                     l_weight, &l_validator->node_addr, NULL);
+            }
         }
         l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
     }

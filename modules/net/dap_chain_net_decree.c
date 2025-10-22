@@ -99,17 +99,46 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
     return 0;
 }
 
+/**
+ * @brief Deinitialize decree subsystem for network
+ * @param a_net Network object
+ * @return 0 on success, negative error code otherwise
+ */
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
 {
+    if (!a_net) {
+        log_it(L_WARNING, "Invalid argument: a_net is NULL");
+        return -1;
+    }
+    
     dap_chain_policy_net_purge(a_net->pub.id);
+    
+    // Clean up net decree structure
     dap_chain_net_decree_t *l_decree = dap_chain_net_get_net_decree(a_net);
-    dap_list_free_full(l_decree->pkeys, NULL);
-    DAP_DELETE(l_decree);
-    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_cur_decree, *l_tmp;
+    if (l_decree) {
+        dap_list_free_full(l_decree->pkeys, NULL);
+        DAP_DELETE(l_decree);
+    }
+    
+    // Clean up decrees table
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net);
+    if (!l_decrees || !*l_decrees) {
+        return 0; // Nothing to clean up
+    }
+    
+    decree_table_t *l_cur_decree, *l_tmp;
     HASH_ITER(hh, *l_decrees, l_cur_decree, l_tmp) {
         HASH_DEL(*l_decrees, l_cur_decree);
-        if ( l_cur_decree->decree && !dap_chain_find_by_id(l_cur_decree->decree->header.common_decree_params.net_id, l_cur_decree->decree->header.common_decree_params.chain_id)->is_mapped )
-            DAP_DELETE(l_cur_decree->decree);
+        if (l_cur_decree->decree) {
+            // Check if chain still exists before accessing it
+            dap_chain_t *l_chain = dap_chain_find_by_id(
+                l_cur_decree->decree->header.common_decree_params.net_id,
+                l_cur_decree->decree->header.common_decree_params.chain_id
+            );
+            if (l_chain && !l_chain->is_mapped) {
+                DAP_DELETE(l_cur_decree->decree);
+            }
+        }
         DAP_DELETE(l_cur_decree);
     }
     return 0;
