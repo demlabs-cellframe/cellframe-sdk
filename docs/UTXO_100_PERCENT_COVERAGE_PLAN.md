@@ -16,7 +16,7 @@
 4. ✅ Отложенная блокировка
 5. ✅ Отложенная разблокировка
 6. ✅ UTXO_BLOCKING_DISABLED при создании
-7. ✅ STATIC_UTXO_BLOCKLIST при создании
+7. ✅ UTXO_STATIC_BLOCKLIST при создании
 8. ✅ Invalid UTXO format
 9. ✅ DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED
 10. ✅ Частичная блокировка (arbitrage)
@@ -163,7 +163,7 @@ static void s_test_token_info_shows_blocklist(void)
 
 ---
 
-### 2. **Test: STATIC_UTXO_BLOCKLIST enforcement** 🔴
+### 2. **Test: UTXO_STATIC_BLOCKLIST enforcement** 🔴
 
 **Приоритет:** КРИТИЧЕСКИЙ (SECURITY RISK!)  
 **Строки документации:** 229-253  
@@ -171,8 +171,8 @@ static void s_test_token_info_shows_blocklist(void)
 
 **Что тестировать:**
 ```bash
-# Step 1: Create with STATIC_UTXO_BLOCKLIST
-token_decl -flags STATIC_UTXO_BLOCKLIST -utxo_blocked_add 0xabcd:0
+# Step 1: Create with UTXO_STATIC_BLOCKLIST
+token_decl -flags UTXO_STATIC_BLOCKLIST -utxo_blocked_add 0xabcd:0
 
 # Step 2: Try to modify (should FAIL)
 token_update -utxo_blocked_add 0xef01:1  # должно быть отвергнуто
@@ -184,18 +184,18 @@ token_update -utxo_blocked_clear  # должно быть отвергнуто
 ```c
 static void s_test_static_utxo_blocklist_enforcement(void)
 {
-    dap_print_module_name("CLI Test: STATIC_UTXO_BLOCKLIST enforcement");
+    dap_print_module_name("CLI Test: UTXO_STATIC_BLOCKLIST enforcement");
 
-    // 1. Создать токен с STATIC_UTXO_BLOCKLIST и одним заблокированным UTXO
+    // 1. Создать токен с UTXO_STATIC_BLOCKLIST и одним заблокированным UTXO
     dap_chain_hash_fast_t l_emission_hash;
     test_token_fixture_t *l_token = test_token_fixture_create_with_emission(
         s_net_fixture->ledger, "STATIC_TEST", "10000.0", "5000.0", 
         &s_addr, s_cert, &l_emission_hash);
     
-    // 2. Установить STATIC_UTXO_BLOCKLIST флаг через token_update
+    // 2. Установить UTXO_STATIC_BLOCKLIST флаг через token_update
     char l_cmd[2048];
     snprintf(l_cmd, sizeof(l_cmd),
-             "token_update -net Snet -token STATIC_TEST -flag_set STATIC_UTXO_BLOCKLIST -certs %s",
+             "token_update -net Snet -token STATIC_TEST -flag_set UTXO_STATIC_BLOCKLIST -certs %s",
              s_cert->name);
     
     char l_json_request[4096];
@@ -204,7 +204,7 @@ static void s_test_static_utxo_blocklist_enforcement(void)
              l_cmd);
     
     char *l_reply = dap_cli_cmd_exec(l_json_request);
-    dap_assert_PIF(l_reply != NULL, "STATIC_UTXO_BLOCKLIST flag set");
+    dap_assert_PIF(l_reply != NULL, "UTXO_STATIC_BLOCKLIST flag set");
 
     // 3. Создать транзакцию для блокировки
     test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
@@ -238,11 +238,11 @@ static void s_test_static_utxo_blocklist_enforcement(void)
     json_object_object_get_ex(l_error, "message", &l_error_message);
     const char *l_error_str = json_object_get_string(l_error_message);
     
-    bool l_contains_static = (strstr(l_error_str, "STATIC_UTXO_BLOCKLIST") != NULL ||
+    bool l_contains_static = (strstr(l_error_str, "UTXO_STATIC_BLOCKLIST") != NULL ||
                               strstr(l_error_str, "immutable") != NULL);
-    dap_assert_PIF(l_contains_static, "Error message mentions STATIC_UTXO_BLOCKLIST");
+    dap_assert_PIF(l_contains_static, "Error message mentions UTXO_STATIC_BLOCKLIST");
 
-    log_it(L_INFO, "✅ STATIC_UTXO_BLOCKLIST correctly rejects modifications");
+    log_it(L_INFO, "✅ UTXO_STATIC_BLOCKLIST correctly rejects modifications");
 
     // 7. Попытка удалить из blocklist (должна ПРОВАЛИТЬСЯ)
     snprintf(l_cmd, sizeof(l_cmd),
@@ -259,7 +259,7 @@ static void s_test_static_utxo_blocklist_enforcement(void)
     l_has_error = json_object_object_get_ex(l_remove_json, "error", &l_remove_error);
     dap_assert_PIF(l_has_error, "Remove operation rejected");
 
-    log_it(L_INFO, "✅ STATIC_UTXO_BLOCKLIST rejects remove operations");
+    log_it(L_INFO, "✅ UTXO_STATIC_BLOCKLIST rejects remove operations");
 
     // 8. Попытка очистить blocklist (должна ПРОВАЛИТЬСЯ)
     snprintf(l_cmd, sizeof(l_cmd),
@@ -276,7 +276,7 @@ static void s_test_static_utxo_blocklist_enforcement(void)
     l_has_error = json_object_object_get_ex(l_clear_json, "error", &l_clear_error);
     dap_assert_PIF(l_has_error, "Clear operation rejected");
 
-    log_it(L_INFO, "✅ STATIC_UTXO_BLOCKLIST rejects clear operations");
+    log_it(L_INFO, "✅ UTXO_STATIC_BLOCKLIST rejects clear operations");
 
     // Cleanup
     json_object_put(l_json_reply);
@@ -626,7 +626,7 @@ static void s_test_utxo_blocking_disabled_behaviour(void)
 | № | Тест | Приоритет | Строки кода | Файл | Строки док |
 |---|------|-----------|-------------|------|------------|
 | 1 | token info shows blocklist | 🔴 КРИТИЧНО | ~100 | cli_integration_test.c | 78-109 |
-| 2 | STATIC_UTXO_BLOCKLIST enforcement | 🔴 КРИТИЧНО | ~110 | cli_integration_test.c | 229-253 |
+| 2 | UTXO_STATIC_BLOCKLIST enforcement | 🔴 КРИТИЧНО | ~110 | cli_integration_test.c | 229-253 |
 | 3 | Vesting scenario | 🔴 КРИТИЧНО | ~100 | cli_integration_test.c | 165-188 |
 | 4 | Default UTXO blocking enabled | 🔴 КРИТИЧНО | ~85 | cli_integration_test.c | 20-35 |
 | 5 | Multiple UTXO additions in token_decl | 🟡 ВАЖНО | ~60 | cli_integration_test.c | 244-246 |

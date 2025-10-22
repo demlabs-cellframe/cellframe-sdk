@@ -234,18 +234,18 @@ check_flags() {
         log_warning "UTXO_BLOCKING_DISABLED не найден в заголовочном файле"
     fi
     
-    subsection_header "4.2. Флаг STATIC_UTXO_BLOCKLIST"
+    subsection_header "4.2. Флаг UTXO_STATIC_BLOCKLIST"
     
-    if grep -q "STATIC_UTXO_BLOCKLIST" "${DOC_FILE}"; then
-        log_success "Документация описывает STATIC_UTXO_BLOCKLIST"
+    if grep -q "UTXO_STATIC_BLOCKLIST" "${DOC_FILE}"; then
+        log_success "Документация описывает UTXO_STATIC_BLOCKLIST"
     else
-        log_error "Документация НЕ описывает STATIC_UTXO_BLOCKLIST"
+        log_error "Документация НЕ описывает UTXO_STATIC_BLOCKLIST"
     fi
     
-    if [[ -f "${token_header}" ]] && grep -q "STATIC_UTXO_BLOCKLIST" "${token_header}"; then
-        log_success "dap_chain_datum_token.h определяет STATIC_UTXO_BLOCKLIST"
+    if [[ -f "${token_header}" ]] && grep -q "UTXO_STATIC_BLOCKLIST" "${token_header}"; then
+        log_success "dap_chain_datum_token.h определяет UTXO_STATIC_BLOCKLIST"
     else
-        log_warning "STATIC_UTXO_BLOCKLIST не найден в заголовочном файле"
+        log_warning "UTXO_STATIC_BLOCKLIST не найден в заголовочном файле"
     fi
 }
 
@@ -425,19 +425,19 @@ check_error_handling() {
         log_warning "Нет теста для невалидного формата UTXO"
     fi
     
-    subsection_header "8.2. Проверка STATIC_UTXO_BLOCKLIST"
+    subsection_header "8.2. Проверка UTXO_STATIC_BLOCKLIST"
     
-    if grep -q "STATIC_UTXO_BLOCKLIST" "${DOC_FILE}"; then
-        log_success "Документация описывает ошибку STATIC_UTXO_BLOCKLIST"
+    if grep -q "UTXO_STATIC_BLOCKLIST" "${DOC_FILE}"; then
+        log_success "Документация описывает ошибку UTXO_STATIC_BLOCKLIST"
     else
-        log_warning "Документация не описывает ошибку STATIC_UTXO_BLOCKLIST"
+        log_warning "Документация не описывает ошибку UTXO_STATIC_BLOCKLIST"
     fi
     
     # Проверяем тест для immutability
     if [[ -f "${INTEGRATION_TEST}" ]] && grep -q "static.*blocklist\|immutable" "${INTEGRATION_TEST}"; then
-        log_success "Есть тест для STATIC_UTXO_BLOCKLIST enforcement"
+        log_success "Есть тест для UTXO_STATIC_BLOCKLIST enforcement"
     else
-        log_warning "Нет теста для STATIC_UTXO_BLOCKLIST enforcement"
+        log_warning "Нет теста для UTXO_STATIC_BLOCKLIST enforcement"
     fi
 }
 

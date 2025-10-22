@@ -212,68 +212,46 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
 //  Maximal flag
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                      BIT(15)
 
-/// ------ UTXO blocking mechanism flags (BIT 16-19) ------
+/// ------ UTXO-specific flags (stored in TSD section, see DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS) ------
 /**
- * @brief Disable UTXO blocking mechanism for this token
- * @details UTXO blocking is ENABLED by default for all tokens.
- *          Set this flag to explicitly disable UTXO blocking (opt-out model).
- *          When disabled, all UTXOs of this token can be spent regardless of blocklist.
- * @note Default behavior: UTXO blocking is ENABLED (this flag is NOT set)
+ * @brief UTXO mechanism control flags (stored in TSD section 0x002D)
+ * @warning These flags MUST be stored in TSD section DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS (uint32_t)
+ *          They should NOT be used in header_native_decl.flags (uint16_t) due to size limitations
+ * @note All UTXO flags use BIT(0-31) range available in TSD uint32_t storage
  */
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED                   BIT(16)
+
+// Disable UTXO blocking mechanism entirely for this token
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED                   BIT(0)
+
+// Make UTXO blocklist immutable after token creation
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST                    BIT(1)
+
+// Disable address-based sender blocking for this token
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING     BIT(2)
+
+// Disable address-based receiver blocking for this token
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING   BIT(3)
+
+// Disable arbitrage transactions for this token
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED               BIT(4)
 
 /**
- * @brief Make UTXO blocklist immutable after initial creation
- * @details When set, UTXO blocklist can only be set during token creation.
- *          All subsequent token_update operations with UTXO_BLOCKED_ADD/REMOVE/CLEAR will be rejected.
- *          Useful for creating permanent UTXO restrictions.
- * @warning This is a one-way operation - once set, blocklist cannot be modified
- */
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST                    BIT(17)
-
-/**
- * @brief Disable address-based sender blocking for this token
- * @details When set, tx_sender_blocked and tx_sender_blocked_add TSD sections are ignored.
- *          All sender addresses can create transactions regardless of sender ban-lists.
- *          Does NOT affect UTXO blocking mechanism (BIT 16).
- */
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING          BIT(18)
-
-/**
- * @brief Disable address-based receiver blocking for this token
- * @details When set, tx_receiver_blocked and tx_receiver_blocked_add TSD sections are ignored.
- *          All receiver addresses can receive transactions regardless of receiver ban-lists.
- *          Does NOT affect UTXO blocking mechanism (BIT 16).
- */
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING        BIT(19)
-
-/**
- * @brief Disable arbitrage transactions for this token
- * @details When set, arbitrage transactions (signed by token owners) are disabled.
- *          Arbitrage TX allow token owners to claim ANY output (even blocked/conditional)
- *          in emergency situations. By default, arbitrage is ENABLED for all CF20 tokens.
- * @warning This is IRREVERSIBLE - once set, arbitrage cannot be re-enabled
- * @note Default behavior: Arbitrage is ENABLED (this flag is NOT set)
- */
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED                    BIT(20)
-
-/**
- * @brief Irreversible flags mask
- * @details Flags that once set CANNOT be unset in token_update.
+ * @brief Irreversible UTXO flags mask (stored in TSD section 0x002D)
+ * @details Flags that once set in UTXO_FLAGS TSD CANNOT be unset in subsequent token_update.
  *          These are critical security flags with opt-out behavior.
- *          Validation: (new_flags & MASK) >= (old_flags & MASK)
+ *          Validation: (new_utxo_flags & MASK) >= (old_utxo_flags & MASK)
  *          
- *          Irreversible flags:
- *          - UTXO_BLOCKING_DISABLED: Once disabled, cannot re-enable UTXO blocking
- *          - ARBITRAGE_TX_DISABLED: Once disabled, cannot re-enable arbitrage TX
- *          - DISABLE_ADDRESS_SENDER_BLOCKING: Once disabled, cannot re-enable sender address bans
- *          - DISABLE_ADDRESS_RECEIVER_BLOCKING: Once disabled, cannot re-enable receiver address bans
+ *          Irreversible UTXO flags:
+ *          - UTXO_BLOCKING_DISABLED (BIT 0): Once disabled, cannot re-enable UTXO blocking
+ *          - UTXO_ARBITRAGE_TX_DISABLED (BIT 4): Once disabled, cannot re-enable arbitrage TX
+ *          - UTXO_DISABLE_ADDRESS_SENDER_BLOCKING (BIT 2): Once disabled, cannot re-enable sender bans
+ *          - UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING (BIT 3): Once disabled, cannot re-enable receiver bans
  */
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK  \
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK  \
     (DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED | \
-     DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED | \
-     DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING | \
-     DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING)
+     DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED | \
+     DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING | \
+     DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING)
 
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                                0xffff
 
@@ -379,6 +357,36 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
  * @warning This is a destructive operation - all UTXO blocks will be removed
  */
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR                   0x002C
+
+/**
+ * @brief UTXO-specific flags stored in dedicated TSD section
+ * @details TSD format: [utxo_flags: 4B (uint32_t)]
+ *          
+ *          This TSD section contains UTXO mechanism control flags that don't fit in
+ *          header_native_decl.flags (uint16_t) due to BIT(16+) overflow.
+ *          Flags are stored as uint32_t, providing full 32-bit range (BIT 0-31).
+ *          
+ *          Supported UTXO flags (see flag defines above):
+ *          - DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED (BIT 0)
+ *            Disable UTXO blocking mechanism entirely for this token
+ *          
+ *          - DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST (BIT 1)
+ *            Make UTXO blocklist immutable after token creation
+ *          
+ *          - DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING (BIT 2)
+ *            Disable address-based sender blocking
+ *          
+ *          - DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING (BIT 3)
+ *            Disable address-based receiver blocking
+ *          
+ *          - DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED (BIT 4)
+ *            Disable arbitrage transactions for this token
+ *          
+ * @note Use this TSD type in token_decl and token_update for UTXO-related flags
+ * @note Irreversible flags validation applies (see DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK)
+ * @note This TSD section was introduced to solve uint16_t overflow in header_native_decl.flags
+ */
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS                           0x002D
 
 struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
     uint8_t version;
@@ -492,16 +500,27 @@ DAP_STATIC_INLINE const char *dap_chain_datum_token_flag_to_str(uint32_t a_flag)
     case DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE: return "STATIC_PERMISSIONS_DATUM_TYPE";
     case DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER: return "TATIC_PERMISSIONS_TX_SENDER";
     case DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER: return "STATIC_PERMISSIONS_TX_RECEIVER";
-    case DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED: return "UTXO_BLOCKING_DISABLED";
-    case DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST: return "STATIC_UTXO_BLOCKLIST";
-    case DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING: return "DISABLE_ADDRESS_SENDER_BLOCKING";
-    case DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING: return "DISABLE_ADDRESS_RECEIVER_BLOCKING";
-    case DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED: return "ARBITRAGE_TX_DISABLED";
     default: return "UNKNOWN FLAG OR FLAGS GROUP";
     }
 }
 
 uint32_t dap_chain_datum_token_flag_from_str(const char *a_str);
+
+/**
+ * @brief Convert UTXO flag (stored in TSD) to string representation
+ * @param a_utxo_flag Single UTXO flag value (e.g., DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED)
+ * @return String representation of the UTXO flag
+ * @note For UTXO flags stored in TSD section 0x002D (UTXO_FLAGS)
+ */
+const char *dap_chain_datum_token_utxo_flag_to_str(uint32_t a_utxo_flag);
+
+/**
+ * @brief Convert string to UTXO flag value
+ * @param a_str String representation (e.g., "UTXO_BLOCKING_DISABLED")
+ * @return UTXO flag value, or 0 if unknown
+ * @note For UTXO flags stored in TSD section 0x002D (UTXO_FLAGS)
+ */
+uint32_t dap_chain_datum_token_utxo_flag_from_str(const char *a_str);
 
 // Get delegated ticker
 DAP_STATIC_INLINE int dap_chain_datum_token_get_delegated_ticker(char *a_buf, const char *a_ticker)

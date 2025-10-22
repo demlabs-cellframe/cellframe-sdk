@@ -4509,21 +4509,38 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
     dap_list_t *l_tsd_list = NULL;
     size_t l_tsd_total_size = 0;
     uint16_t l_flags = 0;
+    uint32_t l_utxo_flags = 0;  // Separate storage for UTXO flags (TSD-based)
     char ** l_str_flags = NULL;
 
     if (!a_update_token) {
         if (a_params->ext.flags){   // Flags
             l_str_flags = dap_strsplit(a_params->ext.flags,",",0xffff );
             while (l_str_flags && *l_str_flags){
+                // Try parsing as regular flag first
                 uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                               "Flag can't be \"%s\"",*l_str_flags);
-                    return -20;
+                
+                // If not a regular flag, try parsing as UTXO flag
+                if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
+                    uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_str_flags);
+                    if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                   "Flag can't be \"%s\"",*l_str_flags);
+                        return -20;
+                    }
+                    l_utxo_flags |= l_utxo_flag;  // UTXO flag
+                } else {
+                    l_flags |= l_flag;  // Regular flag
                 }
-                l_flags |= l_flag; // if we have multiple flags
                 l_str_flags++;
             }
+        }
+        
+        // Create TSD section for UTXO flags if any were set
+        if (l_utxo_flags != 0) {
+            dap_tsd_t *l_utxo_flags_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS, 
+                                                          &l_utxo_flags, sizeof(uint32_t));
+            l_tsd_list = dap_list_append(l_tsd_list, l_utxo_flags_tsd);
+            l_tsd_total_size += dap_tsd_size(l_utxo_flags_tsd);
         }
     } else {
         const char *l_set_flags = NULL;
@@ -4533,36 +4550,79 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         if (l_set_flags) {
             l_str_flags = dap_strsplit(l_set_flags,",",0xffff );
             while (l_str_flags && *l_str_flags){
+                // Try parsing as regular flag first
                 uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                               "Flag can't be \"%s\"",*l_str_flags);
-                    return -20;
+                
+                // If not a regular flag, try parsing as UTXO flag
+                if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
+                    uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_str_flags);
+                    if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                   "Flag can't be \"%s\"",*l_str_flags);
+                        return -20;
+                    }
+                    l_utxo_flags |= l_utxo_flag;  // UTXO flag
+                } else {
+                    l_flags |= l_flag;  // Regular flag
                 }
-                l_flags |= l_flag; // if we have multiple flags
                 l_str_flags++;
             }
-            dap_tsd_t *l_flag_set_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS, l_flags);
-            l_flags = 0;
-            l_tsd_list = dap_list_append(l_tsd_list, l_flag_set_tsd);
-            l_tsd_total_size += dap_tsd_size(l_flag_set_tsd);
+            
+            // Create TSD for regular flags if any were set
+            if (l_flags != 0) {
+                dap_tsd_t *l_flag_set_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS, l_flags);
+                l_flags = 0;
+                l_tsd_list = dap_list_append(l_tsd_list, l_flag_set_tsd);
+                l_tsd_total_size += dap_tsd_size(l_flag_set_tsd);
+            }
+            
+            // Create TSD for UTXO flags if any were set
+            if (l_utxo_flags != 0) {
+                dap_tsd_t *l_utxo_flags_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS, 
+                                                              &l_utxo_flags, sizeof(uint32_t));
+                l_utxo_flags = 0;
+                l_tsd_list = dap_list_append(l_tsd_list, l_utxo_flags_tsd);
+                l_tsd_total_size += dap_tsd_size(l_utxo_flags_tsd);
+            }
         }
         if (l_unset_flags) {
             l_str_flags = dap_strsplit(l_unset_flags,",",0xffff );
             while (l_str_flags && *l_str_flags){
+                // Try parsing as regular flag first
                 uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                               "Flag can't be \"%s\"",*l_str_flags);
-                    return -20;
+                
+                // If not a regular flag, try parsing as UTXO flag
+                if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
+                    uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_str_flags);
+                    if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                   "Flag can't be \"%s\"",*l_str_flags);
+                        return -20;
+                    }
+                    l_utxo_flags |= l_utxo_flag;  // UTXO flag
+                } else {
+                    l_flags |= l_flag;  // Regular flag
                 }
-                l_flags |= l_flag; // if we have multiple flags
                 l_str_flags++;
             }
-            dap_tsd_t *l_flag_unset_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS, l_flags);
-            l_flags = 0;
-            l_tsd_list = dap_list_append(l_tsd_list, l_flag_unset_tsd);
-            l_tsd_total_size += dap_tsd_size(l_flag_unset_tsd);
+            
+            // Create TSD for regular flags if any were set
+            if (l_flags != 0) {
+                dap_tsd_t *l_flag_unset_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS, l_flags);
+                l_flags = 0;
+                l_tsd_list = dap_list_append(l_tsd_list, l_flag_unset_tsd);
+                l_tsd_total_size += dap_tsd_size(l_flag_unset_tsd);
+            }
+            
+            // Note: UTXO flags cannot be unset (they are irreversible)
+            // If l_utxo_flags != 0 here, it's an error condition that should be caught
+            // by ledger validation layer
+            if (l_utxo_flags != 0) {
+                log_it(L_WARNING, "Attempt to unset UTXO flags via -flag_unset is not allowed (flags are irreversible)");
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                           "Cannot unset UTXO flags - they are irreversible");
+                return -21;
+            }
         }
     }
 

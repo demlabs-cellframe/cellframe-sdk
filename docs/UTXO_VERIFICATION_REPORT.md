@@ -161,7 +161,7 @@ cellframe-node-cli token_decl \
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED (1 << 7)
 ```
 
-#### 4.2. `STATIC_UTXO_BLOCKLIST` (2/2 ✅)
+#### 4.2. `UTXO_STATIC_BLOCKLIST` (2/2 ✅)
 
 ✅ **Документация:** Флаг описан с предупреждением о необратимости  
 ✅ **Определение:** Присутствует в `dap_chain_datum_token.h`
@@ -170,14 +170,14 @@ cellframe-node-cli token_decl \
 ```bash
 # Make UTXO blocklist immutable
 cellframe-node-cli token_decl \
-    -flags STATIC_UTXO_BLOCKLIST \
+    -flags UTXO_STATIC_BLOCKLIST \
     -utxo_blocked_add 0xabcd...1234:0 \
     -certs owner_cert
 ```
 
 **Код:**
 ```c
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST (1 << 12)
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST (1 << 12)
 ```
 
 ---
@@ -341,12 +341,12 @@ if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) != 0) {
 }
 ```
 
-#### 8.2. STATIC_UTXO_BLOCKLIST enforcement (1/2 ⚠️)
+#### 8.2. UTXO_STATIC_BLOCKLIST enforcement (1/2 ⚠️)
 
 ✅ **Документация:** Описывает что modifications будут rejected (строка 251)  
 ⚠️ **Тесты:** Нет теста для попытки модификации immutable списка
 
-**Ожидаемое поведение:** Ledger должен отвергать `token_update` с UTXO операциями если `STATIC_UTXO_BLOCKLIST` установлен
+**Ожидаемое поведение:** Ledger должен отвергать `token_update` с UTXO операциями если `UTXO_STATIC_BLOCKLIST` установлен
 
 ---
 
@@ -357,7 +357,7 @@ if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) != 0) {
 | Команда из документации | Реализовано | Протестировано | Примечания |
 |-------------------------|-------------|----------------|------------|
 | `token_decl -flags UTXO_BLOCKING_DISABLED` | ✅ | ✅ | Unit + Integration |
-| `token_decl -flags STATIC_UTXO_BLOCKLIST` | ✅ | ✅ | Unit + Integration |
+| `token_decl -flags UTXO_STATIC_BLOCKLIST` | ✅ | ✅ | Unit + Integration |
 | `token_update -utxo_blocked_add` | ✅ | ✅ | CLI Integration |
 | `token_update -utxo_blocked_add ... :timestamp` | ✅ | ✅ | CLI Integration (delayed) |
 | `token_update -utxo_blocked_remove` | ✅ | ✅ | CLI Integration |
@@ -403,7 +403,7 @@ if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) != 0) {
 - `flag_set` через `token_update` (вместо `token_decl`)
 - Гибридный контроль (UTXO + address blocking)
 
-**Рекомендация:** Добавить тесты для критичных сценариев (vesting, STATIC_UTXO_BLOCKLIST enforcement)
+**Рекомендация:** Добавить тесты для критичных сценариев (vesting, UTXO_STATIC_BLOCKLIST enforcement)
 
 ### 3. Нет теста для invalid UTXO format (1 предупреждение)
 
@@ -413,7 +413,7 @@ if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) != 0) {
 
 **Рекомендация:** Оставить как есть.
 
-### 4. Нет теста для STATIC_UTXO_BLOCKLIST enforcement (1 предупреждение)
+### 4. Нет теста для UTXO_STATIC_BLOCKLIST enforcement (1 предупреждение)
 
 **Детали:** Нет теста для попытки модификации immutable blocklist
 
@@ -443,7 +443,7 @@ test_static_utxo_blocklist_rejects_modifications()
 
 ### 4. Флаги токенов
 - ✅ `UTXO_BLOCKING_DISABLED` работает
-- ✅ `STATIC_UTXO_BLOCKLIST` работает
+- ✅ `UTXO_STATIC_BLOCKLIST` работает
 - ✅ Флаги корректно обрабатываются при `token_decl` и `token_update`
 
 ### 5. Тесты
@@ -521,7 +521,7 @@ test_static_utxo_blocklist_rejects_modifications()
    }
    ```
 
-2. **Добавить тест для STATIC_UTXO_BLOCKLIST enforcement:**
+2. **Добавить тест для UTXO_STATIC_BLOCKLIST enforcement:**
    ```c
    test_static_utxo_blocklist_rejects_modifications() {
        // Try to modify immutable blocklist and verify rejection

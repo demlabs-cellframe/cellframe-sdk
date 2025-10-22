@@ -228,7 +228,7 @@ cellframe-node-cli token_update \
 
 ### 2. Making UTXO Blocklist Immutable
 
-Use `STATIC_UTXO_BLOCKLIST` to prevent any further modifications to the blocklist:
+Use `UTXO_STATIC_BLOCKLIST` to prevent any further modifications to the blocklist:
 
 ```bash
 # Create token with static (immutable) UTXO blocklist
@@ -240,7 +240,7 @@ cellframe-node-cli token_decl \
     -decimals 18 \
     -signs_total 1 \
     -signs_emission 1 \
-    -flags STATIC_UTXO_BLOCKLIST \
+    -flags UTXO_STATIC_BLOCKLIST \
     -utxo_blocked_add 0xabcd...1234:0 \
     -utxo_blocked_add 0xef01...5678:1 \
     -certs owner_cert
@@ -262,7 +262,7 @@ cellframe-node-cli token_update \
     -net mynetwork \
     -token TEST \
     -type CF20 \
-    -flag_set DISABLE_ADDRESS_SENDER_BLOCKING \
+    -flag_set UTXO_DISABLE_ADDRESS_SENDER_BLOCKING \
     -certs owner_cert
 
 # Disable address-based receiver blocking only
@@ -270,7 +270,7 @@ cellframe-node-cli token_update \
     -net mynetwork \
     -token TEST \
     -type CF20 \
-    -flag_set DISABLE_ADDRESS_RECEIVER_BLOCKING \
+    -flag_set UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING \
     -certs owner_cert
 
 # Disable both address-based blocking types
@@ -278,7 +278,7 @@ cellframe-node-cli token_update \
     -net mynetwork \
     -token TEST \
     -type CF20 \
-    -flag_set DISABLE_ADDRESS_SENDER_BLOCKING,DISABLE_ADDRESS_RECEIVER_BLOCKING \
+    -flag_set UTXO_DISABLE_ADDRESS_SENDER_BLOCKING,UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING \
     -certs owner_cert
 ```
 
@@ -406,7 +406,7 @@ cellframe-node-cli token_update \
 ### 5. ICO/IDO Token Distribution
 
 ```bash
-# Create immutable allocation with STATIC_UTXO_BLOCKLIST
+# Create immutable allocation with UTXO_STATIC_BLOCKLIST
 cellframe-node-cli token_decl \
     -net mynetwork \
     -token ICO \
@@ -415,14 +415,14 @@ cellframe-node-cli token_decl \
     -decimals 18 \
     -signs_total 1 \
     -signs_emission 1 \
-    -flags STATIC_UTXO_BLOCKLIST \
+    -flags UTXO_STATIC_BLOCKLIST \
     -utxo_blocked_add 0xteam_alloc:0 \
     -utxo_blocked_add 0xadvisor_alloc:0 \
     -utxo_blocked_add 0xreserve_alloc:0 \
     -certs owner_cert
 
 # Later schedule unlocking via delayed unblocking
-# (Note: requires STATIC_UTXO_BLOCKLIST to NOT be set if you want to modify)
+# (Note: requires UTXO_STATIC_BLOCKLIST to NOT be set if you want to modify)
 ```
 
 ---
@@ -431,7 +431,7 @@ cellframe-node-cli token_decl \
 
 ### 1. Security
 
-- **Use `STATIC_UTXO_BLOCKLIST` carefully**: Once set, it cannot be undone
+- **Use `UTXO_STATIC_BLOCKLIST` carefully**: Once set, it cannot be undone
 - **Validate tx_hash and out_idx**: Incorrect values will silently fail
 - **Protect signing certificates**: UTXO management requires token owner certs
 - **Monitor blocklist size**: Large blocklists may impact performance
@@ -471,9 +471,181 @@ cellframe-node-cli token_decl \
 | Error Code | Description | Solution |
 |-----------|-------------|----------|
 | `DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED` | UTXO is blocked | Wait for `becomes_unblocked` time or unblock manually |
-| `STATIC_UTXO_BLOCKLIST enforced` | Blocklist is immutable | Cannot modify blocklist (permanent restriction) |
+| `UTXO_STATIC_BLOCKLIST enforced` | Blocklist is immutable | Cannot modify blocklist (permanent restriction) |
 | `UTXO_BLOCKING_DISABLED is set` | UTXO blocking is disabled | Unset `UTXO_BLOCKING_DISABLED` flag |
 | `Invalid UTXO format` | Incorrect `tx_hash:out_idx` format | Use correct format: `0x<64_hex_chars>:<uint32>` |
+
+---
+
+## 10. Arbitrage Transactions
+
+### Overview
+
+**Arbitrage transactions** are special emergency transactions that allow token owners to bypass **ALL** blocking mechanisms (UTXO blocking, conditional outputs, address banlists) to recover funds or resolve disputes. They are marked with a special TSD marker (`DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE = 0x00A1`) and have strict validation rules.
+
+### Purpose
+
+Arbitrage transactions are designed for emergency situations:
+- Recovering funds from blocked UTXOs
+- Resolving disputes between parties
+- Emergency token owner intervention
+- Compliance with court orders or regulatory requirements
+
+### Security Model
+
+⚠️ **CRITICAL SECURITY RESTRICTIONS:**
+
+1. **Must be signed by token owner** - Requires valid signature from token's `auth_pkeys`
+2. **Minimum signature threshold** - Must meet `auth_signs_valid` requirement
+3. **Fee collection addresses only** - Can **ONLY** send funds to addresses in `tx_recv_allow` list
+4. **Can be disabled** - Token can set `UTXO_ARBITRAGE_TX_DISABLED` flag to permanently disable arbitrage
+
+### Usage
+
+#### Creating Arbitrage Transaction
+
+```bash
+# Create arbitrage transaction with -arbitrage flag
+cellframe-node-cli tx_create \
+    -net mynetwork \
+    -chain main \
+    -token MYTOKEN \
+    -from_wallet owner_wallet \
+    -to <fee_collection_address> \
+    -value 1000.0 \
+    -arbitrage \
+    -certs token_owner_cert
+```
+
+**Prerequisites:**
+1. Token must have `tx_recv_allow` list configured (fee collection addresses)
+2. Arbitrage must not be disabled (`UTXO_ARBITRAGE_TX_DISABLED` flag not set)
+3. Transaction must be signed by token owner certificate
+
+#### Setting Up Fee Collection Addresses
+
+Before arbitrage can be used, token must configure allowed receiver addresses:
+
+```bash
+# Add fee collection address to token
+cellframe-node-cli token_update \
+    -net mynetwork \
+    -chain main \
+    -token MYTOKEN \
+    -tx_receiver_allowed_add <fee_collection_address> \
+    -certs token_owner_cert
+```
+
+#### Disabling Arbitrage (Irreversible)
+
+```bash
+# Permanently disable arbitrage for this token
+cellframe-node-cli token_update \
+    -net mynetwork \
+    -chain main \
+    -token MYTOKEN \
+    -flag_set UTXO_ARBITRAGE_TX_DISABLED \
+    -certs token_owner_cert
+```
+
+⚠️ **Warning:** Once `UTXO_ARBITRAGE_TX_DISABLED` is set, it **cannot be unset** (irreversible flag). This provides strong guarantees to token holders that token owners cannot abuse arbitrage.
+
+### Validation Rules
+
+When ledger processes arbitrage transaction, it performs these checks:
+
+1. **TSD Marker Check** - TX must have `DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE` (0x00A1) TSD
+2. **Flag Check** - Token must not have `UTXO_ARBITRAGE_TX_DISABLED` set
+3. **Signature Check** - TX must be signed by at least `auth_signs_valid` token owners
+4. **Output Address Check** - All TX outputs must go to addresses in `tx_recv_allow` list
+
+If any check fails, transaction is rejected with `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED`.
+
+### Bypassed Checks
+
+Arbitrage transactions **bypass ALL** of these checks:
+- ✅ UTXO blocking (can spend blocked UTXOs)
+- ✅ Conditional outputs (can spend locked/conditional outputs)
+- ✅ Address sender blocking (`tx_send_block` ignored)
+- ✅ Address receiver blocking (`tx_recv_block` ignored)
+
+### Error Codes
+
+| Error Code | Error Message | Cause |
+|-----------|---------------|-------|
+| `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED` | Arbitrage TX not authorized | Missing owner signatures, disabled arbitrage, or output to non-allowed address |
+
+### Example: Emergency UTXO Recovery
+
+```bash
+# Scenario: UTXO accidentally blocked, need to recover funds
+
+# Step 1: Create arbitrage transaction to fee collection address
+cellframe-node-cli tx_create \
+    -net Backbone \
+    -token LOCKED \
+    -from_wallet owner_wallet \
+    -to mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789 \  # Fee collection address (in tx_recv_allow)
+    -value 10000.0 \
+    -arbitrage \
+    -certs token_owner
+
+# Step 2: Verify transaction was created
+cellframe-node-cli tx_history -net Backbone -addr mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789
+
+# Step 3: From fee collection address, redistribute funds normally
+cellframe-node-cli tx_create \
+    -net Backbone \
+    -token LOCKED \
+    -from <fee_collection_address> \
+    -to <rightful_owner_address> \
+    -value 10000.0
+```
+
+### Best Practices
+
+1. **Minimize Fee Collection Addresses** - Only add essential addresses to `tx_recv_allow`
+2. **Use Multi-Sig** - Set `auth_signs_valid` > 1 to require multiple owner signatures
+3. **Document Usage** - Maintain audit trail of all arbitrage transactions
+4. **Consider Disabling** - For fully decentralized tokens, set `UTXO_ARBITRAGE_TX_DISABLED`
+5. **Test Before Production** - Test arbitrage on testnet before using on mainnet
+
+### Security Considerations
+
+**For Token Owners:**
+- Arbitrage is a powerful tool - use responsibly
+- Consider setting up multi-signature requirement
+- Document all arbitrage usage for transparency
+- Consider disabling if not needed
+
+**For Token Holders:**
+- Check if token has `UTXO_ARBITRAGE_TX_DISABLED` set
+- Verify `tx_recv_allow` list contains only legitimate addresses
+- Monitor `auth_signs_valid` - higher is more secure
+- Understand that token owners can recover funds via arbitrage
+
+### Technical Implementation
+
+Arbitrage transactions are identified by `TX_ITEM_TYPE_TSD` with type `0x00A1`:
+
+```c
+// C API example (from dap_chain_node_cli_cmd.c)
+dap_chain_tx_tsd_t *l_tsd_arbitrage = dap_chain_datum_tx_item_tsd_create(
+    NULL, 
+    DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE,  // 0x00A1
+    0  // No payload needed
+);
+```
+
+Validation is performed in `s_ledger_tx_check_arbitrage_auth()` (dap_chain_ledger.c:7049).
+
+### Conflict Resolution
+
+**Q: Does arbitrage conflict with voting transactions?**  
+**A:** No. Arbitrage uses `TX_ITEM_TYPE_TSD` (0x80) with TSD type 0x00A1, while voting uses `TX_ITEM_TYPE_VOTING` (0x90). These are different TX item types and do not conflict.
+
+**Q: Can arbitrage be used to steal funds?**  
+**A:** No. All arbitrage outputs must go to addresses in `tx_recv_allow` list (fee collection addresses). Any attempt to send to non-allowed addresses will fail validation.
 
 ---
 
@@ -482,13 +654,14 @@ cellframe-node-cli token_decl \
 - [DAP SDK Coding Standards](../.context/modules/standards/dap_sdk_coding_standards.json)
 - [Cellframe SDK Project Structure](../.context/modules/projects/cellframe_sdk.json)
 - [dap_chain_datum_token.h](modules/common/include/dap_chain_datum_token.h) - Token flags and TSD types
-- [dap_chain_ledger.c](modules/net/dap_chain_ledger.c) - UTXO blocking implementation
+- [dap_chain_ledger.c](modules/net/dap_chain_ledger.c) - UTXO blocking and arbitrage implementation
+- [dap_chain_datum_tx_tsd.h](modules/common/include/dap_chain_datum_tx_tsd.h) - TX TSD types including arbitrage
 
 ---
 
 ## Conclusion
 
-The UTXO blocking mechanism provides powerful, fine-grained control over token transactions. By combining UTXO blocking with address-based restrictions and temporal semantics (delayed activation/unblocking), token issuers can implement complex compliance, security, and business logic requirements.
+The UTXO blocking mechanism, combined with arbitrage transactions, provides powerful, fine-grained control over token transactions. By combining UTXO blocking with address-based restrictions, temporal semantics (delayed activation/unblocking), and emergency recovery via arbitrage, token issuers can implement complex compliance, security, and business logic requirements.
 
 For additional support, consult the inline doxygen documentation or contact the Cellframe development team.
 

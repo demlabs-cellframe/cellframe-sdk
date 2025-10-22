@@ -437,7 +437,8 @@ static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* 
 
 // Arbitrage transaction helpers 
 static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx);
-static int s_ledger_tx_check_arbitrage_auth(dap_chain_datum_tx_t *a_tx, dap_ledger_token_item_t *a_token_item);
+static int s_ledger_tx_check_arbitrage_outputs(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_token_item_t *a_token_item);
+static int s_ledger_tx_check_arbitrage_auth(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_token_item_t *a_token_item);
 
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
@@ -1223,6 +1224,32 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         } break;
 
         // ============================================================================
+        // UTXO FLAGS TSD SECTION (stores all UTXO-related flags in uint32_t)
+        // ============================================================================
+        
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS: {
+            // UTXO flags are stored separately in TSD to avoid uint16_t overflow
+            // (flags like BIT(16-20) don't fit in header_native_decl.flags which is uint16_t)
+            if (l_tsd->size != sizeof(uint32_t)) {
+                log_it(L_WARNING, "Wrong UTXO_FLAGS TSD size %"DAP_UINT64_FORMAT_U", expected %zu", 
+                       l_tsd_size, sizeof(uint32_t));
+                return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
+            }
+            if (!a_apply)
+                break;
+            
+            uint32_t l_utxo_flags = dap_tsd_get_scalar(l_tsd, uint32_t);
+            
+            // Merge UTXO flags into token item's flags
+            // Note: UTXO flags use BIT(0-4) in TSD, but are conceptually separate from header flags
+            // We store them in the same token_item->flags field for simplicity
+            a_item_apply_to->flags |= l_utxo_flags;
+            
+            log_it(L_INFO, "Applied UTXO flags 0x%08X to token %s (total flags: 0x%08X)", 
+                   l_utxo_flags, a_item_apply_to->ticker, a_item_apply_to->flags);
+        } break;
+
+        // ============================================================================
         // UTXO BLOCKLIST TSD SECTIONS
         // ============================================================================
 
@@ -1247,7 +1274,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
 
             // Check if blocklist is static
-            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST) {
                 log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", 
                        a_item_apply_to->ticker);
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
@@ -1324,8 +1351,15 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
 
+            // Check if UTXO blocking is disabled for this token
+            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
+                log_it(L_WARNING, "UTXO blocking is disabled for token %s, cannot remove UTXO from blocklist", 
+                       a_item_apply_to->ticker);
+                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
+            }
+
             // Check if blocklist is static
-            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST) {
                 log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", 
                        a_item_apply_to->ticker);
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
@@ -1368,8 +1402,15 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
 
+            // Check if UTXO blocking is disabled for this token
+            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
+                log_it(L_WARNING, "UTXO blocking is disabled for token %s, cannot clear blocklist", 
+                       a_item_apply_to->ticker);
+                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
+            }
+
             // Check if blocklist is static
-            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+            if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST) {
                 log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot clear", 
                        a_item_apply_to->ticker);
                 return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
@@ -1694,7 +1735,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         
         // Check irreversible flags - they can only be SET, never UNSET
         // This applies to: UTXO_BLOCKING_DISABLED, ARBITRAGE_TX_DISABLED
-        uint32_t l_old_irreversible = l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK;
+        uint32_t l_old_irreversible = l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
         uint32_t l_new_flags = 0;
         
         // Get new flags from token datum (different header structure for PRIVATE vs NATIVE)
@@ -1709,7 +1750,48 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             l_new_flags = 0;
         }
         
-        uint32_t l_new_irreversible = l_new_flags & DAP_CHAIN_DATUM_TOKEN_FLAG_IRREVERSIBLE_MASK;
+        // Extract UTXO flags from TSD if present in token_update
+        // If UTXO_FLAGS TSD is NOT present, inherit old UTXO flags (they don't change)
+        size_t l_tsd_total = 0;
+        bool l_utxo_flags_in_tsd = false;
+        switch (l_token->subtype) {
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+            l_tsd_total = l_token->header_private_decl.tsd_total_size;
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+            l_tsd_total = l_token->header_native_decl.tsd_total_size;
+            break;
+        }
+        
+        if (l_tsd_total > 0) {
+            dap_tsd_t *l_tsd = (dap_tsd_t *)l_token->tsd_n_signs;
+            for (size_t l_offset = 0; l_offset < l_tsd_total; ) {
+                if (l_offset + sizeof(dap_tsd_t) > l_tsd_total)
+                    break;
+                dap_tsd_t *l_tsd_item = (dap_tsd_t *)((byte_t *)l_tsd + l_offset);
+                size_t l_tsd_size = dap_tsd_size(l_tsd_item);
+                if (l_offset + l_tsd_size > l_tsd_total)
+                    break;
+                
+                if (l_tsd_item->type == DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS && 
+                    l_tsd_item->size == sizeof(uint32_t)) {
+                    uint32_t l_utxo_flags_from_tsd = dap_tsd_get_scalar(l_tsd_item, uint32_t);
+                    l_new_flags |= l_utxo_flags_from_tsd;
+                    l_utxo_flags_in_tsd = true;
+                    break;
+                }
+                l_offset += l_tsd_size;
+            }
+        }
+        
+        // If UTXO_FLAGS TSD is not present in token_update, inherit old UTXO flags
+        // (token_update that doesn't change UTXO flags shouldn't include UTXO_FLAGS TSD)
+        if (!l_utxo_flags_in_tsd) {
+            uint32_t l_old_utxo_flags = l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
+            l_new_flags |= l_old_utxo_flags;
+        }
+        
+        uint32_t l_new_irreversible = l_new_flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
         
         // Validate: new irreversible flags must be >= old irreversible flags
         // This means: once a bit is set, it stays set forever
@@ -3029,12 +3111,12 @@ dap_ledger_check_error_t s_ledger_addr_check(dap_ledger_t *a_ledger, dap_ledger_
     // Check if address-based blocking is disabled for this token
     if (a_receive) {
         // Skip all receiver address checks if DISABLE_ADDRESS_RECEIVER_BLOCKING is set
-        if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_RECEIVER_BLOCKING) {
+        if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING) {
             return DAP_LEDGER_CHECK_OK;
         }
     } else {
         // Skip all sender address checks if DISABLE_ADDRESS_SENDER_BLOCKING is set
-        if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_DISABLE_ADDRESS_SENDER_BLOCKING) {
+        if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING) {
             return DAP_LEDGER_CHECK_OK;
         }
     }
@@ -4287,10 +4369,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     break;
                 }
             } else if (l_is_arbitrage && l_token_item_for_utxo_check) {
-                // Arbitrage TX - validate authorization
-                if (s_ledger_tx_check_arbitrage_auth(a_tx, l_token_item_for_utxo_check) != 0) {
+                // Arbitrage TX - validate authorization and output addresses
+                if (s_ledger_tx_check_arbitrage_auth(a_ledger, a_tx, l_token_item_for_utxo_check) != 0) {
                     l_err_num = DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
-                    log_it(L_WARNING, "Arbitrage TX %s not authorized for token '%s'",
+                    log_it(L_WARNING, "Arbitrage TX %s not authorized for token '%s' or outputs not to fee address",
                            dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
                     break;
                 }
@@ -6602,7 +6684,7 @@ static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
     }
 
     // Check if blocklist is static
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST) {
         log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", a_token_item->ticker);
         return -1;
     }
@@ -6698,7 +6780,7 @@ static int s_ledger_utxo_block_remove(dap_ledger_token_item_t *a_token_item,
     }
 
     // Check if blocklist is static
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST) {
         log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", a_token_item->ticker);
         return -1;
     }
@@ -6772,7 +6854,7 @@ static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item,
     }
 
     // Check if blocklist is static
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_UTXO_BLOCKLIST) {
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST) {
         log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot clear", a_token_item->ticker);
         return -1;
     }
@@ -6865,23 +6947,124 @@ static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
 }
 
 /**
+ * @brief Check if arbitrage TX outputs are directed to fee address ONLY
+ * @details Arbitrage transactions can ONLY send funds to the network fee collection address.
+ *          This prevents abuse where token owners could steal funds via arbitrage.
+ *          Fee address is defined in network configuration (a_ledger->net->pub.fee_addr).
+ * @param a_ledger Ledger containing network configuration with fee address
+ * @param a_tx Transaction to validate
+ * @param a_token_item Token item (for logging)
+ * @return 0 if all outputs are to fee address, -1 if any output is not to fee address
+ */
+static int s_ledger_tx_check_arbitrage_outputs(dap_ledger_t *a_ledger,
+                                                 dap_chain_datum_tx_t *a_tx,
+                                                 dap_ledger_token_item_t *a_token_item)
+{
+    if (!a_ledger || !a_tx || !a_token_item) {
+        log_it(L_ERROR, "Invalid arguments for arbitrage outputs check");
+        return -1;
+    }
+
+    // Check if network has fee address configured
+    if (dap_chain_addr_is_blank(&a_ledger->net->pub.fee_addr)) {
+        log_it(L_WARNING, "Arbitrage TX for token %s rejected: network has no fee address configured", 
+               a_token_item->ticker);
+        return -1;
+    }
+
+    const dap_chain_addr_t *l_fee_addr = &a_ledger->net->pub.fee_addr;
+    log_it(L_DEBUG, "Validating arbitrage TX outputs against fee address: %s", 
+           dap_chain_addr_to_str_static(l_fee_addr));
+
+    // Get all OUT items from transaction
+    int l_out_count = 0;
+    dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_out_count);
+    
+    if (!l_list_out || l_out_count == 0) {
+        // No outputs - shouldn't happen for valid TX, but not arbitrage-specific error
+        dap_list_free(l_list_out);
+        return 0;
+    }
+
+    // Check each output - ALL must go to fee address
+    bool l_all_outputs_to_fee = true;
+    for (dap_list_t *l_iter = l_list_out; l_iter; l_iter = l_iter->next) {
+        void *l_out_item = l_iter->data;
+        if (!l_out_item) {
+            continue;
+        }
+
+        // Extract address from different output types
+        dap_chain_addr_t *l_addr = NULL;
+        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_out_item;
+        
+        switch (l_type) {
+        case TX_ITEM_TYPE_OUT_OLD:
+            l_addr = &((dap_chain_tx_out_old_t *)l_out_item)->addr;
+            break;
+        case TX_ITEM_TYPE_OUT:
+            l_addr = &((dap_chain_tx_out_t *)l_out_item)->addr;
+            break;
+        case TX_ITEM_TYPE_OUT_EXT:
+            l_addr = &((dap_chain_tx_out_ext_t *)l_out_item)->addr;
+            break;
+        case TX_ITEM_TYPE_OUT_STD:
+            l_addr = &((dap_chain_tx_out_std_t *)l_out_item)->addr;
+            break;
+        case TX_ITEM_TYPE_OUT_COND:
+            // Conditional outputs are not checked - they have their own validation
+            continue;
+        default:
+            log_it(L_WARNING, "Unknown output type 0x%02X in arbitrage TX", l_type);
+            continue;
+        }
+
+        if (!l_addr) {
+            continue;
+        }
+
+        // Check if this output goes to fee address
+        if (!dap_chain_addr_compare(l_fee_addr, l_addr)) {
+            log_it(L_WARNING, "Arbitrage TX for token %s rejected: output to %s (NOT fee address %s)",
+                   a_token_item->ticker, 
+                   dap_chain_addr_to_str_static(l_addr),
+                   dap_chain_addr_to_str_static(l_fee_addr));
+            l_all_outputs_to_fee = false;
+            break;
+        }
+    }
+
+    dap_list_free(l_list_out);
+
+    if (l_all_outputs_to_fee) {
+        log_it(L_INFO, "✓ Arbitrage TX for token %s: all outputs directed to fee address", 
+               a_token_item->ticker);
+    }
+
+    return l_all_outputs_to_fee ? 0 : -1;
+}
+
+/**
  * @brief Check arbitrage transaction authorization
  * @details Validates that TX is signed by required number of token owners.
  *          Token owners are determined from token datum (auth_pkeys).
+ *          Also validates that all outputs go to network fee address ONLY.
+ * @param a_ledger Ledger containing network configuration
  * @param a_tx Transaction to validate
  * @param a_token_item Token item with owner information
  * @return 0 if authorized, -1 if not authorized
  */
-static int s_ledger_tx_check_arbitrage_auth(dap_chain_datum_tx_t *a_tx, 
+static int s_ledger_tx_check_arbitrage_auth(dap_ledger_t *a_ledger,
+                                              dap_chain_datum_tx_t *a_tx, 
                                               dap_ledger_token_item_t *a_token_item)
 {
-    if (!a_tx || !a_token_item) {
+    if (!a_ledger || !a_tx || !a_token_item) {
         log_it(L_ERROR, "Invalid arguments for arbitrage auth check");
         return -1;
     }
 
     // Check if arbitrage is disabled for this token
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ARBITRAGE_TX_DISABLED) {
+    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED) {
         log_it(L_WARNING, "Arbitrage transactions disabled for token %s", a_token_item->ticker);
         return -1;
     }
@@ -6952,6 +7135,13 @@ static int s_ledger_tx_check_arbitrage_auth(dap_chain_datum_tx_t *a_tx,
     if (l_valid_owner_signs < a_token_item->auth_signs_valid) {
         log_it(L_WARNING, "Arbitrage TX for token %s requires %zu owner signatures, found %zu",
                a_token_item->ticker, a_token_item->auth_signs_valid, l_valid_owner_signs);
+        return -1;
+    }
+
+    // CRITICAL: Check that all outputs go to fee address ONLY
+    if (s_ledger_tx_check_arbitrage_outputs(a_ledger, a_tx, a_token_item) != 0) {
+        log_it(L_WARNING, "Arbitrage TX for token %s has outputs to non-fee addresses",
+               a_token_item->ticker);
         return -1;
     }
 

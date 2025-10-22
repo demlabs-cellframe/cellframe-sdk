@@ -115,7 +115,7 @@ sudo dnf install pandoc texlive texlive-xetex
 
 **✅ Флаги:**
 - `UTXO_BLOCKING_DISABLED`
-- `STATIC_UTXO_BLOCKLIST`
+- `UTXO_STATIC_BLOCKLIST`
 
 **✅ TSD Типы:**
 - `DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_ADD`
@@ -134,7 +134,7 @@ sudo dnf install pandoc texlive texlive-xetex
 
 **✅ Error Handling:**
 - Валидация UTXO формата
-- STATIC_UTXO_BLOCKLIST enforcement
+- UTXO_STATIC_BLOCKLIST enforcement
 
 ## 📊 Результаты последней проверки
 
@@ -161,7 +161,7 @@ sudo dnf install pandoc texlive texlive-xetex
 1. ⚠️ Нет explicit тестов для `utxo_blocked_add/remove/clear` в integration test (есть в CLI test)
 2. ⚠️ Покрытие тестами 52% (документировано в `UTXO_CLI_COVERAGE_ANALYSIS.md`)
 3. ⚠️ Нет теста для невалидного формата UTXO
-4. ⚠️ Нет теста для STATIC_UTXO_BLOCKLIST enforcement
+4. ⚠️ Нет теста для UTXO_STATIC_BLOCKLIST enforcement
 
 **Примечание:** Все предупреждения не являются критическими. Основной функционал полностью покрыт.
 
