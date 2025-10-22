@@ -2648,7 +2648,7 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, vo
     char *l_out_hash_str = NULL;
     if (l_tx_new && (l_out_hash_str = s_stake_tx_put(l_tx_new, l_net, a_hash_out_type))) {
         json_object* l_json_object_ret = json_object_new_object();
-        if (l_sign_str)
+        if (l_sign_str && strcmp(l_sign_str, ""))
             json_object_object_add(l_json_object_ret, "sign", json_object_new_string(l_sign_str));
         json_object_object_add(l_json_object_ret, "hash", json_object_new_string(l_out_hash_str));
         json_object_object_add(l_json_object_ret, "message", json_object_new_string("Delegated m-tokens value will change"));

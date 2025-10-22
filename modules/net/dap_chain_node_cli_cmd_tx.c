@@ -732,6 +732,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             uint256_t l_cond_send_value = dap_uint256_scan_uninteger(l_cond_send_value_str);
             int l_direction = compare256(l_cond_recv_value, l_cond_send_value);
             if (l_direction > 0) {
+                if (!l_cond_recv_object)
+                    l_cond_recv_object = json_object_new_object();
                 SUBTRACT_256_256(l_cond_recv_value, l_cond_send_value, &l_cond_recv_value);
                 const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_cond_recv_value, &l_coins_str);
                 json_object_object_add(l_cond_recv_object, "recv_coins", json_object_new_string(l_coins_str));
