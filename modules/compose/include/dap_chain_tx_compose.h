@@ -166,12 +166,12 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
                                                            dap_chain_addr_t *a_seller_addr, const char *a_native_ticker, 
                                                            compose_config_t *a_config);
 
-dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
-                                                              const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-                                                              uint256_t a_value, uint256_t a_value_per_unit_max,
-                                                              dap_chain_net_srv_price_unit_uid_t a_unit, 
-                                                              dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, 
-                                                              const void *a_cond, size_t a_cond_size, compose_config_t *a_config);
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t *a_wallet_addr, dap_hash_fast_t *a_pkey_cond_hash,
+                                                            const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+                                                            uint256_t a_value, uint256_t a_value_per_unit_max,
+                                                            dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
+                                                            uint256_t a_value_fee, const void *a_cond,
+                                                            size_t a_cond_size, compose_config_t *a_config);
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_t *a_wallet_addr, const char *a_main_ticker,
                                                          uint256_t a_value, uint256_t a_value_fee, dap_time_t a_time_staking, 

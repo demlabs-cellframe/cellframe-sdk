@@ -5535,6 +5535,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
     const char * l_net_name = NULL;
     const char * l_unit_str = NULL;
     const char * l_srv_uid_str = NULL;
+    const char * l_pkey_str = NULL;
     uint256_t l_value_datoshi = {};    
     uint256_t l_value_fee = {};
     const char * l_hash_out_type = NULL;
@@ -5563,6 +5564,8 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unit", &l_unit_str);
     // service
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
+    // pkey_hash
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pkey", &l_pkey_str);
 
     if(!l_token_ticker) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_TOKEN, "tx_cond_create requires parameter '-token'");
@@ -5572,8 +5575,8 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_W, "tx_cond_create requires parameter '-w'");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_W;
     }
-    if (!l_cert_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_CERT, "tx_cond_create requires parameter '-cert'");
+    if (!l_cert_str && !l_pkey_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_CERT, "tx_cond_create requires parameter '-cert' or '-pkey'");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_CERT;
     }
     if(!l_value_datoshi_str) {
@@ -5631,6 +5634,23 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET, "Can't find net '%s'", l_net_name);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET;
     }
+
+    dap_hash_fast_t l_pkey_cond_hash = {};
+    if (l_cert_str) {
+        dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
+        if(!l_cert_cond) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT, "Can't find cert '%s'", l_cert_str);
+            return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT;
+        }
+        dap_cert_get_pkey_hash(l_cert_cond, &l_pkey_cond_hash);
+    } else {
+        dap_chain_hash_fast_from_str(l_pkey_str, &l_pkey_cond_hash);
+    }
+    if (dap_hash_fast_is_blank(&l_pkey_cond_hash)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT, "Can't calc pkey hash");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT;
+    }
+
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
 //    const char* l_sign_str = "";
     if(!l_wallet) {
@@ -5640,30 +5660,13 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
 //        l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     }
 
-    dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
-    if(!l_cert_cond) {
-        dap_chain_wallet_close(l_wallet);
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT, "Can't find cert '%s'", l_cert_str);
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT;
-    }
-
     dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
-    dap_pkey_t *l_key_cond = dap_pkey_from_enc_key(l_cert_cond->enc_key);
-    if (!l_key_cond) {
-        dap_chain_wallet_close(l_wallet);
-        dap_enc_key_delete(l_key_from);
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CERT_DOES_NOT_CONATIN_VALID_PUBLIC_KEY,
-                               "Cert '%s' doesn't contain a valid public key", l_cert_str);
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CERT_DOES_NOT_CONATIN_VALID_PUBLIC_KEY;
-    }
-
+    dap_chain_wallet_close(l_wallet);
     uint256_t l_value_per_unit_max = {};
-    char *l_hash_str = dap_chain_mempool_tx_create_cond(l_net, l_key_from, l_key_cond, l_token_ticker,
+    char *l_hash_str = dap_chain_mempool_tx_create_cond(l_net, l_key_from, &l_pkey_cond_hash, l_token_ticker,
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_hash_out_type);
-    dap_chain_wallet_close(l_wallet);
     dap_enc_key_delete(l_key_from);
-    DAP_DELETE(l_key_cond);
 
     if (l_hash_str) {
         json_object *l_jobj_ret = json_object_new_object();

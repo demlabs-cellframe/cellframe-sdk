@@ -1754,15 +1754,14 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
         s_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_CERT_NOT_FOUND, "Can't find cert '%s'\n", a_cert_str);
         return s_compose_config_return_response_handler(l_config);
     }
-
-    dap_pkey_t *l_key_cond = dap_pkey_from_enc_key(l_cert_cond->enc_key);
-    if (!l_key_cond) {
+    dap_hash_fast_t l_pkey_cond_hash = {};
+    if (dap_cert_get_pkey_hash(l_cert_cond, &l_pkey_cond_hash)) {
         log_it(L_ERROR, "cert '%s' doesn't contain a valid public key", a_cert_str);
         s_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_CERT_KEY, "Cert '%s' doesn't contain a valid public key\n", a_cert_str);
         return s_compose_config_return_response_handler(l_config);
     }
 
-    dap_chain_datum_tx_t *l_tx = dap_chain_tx_compose_datum_tx_cond_create(a_wallet_addr, l_key_cond, a_token_ticker,
+    dap_chain_datum_tx_t *l_tx = dap_chain_tx_compose_datum_tx_cond_create(a_wallet_addr, &l_pkey_cond_hash, a_token_ticker,
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_config);
     if (l_tx) {
@@ -1772,12 +1771,12 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
     } else {
         log_it(L_ERROR, "failed to create conditional transaction");
     }
-    DAP_DELETE(l_key_cond);
+
     return s_compose_config_return_response_handler(l_config);
 }
 
 
-dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t *a_wallet_addr, dap_hash_fast_t *a_pkey_cond_hash,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max,
         dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
@@ -1786,7 +1785,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t
 {
     // check valid param
     
-    dap_return_val_if_pass(!a_config->net_name || !*a_config->net_name || !a_key_cond || IS_ZERO_256(a_value) || !a_config->url_str || !*a_config->url_str || a_config->port == 0 || !a_wallet_addr, NULL);
+    dap_return_val_if_pass(!a_config->net_name || !*a_config->net_name || !a_pkey_cond_hash || IS_ZERO_256(a_value) || !a_config->url_str || !*a_config->url_str || a_config->port == 0 || !a_wallet_addr, NULL);
 
     log_it_fl(L_DEBUG, "parameters validation passed");
 
@@ -1840,7 +1839,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t
     // add 'out_cond' and 'out' items
     {
         uint256_t l_value_pack = {}; // how much coin add to 'out' items
-        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_key_cond, a_srv_uid, a_value, a_value_per_unit_max, a_unit, a_cond,
+        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_pkey_cond_hash, a_srv_uid, a_value, a_value_per_unit_max, a_unit, a_cond,
                 a_cond_size) == 1) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
         } else {
