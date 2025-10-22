@@ -44,6 +44,7 @@
 #include "dap_worker.h"
 #include "dap_json.h"
 #include "dap_rand.h"
+#include "dap_http_status_code.h"
 
 #define LOG_TAG "dap_chain_tx_compose"
 
