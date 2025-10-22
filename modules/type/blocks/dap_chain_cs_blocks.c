@@ -1652,6 +1652,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     pthread_rwlock_unlock(&PVT(l_blocks)->forked_branches_rwlock);
 
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+    HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
@@ -1660,7 +1661,6 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         dap_chain_block_cache_delete(l_block);
     }
     PVT(l_blocks)->blocks_count = 0;
-    HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     
     dap_chain_block_datum_index_t *l_datum_index = NULL, *l_datum_index_tmp = NULL;
