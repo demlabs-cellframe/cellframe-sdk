@@ -40,6 +40,7 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_node_client.h"
 #include "dap_client_http.h"
+#include "dap_http_status_code.h"
 #include "dap_worker.h"
 #include "dap_json.h"
 #include "dap_rand.h"

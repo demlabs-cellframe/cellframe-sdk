@@ -24,7 +24,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #include "dap_chain_net_node_list.h"
-#include "dap_net_common.h"
+#include "dap_http_status_code.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_client.h"
 #include "dap_client_http.h"
