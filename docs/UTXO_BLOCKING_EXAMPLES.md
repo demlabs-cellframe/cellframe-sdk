@@ -497,8 +497,10 @@ Arbitrage transactions are designed for emergency situations:
 
 1. **Must be signed by token owner** - Requires valid signature from token's `auth_pkeys`
 2. **Minimum signature threshold** - Must meet `auth_signs_valid` requirement
-3. **Fee collection addresses only** - Can **ONLY** send funds to addresses in `tx_recv_allow` list
+3. **Network fee address ONLY** - Can **ONLY** send funds to network fee address (`net->pub.fee_addr`), NOT to `tx_recv_allow` list
 4. **Can be disabled** - Token can set `UTXO_ARBITRAGE_TX_DISABLED` flag to permanently disable arbitrage
+
+🔒 **Why only network fee address?** This prevents token owners from adding their own addresses to `tx_recv_allow` and stealing funds via arbitrage. The network fee address is controlled by network operators, not token owners, providing additional security layer.
 
 ### Usage
 
@@ -506,34 +508,33 @@ Arbitrage transactions are designed for emergency situations:
 
 ```bash
 # Create arbitrage transaction with -arbitrage flag
+# NOTE: -to address MUST be the network fee address (net->pub.fee_addr)
 cellframe-node-cli tx_create \
     -net mynetwork \
     -chain main \
     -token MYTOKEN \
     -from_wallet owner_wallet \
-    -to <fee_collection_address> \
+    -to <network_fee_address> \  # MUST be net->pub.fee_addr
     -value 1000.0 \
     -arbitrage \
     -certs token_owner_cert
 ```
 
 **Prerequisites:**
-1. Token must have `tx_recv_allow` list configured (fee collection addresses)
+1. Network must have `fee_addr` configured (network fee collection address)
 2. Arbitrage must not be disabled (`UTXO_ARBITRAGE_TX_DISABLED` flag not set)
 3. Transaction must be signed by token owner certificate
 
-#### Setting Up Fee Collection Addresses
+⚠️ **IMPORTANT:** Arbitrage transactions send funds **ONLY** to the network fee address (`net->pub.fee_addr`), NOT to `tx_recv_allow` list. The fee address is configured at network level, not by token owners.
 
-Before arbitrage can be used, token must configure allowed receiver addresses:
+#### Checking Network Fee Address
+
+Before using arbitrage, verify the network fee address:
 
 ```bash
-# Add fee collection address to token
-cellframe-node-cli token_update \
-    -net mynetwork \
-    -chain main \
-    -token MYTOKEN \
-    -tx_receiver_allowed_add <fee_collection_address> \
-    -certs token_owner_cert
+# Check network fee address
+cellframe-node-cli net get -net mynetwork fee_addr
+# Output: mXyZ123... (network fee collection address)
 ```
 
 #### Disabling Arbitrage (Irreversible)
@@ -557,7 +558,9 @@ When ledger processes arbitrage transaction, it performs these checks:
 1. **TSD Marker Check** - TX must have `DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE` (0x00A1) TSD
 2. **Flag Check** - Token must not have `UTXO_ARBITRAGE_TX_DISABLED` set
 3. **Signature Check** - TX must be signed by at least `auth_signs_valid` token owners
-4. **Output Address Check** - All TX outputs must go to addresses in `tx_recv_allow` list
+4. **Output Address Check** - **ALL** TX outputs must go **ONLY** to network fee address (`net->pub.fee_addr`)
+
+⚠️ **CRITICAL:** Arbitrage transactions can ONLY send funds to the network fee collection address, NOT to `tx_recv_allow` list. This is a security measure to prevent abuse.
 
 If any check fails, transaction is rejected with `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED`.
 
@@ -580,31 +583,36 @@ Arbitrage transactions **bypass ALL** of these checks:
 ```bash
 # Scenario: UTXO accidentally blocked, need to recover funds
 
-# Step 1: Create arbitrage transaction to fee collection address
+# Step 1: Check network fee address
+cellframe-node-cli net get -net Backbone fee_addr
+# Output: mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789  (network fee address)
+
+# Step 2: Create arbitrage transaction to network fee address
+# IMPORTANT: Arbitrage can ONLY send to net->pub.fee_addr
 cellframe-node-cli tx_create \
     -net Backbone \
     -token LOCKED \
     -from_wallet owner_wallet \
-    -to mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789 \  # Fee collection address (in tx_recv_allow)
+    -to mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789 \  # MUST be network fee address
     -value 10000.0 \
     -arbitrage \
     -certs token_owner
 
-# Step 2: Verify transaction was created
+# Step 3: Verify transaction was created
 cellframe-node-cli tx_history -net Backbone -addr mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789
 
-# Step 3: From fee collection address, redistribute funds normally
+# Step 4: From fee collection address, redistribute funds normally
 cellframe-node-cli tx_create \
     -net Backbone \
     -token LOCKED \
-    -from <fee_collection_address> \
+    -from mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789 \
     -to <rightful_owner_address> \
     -value 10000.0
 ```
 
 ### Best Practices
 
-1. **Minimize Fee Collection Addresses** - Only add essential addresses to `tx_recv_allow`
+1. **Network Fee Address** - Ensure network fee address (`net->pub.fee_addr`) is properly configured and secured
 2. **Use Multi-Sig** - Set `auth_signs_valid` > 1 to require multiple owner signatures
 3. **Document Usage** - Maintain audit trail of all arbitrage transactions
 4. **Consider Disabling** - For fully decentralized tokens, set `UTXO_ARBITRAGE_TX_DISABLED`
@@ -617,11 +625,13 @@ cellframe-node-cli tx_create \
 - Consider setting up multi-signature requirement
 - Document all arbitrage usage for transparency
 - Consider disabling if not needed
+- **CRITICAL:** All arbitrage funds go to network fee address - coordinate with network operators
 
 **For Token Holders:**
 - Check if token has `UTXO_ARBITRAGE_TX_DISABLED` set
-- Verify `tx_recv_allow` list contains only legitimate addresses
+- Verify network fee address (`net->pub.fee_addr`) is legitimate and properly managed
 - Monitor `auth_signs_valid` - higher is more secure
+- **Note:** Arbitrage does NOT use `tx_recv_allow` - funds go to network fee address only
 - Understand that token owners can recover funds via arbitrage
 
 ### Technical Implementation
@@ -645,7 +655,10 @@ Validation is performed in `s_ledger_tx_check_arbitrage_auth()` (dap_chain_ledge
 **A:** No. Arbitrage uses `TX_ITEM_TYPE_TSD` (0x80) with TSD type 0x00A1, while voting uses `TX_ITEM_TYPE_VOTING` (0x90). These are different TX item types and do not conflict.
 
 **Q: Can arbitrage be used to steal funds?**  
-**A:** No. All arbitrage outputs must go to addresses in `tx_recv_allow` list (fee collection addresses). Any attempt to send to non-allowed addresses will fail validation.
+**A:** No. All arbitrage outputs must go **ONLY** to the network fee address (`net->pub.fee_addr`), which is configured at the network level, not by token owners. Any attempt to send to other addresses will fail validation with `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED` error.
+
+**Q: What happened to `tx_recv_allow` for arbitrage?**  
+**A:** Arbitrage transactions NO LONGER use `tx_recv_allow`. This was changed to prevent abuse - arbitrage now only sends to `net->pub.fee_addr` which is controlled by network operators, not token owners.
 
 ---
 
