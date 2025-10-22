@@ -74,9 +74,10 @@ json_object *dap_chain_tx_compose_xchange_create(dap_chain_net_id_t a_net_id, co
                                           dap_chain_addr_t *a_wallet_addr, const char *a_value_str, const char *a_rate_str, const char *a_fee_str);
 
 json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                        uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr, const char *a_cert_str, 
-                                        const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, const char *a_value_per_unit_max_str,
-                                        const char *a_srv_uid_str);
+                                        uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr,
+                                        const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str,
+                                        const char *a_unit_str, const char *a_value_per_unit_max_str,
+                                        const char *a_srv_uid_str, const char *a_pkey_hash_str);
 
 json_object *dap_chain_tx_compose_stake_lock_hold(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                   uint16_t a_port, const char *a_enc_cert_path, dap_chain_id_t a_chain_id, const char *a_ticker_str, 

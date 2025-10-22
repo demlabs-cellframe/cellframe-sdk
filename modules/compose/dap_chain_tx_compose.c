@@ -1702,7 +1702,9 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
                                         uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr,
                                         const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str,
                                         const char *a_unit_str, const char *a_value_per_unit_max_str,
-                                        const char *a_srv_uid_str) {    
+                                        const char *a_srv_uid_str, const char *a_pkey_hash_str) {    
+   
+    dap_return_val_if_pass(!a_unit_str || !a_srv_uid_str || (!a_pkey_hash_str && !a_cert_str), NULL);
     compose_config_t *l_config = s_compose_config_init(a_net_id, a_net_name, a_native_ticker, a_url_str, a_port, a_enc_cert_path);
     if (!l_config) {
         log_it(L_ERROR, "can't create compose config");
@@ -1748,15 +1750,20 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
     if (a_value_per_unit_max_str)
         l_value_per_unit_max = dap_chain_balance_scan(a_value_per_unit_max_str);
 
-    dap_cert_t *l_cert_cond = dap_cert_find_by_name(a_cert_str);
-    if(!l_cert_cond) {
-        log_it(L_ERROR, "can't find cert '%s'", a_cert_str);
-        s_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_CERT_NOT_FOUND, "Can't find cert '%s'\n", a_cert_str);
-        return s_compose_config_return_response_handler(l_config);
-    }
     dap_hash_fast_t l_pkey_cond_hash = {};
-    if (dap_cert_get_pkey_hash(l_cert_cond, &l_pkey_cond_hash)) {
-        log_it(L_ERROR, "cert '%s' doesn't contain a valid public key", a_cert_str);
+    if (a_cert_str) {
+        dap_cert_t *l_cert_cond = dap_cert_find_by_name(a_cert_str);
+        if(!l_cert_cond) {
+            log_it(L_ERROR, "can't find cert '%s'", a_cert_str);
+            s_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_CERT_NOT_FOUND, "Can't find cert '%s'\n", a_cert_str);
+            return s_compose_config_return_response_handler(l_config);
+        }
+        dap_cert_get_pkey_hash(l_cert_cond, &l_pkey_cond_hash);
+    } else {
+        dap_chain_hash_fast_from_str(a_pkey_hash_str, &l_pkey_cond_hash);
+    }
+    if (dap_hash_fast_is_blank(&l_pkey_cond_hash)) {
+        log_it(L_ERROR, "can't calc pkey hash", a_cert_str);
         s_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_CERT_KEY, "Cert '%s' doesn't contain a valid public key\n", a_cert_str);
         return s_compose_config_return_response_handler(l_config);
     }
