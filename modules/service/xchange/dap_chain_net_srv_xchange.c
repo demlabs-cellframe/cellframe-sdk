@@ -211,6 +211,23 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     
 }
 
+static int datum_list_sort_by_date_back(const void *a, const void *b)
+{
+    struct json_object *obj_a = *(struct json_object **)a;
+    struct json_object *obj_b = *(struct json_object **)b;
+
+    struct json_object *timestamp_a = json_object_object_get(obj_a, "ts_created");
+    struct json_object *timestamp_b = json_object_object_get(obj_b, "ts_created");
+
+    const char* time_a_str = json_object_get_string(timestamp_a);
+    const char* time_b_str = json_object_get_string(timestamp_b);
+
+    dap_time_t time_a = dap_time_from_str_rfc822(time_a_str+5);
+    dap_time_t time_b = dap_time_from_str_rfc822(time_b_str+5);
+
+    return  time_b - time_a;
+}
+
 /**
  * @brief dap_chain_net_srv_xchange_init Init actions for xchanger stream channel
  * @return 0 if everything is okay, lesser then zero if errors
@@ -2492,6 +2509,8 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
         }
         dap_chain_wallet_cache_iter_delete(l_iter);
     }
+    json_object_array_sort(json_arr_datum_out, datum_list_sort_by_date_back);
+
 
     json_object_object_add(json_obj_out, "transactions", json_arr_datum_out);
     if (a_version == 1) {
@@ -3003,16 +3022,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
-            /* Validate parameter groups - separate pagination from other filters */
-            bool l_has_pagination_time_filters = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head || (l_time_begin_str != NULL) || (l_time_end_str != NULL) || (l_status_str != NULL);
-            bool l_has_addr_filter = (l_addr_str != NULL);
-            int l_groups_cnt = (l_has_pagination_time_filters ? 1 : 0) + (l_has_addr_filter ? 1 : 0);
-            if (l_groups_cnt > 1) {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_LIST_REQ_PARAM_ERR,
-                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head/ -time_from/-time_to/-status} or {-addr}");
-                return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_LIST_REQ_PARAM_ERR;
-            }
-
             /* Dispatch request processing to ... */
             if ( l_addr_str )
             {
@@ -3077,11 +3086,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                 size_t l_current_idx = 0;
                 dap_list_t *l_first = dap_list_first(l_matching_txs);
                 
-                for (dap_list_t *it = l_matching_txs; it != NULL; it = it->next){
-                    if (l_current_idx < l_arr_start) {
-                        l_current_idx++;
-                        continue;
-                    }
+                for (dap_list_t *it = l_matching_txs; it != NULL; it = it->next){                    
                     if (l_current_idx >= l_arr_end) {
                         break;
                     }
@@ -3096,11 +3101,15 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                     if (l_cache_item && s_string_append_tx_cond_info_json(json_obj_order, l_net,  &l_cache_item->seller_addr, 
                             l_cache_item->tx_type == TX_TYPE_EXCHANGE ?  &l_cache_item->tx_info.exchange_info.buyer_addr : NULL,
                             l_cache_item->tx, &l_cache_item->hash, l_opt_status, false, true, true, a_version)){
-
+                        if (l_current_idx < l_arr_start) {
+                            l_current_idx++;
+                            json_object_put(json_obj_order);
+                            continue;
+                        }
                         json_object_array_add(json_arr_bl_out, json_obj_order);
                         l_show_tx_nr++;
                         l_current_idx++;
-                    }
+                    }                    
                     
                 }
                 
@@ -3130,11 +3139,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                     // Iterate through transactions with pagination
                     for (dap_list_t *l_datum_list = l_head ? l_first : dap_list_last(l_datum_list0);
                             l_datum_list; l_datum_list = l_head ? l_datum_list->next : (l_datum_list->prev && l_datum_list->prev->next ? l_datum_list->prev : NULL)) {
-                        
-                        if (l_current_idx < l_arr_start) {
-                            l_current_idx++;
-                            continue;
-                        }
+
                         if (l_current_idx >= l_arr_end) {
                             break;
                         }
@@ -3162,6 +3167,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                         dap_hash_fast_t l_hash = {};
                         dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_hash);
                         if (s_string_append_tx_cond_info_json(json_obj_order, l_net, NULL, NULL, l_datum_tx, &l_hash, l_opt_status, false, true, true, a_version)) {
+                            if (l_current_idx < l_arr_start) {
+                                l_current_idx++;
+                                json_object_put(json_obj_order);
+                                continue;
+                            }
                             json_object_array_add(json_arr_bl_out, json_obj_order);
                             l_show_tx_nr++;
                         }
