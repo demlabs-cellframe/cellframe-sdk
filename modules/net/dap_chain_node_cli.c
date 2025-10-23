@@ -358,7 +358,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list coins -net <net_name> [-limit] [-offset] [-h]\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
-            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n");
+            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
+            "ledger event list -net <net_name> [-group <group_name>]\n"
+            "ledger event dump -net <net_name> -hash <tx_hash>\n"
+            "ledger event create -net <net_name> [-chain <chain_name>] -w <wallet_name> -service_key <cert_name> -srv_uid <service_uid> "
+            "-group <group_name> -event_type <event_type> [-event_data <event_data>] [-fee <fee_value>] [-H <hex|base58>]\n"
+            "ledger event key add -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key remove -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key list -net <net_name> [-H <hex|base58>]\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, NULL, "Token info",
@@ -440,6 +447,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\t-num <policy_num>\n"
                 "policy list - show all policies from table in net\n"
                 "\t-net <net_name>\n");
+
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );

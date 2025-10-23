@@ -78,7 +78,9 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE         0x000E
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE             0x0010
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY                        0x0012
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN                      0x0020
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN                0x0020
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD                0x0013
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE             0x0014
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -140,6 +142,10 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
         return "DECREE_COMMON_SUBTYPE_POLICY";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN:
         return "DECREE_COMMON_SUBTYPE_BLOCKGEN";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD:
+        return "DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE:
+        return "DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
     }
@@ -178,6 +184,10 @@ DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_de
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY;
     } else if (!dap_strcmp(a_decree_type, "blockgen")) {
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN;
+    } else if (!dap_strcmp(a_decree_type, "event_pkey_add")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD;
+    } else if (!dap_strcmp(a_decree_type, "event_pkey_remove")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE;
     } else {
         return 0;
     }

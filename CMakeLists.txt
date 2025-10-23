@@ -200,6 +200,12 @@ if (CELLFRAME_MODULES MATCHES "srv-voting")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
 endif()
 
+# Enable service stake-ext
+if (CELLFRAME_MODULES MATCHES "srv-stake-ext")
+    message("[+] Module 'srv-stake-ext'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_ext)
+endif()
+
 # Enable service TX multisign with consensus
 if (CELLFRAME_MODULES MATCHES "srv-emit-delegate")
     message("[+] Module 'srv-emit-delegate'")
