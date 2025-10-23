@@ -156,8 +156,8 @@ void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client);
  * wait for the complete of request
  *
  * timeout_ms timeout in milliseconds
- * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
- * return -1 false, 0 timeout, 1 end of connection or sending data
+ * waited_state state which we will wait, sample NODE_CLIENT_STATE_ESTABLISHED or NODE_CLIENT_STATE_CHECKED
+ * @return 0 success, -1 timeout, -2 error, -3 null client, -4 pthread error
  */
 int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms);
 
@@ -171,6 +171,7 @@ static inline const char * dap_chain_node_client_state_to_str( dap_chain_node_cl
         case NODE_CLIENT_STATE_CONNECTING: return "CONNECT";
         case NODE_CLIENT_STATE_ESTABLISHED: return "CONNECTED";
         case NODE_CLIENT_STATE_CHECKED: return "CHECKED";
+        case NODE_CLIENT_STATE_VALID_READY: return "VALID_READY";
         default: return "(Undefined node client state)";
     }
 

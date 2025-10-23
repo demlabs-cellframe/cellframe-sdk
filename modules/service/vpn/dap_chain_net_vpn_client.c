@@ -566,6 +566,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
     // timeout not less then 5 sec
     if(a_timeout_test_ms<5000)
         a_timeout_test_ms = 5000;
+    log_it(L_DEBUG, "Waiting for CHECK_RESPONSE with timeout %d ms", a_timeout_test_ms);
     l_res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_CHECKED, a_timeout_test_ms);
     log_it(L_INFO, "%s response from VPN server %s : %d", l_res ? "No" : "Got", a_host, a_port);
     // clean client struct

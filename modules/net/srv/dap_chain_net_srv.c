@@ -475,12 +475,23 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
                     json_obj_net_srv = json_object_new_object();
-                    l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
-                    if (!l_ret)
-                        json_object_object_add(json_obj_net_srv, "order_hash", json_object_new_string(l_order_hash_str));
-                    else {
+
+                    // check if order exists
+                    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_hex_str);
+                    if (!l_order) {
                         dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_CANT_FIND_HASH_ERR, "Can't find order with hash %s\n", l_order_hash_str);
                         l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_CANT_FIND_HASH_ERR;
+                        return l_ret;
+                    }
+
+                    // delete order
+                    l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
+                    if (!l_ret){
+                        json_object_object_add(json_obj_net_srv, "deleted_order_hash", json_object_new_string(l_order_hash_str));
+                        json_object_object_add(json_obj_net_srv, "status", json_object_new_string("Successfully deleted"));
+                    }else {
+                        dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_CANT_DELETE_ERR, "Can't delete order with hash %s\n", l_order_hash_str);
+                        l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_CANT_DELETE_ERR;
                     }
                 } else {
                     dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DEL_NEED_HASH_PARAM_ERR, "need -hash param to obtain what the order we need to dump\n");
@@ -602,6 +613,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                     if (l_order_new_hash_str) {
                         json_obj_net_srv = json_object_new_object();
                         json_object_object_add(json_obj_net_srv, "order_hash", json_object_new_string(l_order_new_hash_str));
+                        json_object_object_add(json_obj_net_srv, "status", json_object_new_string("Successfully created"));
                         DAP_DELETE(l_order_new_hash_str);
                     }
                     else {
@@ -764,18 +776,14 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
         return -2;
     }
 
-    if (l_receipt){
-        if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(dap_chain_receipt_info_t))){
-            log_it(L_ERROR, "Provider sign in receipt not passed verification.");
-            return -3;
-        }
-    } else {
-        if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt_old->receipt_info, sizeof(dap_chain_receipt_info_old_t))){
-            log_it(L_ERROR, "Provider sign in receipt not passed verification.");
-            return -3;
-        }
-    }
+    const void *l_p_receipt_info = l_receipt ? (const void*)&l_receipt->receipt_info : (const void*)&l_receipt_old->receipt_info;
+    size_t l_receipt_info_size = l_receipt ? sizeof(dap_chain_receipt_info_t) : sizeof(dap_chain_receipt_info_old_t);
 
+    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), l_p_receipt_info, l_receipt_info_size)){
+        log_it(L_ERROR, "Provider sign in receipt not passed verification.");
+        return -3;
+    }
+    
     // Checking the signature matches the provider's signature
     dap_hash_fast_t l_tx_sign_pkey_hash = {};
     dap_hash_fast_t l_provider_pkey_hash = {};
@@ -885,11 +893,20 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_
                 return -14;
             }
         } break;
-        case TX_ITEM_TYPE_OUT_EXT: { // 256
+        case TX_ITEM_TYPE_OUT_EXT:{
             dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t*)l_item;
             l_out_addr = l_tx_out->addr;
             if (dap_chain_addr_compare(&l_out_addr, &l_network_fee_addr) &&
                     SUM_256_256(l_receipt_value_datoshi, l_tx_out->header.value, &l_receipt_value_datoshi)) {
+                log_it(L_WARNING, "Integer overflow while sum of outs calculation");
+                return -14;
+            }
+        } break;  
+        case TX_ITEM_TYPE_OUT_STD: {
+            dap_chain_tx_out_std_t *l_tx_out = (dap_chain_tx_out_std_t*)l_item;
+            l_out_addr = l_tx_out->addr;
+            if (dap_chain_addr_compare(&l_out_addr, &l_network_fee_addr) &&
+                    SUM_256_256(l_receipt_value_datoshi, l_tx_out->value, &l_receipt_value_datoshi)) {
                 log_it(L_WARNING, "Integer overflow while sum of outs calculation");
                 return -14;
             }
