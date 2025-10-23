@@ -135,3 +135,12 @@ char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
                                       size_t a_event_data_size,
                                       uint256_t a_fee_value,
                                       const char *a_hash_out_type);
+
+char *dap_chain_mempool_tx_create_service_decree(dap_chain_t *a_chain,
+                                                 dap_enc_key_t *a_key_from,
+                                                 dap_enc_key_t *a_service_key,
+                                                 dap_chain_net_srv_uid_t a_srv_uid,
+                                                 const void *a_service_decree_data,
+                                                 size_t a_service_decree_data_size,
+                                                 uint256_t a_fee_value,
+                                                 const char *a_hash_out_type);

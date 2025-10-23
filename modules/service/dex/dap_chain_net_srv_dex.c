@@ -3514,7 +3514,7 @@ int dap_chain_net_srv_dex_init()
         "srv_dex purchase_auto -net <net_name> -token_sell <ticker> -token_buy <ticker> -w <wallet> -value <value> [-unit sell|buy] [-min_rate <r>] [-fee <value>] [-create_leftover_order] [-leftover_rate <rate>] [-dry-run]\n"
         "srv_dex cancel_all_by_seller -net <net_name> -seller <addr> -w <wallet> -fee <fee> [-limit <N>] [-dry-run]\n"
         "srv_dex pairs -net <net_name>\n"
-        "srv_dex decree -net <net_name> -method <fee_set|pair_add|pair_remove|pair_fee_set|pair_fee_set_all> <params>\n"
+        "srv_dex decree -net <net_name> -w <wallet> -method <fee_set|pair_add|pair_remove|pair_fee_set|pair_fee_set_all> <params>\n"
         "  All methods support optional: -fee_amount <amount> -fee_addr <addr> (to set global native fee)\n"
         "  fee_set: (requires -fee_amount and -fee_addr)\n"
         "  pair_add: -token_base <ticker> -token_quote <ticker> [-net_base <net>] [-net_quote <net>] [-fee_config <byte>]\n"
@@ -5825,6 +5825,10 @@ tvl_output:
     } break; // PAIRS
 
     case CMD_DECREE: {
+        // Decree requires wallet for signing
+        if (!l_wallet_str)
+            return dap_json_rpc_error_add(*json_arr_reply, -2, "decree requires -w wallet"), -2;
+        
         // Parse and validate decree method
         const char *l_method_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-method", &l_method_str);
@@ -5839,7 +5843,9 @@ tvl_output:
         else if (!dap_strcmp(l_method_str, "pair_fee_set_all")) l_method = DEX_DECREE_PAIR_FEE_SET_ALL;
         if (l_method == DEX_DECREE_UNKNOWN)
             return dap_json_rpc_error_add(*json_arr_reply, -2, "unknown method '%s'", l_method_str), -2;
-        
+        dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        if (!l_chain)
+            return dap_json_rpc_error_add(*json_arr_reply, -3, "chain not found"), -3;
         // Max TSD buffer: METHOD(1) + FEE_AMOUNT(32) + FEE_ADDR(49) + TOKEN_BASE(10) + TOKEN_QUOTE(10) + NET_BASE(8) + NET_QUOTE(8) + FEE_CONFIG(1)
         // = sizeof(dap_tsd_t) * 8 + 119 bytes data ≈ 200 bytes (conservative estimate)
         byte_t l_tsd_buf[512] = { };
@@ -5938,14 +5944,48 @@ tvl_output:
         
         // Calculate actual TSD size
         size_t l_tsd_size = l_ptr - l_tsd_buf;
+        char *l_hash_str = NULL;
+        // Create decree and submit to mempool
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
+        if (l_wallet) {
+            dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
+            if (l_key_from) {
+                l_hash_str = dap_chain_mempool_tx_create_service_decree(
+                    l_chain,
+                    l_key_from,
+                    NULL,                                                        // a_service_key (NULL for DEX)
+                    (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_DEX_ID },  // a_srv_uid
+                    l_tsd_buf,                                                   // a_service_decree_data
+                    l_tsd_size,                                                  // a_service_decree_data_size
+                    uint256_0,                                                   // a_fee_value (no additional fee)
+                    "hex"                                                        // a_hash_out_type
+                );
+                dap_enc_key_delete(l_key_from);
+            } else {
+                dap_json_rpc_error_add(*json_arr_reply, -3, "wallet key not found");
+                l_ret = -3;
+            }
+            dap_chain_wallet_close(l_wallet);
+        } else {
+            dap_json_rpc_error_add(*json_arr_reply, -3, "wallet open failed");
+            l_ret = -3;
+        }
         
-        // TODO: Create decree datum and place to mempool
-        // This is a stub - actual mempool integration will be added later
+        if (l_ret) return l_ret;
+
         l_json_reply = json_object_new_object();
-        json_object_object_add(l_json_reply, "status", json_object_new_string("decree_created"));
-        json_object_object_add(l_json_reply, "method", json_object_new_string(l_method_str));
-        json_object_object_add(l_json_reply, "tsd_size", json_object_new_int64(l_tsd_size));
-        json_object_object_add(l_json_reply, "note", json_object_new_string("mempool submission not implemented yet"));
+        if (l_hash_str) {
+            json_object_object_add(l_json_reply, "status", json_object_new_string("decree_submitted"));
+            json_object_object_add(l_json_reply, "tx_hash", json_object_new_string(l_hash_str));
+            json_object_object_add(l_json_reply, "method", json_object_new_string(l_method_str));
+            json_object_object_add(l_json_reply, "tsd_size", json_object_new_int64(l_tsd_size));
+            DAP_DELETE(l_hash_str);
+            return 0;
+        } else {
+            json_object_object_add(l_json_reply, "status", json_object_new_string("decree_submission_failed"));
+            json_object_object_add(l_json_reply, "error", json_object_new_string("mempool tx creation failed"));
+            return -4;
+        };
     } break; // DECREE
 
     default: return dap_json_rpc_error_add(*json_arr_reply, -1, "unknown command"), -1; }
