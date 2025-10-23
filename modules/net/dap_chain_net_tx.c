@@ -1823,7 +1823,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
         case TX_ITEM_TYPE_EVENT: {
-            const char *l_group_name = s_json_get_text(l_json_item_obj, "group_name");
+            const char *l_group_name = dap_json_rpc_get_text(l_json_item_obj, "group_name");
             if (!l_group_name) {
                 log_it(L_ERROR, "Json TX: bad group_name in TX_ITEM_TYPE_EVENT");
                 char *l_str_err = dap_strdup_printf("For item %zu of type 'event' the 'group_name' is missing.", i);
@@ -1834,7 +1834,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
 
             int64_t l_event_type_int;
-            if (!s_json_get_int64_uint64(l_json_item_obj, "event_type", &l_event_type_int, false)) {
+            if (!dap_json_rpc_get_int64(l_json_item_obj, "event_type", &l_event_type_int)) {
                 log_it(L_ERROR, "Json TX: bad event_type in TX_ITEM_TYPE_EVENT");
                 char *l_str_err = dap_strdup_printf("For item %zu of type 'event' the 'event_type' is missing or invalid.", i);
                 json_object *l_jobj_err = json_object_new_string(l_str_err);
@@ -2252,7 +2252,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 }
                 
                 int64_t l_min_sig_count;
-                if(!s_json_get_int64_uint64(l_json_item_obj, "min_sig_count", &l_min_sig_count, false)) {
+                if(!dap_json_rpc_get_int64(l_json_item_obj, "min_sig_count", &l_min_sig_count)) {
                     dap_json_rpc_error_add(l_jobj_errors, -1, "Bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                     log_it(L_ERROR, "Json TX: bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                     break;
@@ -2304,7 +2304,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 }
                 
                 // Read optional params
-                const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+                const char *l_params_str = dap_json_rpc_get_text(l_json_item_obj, "params");
                 char *l_tag_str = NULL;
                 if (l_params_str) {
                     size_t l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
