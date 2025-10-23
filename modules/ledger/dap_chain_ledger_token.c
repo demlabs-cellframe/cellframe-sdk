@@ -1813,13 +1813,15 @@ dap_json_t *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t
     }
     size_t i = 0;
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
-        if (i < l_arr_start || i >= l_arr_end) {
+        if (i < l_arr_start) {
             i++;
             continue;
         }
         json_obj_datum = s_token_item_to_json(l_token_item, a_version);
         dap_json_array_add(json_arr_out, json_obj_datum);
         i++;
+        if (i >= l_arr_end)
+            break;
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     return json_arr_out;
