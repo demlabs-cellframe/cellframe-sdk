@@ -525,7 +525,7 @@ cellframe-node-cli tx_create \
 2. Arbitrage must not be disabled (`UTXO_ARBITRAGE_TX_DISABLED` flag not set)
 3. Transaction must be signed by token owner certificate
 
-⚠️ **IMPORTANT:** Arbitrage transactions send funds **ONLY** to the network fee address (`net->pub.fee_addr`), NOT to `tx_recv_allow` list. The fee address is configured at network level, not by token owners.
+⚠️ **IMPORTANT:** Arbitrage transactions send funds **ONLY** to the network fee address (`net->pub.fee_addr`). The fee address is configured at network level, not by token owners.
 
 #### Checking Network Fee Address
 
@@ -560,7 +560,7 @@ When ledger processes arbitrage transaction, it performs these checks:
 3. **Signature Check** - TX must be signed by at least `auth_signs_valid` token owners
 4. **Output Address Check** - **ALL** TX outputs must go **ONLY** to network fee address (`net->pub.fee_addr`)
 
-⚠️ **CRITICAL:** Arbitrage transactions can ONLY send funds to the network fee collection address, NOT to `tx_recv_allow` list. This is a security measure to prevent abuse.
+⚠️ **CRITICAL:** Arbitrage transactions can ONLY send funds to the network fee collection address.
 
 If any check fails, transaction is rejected with `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED`.
 
@@ -648,17 +648,6 @@ dap_chain_tx_tsd_t *l_tsd_arbitrage = dap_chain_datum_tx_item_tsd_create(
 ```
 
 Validation is performed in `s_ledger_tx_check_arbitrage_auth()` (dap_chain_ledger.c:7049).
-
-### Conflict Resolution
-
-**Q: Does arbitrage conflict with voting transactions?**  
-**A:** No. Arbitrage uses `TX_ITEM_TYPE_TSD` (0x80) with TSD type 0x00A1, while voting uses `TX_ITEM_TYPE_VOTING` (0x90). These are different TX item types and do not conflict.
-
-**Q: Can arbitrage be used to steal funds?**  
-**A:** No. All arbitrage outputs must go **ONLY** to the network fee address (`net->pub.fee_addr`), which is configured at the network level, not by token owners. Any attempt to send to other addresses will fail validation with `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED` error.
-
-**Q: What happened to `tx_recv_allow` for arbitrage?**  
-**A:** Arbitrage transactions NO LONGER use `tx_recv_allow`. This was changed to prevent abuse - arbitrage now only sends to `net->pub.fee_addr` which is controlled by network operators, not token owners.
 
 ---
 
