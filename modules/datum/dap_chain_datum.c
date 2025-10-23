@@ -641,7 +641,7 @@ void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_o
         return;
     }
     dap_json_t *json_obj_datum = dap_json_object_new();
-    dap_hash_fast_t l_datum_hash;
+    dap_hash_fast_t l_datum_hash { };
     dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
     const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(&l_datum_hash)

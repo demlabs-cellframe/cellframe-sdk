@@ -2943,7 +2943,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     return;
                 }
-                dap_json_object_add_object(l_jobj_datum, "srv_emit_delegate", l_jobj_emit_delegate_list);
+                dap_json_object_add_object(l_jobj_datum, "srv_wallet_shared", l_jobj_emit_delegate_list);
                 dap_json_t *l_jobj_auction_bid_list = dap_json_array_new();
                 if (!l_jobj_auction_bid_list) {
                     dap_json_object_free(l_obj_chain);
@@ -2968,7 +2968,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                     OUT_COND_TYPE_STAKE_LOCK,
                     OUT_COND_TYPE_XCHANGE,
                     OUT_COND_TYPE_POS_DELEGATE,
-                    OUT_COND_TYPE_EMIT_DELEGATE,
+                    OUT_COND_TYPE_WALLET_SHARED,
                     OUT_COND_TYPE_AUCTION_BID
                 } l_out_cond_subtype = {0};
 
@@ -3004,7 +3004,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                     }*/
                     dap_list_free(l_list_in_reward);
                 }
-
+                dap_json_t *l_jobj_diff = NULL;
                 dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
                 for (dap_list_t *it = l_list_out_items; it; it = it->next) {
                     dap_chain_addr_t *l_dist_addr = NULL;
@@ -3061,7 +3061,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                                     break;
                                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
                                     l_dist_token = l_main_ticker;
-                                    l_out_cond_subtype = OUT_COND_TYPE_EMIT_DELEGATE;
+                                    l_out_cond_subtype = OUT_COND_TYPE_WALLET_SHARED;
                                 }
                                     break;
                                 default:
@@ -3162,9 +3162,22 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                             case OUT_COND_TYPE_POS_DELEGATE:
                                  dap_json_array_add(l_jobj_stake_pos_delegate_list, l_jobj_money);
                                 break;
-                            case OUT_COND_TYPE_EMIT_DELEGATE:
-                                 dap_json_array_add(l_jobj_emit_delegate_list, l_jobj_money);
+                            case OUT_COND_TYPE_WALLET_SHARED: {
+                                dap_json_array_add(l_jobj_emit_delegate_list, l_jobj_money);
+                                dap_chain_tx_tsd_t *l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF);
+                                if (l_diff_tx_tsd || (l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL))) {
+                                    uint256_t l_diff_value = {};
+                                    memcpy(&l_diff_value, ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->data, sizeof(uint256_t));
+                                    l_value_str = dap_uint256_to_char(l_diff_value, &l_value_coins_str);
+                                    l_jobj_diff = dap_json_array_new()();
+                                    dap_json_t *l_jobj_diff_obj = dap_json_object_new();
+                                    dap_json_object_add_object(l_jobj_diff_obj, "value", dap_json_object_new_string(l_value_str));
+                                    dap_json_object_add_object(l_jobj_diff_obj, "coins", dap_json_object_new_string(l_value_coins_str));
+                                    dap_json_object_add_object(l_jobj_diff_obj, "token", dap_json_object_new_string(l_main_ticker));
+                                    dap_json_array_add(l_jobj_diff, l_jobj_diff_obj);
+                                }
                                 break;
+                            }
                             case OUT_COND_TYPE_AUCTION_BID:
                                  dap_json_array_add(l_jobj_auction_bid_list, l_jobj_money);
                                 break;
@@ -3231,7 +3244,8 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                     }
                 }
                 dap_list_free(l_event_list);
-
+                if (l_jobj_diff)
+                    dap_json_object_add_object(l_jobj_datum, "operation", l_jobj_diff);
                 if (!dap_json_array_length(l_jobj_pay_list))
                     dap_json_object_del(l_jobj_datum, "srv_pay");
                 if (!dap_json_array_length(l_jobj_xchange_list))
@@ -3241,7 +3255,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                 if (!dap_json_array_length(l_jobj_stake_pos_delegate_list))
                     dap_json_object_del(l_jobj_datum, "srv_stake_pos_delegate");
                 if (!dap_json_array_length(l_jobj_emit_delegate_list))
-                    dap_json_object_del(l_jobj_datum, "srv_emit_delegate");
+                    dap_json_object_del(l_jobj_datum, "srv_wallet_shared");
                 if (!dap_json_array_length(l_jobj_to_from_emi))
                     dap_json_object_del(l_jobj_datum, "from_emission");
                 if (!dap_json_array_length(l_jobj_tx_vote))
@@ -3375,16 +3389,13 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
  * @brief s_com_mempool_check_datum_in_chain
  * @param a_chain
  * @param a_datum_hash_str
- * @return boolean
+ * @return finded store object or NULL
  */
-dap_chain_datum_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
+static dap_store_obj_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
 {
-    if (!a_datum_hash_str)
-        return NULL;
-    char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
-    uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str, NULL, NULL, NULL);
-    DAP_DELETE(l_gdb_group_mempool);
-    return (dap_chain_datum_t *)l_data_tmp;
+    dap_return_val_if_pass(a_datum_hash_str, NULL);
+    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    return dap_global_db_get_raw_sync(l_gdb_group_mempool, a_datum_hash_str);
 }
 
 typedef enum cmd_mempool_check_err_list {
@@ -3392,7 +3403,8 @@ typedef enum cmd_mempool_check_err_list {
     COM_MEMPOOL_CHECK_ERR_CAN_NOT_FIND_NET,
     COM_MEMPOOL_CHECK_ERR_REQUIRES_DATUM_HASH,
     COM_MEMPOOL_CHECK_ERR_INCORRECT_HASH_STR,
-    COM_MEMPOOL_CHECK_ERR_DATUM_NOT_FIND
+    COM_MEMPOOL_CHECK_ERR_DATUM_NOT_FIND,
+    COM_MEMPOOL_CHECK_ERR_VALUE_NOT_FIND
 }cmd_mempool_check_err_list_t;
 
 /**
@@ -3443,18 +3455,29 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             l_found_in_chains = true;
     }
     //  FIND in mempool
+    bool l_hole = false;
     if (!l_found_in_chains) {
-        if (a_chain)
-            l_datum = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
-        else {
+        dap_store_obj_t *l_store_obj = NULL;
+        if (a_chain) {
+            l_store_obj = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
+        } else {
             dap_chain_t *it = NULL;
             DL_FOREACH(a_net->pub.chains, it) {
-                l_datum = s_com_mempool_check_datum_in_chain(it, a_datum_hash);
-                if (l_datum) {
+                l_store_obj = s_com_mempool_check_datum_in_chain(it, a_datum_hash);
+                if (l_store_obj) {
                     l_chain_name = it->name;
                     break;
                 }
             }
+        }
+        if (l_store_obj && l_store_obj->value) {
+            l_hole = DAP_FLAG_CHECK(l_store_obj->flags, DAP_GLOBAL_DB_RECORD_DEL);
+            if (l_hole) {
+                l_ret_code = strtol(l_store_obj->value, NULL, 10);
+            } else {
+                l_datum = DAP_DUP_SIZE(l_store_obj->value, l_store_obj->value_len);
+            }
+            dap_store_obj_free_one(l_store_obj);
         }
     }
     dap_json_t *l_jobj_datum = dap_json_object_new();
@@ -3483,7 +3506,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
     dap_json_object_add_object(l_jobj_datum, "net", l_net_obj);
     dap_json_object_add_object(l_jobj_datum, "chain", l_chain_obj);
     dap_json_t *l_find_bool;
-    if (l_datum) {
+    if (l_datum || l_hole) {
         l_find_bool = dap_json_object_new_bool(TRUE);
         dap_json_t *l_find_chain_or_mempool = dap_json_object_new_string(l_found_in_chains ? "chain" : "mempool");
         if (!l_find_chain_or_mempool || !l_find_bool) {
@@ -3512,9 +3535,14 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             dap_json_object_add_object(l_obj_atom, a_version == 1 ? "hash" : "atom_hash", l_jobj_atom_hash);
             dap_json_object_add_object(l_obj_atom, "ledger_response_code", l_jobj_atom_err);
             dap_json_object_add_object(l_jobj_datum, "atom", l_obj_atom);
-        }        
-
-        dap_json_t *l_datum_obj_inf = dap_json_object_new();
+        }
+        if (l_hole) {
+            dap_json_object_add_object(l_jobj_datum, "status", dap_json_object_new_string("hole"));
+            dap_json_object_add_object(l_jobj_datum, "ledger_response_code", dap_json_object_new_string(dap_ledger_check_error_str(l_ret_code)));
+            dap_json_array_add(*a_json_arr_reply, l_jobj_datum);
+            return 0;
+        }
+        dap_json_t *l_datum_obj_inf = json_object_new_object();
         dap_chain_datum_dump_json(*a_json_arr_reply, l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id, true, a_version);
         if (!l_datum_obj_inf) {
             if (!l_found_in_chains)

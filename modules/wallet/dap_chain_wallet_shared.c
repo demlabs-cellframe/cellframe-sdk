@@ -759,10 +759,6 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, dap_json_t **a
         return ERROR_PARAM;
     }
     uint256_t l_value = dap_chain_balance_scan(l_value_str);
-    if (IS_ZERO_256(l_value)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Format -value <256 bit integer> and not equal zero");
-        return ERROR_VALUE;
-    }
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-fee", &l_fee_str);
     if (!l_fee_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -fee");
