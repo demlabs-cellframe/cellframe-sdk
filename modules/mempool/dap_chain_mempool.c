@@ -60,7 +60,7 @@
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
-#include "dap_chain_cs_blocks.h"
+#include "dap_chain_type_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
@@ -141,7 +141,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
                                   const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
                                   const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX], uint256_t *a_value,
                                   uint256_t a_value_fee, const char *a_hash_out_type,
-                                  size_t a_tx_num, dap_time_t a_time_unlock)
+                                  size_t a_tx_num, dap_time_t *a_time_unlock)
 {
     // check valid param
     dap_return_val_if_pass(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
@@ -205,7 +205,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
     
     uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
     for (size_t i = 0; i < a_tx_num; ++i) {
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock) != 1) {
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock ? a_time_unlock[i] : 0) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         } else if (l_single_channel){
@@ -279,7 +279,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
  *
  * return hash_tx Ok, , NULL other Error
  */
-char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
+char *dap_chain_mempool_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
                                            const dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                            uint256_t a_value_fee, const char *a_hash_out_type)
 {
@@ -423,7 +423,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
  *
  * return hash_tx Ok, NULL Error
  */
-char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_sign_key,
+char *dap_chain_mempool_tx_reward_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_sign_key,
                                          dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                          uint256_t a_value_fee, const char *a_hash_out_type)
 {
@@ -545,7 +545,7 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
 }
 
 // get reward and fees from blocks before hardfork
-char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
+char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
                                            const dap_chain_addr_t *a_addr_to, uint256_t a_value_fee, const char *a_hash_out_type)
 {
     uint256_t                   l_net_fee = {};
@@ -1461,13 +1461,9 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
 
     // Find outputs to cover fees (following mempool style)
 
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, 
-                                                    &l_addr_from, &l_list_fee_out, 
-                                                    l_total_fee, &l_fee_transfer) == -101) {
-        l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                            &l_addr_from, l_total_fee, 
-                                                            &l_fee_transfer);
-    }
+    l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                        &l_addr_from, l_total_fee, 
+                                                        &l_fee_transfer);
     if (!l_list_fee_out) {
         log_it(L_WARNING, "Not enough funds to pay fee");
         return NULL;
@@ -1504,7 +1500,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     if (a_event_data && a_event_data_size > 0) {
         // Create TSD section with event data using standard cellframe function
         dap_chain_tx_tsd_t *l_tsd_item = dap_chain_datum_tx_item_tsd_create(
-            (void *)a_event_data, DAP_CHAIN_TX_TSD_TYPE_CUSTOM_DATA, a_event_data_size);
+            (void *)a_event_data, DAP_CHAIN_TX_TSD_TYPE_EVENT_DATA, a_event_data_size);
         
         if (!l_tsd_item) {
             log_it(L_ERROR, "Failed to create TSD item with event data");
@@ -1567,16 +1563,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         return NULL;
     }
 
-    // Pre-validate transaction against ledger rules (e.g., duplicate AUCTION_STARTED)
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-    dap_hash_fast_t l_tx_hash = {};
-    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
-    int l_check_rc = dap_ledger_tx_add_check(l_ledger, l_tx, l_tx_size, &l_tx_hash);
-    if (l_check_rc) {
-        log_it(L_WARNING, "Reject event tx before mempool: ledger check failed (%d)", l_check_rc);
-        dap_chain_datum_tx_delete(l_tx);
-        return NULL;
-    }
 
     // Create datum and add to mempool (following mempool pattern)
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
@@ -1598,4 +1585,59 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     
     log_it(L_INFO, "Successfully composed and added event transaction to mempool: %s", l_ret);
     return l_ret;
- } 
+}
+
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx)
+{
+    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if(!l_gdb_group_mempool){
+        log_it(L_ERROR, "%s: mempool group not found\n", a_net->pub.name);
+        return false;
+    }
+    size_t l_objs_count = 0;
+    dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
+    for (size_t i = 0; i < l_objs_count; i++) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+        if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+            continue;
+        }
+        dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*)l_datum->data;
+        byte_t *l_item; size_t l_size; int index, l_out_idx = 0;
+        TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_IN_ALL, l_size, index, l_datum_tx) {
+            if (*l_item != TX_ITEM_TYPE_IN && *l_item != TX_ITEM_TYPE_IN_COND) {
+                continue;
+            }
+            dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t*)l_item;
+            if (l_tx_in->header.tx_out_prev_idx == a_out_idx && dap_hash_fast_compare(&l_tx_in->header.tx_prev_hash, a_out_hash)) {
+                dap_global_db_objs_delete(l_objs, l_objs_count);
+                return true;
+            }
+        }
+    }
+    dap_global_db_objs_delete(l_objs, l_objs_count);
+    return false;
+}
+
+ /**
+  * @brief Compose a transaction with event item for ledger event system
+  * @param[in] a_chain Chain to create transaction for
+  * @param[in] a_key_from Private key for signing
+  * @param[in] a_service_key Service key for signing
+  * @param[in] a_group_name Event group name
+  * @param[in] a_event_type Event type
+  * @param[in] a_event_data Event data
+  * @param[in] a_event_data_size Size of event data
+  * @param[in] a_fee_value Fee value
+  * @param[in] a_hash_out_type Hash output format
+  * @return Transaction hash string on success, NULL on error
+  */
+  char *dap_chain_mempool_tx_create_service_decree(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+                                                   dap_enc_key_t *a_service_key, dap_chain_srv_uid_t a_srv_uid,
+                                                    const void *a_service_decree_data,
+                                                    size_t a_service_decree_data_size,
+                                                    uint256_t a_fee_value,
+                                                    const char *a_hash_out_type)
+{
+    return dap_chain_mempool_tx_create_event(a_chain, a_key_from, a_service_key, a_srv_uid, "SERVICE_DECREE", DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE,
+                                             a_service_decree_data, a_service_decree_data_size, a_fee_value, a_hash_out_type);
+}

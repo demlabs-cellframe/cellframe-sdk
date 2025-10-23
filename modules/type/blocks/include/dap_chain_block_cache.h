@@ -26,7 +26,7 @@
 #include "uthash.h"
 #include "dap_chain_ledger.h"
 
-typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
+typedef struct dap_chain_type_blocks dap_chain_type_blocks_t;
 
 typedef struct dap_chain_block_cache {
     // Block's general non-nested attributes
@@ -52,6 +52,7 @@ typedef struct dap_chain_block_cache {
     uint64_t nonce;
     uint64_t nonce2;
     bool is_genesis;
+    bool is_blockgen;
     uint16_t generation;
 
     // Block's signatures

@@ -33,9 +33,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_dns_server.h"
 #include "dap_client_http.h"
 #include "dap_enc_base64.h"
+#include "dap_json.h"
 #include "dap_notify_srv.h"
-#include "dap_cli_server.h"
 #include "dap_chain_node_rpc.h"
+#include "dap_link_manager.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
 
@@ -80,15 +81,14 @@ int dap_chain_net_balancer_init()
  * @param a_net - responce net
  * @param a_host_info - host info
  */
-struct json_object *s_balancer_states_json_collect(dap_chain_net_t *a_net, const char* a_host_addr, uint16_t a_host_port)
+dap_json_t *s_balancer_states_json_collect(dap_chain_net_t *a_net, const char* a_host_addr, uint16_t a_host_port)
 {
-    int l_version = dap_cli_server_get_version();
-    struct json_object *l_json = json_object_new_object();
-    json_object_object_add(l_json, "class" , json_object_new_string("BalancerRequest"));
-    json_object_object_add(l_json, l_version == 1 ? "networkName" : "network_name", json_object_new_string((const char*)a_net->pub.name));
-    json_object_object_add(l_json, l_version == 1 ? "hostAddress" : "host_address", json_object_new_string(a_host_addr ? a_host_addr : "localhost"));
+    dap_json_t *l_json = dap_json_object_new();
+    dap_json_object_add_string(l_json, "class"          , "BalancerRequest");
+    dap_json_object_add_object(l_json, "networkName"    , dap_json_object_new_string((const char*)a_net->pub.name));
+    dap_json_object_add_string(l_json, "hostAddress"    , a_host_addr ? a_host_addr : "localhost");
     if (a_host_addr)
-        json_object_object_add(l_json, l_version == 1 ? "hostPort" : "host_port", json_object_new_int(a_host_port));
+        dap_json_object_add_int(l_json, "hostPort"       , a_host_port);
     return l_json;
 }
 
@@ -171,14 +171,16 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
         }
         log_it(L_DEBUG, "%s", l_links_str);
     }
-    struct json_object *l_json;
+    dap_json_t *l_json;
     for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)a_link_full_node_list->nodes_info + i;
         if (dap_chain_net_link_add(a_net, &l_link_info->node_addr, l_link_info->uplink_addr, l_link_info->uplink_port))
             continue;
         l_json = s_balancer_states_json_collect(a_net, a_host_addr, a_host_port);
-        dap_notify_server_send(json_object_get_string(l_json));
-        json_object_put(l_json);
+        char *l_json_str = dap_json_to_string(l_json);
+        dap_notify_server_send(l_json_str);
+        DAP_DELETE(l_json_str);
+        dap_json_object_free(l_json);
     }
 }
 
@@ -190,15 +192,17 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_net_link
  */
 static void s_balancer_link_prepare_error(dap_balancer_link_request_t *a_request, const char *a_host_addr, uint16_t a_host_port, int a_errno)
 {
-    struct json_object *l_json = s_balancer_states_json_collect(a_request->net, a_host_addr, a_host_port);
+    dap_json_t *l_json = s_balancer_states_json_collect(a_request->net, a_host_addr, a_host_port);
     char l_err_str[256] = { '\0' };
     snprintf(l_err_str, sizeof(l_err_str)
             , "Links from balancer %s:%u in net %s can't be prepared, connection errno %d"
             , a_host_addr, a_host_port, a_request->net->pub.name, a_errno);
     log_it(L_WARNING, "%s", l_err_str);
-    json_object_object_add(l_json, dap_cli_server_get_version() == 1 ? "error_message" : "errorMessage", json_object_new_string(l_err_str));
-    dap_notify_server_send(json_object_get_string(l_json));
-    json_object_put(l_json);
+    dap_json_object_add_object(l_json, dap_cli_server_get_version() == 1 ? "errorMessage" : "error_message", dap_json_object_new_string(l_err_str));
+    char *l_json_str = dap_json_to_string(l_json);
+    dap_notify_server_send(l_json_str);
+    DAP_DELETE(l_json_str);
+    dap_json_object_free(l_json);
 }
 
 /**
@@ -618,36 +622,36 @@ void dap_chain_net_balancer_request(void *a_arg)
  * @param a_net - net to report
  * @return if error NULL, other - report
  */
-json_object *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
+dap_json_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
 {
 // sanity check
     dap_return_val_if_pass(!a_net, NULL);
 // func work
-    json_object *l_jobj_out = json_object_new_object();
+    dap_json_t *l_jobj_out = dap_json_object_new();
     if (!l_jobj_out) return dap_json_rpc_allocation_put(l_jobj_out);
-    json_object *l_jobj_list_array = json_object_new_array();
+    dap_json_t *l_jobj_list_array = dap_json_array_new();
     if (!l_jobj_list_array) return dap_json_rpc_allocation_put(l_jobj_out);
-    json_object_object_add(l_jobj_out, "links_list", l_jobj_list_array);
+    dap_json_object_add_object(l_jobj_out, "links_list", l_jobj_list_array);
     dap_net_links_t *l_links_info_list = s_get_node_addrs(a_net, 0, NULL, false);  // TODO
     
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;
-        json_object *l_jobj_link = json_object_new_object();
+        dap_json_t *l_jobj_link = dap_json_object_new();
         if (!l_jobj_link) return dap_json_rpc_allocation_put(l_jobj_out);
         char * l_node_addr = dap_strdup_printf(""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS_S(l_link_info->node_addr));
-        json_object_object_add(l_jobj_link, "node_addr", json_object_new_string(l_node_addr));
+        dap_json_object_add_string(l_jobj_link, "node_addr", l_node_addr);
         DAP_DELETE(l_node_addr);
         char * l_uplink_addr = dap_strdup_printf("%-16s", l_link_info->uplink_addr);
-        json_object_object_add(l_jobj_link, "host_addr", json_object_new_string(l_uplink_addr));
+        dap_json_object_add_string(l_jobj_link, "host_addr", l_uplink_addr);
         DAP_DELETE(l_uplink_addr);
-        json_object_object_add(l_jobj_link, "port", json_object_new_uint64(l_link_info->uplink_port));
+        dap_json_object_add_uint64(l_jobj_link, "port", l_link_info->uplink_port);
         if(i + 1 == s_max_links_response_count && i + 1 < l_node_num) {
-            json_object_object_add(l_jobj_link, "status", json_object_new_string("Not send in http balancer response"));
+            dap_json_object_add_string(l_jobj_link, "status", "Not send in http balancer response");
         }
-        json_object_array_add(l_jobj_list_array, l_jobj_link);
+        dap_json_array_add(l_jobj_list_array, l_jobj_link);
     }
-    json_object_object_add(l_jobj_out, "links total", json_object_new_uint64(l_node_num));
+    dap_json_object_add_uint64(l_jobj_out, "links total", l_node_num);
     DAP_DELETE(l_links_info_list);
     return l_jobj_out;
 }

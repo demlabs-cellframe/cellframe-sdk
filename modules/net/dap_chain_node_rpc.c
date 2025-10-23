@@ -133,7 +133,7 @@ static int s_cluters_init(dap_config_t *a_cfg)
     }
     dap_stream_node_addr_t *l_authorized_nodes = NULL;
     uint16_t l_authorized_nodes_count = 0;
-    dap_config_stream_addrs_parse(a_cfg, "rpc", "authorized_nodes_addrs", &l_authorized_nodes, &l_authorized_nodes_count);
+    dap_net_common_parse_stream_addrs(a_cfg, "rpc", "authorized_nodes_addrs", &l_authorized_nodes, &l_authorized_nodes_count);
     for (uint16_t i = 0; i < l_authorized_nodes_count; ++i)
         dap_global_db_cluster_member_add(s_rpc_node_list_cluster, l_authorized_nodes + i, DAP_GDB_MEMBER_ROLE_ROOT);
     DAP_DELETE(l_authorized_nodes);
@@ -205,17 +205,17 @@ void dap_chain_node_rpc_deinit()
  * @param a_addr - node addr to check
  * @return pointer to dap_string_t
  */
-json_object *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
+dap_json_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
 {
     dap_nanotime_t l_timestamp = 0;
     size_t l_data_size = 0;
-    json_object* json_node_obj = json_object_new_object();
+    dap_json_t *json_node_obj = dap_json_object_new();
     if (!json_node_obj) {
         return NULL;
     }
-    json_object* json_node_loads_arr = json_object_new_array();
+    dap_json_t *json_node_loads_arr = dap_json_array_new();
     if (!json_node_loads_arr) {
-        json_object_put(json_node_obj);
+        dap_json_object_free(json_node_obj);
         return NULL;
     }
     const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
@@ -226,19 +226,19 @@ json_object *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
     }
     char l_ts[80] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_timestamp);
-    json_object_object_add(json_node_obj, "Record timestamp", json_object_new_string(l_ts));
-    json_object_object_add(json_node_obj, "Record version", json_object_new_uint64(l_node_info->version));
-    json_object_object_add(json_node_obj, "Node addr", json_object_new_string(l_node_addr_str));
-    json_object_object_add(json_node_obj, "Location", json_object_new_int64(l_node_info->location));
-    json_object_object_add(json_node_obj, "Cli thread count", json_object_new_uint64(l_node_info->cli_thread_count));
-    json_object_object_add(json_node_obj, "Links count", json_object_new_uint64(l_node_info->links_count));
-    json_object_object_add(json_node_obj, "Procs", json_object_new_uint64(l_node_info->system_info.procs));
-    json_object_object_add(json_node_obj, "Free ram", json_object_new_uint64(l_node_info->system_info.freeram));
-    json_object_object_add(json_node_obj, "Total ram", json_object_new_uint64(l_node_info->system_info.totalram));
-    json_object_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[0]));
-    json_object_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[1]));
-    json_object_array_add(json_node_loads_arr, json_object_new_uint64(l_node_info->system_info.loads[2]));
-    json_object_object_add(json_node_obj, "Loads", json_node_loads_arr);
+    dap_json_object_add_string(json_node_obj, "Record timestamp", l_ts);
+    dap_json_object_add_uint64(json_node_obj, "Record version", l_node_info->version);
+    dap_json_object_add_string(json_node_obj, "Node addr", l_node_addr_str);
+    dap_json_object_add_object(json_node_obj, "Location", dap_json_object_new_int64(l_node_info->location));
+    dap_json_object_add_uint64(json_node_obj, "Cli thread count", l_node_info->cli_thread_count);
+    dap_json_object_add_uint64(json_node_obj, "Links count", l_node_info->links_count);
+    dap_json_object_add_uint64(json_node_obj, "Procs", l_node_info->system_info.procs);
+    dap_json_object_add_uint64(json_node_obj, "Free ram", l_node_info->system_info.freeram);
+    dap_json_object_add_uint64(json_node_obj, "Total ram", l_node_info->system_info.totalram);
+    dap_json_array_add(json_node_loads_arr, dap_json_object_new_uint64(l_node_info->system_info.loads[0]));
+    dap_json_array_add(json_node_loads_arr, dap_json_object_new_uint64(l_node_info->system_info.loads[1]));
+    dap_json_array_add(json_node_loads_arr, dap_json_object_new_uint64(l_node_info->system_info.loads[2]));
+    dap_json_object_add_object(json_node_obj, "Loads", json_node_loads_arr);
     return json_node_obj;
 }
 
@@ -291,7 +291,7 @@ int dap_chain_node_rpc_info_del(dap_chain_node_addr_t a_addr)
  * @brief Return string by rpc node list
  * @return pointer to json_object if Ok, NULL if error
  */
-json_object *dap_chain_node_rpc_list()
+dap_json_t *dap_chain_node_rpc_list()
 {
     size_t l_nodes_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(s_rpc_node_list_group, &l_nodes_count);
@@ -299,7 +299,7 @@ json_object *dap_chain_node_rpc_list()
     if(!l_nodes_count || !l_objs)
         return NULL;
 
-    json_object* json_node_list_arr = json_object_new_array();
+    dap_json_t *json_node_list_arr = dap_json_array_new();
     if (!json_node_list_arr)
         return NULL;
 
@@ -309,30 +309,30 @@ json_object *dap_chain_node_rpc_list()
             log_it(L_ERROR, "Node address is empty");
             continue;
         }
-        json_object* json_node_obj = json_object_new_object();
+        dap_json_t *json_node_obj = dap_json_object_new();
         if (!json_node_obj) {
-            json_object_put(json_node_list_arr);
+            dap_json_object_free(json_node_list_arr);
             return NULL;
         }
         char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
         dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
         char *l_addr = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_info->address));
-        json_object_object_add(json_node_obj, "address", json_object_new_string(l_addr));
-        json_object_object_add(json_node_obj, "IPv4", json_object_new_string(l_node_info->ext_host));
-        json_object_object_add(json_node_obj, "port", json_object_new_uint64(l_node_info->ext_port));
-        json_object_object_add(json_node_obj, "timestamp", json_object_new_string(l_ts));
-        json_object_array_add(json_node_list_arr, json_node_obj);
+        dap_json_object_add_string(json_node_obj, "address", l_addr);
+        dap_json_object_add_string(json_node_obj, "IPv4", l_node_info->ext_host);
+        dap_json_object_add_uint64(json_node_obj, "port", l_node_info->ext_port);
+        dap_json_object_add_string(json_node_obj, "timestamp", l_ts);
+        dap_json_array_add(json_node_list_arr, json_node_obj);
         DAP_DELETE(l_addr);
     }
     dap_global_db_objs_delete(l_objs, l_nodes_count);
-    json_object* json_node_list_obj = json_object_new_object();
+    dap_json_t *json_node_list_obj = dap_json_object_new();
     if (!json_node_list_obj) {
-        json_object_put(json_node_list_arr);
+        dap_json_object_free(json_node_list_arr);
         return NULL;
     }
-    json_object_object_add(json_node_list_obj, "got_nodes", json_object_new_uint64(l_nodes_count));
-    json_object_object_add(json_node_list_obj, "NODES", json_node_list_arr);
+    dap_json_object_add_uint64(json_node_list_obj, "got_nodes", l_nodes_count);
+    dap_json_object_add_object(json_node_list_obj, "NODES", json_node_list_arr);
     return json_node_list_obj;
 }
 

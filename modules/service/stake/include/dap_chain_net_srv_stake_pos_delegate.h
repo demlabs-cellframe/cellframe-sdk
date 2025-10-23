@@ -28,6 +28,7 @@
 #include "dap_math_ops.h"
 #include "dap_chain_net_ch.h"
 #include "dap_chain_datum_decree.h"
+#include "dap_chain_net_srv_order.h"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
@@ -38,13 +39,19 @@ typedef struct dap_chain_net_srv_stake_item { // TODO move it to private section
     uint256_t locked_value;
     uint256_t value;
     dap_chain_addr_t signing_addr;
-    dap_chain_hash_fast_t tx_hash;
-    dap_chain_hash_fast_t decree_hash;
+    union {
+        dap_chain_hash_fast_t hash;     // Transaction hash (packed)
+        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+    } tx_hash;
+    union {
+        dap_chain_hash_fast_t hash;     // Decree hash (packed)
+        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+    } decree_hash;
     dap_chain_node_addr_t node_addr;
     dap_chain_addr_t sovereign_addr;
     uint256_t sovereign_tax;
     dap_pkey_t *pkey;
-    UT_hash_handle hh, ht;
+    UT_hash_handle hh, ht;  // hh for signing_addr hash, ht for tx_hash
 } dap_chain_net_srv_stake_item_t;
 
 int dap_chain_net_srv_stake_pos_delegate_init();
@@ -86,3 +93,4 @@ int dap_chain_net_srv_stake_hardfork_data_verify(dap_chain_net_t *a_net, dap_has
 int dap_chain_net_srv_stake_switch_table(dap_chain_net_id_t a_net_id, bool a_to_sandbox);
 dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hash);
 void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net);
+int dap_chain_net_srv_stake_get_validator_ext(dap_chain_net_srv_order_t *a_order, uint256_t *a_tax, uint256_t *a_value_max);

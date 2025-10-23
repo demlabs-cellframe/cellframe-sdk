@@ -5,7 +5,7 @@ file(GLOB DAP_SRV_AUCTIONS_SRCS *.c)
 
 file(GLOB DAP_SRV_AUCTIONS_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_SRV_AUCTIONS_SRCS} ${DAP_SRV_AUCTIONS_HEADERS})
+cellframe_add_library(${PROJECT_NAME} ${DAP_SRV_AUCTIONS_SRCS} HEADERS ${DAP_SRV_AUCTIONS_HEADERS})
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
@@ -13,6 +13,7 @@ target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_ne
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../dap-sdk/3rdparty/json-c)
 
 if(BUILD_CELLFRAME_SDK_TESTS)
+    add_definitions("-DDAP_AUCTIONS_TEST")
     add_subdirectory(tests)
 endif()
 

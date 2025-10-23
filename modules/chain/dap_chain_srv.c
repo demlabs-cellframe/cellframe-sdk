@@ -24,6 +24,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 
 #include "dap_guuid.h"
+#include "dap_json.h"
 #include "dap_chain_srv.h"
 
 #define LOG_TAG "chain_srv"
@@ -132,18 +133,37 @@ static struct service_list *s_find_by_name(const char *a_name)
     return NULL;
 }
 
+static int s_srv_start(struct service_list *a_service, dap_chain_net_id_t a_net_id, dap_config_t *a_config)
+{
+    void *l_internal_service = NULL;
+    if (a_service->callbacks.start)
+        l_internal_service = a_service->callbacks.start(a_net_id, a_config);
+    struct network_service *l_net_service = DAP_NEW_Z_RET_VAL_IF_FAIL(struct network_service, -2);
+    *l_net_service = (struct network_service) { .service = l_internal_service, .net_id = a_net_id };
+    a_service->networks = dap_list_append(a_service->networks, l_net_service);
+    return 0;
+}
+
 int dap_chain_srv_start(dap_chain_net_id_t a_net_id, const char *a_name, dap_config_t *a_config)
 {
     struct service_list *l_service = s_find_by_name(a_name);
     if (!l_service)
         return -1;
-    void *l_internal_service = NULL;
-    if (l_service->callbacks.start)
-        l_internal_service = l_service->callbacks.start(a_net_id, a_config);
-    struct network_service *l_net_service = DAP_NEW_Z_RET_VAL_IF_FAIL(struct network_service, -2);
-    *l_net_service = (struct network_service) { .service = l_internal_service, .net_id = a_net_id };
-    l_service->networks = dap_list_append(l_service->networks, l_net_service);
-    return 0;
+    return s_srv_start(l_service, a_net_id, a_config);
+}
+
+int dap_chain_srv_start_all(dap_chain_net_id_t a_net_id)
+{
+    int ret = 0;
+    int err = pthread_rwlock_rdlock(&s_srv_list_lock);
+    assert(!err);
+    for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
+        if (s_net_service_find(it, a_net_id))
+            continue;
+        ret += s_srv_start(it, a_net_id, NULL);
+    }
+    pthread_rwlock_unlock(&s_srv_list_lock);
+    return ret;
 }
 
 int dap_chain_srv_delete(dap_chain_srv_uid_t a_srv_uid)
@@ -269,14 +289,14 @@ void dap_chain_srv_hardfork_complete_all(dap_chain_net_id_t a_net_id)
  * @param a_net_id
  * @return JSON object with array of fees for services having ones
  */
-json_object *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id)
+dap_json_t *dap_chain_srv_get_fees(dap_chain_net_id_t a_net_id)
 {
-    json_object *ret = json_object_new_array();
+    dap_json_t *ret = dap_json_array_new();
     int err = pthread_rwlock_rdlock(&s_srv_list_lock);
     assert(!err);
     for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
         if (s_net_service_find(it, a_net_id) && it->callbacks.get_fee_descr)
-            json_object_array_add(ret, it->callbacks.get_fee_descr(a_net_id));
+            dap_json_array_add(ret, it->callbacks.get_fee_descr(a_net_id));
     }
     pthread_rwlock_unlock(&s_srv_list_lock);
     return ret;
@@ -337,4 +357,28 @@ dap_list_t *dap_chain_srv_list(dap_chain_net_id_t a_net_id)
             l_list = dap_list_append(l_list, DAP_DUP(&it->uuid));
     pthread_rwlock_unlock(&s_srv_list_lock);
     return l_list;
+}
+
+int dap_chain_srv_event_verify(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, const char *a_event_group_name, int a_event_type,
+                               void *a_event, size_t a_event_size, dap_hash_fast_t *a_event_tx_hash)
+{
+    struct service_list *l_service_item = s_service_find(a_srv_uid);
+    if (!l_service_item)
+        return -1;
+    struct network_service *l_service = s_net_service_find(l_service_item, a_net_id);
+    if (!l_service)
+        return -1;
+    return l_service_item->callbacks.event_verify(a_net_id, a_event_group_name, a_event_type, a_event, a_event_size, a_event_tx_hash);
+}
+
+int dap_chain_srv_decree(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, bool a_apply, dap_tsd_t *a_params, size_t a_params_size)
+{
+    struct service_list *l_service_item = s_service_find(a_srv_uid);
+    if (!l_service_item)
+        return -1;
+    struct network_service *l_service = s_net_service_find(l_service_item, a_net_id);
+    if (!l_service)
+        return -1;
+    l_service_item->callbacks.decree(a_net_id, a_apply, a_params, a_params_size);
+    return 0;
 }

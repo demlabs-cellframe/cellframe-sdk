@@ -99,6 +99,8 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(con
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;
     else if(!dap_strcmp(a_subtype_str, "fee"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE;
+    else if(!dap_strcmp(a_subtype_str, "wallet_shared"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED;
     return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
 }
 
@@ -281,44 +283,46 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a
 }
 
 /**
- * Create item dap_chain_tx_out_cond_t
- *
- * return item, NULL Error
+ * @brief Create item dap_chain_tx_out_cond_t
+ * @param a_key public key
+ * @param a_srv_uid service uid
+ * @param a_value value
+ * @param a_value_max_per_unit max value per unit
+ * @param a_unit unit
+ * @param a_params additinonal TSD data
+ * @param a_params_size size of additional TSD data
+ * @return item, NULL Error
  */
-dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pkey_t *a_key, dap_chain_srv_uid_t a_srv_uid,
+DAP_INLINE dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pkey_t *a_key, dap_chain_srv_uid_t a_srv_uid,
                                                                              uint256_t a_value, uint256_t a_value_max_per_unit,
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size)
 {
-    if (!a_key || !a_key->header.size || IS_ZERO_256(a_value))
-        return NULL;
-    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
-    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
-    l_item->header.value = a_value;
-    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY;
-    l_item->header.srv_uid = a_srv_uid;
-    l_item->subtype.srv_pay.unit = a_unit;
-    l_item->subtype.srv_pay.unit_price_max_datoshi = a_value_max_per_unit;
-    dap_hash_fast(a_key->pkey, a_key->header.size, &l_item->subtype.srv_pay.pkey_hash);
-    if (a_params && a_params_size) {
-        l_item->tsd_size = (uint32_t)a_params_size;
-        memcpy(l_item->tsd, a_params, a_params_size);
-    }
-    return l_item;
+    dap_return_val_if_pass(!a_key ||!a_key->header.size, NULL);
+    dap_hash_fast_t l_key_hash = { };
+    
+    return dap_hash_fast(a_key->pkey, a_key->header.size, &l_key_hash) ?
+        dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(&l_key_hash, a_srv_uid, a_value, a_value_max_per_unit, a_unit, a_params, a_params_size) :
+        NULL;
 }
 
 /**
- * Create item dap_chain_tx_out_cond_t
- *
- * return item, NULL Error
+ * @brief Create item dap_chain_tx_out_cond_t
+ * @param a_key_hash pkey hash
+ * @param a_srv_uid service uid
+ * @param a_value value
+ * @param a_value_max_per_unit max value per unit
+ * @param a_unit unit
+ * @param a_params additinonal TSD data
+ * @param a_params_size size of additional TSD data
+ * @return item, NULL Error
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
                                                                                     uint256_t a_value, uint256_t a_value_max_per_unit,
                                                                                     dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                                     const void *a_params, size_t a_params_size)
 {
-    if (!a_key_hash || IS_ZERO_256(a_value))
-        return NULL;
+    dap_return_val_if_pass(!a_key_hash || IS_ZERO_256(a_value), NULL);
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
@@ -393,7 +397,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     return l_item;
 }
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_params(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_delegate(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
                                                                            uint256_t a_sovereign_tax, const void *a_params, size_t a_params_size)
 {
@@ -422,7 +426,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_param
  * @param a_key
  * @param a_srv_uid
  * @param a_value
- * @param a_time_staking
+ * @param a_time_unlock
  * @param token
  * @return
  */
@@ -637,44 +641,44 @@ dap_chain_tx_event_t *dap_chain_tx_event_copy(dap_chain_tx_event_t *a_event)
     return l_event;
 }
 
-int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_item_event_t *a_event)
+int dap_chain_datum_tx_item_event_to_json(dap_json_t *a_json_obj, dap_chain_tx_item_event_t *a_event)
 {
     dap_return_val_if_fail(a_json_obj && a_event, -1);
-    json_object *l_object = a_json_obj;
+    dap_json_t *l_object = a_json_obj;
     char l_timestamp_str[DAP_TIME_STR_SIZE] = {0};
     dap_time_to_str_rfc822(l_timestamp_str, DAP_TIME_STR_SIZE, a_event->timestamp);
-    json_object_object_add(l_object, "timestamp", json_object_new_string(l_timestamp_str));
-    json_object_object_add(l_object, "srv_uid", json_object_new_uint64(a_event->srv_uid.uint64));
-    json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
-    json_object_object_add(l_object, "event_version", json_object_new_int(a_event->version));
-    json_object_object_add(l_object, "event_group", json_object_new_string_len((char *)a_event->group_name, a_event->group_name_size));
+    dap_json_object_add_object(l_object, "timestamp", dap_json_object_new_string(l_timestamp_str));
+    dap_json_object_add_object(l_object, "srv_uid", dap_json_object_new_uint64(a_event->srv_uid.uint64));
+    dap_json_object_add_object(l_object, "event_type", dap_json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
+    dap_json_object_add_object(l_object, "event_version", dap_json_object_new_int(a_event->version));
+    dap_json_object_add_object(l_object, "event_group", dap_json_object_new_string((char *)a_event->group_name));
     return 0;
 }
 
-int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type)
+int dap_chain_datum_tx_event_to_json(dap_json_t *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type)
 {
     dap_return_val_if_fail(a_json_obj && a_event, -1);
-    json_object *l_object = a_json_obj;
+    dap_json_t *l_object = a_json_obj;
     char l_timestamp_str[DAP_TIME_STR_SIZE] = {0};
     dap_time_to_str_rfc822(l_timestamp_str, DAP_TIME_STR_SIZE, a_event->timestamp);
-    json_object_object_add(l_object, "timestamp", json_object_new_string(l_timestamp_str));
-    json_object_object_add(l_object, "srv_uid", json_object_new_uint64(a_event->srv_uid.uint64));
-    json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
-    json_object_object_add(l_object, "event_group", json_object_new_string(a_event->group_name));
+    dap_json_object_add_object(l_object, "timestamp", dap_json_object_new_string(l_timestamp_str));
+    dap_json_object_add_object(l_object, "srv_uid", dap_json_object_new_uint64(a_event->srv_uid.uint64));
+    dap_json_object_add_object(l_object, "event_type", dap_json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
+    dap_json_object_add_object(l_object, "event_group", dap_json_object_new_string(a_event->group_name));
     const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->tx_hash)
                                                                    : dap_chain_hash_fast_to_str_static(&a_event->tx_hash);
-    json_object_object_add(l_object, "tx_hash", json_object_new_string(l_tx_hash_str));
+    dap_json_object_add_object(l_object, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
     const char *l_pkey_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->pkey_hash)
                                                                      : dap_hash_fast_to_str_static(&a_event->pkey_hash);
-    json_object_object_add(l_object, "pkey_hash", json_object_new_string(l_pkey_hash_str));
-    json_object_object_add(l_object, "data_size", json_object_new_int64(a_event->event_data_size));
+    dap_json_object_add_object(l_object, "pkey_hash", dap_json_object_new_string(l_pkey_hash_str));
+    dap_json_object_add_object(l_object, "data_size", dap_json_object_new_int64(a_event->event_data_size));
     if (a_event->event_data && a_event->event_data_size > 0) {
         const size_t l_print_size_max = 32;
         size_t l_print_size = a_event->event_data_size > l_print_size_max ? l_print_size_max : a_event->event_data_size;
         char *l_data_hex = DAP_NEW_Z_SIZE(char, l_print_size * 2 + 1);
         if (l_data_hex) {
             dap_bin2hex(l_data_hex, a_event->event_data, l_print_size);
-            json_object_object_add(l_object, "data_hex", json_object_new_string(l_data_hex));
+            dap_json_object_add_object(l_object, "data_hex", dap_json_object_new_string(l_data_hex));
             DAP_DELETE(l_data_hex);
         }
         if (a_event->event_data_size > l_print_size_max)

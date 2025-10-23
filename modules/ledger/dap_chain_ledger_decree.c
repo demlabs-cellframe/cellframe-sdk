@@ -35,6 +35,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_policy.h"
+#include "dap_json.h"
 #include "dap_chain_srv.h"
 
 #define LOG_TAG "dap_ledger_decree"
@@ -647,7 +648,8 @@ const char *l_ban_addr;
 
             dap_tsd_t *l_changed_addrs = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
-            json_object *l_changed_addrs_json = l_changed_addrs ? json_tokener_parse((char *)l_changed_addrs->data) : NULL;
+            dap_json_tokener_error_t l_error;
+            dap_json_t *l_changed_addrs_json = l_changed_addrs ? dap_json_tokener_parse_verbose((char *)l_changed_addrs->data, &l_error) : NULL;
             return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_hardfork_generation, l_block_num, l_addrs, l_changed_addrs_json);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY: {
@@ -772,6 +774,27 @@ const char *l_ban_addr;
                 return -118;
             }
         } break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN: {
+            if (!a_apply)
+                break;
+            if (!a_anchored)
+                break;
+            uint16_t l_blockgen_period = 0;
+            if (dap_chain_datum_decree_get_empty_block_every_times(a_decree, &l_blockgen_period)){
+                log_it(L_WARNING,"Can't get empty blockgen period from decree.");
+                return -105;
+            }
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+                log_it(L_WARNING, "Can't apply this decree to specified chain");
+                return -115;
+            }
+            return dap_chain_esbocs_set_empty_block_every_times(l_chain, l_blockgen_period);
+        }
         default:
             return -1;
     }
