@@ -77,6 +77,19 @@ typedef struct dap_chain_datum_tx_item_groups {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Check whether transaction refers to address via outputs or signature.
+ *
+ * Transaction is considered related to address if it contains an OUT/OUT_EXT item
+ * targeting the address, or if one of its signatures resolves to the address.
+ *
+ * @param a_tx   Transaction datum to inspect
+ * @param a_addr Address to test
+ * @return true when transaction belongs to address, false otherwise
+ */
+bool dap_chain_tx_belongs_to_addr(const dap_chain_datum_tx_t *a_tx, const dap_chain_addr_t *a_addr);
+
 /**
  * Get item name by item type
  *

@@ -1071,6 +1071,12 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
                                                 l_burning_tx_hash_str, dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
                 return -10;
             }
+            // Legacy acceptance: allow non-tickered OUT only with ticker verification
+            const char *l_out_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_burning_tx_hash);
+            if (!l_out_ticker || strcmp(l_out_ticker, l_delegated_ticker_str)) {
+                log_it(L_WARNING, "Burned ticker %s does not match delegated ticker %s Dismiss unstake tx %s", l_out_ticker, l_delegated_ticker_str, dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
+                return -11;
+            }
         } else
             l_burning_tx = a_tx_in;
 
@@ -1078,9 +1084,9 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
         dap_chain_addr_t l_out_addr = {};
         byte_t *l_item; size_t l_size; int i;
         TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_burning_tx) {
-            if (*l_item == TX_ITEM_TYPE_OUT 
-                && dap_ledger_get_blockchain_time(a_ledger) < dap_config_get_item_uint64_default(g_config, "stake", "burn_policy_cutoff_date", 1757980800) && a_check_for_apply) {
-                // Legacy acceptance: allow non-tickered OUT burn only before cut-off and only on apply stage
+            if (*l_item == TX_ITEM_TYPE_OUT) {
+                if (!l_receipt_old)
+                    continue;
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)l_item;
                 l_out_addr = l_out->addr;
                 if ( dap_chain_addr_is_blank(&l_out_addr) ) {
