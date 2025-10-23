@@ -5306,8 +5306,7 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply, int a_version)
     UNUSED(a_argc);
     UNUSED(a_argv);
     UNUSED(a_str_reply);
-    //dap_events_stop_all();
-    exit(0);
+    dap_events_stop_all();
     return 0;
 }
 

@@ -961,16 +961,6 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
 void dap_chain_net_purge(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_pvt = PVT(a_net);
-    dap_global_db_cluster_t *l_mempool = l_pvt->mempool_clusters;
-    while (l_mempool) {
-        dap_global_db_cluster_t *l_next = l_mempool->next;
-        dap_global_db_cluster_delete(l_mempool);
-        l_mempool = l_next;
-    }
-    dap_global_db_cluster_delete(l_pvt->orders_cluster);
-    dap_global_db_cluster_delete(l_pvt->nodes_cluster);
-    dap_global_db_cluster_delete(l_pvt->nodes_states);
-    dap_global_db_cluster_delete(l_pvt->common_orders);
     struct block_reward *l_reward, *l_tmp;
     DL_FOREACH_SAFE(l_pvt->rewards, l_reward, l_tmp) {
         DL_DELETE(l_pvt->rewards, l_reward);
