@@ -463,8 +463,25 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                     break;
                 }
             l_el_size = *(uint64_t*)a_cell->map_pos;
-            if ( !l_el_size || l_el_size > (size_t)(l_full_size - l_pos) )
+            /* Validate atom size: must be non-zero, within file bounds, and not exceed maximum */
+            if ( !l_el_size || l_el_size > (size_t)(l_full_size - l_pos) ) {
+                log_it(L_WARNING, "Invalid atom size %"DAP_UINT64_FORMAT_U" at position %zu (file size %zu), chain %s is damaged", 
+                       l_el_size, l_pos, l_full_size, a_cell->file_storage_path);
                 break;
+            }
+#ifdef DAP_CHAIN_ATOM_MAX_SIZE
+            if ( l_el_size > DAP_CHAIN_ATOM_MAX_SIZE ) {
+                log_it(L_ERROR, "Atom size %"DAP_UINT64_FORMAT_U" exceeds maximum allowed size %d at position %zu, chain %s is damaged",
+                       l_el_size, DAP_CHAIN_ATOM_MAX_SIZE, l_pos, a_cell->file_storage_path);
+                l_ret = -5;
+                break;
+            }
+#endif
+            /* Check memory alignment for mmap to avoid bus errors */
+            if ( ((uintptr_t)a_cell->map_pos & 0x7) != 0 ) {
+                log_it(L_WARNING, "Unaligned memory access at position %zu, chain %s may be corrupted", 
+                       l_pos, a_cell->file_storage_path);
+            }
             a_cell->map_pos += sizeof(uint64_t);
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos);
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
@@ -481,10 +498,19 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         size_t l_read = 0;
         while ((l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage)) && !feof(a_cell->file_storage)) {
             if (l_read != sizeof(l_el_size) || l_el_size == 0) {
-                log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, a_cell->file_storage_path);
+                log_it(L_ERROR, "Corrupted element size %"DAP_UINT64_FORMAT_U", chain %s is damaged", l_el_size, a_cell->file_storage_path);
                 l_ret = -4;
                 break;
             }
+#ifdef DAP_CHAIN_ATOM_MAX_SIZE
+            /* Validate atom size against maximum allowed */
+            if ( l_el_size > DAP_CHAIN_ATOM_MAX_SIZE ) {
+                log_it(L_ERROR, "Atom size %"DAP_UINT64_FORMAT_U" exceeds maximum allowed size %d, chain %s is damaged",
+                       l_el_size, DAP_CHAIN_ATOM_MAX_SIZE, a_cell->file_storage_path);
+                l_ret = -5;
+                break;
+            }
+#endif
             dap_chain_atom_ptr_t l_element = DAP_NEW_SIZE(dap_chain_atom_ptr_t, l_el_size);
             if (!l_element) {
                 log_it(L_CRITICAL, "Memory allocation error");

@@ -1654,13 +1654,15 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
+        /* Remove from both hash tables before freeing memory */
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
+        HASH_DELETE(hh2, PVT(l_blocks)->blocks_num, l_block);
         if (!a_chain->is_mapped)
             DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
     }
     PVT(l_blocks)->blocks_count = 0;
-    HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
+    /* blocks_num is already cleared in the loop above, no need for HASH_CLEAR */
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     
     dap_chain_block_datum_index_t *l_datum_index = NULL, *l_datum_index_tmp = NULL;
@@ -2054,12 +2056,30 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             l_block_cache->block_number = l_prev_bcache->block_number + 1;
 
             dap_chain_block_forked_branch_t *forked_branch = DAP_NEW_Z(dap_chain_block_forked_branch_t);
+            if (!forked_branch) {
+                log_it(L_ERROR, "Memory allocation failed for forked branch");
+                DAP_DELETE(l_new_item);
+                pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
+                return ATOM_REJECT;
+            }
             forked_branch->connected_block = l_prev_bcache;
             HASH_ADD(hh, forked_branch->forked_branch_atoms, block_hash, sizeof(dap_hash_fast_t), l_new_item);
             
-            PVT(l_blocks)->forked_br_cnt++;
-            PVT(l_blocks)->forked_branches = DAP_REALLOC_COUNT(PVT(l_blocks)->forked_branches, PVT(l_blocks)->forked_br_cnt);
-            PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1] = forked_branch;
+            /* Reallocate forked_branches array with proper NULL initialization */
+            size_t l_new_cnt = PVT(l_blocks)->forked_br_cnt + 1;
+            dap_chain_block_forked_branch_t **l_new_branches = DAP_REALLOC_COUNT(PVT(l_blocks)->forked_branches, l_new_cnt);
+            if (!l_new_branches) {
+                log_it(L_ERROR, "Memory reallocation failed for forked_branches array");
+                HASH_DELETE(hh, forked_branch->forked_branch_atoms, l_new_item);
+                DAP_DELETE(l_new_item);
+                DAP_DELETE(forked_branch);
+                pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
+                return ATOM_REJECT;
+            }
+            /* Initialize new element to avoid garbage pointer */
+            l_new_branches[l_new_cnt - 1] = forked_branch;
+            PVT(l_blocks)->forked_branches = l_new_branches;
+            PVT(l_blocks)->forked_br_cnt = l_new_cnt;
 
             l_prev_bcache->forked_branches = dap_list_append(l_prev_bcache->forked_branches, PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1]);
             pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
@@ -2187,6 +2207,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             pthread_rwlock_rdlock(& PVT(l_blocks)->rwlock);
             for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){
                 dap_chain_block_forked_branch_t *l_cur_branch = PVT(l_blocks)->forked_branches[i];
+                /* Validate branch pointer before dereferencing */
+                if (!l_cur_branch) {
+                    log_it(L_WARNING, "NULL forked branch at index %zu, skipping", i);
+                    continue;
+                }
                 dap_chain_block_forked_branch_atoms_table_t *l_item = NULL;
                 // Check block already present in forked branch
                 HASH_FIND(hh, l_cur_branch->forked_branch_atoms, &l_block_hash, sizeof(dap_hash_fast_t), l_item);
