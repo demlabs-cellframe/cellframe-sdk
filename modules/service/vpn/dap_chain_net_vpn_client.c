@@ -67,6 +67,7 @@
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
+#include "dap_chain_net_vpn_client_payment.h"
 //#include "dap_modules_dynamic_cdb.h"
 
 /*
@@ -585,6 +586,22 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
  */
 int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_host, uint16_t a_port)
 {
+    log_it(L_ERROR, "Payment required: use dap_chain_net_vpn_client_start_ext() with payment config");
+    return -100; // Error: payment required
+}
+
+/**
+ * Start VPN client with advanced transport and obfuscation options
+ *
+ * return: 0 Ok, 1 Already started, <0 Error
+ */
+int dap_chain_net_vpn_client_start_ext(dap_chain_net_t *a_net,
+                                         const char *a_host,
+                                         uint16_t a_port,
+                                         dap_stream_transport_type_t a_transport_type,
+                                         dap_stream_obfuscation_intensity_t a_obfuscation_intensity,
+                                         const dap_chain_net_vpn_client_payment_config_t *a_payment_config)
+{
     dap_return_val_if_fail(a_net && a_host, -1);
     int l_ret = 0;
     unsigned l_hostlen = dap_min((int)strlen(a_host), DAP_HOSTADDR_STRLEN);
@@ -595,6 +612,39 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_host, u
 
     const char l_active_channels[] = { DAP_STREAM_CH_NET_SRV_ID, DAP_STREAM_CH_NET_SRV_ID_VPN, 0 }; //R, S
 
+    // Log transport and obfuscation settings
+    const char *l_transport_name = "HTTP";
+    switch(a_transport_type) {
+        case DAP_STREAM_TRANSPORT_UDP_BASIC: l_transport_name = "UDP"; break;
+        case DAP_STREAM_TRANSPORT_WEBSOCKET: l_transport_name = "WebSocket"; break;
+        default: break;
+    }
+    
+    const char *l_obfuscation_name = "NONE";
+    switch(a_obfuscation_intensity) {
+        case DAP_STREAM_OBFUSCATION_LOW: l_obfuscation_name = "LOW"; break;
+        case DAP_STREAM_OBFUSCATION_MEDIUM: l_obfuscation_name = "MEDIUM"; break;
+        case DAP_STREAM_OBFUSCATION_HIGH: l_obfuscation_name = "HIGH"; break;
+        case DAP_STREAM_OBFUSCATION_PARANOID: l_obfuscation_name = "PARANOID"; break;
+        default: break;
+    }
+    
+    const char *l_payment_status = "REQUIRED";
+    
+    log_it(L_INFO, "Starting VPN client with transport=%s, obfuscation=%s, payment=%s",
+           l_transport_name, l_obfuscation_name, l_payment_status);
+
+    // Validate payment config
+    if (!a_payment_config) {
+        log_it(L_ERROR, "Payment configuration is required");
+        return -10;
+    }
+
+    // TODO: Add transport type selection mechanism
+    // For now, use existing connection method which defaults to HTTP
+    // Future: Pass a_transport_type to connection layer
+    // The underlying dap_client will use the new transport layer automatically
+    // once we add transport selection to dap_chain_node_client_connect_channels()
     s_vpn_client = dap_chain_node_client_connect_channels(a_net,s_node_info, l_active_channels);
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server %s : %d", a_host, a_port);
@@ -639,6 +689,49 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_host, u
 //    	    strncpy(l_request->hdr.token, a_token.toLatin1().constData(),sizeof (l_request->hdr.token)-1);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST, &l_request, sizeof(l_request));
             dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
+        }
+    }
+
+    // Send payment information to VPN service (via VPN channel, not stream handshake)
+    {
+        uint8_t l_ch_id = DAP_STREAM_CH_NET_SRV_ID_VPN; // Channel id for VPN service = 'S'
+        dap_stream_ch_t *l_ch_vpn = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
+        if(l_ch_vpn) {
+            // Serialize payment config
+            uint8_t *l_payment_data = NULL;
+            size_t l_payment_size = 0;
+            int l_serialize_res = dap_chain_net_vpn_client_payment_serialize(a_payment_config, 
+                                                                               &l_payment_data, 
+                                                                               &l_payment_size);
+            
+            if (l_serialize_res == 0 && l_payment_data && l_payment_size > 0) {
+                // Send payment packet via VPN channel
+                // Packet type: we'll use a custom type for payment (0xF0 = 240)
+                // TODO: Define proper packet type in dap_stream_ch_chain_net_srv_pkt.h
+                dap_stream_ch_pkt_write_unsafe(l_ch_vpn, 0xF0, l_payment_data, l_payment_size);
+                dap_stream_ch_set_ready_to_write_unsafe(l_ch_vpn, true);
+                
+                log_it(L_INFO, "Payment information sent to VPN service (%zu bytes, network=%s)",
+                       l_payment_size, a_payment_config->network_name);
+                
+                DAP_DELETE(l_payment_data);
+            } else {
+                log_it(L_ERROR, "Failed to serialize payment config (res=%d)", l_serialize_res);
+                // Fail hard - payment is required
+                dap_chain_node_client_close_mt(s_vpn_client);
+                s_vpn_client = NULL;
+                DAP_DELETE(s_node_info);
+                s_node_info = NULL;
+                return -11;
+            }
+        } else {
+            log_it(L_ERROR, "VPN channel not available, cannot send payment");
+            // Fail hard - payment is required
+            dap_chain_node_client_close_mt(s_vpn_client);
+            s_vpn_client = NULL;
+            DAP_DELETE(s_node_info);
+            s_node_info = NULL;
+            return -12;
         }
     }
 

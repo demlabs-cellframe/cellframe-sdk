@@ -24,33 +24,11 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef DAP_OS_LINUX
+// Platform-specific TUN device management is now in platform/ subdirectories
 #include <netinet/in.h>
-#include <linux/if.h>
-#include <linux/if_tun.h>
-#include <sys/ioctl.h>
-#include <sys/epoll.h>
-#endif
+#include <netinet/ip.h>
 
-#ifdef DAP_OS_DARWIN
-#include <net/if.h>
-#ifndef DAP_OS_IOS
-#include <net/if_utun.h>
-#include <sys/kern_control.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/sys_domain.h>
-#include <netinet/in.h>
-#endif
-#elif defined(DAP_OS_BSD)
-#include <netinet/in.h>
-#include <net/if.h>
-#include <net/if_tun.h>
-#include <sys/ioctl.h>
-#endif
-
-#if defined (DAP_OS_BSD)
+#ifdef DAP_OS_BSD
 typedef struct ip dap_os_iphdr_t;
 #else
 typedef struct iphdr dap_os_iphdr_t;
@@ -102,29 +80,59 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_chain_node_cli.h"
 #include "dap_chain_ledger.h"
 #include "dap_events.h"
+#include "dap_chain_net_srv_vpn_addr_pool.h"
 
 #include "dap_http_simple.h"
 #include "http_status_code.h"
 #include "json-c/json.h"
+#include "dap_chain_net_srv_vpn_traffic.h"
+#include "dap_chain_net_srv_vpn_multihop.h"
+#include "dap_chain_net_srv_vpn_tsd.h"
+#include "tun/include/dap_net_tun.h"
 
 #define LOG_TAG "dap_chain_net_srv_vpn"
 
 #define SF_MAX_EVENTS 256
 
+// VPN custom data structure for JSON parsing
+typedef struct dap_chain_net_srv_vpn_custom_data {
+    // Routing preferences
+    bool prefer_ipv6;
+    bool split_tunneling;
+    char *exclude_routes;  // Comma-separated CIDR list
+    
+    // QoS settings
+    uint32_t bandwidth_limit_mbps;  // 0 = unlimited
+    uint32_t priority;  // 0-255, higher = higher priority
+    
+    // Protocol preferences
+    char *preferred_transport;  // "udp", "ws", "http", "tls"
+    bool allow_fallback;
+    
+    // Advanced options
+    uint32_t keepalive_interval_sec;
+    bool compression_enabled;
+    char *dns_servers;  // Comma-separated DNS IPs
+    
+    // Multi-hop parameters (parsed from payment TX TSD)
+    bool is_multihop;
+    uint8_t hop_index;              // This node's position in route
+    uint8_t total_hops;             // Total hops in route
+    uint8_t tunnel_count;           // Number of parallel tunnels
+    uint32_t session_id;            // Multi-hop session ID
+    dap_chain_node_addr_t *route;  // Complete route (all hop addresses)
+} dap_chain_net_srv_vpn_custom_data_t;
+
+// Simplified server structure - platform-specific details moved to platform modules
 typedef struct vpn_local_network {
     struct in_addr ipv4_lease_last;
     struct in_addr ipv4_network_mask;
     struct in_addr ipv4_network_addr;
     struct in_addr ipv4_gw;
-    int tun_ctl_fd;
-    char * tun_device_name;
-    int tun_fd;
-#ifndef DAP_OS_DARWIN
-    struct ifreq ifr;
-#endif
+    char *tun_device_name;
     bool auto_cpu_reassignment;
-
-    dap_stream_ch_vpn_pkt_t * pkt_out[400];
+    
+    dap_stream_ch_vpn_pkt_t *pkt_out[400];
     size_t pkt_out_size;
     size_t pkt_out_rindex;
     size_t pkt_out_windex;
@@ -171,6 +179,9 @@ typedef struct{
     dap_chain_net_srv_client_remote_t * srv_client;
 } remain_limits_save_arg_t;
 
+// Unified TUN device handle
+static dap_net_tun_t *s_tun_handle = NULL;
+
 dap_chain_net_srv_vpn_tun_socket_t ** s_tun_sockets = NULL;
 dap_events_socket_t ** s_tun_sockets_queue_msg = NULL;
 
@@ -186,6 +197,9 @@ static pthread_rwlock_t s_clients_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static vpn_local_network_t *s_raw_server = NULL;
 static pthread_rwlock_t s_raw_server_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
+// Address pool manager (replaces simple ipv4_lease_last approach)
+static dap_chain_net_srv_vpn_addr_pool_t *s_addr_pool = NULL;
 
 // Service callbacks
 static int s_callback_requested(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client
@@ -235,11 +249,7 @@ static void s_tun_send_msg_ip_assigned_all(uint32_t a_worker_own_id, dap_chain_n
 static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_own_id, uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
 static void s_tun_send_msg_ip_unassigned_all(uint32_t a_worker_own_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
 
-#if !defined(DAP_OS_DARWIN) && (defined(DAP_OS_LINUX) || defined (DAP_OS_BSD))
-
-static int s_tun_deattach_queue(int fd);
-static int s_tun_attach_queue(int fd);
-#endif
+// TUN queue management is now in platform-specific modules
 
 static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * a_ch_vpn_info, const void * a_data, size_t a_data_size);
 static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn, dap_stream_ch_vpn_pkt_t * l_pkt_out);
@@ -250,6 +260,22 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
     dap_chain_net_srv_usage_t *l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session, l_ch_vpn->usage_id);
     size_t l_data_to_send = (l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
+    
+    // Apply traffic shaping (bandwidth limiting)
+    if (l_srv_session->custom_data) {
+        dap_chain_net_srv_vpn_traffic_config_t *l_traffic_config = 
+            (dap_chain_net_srv_vpn_traffic_config_t*)l_srv_session->custom_data;
+        
+        if (l_traffic_config->shaper) {
+            if (!dap_chain_net_srv_vpn_traffic_shaper_allow(l_traffic_config->shaper, l_data_to_send)) {
+                debug_if(s_debug_more, L_DEBUG, "Packet dropped by traffic shaper: %zu bytes", l_data_to_send);
+                l_srv_session->stats.bytes_recv_lost += l_data_to_send;
+                l_srv_session->stats.packets_recv_lost++;
+                return false;
+            }
+        }
+    }
+    
     debug_if(s_debug_more, L_DEBUG, "Sent stream pkt size %zu on worker #%u", l_data_to_send, l_ch_vpn->ch->stream_worker->worker->id);
     size_t l_data_sent = dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out, l_data_to_send);
     s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_data_sent);
@@ -655,185 +681,120 @@ static dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, 
 }
 
 /**
- * @brief s_vpn_tun_create
- * @param g_config
- * @return
+ * @brief TUN data received callback
+ */
+static void s_tun_data_received_callback(dap_net_tun_t *a_tun, const void *a_data,
+                                          size_t a_data_size, void *a_arg)
+{
+    UNUSED(a_tun);
+    UNUSED(a_arg);
+    
+    if (!a_data || a_data_size == 0) {
+        return;
+    }
+    
+    debug_if(s_debug_more, L_DEBUG, "Received %zu bytes from TUN device", a_data_size);
+    
+    // Parse IP header to get destination address
+    if (a_data_size < 20) {  // Minimum IP header size
+        log_it(L_WARNING, "Packet too small for IP header: %zu bytes", a_data_size);
+        return;
+    }
+    
+    const uint8_t *l_ip_packet = (const uint8_t *)a_data;
+    struct in_addr l_dst_addr;
+    memcpy(&l_dst_addr, l_ip_packet + 16, 4);  // Destination IP at offset 16
+    
+    // Find client by destination IP
+    pthread_rwlock_rdlock(&s_clients_rwlock);
+    dap_chain_net_srv_ch_vpn_t *l_client = NULL;
+    HASH_FIND(hh, s_ch_vpn_addrs, &l_dst_addr, sizeof(struct in_addr), l_client);
+    
+    if (!l_client) {
+        pthread_rwlock_unlock(&s_clients_rwlock);
+        debug_if(s_debug_more, L_WARNING, "No client found for destination %s",
+                 inet_ntoa(l_dst_addr));
+        return;
+    }
+    
+    // Send packet to client via stream channel
+    if (l_client->ch && l_client->ch->stream) {
+        dap_stream_ch_pkt_write_unsafe(l_client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA,
+                                        a_data, a_data_size);
+        debug_if(s_debug_more, L_DEBUG, "Routed %zu bytes to client %s",
+                 a_data_size, inet_ntoa(l_dst_addr));
+    }
+    
+    pthread_rwlock_unlock(&s_clients_rwlock);
+}
+
+/**
+ * @brief TUN error callback
+ */
+static void s_tun_error_callback(dap_net_tun_t *a_tun, int a_error_code, void *a_arg)
+{
+    UNUSED(a_tun);
+    UNUSED(a_arg);
+    
+    log_it(L_ERROR, "TUN device error: %d", a_error_code);
+}
+
+/**
+ * @brief s_vpn_tun_create - Now uses unified TUN API
+ * @param g_config Configuration
+ * @return 0 on success, negative on error
  */
 static int s_vpn_tun_create(dap_config_t * g_config)
 {
+    // Parse network configuration
     const char *c_addr = dap_config_get_item_str(g_config, "srv_vpn", "network_address");
     const char *c_mask = dap_config_get_item_str(g_config, "srv_vpn", "network_mask");
-    if(!c_addr || !c_mask){
+    if (!c_addr || !c_mask) {
         log_it(L_CRITICAL, "Error while reading network parameters from config (network_address and network_mask)");
-        DAP_DELETE((void*)c_addr);
-        DAP_DELETE((void*)c_mask);
         return -1;
     }
 
-    inet_aton(c_addr, &s_raw_server->ipv4_network_addr );
-    inet_aton(c_mask, &s_raw_server->ipv4_network_mask );
-    s_raw_server->ipv4_gw.s_addr= (s_raw_server->ipv4_network_addr.s_addr | 0x01000000);
+    inet_aton(c_addr, &s_raw_server->ipv4_network_addr);
+    inet_aton(c_mask, &s_raw_server->ipv4_network_mask);
+    s_raw_server->ipv4_gw.s_addr = (s_raw_server->ipv4_network_addr.s_addr | 0x01000000);
     s_raw_server->ipv4_lease_last.s_addr = s_raw_server->ipv4_gw.s_addr;
-
-#ifdef DAP_OS_DARWIN
-    s_tun_sockets_count = 1;
-#elif defined (DAP_OS_LINUX) || defined (DAP_OS_BSD)
-// Not for Darwin
-    s_tun_sockets_count = dap_get_cpu_count();
-    memset(&s_raw_server->ifr, 0, sizeof(s_raw_server->ifr));
-    s_raw_server->ifr.ifr_flags = IFF_TUN | IFF_MULTI_QUEUE| IFF_NO_PI;
     s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", false);
-#else
-#error "Undefined tun create for your platform"
-#endif
-    log_it(L_NOTICE, "Auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
-    log_it(L_INFO, "Trying to initialize multiqueue for %u workers", s_tun_sockets_count);
-    s_tun_sockets = DAP_NEW_Z_SIZE(dap_chain_net_srv_vpn_tun_socket_t*,s_tun_sockets_count*sizeof(dap_chain_net_srv_vpn_tun_socket_t*));
-    s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
 
-    int l_err = 0;
-    int l_tun_fd;
-#if defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
-    // Prepare structs
-    struct ctl_info l_ctl_info = {0};
+    // Prepare unified TUN configuration
+    dap_net_tun_config_t l_tun_config = {
+        .mode = DAP_NET_TUN_MODE_SERVER,
+        .network_addr = s_raw_server->ipv4_network_addr,
+        .network_mask = s_raw_server->ipv4_network_mask,
+        .gateway_addr = s_raw_server->ipv4_gw,
+        .device_name_prefix = "tun",
+        .mtu = 1500,
+        .worker_count = 0,  // Auto-detect CPU count
+        .workers = NULL,     // Will use dap_events_worker_get()
+        .on_data_received = s_tun_data_received_callback,  // To be defined
+        .on_error = s_tun_error_callback,                  // To be defined
+        .callback_arg = NULL,
+        .auto_cpu_reassignment = s_raw_server->auto_cpu_reassignment
+    };
 
-    // Copy utun control name
-    if (strlcpy(l_ctl_info.ctl_name, UTUN_CONTROL_NAME, sizeof(l_ctl_info.ctl_name))
-            >= sizeof(l_ctl_info.ctl_name)){
-        l_err = -100; // How its possible to came into this part? Idk
-        log_it(L_ERROR,"UTUN_CONTROL_NAME \"%s\" too long", UTUN_CONTROL_NAME);
-        goto lb_err;
+    // Initialize unified TUN device
+    s_tun_handle = dap_net_tun_init(&l_tun_config);
+    if (!s_tun_handle) {
+        log_it(L_ERROR, "Failed to initialize unified TUN device");
+        return -1;
     }
 
-    // Create utun socket
-    l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
-    if( l_tun_fd < 0){
-        log_it(L_ERROR, "Opening utun device control (SYSPROTO_CONTROL) error %d: \"%s\"",
-                        errno, dap_strerror(errno));
-        l_err = -101;
-        goto lb_err;
-    }
-    log_it(L_INFO, "Utun SYSPROTO_CONTROL descriptor obtained");
-    s_raw_server->tun_ctl_fd = l_tun_fd;
-
-    // Pass control structure to the utun socket
-    if( ioctl(l_tun_fd, CTLIOCGINFO, &l_ctl_info ) < 0 ){
-        log_it(L_ERROR, "Can't execute ioctl(CTLIOCGINFO), error %d: \"%s\"", 
-                        errno, dap_strerror(errno));
-        l_err = -102;
-        goto lb_err;
-
-    }
-    log_it(L_INFO, "Utun CTLIOCGINFO structure passed through ioctl");
-
-    // Trying to connect with one of utunX devices
-    int l_ret = -1;
-    for(int l_unit = 0; l_unit < 256; l_unit++){
-        struct sockaddr_ctl l_sa_ctl = {0};
-        l_sa_ctl.sc_id = l_ctl_info.ctl_id;
-        l_sa_ctl.sc_len = sizeof(l_sa_ctl);
-        l_sa_ctl.sc_family = AF_SYSTEM;
-        l_sa_ctl.ss_sysaddr = AF_SYS_CONTROL;
-        l_sa_ctl.sc_unit = l_unit + 1;
-
-        // If connect successful, new utunX device should be created
-        l_ret = connect(l_tun_fd, (struct sockaddr *)&l_sa_ctl, sizeof(l_sa_ctl));
-        if(l_ret == 0)
-            break;
-    }
-    if (l_ret < 0){
-        log_it(L_ERROR, "Can't create utun device, error %d: \"%s\"", 
-                        errno, dap_strerror(errno));
-        l_err = -103;
-        goto lb_err;
-
+    // Get device info
+    const char *l_tun_name = dap_net_tun_get_device_name(s_tun_handle, 0);
+    if (l_tun_name) {
+        s_raw_server->tun_device_name = strdup(l_tun_name);
     }
 
-    // Get iface name of newly created utun dev.
-    log_it(L_NOTICE, "Utun device created");
-    char l_utunname[20];
-    socklen_t l_utunname_len = sizeof(l_utunname);
-    if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ){
-        log_it(L_ERROR, "Can't get utun device name, error %d: \"%s\"",
-                        errno, dap_strerror(errno));
-        l_err = -104;
-        goto lb_err;
-    }
-    s_raw_server->tun_device_name = strndup(l_utunname, l_utunname_len);
-    log_it(L_NOTICE, "Utun device name \"%s\"", s_raw_server->tun_device_name);
-#endif
+    s_tun_sockets_count = dap_net_tun_get_device_count(s_tun_handle);
 
-    pthread_mutex_lock(&s_tun_sockets_mutex_started);
-    for( uint8_t i =0; i< s_tun_sockets_count; i++){
-        dap_worker_t * l_worker = dap_events_worker_get(i);
-        assert( l_worker );
-#if !defined(DAP_OS_DARWIN) &&( defined (DAP_OS_LINUX) || defined (DAP_OS_BSD))
-        if( (l_tun_fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK)) < 0 ) {
-            log_it(L_ERROR, "Opening /dev/net/tun error %d: \"%s\"",
-                            errno, dap_strerror(errno));
-            l_err = -100;
-            break;
-        }
-        log_it(L_DEBUG,"Opening /dev/net/tun:%u", i);
-        if( (l_err = ioctl(l_tun_fd, TUNSETIFF, (void *)& s_raw_server->ifr)) < 0 ) {
-            log_it(L_CRITICAL, "ioctl(TUNSETIFF) error %d: \"%s\"", errno, dap_strerror(errno));
-            close(l_tun_fd);
-            break;
-        }
-        s_tun_deattach_queue(l_tun_fd);
-        s_raw_server->tun_device_name = strdup(s_raw_server->ifr.ifr_name);
-        s_raw_server->tun_fd = l_tun_fd;
+    log_it(L_NOTICE, "Auto CPU reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
+    log_it(L_INFO, "TUN device initialized with %u devices ", s_tun_sockets_count);
 
-#elif !defined (DAP_OS_DARWIN)
-#error "Undefined tun interface attach for your platform"
-#endif
-        s_tun_event_stream_create(l_worker, l_tun_fd);
-    }
-    if (l_err) {
-        pthread_mutex_unlock(&s_tun_sockets_mutex_started);
-        goto lb_err;
-    }
-
-    // Waiting for all the tun sockets
-    while (s_tun_sockets_started != s_tun_sockets_count)
-        pthread_cond_wait(&s_tun_sockets_cond_started, &s_tun_sockets_mutex_started);
-    pthread_mutex_unlock(&s_tun_sockets_mutex_started);
-
-    // Fill inter tun qyueue
-    // Create for all previous created sockets the input queue
-    for (size_t n=0; n< s_tun_sockets_count; n++){
-        dap_chain_net_srv_vpn_tun_socket_t * l_tun_socket = s_tun_sockets[n];
-        dap_worker_t * l_worker = dap_events_worker_get(n);
-        for (size_t k=0; k< s_tun_sockets_count; k++){
-            dap_events_socket_t * l_queue_msg_input = dap_events_socket_queue_ptr_create_input( s_tun_sockets_queue_msg[n] );
-            l_tun_socket->queue_tun_msg_input[k] = l_queue_msg_input;
-            dap_events_socket_assign_on_worker_mt( l_queue_msg_input, l_worker );
-        }
-    }
-
-    char buf[256], l_str_ipv4_gw[INET_ADDRSTRLEN], l_str_ipv4_netmask[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &s_raw_server->ipv4_gw, l_str_ipv4_gw, INET_ADDRSTRLEN);
-    inet_ntop(AF_INET, &s_raw_server->ipv4_network_mask, l_str_ipv4_netmask, INET_ADDRSTRLEN);
-    log_it(L_NOTICE, "Brought up %s virtual network interface (%s/%s)", s_raw_server->tun_device_name, l_str_ipv4_gw, l_str_ipv4_netmask);
-#if defined (DAP_OS_ANDROID) || defined (DAP_OS_LINUX)
-    snprintf(buf,sizeof(buf),"ip link set %s up", s_raw_server->tun_device_name);
-    system(buf);
-    snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ", 
-        l_str_ipv4_gw, l_str_ipv4_netmask, s_raw_server->tun_device_name);
-    system(buf);
-#elif defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
-    snprintf(buf,sizeof(buf),"ifconfig %s %s %s up",s_raw_server->tun_device_name,
-             inet_ntoa(s_raw_server->ipv4_gw),inet_ntoa(s_raw_server->ipv4_gw));
-    system(buf);
-    snprintf(buf,sizeof(buf),"route add -net %s -netmask %s -interface %s", inet_ntoa(s_raw_server->ipv4_gw),c_mask,s_raw_server->tun_device_name );
-    system(buf);
-#elif defined(DAP_OS_IOS)
-
-#else
-#error "Not defined for your platform"
-#endif
-lb_err:
-    return l_err;
+    return 0;
 }
 
 /**
@@ -952,12 +913,199 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
  */
 void dap_chain_net_srv_vpn_deinit(void)
 {
+    // Deinitialize unified TUN device
+    if (s_tun_handle) {
+        dap_net_tun_deinit(s_tun_handle);
+        s_tun_handle = NULL;
+    }
+    
     pthread_mutex_destroy(&s_tun_sockets_mutex_started);
     pthread_cond_destroy(&s_tun_sockets_cond_started);
     DAP_DEL_Z(s_srv_vpn_addr);
     DAP_DEL_Z(s_srv_vpn_mask);
+    DAP_DEL_Z(s_tun_sockets);
+    DAP_DEL_Z(s_tun_sockets_queue_msg);
     if(s_raw_server)
         DAP_DELETE(s_raw_server);
+}
+
+// Address pool functions moved to dap_chain_net_srv_vpn_addr_pool.c
+
+/**
+ * @brief Parse VPN custom data from JSON
+ * @param a_custom_data Raw JSON data
+ * @param a_custom_data_size Size of data
+ * @return Parsed custom data structure or NULL on error
+ */
+/**
+ * @brief Parse multi-hop TSD data from payment transaction
+ */
+static bool s_parse_multihop_tsd_from_payment_tx(
+    dap_chain_net_srv_vpn_custom_data_t *a_custom,
+    dap_chain_datum_tx_t *a_payment_tx)
+{
+    if (!a_custom || !a_payment_tx) {
+        return false;
+    }
+    
+    // Try to parse hop_index
+    uint8_t l_hop_index = 0;
+    if (dap_vpn_multihop_hop_index_tsd_parse(a_payment_tx, &l_hop_index)) {
+        a_custom->is_multihop = true;
+        a_custom->hop_index = l_hop_index;
+        log_it(L_INFO, "Multi-hop TX detected: hop_index=%u", l_hop_index);
+    } else {
+        // Not a multi-hop transaction
+        a_custom->is_multihop = false;
+        return false;
+    }
+    
+    // Parse tunnel count
+    uint8_t l_tunnel_count = 1;
+    if (dap_vpn_multihop_tunnel_count_tsd_parse(a_payment_tx, &l_tunnel_count)) {
+        a_custom->tunnel_count = l_tunnel_count;
+        log_it(L_DEBUG, "Tunnel count: %u", l_tunnel_count);
+    } else {
+        a_custom->tunnel_count = 1;
+    }
+    
+    // Parse session ID
+    uint32_t l_session_id = 0;
+    if (dap_vpn_multihop_session_id_tsd_parse(a_payment_tx, &l_session_id)) {
+        a_custom->session_id = l_session_id;
+        log_it(L_DEBUG, "Session ID: %u", l_session_id);
+    }
+    
+    // Parse route (full route is in first hop's TX)
+    uint8_t l_route_hop_count = 0;
+    dap_chain_node_addr_t *l_route = dap_vpn_multihop_route_tsd_parse(a_payment_tx, &l_route_hop_count);
+    if (l_route) {
+        a_custom->route = l_route;
+        a_custom->total_hops = l_route_hop_count;
+        log_it(L_INFO, "Route parsed: %u hops total", l_route_hop_count);
+    }
+    
+    return true;
+}
+
+static dap_chain_net_srv_vpn_custom_data_t* s_parse_vpn_custom_data(const void *a_custom_data, size_t a_custom_data_size)
+{
+    if (!a_custom_data || a_custom_data_size == 0) {
+        log_it(L_DEBUG, "No custom data provided");
+        return NULL;
+    }
+    
+    // Allocate custom data structure
+    dap_chain_net_srv_vpn_custom_data_t *l_custom = DAP_NEW_Z(dap_chain_net_srv_vpn_custom_data_t);
+    if (!l_custom) {
+        log_it(L_ERROR, "Failed to allocate custom data structure");
+        return NULL;
+    }
+    
+    // Set defaults
+    l_custom->prefer_ipv6 = false;
+    l_custom->split_tunneling = false;
+    l_custom->bandwidth_limit_mbps = 0;  // unlimited
+    l_custom->priority = 128;  // medium priority
+    l_custom->allow_fallback = true;
+    l_custom->keepalive_interval_sec = 30;
+    l_custom->compression_enabled = false;
+    
+    // Parse JSON
+    json_object *l_jobj = json_tokener_parse_ex(NULL, (const char *)a_custom_data, (int)a_custom_data_size);
+    if (!l_jobj) {
+        log_it(L_WARNING, "Failed to parse custom data as JSON, using defaults");
+        return l_custom;
+    }
+    
+    // Parse routing preferences
+    json_object *l_prefer_ipv6 = NULL;
+    if (json_object_object_get_ex(l_jobj, "prefer_ipv6", &l_prefer_ipv6)) {
+        l_custom->prefer_ipv6 = json_object_get_boolean(l_prefer_ipv6);
+    }
+    
+    json_object *l_split_tunneling = NULL;
+    if (json_object_object_get_ex(l_jobj, "split_tunneling", &l_split_tunneling)) {
+        l_custom->split_tunneling = json_object_get_boolean(l_split_tunneling);
+    }
+    
+    json_object *l_exclude_routes = NULL;
+    if (json_object_object_get_ex(l_jobj, "exclude_routes", &l_exclude_routes)) {
+        const char *l_routes = json_object_get_string(l_exclude_routes);
+        if (l_routes) {
+            l_custom->exclude_routes = dap_strdup(l_routes);
+        }
+    }
+    
+    // Parse QoS settings
+    json_object *l_bandwidth_limit = NULL;
+    if (json_object_object_get_ex(l_jobj, "bandwidth_limit_mbps", &l_bandwidth_limit)) {
+        l_custom->bandwidth_limit_mbps = (uint32_t)json_object_get_int64(l_bandwidth_limit);
+    }
+    
+    json_object *l_priority = NULL;
+    if (json_object_object_get_ex(l_jobj, "priority", &l_priority)) {
+        int64_t l_prio = json_object_get_int64(l_priority);
+        l_custom->priority = (uint32_t)(l_prio > 255 ? 255 : (l_prio < 0 ? 0 : l_prio));
+    }
+    
+    // Parse protocol preferences
+    json_object *l_preferred_transport = NULL;
+    if (json_object_object_get_ex(l_jobj, "preferred_transport", &l_preferred_transport)) {
+        const char *l_transport = json_object_get_string(l_preferred_transport);
+        if (l_transport) {
+            l_custom->preferred_transport = dap_strdup(l_transport);
+        }
+    }
+    
+    json_object *l_allow_fallback = NULL;
+    if (json_object_object_get_ex(l_jobj, "allow_fallback", &l_allow_fallback)) {
+        l_custom->allow_fallback = json_object_get_boolean(l_allow_fallback);
+    }
+    
+    // Parse advanced options
+    json_object *l_keepalive = NULL;
+    if (json_object_object_get_ex(l_jobj, "keepalive_interval_sec", &l_keepalive)) {
+        l_custom->keepalive_interval_sec = (uint32_t)json_object_get_int64(l_keepalive);
+    }
+    
+    json_object *l_compression = NULL;
+    if (json_object_object_get_ex(l_jobj, "compression_enabled", &l_compression)) {
+        l_custom->compression_enabled = json_object_get_boolean(l_compression);
+    }
+    
+    json_object *l_dns = NULL;
+    if (json_object_object_get_ex(l_jobj, "dns_servers", &l_dns)) {
+        const char *l_dns_str = json_object_get_string(l_dns);
+        if (l_dns_str) {
+            l_custom->dns_servers = dap_strdup(l_dns_str);
+        }
+    }
+    
+    json_object_put(l_jobj);
+    
+    log_it(L_INFO, "VPN custom data parsed: transport=%s, bandwidth=%u Mbps, priority=%u, split_tunnel=%d",
+           l_custom->preferred_transport ? l_custom->preferred_transport : "default",
+           l_custom->bandwidth_limit_mbps,
+           l_custom->priority,
+           l_custom->split_tunneling);
+    
+    return l_custom;
+}
+
+/**
+ * @brief Free VPN custom data structure
+ * @param a_custom VPN custom data structure
+ */
+static void s_free_vpn_custom_data(dap_chain_net_srv_vpn_custom_data_t *a_custom)
+{
+    if (!a_custom) return;
+    
+    DAP_DELETE(a_custom->exclude_routes);
+    DAP_DELETE(a_custom->preferred_transport);
+    DAP_DELETE(a_custom->dns_servers);
+    DAP_DELETE(a_custom->route);  // Free multi-hop route
+    DAP_DELETE(a_custom);
 }
 
 /**
@@ -966,12 +1114,79 @@ void dap_chain_net_srv_vpn_deinit(void)
 static int s_callback_requested(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client
                                     , const void * a_custom_data, size_t a_custom_data_size )
 {
-
-    // TODO parse custom data like JSON or smth like this
-    (void) a_custom_data;
-    (void) a_custom_data_size;
-    (void) a_srv;
-    return 0; // aways allow to use it for now
+    UNUSED(a_srv);
+    
+    // Parse custom data (JSON with VPN parameters)
+    dap_chain_net_srv_vpn_custom_data_t *l_custom = s_parse_vpn_custom_data(a_custom_data, a_custom_data_size);
+    
+    // Get session and usage to access payment TX
+    dap_chain_net_srv_stream_session_t *l_srv_session = 
+        (dap_chain_net_srv_stream_session_t*)a_srv_client->ch->stream->session->_inheritor;
+    
+    if (l_srv_session && l_srv_session->usage_active && l_srv_session->usage_active->tx_cond) {
+        // Parse multi-hop TSD from payment transaction
+        if (!l_custom) {
+            l_custom = DAP_NEW_Z(dap_chain_net_srv_vpn_custom_data_t);
+        }
+        
+        if (l_custom) {
+            s_parse_multihop_tsd_from_payment_tx(l_custom, l_srv_session->usage_active->tx_cond);
+            
+            // If multi-hop detected, create or update multi-hop session
+            if (l_custom->is_multihop) {
+                log_it(L_NOTICE, "Multi-hop VPN request detected: hop %u/%u, session_id=%u",
+                       l_custom->hop_index, l_custom->total_hops, l_custom->session_id);
+                
+                // Create multi-hop session if not exists
+                // Store in session for later use in packet forwarding
+            }
+        }
+    }
+    
+    if (l_custom) {
+        // Apply custom settings to VPN session
+        log_it(L_NOTICE, "VPN request with custom parameters:");
+        
+        // Create traffic configuration
+        dap_chain_net_srv_vpn_traffic_config_t *l_traffic_config = 
+            dap_chain_net_srv_vpn_traffic_config_create(
+                l_custom->bandwidth_limit_mbps,
+                l_custom->priority,
+                l_custom->exclude_routes,
+                l_custom->dns_servers,
+                l_custom->compression_enabled);
+        
+        if (l_traffic_config) {
+            // Store traffic config in session
+            dap_chain_net_srv_stream_session_t *l_srv_session = 
+                (dap_chain_net_srv_stream_session_t*)a_srv_client->ch->stream->session->_inheritor;
+            
+            if (l_srv_session) {
+                // Free old config if present
+                if (l_srv_session->custom_data && l_srv_session->custom_data_delete) {
+                    l_srv_session->custom_data_delete(l_srv_session->custom_data);
+                }
+                
+                l_srv_session->custom_data = l_traffic_config;
+                l_srv_session->custom_data_delete = (void (*)(void*))dap_chain_net_srv_vpn_traffic_config_free;
+                
+                log_it(L_INFO, "Traffic configuration applied to session");
+            } else {
+                log_it(L_WARNING, "Session not found, freeing traffic config");
+                dap_chain_net_srv_vpn_traffic_config_free(l_traffic_config);
+            }
+        }
+        
+        if (l_custom->preferred_transport) {
+            log_it(L_INFO, "  Preferred transport: %s (fallback=%d)", 
+                   l_custom->preferred_transport, l_custom->allow_fallback);
+        }
+        
+        // Free custom data
+        s_free_vpn_custom_data(l_custom);
+    }
+    
+    return 0;  // Allow service usage
 }
 
 
@@ -2102,9 +2317,7 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
                                                             dap_events_thread_get_count());
         a_es->_inheritor = l_tun_socket;
 
-#if !defined(DAP_OS_DARWIN) && (defined(DAP_OS_LINUX) || defined (DAP_OS_BSD))
-        s_tun_attach_queue( a_es->fd );
-#endif
+        // Platform-specific queue attachment is handled in platform modules
         // Signal thats its ready
         pthread_mutex_lock(&s_tun_sockets_mutex_started);
         s_tun_sockets_started++;
@@ -2118,36 +2331,6 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
     }
 }
 
-
-
-#if !defined(DAP_OS_DARWIN) && (defined(DAP_OS_LINUX) || defined (DAP_OS_BSD))
-/**
- * @brief s_tun_attach_queue
- * @param fd
- * @return
- */
-static int s_tun_attach_queue(int fd)
-{
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
-    ifr.ifr_flags = IFF_ATTACH_QUEUE;
-    return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
-}
-
-/**
- * @brief s_tun_deattach_queue
- * @param fd
- * @return
- */
-static int s_tun_deattach_queue(int fd)
-{
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
-    ifr.ifr_flags = IFF_DETACH_QUEUE;
-    return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
-}
-
-#endif
 
 
 static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_arg)
@@ -2272,3 +2455,4 @@ static void s_callback_remain_limits(dap_http_simple_t *a_http_simple , void *a_
     }
     DAP_DELETE(l_first_param);
 }
+

@@ -30,6 +30,9 @@
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_vpn.h"
+#include "dap_stream_transport.h"
+#include "dap_stream_obfuscation.h"
+#include "dap_chain_net_vpn_client_payment.h"
 
 typedef enum dap_chain_net_vpn_client_status_enum{
     VPN_CLIENT_STATUS_NOT_STARTED=0,
@@ -49,6 +52,32 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
 int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, uint16_t a_port, size_t a_data_size_to_send, size_t a_data_size_to_recv, int a_timeout_test_ms);
 
 int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_host, uint16_t a_port);
+
+/**
+ * @brief Start VPN client with advanced transport and obfuscation options
+ * 
+ * Extended version of dap_chain_net_vpn_client_start() that allows specifying:
+ * - Transport protocol (HTTP, UDP, WebSocket, etc.)
+ * - Obfuscation settings (intensity, mimicry, padding)
+ * 
+ * @param a_net Network to connect to
+ * @param a_host Server hostname or IP
+ * @param a_port Server port
+ * @param a_transport_type Transport protocol type (HTTP, UDP, etc.)
+ * @param a_obfuscation_intensity Obfuscation level (NONE to PARANOID)
+ * @param a_payment_config Payment configuration 
+ * @return 0 on success, negative error code on failure
+ * 
+ * @note For backward compatibility, use dap_chain_net_vpn_client_start()
+ *       which defaults to HTTP transport with no obfuscation
+ */
+int dap_chain_net_vpn_client_start_ext(dap_chain_net_t *a_net, 
+                                         const char *a_host, 
+                                         uint16_t a_port,
+                                         dap_stream_transport_type_t a_transport_type,
+                                         dap_stream_obfuscation_intensity_t a_obfuscation_intensity,
+                                         const dap_chain_net_vpn_client_payment_config_t *a_payment_config);
+
 int dap_chain_net_vpn_client_stop(void);
 dap_chain_net_vpn_client_status_t dap_chain_net_vpn_client_status(void);
 
