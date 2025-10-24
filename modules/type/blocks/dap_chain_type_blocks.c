@@ -1043,8 +1043,35 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR, "Can't convert \"%s\" to date", l_to_date_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR;
                 }
+            }
+            if (l_from_date_str && l_to_date_str) {
+                l_head = (l_to_time > l_from_time) ? true : false;
+            }
+            // If both hashes provided, align traversal direction with chronological order as in DAG
+            if (l_from_hash_str && l_to_hash_str) {
+                dap_chain_block_cache_t *l_from_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_from_hash);
+                dap_chain_block_cache_t *l_to_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_to_hash);
+                if (l_from_cache && l_to_cache) {
+                    if (l_from_cache->block->hdr.ts_created < l_to_cache->block->hdr.ts_created)
+                        l_head = true; // oldest -> newest to span [to_hash..from_hash]
+                }
+            }
+            if (l_to_hash_str && l_from_date_str) {
+                dap_chain_block_cache_t *l_to_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_to_hash);
+                l_head = (l_from_time < l_to_cache->block->hdr.ts_created) ? true : false;
+            }
+            if (l_to_date_str && l_from_hash_str) {
+                dap_chain_block_cache_t *l_from_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_from_hash);
+                l_head = (l_to_time < l_from_cache->block->hdr.ts_created) ? false : true;
+            }
+            if (l_from_date_str && !l_head) {
+                struct tm *l_localtime = localtime((time_t *)&l_from_time);
+                l_localtime->tm_mday += 1; // inclusive end
+                l_from_time = mktime(l_localtime);
+            }
+            if (l_to_date_str && l_head) {
                 struct tm *l_localtime = localtime((time_t *)&l_to_time);
-                l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
+                l_localtime->tm_mday += 1; // inclusive end
                 l_to_time = mktime(l_localtime);
             }
 
@@ -1058,27 +1085,28 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
             if (!l_head) {                
                 l_block_cache = HASH_LAST(l_block_cache);
-                dap_time_t temp = l_from_time;
-                l_from_time = l_to_time;
-                l_to_time = temp;
             }             
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
+                if (i_tmp >= l_arr_end)
+                    break;
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_head) {
                     if (l_from_time && l_ts < l_from_time)
                         continue;
-                    if (l_to_time && l_ts >= l_to_time)
+                    if (l_to_time && l_ts > l_to_time)
                         break;
                 } else {
                     if (l_from_time && l_ts > l_from_time)
                         continue;
-                    if (l_to_time && l_ts <= l_to_time)
+                    if (l_to_time && l_ts < l_to_time)
                         break;
                 }
-                if (l_from_hash_str && !l_hash_flag) {
-                   if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
-                       continue;
-                   l_hash_flag = true;
+                if (!l_hash_flag) {                    
+                    if (l_from_hash_str) {
+                        if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
+                            continue;
+                        l_hash_flag = true;
+                    }                    
                 }
                 if (l_first_signed_flag) {
                     dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
@@ -1130,7 +1158,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                             continue;
                     }
                 }
-                if (i_tmp < l_start_arr || i_tmp >= l_arr_end) {
+                if (i_tmp < l_start_arr) {
                     i_tmp++;
                     continue;
                 }

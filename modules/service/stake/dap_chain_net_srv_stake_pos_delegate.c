@@ -3103,7 +3103,7 @@ static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2
         return 0;
     }
     return l_datum1->header.ts_created == l_datum2->header.ts_created
-            ? 0 : l_datum1->header.ts_created > l_datum2->header.ts_created ? 1 : -1;
+            ? 0 : l_datum1->header.ts_created < l_datum2->header.ts_created ? 1 : -1;
 }
 
 int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_chain_ch_validator_test_t * out_data,
@@ -3991,11 +3991,6 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
                         : a_chain->callback_datum_iter_get_last;
     iter_direc = a_head ? a_chain->callback_datum_iter_get_next
                         : a_chain->callback_datum_iter_get_prev;
-    if (!a_head) {
-        dap_time_t temp = a_time_from;
-        a_time_from = a_time_to;
-        a_time_to = temp;
-    }
 
     for (dap_chain_datum_t *l_datum = iter_begin(l_datum_iter);
                             l_datum;
