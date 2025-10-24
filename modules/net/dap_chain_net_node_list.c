@@ -361,17 +361,17 @@ int dap_chain_net_node_list_init()
 }
 
 /*static int node_info_del_with_reply(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info, const char *alias_str,
-        void **a_str_reply)
+        dap_json_t *a_json_arr_reply)
 {
     int l_res = -1;
     if ( !a_node_info->address.uint64 && !alias_str ) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "addr not found");
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "addr not found");
         return l_res;
     }
     // find addr by alias or addr_str
     dap_chain_node_addr_t *l_addr_by_alias = dap_chain_node_alias_find(a_net, alias_str);
     if ( alias_str && !l_addr_by_alias ) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "alias not found");
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "alias not found");
         return l_res;
     }
     dap_chain_node_addr_t l_addr = l_addr_by_alias ? *l_addr_by_alias : a_node_info->address;
@@ -383,9 +383,9 @@ int dap_chain_net_node_list_init()
             l_el = l_el->next;
         }
         dap_list_free_full(list_aliases, NULL);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Node deleted with all it's aliases");
+        dap_json_rpc_error_add(a_json_arr_reply, 0, "Node deleted with all it's aliases");
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Node was not deleted from database");
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "Node was not deleted from database");
     }
     DAP_DELETE(l_addr_by_alias);
     return l_res;

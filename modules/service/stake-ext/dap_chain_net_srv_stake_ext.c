@@ -165,7 +165,7 @@ static dap_chain_srv_stake_ext_cache_item_t *s_stake_ext_cache_find_stake_ext(st
 // New: find by group name
 static dap_chain_srv_stake_ext_cache_item_t *s_stake_ext_cache_find_stake_ext_by_name(struct stake_ext *a_cache, const char *a_guuid);
 
-static int s_com_stake_ext(int argc, char **argv, void **str_reply, int a_version);
+static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 
 #ifdef DAP_STAKE_EXT_TEST
 dap_chain_srv_stake_ext_cache_t *dap_chain_srv_stake_ext_cache_create(void) { return s_stake_ext_service_create(); }
@@ -2199,7 +2199,7 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
  * @param a_version Protocol version
  * @return Error code
  */
-static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG int a_version)
+static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, UNUSED_ARG int a_version)
 {
     enum {
         CMD_NONE, CMD_LOCK, CMD_UNLOCK, CMD_INFO, CMD_EVENTS, CMD_STATS
@@ -2208,19 +2208,14 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     const char *str_tmp = NULL;
-    dap_json_t **l_json_arr_reply = (dap_json_t **) str_reply;
     
     // Ensure JSON reply is an array to avoid segfaults on json_object_array_add
-    if (!l_json_arr_reply) {
+    if (!a_json_arr_reply || !dap_json_is_array(a_json_arr_reply)) {
         return -1;
     }
-    if (!*l_json_arr_reply || !dap_json_is_array(*l_json_arr_reply)) {
-        *l_json_arr_reply = dap_json_array_new();
-    }
-    
     // Parse command
     if(arg_index >= argc) {
-        dap_json_rpc_error_add(*l_json_arr_reply, COMMAND_NOT_RECOGNIZED, "Command not specified");
+        dap_json_rpc_error_add(a_json_arr_reply, COMMAND_NOT_RECOGNIZED, "Command not specified");
         return -1;
     }
 
@@ -2236,7 +2231,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
     else if(!strcmp(str_tmp, "stats"))
         cmd_num = CMD_STATS;
     else {
-        dap_json_rpc_error_add(*l_json_arr_reply, COMMAND_NOT_RECOGNIZED, "Command %s not recognized", str_tmp);
+        dap_json_rpc_error_add(a_json_arr_reply, COMMAND_NOT_RECOGNIZED, "Command %s not recognized", str_tmp);
         return -1;
     }
 
@@ -2245,13 +2240,13 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
     // Parse network
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &str_tmp);
     if(!str_tmp) {
-        dap_json_rpc_error_add(*l_json_arr_reply, NET_ARG_ERROR, "Network not specified");
+        dap_json_rpc_error_add(a_json_arr_reply, NET_ARG_ERROR, "Network not specified");
         return -1;
     }
 
     dap_chain_net_t *l_net = dap_chain_net_by_name(str_tmp);
     if(!l_net) {
-        dap_json_rpc_error_add(*l_json_arr_reply, NET_ERROR, "Network '%s' not found", str_tmp);
+        dap_json_rpc_error_add(a_json_arr_reply, NET_ERROR, "Network '%s' not found", str_tmp);
         return -1;
     }
 
@@ -2261,7 +2256,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             const char *l_stake_ext_id_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-stake_ext", &l_stake_ext_id_str);
             if(!l_stake_ext_id_str) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_HASH_ARG_ERROR, "Stake_ext identifier not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_HASH_ARG_ERROR, "Stake_ext identifier not specified");
                 return -1;
             }
 
@@ -2269,7 +2264,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             const char *l_wallet_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-w", &l_wallet_str);
             if(!l_wallet_str) {
-                dap_json_rpc_error_add(*l_json_arr_reply, WALLET_ARG_ERROR, "Wallet not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, WALLET_ARG_ERROR, "Wallet not specified");
                 return -2;
             }
 
@@ -2277,12 +2272,12 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             str_tmp = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-amount", &str_tmp);
             if(!str_tmp) {
-                dap_json_rpc_error_add(*l_json_arr_reply, AMOUNT_ARG_ERROR, "Amount not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, AMOUNT_ARG_ERROR, "Amount not specified");
                 return -3;
             }
             uint256_t l_amount = dap_chain_balance_scan(str_tmp);
             if(IS_ZERO_256(l_amount)) {
-                dap_json_rpc_error_add(*l_json_arr_reply, AMOUNT_FORMAT_ERROR, "Invalid amount format");
+                dap_json_rpc_error_add(a_json_arr_reply, AMOUNT_FORMAT_ERROR, "Invalid amount format");
                 return -4;
             }
 
@@ -2290,12 +2285,12 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             str_tmp = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-lock", &str_tmp);
             if(!str_tmp) {
-                dap_json_rpc_error_add(*l_json_arr_reply, LOCK_ARG_ERROR, "Lock period not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, LOCK_ARG_ERROR, "Lock period not specified");
                 return -5;
             }
             uint8_t l_lock_months = (uint8_t)atoi(str_tmp);
             if(l_lock_months < 3 || l_lock_months > 24) {
-                dap_json_rpc_error_add(*l_json_arr_reply, LOCK_FORMAT_ERROR, "Lock period must be between 3 and 24 months");
+                dap_json_rpc_error_add(a_json_arr_reply, LOCK_FORMAT_ERROR, "Lock period must be between 3 and 24 months");
                 return -6;
             }
 
@@ -2303,12 +2298,12 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             str_tmp = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-fee", &str_tmp);
             if(!str_tmp) {
-                dap_json_rpc_error_add(*l_json_arr_reply, FEE_ARG_ERROR, "Fee not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, FEE_ARG_ERROR, "Fee not specified");
                 return -7;
             }
             uint256_t l_fee = dap_chain_balance_scan(str_tmp);
             if(IS_ZERO_256(l_fee)) {
-                dap_json_rpc_error_add(*l_json_arr_reply, FEE_FORMAT_ERROR, "Invalid fee format");
+                dap_json_rpc_error_add(a_json_arr_reply, FEE_FORMAT_ERROR, "Invalid fee format");
                 return -8;
             }
 
@@ -2316,18 +2311,18 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             str_tmp = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-position", &str_tmp);
             if(!str_tmp) {
-                dap_json_rpc_error_add(*l_json_arr_reply, POSITION_ID_ARG_ERROR, "Position ID not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, POSITION_ID_ARG_ERROR, "Position ID not specified");
                 return -9;
             }
             uint32_t l_position_id = (uint32_t)atoi(str_tmp);
             if(l_position_id == 0) {
-                dap_json_rpc_error_add(*l_json_arr_reply, POSITION_ID_FORMAT_ERROR, "Invalid position ID format");
+                dap_json_rpc_error_add(a_json_arr_reply, POSITION_ID_FORMAT_ERROR, "Invalid position ID format");
                 return -10;
             }
 
             struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(l_net->pub.id);
             if(!l_stake_ext_service) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_CACHE_NOT_INITIALIZED, "Stake_ext cache not initialized in network %s", l_net->pub.name);
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_CACHE_NOT_INITIALIZED, "Stake_ext cache not initialized in network %s", l_net->pub.name);
                 return -14;
             }
 
@@ -2345,12 +2340,12 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             }
             // Check stake_ext is active           
             if (!l_stake_ext) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_NOT_FOUND_ERROR, "Stake_ext '%s' not found",
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_NOT_FOUND_ERROR, "Stake_ext '%s' not found",
                                                                                 l_hash_parsed ? dap_hash_fast_to_str_static(&l_stake_ext_hash) : l_stake_ext_id_str);
                 return -11;
             }
             if (l_stake_ext->status != DAP_STAKE_EXT_STATUS_ACTIVE) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_NOT_ACTIVE_ERROR, "Stake_ext is not active");
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_NOT_ACTIVE_ERROR, "Stake_ext is not active");
                 return -12;
             }
 
@@ -2360,7 +2355,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             // Open wallet
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             if (!l_wallet) {
-                dap_json_rpc_error_add(*l_json_arr_reply, WALLET_OPEN_ERROR, "Can't open wallet '%s'", l_wallet_str);
+                dap_json_rpc_error_add(a_json_arr_reply, WALLET_OPEN_ERROR, "Can't open wallet '%s'", l_wallet_str);
                 return -13;
             }
             dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
@@ -2390,7 +2385,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
                 dap_json_object_add_object(l_json_obj, "fee", dap_json_object_new_string(l_fee_str));
                 
                 dap_json_object_add_object(l_json_obj, "lock_months", dap_json_object_new_int(l_lock_months));
-                dap_json_array_add(*l_json_arr_reply, l_json_obj);
+                dap_json_array_add(a_json_arr_reply, l_json_obj);
                 
                 DAP_DELETE(l_tx_hash_str);
             } else {
@@ -2467,7 +2462,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
                         l_error_msg = "Unknown error occurred";
                         break;
                 }
-                dap_json_rpc_error_add(*l_json_arr_reply, LOCK_CREATE_ERROR, "Error creating lock transaction: %s (code: %d)", l_error_msg, l_ret_code);
+                dap_json_rpc_error_add(a_json_arr_reply, LOCK_CREATE_ERROR, "Error creating lock transaction: %s (code: %d)", l_error_msg, l_ret_code);
                 return -14;
             }
         } break;
@@ -2477,7 +2472,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             const char *l_lock_tx_hash_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-lock_tx_hash", &l_lock_tx_hash_str);
             if(!l_lock_tx_hash_str) {
-                dap_json_rpc_error_add(*l_json_arr_reply, LOCK_TX_HASH_ARG_ERROR, "Lock transaction hash not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, LOCK_TX_HASH_ARG_ERROR, "Lock transaction hash not specified");
                 return -1;
             }
 
@@ -2485,7 +2480,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             const char *l_wallet_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-w", &l_wallet_str);
             if(!l_wallet_str) {
-                dap_json_rpc_error_add(*l_json_arr_reply, WALLET_ARG_ERROR, "Wallet not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, WALLET_ARG_ERROR, "Wallet not specified");
                 return -2;
             }
 
@@ -2493,26 +2488,26 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             str_tmp = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-fee", &str_tmp);
             if(!str_tmp) {
-                dap_json_rpc_error_add(*l_json_arr_reply, FEE_ARG_ERROR, "Fee not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, FEE_ARG_ERROR, "Fee not specified");
                 return -3;
             }
             uint256_t l_fee = dap_chain_balance_scan(str_tmp);
             if(IS_ZERO_256(l_fee)) {
-                dap_json_rpc_error_add(*l_json_arr_reply, FEE_FORMAT_ERROR, "Invalid fee format");
+                dap_json_rpc_error_add(a_json_arr_reply, FEE_FORMAT_ERROR, "Invalid fee format");
                 return -4;
             }
 
             // Open wallet
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             if (!l_wallet) {
-                dap_json_rpc_error_add(*l_json_arr_reply, WALLET_OPEN_ERROR, "Can't open wallet '%s'", l_wallet_str);
+                dap_json_rpc_error_add(a_json_arr_reply, WALLET_OPEN_ERROR, "Can't open wallet '%s'", l_wallet_str);
                 return -5;
             }
             dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
 
             dap_hash_fast_t l_lock_tx_hash = {};
             if (dap_chain_hash_fast_from_str(l_lock_tx_hash_str, &l_lock_tx_hash) != 0) {
-                dap_json_rpc_error_add(*l_json_arr_reply, LOCK_TX_HASH_FORMAT_ERROR, "Invalid lock transaction hash format");
+                dap_json_rpc_error_add(a_json_arr_reply, LOCK_TX_HASH_FORMAT_ERROR, "Invalid lock transaction hash format");
                 DAP_DELETE(l_enc_key);
                 dap_chain_wallet_close(l_wallet);
                 return -6;
@@ -2537,7 +2532,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
                 const char *l_fee_str; dap_uint256_to_char(l_fee, &l_fee_str);
                 dap_json_object_add_object(l_json_obj, "fee", dap_json_object_new_string(l_fee_str));
                 
-                dap_json_array_add(*l_json_arr_reply, l_json_obj);
+                dap_json_array_add(a_json_arr_reply, l_json_obj);
                 
                 DAP_DELETE(l_tx_hash_str);
             } else {
@@ -2614,7 +2609,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
                         l_error_msg = "Unknown error occurred";
                         break;
                 }
-                dap_json_rpc_error_add(*l_json_arr_reply, UNLOCK_CREATE_ERROR, "Error creating unlock transaction: %s (code: %d)", l_error_msg, l_ret_code);
+                dap_json_rpc_error_add(a_json_arr_reply, UNLOCK_CREATE_ERROR, "Error creating unlock transaction: %s (code: %d)", l_error_msg, l_ret_code);
                 return -7;
             }
         } break;
@@ -2624,13 +2619,13 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             const char *l_stake_ext_id_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-stake_ext", &l_stake_ext_id_str);
             if(!l_stake_ext_id_str) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_HASH_ARG_ERROR, "Stake_ext hash not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_HASH_ARG_ERROR, "Stake_ext hash not specified");
                 return -1;
             }
 
             struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(l_net->pub.id);
             if(!l_stake_ext_service) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_CACHE_NOT_INITIALIZED, "Stake_ext cache not initialized in network %s", l_net->pub.name);
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_CACHE_NOT_INITIALIZED, "Stake_ext cache not initialized in network %s", l_net->pub.name);
                 return -14;
             }
             dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = NULL;
@@ -2645,7 +2640,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
                     l_stake_ext_hash = l_stake_ext->stake_ext_tx_hash.hash;
             }
             if(!l_stake_ext) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_NOT_FOUND_ERROR, "Stake_ext '%s' not found",
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_NOT_FOUND_ERROR, "Stake_ext '%s' not found",
                                                                                 l_hash_parsed ? dap_hash_fast_to_str_static(&l_stake_ext_hash) : l_stake_ext_id_str);
                 return -2;
             }          
@@ -2735,7 +2730,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
                 dap_json_object_add_object(l_json_obj, "positions", l_positions_array);
             }
             
-            dap_json_array_add(*l_json_arr_reply, l_json_obj);
+            dap_json_array_add(a_json_arr_reply, l_json_obj);
 
         } break;
 
@@ -2745,12 +2740,12 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-stake_ext", &l_stake_ext_id_str);
             dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = NULL;
             if (!l_stake_ext_id_str) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_HASH_ARG_ERROR, "Stake_ext hash not specified");
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_HASH_ARG_ERROR, "Stake_ext hash not specified");
                 return -1;
             }
             struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(l_net->pub.id);
             if(!l_stake_ext_service) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_CACHE_NOT_INITIALIZED, "Stake_ext cache not initialized in network %s", l_net->pub.name);
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_CACHE_NOT_INITIALIZED, "Stake_ext cache not initialized in network %s", l_net->pub.name);
                 return -14;
             }
             dap_hash_fast_t l_stake_ext_hash = {};
@@ -2764,7 +2759,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
                     l_stake_ext_hash = l_stake_ext->stake_ext_tx_hash.hash;
             }
             if(!l_stake_ext) {
-                dap_json_rpc_error_add(*l_json_arr_reply, STAKE_EXT_NOT_FOUND_ERROR, "Stake_ext '%s' not found", l_stake_ext_id_str);
+                dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_NOT_FOUND_ERROR, "Stake_ext '%s' not found", l_stake_ext_id_str);
                 return -2;
             }
             // Parse optional parameters
@@ -2775,7 +2770,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
             if (l_event_type) {
                 l_event_type_int = dap_chain_tx_item_event_type_from_str(l_event_type);
                 if (l_event_type_int == -1) {
-                    dap_json_rpc_error_add(*l_json_arr_reply, INVALID_EVENT_TYPE_ERROR, "Invalid event type: %s", l_event_type);
+                    dap_json_rpc_error_add(a_json_arr_reply, INVALID_EVENT_TYPE_ERROR, "Invalid event type: %s", l_event_type);
                     return -3;
                 }
             }
@@ -2832,7 +2827,7 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
                 }
             }
             dap_json_object_add_object(l_json_obj, "events", l_events_array);
-            dap_json_array_add(*l_json_arr_reply, l_json_obj);
+            dap_json_array_add(a_json_arr_reply, l_json_obj);
         } break;
 
         case CMD_STATS: {
@@ -2857,11 +2852,11 @@ static int s_com_stake_ext(int argc, char **argv, void **str_reply, UNUSED_ARG i
                 dap_json_object_add_object(l_json_obj, "message", dap_json_object_new_string("Failed to get statistics"));
             }
             
-            dap_json_array_add(*l_json_arr_reply, l_json_obj);
+            dap_json_array_add(a_json_arr_reply, l_json_obj);
         } break;
 
         default:
-            dap_json_rpc_error_add(*l_json_arr_reply, COMMAND_NOT_RECOGNIZED, "Unknown command");
+            dap_json_rpc_error_add(a_json_arr_reply, COMMAND_NOT_RECOGNIZED, "Unknown command");
             return -1;
     }
 
