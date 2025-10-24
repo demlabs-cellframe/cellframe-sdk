@@ -79,7 +79,7 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_block, l_signs_size, &l_num_of_unique_signs);
 
     if (!l_num_of_unique_signs || !l_unique_signs)
-        return log_it(L_WARNING, "No unique signatures!"), -106;
+        return log_it(L_WARNING, "No unique signatures!"), DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS;
     bool l_sign_authorized = false;
     size_t l_signs_size_original = a_anchor->header.signs_size;
     dap_chain_datum_anchor_t *l_anchor = a_net->pub.chains->is_mapped
@@ -116,7 +116,7 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
     dap_chain_datum_decree_t *l_decree = NULL;
     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_decree_hash)) != 0) {
         log_it(L_WARNING, "Can't get hash from anchor data");
-        return -106;
+        return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS;
     }
 
     if (a_load_mode)
