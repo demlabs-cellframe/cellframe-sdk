@@ -63,6 +63,13 @@ void dap_chain_net_srv_stream_session_delete( dap_stream_session_t * a_session)
         return;
     }
     dap_chain_net_srv_stream_session_t * l_session_srv = a_session->_inheritor;
+    
+    // Cleanup custom data if present
+    if (l_session_srv && l_session_srv->custom_data && l_session_srv->custom_data_delete) {
+        l_session_srv->custom_data_delete(l_session_srv->custom_data);
+        l_session_srv->custom_data = NULL;
+    }
+    
     dap_chain_net_srv_usage_delete(l_session_srv);
 }
 

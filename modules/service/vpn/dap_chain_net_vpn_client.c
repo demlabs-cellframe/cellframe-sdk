@@ -67,7 +67,7 @@
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
-#include "dap_chain_net_vpn_client_payment.h"
+#include "client/dap_chain_net_vpn_client_payment.h"
 //#include "dap_modules_dynamic_cdb.h"
 
 /*
@@ -599,7 +599,7 @@ int dap_chain_net_vpn_client_start_ext(dap_chain_net_t *a_net,
                                          const char *a_host,
                                          uint16_t a_port,
                                          dap_stream_transport_type_t a_transport_type,
-                                         dap_stream_obfuscation_intensity_t a_obfuscation_intensity,
+                                         dap_stream_obfuscation_level_t a_obfuscation_intensity,
                                          const dap_chain_net_vpn_client_payment_config_t *a_payment_config)
 {
     dap_return_val_if_fail(a_net && a_host, -1);
@@ -622,10 +622,10 @@ int dap_chain_net_vpn_client_start_ext(dap_chain_net_t *a_net,
     
     const char *l_obfuscation_name = "NONE";
     switch(a_obfuscation_intensity) {
-        case DAP_STREAM_OBFUSCATION_LOW: l_obfuscation_name = "LOW"; break;
-        case DAP_STREAM_OBFUSCATION_MEDIUM: l_obfuscation_name = "MEDIUM"; break;
-        case DAP_STREAM_OBFUSCATION_HIGH: l_obfuscation_name = "HIGH"; break;
-        case DAP_STREAM_OBFUSCATION_PARANOID: l_obfuscation_name = "PARANOID"; break;
+        case DAP_STREAM_OBFS_LEVEL_LOW: l_obfuscation_name = "LOW"; break;
+        case DAP_STREAM_OBFS_LEVEL_MEDIUM: l_obfuscation_name = "MEDIUM"; break;
+        case DAP_STREAM_OBFS_LEVEL_HIGH: l_obfuscation_name = "HIGH"; break;
+        case DAP_STREAM_OBFS_LEVEL_PARANOID: l_obfuscation_name = "PARANOID"; break;
         default: break;
     }
     
