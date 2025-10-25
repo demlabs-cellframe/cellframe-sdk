@@ -97,7 +97,8 @@ dap_chain_wallet_t* dap_vpn_client_wallet_create(
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_create(
         a_wallet_name,
         s_wallets_path,
-        a_sig_type
+        dap_sign_type_from_key_type(a_sig_type),  // Convert enc_key_type to sign_type
+        NULL  // no password
     );
     
     if (!l_wallet) {
@@ -211,8 +212,9 @@ int dap_vpn_client_wallet_get_balance(
         }
         
         *a_balance = dap_ledger_calc_balance(l_ledger, l_addr, a_token_ticker);
-        log_it(L_DEBUG, "Balance (embedded): "UINT256_FORMAT_U" %s",
-               UINT256_FORMAT_PARAM(*a_balance), a_token_ticker);
+        char *l_balance_str = dap_chain_balance_print(*a_balance);
+        log_it(L_DEBUG, "Balance (embedded): %s %s", l_balance_str, a_token_ticker);
+        DAP_DELETE(l_balance_str);
         return 0;
         
     } else {
@@ -280,8 +282,13 @@ char** dap_vpn_client_wallet_list(size_t *a_count)
             size_t l_name_len = strlen(l_entry->d_name);
             if (l_name_len > 8 && strcmp(l_entry->d_name + l_name_len - 8, ".dwallet") == 0) {
                 // Copy wallet name without .dwallet extension
-                l_wallet_names[l_idx] = dap_strndup(l_entry->d_name, l_name_len - 8);
-                l_idx++;
+                char *l_name = DAP_NEW_Z_SIZE(char, l_name_len - 8 + 1);
+                if (l_name) {
+                    strncpy(l_name, l_entry->d_name, l_name_len - 8);
+                    l_name[l_name_len - 8] = '\0';
+                    l_wallet_names[l_idx] = l_name;
+                    l_idx++;
+                }
             }
         }
     }

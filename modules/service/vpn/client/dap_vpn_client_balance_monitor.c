@@ -132,7 +132,8 @@ void dap_vpn_balance_monitor_stop(dap_vpn_balance_monitor_t *a_monitor)
         return;
     
     if (a_monitor->check_timer) {
-        dap_timerfd_delete_mt(a_monitor->check_timer);
+        // TODO: Implement proper timer cleanup when API is available
+        // dap_timerfd_delete_mt requires worker and esocket_uuid parameters
         a_monitor->check_timer = NULL;
     }
     
@@ -164,17 +165,21 @@ int dap_vpn_balance_monitor_check_now(dap_vpn_balance_monitor_t *a_monitor)
     a_monitor->last_balance = l_balance;
     a_monitor->last_check_time = time(NULL);
     
-    log_it(L_DEBUG, "Balance check: "UINT256_FORMAT_U" %s",
-           UINT256_FORMAT_PARAM(l_balance), a_monitor->token);
+    char *l_balance_str = dap_chain_balance_print(l_balance);
+    log_it(L_DEBUG, "Balance check: %s %s", l_balance_str, a_monitor->token);
+    DAP_DELETE(l_balance_str);
     
     // Check thresholds
     bool l_is_low = compare256(l_balance, a_monitor->config.low_balance_threshold) < 0;
     bool l_is_critical = compare256(l_balance, a_monitor->config.critical_balance_threshold) < 0;
     
     if (l_is_critical && !a_monitor->critical_balance_warned) {
-        log_it(L_WARNING, "CRITICAL: Balance below threshold! Balance: "UINT256_FORMAT_U", Threshold: "UINT256_FORMAT_U,
-               UINT256_FORMAT_PARAM(l_balance),
-               UINT256_FORMAT_PARAM(a_monitor->config.critical_balance_threshold));
+        char *l_balance_str2 = dap_chain_balance_print(l_balance);
+        char *l_threshold_str = dap_chain_balance_print(a_monitor->config.critical_balance_threshold);
+        log_it(L_WARNING, "CRITICAL: Balance below threshold! Balance: %s, Threshold: %s",
+               l_balance_str2, l_threshold_str);
+        DAP_DELETE(l_balance_str2);
+        DAP_DELETE(l_threshold_str);
         
         if (a_monitor->config.notification_callback) {
             a_monitor->config.notification_callback(
@@ -191,9 +196,12 @@ int dap_vpn_balance_monitor_check_now(dap_vpn_balance_monitor_t *a_monitor)
         a_monitor->low_balance_warned = true;  // Also mark low balance as warned
         
     } else if (l_is_low && !a_monitor->low_balance_warned) {
-        log_it(L_WARNING, "WARNING: Low balance! Balance: "UINT256_FORMAT_U", Threshold: "UINT256_FORMAT_U,
-               UINT256_FORMAT_PARAM(l_balance),
-               UINT256_FORMAT_PARAM(a_monitor->config.low_balance_threshold));
+        char *l_balance_str3 = dap_chain_balance_print(l_balance);
+        char *l_threshold_str2 = dap_chain_balance_print(a_monitor->config.low_balance_threshold);
+        log_it(L_WARNING, "WARNING: Low balance! Balance: %s, Threshold: %s",
+               l_balance_str3, l_threshold_str2);
+        DAP_DELETE(l_balance_str3);
+        DAP_DELETE(l_threshold_str2);
         
         if (a_monitor->config.notification_callback) {
             a_monitor->config.notification_callback(
@@ -246,14 +254,16 @@ int dap_vpn_balance_monitor_set_thresholds(
     
     if (a_low_threshold) {
         a_monitor->config.low_balance_threshold = *a_low_threshold;
-        log_it(L_INFO, "Low balance threshold updated: "UINT256_FORMAT_U,
-               UINT256_FORMAT_PARAM(*a_low_threshold));
+        char *l_threshold_str = dap_chain_balance_print(*a_low_threshold);
+        log_it(L_INFO, "Low balance threshold updated: %s", l_threshold_str);
+        DAP_DELETE(l_threshold_str);
     }
     
     if (a_critical_threshold) {
         a_monitor->config.critical_balance_threshold = *a_critical_threshold;
-        log_it(L_INFO, "Critical balance threshold updated: "UINT256_FORMAT_U,
-               UINT256_FORMAT_PARAM(*a_critical_threshold));
+        char *l_threshold_str2 = dap_chain_balance_print(*a_critical_threshold);
+        log_it(L_INFO, "Critical balance threshold updated: %s", l_threshold_str2);
+        DAP_DELETE(l_threshold_str2);
     }
     
     // Reset warning flags to re-check with new thresholds
