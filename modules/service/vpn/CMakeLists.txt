@@ -18,7 +18,7 @@ endif()
 # VPN Client sources (platform-independent)
 file(GLOB DAP_CHAIN_NET_VPN_CLIENT_SRCS client/*.c)
 file(GLOB DAP_CHAIN_NET_VPN_CLIENT_HEADERS 
-  client/*.h 
+  client/include/*.h 
   client/platform/platform.h
   client/platform/network.h
 )
@@ -65,6 +65,7 @@ add_definitions("-DDAP_TUN_IN_WORKER")
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PUBLIC client/include)  # VPN Client headers
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_SRV_VPN_HEADERS}")
