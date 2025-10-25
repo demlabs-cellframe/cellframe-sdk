@@ -27,6 +27,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_ledger.h"
 #include "dap_common.h"
+#include "dap_math_ops.h"
 #include <string.h>
 
 #define LOG_TAG "vpn_client_payment"
@@ -121,11 +122,11 @@ int dap_vpn_client_payment_estimate_multihop(
         }
         
         // Add to sum
-        l_sum = dap_uint256_add(l_sum, l_hop_price);
+        SUM_256_256(l_sum, l_hop_price, &l_sum);
     }
     
     *a_total_cost = l_sum;
-    log_it(L_INFO, "Estimated cost for %u-hop route: "UINT256_FORMAT_U,
+    log_it(L_INFO, "Estimated cost for %u-hop route: "UINT256_FORMAT_U" datoshi",
            a_hop_count, UINT256_FORMAT_PARAM(l_sum));
     
     return 0;
@@ -152,7 +153,7 @@ bool dap_vpn_client_payment_check_balance(
     bool l_sufficient = compare256(l_balance, a_total_cost) >= 0;
     
     if (!l_sufficient) {
-        log_it(L_WARNING, "Insufficient balance: have "UINT256_FORMAT_U", need "UINT256_FORMAT_U")",
+        log_it(L_WARNING, "Insufficient balance: have "UINT256_FORMAT_U", need "UINT256_FORMAT_U" datoshi",
                UINT256_FORMAT_PARAM(l_balance), UINT256_FORMAT_PARAM(a_total_cost));
     }
     

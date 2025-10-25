@@ -23,6 +23,7 @@
 
 #include "include/dap_chain_net_vpn_client_receipt.h"
 #include "dap_chain_net_srv_vpn_tsd.h"
+#include "dap_chain_datum_tx_tsd.h"
 #include "dap_sign.h"
 #include "dap_cert.h"
 #include "dap_common.h"
@@ -135,7 +136,7 @@ bool dap_vpn_client_receipt_verify(
             // Check hop_index
             if (l_tsd->header.type == VPN_TSD_TYPE_MULTIHOP_HOP_INDEX) {
                 uint8_t l_hop_index = 0;
-                memcpy(&l_hop_index, l_tsd->data, sizeof(l_hop_index));
+                memcpy(&l_hop_index, l_tsd->tsd, sizeof(l_hop_index));
                 if (l_hop_index != a_expected_hop_index) {
                     log_it(L_WARNING, "Receipt hop_index mismatch: expected %u, got %u",
                            a_expected_hop_index, l_hop_index);
@@ -163,7 +164,7 @@ bool dap_vpn_client_receipt_verify(
     }
     
     // Verify payment TX hash matches
-    if (memcmp(&a_receipt->receipt_info.prev_tx_hash, a_expected_payment_tx, sizeof(dap_chain_hash_fast_t)) != 0) {
+    if (memcmp(&a_receipt->receipt_info.prev_tx_cond_hash, a_expected_payment_tx, sizeof(dap_chain_hash_fast_t)) != 0) {
         log_it(L_WARNING, "Receipt payment_tx_hash mismatch");
         return false;
     }

@@ -18,7 +18,7 @@
 #include "include/dap_chain_net_vpn_client_receipt.h"
 #include "dap_chain_net_vpn_client_payment.h"
 #include "include/dap_vpn_client_wallet.h"
-#include "dap_vpn_client_network_registry.h"
+#include "include/dap_vpn_client_network_registry.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_client.h"
@@ -26,7 +26,7 @@
 #include "dap_strfuncs.h"
 #include "dap_timerfd.h"
 #include "dap_worker.h"
-#include "../../tun/include/dap_net_tun.h"  // Unified TUN API
+#include "../tun/include/dap_net_tun.h"  // Unified TUN API
 #include <string.h>
 #include <time.h>
 #include <pthread.h>

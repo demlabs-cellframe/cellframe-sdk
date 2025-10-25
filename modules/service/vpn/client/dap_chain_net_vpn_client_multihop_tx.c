@@ -22,10 +22,12 @@
  */
 
 #include "include/dap_chain_net_vpn_client_multihop_tx.h"
+#include "dap_chain_net_srv_vpn_common.h"
 #include "dap_chain_net_srv_vpn_tsd.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_order.h"
 #include "dap_global_db.h"
 #include "dap_common.h"
 #include <string.h>
@@ -46,23 +48,56 @@ int dap_chain_net_vpn_client_multihop_get_hop_price(
         return -1;
     }
     
-    // Query GDB for node's VPN service price
+    // Find service orders for VPN service with SELL direction
     dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+    dap_list_t *l_orders = NULL;
+    size_t l_orders_count = 0;
     
-    // Get price from service order (if published in GDB)
-    dap_chain_net_srv_price_t *l_price = dap_chain_net_srv_get_price_from_order(
-        a_net, a_node_addr, l_srv_uid, a_unit_type);
+    // Search for SELL orders matching VPN service and unit type
+    int l_ret = dap_chain_net_srv_order_find_all_by(
+        a_net,
+        SERV_DIR_SELL,
+        l_srv_uid,
+        a_unit_type,
+        NULL,  // any token ticker
+        uint256_0,  // min price
+        dap_chain_uint256_from(UINT64_MAX),  // max price
+        &l_orders,
+        &l_orders_count);
     
-    if (!l_price) {
-        log_it(L_WARNING, "No price found for node "NODE_ADDR_FP_STR", using default",
+    if (l_ret != 0 || !l_orders || l_orders_count == 0) {
+        log_it(L_WARNING, "No VPN service orders found for node "NODE_ADDR_FP_STR", using default price",
                NODE_ADDR_FP_ARGS_S(*a_node_addr));
-        // Use default price if not found
         *a_price = dap_chain_uint256_from(1000000000); // 1 token default
         return 0;
     }
     
-    *a_price = l_price->value_datoshi;
-    DAP_DELETE(l_price);
+    // Find order matching node_addr
+    dap_chain_net_srv_order_t *l_matching_order = NULL;
+    for (dap_list_t *l_iter = l_orders; l_iter; l_iter = l_iter->next) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_iter->data;
+        if (l_order && memcmp(&l_order->node_addr, a_node_addr, sizeof(dap_chain_node_addr_t)) == 0) {
+            l_matching_order = l_order;
+            break;
+        }
+    }
+    
+    if (!l_matching_order) {
+        log_it(L_WARNING, "No order found for specific node "NODE_ADDR_FP_STR", using first available order",
+               NODE_ADDR_FP_ARGS_S(*a_node_addr));
+        l_matching_order = (dap_chain_net_srv_order_t *)l_orders->data;
+    }
+    
+    // Extract price from order
+    *a_price = l_matching_order->price;
+    
+    log_it(L_INFO, "Found price for node "NODE_ADDR_FP_STR": %s datoshi",
+           NODE_ADDR_FP_ARGS_S(*a_node_addr),
+           dap_chain_balance_print(*a_price));
+    
+    // Clean up order list
+    dap_list_free(l_orders);
+    
     return 0;
 }
 

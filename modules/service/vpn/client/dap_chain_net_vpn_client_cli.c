@@ -8,8 +8,9 @@
 #include "dap_chain_net_vpn_client_service.h"
 #include "dap_chain_net_vpn_client_auto.h"
 #include "dap_chain_net_vpn_client_payment.h"
+#include "dap_chain_net_srv_vpn_common.h"
 #include "include/dap_vpn_client_wallet.h"
-#include "dap_vpn_client_network_registry.h"
+#include "include/dap_vpn_client_network_registry.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_net_srv.h"
@@ -529,13 +530,16 @@ int dap_chain_net_vpn_client_cli_auto_select_node(dap_chain_net_t *net,
     dap_list_t *l_orders_list = NULL;
     size_t l_orders_count = 0;
     
+    // Find all VPN service orders (SELL direction)
+    dap_chain_net_srv_price_unit_uid_t l_any_unit = {.enm = SERV_UNIT_UNDEFINED};
     int l_result = dap_chain_net_srv_order_find_all_by(
         net,
         SERV_DIR_SELL,  // We're looking for servers selling VPN service
         l_vpn_uid,
-        NULL,  // No specific price unit filter
-        NULL,  // No minimum price
-        NULL,  // No maximum price
+        l_any_unit,     // No specific price unit filter
+        NULL,           // No token ticker filter
+        uint256_0,      // Min price
+        dap_chain_uint256_from(UINT64_MAX),  // Max price
         &l_orders_list,
         &l_orders_count
     );
@@ -636,6 +640,7 @@ int dap_chain_net_vpn_client_cli_create_payment(dap_chain_wallet_t *wallet,
     }
     
     dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+    dap_chain_net_srv_price_unit_uid_t l_unit = { .enm = SERV_UNIT_B };
     uint256_t l_zero = {};
     
     // Create conditional transaction
@@ -646,7 +651,7 @@ int dap_chain_net_vpn_client_cli_create_payment(dap_chain_wallet_t *wallet,
         token,
         amount,                                    // value
         l_zero,                                    // value_per_unit_max
-        SERV_UNIT_B,                              // unit type (bytes)
+        l_unit,                                    // unit type (bytes)
         l_srv_uid,                                 // VPN service UID
         l_zero,                                    // fee
         NULL,                                      // no TSD for single-hop
@@ -663,7 +668,7 @@ int dap_chain_net_vpn_client_cli_create_payment(dap_chain_wallet_t *wallet,
     
     *out_tx_hash = l_tx_hash_str;
     
-    log_it(L_NOTICE, "Created payment TX: %s (amount="UINT256_FORMAT_U" %s)",
+    log_it(L_NOTICE, "Created payment TX: %s (amount: "UINT256_FORMAT_U" %s)",
            l_tx_hash_str, UINT256_FORMAT_PARAM(amount), token);
     
     return 0;

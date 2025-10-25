@@ -22,6 +22,8 @@ file(GLOB DAP_CHAIN_NET_VPN_CLIENT_HEADERS
   client/platform/platform.h
   client/platform/network.h
 )
+# Exclude internal headers from public API
+list(FILTER DAP_CHAIN_NET_VPN_CLIENT_HEADERS EXCLUDE REGEX ".*_internal\\.h$")
 
 # Platform-specific VPN Client sources
 # CMake selects only the implementation for the current platform
