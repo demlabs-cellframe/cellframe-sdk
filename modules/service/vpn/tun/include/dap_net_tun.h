@@ -28,6 +28,7 @@
 #include <netinet/in.h>
 #include "dap_events_socket.h"
 #include "dap_worker.h"
+#include "dap_uuid.h"  // For dap_stream_ch_uuid_t
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,17 +55,28 @@ typedef enum dap_net_tun_mode {
 typedef struct dap_net_tun dap_net_tun_t;
 
 /**
- * @brief Data received callback
+ * @brief VPN channel routing info (for outgoing packets)
+ * @details Stores worker + channel UUID for MT-safe packet forwarding
+ */
+typedef struct dap_net_tun_channel_info {
+    dap_worker_t *worker;               // Worker where channel resides (NULL = not set)
+    dap_stream_ch_uuid_t channel_uuid;  // Stream channel UUID (blank = not set)
+} dap_net_tun_channel_info_t;
+
+/**
+ * @brief Data received callback (NEW EXTENDED FORMAT)
  * 
  * @param a_tun TUN device handle
  * @param a_data Received data
  * @param a_data_size Data size
- * @param a_arg User argument
+ * @param a_channel_info Channel routing info (worker + UUID) - may be NULL if not set
+ * @param a_arg User argument (state machine context)
  */
 typedef void (*dap_net_tun_data_callback_t)(
     dap_net_tun_t *a_tun,
     const void *a_data,
     size_t a_data_size,
+    const dap_net_tun_channel_info_t *a_channel_info,
     void *a_arg);
 
 /**
@@ -72,11 +84,13 @@ typedef void (*dap_net_tun_data_callback_t)(
  * 
  * @param a_tun TUN device handle
  * @param a_error_code Error code
+ * @param a_error_msg Error message (may be NULL)
  * @param a_arg User argument
  */
 typedef void (*dap_net_tun_error_callback_t)(
     dap_net_tun_t *a_tun,
     int a_error_code,
+    const char *a_error_msg,
     void *a_arg);
 
 /**
@@ -188,6 +202,34 @@ int dap_net_tun_get_fd(dap_net_tun_t *a_tun, uint32_t a_device_index);
  * @return Mode (CLIENT or SERVER)
  */
 dap_net_tun_mode_t dap_net_tun_get_mode(dap_net_tun_t *a_tun);
+
+/**
+ * @brief Set VPN channel routing info (CLIENT mode only)
+ * @details Store worker + channel UUID for outgoing packet routing.
+ *          This allows TUN callback to directly forward packets without
+ *          needing to search for channel info in state machine.
+ * 
+ * @param a_tun TUN handle
+ * @param a_worker Worker where channel resides (NULL to clear)
+ * @param a_channel_uuid Channel UUID (NULL to clear)
+ * @return 0 on success, negative on error
+ */
+int dap_net_tun_set_channel_info(
+    dap_net_tun_t *a_tun,
+    dap_worker_t *a_worker,
+    const dap_stream_ch_uuid_t *a_channel_uuid);
+
+/**
+ * @brief Get VPN channel routing info (CLIENT mode only)
+ * @details Retrieve stored worker + channel UUID.
+ * 
+ * @param a_tun TUN handle
+ * @param[out] a_channel_info Output buffer for channel info
+ * @return 0 on success, negative on error
+ */
+int dap_net_tun_get_channel_info(
+    dap_net_tun_t *a_tun,
+    dap_net_tun_channel_info_t *a_channel_info);
 
 #ifdef __cplusplus
 }

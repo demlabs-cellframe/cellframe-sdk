@@ -128,6 +128,9 @@ static void state_verifying_connectivity_entry(dap_chain_net_vpn_client_sm_t *a_
 static void state_routing_setup_entry(dap_chain_net_vpn_client_sm_t *a_sm);
 static void state_connected_entry(dap_chain_net_vpn_client_sm_t *a_sm);
 
+// Forward declarations for TUN callbacks (implemented in state_tunnel.c)
+// These are declared in internal.h but need forward reference here
+
 /**
  * @brief Get primary VPN channel UUID (thread-safe)
  * 
@@ -147,6 +150,7 @@ static inline bool s_get_primary_channel_uuid(dap_chain_net_vpn_client_sm_t *a_s
     
     return l_has_channel;
 }
+
 static void state_connection_lost_entry(dap_chain_net_vpn_client_sm_t *a_sm);
 static void state_reconnecting_entry(dap_chain_net_vpn_client_sm_t *a_sm);
 static void state_disconnecting_entry(dap_chain_net_vpn_client_sm_t *a_sm);
@@ -1450,7 +1454,7 @@ static void s_vpn_channel_setup_callback(dap_worker_t *a_worker, void *a_arg) {
     // Register packet callback on channel
     dap_stream_ch_chain_net_srv_t *l_ch_srv = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
     if (l_ch_srv) {
-        l_ch_srv->notify_callback = (dap_stream_ch_chain_net_srv_callback_packet_t)s_stream_ch_packet_in_callback;
+        l_ch_srv->notify_callback = (dap_stream_ch_chain_net_srv_callback_packet_t)dap_chain_net_vpn_client_stream_packet_in_callback;
         l_ch_srv->notify_callback_arg = l_ctx->sm;
         log_it(L_DEBUG, "Registered packet callback for VPN channel UUID: "UUID_FORMAT_STR,
                UUID_FORMAT_ARGS(&l_ctx->channel_uuid));
@@ -1576,8 +1580,8 @@ static void state_connected_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
         .mtu = l_mtu,
         .worker_count = 0,  // Not used in CLIENT mode
         .workers = NULL,    // Not used in CLIENT mode
-        .on_data_received = s_tun_data_received_callback,
-        .on_error = s_tun_error_callback,
+        .on_data_received = dap_chain_net_vpn_client_tun_data_received_callback,
+        .on_error = dap_chain_net_vpn_client_tun_error_callback,
         .callback_arg = a_sm,
         .auto_cpu_reassignment = false  // Not used in CLIENT mode
     };

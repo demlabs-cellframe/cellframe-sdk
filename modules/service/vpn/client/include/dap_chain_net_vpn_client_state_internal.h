@@ -285,5 +285,41 @@ static inline void cleanup_keepalive_timer(dap_chain_net_vpn_client_sm_t *a_sm) 
     }
 }
 
+// =============================================================================
+// TUN Device & Stream Callbacks (from dap_chain_net_vpn_client_state_tunnel.c)
+// =============================================================================
+
+/**
+ * @brief TUN device data received callback (NEW EXTENDED API)
+ * @details Forwards packets from TUN device to VPN server via stream channel.
+ *          Uses channel_info (worker + UUID) provided by dap_net_tun_t.
+ */
+void dap_chain_net_vpn_client_tun_data_received_callback(
+    dap_net_tun_t *a_tun,
+    const void *a_data,
+    size_t a_data_size,
+    const dap_net_tun_channel_info_t *a_channel_info,
+    void *a_user_data);
+
+/**
+ * @brief TUN device error callback
+ * @details Handles TUN device errors
+ */
+void dap_chain_net_vpn_client_tun_error_callback(
+    dap_net_tun_t *a_tun,
+    int a_error_code,
+    const char *a_error_msg,
+    void *a_user_data);
+
+/**
+ * @brief Stream channel packet received callback
+ * @details Forwards packets from VPN server to TUN device
+ */
+void dap_chain_net_vpn_client_stream_packet_in_callback(
+    dap_stream_ch_chain_net_srv_t *a_ch_srv,
+    uint8_t a_pkt_type,
+    dap_stream_ch_pkt_t *a_pkt,
+    void *a_arg);
+
 #endif // DAP_CHAIN_NET_VPN_CLIENT_STATE_INTERNAL_H
 

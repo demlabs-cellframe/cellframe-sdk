@@ -4,30 +4,50 @@
  * @details Handles bidirectional packet forwarding:
  *          - TUN → Stream: Outgoing packets (client to VPN server)
  *          - Stream → TUN: Incoming packets (VPN server to client)
+ * 
+ *          ARCHITECTURE: Thread-safe, worker-affinity aware
+ *          - Uses dap_net_tun_t channel_info (worker + UUID) for routing
+ *          - No state machine dependency for packet forwarding
+ *          - Proper synchronization via TUN internal structures
+ * 
  * @date 2025-10-25
  * @copyright (c) 2025 Cellframe Network
  */
 
-#include "include/dap_chain_net_vpn_client_state_internal.h"
+#include "dap_chain_net_vpn_client_state_internal.h"
 #include "dap_common.h"
+#include "dap_stream_ch_pkt.h"
 
 #define LOG_TAG "dap_chain_net_vpn_client_state_tunnel"
 
+// Debug flag (external)
+extern bool s_debug_more;
+
 /**
- * @brief TUN device data received callback
+ * @brief TUN device data received callback (NEW API)
  * @details Called when packet arrives from TUN device (from local network stack).
- *          Forwards packet to VPN server via stream channel.
+ *          Forwards packet to VPN server via stream channel using channel_info from TUN.
+ * 
+ *          NEW: Receives channel_info (worker + UUID) directly from dap_net_tun_t!
+ *               No need to access state machine for routing info.
+ * 
  * @param a_tun TUN device handle
  * @param a_data Packet data
  * @param a_data_size Packet size in bytes
- * @param a_user_data State machine context
+ * @param a_channel_info Channel routing info (worker + UUID) - provided by TUN!
+ * @param a_user_data State machine context (for stats only)
  */
-void s_tun_data_received_callback(dap_net_tun_t *a_tun, const void *a_data, 
-                                   size_t a_data_size, void *a_user_data) {
+void dap_chain_net_vpn_client_tun_data_received_callback(
+    dap_net_tun_t *a_tun,
+    const void *a_data,
+    size_t a_data_size,
+    const dap_net_tun_channel_info_t *a_channel_info,
+    void *a_user_data)
+{
     UNUSED(a_tun);
     dap_chain_net_vpn_client_sm_t *l_sm = (dap_chain_net_vpn_client_sm_t *)a_user_data;
     
-    if (!l_sm || !l_sm->vpn_channel || !a_data || a_data_size == 0) {
+    if (!l_sm || !a_data || a_data_size == 0) {
         log_it(L_WARNING, "Invalid parameters in TUN data callback");
         return;
     }
@@ -37,10 +57,21 @@ void s_tun_data_received_callback(dap_net_tun_t *a_tun, const void *a_data,
         return;
     }
     
-    // Forward packet to VPN server via stream channel
-    size_t l_written = dap_stream_ch_pkt_write_unsafe(l_sm->vpn_channel, 
-                                                        DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA,
-                                                        a_data, a_data_size);
+    // Check channel info (provided by TUN!)
+    if (!a_channel_info || !a_channel_info->worker || dap_uuid_is_blank(&a_channel_info->channel_uuid)) {
+        log_it(L_WARNING, "No VPN channel info available from TUN (not set yet?)");
+        return;
+    }
+    
+    // Forward packet to VPN server via stream channel (MT-safe API)
+    // Use channel info directly from TUN - no state machine access needed!
+    size_t l_written = dap_stream_ch_pkt_write_mt(
+        a_channel_info->worker,
+        a_channel_info->channel_uuid,
+        DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA,
+        a_data,
+        a_data_size
+    );
     
     if (l_written != a_data_size) {
         log_it(L_ERROR, "Failed to write packet to stream channel: %zu/%zu bytes", 
@@ -53,7 +84,8 @@ void s_tun_data_received_callback(dap_net_tun_t *a_tun, const void *a_data,
     l_sm->bytes_sent += a_data_size;
     pthread_mutex_unlock(&l_sm->mutex);
     
-    debug_if(g_debug_more, L_DEBUG, "Forwarded %zu bytes from TUN to server", a_data_size);
+    debug_if(s_debug_more, L_DEBUG, "Forwarded %zu bytes from TUN to server (worker=%p, uuid="UUID_FORMAT_STR")",
+             a_data_size, a_channel_info->worker, UUID_FORMAT_ARGS(&a_channel_info->channel_uuid));
 }
 
 /**
@@ -65,7 +97,7 @@ void s_tun_data_received_callback(dap_net_tun_t *a_tun, const void *a_data,
  * @param a_error_msg Error message (may be NULL)
  * @param a_user_data State machine context
  */
-void s_tun_error_callback(dap_net_tun_t *a_tun, int a_error_code, 
+void dap_chain_net_vpn_client_tun_error_callback(dap_net_tun_t *a_tun, int a_error_code, 
                           const char *a_error_msg, void *a_user_data) {
     UNUSED(a_tun);
     dap_chain_net_vpn_client_sm_t *l_sm = (dap_chain_net_vpn_client_sm_t *)a_user_data;
@@ -83,13 +115,25 @@ void s_tun_error_callback(dap_net_tun_t *a_tun, int a_error_code,
  * @brief Stream channel packet received callback
  * @details Called when packet is received from VPN server (incoming traffic).
  *          Forwards packet to TUN device for local network stack processing.
- * @param a_ch Stream channel handle
+ * 
+ *          Signature: dap_stream_ch_chain_net_srv_callback_packet_t
+ *          void (*)(dap_stream_ch_chain_net_srv_t *, uint8_t, dap_stream_ch_pkt_t *, void *)
+ * 
+ * @param a_ch_srv Stream channel service handle
+ * @param a_pkt_type Packet type
+ * @param a_pkt Packet data
  * @param a_arg State machine context
  */
-void s_stream_ch_packet_in_callback(dap_stream_ch_t *a_ch, void *a_arg) {
+void dap_chain_net_vpn_client_stream_packet_in_callback(
+    dap_stream_ch_chain_net_srv_t *a_ch_srv,
+    uint8_t a_pkt_type,
+    dap_stream_ch_pkt_t *a_pkt,
+    void *a_arg)
+{
+    UNUSED(a_ch_srv);
     dap_chain_net_vpn_client_sm_t *l_sm = (dap_chain_net_vpn_client_sm_t *)a_arg;
     
-    if (!l_sm || !l_sm->tun_handle || !a_ch) {
+    if (!l_sm || !l_sm->tun_handle || !a_pkt) {
         log_it(L_WARNING, "Invalid parameters in stream packet callback");
         return;
     }
@@ -100,26 +144,19 @@ void s_stream_ch_packet_in_callback(dap_stream_ch_t *a_ch, void *a_arg) {
         return;
     }
     
-    // Get packet from stream channel
-    dap_stream_ch_pkt_t *l_pkt = dap_stream_ch_pkt_read_unsafe(a_ch);
-    if (!l_pkt) {
-        return;  // No packet available
-    }
-    
     // Check packet type
-    if (l_pkt->hdr.type != DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA) {
-        log_it(L_WARNING, "Unexpected packet type: 0x%02x", l_pkt->hdr.type);
-        DAP_DELETE(l_pkt);
+    if (a_pkt_type != DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA) {
+        log_it(L_WARNING, "Unexpected packet type: 0x%02x", a_pkt_type);
         return;
     }
     
     // Write packet to TUN device
-    size_t l_data_size = l_pkt->hdr.size;
+    size_t l_data_size = a_pkt->hdr.data_size;
     if (l_data_size > 0) {
-        int l_result = dap_net_tun_write(l_sm->tun_handle, l_pkt->data, l_data_size);
+        ssize_t l_result = dap_net_tun_write(l_sm->tun_handle, a_pkt->data, l_data_size);
         
         if (l_result < 0) {
-            log_it(L_ERROR, "Failed to write %zu bytes to TUN device (error: %d)", 
+            log_it(L_ERROR, "Failed to write %zu bytes to TUN device (error: %zd)", 
                    l_data_size, l_result);
         } else {
             // Update statistics
@@ -127,10 +164,7 @@ void s_stream_ch_packet_in_callback(dap_stream_ch_t *a_ch, void *a_arg) {
             l_sm->bytes_received += l_data_size;
             pthread_mutex_unlock(&l_sm->mutex);
             
-            debug_if(g_debug_more, L_DEBUG, "Forwarded %zu bytes from server to TUN", l_data_size);
+            debug_if(s_debug_more, L_DEBUG, "Forwarded %zu bytes from server to TUN", l_data_size);
         }
     }
-    
-    DAP_DELETE(l_pkt);
 }
-
