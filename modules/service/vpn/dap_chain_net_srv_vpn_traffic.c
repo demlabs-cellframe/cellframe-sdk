@@ -28,6 +28,7 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_net_srv_vpn_traffic.h"
+#include "dap_chain_net_srv_vpn_internal.h"
 
 #define LOG_TAG "dap_chain_net_srv_vpn_traffic"
 
@@ -135,7 +136,7 @@ bool dap_chain_net_srv_vpn_traffic_shaper_allow(
     } else {
         a_shaper->bytes_dropped += a_packet_size;
         a_shaper->packets_dropped++;
-        debug_if(g_debug_level >= L_DEBUG, L_DEBUG, "Packet dropped by rate limiter: %zu bytes", a_packet_size);
+        debug_if(g_vpn_debug_more, L_DEBUG, "Packet dropped by rate limiter: %zu bytes", a_packet_size);
     }
     
     pthread_mutex_unlock(&a_shaper->mutex);

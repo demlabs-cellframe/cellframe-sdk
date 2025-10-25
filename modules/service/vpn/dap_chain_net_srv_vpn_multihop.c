@@ -27,11 +27,16 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_net_srv_vpn_multihop.h"
+#include "dap_chain_net_srv_vpn_common.h"
+#include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_node_client.h"
 #include "dap_enc_key.h"
 #include "dap_enc.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
+
+// External symbols
+extern bool g_vpn_debug_more;
 
 #define LOG_TAG "dap_chain_net_srv_vpn_multihop"
 
@@ -265,7 +270,7 @@ int dap_chain_net_srv_vpn_multihop_packet_process(
         return -7;
     }
     
-    debug_if(g_debug_level >= L_DEBUG, L_DEBUG,
+    debug_if(g_vpn_debug_more, L_DEBUG,
              "Decrypted %zu bytes (from %zu) at hop %u using key type %d",
              l_decrypted_size, l_encrypted_size, a_session->current_hop_index, l_layer_key->type);
     
@@ -331,7 +336,7 @@ int dap_chain_net_srv_vpn_multihop_packet_forward(
         return -3;
     }
     
-    debug_if(g_debug_level >= L_DEBUG, L_DEBUG, "Forwarded %zu bytes to next hop (tunnel %u)",
+    debug_if(dap_log_level_get() <= L_DEBUG, L_DEBUG, "Forwarded %zu bytes to next hop (tunnel %u)",
              a_packet_size, l_tunnel_idx);
     
     return 0;
@@ -376,14 +381,23 @@ int dap_chain_net_srv_vpn_multihop_establish_forward_connection(
         return -4;
     }
     
-    a_session->forward_stream = l_node_client->client->stream;
+    // Get stream from client using proper API
+    a_session->forward_stream = dap_client_get_stream(l_node_client->client);
+    if (!a_session->forward_stream) {
+        log_it(L_ERROR, "No stream in node client");
+        dap_chain_node_client_close_mt(l_node_client);
+        DAP_DELETE(l_node_info);
+        return -5;
+    }
+    
+    // Use VPN service channel ID
     a_session->forward_ch = a_session->forward_stream->channel[DAP_CHAIN_NET_SRV_VPN_ID];
     
     if (!a_session->forward_ch) {
         log_it(L_ERROR, "VPN channel not available on forward connection");
-        dap_chain_node_client_close(l_node_client);
+        dap_chain_node_client_close_mt(l_node_client);
         DAP_DELETE(l_node_info);
-        return -5;
+        return -6;
     }
     
     log_it(L_INFO, "Established forward connection to next hop");
