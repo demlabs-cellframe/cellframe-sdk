@@ -171,7 +171,7 @@ static void s_tun_event_socket_callback(dap_events_socket_t *a_es, void *a_arg)
         const dap_net_tun_channel_info_t *l_channel_info = &l_tun->channel_info;
         
         // Pass channel_info only if it's valid (worker != NULL)
-        if (l_channel_info->worker && !dap_uuid_is_blank(&l_channel_info->channel_uuid)) {
+        if (l_channel_info->worker && !dap_uuid_is_blank(&l_channel_info->channel_uuid, sizeof(dap_stream_ch_uuid_t))) {
             l_tun->on_data_received(l_tun, a_es->buf_in, a_es->buf_in_size, l_channel_info, l_tun->callback_arg);
         } else {
             // Channel info not set yet - pass NULL
@@ -193,7 +193,7 @@ static void s_tun_event_socket_error(dap_events_socket_t *a_es, int a_error)
     dap_net_tun_t *l_tun = (dap_net_tun_t *)a_es->_inheritor;
     
     if (l_tun && l_tun->on_error) {
-        l_tun->on_error(l_tun, a_error, l_tun->callback_arg);
+        l_tun->on_error(l_tun, a_error, "TUN socket error", l_tun->callback_arg);
     }
 }
 
@@ -232,12 +232,15 @@ static int s_create_tun_device(dap_net_tun_t *a_tun, dap_net_tun_linux_t *a_linu
     a_tun->device_fds[a_index] = l_tun_fd;
     
     // Create event socket wrapper for TUN device
+    dap_events_socket_callbacks_t l_callbacks = {
+        .read_callback = s_tun_event_socket_callback,
+        .error_callback = s_tun_event_socket_error,
+        .arg = a_tun
+    };
+    
     dap_events_socket_t *l_tun_es = dap_events_socket_wrap_no_add(
         l_tun_fd,
-        a_worker,
-        s_tun_event_socket_callback,
-        s_tun_event_socket_error,
-        a_tun
+        &l_callbacks
     );
     
     if (!l_tun_es) {
@@ -359,7 +362,7 @@ dap_net_tun_t* dap_net_tun_init(const dap_net_tun_config_t *a_config)
         
         if (l_tun->mode == DAP_NET_TUN_MODE_CLIENT) {
             // CLIENT mode: use current worker or default
-            l_worker = dap_events_get_current_worker() ? dap_events_get_current_worker() : dap_events_worker_get(0);
+            l_worker = dap_worker_get_current() ? dap_worker_get_current() : dap_events_worker_get(0);
         } else {
             // SERVER mode: assign to specific worker
             l_worker = a_config->workers ? a_config->workers[i] : dap_events_worker_get(i);
@@ -586,8 +589,8 @@ int dap_net_tun_set_channel_info(
         // Set channel info
         a_tun->channel_info.worker = a_worker;
         a_tun->channel_info.channel_uuid = *a_channel_uuid;
-        log_it(L_INFO, "TUN channel info set: worker=%p, uuid="UUID_FORMAT_STR,
-               a_worker, UUID_FORMAT_ARGS(a_channel_uuid));
+        log_it(L_INFO, "TUN channel info set: worker=%p, uuid=%u",
+               a_worker, *a_channel_uuid);
     } else {
         // Clear channel info
         a_tun->channel_info.worker = NULL;

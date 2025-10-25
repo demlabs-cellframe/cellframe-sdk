@@ -28,7 +28,11 @@
 #include <netinet/in.h>
 #include "dap_events_socket.h"
 #include "dap_worker.h"
-#include "dap_uuid.h"  // For dap_stream_ch_uuid_t
+#include "dap_uuid.h"
+
+// dap_stream_ch_uuid_t is defined in dap_stream_ch_pkt.h as unsigned int
+// We use forward declaration here to avoid circular dependency
+typedef unsigned int dap_stream_ch_uuid_t;
 
 #ifdef __cplusplus
 extern "C" {

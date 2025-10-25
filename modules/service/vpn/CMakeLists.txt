@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project (dap_chain_net_srv_vpn)
-  
+
+# Add TUN submodule
+add_subdirectory(tun)
 
 # Server sources
 if(WIN32)
@@ -60,7 +62,7 @@ list(APPEND DAP_CHAIN_NET_SRV_VPN_HEADERS ${DAP_CHAIN_NET_VPN_CLIENT_HEADERS})
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_VPN_SRCS} ${DAP_CHAIN_NET_SRV_VPN_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_stream_ch_chain_net_srv dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)
+target_link_libraries(${PROJECT_NAME} dap_net_tun dap_core dap_crypto dap_stream dap_stream_ch_chain_net_srv dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)
 add_definitions("-DDAP_TUN_IN_WORKER")
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
