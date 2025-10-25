@@ -78,6 +78,10 @@ struct dap_net_tun {
     dap_net_tun_error_callback_t on_error;
     void *callback_arg;
     
+    // VPN channel routing info (CLIENT mode only)
+    dap_net_tun_channel_info_t channel_info;
+    pthread_rwlock_t channel_info_rwlock;
+    
     // Statistics
     uint64_t bytes_sent;
     uint64_t bytes_received;
@@ -161,9 +165,20 @@ static void s_tun_event_socket_callback(dap_events_socket_t *a_es, void *a_arg)
     l_tun->bytes_received += a_es->buf_in_size;
     l_tun->packets_received++;
     
-    // Call user callback
+    // Call user callback with channel info (read-locked)
     if (l_tun->on_data_received) {
-        l_tun->on_data_received(l_tun, a_es->buf_in, a_es->buf_in_size, l_tun->callback_arg);
+        pthread_rwlock_rdlock(&l_tun->channel_info_rwlock);
+        const dap_net_tun_channel_info_t *l_channel_info = &l_tun->channel_info;
+        
+        // Pass channel_info only if it's valid (worker != NULL)
+        if (l_channel_info->worker && !dap_uuid_is_blank(&l_channel_info->channel_uuid)) {
+            l_tun->on_data_received(l_tun, a_es->buf_in, a_es->buf_in_size, l_channel_info, l_tun->callback_arg);
+        } else {
+            // Channel info not set yet - pass NULL
+            l_tun->on_data_received(l_tun, a_es->buf_in, a_es->buf_in_size, NULL, l_tun->callback_arg);
+        }
+        
+        pthread_rwlock_unlock(&l_tun->channel_info_rwlock);
     }
     
     // Reset buffer for next read
@@ -271,6 +286,12 @@ dap_net_tun_t* dap_net_tun_init(const dap_net_tun_config_t *a_config)
     l_tun->on_data_received = a_config->on_data_received;
     l_tun->on_error = a_config->on_error;
     l_tun->callback_arg = a_config->callback_arg;
+    
+    // Initialize channel info (CLIENT mode: will be set later via dap_net_tun_set_channel_info)
+    memset(&l_tun->channel_info, 0, sizeof(dap_net_tun_channel_info_t));
+    l_tun->channel_info.worker = NULL;
+    memset(&l_tun->channel_info.channel_uuid, 0, sizeof(dap_stream_ch_uuid_t));
+    pthread_rwlock_init(&l_tun->channel_info_rwlock, NULL);
     
     // Create Linux-specific data
     dap_net_tun_linux_t *l_linux = DAP_NEW_Z(dap_net_tun_linux_t);
@@ -420,6 +441,10 @@ void dap_net_tun_deinit(dap_net_tun_t *a_tun)
     
     DAP_DELETE(a_tun->device_fds);
     DAP_DELETE(a_tun->event_sockets);
+    
+    // Destroy channel info rwlock
+    pthread_rwlock_destroy(&a_tun->channel_info_rwlock);
+    
     DAP_DELETE(a_tun);
     
     log_it(L_INFO, "TUN device deinitialized");
@@ -527,5 +552,78 @@ int dap_net_tun_get_fd(dap_net_tun_t *a_tun, uint32_t a_device_index)
 dap_net_tun_mode_t dap_net_tun_get_mode(dap_net_tun_t *a_tun)
 {
     return a_tun ? a_tun->mode : DAP_NET_TUN_MODE_CLIENT;
+}
+
+/**
+ * @brief Set VPN channel routing info (CLIENT mode only)
+ * @details Store worker + channel UUID for outgoing packet routing.
+ *          This allows TUN callback to directly forward packets without
+ *          needing to search for channel info in state machine.
+ * 
+ * @param a_tun TUN handle
+ * @param a_worker Worker where channel resides (NULL to clear)
+ * @param a_channel_uuid Channel UUID (NULL to clear)
+ * @return 0 on success, negative on error
+ */
+int dap_net_tun_set_channel_info(
+    dap_net_tun_t *a_tun,
+    dap_worker_t *a_worker,
+    const dap_stream_ch_uuid_t *a_channel_uuid)
+{
+    if (!a_tun) {
+        log_it(L_ERROR, "Invalid TUN handle");
+        return -1;
+    }
+    
+    if (a_tun->mode != DAP_NET_TUN_MODE_CLIENT) {
+        log_it(L_WARNING, "set_channel_info() is only for CLIENT mode (current: SERVER)");
+        return -2;
+    }
+    
+    pthread_rwlock_wrlock(&a_tun->channel_info_rwlock);
+    
+    if (a_worker && a_channel_uuid) {
+        // Set channel info
+        a_tun->channel_info.worker = a_worker;
+        a_tun->channel_info.channel_uuid = *a_channel_uuid;
+        log_it(L_INFO, "TUN channel info set: worker=%p, uuid="UUID_FORMAT_STR,
+               a_worker, UUID_FORMAT_ARGS(a_channel_uuid));
+    } else {
+        // Clear channel info
+        a_tun->channel_info.worker = NULL;
+        memset(&a_tun->channel_info.channel_uuid, 0, sizeof(dap_stream_ch_uuid_t));
+        log_it(L_INFO, "TUN channel info cleared");
+    }
+    
+    pthread_rwlock_unlock(&a_tun->channel_info_rwlock);
+    
+    return 0;
+}
+
+/**
+ * @brief Get VPN channel routing info (CLIENT mode only)
+ * @details Retrieve stored worker + channel UUID.
+ * 
+ * @param a_tun TUN handle
+ * @param[out] a_channel_info Output buffer for channel info
+ * @return 0 on success, negative on error
+ */
+int dap_net_tun_get_channel_info(
+    dap_net_tun_t *a_tun,
+    dap_net_tun_channel_info_t *a_channel_info)
+{
+    if (!a_tun || !a_channel_info) {
+        return -1;
+    }
+    
+    if (a_tun->mode != DAP_NET_TUN_MODE_CLIENT) {
+        return -2;
+    }
+    
+    pthread_rwlock_rdlock(&a_tun->channel_info_rwlock);
+    *a_channel_info = a_tun->channel_info;
+    pthread_rwlock_unlock(&a_tun->channel_info_rwlock);
+    
+    return 0;
 }
 

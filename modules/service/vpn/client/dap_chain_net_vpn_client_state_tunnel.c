@@ -63,15 +63,40 @@ void dap_chain_net_vpn_client_tun_data_received_callback(
         return;
     }
     
-    // Forward packet to VPN server via stream channel (MT-safe API)
-    // Use channel info directly from TUN - no state machine access needed!
-    size_t l_written = dap_stream_ch_pkt_write_mt(
-        a_channel_info->worker,
-        a_channel_info->channel_uuid,
-        DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA,
-        a_data,
-        a_data_size
-    );
+    // Optimization: check if we're in the SAME worker as the channel
+    // If yes - use UNSAFE (faster, no inter-worker overhead)
+    // If no  - use MT (fallback, inter-worker call)
+    dap_worker_t *l_current_worker = dap_worker_get_current();
+    size_t l_written = 0;
+    
+    if (l_current_worker == a_channel_info->worker) {
+        // FAST PATH: same worker, use unsafe API (no locks)
+        dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_channel_info->channel_uuid);
+        if (l_ch) {
+            l_written = dap_stream_ch_pkt_write_unsafe(
+                l_ch,
+                DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA,
+                a_data,
+                a_data_size
+            );
+            debug_if(s_debug_more, L_DEBUG, "Fast path: wrote %zu bytes via unsafe API (same worker)", l_written);
+        } else {
+            log_it(L_WARNING, "Channel UUID "UUID_FORMAT_STR" not found in current worker (stale?)",
+                   UUID_FORMAT_ARGS(&a_channel_info->channel_uuid));
+            return;
+        }
+    } else {
+        // SLOW PATH: different worker, use MT API (inter-worker call)
+        l_written = dap_stream_ch_pkt_write_mt(
+            a_channel_info->worker,
+            a_channel_info->channel_uuid,
+            DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA,
+            a_data,
+            a_data_size
+        );
+        debug_if(s_debug_more, L_DEBUG, "Slow path: wrote %zu bytes via MT API (worker=%p, current=%p)",
+                 l_written, a_channel_info->worker, l_current_worker);
+    }
     
     if (l_written != a_data_size) {
         log_it(L_ERROR, "Failed to write packet to stream channel: %zu/%zu bytes", 
@@ -83,9 +108,6 @@ void dap_chain_net_vpn_client_tun_data_received_callback(
     pthread_mutex_lock(&l_sm->mutex);
     l_sm->bytes_sent += a_data_size;
     pthread_mutex_unlock(&l_sm->mutex);
-    
-    debug_if(s_debug_more, L_DEBUG, "Forwarded %zu bytes from TUN to server (worker=%p, uuid="UUID_FORMAT_STR")",
-             a_data_size, a_channel_info->worker, UUID_FORMAT_ARGS(&a_channel_info->channel_uuid));
 }
 
 /**
