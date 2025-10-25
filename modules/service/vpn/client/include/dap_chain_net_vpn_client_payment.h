@@ -27,10 +27,79 @@
 #include "dap_chain_net.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_net_vpn_client_receipt.h"
+#include "dap_hash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Payment configuration structure
+ * 
+ * This structure is used by VPN client to provide payment proof
+ * via blockchain transaction hash. Payment is ALWAYS required.
+ */
+typedef struct dap_chain_net_vpn_client_payment_config {
+    dap_hash_fast_t tx_hash;         ///< Transaction hash (256-bit) - REQUIRED
+    char network_name[64];           ///< Network name ("Backbone", "Kelvin", etc.)
+} dap_chain_net_vpn_client_payment_config_t;
+
+/**
+ * @brief Payment status result from server
+ */
+typedef enum dap_chain_net_vpn_client_payment_status {
+    DAP_CHAIN_NET_VPN_PAYMENT_STATUS_ACCEPTED = 0,        ///< Payment accepted, connection granted
+    DAP_CHAIN_NET_VPN_PAYMENT_STATUS_INVALID_FORMAT = 1,  ///< Invalid tx_hash format
+    DAP_CHAIN_NET_VPN_PAYMENT_STATUS_NOT_FOUND = 2,       ///< Transaction not found on blockchain
+    DAP_CHAIN_NET_VPN_PAYMENT_STATUS_PENDING = 3,         ///< Transaction not yet confirmed
+    DAP_CHAIN_NET_VPN_PAYMENT_STATUS_INSUFFICIENT = 4,    ///< Payment amount too low
+    DAP_CHAIN_NET_VPN_PAYMENT_STATUS_ALREADY_USED = 5,    ///< Payment already consumed
+    DAP_CHAIN_NET_VPN_PAYMENT_STATUS_EXPIRED = 6,         ///< Payment validity period expired
+    DAP_CHAIN_NET_VPN_PAYMENT_STATUS_NETWORK_MISMATCH = 7 ///< Wrong blockchain network
+} dap_chain_net_vpn_client_payment_status_t;
+
+/**
+ * @brief Initialize payment configuration
+ * 
+ * @param a_config Payment config structure to initialize
+ * @param a_tx_hash Transaction hash (hex string, 64 characters)
+ * @param a_network Network name (e.g., "Backbone")
+ * @return 0 on success, negative on error
+ */
+int dap_chain_net_vpn_client_payment_config_init(
+    dap_chain_net_vpn_client_payment_config_t *a_config,
+    const char *a_tx_hash,
+    const char *a_network);
+
+/**
+ * @brief Validate transaction hash format
+ * 
+ * @param a_tx_hash Transaction hash (hex string)
+ * @return true if valid format, false otherwise
+ */
+bool dap_chain_net_vpn_client_payment_validate_tx_hash(const char *a_tx_hash);
+
+/**
+ * @brief Serialize payment config for network transmission
+ * 
+ * @param a_config Payment config
+ * @param[out] a_out_data Output: serialized data (must be freed by caller)
+ * @param[out] a_out_size Output: serialized data size
+ * @return 0 on success, negative on error
+ */
+int dap_chain_net_vpn_client_payment_serialize(
+    const dap_chain_net_vpn_client_payment_config_t *a_config,
+    uint8_t **a_out_data,
+    size_t *a_out_size);
+
+/**
+ * @brief Get human-readable payment status message
+ * 
+ * @param a_status Payment status code
+ * @return Status message string
+ */
+const char* dap_chain_net_vpn_client_payment_status_to_string(
+    dap_chain_net_vpn_client_payment_status_t a_status);
 
 /**
  * @brief Multi-hop payment finalization

@@ -105,6 +105,14 @@ struct dap_chain_net_vpn_client_sm {
     dap_vpn_protocol_probe_t *protocol_probe;          // Active protocol probe
     dap_vpn_connectivity_test_t *connectivity_test;    // Active connectivity test
     
+    // Multi-hop & Payment
+    dap_chain_wallet_t *wallet;                        // Wallet for auto TX creation
+    dap_vpn_client_receipt_collector_t *receipt_collector; // Receipt collector for multi-hop
+    dap_stream_transport_type_t selected_protocol;    // Best protocol selected
+    
+    // Network Configuration Backup
+    dap_chain_net_vpn_client_backup_t *network_backup;  // Network config backup
+    
     // Callbacks
     dap_chain_net_vpn_client_state_callback_t callbacks[MAX_CALLBACKS];
     void *callback_args[MAX_CALLBACKS];
@@ -116,128 +124,6 @@ struct dap_chain_net_vpn_client_sm {
     // Thread safety
     pthread_mutex_t mutex;
 };
-
-// ============================================================================
-// State Handlers (state_handlers.c)
-// ============================================================================
-
-/**
- * @brief State entry functions
- */
-void state_disconnected_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_connecting_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_verifying_connectivity_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_routing_setup_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_connected_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_connection_lost_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_reconnecting_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_disconnecting_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_connect_failed_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_shutdown_entry(dap_chain_net_vpn_client_sm_t *a_sm);
-
-/**
- * @brief State exit functions
- */
-void state_verifying_connectivity_exit(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_routing_setup_exit(dap_chain_net_vpn_client_sm_t *a_sm);
-void state_connected_exit(dap_chain_net_vpn_client_sm_t *a_sm);
-
-// ============================================================================
-// TUN/Stream Callbacks (state_tunnel.c)
-// ============================================================================
-
-/**
- * @brief TUN device data received callback
- * @details Called when packet arrives from TUN device (from local network stack).
- *          Forwards packet to VPN server via stream channel.
- */
-void s_tun_data_received_callback(dap_net_tun_t *a_tun, const void *a_data, 
-                                   size_t a_data_size, void *a_user_data);
-
-/**
- * @brief TUN device error callback
- * @details Called when TUN device encounters an error.
- *          Triggers CONNECTION_LOST event if connected.
- */
-void s_tun_error_callback(dap_net_tun_t *a_tun, int a_error_code, 
-                          const char *a_error_msg, void *a_user_data);
-
-/**
- * @brief Stream channel packet received callback
- * @details Called when packet arrives from VPN server via stream channel.
- *          Forwards packet to TUN device (to local network stack).
- */
-void s_stream_ch_packet_in_callback(dap_stream_ch_t *a_ch, void *a_arg);
-
-// ============================================================================
-// Payment Functions (state_payment.c)
-// ============================================================================
-
-/**
- * @brief Create payment transaction for VPN service
- * @param a_sm State machine context
- * @param a_node_info Node information for service provider
- * @param a_net_name Network name
- * @return 0 on success, negative error code on failure
- */
-int vpn_client_payment_tx_create(dap_chain_net_vpn_client_sm_t *a_sm,
-                                  dap_chain_node_info_t *a_node_info,
-                                  const char *a_net_name);
-
-/**
- * @brief Validate payment parameters
- * @param a_sm State machine context
- * @return 0 if valid, negative error code if invalid
- */
-int vpn_client_payment_validate(dap_chain_net_vpn_client_sm_t *a_sm);
-
-// ============================================================================
-// Helper Functions (shared across modules)
-// ============================================================================
-
-/**
- * @brief Calculate exponential backoff delay
- * @param a_attempt Current attempt number
- * @param a_initial_delay_ms Initial delay in milliseconds
- * @param a_max_delay_ms Maximum delay in milliseconds
- * @return Delay in milliseconds
- */
-uint32_t calculate_backoff_delay(uint32_t a_attempt, uint32_t a_initial_delay_ms, 
-                                  uint32_t a_max_delay_ms);
-
-/**
- * @brief Get current timestamp in milliseconds
- * @return Current time in milliseconds since epoch
- */
-int64_t get_current_time_ms(void);
-
-/**
- * @brief Notify all registered state change callbacks
- * @param a_sm State machine context
- */
-void notify_state_callbacks(dap_chain_net_vpn_client_sm_t *a_sm);
-
-/**
- * @brief Cleanup node client connection
- * @param a_sm State machine context
- */
-void cleanup_node_client(dap_chain_net_vpn_client_sm_t *a_sm);
-
-/**
- * @brief Cleanup TUN device
- * @param a_sm State machine context
- */
-void cleanup_tun_device(dap_chain_net_vpn_client_sm_t *a_sm);
-
-/**
- * @brief Cleanup keepalive timer
- * @param a_sm State machine context
- */
-void cleanup_keepalive_timer(dap_chain_net_vpn_client_sm_t *a_sm);
-
-// ===========================================================================
-// Helper Functions Implementations (state_tunnel.c or state.c)
-// ===========================================================================
 
 // =============================================================================
 // TUN Device & Stream Callbacks (from dap_chain_net_vpn_client_state_tunnel.c)
@@ -274,5 +160,3 @@ void dap_chain_net_vpn_client_stream_packet_in_callback(
     uint8_t a_pkt_type,
     dap_stream_ch_pkt_t *a_pkt,
     void *a_arg);
-
-#endif // DAP_CHAIN_NET_VPN_CLIENT_STATE_INTERNAL_H

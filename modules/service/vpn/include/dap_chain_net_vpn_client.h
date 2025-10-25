@@ -32,7 +32,7 @@
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_stream_transport.h"
 #include "dap_stream_obfuscation.h"
-#include "../client/dap_chain_net_vpn_client_payment.h"
+#include "dap_chain_net_vpn_client_payment.h"
 
 typedef enum dap_chain_net_vpn_client_status_enum{
     VPN_CLIENT_STATUS_NOT_STARTED=0,

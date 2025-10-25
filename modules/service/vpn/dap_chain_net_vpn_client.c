@@ -67,7 +67,7 @@
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
-#include "client/dap_chain_net_vpn_client_payment.h"
+#include "dap_chain_net_vpn_client_payment.h"
 //#include "dap_modules_dynamic_cdb.h"
 
 /*
