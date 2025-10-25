@@ -8,11 +8,13 @@
 #include "dap_chain_net_vpn_client_service.h"
 #include "dap_chain_net_vpn_client_auto.h"
 #include "dap_chain_net_vpn_client_payment.h"
-#include "dap_vpn_client_wallet.h"
+#include "include/dap_vpn_client_wallet.h"
 #include "dap_vpn_client_network_registry.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_order.h"
+#include "dap_chain_node.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
@@ -520,30 +522,91 @@ int dap_chain_net_vpn_client_cli_auto_select_node(dap_chain_net_t *net,
     // Query GDB for VPN service nodes
     dap_chain_net_srv_uid_t l_vpn_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     
-    // Get list of nodes offering VPN service
-    // Note: This requires GDB discovery module (Phase 6.12)
-    // For now, use simple fallback to known node
+    log_it(L_INFO, "Querying GDB for VPN nodes in network '%s' with criteria '%s'",
+           net->pub.name, criteria ? criteria : "any");
     
-    const char *l_criteria_lower = criteria ? criteria : "speed";
+    // Query all VPN service orders from GDB
+    dap_list_t *l_orders_list = NULL;
+    size_t l_orders_count = 0;
     
-    log_it(L_INFO, "Auto-selecting VPN node with criteria '%s' from network '%s'",
-           l_criteria_lower, net->pub.name);
+    int l_result = dap_chain_net_srv_order_find_all_by(
+        net,
+        SERV_DIR_SELL,  // We're looking for servers selling VPN service
+        l_vpn_uid,
+        NULL,  // No specific price unit filter
+        NULL,  // No minimum price
+        NULL,  // No maximum price
+        &l_orders_list,
+        &l_orders_count
+    );
     
-    // Fallback to network-specific default nodes
-    if (strcmp(net->pub.name, "kelvin") == 0) {
-        *out_addr = dap_strdup("node.kelvin.cellframe.net");
-        *out_port = 8089;
-    } else if (strcmp(net->pub.name, "backbone") == 0) {
-        *out_addr = dap_strdup("node.backbone.cellframe.net");
-        *out_port = 8089;
-    } else {
-        // Generic fallback
-        *out_addr = dap_strdup("vpn.cellframe.net");
-        *out_port = 8089;
+    if (l_result != 0 || l_orders_count == 0) {
+        log_it(L_ERROR, "No VPN service orders found in network '%s'", net->pub.name);
+        return -2;
     }
     
-    log_it(L_NOTICE, "Auto-selected node: %s:%u (criteria: %s)",
-           *out_addr, *out_port, l_criteria_lower);
+    log_it(L_INFO, "Found %zu VPN service order(s) in GDB", l_orders_count);
+    
+    // Select best node based on criteria
+    dap_chain_net_srv_order_t *l_best_order = NULL;
+    uint256_t l_best_price = uint256_max;
+    
+    for (dap_list_t *l_iter = l_orders_list; l_iter; l_iter = l_iter->next) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_iter->data;
+        
+        if (!l_order || !l_order->node_addr.uint64) {
+            continue;
+        }
+        
+        // Apply selection criteria
+        bool l_acceptable = true;
+        
+        if (criteria) {
+            if (strcmp(criteria, "cheapest") == 0 || strcmp(criteria, "price") == 0) {
+                // Select cheapest (default logic below)
+            } else if (strcmp(criteria, "closest") == 0 || strcmp(criteria, "region") == 0) {
+                // TODO: Add geographic distance calculation
+                // For now, treat as acceptable
+            } else if (strcmp(criteria, "speed") == 0 || strcmp(criteria, "fastest") == 0) {
+                // TODO: Query node statistics for speed metrics
+                // For now, treat as acceptable
+            }
+        }
+        
+        if (l_acceptable) {
+            // Compare prices (select cheapest by default)
+            if (compare256(l_order->price, l_best_price) < 0 || !l_best_order) {
+                l_best_order = l_order;
+                l_best_price = l_order->price;
+            }
+        }
+    }
+    
+    if (!l_best_order) {
+        log_it(L_ERROR, "No suitable VPN node found matching criteria '%s'", criteria ? criteria : "any");
+        dap_list_free_full(l_orders_list, NULL);
+        return -3;
+    }
+    
+    // Extract node address from best order
+    dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(net, &l_best_order->node_addr);
+    if (!l_node_info) {
+        log_it(L_ERROR, "Failed to read node info for selected VPN node");
+        dap_list_free_full(l_orders_list, NULL);
+        return -4;
+    }
+    
+    // Return node address and port
+    *out_addr = dap_strdup(l_node_info->ext_host);
+    *out_port = l_node_info->ext_port;
+    
+    char *l_price_str = dap_chain_balance_print(l_best_price);
+    log_it(L_NOTICE, "Auto-selected VPN node: %s:%u (price: %s per MB, criteria: %s)",
+           *out_addr, *out_port, l_price_str, criteria ? criteria : "any");
+    DAP_DELETE(l_price_str);
+    
+    DAP_DELETE(l_node_info);
+    dap_list_free_full(l_orders_list, NULL);
     
     return 0;
 }

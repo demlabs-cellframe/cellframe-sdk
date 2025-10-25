@@ -21,9 +21,9 @@
  *    along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dap_chain_net_vpn_client_payment.h"
-#include "dap_chain_net_vpn_client_multihop_tx.h"
-#include "dap_vpn_client_wallet.h"
+#include "include/dap_chain_net_vpn_client_payment.h"
+#include "include/dap_chain_net_vpn_client_multihop_tx.h"
+#include "include/dap_vpn_client_wallet.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_ledger.h"
 #include "dap_common.h"
@@ -152,7 +152,7 @@ bool dap_vpn_client_payment_check_balance(
     bool l_sufficient = compare256(l_balance, a_total_cost) >= 0;
     
     if (!l_sufficient) {
-        log_it(L_WARNING, "Insufficient balance: have "UINT256_FORMAT_U", need "UINT256_FORMAT_U,
+        log_it(L_WARNING, "Insufficient balance: have "UINT256_FORMAT_U", need "UINT256_FORMAT_U")",
                UINT256_FORMAT_PARAM(l_balance), UINT256_FORMAT_PARAM(a_total_cost));
     }
     

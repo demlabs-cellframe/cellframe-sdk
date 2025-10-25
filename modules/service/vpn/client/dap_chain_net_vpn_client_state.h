@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "dap_events_socket.h"
-#include "dap_chain_net_srv.h"  // For dap_chain_net_srv_unit_enum_t
+#include "dap_chain_net_srv.h"  // For dap_chain_srv_price_unit_uid_t
 
 #ifdef __cplusplus
 extern "C" {
@@ -115,7 +115,7 @@ typedef struct dap_chain_net_vpn_client_connect_params {
     char *wallet_name;              // Wallet name for automatic payment TX creation
     char *payment_token;            // Token ticker for payment (e.g., "KEL", "mKEL")
     uint64_t service_units;         // Amount of service units to purchase
-    dap_chain_net_srv_unit_enum_t service_unit_type; // Service unit type (bytes, seconds, etc)
+    dap_chain_net_srv_price_unit_uid_t service_unit_type; // Service unit type (bytes, seconds, etc)
 } dap_chain_net_vpn_client_connect_params_t;
 
 /**

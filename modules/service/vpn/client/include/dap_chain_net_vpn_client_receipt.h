@@ -24,6 +24,7 @@
 #pragma once
 
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include <stdint.h>

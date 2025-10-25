@@ -21,7 +21,7 @@
  *    along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dap_chain_net_vpn_client_multihop_tx.h"
+#include "include/dap_chain_net_vpn_client_multihop_tx.h"
 #include "dap_chain_net_srv_vpn_tsd.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"

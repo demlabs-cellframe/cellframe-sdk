@@ -21,7 +21,7 @@
  *    along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dap_chain_net_vpn_client_receipt.h"
+#include "include/dap_chain_net_vpn_client_receipt.h"
 #include "dap_chain_net_srv_vpn_tsd.h"
 #include "dap_sign.h"
 #include "dap_cert.h"

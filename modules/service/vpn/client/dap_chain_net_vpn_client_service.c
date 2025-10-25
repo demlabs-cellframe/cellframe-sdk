@@ -311,12 +311,22 @@ int dap_chain_net_vpn_client_service_connect(
         .server_address = a_config->server_host,
         .server_port = a_config->server_port,
         .network_name = a_config->network_name,
-        .payment_tx_hash = a_config->payment_tx_hash,
+        .payment_tx_hashes = NULL,  // Will be set from payment_tx_hash string if provided
         .transport_type = a_config->transport_type,
         .obfuscation_level = a_config->obfuscation_mode,
         .no_routing = !a_config->enable_routing,
         .no_dns = !a_config->enable_dns_override
     };
+    
+    // Convert single payment_tx_hash string to array if provided
+    if (a_config->payment_tx_hash) {
+        l_params.payment_tx_hashes = DAP_NEW_Z(dap_chain_hash_fast_t);
+        if (dap_chain_hash_fast_from_str(a_config->payment_tx_hash, l_params.payment_tx_hashes) != 0) {
+            log_it(L_ERROR, "Invalid payment TX hash format: %s", a_config->payment_tx_hash);
+            DAP_DELETE(l_params.payment_tx_hashes);
+            l_params.payment_tx_hashes = NULL;
+        }
+    }
     dap_chain_net_vpn_client_sm_set_connect_params(a_daemon->state_machine, &l_params);
     
     // Trigger USER_CONNECT event
