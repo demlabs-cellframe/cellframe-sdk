@@ -41,14 +41,14 @@ int vpn_client_payment_validate(dap_chain_net_vpn_client_sm_t *a_sm) {
     }
     
     // Service unit type validation
-    if (a_sm->connect_params->service_unit_type == 0) {
+    if (a_sm->connect_params->service_unit_type.enm == 0) {
         log_it(L_ERROR, "Service unit type not specified - cannot create payment TX");
         return -4;
     }
     
     log_it(L_DEBUG, "Payment parameters validated: %"DAP_UINT64_FORMAT_U" %s units in %s token",
            a_sm->connect_params->service_units,
-           dap_chain_net_srv_unit_enum_to_str(a_sm->connect_params->service_unit_type),
+           dap_chain_srv_unit_enum_to_str(a_sm->connect_params->service_unit_type.enm),
            a_sm->connect_params->payment_token);
     
     return 0;
@@ -107,7 +107,7 @@ int vpn_client_payment_tx_create(dap_chain_net_vpn_client_sm_t *a_sm,
     
     log_it(L_INFO, "Payment parameters: %"DAP_UINT64_FORMAT_U" %s units in %s token",
            a_sm->connect_params->service_units,
-           dap_chain_net_srv_unit_enum_to_str(a_sm->connect_params->service_unit_type),
+           dap_chain_srv_unit_enum_to_str(a_sm->connect_params->service_unit_type.enm),
            a_sm->connect_params->payment_token);
     
     a_sm->connect_params->payment_tx_hashes = dap_chain_net_vpn_client_multihop_tx_set_create(

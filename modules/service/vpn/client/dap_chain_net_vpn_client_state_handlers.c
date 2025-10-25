@@ -17,6 +17,32 @@
 
 #define LOG_TAG "dap_chain_net_vpn_client_state_handlers"
 
+// Static helper functions (previously in internal.h)
+static inline void cleanup_tun_device(dap_chain_net_vpn_client_sm_t *a_sm) {
+    if (a_sm->tun_handle) {
+        log_it(L_DEBUG, "Cleaning up TUN device");
+        dap_net_tun_deinit(a_sm->tun_handle);
+        a_sm->tun_handle = NULL;
+    }
+}
+
+static inline void cleanup_node_client(dap_chain_net_vpn_client_sm_t *a_sm) {
+    if (a_sm->node_client) {
+        log_it(L_DEBUG, "Closing node client connection");
+        dap_chain_node_client_close_mt(a_sm->node_client);
+        a_sm->node_client = NULL;
+    }
+}
+
+static inline void cleanup_keepalive_timer(dap_chain_net_vpn_client_sm_t *a_sm) {
+    if (a_sm->keepalive_timer) {
+        log_it(L_DEBUG, "Stopping keepalive timer");
+        // TODO: Implement proper timer cleanup when API is available
+        // dap_timerfd_delete(a_sm->keepalive_timer);
+        a_sm->keepalive_timer = NULL;
+    }
+}
+
 // Forward declarations for internal callbacks
 static void protocol_probe_complete_callback(dap_vpn_protocol_probe_t *a_probe,
                                               dap_vpn_protocol_probe_result_t *a_results,
@@ -24,6 +50,11 @@ static void protocol_probe_complete_callback(dap_vpn_protocol_probe_t *a_probe,
 static void connectivity_test_complete_callback(dap_vpn_connectivity_test_t *a_test,
                                                  dap_vpn_connectivity_result_t *a_result,
                                                  void *a_user_data);
+
+// Forward declarations for functions from other state modules
+int vpn_client_payment_tx_create(dap_chain_net_vpn_client_sm_t *a_sm,
+                                  dap_chain_node_info_t *a_node_info,
+                                  const char *a_net_name);
 
 // ===========================================================================
 // STATE ENTRY HANDLERS

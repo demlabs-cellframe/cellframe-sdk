@@ -28,6 +28,7 @@
 #include "dap_strfuncs.h"
 #include "dap_timerfd.h"
 #include "dap_worker.h"
+#include "dap_uuid.h"  // For dap_uuid_to_str and dap_uuid_is_blank
 #include "../tun/include/dap_net_tun.h"  // Unified TUN API
 
 #include <errno.h>      // For ETIMEDOUT
@@ -499,7 +500,7 @@ int dap_chain_net_vpn_client_sm_transition(dap_chain_net_vpn_client_sm_t *a_sm,
     // Call registered callbacks
     for (size_t i = 0; i < a_sm->callback_count; i++) {
         if (a_sm->callbacks[i]) {
-            a_sm->callbacks[i](a_sm, l_old_state, l_new_state, a_event, a_sm->callback_user_data[i]);
+            a_sm->callbacks[i](a_sm, l_old_state, l_new_state, a_event, a_sm->callback_args[i]);
         }
     }
     
@@ -528,7 +529,7 @@ int dap_chain_net_vpn_client_sm_register_callback(
     }
     
     a_sm->callbacks[a_sm->callback_count] = a_callback;
-    a_sm->callback_user_data[a_sm->callback_count] = a_user_data;
+    a_sm->callback_args[a_sm->callback_count] = a_user_data;
     a_sm->callback_count++;
     
     pthread_mutex_unlock(&a_sm->mutex);
@@ -595,7 +596,7 @@ int dap_chain_net_vpn_client_sm_set_connect_params(
         if (!a_sm->connect_params->payment_tx_hashes) {
             log_it(L_CRITICAL, "Failed to allocate memory for %u payment TX hashes", a_params->hop_count);
             pthread_mutex_unlock(&a_sm->mutex);
-            return;
+            return -3; // Memory allocation error
         }
         memcpy(a_sm->connect_params->payment_tx_hashes, a_params->payment_tx_hashes, l_hashes_size);
         a_sm->connect_params->hop_count = a_params->hop_count;
@@ -1332,12 +1333,11 @@ typedef struct vpn_channel_setup_ctx {
 } vpn_channel_setup_ctx_t;
 
 /**
- * @brief Callback для регистрации VPN channel в контексте stream worker
+ * @brief Callback for registering VPN channel in stream worker context
  * 
- * Выполняется в worker потоке, где находится stream - это БЕЗОПАСНО для unsafe calls.
+ * Executes in the worker thread where the stream resides - this is SAFE for unsafe calls.
  */
-static void s_vpn_channel_setup_callback(dap_worker_t *a_worker, void *a_arg) {
-    UNUSED(a_worker);
+static void s_vpn_channel_setup_callback(void *a_arg) {
     vpn_channel_setup_ctx_t *l_ctx = (vpn_channel_setup_ctx_t *)a_arg;
     
     if (!l_ctx || !l_ctx->sm || !l_ctx->sm->node_client || !l_ctx->sm->node_client->client) {
@@ -1370,8 +1370,9 @@ static void s_vpn_channel_setup_callback(dap_worker_t *a_worker, void *a_arg) {
     if (l_ch_srv) {
         l_ch_srv->notify_callback = (dap_stream_ch_chain_net_srv_callback_packet_t)dap_chain_net_vpn_client_stream_packet_in_callback;
         l_ch_srv->notify_callback_arg = l_ctx->sm;
-        log_it(L_DEBUG, "Registered packet callback for VPN channel UUID: "UUID_FORMAT_STR,
-               UUID_FORMAT_ARGS(&l_ctx->channel_uuid));
+        char l_uuid_str[DAP_UUID_STR_SIZE];
+        dap_uuid_to_str(&l_ctx->channel_uuid, l_uuid_str, sizeof(l_uuid_str));
+        log_it(L_DEBUG, "Registered packet callback for VPN channel UUID: %s", l_uuid_str);
     } else {
         log_it(L_ERROR, "Failed to cast channel to chain_net_srv");
         pthread_mutex_lock(&l_ctx->mutex);
@@ -1391,8 +1392,9 @@ static void s_vpn_channel_setup_callback(dap_worker_t *a_worker, void *a_arg) {
         // Set as primary if this is the first channel
         if (dap_list_length(l_ctx->sm->vpn_channel_uuids) == 1) {
             l_ctx->sm->primary_channel_uuid = l_ctx->channel_uuid;
-            log_it(L_INFO, "Set primary VPN channel UUID: "UUID_FORMAT_STR,
-                   UUID_FORMAT_ARGS(&l_ctx->channel_uuid));
+            char l_uuid_str[DAP_UUID_STR_SIZE];
+            dap_uuid_to_str(&l_ctx->channel_uuid, l_uuid_str, sizeof(l_uuid_str));
+            log_it(L_INFO, "Set primary VPN channel UUID: %s", l_uuid_str);
         }
     }
     pthread_rwlock_unlock(&l_ctx->sm->vpn_channels_rwlock);
@@ -1419,14 +1421,14 @@ static void state_connected_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
     }
     
     // Check if VPN service channel ('R') is established
-    if (dap_uuid_is_blank(&a_sm->node_client->ch_chain_net_srv_uuid)) {
+    if (dap_uuid_is_blank(&a_sm->node_client->ch_chain_net_srv_uuid, sizeof(dap_stream_ch_uuid_t))) {
         log_it(L_ERROR, "VPN service channel UUID is blank");
         dap_chain_net_vpn_client_sm_transition(a_sm, VPN_EVENT_CONNECTION_LOST);
         return;
     }
     
     // Get worker from channel UUID (MT-safe)
-    dap_worker_t *l_worker = dap_stream_ch_get_worker_by_uuid_mt(a_sm->node_client->ch_chain_net_srv_uuid);
+    dap_worker_t *l_worker = dap_stream_ch_get_worker_mt(a_sm->node_client->ch_chain_net_srv_uuid);
     if (!l_worker) {
         log_it(L_ERROR, "Cannot get worker for VPN channel UUID");
         dap_chain_net_vpn_client_sm_transition(a_sm, VPN_EVENT_CONNECTION_LOST);
@@ -1534,8 +1536,9 @@ static void state_connected_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
         log_it(L_WARNING, "Failed to set channel info in TUN device (error: %d)", l_set_result);
         // Not critical - callback will use slow path (MT API)
     } else {
-        log_it(L_INFO, "TUN channel routing info set: worker=%p, uuid="UUID_FORMAT_STR,
-               l_worker, UUID_FORMAT_ARGS(&a_sm->node_client->ch_chain_net_srv_uuid));
+        char l_uuid_str[DAP_UUID_STR_SIZE];
+        dap_uuid_to_str(&a_sm->node_client->ch_chain_net_srv_uuid, l_uuid_str, sizeof(l_uuid_str));
+        log_it(L_INFO, "TUN channel routing info set: worker=%p, uuid=%s", l_worker, l_uuid_str);
     }
     
     // NOTE: VPN channel packet callback already registered in s_vpn_channel_setup_callback

@@ -58,7 +58,7 @@ void dap_chain_net_vpn_client_tun_data_received_callback(
     }
     
     // Check channel info (provided by TUN!)
-    if (!a_channel_info || !a_channel_info->worker || dap_uuid_is_blank(&a_channel_info->channel_uuid)) {
+    if (!a_channel_info || !a_channel_info->worker || dap_uuid_is_blank(&a_channel_info->channel_uuid, sizeof(dap_stream_ch_uuid_t))) {
         log_it(L_WARNING, "No VPN channel info available from TUN (not set yet?)");
         return;
     }
@@ -71,26 +71,29 @@ void dap_chain_net_vpn_client_tun_data_received_callback(
     
     if (l_current_worker == a_channel_info->worker) {
         // FAST PATH: same worker, use unsafe API (no locks)
-        dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_channel_info->channel_uuid);
+        dap_stream_worker_t *l_stream_worker = DAP_STREAM_WORKER(l_current_worker);
+        dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_stream_worker, a_channel_info->channel_uuid);
         if (l_ch) {
             l_written = dap_stream_ch_pkt_write_unsafe(
                 l_ch,
-                DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA,
+                'R',  // VPN data packet type
                 a_data,
                 a_data_size
             );
             debug_if(s_debug_more, L_DEBUG, "Fast path: wrote %zu bytes via unsafe API (same worker)", l_written);
         } else {
-            log_it(L_WARNING, "Channel UUID "UUID_FORMAT_STR" not found in current worker (stale?)",
-                   UUID_FORMAT_ARGS(&a_channel_info->channel_uuid));
+            char l_uuid_str[DAP_UUID_STR_SIZE];
+            dap_uuid_to_str(&a_channel_info->channel_uuid, l_uuid_str, sizeof(l_uuid_str));
+            log_it(L_WARNING, "Channel UUID %s not found in current worker (stale?)", l_uuid_str);
             return;
         }
     } else {
         // SLOW PATH: different worker, use MT API (inter-worker call)
+        dap_stream_worker_t *l_stream_worker = DAP_STREAM_WORKER(a_channel_info->worker);
         l_written = dap_stream_ch_pkt_write_mt(
-            a_channel_info->worker,
-            a_channel_info->channel_uuid,
-            DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA,
+            l_stream_worker,
+            a_channel_info->channel_uuid,  // UUID, not pointer
+            'R',  // VPN data packet type
             a_data,
             a_data_size
         );
@@ -167,7 +170,7 @@ void dap_chain_net_vpn_client_stream_packet_in_callback(
     }
     
     // Check packet type
-    if (a_pkt_type != DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA) {
+    if (a_pkt_type != 'R') {  // VPN data packet type
         log_it(L_WARNING, "Unexpected packet type: 0x%02x", a_pkt_type);
         return;
     }
