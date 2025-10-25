@@ -61,66 +61,6 @@ static bool s_debug_more = false;
 #define DEFAULT_PROTOCOL_PROBE_TIMEOUT_MS 10000        // 10 seconds total
 #define DEFAULT_PROTOCOL_PROBE_PER_PROTO_TIMEOUT_MS 5000  // 5 seconds per protocol
 
-/**
- * @brief State machine context structure
- */
-struct dap_chain_net_vpn_client_sm {
-    dap_chain_net_vpn_client_state_t current_state;
-    dap_chain_net_vpn_client_state_t previous_state;
-    
-    // Reconnect policy
-    dap_chain_net_vpn_client_reconnect_policy_t reconnect_policy;
-    uint32_t reconnect_attempt;
-    int64_t connection_established_time;  // Timestamp when connection was established
-    int64_t last_reconnect_time;          // Timestamp of last reconnect attempt
-    
-    // Connection parameters
-    dap_chain_net_vpn_client_connect_params_t *connect_params;
-    
-    // Node client connection
-    dap_chain_node_client_t *node_client;     // Active node client connection
-    uint32_t connection_timeout_ms;           // Connection timeout in milliseconds
-    dap_stream_ch_t *vpn_channel;             // VPN service stream channel ('R')
-    
-    // TUN Device
-    dap_net_tun_t *tun_handle;               // Unified TUN device handle
-    char *tun_device_name;                   // TUN device name (e.g., "tun0")
-    char *tun_local_ip;                      // Client's VPN IP address
-    char *tun_remote_ip;                     // Server's VPN gateway IP
-    uint32_t tun_mtu;                        // MTU for TUN device
-    
-    // Statistics
-    int64_t connection_start_time;
-    uint64_t bytes_sent;
-    uint64_t bytes_received;
-    
-    // Keepalive
-    dap_timerfd_t *keepalive_timer;
-    uint32_t keepalive_interval_ms;
-    uint32_t keepalive_timeout_ms;
-    int64_t last_keepalive_response;
-    
-    // Protocol Probe & Connectivity Test
-    dap_vpn_protocol_probe_t *protocol_probe;          // Active protocol probe
-    dap_vpn_connectivity_test_t *connectivity_test;    // Active connectivity test
-    
-    // Multi-hop & Payment
-    dap_chain_wallet_t *wallet;                        // Wallet for auto TX creation
-    dap_vpn_client_receipt_collector_t *receipt_collector; // Receipt collector for multi-hop
-    dap_stream_transport_type_t selected_protocol;    // Best protocol selected
-    
-    // Network Configuration Backup
-    dap_chain_net_vpn_client_backup_t *network_backup;  // Network config backup
-    
-    // Callbacks
-    dap_chain_net_vpn_client_state_callback_t callbacks[MAX_CALLBACKS];
-    void *callback_user_data[MAX_CALLBACKS];
-    size_t callback_count;
-    
-    // Thread safety
-    pthread_mutex_t mutex;
-};
-
 // Forward declarations for state entry/exit actions
 static void state_disconnected_entry(dap_chain_net_vpn_client_sm_t *a_sm);
 static void state_connecting_entry(dap_chain_net_vpn_client_sm_t *a_sm);

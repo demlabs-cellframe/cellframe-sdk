@@ -26,6 +26,7 @@
 #include "dap_vpn_client_network_registry.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_stream_ch_chain_net_srv.h"
 #include "dap_client.h"
 #include "dap_timerfd.h"
 #include "dap_common.h"
@@ -238,53 +239,6 @@ void cleanup_keepalive_timer(dap_chain_net_vpn_client_sm_t *a_sm);
 // Helper Functions Implementations (state_tunnel.c or state.c)
 // ===========================================================================
 
-/**
- * @brief Cleanup all TUN-related resources
- * @details This is called from state_disconnected_entry and other cleanup paths.
- *          Safely closes TUN device and frees all related memory.
- * @param a_sm State machine context
- */
-static inline void cleanup_tun_device(dap_chain_net_vpn_client_sm_t *a_sm) {
-    if (a_sm->tun_handle) {
-        log_it(L_INFO, "Closing TUN device: %s", 
-               a_sm->tun_device_name ? a_sm->tun_device_name : "unknown");
-        dap_net_tun_deinit(a_sm->tun_handle);
-        a_sm->tun_handle = NULL;
-    }
-    
-    // Free TUN configuration
-    DAP_DELETE(a_sm->tun_device_name);
-    DAP_DELETE(a_sm->tun_local_ip);
-    DAP_DELETE(a_sm->tun_remote_ip);
-    a_sm->tun_mtu = 0;
-    
-    // Clear VPN channel reference
-    a_sm->vpn_channel = NULL;
-}
-
-/**
- * @brief Cleanup node client connection
- * @param a_sm State machine context
- */
-static inline void cleanup_node_client(dap_chain_net_vpn_client_sm_t *a_sm) {
-    if (a_sm->node_client) {
-        log_it(L_INFO, "Closing node client connection");
-        dap_chain_node_client_close_mt(a_sm->node_client);
-        a_sm->node_client = NULL;
-    }
-}
-
-/**
- * @brief Cleanup keepalive timer
- * @param a_sm State machine context
- */
-static inline void cleanup_keepalive_timer(dap_chain_net_vpn_client_sm_t *a_sm) {
-    if (a_sm->keepalive_timer) {
-        dap_timerfd_delete(a_sm->keepalive_timer);
-        a_sm->keepalive_timer = NULL;
-    }
-}
-
 // =============================================================================
 // TUN Device & Stream Callbacks (from dap_chain_net_vpn_client_state_tunnel.c)
 // =============================================================================
@@ -322,4 +276,3 @@ void dap_chain_net_vpn_client_stream_packet_in_callback(
     void *a_arg);
 
 #endif // DAP_CHAIN_NET_VPN_CLIENT_STATE_INTERNAL_H
-
