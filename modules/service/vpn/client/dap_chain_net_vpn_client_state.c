@@ -631,8 +631,17 @@ int dap_chain_net_vpn_client_sm_set_connect_params(
     if (a_params->network_name) {
         a_sm->connect_params->network_name = dap_strdup(a_params->network_name);
     }
-    if (a_params->payment_tx_hash) {
-        a_sm->connect_params->payment_tx_hash = dap_strdup(a_params->payment_tx_hash);
+    if (a_params->payment_tx_hashes && a_params->hop_count > 0) {
+        // Copy payment TX hashes array dynamically based on actual hop_count
+        size_t l_hashes_size = a_params->hop_count * sizeof(dap_chain_hash_fast_t);
+        a_sm->connect_params->payment_tx_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, l_hashes_size);
+        if (!a_sm->connect_params->payment_tx_hashes) {
+            log_it(L_CRITICAL, "Failed to allocate memory for %u payment TX hashes", a_params->hop_count);
+            pthread_mutex_unlock(&a_sm->mutex);
+            return;
+        }
+        memcpy(a_sm->connect_params->payment_tx_hashes, a_params->payment_tx_hashes, l_hashes_size);
+        a_sm->connect_params->hop_count = a_params->hop_count;
     }
     if (a_params->transport_type) {
         a_sm->connect_params->transport_type = dap_strdup(a_params->transport_type);
@@ -686,7 +695,7 @@ void dap_chain_net_vpn_client_connect_params_free(dap_chain_net_vpn_client_conne
     
     DAP_DELETE(a_params->server_address);
     DAP_DELETE(a_params->network_name);
-    DAP_DELETE(a_params->payment_tx_hash);
+    DAP_DELETE(a_params->payment_tx_hashes);
     DAP_DELETE(a_params->transport_type);
     DAP_DELETE(a_params->obfuscation_level);
     DAP_DELETE(a_params);
@@ -995,7 +1004,7 @@ static void state_connecting_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
             return;
         }
         
-        if (a_sm->connect_params->service_unit_type == 0) {
+        if (a_sm->connect_params->service_unit_type.enm == SERV_UNIT_UNDEFINED) {
             log_it(L_ERROR, "Service unit type not specified - cannot create payment TX");
             DAP_DELETE(l_node_info);
             dap_chain_net_vpn_client_sm_transition(a_sm, VPN_EVENT_CONNECTION_FAILED);
@@ -1004,7 +1013,7 @@ static void state_connecting_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
         
         log_it(L_INFO, "Creating payment TX set: %"DAP_UINT64_FORMAT_U" %s units in %s token",
                a_sm->connect_params->service_units, 
-               dap_chain_net_srv_unit_enum_to_str(a_sm->connect_params->service_unit_type), 
+               dap_chain_srv_unit_enum_to_str(a_sm->connect_params->service_unit_type.enm), 
                a_sm->connect_params->payment_token);
         
         a_sm->connect_params->payment_tx_hashes = dap_chain_net_vpn_client_multihop_tx_set_create(

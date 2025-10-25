@@ -126,8 +126,11 @@ int dap_vpn_client_payment_estimate_multihop(
     }
     
     *a_total_cost = l_sum;
-    log_it(L_INFO, "Estimated cost for %u-hop route: "UINT256_FORMAT_U" datoshi",
-           a_hop_count, UINT256_FORMAT_PARAM(l_sum));
+    
+    char *l_sum_str = dap_chain_balance_print(l_sum);
+    log_it(L_INFO, "Estimated cost for %u-hop route: %s datoshi",
+           a_hop_count, l_sum_str);
+    DAP_DELETE(l_sum_str);
     
     return 0;
 }
@@ -153,8 +156,11 @@ bool dap_vpn_client_payment_check_balance(
     bool l_sufficient = compare256(l_balance, a_total_cost) >= 0;
     
     if (!l_sufficient) {
-        log_it(L_WARNING, "Insufficient balance: have "UINT256_FORMAT_U", need "UINT256_FORMAT_U" datoshi",
-               UINT256_FORMAT_PARAM(l_balance), UINT256_FORMAT_PARAM(a_total_cost));
+        char *l_balance_str = dap_chain_balance_print(l_balance);
+        char *l_cost_str = dap_chain_balance_print(a_total_cost);
+        log_it(L_WARNING, "Insufficient balance: have %s, need %s datoshi",
+               l_balance_str, l_cost_str);
+        DAP_DEL_MULTY(l_balance_str, l_cost_str);
     }
     
     return l_sufficient;

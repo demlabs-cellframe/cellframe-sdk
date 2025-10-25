@@ -668,8 +668,10 @@ int dap_chain_net_vpn_client_cli_create_payment(dap_chain_wallet_t *wallet,
     
     *out_tx_hash = l_tx_hash_str;
     
-    log_it(L_NOTICE, "Created payment TX: %s (amount: "UINT256_FORMAT_U" %s)",
-           l_tx_hash_str, UINT256_FORMAT_PARAM(amount), token);
+    char *l_amount_str = dap_chain_balance_print(amount);
+    log_it(L_NOTICE, "Created payment TX: %s (amount: %s %s)",
+           l_tx_hash_str, l_amount_str, token);
+    DAP_DELETE(l_amount_str);
     
     return 0;
 }
@@ -822,8 +824,10 @@ int dap_chain_net_vpn_client_cli_cmd_wallet(int argc, char **argv, void **str_re
             return -4;
         }
         
-        dap_cli_server_cmd_set_reply_text(str_reply, "Balance: "UINT256_FORMAT_U" %s",
-                                           UINT256_FORMAT_PARAM(l_balance), l_token);
+        char *l_balance_str = dap_chain_balance_print(l_balance);
+        dap_cli_server_cmd_set_reply_text(str_reply, "Balance: %s %s",
+                                           l_balance_str, l_token);
+        DAP_DELETE(l_balance_str);
         dap_vpn_client_wallet_close(l_wallet);
         return 0;
         
