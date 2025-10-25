@@ -26,11 +26,15 @@
 #include "dap_strfuncs.h"
 #include "dap_timerfd.h"
 #include "dap_worker.h"
+#include "../../tun/include/dap_net_tun.h"  // Unified TUN API
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
 
 #define LOG_TAG "dap_chain_net_vpn_client_state"
+
+// Debug flag for verbose packet logging
+static bool s_debug_more = false;
 
 // Maximum number of state change callbacks
 #define MAX_CALLBACKS 8
@@ -71,6 +75,14 @@ struct dap_chain_net_vpn_client_sm {
     // Node client connection
     dap_chain_node_client_t *node_client;     // Active node client connection
     uint32_t connection_timeout_ms;           // Connection timeout in milliseconds
+    dap_stream_ch_t *vpn_channel;             // VPN service stream channel ('R')
+    
+    // TUN Device
+    dap_net_tun_t *tun_handle;               // Unified TUN device handle
+    char *tun_device_name;                   // TUN device name (e.g., "tun0")
+    char *tun_local_ip;                      // Client's VPN IP address
+    char *tun_remote_ip;                     // Server's VPN gateway IP
+    uint32_t tun_mtu;                        // MTU for TUN device
     
     // Statistics
     int64_t connection_start_time;
@@ -119,6 +131,13 @@ static void state_shutdown_entry(dap_chain_net_vpn_client_sm_t *a_sm);
 static void state_verifying_connectivity_exit(dap_chain_net_vpn_client_sm_t *a_sm);
 static void state_routing_setup_exit(dap_chain_net_vpn_client_sm_t *a_sm);
 static void state_connected_exit(dap_chain_net_vpn_client_sm_t *a_sm);
+
+// TUN device callback functions
+static void s_tun_data_received_callback(dap_net_tun_t *a_tun, const void *a_data, size_t a_data_size, void *a_user_data);
+static void s_tun_error_callback(dap_net_tun_t *a_tun, int a_error_code, const char *a_error_msg, void *a_user_data);
+
+// Stream channel packet callback
+static void s_stream_ch_packet_in_callback(dap_stream_ch_t *a_ch, void *a_arg);
 
 /**
  * @brief State transition table
@@ -820,6 +839,22 @@ static void state_disconnected_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
     a_sm->connection_start_time = 0;
     a_sm->connection_established_time = 0;
     
+    // Cleanup TUN device
+    if (a_sm->tun_handle) {
+        log_it(L_INFO, "Closing TUN device: %s", a_sm->tun_device_name ? a_sm->tun_device_name : "unknown");
+        dap_net_tun_deinit(a_sm->tun_handle);
+        a_sm->tun_handle = NULL;
+    }
+    
+    // Free TUN configuration
+    DAP_DELETE(a_sm->tun_device_name);
+    DAP_DELETE(a_sm->tun_local_ip);
+    DAP_DELETE(a_sm->tun_remote_ip);
+    a_sm->tun_mtu = 0;
+    
+    // Clear VPN channel reference
+    a_sm->vpn_channel = NULL;
+    
     // Close wallet if open
     if (a_sm->wallet) {
         log_it(L_DEBUG, "Closing wallet");
@@ -945,15 +980,42 @@ static void state_connecting_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
         }
         
         // Create TX set (works for both single-hop and multi-hop)
+        // CRITICAL: All payment parameters must be explicitly specified
+        if (!a_sm->connect_params->payment_token || strlen(a_sm->connect_params->payment_token) == 0) {
+            log_it(L_ERROR, "Payment token not specified - cannot create payment TX");
+            DAP_DELETE(l_node_info);
+            dap_chain_net_vpn_client_sm_transition(a_sm, VPN_EVENT_CONNECTION_FAILED);
+            return;
+        }
+        
+        if (a_sm->connect_params->service_units == 0) {
+            log_it(L_ERROR, "Service units not specified - cannot create payment TX");
+            DAP_DELETE(l_node_info);
+            dap_chain_net_vpn_client_sm_transition(a_sm, VPN_EVENT_CONNECTION_FAILED);
+            return;
+        }
+        
+        if (a_sm->connect_params->service_unit_type == 0) {
+            log_it(L_ERROR, "Service unit type not specified - cannot create payment TX");
+            DAP_DELETE(l_node_info);
+            dap_chain_net_vpn_client_sm_transition(a_sm, VPN_EVENT_CONNECTION_FAILED);
+            return;
+        }
+        
+        log_it(L_INFO, "Creating payment TX set: %"DAP_UINT64_FORMAT_U" %s units in %s token",
+               a_sm->connect_params->service_units, 
+               dap_chain_net_srv_unit_enum_to_str(a_sm->connect_params->service_unit_type), 
+               a_sm->connect_params->payment_token);
+        
         a_sm->connect_params->payment_tx_hashes = dap_chain_net_vpn_client_multihop_tx_set_create(
             a_sm->wallet,
             l_net,
             a_sm->connect_params->route,
             a_sm->connect_params->hop_count,
             a_sm->connect_params->tunnel_count,
-            1000000000,  // 1GB default service units
-            SERV_UNIT_B,
-            "KEL",  // Default token, should come from config
+            a_sm->connect_params->service_units,
+            a_sm->connect_params->service_unit_type,
+            a_sm->connect_params->payment_token,
             a_sm->connect_params->session_id
         );
         
@@ -1285,14 +1347,74 @@ static void state_connected_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
     a_sm->connection_established_time = time(NULL);
     a_sm->reconnect_attempt = 0;  // Reset on successful connection
     
+    // Get VPN channel from node client
+    if (!a_sm->node_client || !a_sm->node_client->client || !a_sm->node_client->client->stream) {
+        log_it(L_ERROR, "Invalid node client - cannot setup TUN device");
+        dap_chain_net_vpn_client_sm_transition(a_sm, VPN_EVENT_CONNECTION_LOST);
+        return;
+    }
+    
+    // Find VPN service channel ('R')
+    a_sm->vpn_channel = dap_client_get_stream_ch_unsafe(a_sm->node_client->client, 'R');
+    if (!a_sm->vpn_channel) {
+        log_it(L_ERROR, "VPN service channel not found");
+        dap_chain_net_vpn_client_sm_transition(a_sm, VPN_EVENT_CONNECTION_LOST);
+        return;
+    }
+    
+    // TODO: Get VPN parameters from server handshake (local IP, remote IP, MTU)
+    // For now, use reasonable defaults
+    const char *l_local_ip = "10.8.0.2";   // Client IP in VPN subnet
+    const char *l_remote_ip = "10.8.0.1";  // Server gateway IP
+    const char *l_netmask = "255.255.255.0";
+    uint32_t l_mtu = 1420;  // Conservative MTU for VPN
+    
+    // Create TUN device configuration
+    dap_net_tun_config_t l_tun_config = {
+        .mode = DAP_NET_TUN_MODE_CLIENT,
+        .local_ip = l_local_ip,
+        .remote_ip = l_remote_ip,
+        .netmask = l_netmask,
+        .mtu = l_mtu,
+        .data_received_callback = s_tun_data_received_callback,
+        .error_callback = s_tun_error_callback,
+        .user_data = a_sm
+    };
+    
+    // Initialize TUN device
+    log_it(L_INFO, "Creating TUN device: local=%s, remote=%s, mtu=%u", l_local_ip, l_remote_ip, l_mtu);
+    a_sm->tun_handle = dap_net_tun_init(&l_tun_config);
+    
+    if (!a_sm->tun_handle) {
+        log_it(L_ERROR, "Failed to initialize TUN device");
+        dap_chain_net_vpn_client_sm_transition(a_sm, VPN_EVENT_CONNECTION_LOST);
+        return;
+    }
+    
+    // Get and store TUN device name
+    const char *l_device_name = dap_net_tun_get_device_name(a_sm->tun_handle);
+    if (l_device_name) {
+        a_sm->tun_device_name = dap_strdup(l_device_name);
+        log_it(L_NOTICE, "TUN device created: %s", l_device_name);
+    }
+    
+    // Store configuration for later use
+    a_sm->tun_local_ip = dap_strdup(l_local_ip);
+    a_sm->tun_remote_ip = dap_strdup(l_remote_ip);
+    a_sm->tun_mtu = l_mtu;
+    
+    // Register stream channel packet callback
+    a_sm->vpn_channel->stream->stream_worker->callbacks.read_callback = (dap_events_socket_callback_t)s_stream_ch_packet_in_callback;
+    a_sm->vpn_channel->stream->stream_worker->callbacks.read_callback_arg = a_sm;
+    
+    log_it(L_NOTICE, "VPN tunnel fully established and operational");
+    
     // Start keepalive timer
     dap_chain_net_vpn_client_sm_start_keepalive(
         a_sm,
         a_sm->keepalive_interval_ms,
         a_sm->keepalive_timeout_ms
     );
-    
-    // TODO: Update backup file state
 }
 
 static void state_verifying_connectivity_exit(dap_chain_net_vpn_client_sm_t *a_sm) {
@@ -1450,5 +1572,110 @@ static void state_shutdown_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
     }
     
     log_it(L_INFO, "SHUTDOWN state: all resources cleaned up");
+}
+
+/**
+ * @brief TUN device data received callback
+ * 
+ * Called when packet is read from TUN device (outgoing from client's perspective).
+ * We need to forward this packet to the VPN server through the stream channel.
+ */
+static void s_tun_data_received_callback(dap_net_tun_t *a_tun, const void *a_data, size_t a_data_size, void *a_user_data) {
+    dap_chain_net_vpn_client_sm_t *l_sm = (dap_chain_net_vpn_client_sm_t *)a_user_data;
+    
+    if (!l_sm || !l_sm->vpn_channel || !a_data || a_data_size == 0) {
+        log_it(L_WARNING, "Invalid parameters in TUN data callback");
+        return;
+    }
+    
+    if (l_sm->current_state != VPN_STATE_CONNECTED) {
+        log_it(L_DEBUG, "Dropping packet: not in CONNECTED state (current: %d)", l_sm->current_state);
+        return;
+    }
+    
+    // Forward packet to VPN server via stream channel
+    size_t l_written = dap_stream_ch_pkt_write_unsafe(l_sm->vpn_channel, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA,
+                                                        a_data, a_data_size);
+    
+    if (l_written != a_data_size) {
+        log_it(L_ERROR, "Failed to write packet to stream channel: %zu/%zu bytes", l_written, a_data_size);
+        return;
+    }
+    
+    // Update statistics
+    pthread_mutex_lock(&l_sm->mutex);
+    l_sm->bytes_sent += a_data_size;
+    pthread_mutex_unlock(&l_sm->mutex);
+    
+    debug_if(s_debug_more, L_DEBUG, "Forwarded %zu bytes from TUN to server", a_data_size);
+}
+
+/**
+ * @brief TUN device error callback
+ * 
+ * Called when TUN device encounters an error.
+ */
+static void s_tun_error_callback(dap_net_tun_t *a_tun, int a_error_code, const char *a_error_msg, void *a_user_data) {
+    UNUSED(a_tun);
+    dap_chain_net_vpn_client_sm_t *l_sm = (dap_chain_net_vpn_client_sm_t *)a_user_data;
+    
+    log_it(L_ERROR, "TUN device error (code %d): %s", a_error_code, a_error_msg ? a_error_msg : "unknown");
+    
+    if (l_sm && l_sm->current_state == VPN_STATE_CONNECTED) {
+        // Trigger connection lost event
+        dap_chain_net_vpn_client_sm_transition(l_sm, VPN_EVENT_CONNECTION_LOST);
+    }
+}
+
+/**
+ * @brief Stream channel packet received callback
+ * 
+ * Called when packet is received from VPN server (incoming traffic).
+ * We need to write this packet to the TUN device.
+ */
+static void s_stream_ch_packet_in_callback(dap_stream_ch_t *a_ch, void *a_arg) {
+    dap_chain_net_vpn_client_sm_t *l_sm = (dap_chain_net_vpn_client_sm_t *)a_arg;
+    
+    if (!l_sm || !l_sm->tun_handle || !a_ch) {
+        log_it(L_WARNING, "Invalid parameters in stream packet callback");
+        return;
+    }
+    
+    if (l_sm->current_state != VPN_STATE_CONNECTED) {
+        log_it(L_DEBUG, "Dropping packet: not in CONNECTED state (current: %d)", l_sm->current_state);
+        return;
+    }
+    
+    // Get packet from stream channel
+    dap_stream_ch_pkt_t *l_pkt = dap_stream_ch_pkt_read_unsafe(a_ch);
+    if (!l_pkt) {
+        return;  // No packet available
+    }
+    
+    // Check packet type
+    if (l_pkt->hdr.type != DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA) {
+        log_it(L_WARNING, "Unexpected packet type: 0x%02x", l_pkt->hdr.type);
+        DAP_DELETE(l_pkt);
+        return;
+    }
+    
+    // Write packet to TUN device
+    size_t l_data_size = l_pkt->hdr.size;
+    if (l_data_size > 0) {
+        int l_result = dap_net_tun_write(l_sm->tun_handle, l_pkt->data, l_data_size);
+        
+        if (l_result < 0) {
+            log_it(L_ERROR, "Failed to write %zu bytes to TUN device (error: %d)", l_data_size, l_result);
+        } else {
+            // Update statistics
+            pthread_mutex_lock(&l_sm->mutex);
+            l_sm->bytes_received += l_data_size;
+            pthread_mutex_unlock(&l_sm->mutex);
+            
+            debug_if(s_debug_more, L_DEBUG, "Wrote %zu bytes from server to TUN", l_data_size);
+        }
+    }
+    
+    DAP_DELETE(l_pkt);
 }
 
