@@ -14,8 +14,9 @@
 #include "dap_config.h"
 #include <netinet/in.h>
 
-// Forward declaration for unified TUN API
+// Forward declarations for unified TUN API
 typedef struct dap_net_tun dap_net_tun_t;
+typedef struct dap_net_tun_channel_info dap_net_tun_channel_info_t;
 
 // TUN device initialization
 
@@ -88,26 +89,30 @@ void vpn_srv_es_tun_error(dap_events_socket_t *a_es, int a_error);
 // TUN data callback (from unified TUN API)
 
 /**
- * @brief TUN data received callback (unified TUN API)
+ * @brief TUN data received callback (unified TUN API - NEW SIGNATURE)
  * @param a_tun TUN device handle
  * @param a_data Received packet data
  * @param a_data_size Packet size
+ * @param a_channel_info Channel routing info (worker + UUID) - NULL for SERVER mode
  * @param a_arg User argument (unused)
  */
 void vpn_srv_tun_data_received_callback(
     dap_net_tun_t *a_tun,
     const void *a_data,
     size_t a_data_size,
+    const dap_net_tun_channel_info_t *a_channel_info,
     void *a_arg);
 
 /**
- * @brief TUN error callback (unified TUN API)
+ * @brief TUN error callback (unified TUN API - NEW SIGNATURE)
  * @param a_tun TUN device handle
  * @param a_error Error code
+ * @param a_error_msg Error message (may be NULL)
  * @param a_arg User argument (unused)
  */
 void vpn_srv_tun_error_callback(
     dap_net_tun_t *a_tun,
     int a_error,
+    const char *a_error_msg,
     void *a_arg);
 

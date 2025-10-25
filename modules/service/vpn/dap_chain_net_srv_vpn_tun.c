@@ -132,9 +132,11 @@ void vpn_srv_tun_data_received_callback(
     dap_net_tun_t *a_tun,
     const void *a_data,
     size_t a_data_size,
+    const dap_net_tun_channel_info_t *a_channel_info,
     void *a_arg)
 {
     UNUSED(a_tun);
+    UNUSED(a_channel_info);  // Not used in SERVER mode (no channel routing needed)
     UNUSED(a_arg);
     
     if (!a_data || a_data_size == 0) {
@@ -177,17 +179,18 @@ void vpn_srv_tun_data_received_callback(
 }
 
 /**
- * @brief TUN error callback (unified TUN API)
+ * @brief TUN error callback (unified TUN API - NEW SIGNATURE)
  */
 void vpn_srv_tun_error_callback(
     dap_net_tun_t *a_tun,
     int a_error,
+    const char *a_error_msg,
     void *a_arg)
 {
     UNUSED(a_tun);
     UNUSED(a_arg);
     
-    log_it(L_ERROR, "TUN device error: %d", a_error);
+    log_it(L_ERROR, "TUN device error (code %d): %s", a_error, a_error_msg ? a_error_msg : "unknown");
 }
 
 /**

@@ -161,8 +161,10 @@ int vpn_srv_tun_init(void);
 int vpn_srv_tun_create(dap_config_t *a_config);
 dap_events_socket_t* vpn_srv_tun_event_stream_create(dap_worker_t *a_worker, int a_tun_fd);
 void vpn_srv_tun_data_received_callback(dap_net_tun_t *a_tun,
-                                         const void *a_data, size_t a_data_size, void *a_arg);
-void vpn_srv_tun_error_callback(dap_net_tun_t *a_tun, int a_error, void *a_arg);
+                                         const void *a_data, size_t a_data_size,
+                                         const dap_net_tun_channel_info_t *a_channel_info,
+                                         void *a_arg);
+void vpn_srv_tun_error_callback(dap_net_tun_t *a_tun, int a_error, const char *a_error_msg, void *a_arg);
 void vpn_srv_es_tun_new(dap_events_socket_t *a_es, void *a_arg);
 void vpn_srv_es_tun_delete(dap_events_socket_t *a_es, void *a_arg);
 void vpn_srv_es_tun_read(dap_events_socket_t *a_es, void *a_arg);
