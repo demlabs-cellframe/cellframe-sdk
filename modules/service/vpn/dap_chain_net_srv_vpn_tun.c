@@ -193,6 +193,39 @@ void vpn_srv_tun_error_callback(
     log_it(L_ERROR, "TUN device error (code %d): %s", a_error, a_error_msg ? a_error_msg : "unknown");
 }
 
+// ============================================================================
+// OLD EVENT SOCKET CALLBACKS (DEPRECATED - unused with unified TUN API)
+// ============================================================================
+// NOTE: These functions are called from OLD vpn_srv_es_tun_* callbacks
+//       which are NOT USED with unified TUN API. They should never execute.
+//       Keeping stubs to resolve linking errors only.
+
+/**
+ * @brief OLD inter-worker message callback (DEPRECATED)
+ * @note This should NEVER be called with unified TUN API
+ */
+void s_tun_recv_msg_callback(dap_events_socket_t *a_esocket_queue, void *a_msg)
+{
+    UNUSED(a_esocket_queue);
+    UNUSED(a_msg);
+    log_it(L_CRITICAL, "OLD s_tun_recv_msg_callback called - this should NEVER happen with unified TUN API!");
+    abort();  // Hard fail - indicates architectural bug
+}
+
+/**
+ * @brief OLD client data sender (DEPRECATED)
+ * @note This should NEVER be called with unified TUN API
+ */
+bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t *a_ch_vpn_info,
+                            const void *a_data, size_t a_data_size)
+{
+    UNUSED(a_ch_vpn_info);
+    UNUSED(a_data);
+    UNUSED(a_data_size);
+    log_it(L_CRITICAL, "OLD s_tun_client_send_data called - this should NEVER happen with unified TUN API!");
+    abort();  // Hard fail - indicates architectural bug
+}
+
 /**
  * @brief TUN event socket constructor
  */
