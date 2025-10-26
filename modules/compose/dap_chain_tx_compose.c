@@ -38,13 +38,13 @@
 #include "dap_cli_server.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_order.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_wallet_shared.h"
 #include "dap_chain_node_client.h"
 #include "dap_client_http.h"
+#include "dap_http_status_code.h"
 #include "dap_worker.h"
 #include "dap_json.h"
 #include "dap_rand.h"
+#include "dap_http_status_code.h"
 
 #define LOG_TAG "dap_chain_tx_compose"
 
@@ -283,7 +283,7 @@ void s_cmd_request_free(struct cmd_request *a_cmd_request)
 }
 
 static void s_cmd_response_handler(void *a_response, size_t a_response_size, void *a_arg,
-                                            http_status_code_t http_status_code) {
+                                            dap_http_status_code_t http_status_code) {
     (void)http_status_code;
     struct cmd_request *l_cmd_request = (struct cmd_request *)a_arg;
     if (!l_cmd_request || !a_response)
@@ -412,7 +412,6 @@ static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, dap_jso
     } else {
         ret = -2;
     }
-
     return ret;
 }
 
@@ -914,7 +913,6 @@ dap_json_t *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const ch
     if (a_addr_base58_to) {
         l_addr_to = DAP_NEW_Z_COUNT(dap_chain_addr_t *, l_addr_el_count);
         if (!l_addr_to) {
-            log_it(L_ERROR, "%s", c_error_memory_alloc);
             dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_MEMORY_ERROR, "Can't allocate memory");
             DAP_DELETE(l_value);
             return dap_chain_tx_compose_config_return_response_handler(l_config);
@@ -965,7 +963,9 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
         const char *a_token_ticker, uint256_t *a_value, dap_time_t *a_time_unlock, uint256_t a_value_fee, size_t a_tx_num, dap_chain_tx_compose_config_t *a_config)
 {
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
-    dap_return_val_if_pass(!a_config, NULL);
+    if (!a_config) {
+        return NULL;
+    }
     if (!a_addr_from || !a_token_ticker || !a_value) {
         log_it(L_ERROR, "invalid parameters");
         dap_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_INVALID_PARAMS, "Invalid parameters");
@@ -991,7 +991,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
         }
     }
 #endif
-    const char * l_native_ticker = a_config->native_ticker;
+    const char *l_native_ticker = a_config->native_ticker;
 
     bool l_single_channel = !dap_strcmp(a_token_ticker, l_native_ticker);
 
@@ -1091,7 +1091,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
         dap_chain_datum_tx_add_item(&l_tx, l_out_count);
         DAP_DELETE(l_out_count);
     }
-    dap_chain_addr_t l_addr_burn = { };
+    
     if (l_single_channel) { // add 'out' items
         uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
         for (size_t i = 0; i < a_tx_num; ++i) {
@@ -1101,7 +1101,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
                 DAP_DELETE(l_addr_fee);
                 return NULL;
             }
-            SUM_256_256(l_value_pack, a_value[i], &l_value_pack);
+                SUM_256_256(l_value_pack, a_value[i], &l_value_pack);
         }
         // Network fee
         if (l_net_fee_used) {
@@ -1114,7 +1114,6 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
                 return NULL;
             }
         }
-        DAP_DEL_Z(l_addr_fee);
         // Validator's fee
         if (!IS_ZERO_256(a_value_fee)) {
             if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) == 1)
@@ -1185,7 +1184,6 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
             }
         }
     }
-    DAP_DELETE(l_addr_fee);
     return l_tx;
 }
 

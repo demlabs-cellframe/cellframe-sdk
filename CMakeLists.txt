@@ -180,7 +180,7 @@ else()
 endif()
 
 if(NOT DEFINED CELLFRAME_MODULES)
-    set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-auctions compose")
+    set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-stake-ext compose")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -354,10 +354,10 @@ if (CELLFRAME_MODULES MATCHES "srv-voting")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
 endif()
 
-# Enable service auctions
-if (CELLFRAME_MODULES MATCHES "srv-auctions")
-    message("[+] Module 'srv-auctions'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_auctions)
+# Enable service stake-ext
+if (CELLFRAME_MODULES MATCHES "srv-stake-ext")
+    message("[+] Module 'srv-stake-ext'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_ext)
 endif()
 
 # Enable service for dynamic modules

@@ -19,7 +19,7 @@
  *     voting_compose_params_t *l_params = (voting_compose_params_t *)a_service_params;
  *     
  *     // Your compose logic here
- *     dap_chain_datum_tx_t *l_tx = dap_chain_tx_compose_poll_create(
+ *     dap_chain_datum_tx_t *l_tx = dap_cli_voting_compose(
  *         l_params->net_name,
  *         l_params->voting_params,
  *         a_config

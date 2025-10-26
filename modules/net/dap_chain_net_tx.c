@@ -31,9 +31,10 @@
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_datum_tx_in_reward.h"
 #include "dap_chain_tx.h"
+#include "dap_json.h"
 #include "dap_list.h"
 #include "dap_chain_type_blocks.h"
-
+#include "dap_chain_wallet_shared.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_shared.h"
@@ -48,7 +49,7 @@
 #include "dap_json_rpc.h"
 
 #define LOG_TAG "dap_chain_net_tx"
-const dap_chain_addr_t c_dap_chain_addr_blank_1 = {0};
+const dap_chain_addr_t c_dap_chain_addr_blank_1 = { };
 
 typedef struct cond_all_with_spends_by_srv_uid_arg{
     dap_chain_datum_tx_spends_items_t * ret;
@@ -2024,4 +2025,10 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
     }
 
     return 0;
+}
+
+int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_json_obj_error, 
+    dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
+{
+    dap_chain_tx_datum_from_json(a_tx_json, a_net, a_json_obj_error, a_out_tx, a_items_count, a_items_ready);
 }

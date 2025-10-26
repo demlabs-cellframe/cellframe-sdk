@@ -63,11 +63,6 @@ dap_chain_datum_tx_t *dap_chain_net_srv_xchange_compose_tx_invalidate( dap_chain
 {
     dap_return_val_if_pass(!a_config || !a_price || !a_wallet_addr, NULL);
 
-    if (!a_price) {
-        log_it(L_ERROR, "a_price is NULL");
-        dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS, "An a_price NULL argument was passed to the s_xchange_tx_invalidate() function.");
-        return NULL;
-    }
     if (!a_wallet_addr) {
         log_it(L_ERROR, "a_wallet_addr is NULL");
         dap_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_PARAMS, "An a_wallet_addr NULL argument was passed to the s_xchange_tx_invalidate() function.");

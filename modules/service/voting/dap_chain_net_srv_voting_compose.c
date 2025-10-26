@@ -82,7 +82,7 @@ dap_json_t *dap_chain_tx_compose_poll_create(dap_chain_net_id_t a_net_id, const 
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_ERROR_CAN_NOT_GET_TX_OUTS, "Can't get ledger coins list\n");
         return dap_chain_tx_compose_config_return_response_handler(l_config);
     }
-    if (!!dap_chain_tx_compose_check_token_in_ledger(l_json_coins, a_token_str)) {
+    if (!dap_chain_tx_compose_check_token_in_ledger(l_json_coins, a_token_str)) {
         log_it(L_ERROR, "Token does not exist");
         dap_json_object_free(l_json_coins);
         dap_json_compose_error_add(l_config->response_handler, DAP_CHAIN_NET_VOTE_CREATE_WRONG_TOKEN, "Token %s does not exist\n", a_token_str);

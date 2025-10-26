@@ -235,14 +235,22 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 size_t dap_chain_addr_from_str_array(const char *a_addr_str, dap_chain_addr_t **a_addr);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
-dap_chain_srv_uid_t dap_chain_srv_uid_from_str(const char* a_str);
+DAP_STATIC_INLINE dap_chain_srv_uid_t dap_chain_srv_uid_from_str(const char *a_srv_uid_str)
+{
+    dap_chain_srv_uid_t l_ret = {0};
+    uint64_t l_id;
+    int res = dap_id_uint64_parse(a_srv_uid_str, &l_id);
+    if (!res)
+        l_ret.uint64 = l_id;
+    return l_ret;
+}
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
-void dap_chain_set_offset_limit_json(dap_json_t *a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count,
+void dap_chain_set_offset_limit_json(dap_json_t * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count,
                                      bool a_last);
 
 DAP_STATIC_INLINE bool dap_chain_addr_compare(const dap_chain_addr_t *a_addr1, const dap_chain_addr_t *a_addr2)

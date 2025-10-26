@@ -96,7 +96,7 @@ typedef struct dap_ledger_token_emission_for_stake_lock_item {
 #define MONTH_INDEX	8
 #define YEAR_INDEX	12
 
-static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+static int s_cli_stake_lock(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 // Create stake lock datum
 static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
@@ -802,9 +802,8 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
  * @param a_str_reply
  * @return
  */
-static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+static int s_cli_stake_lock(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUSED_ARG int a_version)
 {
-    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     enum {
         CMD_NONE, CMD_HOLD, CMD_TAKE
     };
@@ -830,7 +829,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, UNUSE
             } break;
 
         default: {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STAKE_LOCK_NOT_RECOGNIZED_ERR,
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STAKE_LOCK_NOT_RECOGNIZED_ERR,
                                                         "Command %s not recognized", a_argv[l_arg_index]);
             dap_string_free(output_line, false);
             } return 1;
@@ -845,7 +844,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, UNUSE
         dap_string_append_printf(output_line, "\nContribution successfully made");
         dap_json_object_add_string(json_obj_out, "status", output_line->str);
     }
-    dap_json_array_add(*a_json_arr_reply, json_obj_out);
+    dap_json_array_add(a_json_arr_reply, json_obj_out);
     dap_string_free(output_line, true);
 
     return DAP_CHAIN_NODE_CLI_COM_STAKE_LOCK_OK;

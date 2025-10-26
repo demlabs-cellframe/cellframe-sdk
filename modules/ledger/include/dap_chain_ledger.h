@@ -374,7 +374,7 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
  *
  */
 
-dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only);
+dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only);
 
 /**
  * Check token ticker existance
@@ -388,8 +388,8 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t * a_ledger, 
  *
  */
 
-int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
-int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
+int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time);
+int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time);
 int dap_ledger_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
 dap_json_t *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version);
 dap_json_t *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version);

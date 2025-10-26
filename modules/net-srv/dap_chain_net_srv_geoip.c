@@ -25,6 +25,7 @@
 #include <stddef.h>
 
 #include "dap_client_http.h"
+#include "dap_http_status_code.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
@@ -46,7 +47,7 @@ static char *s_geoip_db_file_path = NULL; // share/geoip/GeoLite2-City.mmdb
  * @param a_obj
  */
 static void m_request_getip_response(void * a_response, size_t a_response_size, void * a_obj,
-                                     http_status_code_t http_status_code)
+                                     dap_http_status_code_t http_status_code)
 {
     char *l_addr = (char *) a_obj;
     //printf("m_request_getip_response %s\n", a_response);

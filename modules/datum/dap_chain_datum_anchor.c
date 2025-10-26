@@ -70,7 +70,7 @@ void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
     }
 }
 
-void dap_chain_datum_anchor_certs_dump_json(dap_json_t *a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
+void dap_chain_datum_anchor_certs_dump_json(dap_json_t *a_json_out, byte_t *a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
 {
     if (a_version == 1)
         dap_json_object_add_string(a_json_out, "signatures", "");
