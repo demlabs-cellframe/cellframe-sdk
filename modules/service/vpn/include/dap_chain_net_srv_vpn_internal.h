@@ -172,11 +172,6 @@ bool vpn_srv_es_tun_write(dap_events_socket_t *a_es, void *a_arg);
 void vpn_srv_es_tun_write_finished(dap_events_socket_t *a_es, void *a_arg);
 void vpn_srv_es_tun_error(dap_events_socket_t *a_es, int a_error);
 
-// Worker messaging (temporarily in dap_chain_net_srv_vpn.c, will be extracted to session module)
-void s_tun_recv_msg_callback(dap_events_socket_t *a_esocket_queue, void *a_msg);
-bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t *a_ch_vpn_info,
-                            const void *a_data, size_t a_data_size);
-
 // Session management (dap_chain_net_srv_vpn_session.c)
 dap_chain_net_srv_ch_vpn_t* vpn_srv_session_find_by_ip(struct in_addr a_ip_dst);
 dap_chain_net_srv_ch_vpn_t* vpn_srv_session_find_by_stream(dap_stream_ch_t *a_ch);

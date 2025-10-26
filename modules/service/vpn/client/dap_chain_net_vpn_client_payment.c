@@ -33,6 +33,52 @@
 #define LOG_TAG "vpn_client_payment"
 
 /**
+ * @brief Serialize payment config for network transmission
+ * 
+ * Binary format:
+ * - 32 bytes: tx_hash (dap_hash_fast_t)
+ * - 64 bytes: network_name (null-terminated string)
+ */
+int dap_chain_net_vpn_client_payment_serialize(
+    const dap_chain_net_vpn_client_payment_config_t *a_config,
+    uint8_t **a_out_data,
+    size_t *a_out_size)
+{
+    if (!a_config || !a_out_data || !a_out_size) {
+        log_it(L_ERROR, "Invalid arguments for payment serialization");
+        return -1;
+    }
+    
+    // Calculate total size
+    size_t l_total_size = sizeof(dap_hash_fast_t) + 64;
+    
+    // Allocate buffer
+    uint8_t *l_data = DAP_NEW_Z_SIZE(uint8_t, l_total_size);
+    if (!l_data) {
+        log_it(L_CRITICAL, "Memory allocation failed for payment serialization");
+        return -2;
+    }
+    
+    uint8_t *l_ptr = l_data;
+    
+    // Serialize tx_hash (32 bytes)
+    memcpy(l_ptr, &a_config->tx_hash, sizeof(dap_hash_fast_t));
+    l_ptr += sizeof(dap_hash_fast_t);
+    
+    // Serialize network_name (64 bytes, null-terminated)
+    strncpy((char *)l_ptr, a_config->network_name, 64);
+    ((char *)l_ptr)[63] = '\0'; // Ensure null termination
+    
+    *a_out_data = l_data;
+    *a_out_size = l_total_size;
+    
+    log_it(L_DEBUG, "Payment config serialized: %zu bytes (network=%s)",
+           l_total_size, a_config->network_name);
+    
+    return 0;
+}
+
+/**
  * @brief Finalize multi-hop payment
  */
 int dap_vpn_client_payment_finalize_multihop(
