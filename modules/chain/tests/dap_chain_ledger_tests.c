@@ -10,17 +10,18 @@
 #include "dap_math_ops.h"
 #include "dap_config.h"
 #include "dap_chain.h"
+#include "dap_chain_cs_type.h"
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
-#include "dap_chain_net_srv_vpn.h"
-#include "dap_chain_net_srv_stake_lock.h"
+#include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_stake.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_block.h"
-#include "dap_chain_cs_blocks.h"
+#include "dap_chain_type_blocks.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_cs_dag_poa.h"
+#include "dap_chain_type_dag_poa.h"
 
 static const uint64_t s_fee = 2;
 static const uint64_t s_total_supply = 500;
@@ -1008,11 +1009,11 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
 
 void dap_ledger_test_run(void){
     dap_set_appname("cellframe-node");
-    dap_assert_PIF(dap_chain_cs_blocks_init() == 0, "Initialization of dap consensus block: ");
+    dap_assert_PIF(dap_chain_type_blocks_init() == 0, "Initialization of dap consensus block: ");
     dap_assert_PIF(dap_chain_cs_esbocs_init() == 0, "Initialization of esbocs: ");
-    dap_assert_PIF(dap_chain_cs_dag_init() == 0, "Initialization of esbocs: ");
-    dap_assert_PIF(dap_chain_cs_dag_poa_init() == 0, "Initialization of esbocs: ");
-    dap_chain_net_srv_stake_lock_init();
+    dap_assert_PIF(dap_chain_type_dag_init() == 0, "Initialization of dag: ");
+    dap_assert_PIF(dap_chain_type_dag_poa_init() == 0, "Initialization of dag_poa: ");
+    dap_chain_net_srv_stake_init();
     dap_chain_net_srv_stake_pos_delegate_init();
     dap_assert_PIF(!dap_chain_net_srv_init(), "Srv initializstion");
     
@@ -1026,13 +1027,18 @@ void dap_ledger_test_run(void){
     dap_ledger_t *l_ledger = dap_ledger_create(l_net, l_flags);
     l_net->pub.ledger = l_ledger;
 
+    // Create zerochain with dag_poa consensus
     dap_chain_t *l_chain_zero =  dap_chain_create(l_net->pub.name, "test_chain_zerochain", l_net->pub.id, (dap_chain_id_t){.uint64 = 0});
-    dap_config_t l_cfg = {};
-    dap_assert_PIF(dap_chain_cs_create(l_chain_zero, &l_cfg) == 0, "Chain cs dag_poa creating: ");
+    l_chain_zero->config = dap_config_create_empty();
+    dap_config_set_item_str(l_chain_zero->config, "chain", "consensus", "dag_poa");
+    dap_assert_PIF(dap_chain_cs_create(l_chain_zero, l_chain_zero->config) == 0, "Chain cs dag_poa creating: ");
     DL_APPEND(l_net->pub.chains, l_chain_zero);
 
+    // Create main chain with esbocs consensus  
     dap_chain_t *l_chain_main =  dap_chain_create(l_net->pub.name, "test_chain_main", l_net->pub.id, (dap_chain_id_t){.uint64 = 1});
-    dap_assert_PIF(dap_chain_cs_create(l_chain_main, &l_cfg) == 0, "Chain esbocs cs creating: ");
+    l_chain_main->config = dap_config_create_empty();
+    dap_config_set_item_str(l_chain_main->config, "chain", "consensus", "esbocs");
+    dap_assert_PIF(dap_chain_cs_create(l_chain_main, l_chain_main->config) == 0, "Chain esbocs cs creating: ");
     DL_APPEND(l_net->pub.chains, l_chain_main);
 
     dap_ledger_decree_init(l_net->pub.ledger);
@@ -1058,13 +1064,13 @@ void dap_ledger_test_run(void){
     dap_chain_addr_t l_addr = {0};
     dap_chain_addr_fill_from_key(&l_addr, l_cert->enc_key, l_iddn);
     dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_create(dap_chain_uint256_from(s_total_supply), s_token_ticker, &l_addr);
-    dap_chain_datum_token_emission_t *l_emi_sign = dap_chain_datum_emission_add_sign(l_cert->enc_key, l_emi);
-    size_t l_emi_size = dap_chain_datum_emission_get_size((byte_t*)l_emi_sign);
+    l_emi = dap_chain_datum_emission_add_sign(l_cert->enc_key, l_emi);
+    size_t l_emi_size = dap_chain_datum_emission_get_size((byte_t*)l_emi);
     dap_chain_hash_fast_t l_emi_hash = {0};
     dap_hash_fast(l_emi, l_emi_size, &l_emi_hash);
-    int l_emi_check = dap_ledger_token_emission_add_check(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash);
+    int l_emi_check = dap_ledger_token_emission_add_check(l_ledger, (byte_t*)l_emi, l_emi_size, &l_emi_hash);
     dap_assert_PIF(l_emi_check == 0, "check emission for add in ledger");
-    dap_assert_PIF(!dap_ledger_token_emission_add(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash), "Added emission in ledger");
+    dap_assert_PIF(!dap_ledger_token_emission_add(l_ledger, (byte_t*)l_emi, l_emi_size, &l_emi_hash), "Added emission in ledger");
 
     // Declarate delegated token
     dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
@@ -1080,7 +1086,7 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(!dap_ledger_token_add(l_ledger, (byte_t *)l_token_decl, l_token_decl_size), "Adding token declaration to ledger.");
 
     //first base tx
-    dap_chain_datum_tx_t *l_base_tx = dap_ledger_test_create_datum_base_tx(l_emi_sign, &l_emi_hash, l_addr, l_cert);
+    dap_chain_datum_tx_t *l_base_tx = dap_ledger_test_create_datum_base_tx(l_emi, &l_emi_hash, l_addr, l_cert);
     size_t l_base_tx_size = dap_chain_datum_tx_get_size(l_base_tx);
     dap_hash_fast_t l_hash_btx = {0};
     dap_hash_fast(l_base_tx, l_base_tx_size, &l_hash_btx);
@@ -1099,7 +1105,7 @@ void dap_ledger_test_run(void){
     DAP_DELETE(l_pass_msg);
 
     //second base tx
-    dap_chain_datum_tx_t  *l_base_tx_second = dap_ledger_test_create_datum_base_tx(l_emi_sign, &l_emi_hash, l_addr, l_cert);
+    dap_chain_datum_tx_t  *l_base_tx_second = dap_ledger_test_create_datum_base_tx(l_emi, &l_emi_hash, l_addr, l_cert);
     size_t l_base_tx_size2 = dap_chain_datum_tx_get_size(l_base_tx_second);
     dap_hash_fast_t l_hash_btx_second = {0};
     dap_hash_fast(l_base_tx_second, l_base_tx_size2, &l_hash_btx_second);
@@ -1382,6 +1388,18 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
         printf("Legacy burning tx add result: %d\n", err_code);
         dap_assert(!err_code, "Adding of legacy burning transaction to ledger is");
 
+        // Test with wrong key (not owner) - should fail verificator check
+        dap_enc_key_t *l_wrong_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_BLISS, NULL, 0, NULL, 0, 0);
+        dap_chain_datum_tx_t *l_unstake_tx_wrong = dap_ledger_test_create_legacy_unstake_tx_cond(l_wrong_key, &l_stake_tx_hash, &l_burning_tx_hash, a_ledger);
+        dap_hash_fast_t l_unstake_tx_wrong_hash = {};
+        dap_hash_fast(l_unstake_tx_wrong, dap_chain_datum_tx_get_size(l_unstake_tx_wrong), &l_unstake_tx_wrong_hash);
+        err_code = dap_ledger_tx_add_check(a_ledger, l_unstake_tx_wrong, dap_chain_datum_tx_get_size(l_unstake_tx_wrong), &l_unstake_tx_wrong_hash);
+        printf("Legacy unstake with wrong key check err_code = %d\n", err_code);
+        dap_assert(err_code == DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE, "Checking of legacy unstake with wrong key is");
+        dap_enc_key_delete(l_wrong_key);
+        DAP_DELETE(l_unstake_tx_wrong);
+        
+        // Test with correct key (owner) - should pass
         dap_chain_datum_tx_t *l_unstake_tx = dap_ledger_test_create_legacy_unstake_tx_cond(a_from_key, &l_stake_tx_hash, &l_burning_tx_hash, a_ledger);
         dap_hash_fast_t l_unstake_tx_hash = {};
         dap_hash_fast(l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);

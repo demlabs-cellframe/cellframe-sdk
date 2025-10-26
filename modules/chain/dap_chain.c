@@ -26,6 +26,7 @@
 #if defined(DAP_OS_LINUX) && !defined(DAP_OS_ANDROID)
 #include <stdc-predef.h>
 #endif
+#include "dap_json.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_srv.h"
@@ -36,6 +37,7 @@
 #include "dap_chain.h"
 #include "dap_cert.h"
 #include "dap_chain_cell.h"
+#include "dap_chain_cs_type.h"
 #include "dap_chain_cs.h"
 #include "dap_cert_file.h"
 #include "dap_chain_ch.h"
@@ -87,7 +89,11 @@ int dap_chain_init(void)
 {
     // Cell sharding init
     dap_chain_cell_init();
+    // Type system init (blocks, dag, none)
+    dap_chain_type_init();
+    // Consensus system init (esbocs, dag_poa)
     dap_chain_cs_init();
+    // Services init
     dap_chain_srv_init();
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
@@ -105,6 +111,8 @@ void dap_chain_deinit(void)
           DAP_DELETE(l_item);
     }*/ // TODO!
     dap_chain_srv_deinit();
+    dap_chain_cs_deinit();
+    dap_chain_type_deinit();
 }
 
 /**
@@ -160,9 +168,14 @@ void dap_chain_set_cs_type(dap_chain_t *a_chain, const char *a_cs_type)
     DAP_CHAIN_PVT(a_chain)->cs_type = dap_strdup(a_cs_type);
 }
 
+void dap_chain_set_cs_name(dap_chain_t *a_chain, const char *a_cs_name)
+{
+    DAP_CHAIN_PVT(a_chain)->cs_name = dap_strdup(a_cs_name);
+}
+
 int dap_chain_purge(dap_chain_t *a_chain)
 {
-    int ret = dap_chain_cs_class_purge(a_chain);
+    int ret = dap_chain_type_purge(a_chain);
     ret += dap_chain_cs_purge(a_chain);
     dap_chain_cell_close_all(a_chain);
     return ret;
@@ -239,7 +252,7 @@ void dap_chain_delete(dap_chain_t *a_chain)
     dap_list_free_full(a_chain->datum_removed_notifiers, NULL);
     dap_list_free_full(a_chain->blockchain_timers, NULL);
     dap_list_free_full(a_chain->atom_confirmed_notifiers, NULL);
-    dap_chain_cs_class_delete(a_chain);
+    dap_chain_type_delete(a_chain);
     if (DAP_CHAIN_PVT(a_chain)) {
         DAP_DEL_MULTY(DAP_CHAIN_PVT(a_chain)->file_storage_dir, DAP_CHAIN_PVT(a_chain));
     }
@@ -538,7 +551,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
     } else
         log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
     if (l_chain->id.uint64 == 0) {  // for zerochain only
-        if (dap_config_stream_addrs_parse(a_cfg, "chain", "authorized_nodes_addrs", &l_chain->authorized_nodes_addrs, &l_chain->authorized_nodes_count)) {
+        if (dap_net_common_parse_stream_addrs(a_cfg, "chain", "authorized_nodes_addrs", &l_chain->authorized_nodes_addrs, &l_chain->authorized_nodes_count)) {
             dap_chain_delete(l_chain);
             return NULL;
         }
@@ -577,15 +590,19 @@ const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
 
 //send chain load_progress data to notify socket
 static bool s_load_notify_callback(dap_chain_t* a_chain) {
-    json_object* l_chain_info = json_object_new_object();
-    json_object_object_add(l_chain_info, "class", json_object_new_string("chain_init"));
-    json_object_object_add(l_chain_info, "net", json_object_new_string(a_chain->net_name));
-    json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
-    json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
-    dap_notify_server_send(json_object_get_string(l_chain_info));
+    dap_json_t *l_chain_info = dap_json_object_new();
+    dap_json_object_add_string(l_chain_info, "class", "chain_init");
+    dap_json_object_add_string(l_chain_info, "net", a_chain->net_name);
+    dap_json_object_add_uint64(l_chain_info, "chain_id", a_chain->id.uint64);
+    dap_json_object_add_int(l_chain_info, "load_progress", a_chain->load_progress);
+    char* l_json_str = dap_json_to_string(l_chain_info);
+    if (l_json_str) {
+        dap_notify_server_send(l_json_str);
+        DAP_DELETE(l_json_str);
+    }
     log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
                     a_chain->net_name, a_chain->name, a_chain->id.uint64, a_chain->load_progress);
-    json_object_put(l_chain_info);
+    dap_json_object_free(l_chain_info);
     return true;
 }
 
@@ -690,7 +707,7 @@ dap_chain_t * dap_chain_init_net_cfg_name(const char * a_chain_net_cfg_name)
  */
 void dap_chain_close(dap_chain_t * a_chain)
 {
-    dap_chain_cs_class_delete(a_chain);
+    dap_chain_type_delete(a_chain);
 }
 
 /**

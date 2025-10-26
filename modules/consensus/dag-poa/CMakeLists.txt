@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
-project (dap_chain_cs_dag_poa)
+project (dap_chain_type_dag_poa)
   
 file(GLOB DAP_CHAIN_DAG_CS_POA_SRCS *.c)
 file(GLOB DAP_CHAIN_DAG_CS_POA_HEADERS include/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_DAG_CS_POA_SRCS} ${DAP_CHAIN_DAG_CS_POA_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_cs_dag)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_type_dag)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 

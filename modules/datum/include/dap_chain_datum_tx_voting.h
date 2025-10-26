@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 #include "dap_chain.h"
+#include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_time.h"
 #include "dap_list.h"
@@ -87,11 +88,11 @@ dap_chain_tx_tsd_t *dap_chain_datum_voting_token_tsd_create(const char *a_token_
 dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_chain_hash_fast_t a_voting_hash);
 
 dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void);
-json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_tx, int a_version);
+dap_json_t *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_tx, int a_version);
 
 
 dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx);
-json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, int a_version);
+dap_json_t *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, int a_version);
 char *dap_chain_datum_tx_voting_get_answer_text_by_idx(dap_chain_datum_tx_t *a_tx, uint64_t a_idx);
 
 #ifdef __cplusplus
