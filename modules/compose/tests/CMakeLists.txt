@@ -14,13 +14,7 @@ target_include_directories(${PROJECT_NAME}
 )
 
 # Link libraries
-target_link_libraries(${PROJECT_NAME} 
-    PRIVATE
-        dap_test
-        dap_core
-        dap_crypto
-        dap_compose
-)
+target_link_libraries(${PROJECT_NAME} PRIVATE dap_test dap_sdk cellframe_sdk)
 
 if(DARWIN)
     find_library(BZ2_LIBRARY bz2 REQUIRED)

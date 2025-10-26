@@ -74,7 +74,8 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t* a_value, uint256_t a_value_fee, const char *a_hash_out_type, size_t a_tx_num, dap_time_t a_time_unlock);
+        uint256_t* a_value, uint256_t a_value_fee, const char *a_hash_out_type,
+        size_t a_tx_num, dap_time_t *a_time_unlock);
 
 // Make transfer transaction & insert to cache
 char* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
@@ -113,11 +114,11 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
 dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char *a_emission_hash_str);
 dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_chain, const char *a_emission_hash_str);
 dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size);
-char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from, const dap_chain_addr_t* a_addr_to, dap_list_t *a_block_list,
+char *dap_chain_mempool_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_key_from, const dap_chain_addr_t* a_addr_to, dap_list_t *a_block_list,
                                            uint256_t a_value_fee, const char *a_hash_out_type);
-char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_sign_key, dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
+char *dap_chain_mempool_tx_reward_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_sign_key, dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                          uint256_t a_value_fee, const char *a_hash_out_type);
-char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
+char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
                                            const dap_chain_addr_t *a_addr_to, uint256_t a_value_fee, const char *a_hash_out_type);
 /**
  * @brief Compose event transaction following cellframe mempool style

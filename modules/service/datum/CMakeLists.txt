@@ -5,7 +5,7 @@ file(GLOB DAP_CHAIN_NET_SRV_DATUM_SRCS *.c)
 
 file(GLOB DAP_CHAIN_NET_SRV_DATUM_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_DATUM_SRCS} ${DAP_CHAIN_NET_SRV_DATUM_HEADERS})
+cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_NET_SRV_DATUM_SRCS} HEADERS ${DAP_CHAIN_NET_SRV_DATUM_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} dap_chain_net_srv)
 target_include_directories(${PROJECT_NAME} INTERFACE .)

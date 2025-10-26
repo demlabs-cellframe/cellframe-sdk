@@ -29,16 +29,18 @@
 #include "dap_chain_node.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_cs_esbocs.h" // TODO set RPC callbacks for exclude consensus specific dependency
-#include "dap_chain_cs_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
+#include "dap_chain_type_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
 #include "dap_chain_net_srv_stake_pos_delegate.h" // TODO set RPC callbacks for exclude service specific dependency
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_cli_server.h"
 #include "dap_chain_srv.h"
-#include "dap_chain_mempool.h"
+#include "dap_json.h"
+#include "dap_chain_cs.h"
 #include "dap_chain_datum_service_state.h"
 #include "dap_chain_node_client.h"
 #include "utlist.h"
+#include "dap_link_manager.h"
 
 #define LOG_TAG "dap_chain_node"
 
@@ -464,7 +466,7 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
                        )
     {
         if (a_chain->callback_add_datums(a_chain, &a_datum, 1) == 0)
-            l_ret = DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT;
+            l_ret = -1; // Block limit reached (DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT removed in release-6.0)
     }
     if (a_ret)
         *a_ret = l_ret;
@@ -501,7 +503,8 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
         fclose(l_file);
     }
 #endif
-    char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
+    dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
+    char *l_gdb_group_mempool = (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(a_chain) : NULL;
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     if (l_objs_count) {
@@ -554,7 +557,7 @@ static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_
         l_state->state_size = l_cur_step_size;
         l_state->states_count = i;
         memcpy(l_state->states, l_ptr, l_cur_step_size);
-        ret = DAP_REALLOC_RET_VAL_IF_FAIL(ret, ++l_datums_count * sizeof(dap_chain_datum_t *), NULL);
+        ret = DAP_REALLOC_RET_VAL_IF_FAIL((void *)ret, ++l_datums_count * sizeof(dap_chain_datum_t *), NULL);
         ret[l_datums_count - 1] = l_datum;
         l_ptr = l_offset;
     }
@@ -564,7 +567,7 @@ static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_
     return ret;
 }
 
-int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, json_object * a_changed_addrs)
+int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs)
 {
     if (dap_strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR))
         return log_it(L_ERROR, "Can't prepare harfork for chain type %s is not supported", dap_chain_get_cs_type(a_chain)), -2;
@@ -576,10 +579,11 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     }
     log_it(L_ATT, "Starting data prepare for hardfork of chain '%s' for net '%s'", a_chain->name, l_net->pub.name);
     struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1);
-    dap_ledger_hardfork_fees_t *l_fees = dap_chain_cs_blocks_fees_aggregate(a_chain);
+    dap_ledger_hardfork_fees_t *l_fees = dap_chain_type_blocks_fees_aggregate(a_chain);
     l_states->balances = dap_ledger_states_aggregate(l_net->pub.ledger, a_last_block_timestamp, &l_states->condouts, a_changed_addrs, l_fees);
     l_states->anchors = dap_ledger_anchors_aggregate(l_net->pub.ledger, a_chain->id);
     l_states->events = dap_ledger_events_aggregate(l_net->pub.ledger, a_chain->id);
+    // Note: l_fees is collected but not currently used in new API
 
     size_t l_state_size = 0;
     l_states->service_states = dap_chain_srv_hardfork_all(l_net->pub.id);
@@ -588,9 +592,11 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         if (it->uid.uint64 < (uint64_t)INT64_MIN)       // MSB is not set
             continue;
         size_t l_datums_count = 0;
+        dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
         dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
         for (size_t i = 0; i < l_datums_count; i++)
-            DAP_DELETE(dap_chain_mempool_datum_add(l_datums[i], a_chain, "hex"));
+            if (l_mp_cbs && l_mp_cbs->mempool_datum_add)
+                DAP_DELETE(l_mp_cbs->mempool_datum_add(l_datums[i], a_chain, "hex"));
         DL_DELETE(l_states->service_states, it);
         DAP_DELETE(it);
     }
@@ -834,7 +840,8 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         }
         l_states->main_iterator = NULL;
     case STATE_MEMPOOL: {
-        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
+        dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
+        char *l_gdb_group_mempool = (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(a_chain) : NULL;
         size_t l_objs_count = 0;
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
         for (size_t i = 0; i < l_objs_count; i++) {
@@ -904,7 +911,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                 else
                     log_it(L_ERROR, "Hardfork datum %s is not processed with error %d", l_objs[i].key, l_ret);
                 dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
-            } else if (l_ret == DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT) {
+            } else if (l_ret == -1) { // Block limit (DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT removed in release-6.0)
                 log_it(L_NOTICE, "Hardfork datum %s is not processed because block limit exeeded", l_objs[i].key);
                 break;
             }
@@ -1244,7 +1251,8 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             break;
         }
         dap_hash_str_t l_key = dap_get_data_hash_str(a_datum->data, a_datum->header.data_size);
-        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
+        dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
+        char *l_gdb_group_mempool = (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(a_chain) : NULL;
         size_t l_objs_count = 0;
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
         for (size_t i = 0; i < l_objs_count; i++) {
@@ -1457,7 +1465,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
     return l_ret;
 }
 
-int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object *a_json_arr_reply, int *a_arg_index,
+int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(dap_json_t *a_json_arr_reply, int *a_arg_index,
                                                            int a_argc, char **a_argv,
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net,
                                                            dap_chain_type_t a_default_chain_type)

@@ -84,5 +84,7 @@ DAP_STATIC_INLINE int dap_chain_tx_item_event_type_from_str(const char *a_event_
 #define DAP_CHAIN_TX_TSD_TYPE_EVENT_DATA                    0x1000
 #define DAP_CHAIN_TX_TSD_TYPE_EVENT_DATA_JSON_STR           "event_data"
 
-int dap_chain_datum_tx_item_event_to_json(json_object *a_json_obj, dap_chain_tx_item_event_t *a_event);
-int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type);
+#include "dap_json.h"
+
+int dap_chain_datum_tx_item_event_to_json(dap_json_t *a_json_obj, dap_chain_tx_item_event_t *a_event);
+int dap_chain_datum_tx_event_to_json(dap_json_t *a_json_obj, dap_chain_tx_event_t *a_event, const char *a_hash_out_type);

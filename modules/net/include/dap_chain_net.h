@@ -215,11 +215,10 @@ bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addr(dap_chain_net_t *a_net);
 void dap_chain_net_announce_addr_all();
 char *dap_chain_net_links_dump(dap_chain_net_t*);
-struct json_object *dap_chain_net_states_json_collect(dap_chain_net_t * l_net, int a_version);
-struct json_object *dap_chain_net_list_json_collect(int a_version);
-struct json_object *dap_chain_nets_info_json_collect(int a_version);
-
-
+dap_json_t *dap_chain_net_states_json_collect(dap_chain_net_t * l_net, int a_version);
+dap_json_t *dap_chain_net_list_json_collect(int a_version);
+dap_json_t *dap_chain_nets_info_json_collect(int a_version);
+bool dap_chain_net_is_bridged(dap_chain_net_t *a_net, dap_chain_net_id_t a_net_id);
 #ifdef __cplusplus
 }
 #endif

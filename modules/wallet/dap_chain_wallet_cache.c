@@ -40,6 +40,7 @@
 
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_datum.h"  // For full dap_chain_datum_t structure
 #include "dap_chain.h"
 #include "dap_common.h"
 #include "dap_chain_mempool.h"

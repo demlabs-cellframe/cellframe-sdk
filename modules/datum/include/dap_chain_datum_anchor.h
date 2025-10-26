@@ -22,13 +22,13 @@
 #pragma once
 
 #include "dap_chain_common.h"
+
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_tsd.h"
 #include <stdint.h>
-
 
 typedef struct dap_chain_datum_anchor{
     uint16_t anchor_version;
@@ -57,7 +57,7 @@ int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor
 void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_signs,
                                        size_t a_certs_size, const char *a_hash_out_type);
 
-void dap_chain_datum_anchor_certs_dump_json(json_object * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version);
+void dap_chain_datum_anchor_certs_dump_json(dap_json_t *a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version);
 
 #ifdef __cplusplus
 }
