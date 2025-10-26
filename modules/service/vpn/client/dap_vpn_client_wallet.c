@@ -68,12 +68,21 @@ void dap_vpn_client_wallet_deinit(void)
 
 /**
  * @brief Check if running in embedded mode
+ * @note Embedded mode = blockchain networks are initialized
  */
 bool dap_vpn_client_wallet_is_embedded_mode(void)
 {
-    // Check if g_dap_chain_net_list is available (defined in dap_chain_net.c)
-    extern dap_chain_net_t *g_dap_chain_net_list;
-    return (g_dap_chain_net_list != NULL);
+    // Check if any blockchain network is available
+    // Try common network names
+    const char *l_common_nets[] = {"Backbone", "KelVPN", "Raiden", "Keller", NULL};
+    
+    for (size_t i = 0; l_common_nets[i] != NULL; i++) {
+        if (dap_chain_net_by_name(l_common_nets[i]) != NULL) {
+            return true;  // Found at least one network - embedded mode
+        }
+    }
+    
+    return false;  // No networks found - standalone mode
 }
 
 /**
