@@ -3725,15 +3725,14 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     dap_return_val_if_fail(a_ledger && a_tx, l_hash);
     dap_chain_datum_tx_t *l_prev_tx = a_tx;
     byte_t *l_iter = a_tx->tx_items;
-    // SRV_DEX special-case: head is defined by order_root_hash in OUT_COND
-    // - blank order_root_hash => this tx is the head (fresh ORDER or buyer-leftover)
-    // - non-blank            => root recorded in payload (seller UPDATE)
+    // SRV_DEX special-case: root is recorded in order_root_hash field
+    // - non-blank order_root_hash => root is directly available
+    // - blank order_root_hash     => this tx is the head, need to traverse IN_COND chain to find it
     if (a_cond_type == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
         dap_chain_tx_out_cond_t *l_oc = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
-        if (l_oc)
-            return dap_hash_fast_is_blank(&l_oc->subtype.srv_dex.order_root_hash)
-                    ? (dap_hash_fast_t){}
-                    : l_oc->subtype.srv_dex.order_root_hash;
+        if (l_oc && !dap_hash_fast_is_blank(&l_oc->subtype.srv_dex.order_root_hash))
+            return l_oc->subtype.srv_dex.order_root_hash;
+        // Fall through to IN_COND traversal for blank root
     }
     while (( l_iter = dap_chain_datum_tx_item_get(l_prev_tx, NULL, l_iter, TX_ITEM_TYPE_IN_COND, NULL) )) {
         l_hash_tmp =  ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
@@ -3767,14 +3766,20 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
         // Traverse while the current chain out is spent and the spender continues the same root (UPDATE or seller residual)
         for (;;) {
             dap_hash_fast_t l_spender = l_item ? l_item->cache_data.tx_hash_spent_fast[l_out_idx] : (dap_hash_fast_t){};
+            log_it(L_DEBUG, "[LEDGER get_final] current hash=%s, out_idx=%d, spender=%s",
+                   dap_chain_hash_fast_to_str_static(&l_hash), l_out_idx,
+                   dap_hash_fast_is_blank(&l_spender) ? "BLANK" : dap_chain_hash_fast_to_str_static(&l_spender));
             if (dap_hash_fast_is_blank(&l_spender))
                 break; // current out is unspent => current hash is the tail
             // Load spender tx
             l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_spender, &l_item, false);
             if (!l_tx) {
                 // Spender not found in cache, return current known hash
+                log_it(L_DEBUG, "[LEDGER get_final] Spender TX not found in cache, breaking");
                 break;
             }
+            log_it(L_DEBUG, "[LEDGER get_final] Spender TX found, searching for OUT_COND with root=%s",
+                   dap_chain_hash_fast_to_str_static(&l_root));
             // Find SRV_DEX OUT_COND that continues the same root (UPDATE or seller residual) and its output index
             int l_idx = -1, l_found_idx = -1;
             byte_t *it; size_t sz = 0;
@@ -3786,18 +3791,29 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
                 case TX_ITEM_TYPE_OUT_COND: {
                     dap_chain_tx_out_cond_t *oc = (dap_chain_tx_out_cond_t*)it; l_idx++;
                     if (oc->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
-                        if (!dap_hash_fast_compare(&oc->subtype.srv_dex.order_root_hash, &l_root)
-                            && !dap_hash_fast_is_blank(&oc->subtype.srv_dex.order_root_hash)) {
+                        bool l_is_blank = dap_hash_fast_is_blank(&oc->subtype.srv_dex.order_root_hash);
+                        bool l_cmp_result = dap_hash_fast_compare(&oc->subtype.srv_dex.order_root_hash, &l_root);
+                        log_it(L_DEBUG, "[LEDGER get_final] Found DEX OUT_COND at idx=%d, order_root_hash=%s, is_blank=%d, compare_result=%d",
+                               l_idx, l_is_blank ? "BLANK" : dap_chain_hash_fast_to_str_static(&oc->subtype.srv_dex.order_root_hash),
+                               l_is_blank, l_cmp_result);
+                        // Match root: order_root_hash should point to the same root we're tracking
+                        // dap_hash_fast_compare returns true if hashes ARE equal
+                        if (l_cmp_result && !l_is_blank) {
                             l_found_idx = l_idx;
+                            log_it(L_DEBUG, "[LEDGER get_final] ROOT MATCH! l_found_idx=%d", l_found_idx);
+                        } else {
+                            log_it(L_DEBUG, "[LEDGER get_final] NO MATCH: cmp=%d, !blank=%d", l_cmp_result, !l_is_blank);
                         }
                     }
                 } break;
                 default: break;
                 }
             }
-            if (l_found_idx < 0)
+            if (l_found_idx < 0) {
                 // No continuation (UPDATE or seller residual) for this root in spender tx => chain ended at previous hash
+                log_it(L_DEBUG, "[LEDGER get_final] No matching OUT_COND found in spender, breaking");
                 break;
+            }
             // Continue traversal from spender OUT_COND (UPDATE or seller residual)
             l_hash = l_spender;
             l_out_idx = l_found_idx;
@@ -4793,7 +4809,31 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         case TX_ITEM_TYPE_OUT_COND: {
             dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)it;
-            l_token = l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE ? a_ledger->net->pub.native_ticker : l_main_ticker;
+            if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
+                l_token = a_ledger->net->pub.native_ticker;
+            } else if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+                // Classify SRV_DEX under real sell token (derived from inputs) instead of main ticker
+                const char *l_native = a_ledger->net->pub.native_ticker;
+                const char *l_buy_tok = l_tx_out->subtype.srv_dex.buy_token;
+                const char *l_sell_tok_guess = NULL;
+                dap_ledger_tokenizer_t *l_tok_prev, *l_tok_tmp;
+                HASH_ITER(hh, l_values_from_prev_tx, l_tok_prev, l_tok_tmp) {
+                    if (!dap_strcmp(l_tok_prev->token_ticker, l_native))
+                        continue;
+                    if (l_buy_tok && *l_buy_tok) {
+                        if (dap_strcmp(l_tok_prev->token_ticker, l_buy_tok)) {
+                            l_sell_tok_guess = l_tok_prev->token_ticker;
+                            break;
+                        }
+                    } else {
+                        // No buy_token specified, take the first non-native token from inputs
+                        l_sell_tok_guess = l_tok_prev->token_ticker;
+                        break;
+                    }
+                }
+                l_token = l_sell_tok_guess ? l_sell_tok_guess : l_main_ticker;
+            } else
+                l_token = l_main_ticker;
             if (!l_token) {
                 l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
                 break;

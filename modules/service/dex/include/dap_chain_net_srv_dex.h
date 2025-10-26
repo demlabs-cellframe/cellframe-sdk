@@ -167,3 +167,61 @@ dap_chain_net_srv_dex_cancel_all_error_t dap_chain_net_srv_dex_cancel_all_by_sel
 // Decree callback getter
 dap_ledger_srv_callback_decree_t dap_chain_net_srv_dex_get_decree_callback(void);
 
+#ifdef DAP_LEDGER_TEST
+// Test-only functions (enabled only when DAP_LEDGER_TEST is defined)
+
+/**
+ * @brief Add trading pair to whitelist (BYPASS decrees, for testing only)
+ * @param a_net_id Network ID
+ * @param a_base_ticker Base token ticker
+ * @param a_quote_ticker Quote token ticker
+ * @return 0 on success, error code otherwise
+ * @warning This function directly manipulates internal structures. Use ONLY in tests!
+ */
+int dap_chain_net_srv_dex_test_add_pair(
+    dap_chain_net_id_t a_net_id,
+    const char *a_base_ticker,
+    const char *a_quote_ticker
+);
+
+/**
+ * @brief Set service fee address (BYPASS decrees, for testing only)
+ * @param a_addr Service fee address (NULL to set blank)
+ * @warning This function directly manipulates internal structures. Use ONLY in tests!
+ */
+void dap_chain_net_srv_dex_test_set_service_addr(dap_chain_addr_t *a_addr);
+
+/**
+ * @brief Set fee policy for pair (BYPASS decrees, for testing only)
+ * @param a_net_id Network ID
+ * @param a_base_ticker Base token ticker (NULL for all pairs)
+ * @param a_quote_ticker Quote token ticker (NULL for all pairs)
+ * @param a_fee_percent Fee percentage (0-100)
+ * @return 0 on success, error code otherwise
+ * @warning This function directly manipulates internal structures. Use ONLY in tests!
+ */
+int dap_chain_net_srv_dex_test_set_fee(
+    dap_chain_net_id_t a_net_id,
+    const char *a_base_ticker,
+    const char *a_quote_ticker,
+    uint8_t a_fee_percent
+);
+
+/**
+ * @brief Set NATIVE fee for pair (BYPASS decrees, for testing only)
+ * @param a_net_id Network ID
+ * @param a_base_ticker Base token ticker (NULL for all pairs)
+ * @param a_quote_ticker Quote token ticker (NULL for all pairs)
+ * @param a_native_fee Native token fee amount
+ * @return 0 on success, error code otherwise
+ * @warning This function directly manipulates internal structures. Use ONLY in tests!
+ */
+int dap_chain_net_srv_dex_test_set_native_fee(
+    dap_chain_net_id_t a_net_id,
+    const char *a_base_ticker,
+    const char *a_quote_ticker,
+    uint256_t a_native_fee
+);
+
+#endif // DAP_LEDGER_TEST
+

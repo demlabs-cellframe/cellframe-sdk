@@ -12,7 +12,9 @@ target_link_libraries(cellframe_test_fixtures
     dap_test
     dap_core
     dap_crypto
+    dap_chain
     dap_chain_common
+    dap_chain_wallet
 )
 
 target_include_directories(cellframe_test_fixtures PUBLIC
