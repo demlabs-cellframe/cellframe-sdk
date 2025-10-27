@@ -338,8 +338,19 @@ static char *s_cell_get_key_count_name(dap_chain_cell_t *a_cell)
  * @param a_cell_file_path contains name of chain, for example "0.dchaincell" 
  * @return
  */
+DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell);
+
+// Simple stats for cell loading
+typedef struct {
+    uint64_t total_blocks;
+    uint64_t cache_hits;
+    uint64_t cache_misses;
+} cell_load_stats_t;
+
 DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
 {
+    cell_load_stats_t l_stats = {0};
+    
     off_t l_pos, l_full_size = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
     dap_return_val_if_fail_err(l_full_size > 0, 1, "Can't get chain size, error %d: \"%s\"", errno, dap_strerror(errno));
     dap_return_val_if_fail_err(l_full_size >= (off_t)sizeof(dap_chain_cell_file_header_t), 2, "Chain cell \"%s\" is corrupt, create new file", a_cell->file_storage_path);
@@ -396,24 +407,42 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             l_atom = (dap_chain_atom_ptr_t)(a_cell->mapping->cursor + sizeof(uint64_t));
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
             
+            l_stats.total_blocks++;
+            
             // Check cache for fast loading (mapped mode)
             bool l_cache_hit = false;
             dap_chain_atom_verify_res_t l_verif = ATOM_REJECT;
             
             if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
                 dap_chain_cache_entry_t l_cache_entry;
-                if (dap_chain_cache_get_block(a_cell->chain->cache, &l_atom_hash, &l_cache_entry) == 0 &&
+                int l_get_result = dap_chain_cache_get_block(a_cell->chain->cache, &l_atom_hash, &l_cache_entry);
+                
+                // Debug: log first few cache check details
+                static uint32_t s_cache_detail_count = 0;
+                s_cache_detail_count++;
+                if (s_cache_detail_count <= 3) {
+                    log_it(L_NOTICE, "Cache detail #%u: get_result=%d, cached_offset=%"PRIu64", file_offset=%"PRIu64", cached_size=%u, file_size=%zu",
+                           s_cache_detail_count, l_get_result, 
+                           (l_get_result == 0) ? l_cache_entry.file_offset : 0,
+                           (uint64_t)l_pos,
+                           (l_get_result == 0) ? l_cache_entry.block_size : 0,
+                           l_el_size);
+                }
+                
+                if (l_get_result == 0 &&
                     l_cache_entry.file_offset == (uint64_t)l_pos &&
                     l_cache_entry.block_size == (uint32_t)l_el_size) {
                     // CACHE HIT!
                     l_cache_hit = true;
                     l_verif = ATOM_ACCEPT;
+                    l_stats.cache_hits++;
                     atomic_fetch_add(&a_cell->chain->cache->cache_hits, 1);
                 }
             }
             
             if (!l_cache_hit) {
                 // CACHE MISS - full validation
+                l_stats.cache_misses++;
                 if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
                     atomic_fetch_add(&a_cell->chain->cache->cache_misses, 1);
                 }
@@ -422,11 +451,21 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                     ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
                     : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
                 
-                // Save to cache if accepted
+                // Debug: log why batch_add is not called
+                static uint32_t s_batch_check_count = 0;
+                s_batch_check_count++;
+                if (s_batch_check_count <= 5) {
+                    log_it(L_NOTICE, "Cache batch check #%u (chain %s): verif=%d, cache=%p, enabled=%d",
+                           s_batch_check_count, a_cell->chain->name, l_verif, 
+                           a_cell->chain->cache, 
+                           a_cell->chain->cache ? dap_chain_cache_enabled(a_cell->chain->cache) : 0);
+                }
+                
+                // Save to cache using batch buffer (for performance)
                 if (l_verif == ATOM_ACCEPT && a_cell->chain->cache && 
                     dap_chain_cache_enabled(a_cell->chain->cache)) {
                     uint32_t l_tx_count = 0;
-                    dap_chain_cache_save_block(a_cell->chain->cache, &l_atom_hash,
+                    dap_chain_cache_batch_add(a_cell->chain->cache, &l_atom_hash,
                         a_cell->id.uint64, l_pos, l_el_size, l_tx_count);
                 }
             }
@@ -473,6 +512,8 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             }
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
             
+            l_stats.total_blocks++;
+            
             // Check cache for fast loading
             bool l_cache_hit = false;
             dap_chain_atom_verify_res_t l_verif = ATOM_REJECT; // Default if no callbacks
@@ -486,6 +527,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                     // CACHE HIT! Skip validation, block already verified
                     l_cache_hit = true;
                     l_verif = ATOM_ACCEPT; // Assume accepted (was validated before)
+                    l_stats.cache_hits++;
                     atomic_fetch_add(&a_cell->chain->cache->cache_hits, 1);
                     if (a_cell->chain->cache->debug) {
                         char l_hash_str[DAP_HASH_FAST_STR_SIZE];
@@ -498,6 +540,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             
             if (!l_cache_hit) {
                 // CACHE MISS or cache disabled - full validation
+                l_stats.cache_misses++;
                 if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
                     atomic_fetch_add(&a_cell->chain->cache->cache_misses, 1);
                 }
@@ -514,12 +557,12 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                     break; // Stop loading, but not an error
                 }
                 
-                // Save to cache if accepted
+                // Save to cache using batch buffer (for performance)
                 if (l_verif == ATOM_ACCEPT && a_cell->chain->cache && 
                     dap_chain_cache_enabled(a_cell->chain->cache)) {
                     // TODO: Get actual tx_count from block
                     uint32_t l_tx_count = 0;
-                    dap_chain_cache_save_block(a_cell->chain->cache, &l_atom_hash,
+                    dap_chain_cache_batch_add(a_cell->chain->cache, &l_atom_hash,
                         a_cell->id.uint64, l_pos, l_el_size, l_tx_count);
                 }
             }
@@ -558,8 +601,28 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     if ( a_cell->chain->callback_atoms_prefetched_add )
         a_cell->chain->callback_atoms_prefetched_add(a_cell->chain);
-    log_it(L_INFO, "Loaded %lu atoms in chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
-                    q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
+    
+    // Flush batch buffer after cell loading completes
+    if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+        dap_chain_cache_batch_flush(a_cell->chain->cache);
+    }
+    
+    // Log simple statistics
+    if (l_stats.total_blocks > 0) {
+        double l_cache_hit_rate = (100.0 * l_stats.cache_hits / l_stats.total_blocks);
+        log_it(L_NOTICE, "Cell loaded: chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X" - "
+               "%"PRIu64" blocks, cache: %"PRIu64" hits (%.1f%%), %"PRIu64" misses",
+               a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64,
+               l_stats.total_blocks, l_stats.cache_hits, l_cache_hit_rate, l_stats.cache_misses);
+        
+        if (l_stats.cache_misses > 0) {
+            log_it(L_INFO, "  -> %"PRIu64" blocks required full validation (cache misses)", 
+                   l_stats.cache_misses);
+        }
+    } else {
+        log_it(L_INFO, "Loaded cell \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X" - empty",
+               a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
+    }
     return l_ret;
 }
 

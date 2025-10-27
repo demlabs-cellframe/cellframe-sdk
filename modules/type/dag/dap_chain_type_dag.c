@@ -59,6 +59,9 @@
 
 #define LOG_TAG "dap_chain_type_dag"
 
+// Simple performance tracking - just counters, no precise timing
+#define DAG_PERF_LOG_INTERVAL 100  // Log stats every N events
+
 typedef struct dap_chain_type_dag_event_item {
     dap_chain_hash_fast_t hash;
     dap_chain_hash_fast_t datum_hash;
@@ -88,6 +91,11 @@ typedef struct dap_chain_type_dag_pvt {
     dap_interval_timer_t treshold_free_timer;
     uint64_t tx_count;
     bool need_reorder;
+    
+    // Simple performance statistics (just counters)
+    uint64_t perf_events_processed;
+    uint64_t perf_events_verified;
+    uint64_t perf_ledger_updates;
 } dap_chain_type_dag_pvt_t;
 
 #define PVT(a) ((dap_chain_type_dag_pvt_t *) a->_pvt )
@@ -415,6 +423,8 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_type_dag_t *a_dag, dap
     dap_return_val_if_pass_err( l_datum_size > l_datum_size_max, -1, "Event size exeeds max size permitted, %zd > %zd", l_datum_size, l_datum_size_max );
     dap_hash_fast_t l_datum_hash;
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
+    
+    PVT(a_dag)->perf_ledger_updates++;
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
         PVT(a_dag)->tx_count++;
@@ -539,6 +549,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     // verify hashes and consensus
     switch (ret) {
     case ATOM_ACCEPT:
+        PVT(l_dag)->perf_events_verified++;
         ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size, a_atom_hash);
         if (ret == ATOM_MOVE_TO_THRESHOLD) {
             if (!s_threshold_enabled /*&& !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id))*/)
@@ -620,6 +631,18 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             DAP_DELETE(l_event_item->event);
         DAP_DELETE(l_event_item);
     }
+    
+    // Simple progress logging every N events
+    PVT(l_dag)->perf_events_processed++;
+    if (PVT(l_dag)->perf_events_processed % DAG_PERF_LOG_INTERVAL == 0) {
+        log_it(L_INFO, "DAG loading progress (chain %s): %"PRIu64" events processed, "
+               "%"PRIu64" verified, %"PRIu64" ledger updates", 
+               a_chain->name, 
+               PVT(l_dag)->perf_events_processed,
+               PVT(l_dag)->perf_events_verified,
+               PVT(l_dag)->perf_ledger_updates);
+    }
+    
     return ret;
 }
 

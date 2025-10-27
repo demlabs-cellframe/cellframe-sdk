@@ -50,6 +50,9 @@
 #define DAP_FORK_MAX_DEPTH_DEFAULT 5
 #endif
 
+// Simple performance tracking - just counters, no precise timing
+#define BLOCKS_PERF_LOG_INTERVAL 100  // Log stats every N blocks
+
 
 typedef struct dap_chain_block_datum_index {
     dap_chain_hash_fast_t datum_hash;
@@ -96,6 +99,11 @@ typedef struct dap_chain_type_blocks_pvt {
     struct cs_blocks_hal_item *hal;
     // Number of blocks for one block confirmation
     uint64_t block_confirm_cnt;
+    
+    // Simple performance statistics (just counters)
+    uint64_t perf_blocks_processed;
+    uint64_t perf_blocks_verified;
+    uint64_t perf_ledger_updates;
 } dap_chain_type_blocks_pvt_t;
 
 typedef struct dap_chain_block_fork_resolved_notificator{
@@ -130,6 +138,7 @@ static bool s_chain_find_atom(dap_chain_block_cache_t* a_blocks, dap_chain_hash_
 static int s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
 static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
+static dap_chain_atom_verify_res_t s_callback_atom_prefetch(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
 //    Verify new block
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
 
@@ -298,6 +307,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     l_cs_blocks->chain = a_chain;
 
     // Atom element callbacks
+    a_chain->callback_atom_prefetch = s_callback_atom_prefetch;  // Prefetch blocks from file during loading
     a_chain->callback_atom_add = s_callback_atom_add ;  // Accept new element in chain
     a_chain->callback_atom_verify = s_callback_atom_verify ;  // Verify new element in chain
     a_chain->callback_atom_get_hdr_static_size = s_callback_atom_get_static_hdr_size; // Get block hdr size
@@ -348,6 +358,11 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     pthread_rwlock_init(&l_cs_blocks_pvt->rwlock,NULL);
     pthread_rwlock_init(&l_cs_blocks_pvt->datums_rwlock, NULL);
     pthread_rwlock_init(&l_cs_blocks_pvt->forked_branches_rwlock, NULL);
+    
+    // Initialize performance counters
+    l_cs_blocks_pvt->perf_blocks_processed = 0;
+    l_cs_blocks_pvt->perf_blocks_verified = 0;
+    l_cs_blocks_pvt->perf_ledger_updates = 0;
 
     
     l_cs_blocks_pvt->block_confirm_cnt = dap_config_get_item_uint64_default(a_chain_config,"blocks","blocks_for_confirmation",DAP_FORK_MAX_DEPTH_DEFAULT);
@@ -1646,6 +1661,8 @@ static int s_add_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_block_
         log_it(L_DEBUG,"Block %s has no datums at all, nothing to add to ledger", a_block_cache->block_hash_str);
         return 1; // No errors just empty block
     }
+    
+    PVT(a_blocks)->perf_ledger_updates++;
     int l_ret = 0;
 
     size_t l_block_offset = 0;
@@ -1829,6 +1846,39 @@ static bool s_select_longest_branch(dap_chain_type_blocks_t * a_blocks, dap_chai
 }
 
 /**
+ * @brief s_callback_atom_prefetch
+ * Prefetch block during chain loading from file. In load mode, accepts blocks without full validation.
+ * @param a_chain - chain object
+ * @param a_atom - atom object (block dap_chain_block_t)
+ * @param a_atom_size - size of block
+ * @param a_atom_hash - block hash
+ * @return ATOM_ACCEPT in load mode, otherwise delegates to full add
+ */
+static dap_chain_atom_verify_res_t s_callback_atom_prefetch(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash)
+{
+    dap_return_val_if_fail(a_chain && a_atom && a_atom_size && a_atom_hash, ATOM_REJECT);
+    
+    // In load mode, accept blocks without full chain validation (for cache performance)
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    if (l_net && dap_chain_net_get_load_mode(l_net)) {
+        // Only basic integrity check
+        dap_chain_block_t *l_block = (dap_chain_block_t *)a_atom;
+        
+        if (sizeof(l_block->hdr) >= a_atom_size) {
+            log_it(L_WARNING, "Block %s size %zd <= block header size %zd",
+                   dap_hash_fast_to_str_static(a_atom_hash), a_atom_size, sizeof(l_block->hdr));
+            return ATOM_CORRUPTED;
+        }
+        
+        // Accept for prefetch - full validation will happen later if needed
+        return ATOM_ACCEPT;
+    }
+    
+    // Not in load mode - use full add logic
+    return s_callback_atom_add(a_chain, a_atom, a_atom_size, a_atom_hash, false);
+}
+
+/**
  * @brief s_callback_atom_add
  * @details Accept new atom in blockchain
  * @param a_chain
@@ -1845,6 +1895,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     dap_chain_block_cache_t * l_block_cache = NULL;
 
+    PVT(l_blocks)->perf_blocks_verified++;
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify(a_chain, a_atom, a_atom_size, &l_block_hash);
     dap_hash_t *l_prev_hash_meta_data = (dap_hash_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
     dap_hash_t l_block_prev_hash = l_prev_hash_meta_data ? *l_prev_hash_meta_data : (dap_hash_t){};
@@ -1903,7 +1954,19 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                                 dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
 #endif
                     }
-                }    
+                }
+                
+                // Simple progress logging every N blocks
+                PVT(l_blocks)->perf_blocks_processed++;
+                if (PVT(l_blocks)->perf_blocks_processed % BLOCKS_PERF_LOG_INTERVAL == 0) {
+                    log_it(L_INFO, "BLOCKS loading progress (chain %s): %"PRIu64" blocks processed, "
+                           "%"PRIu64" verified, %"PRIu64" ledger updates", 
+                           a_chain->name, 
+                           PVT(l_blocks)->perf_blocks_processed,
+                           PVT(l_blocks)->perf_blocks_verified,
+                           PVT(l_blocks)->perf_ledger_updates);
+                }
+                
                 return ATOM_ACCEPT;
             }
             for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){

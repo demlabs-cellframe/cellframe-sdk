@@ -623,8 +623,8 @@ static bool s_load_notify_callback(dap_chain_t* a_chain) {
         dap_notify_server_send(l_json_str);
         DAP_DELETE(l_json_str);
     }
-    log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
-                    a_chain->net_name, a_chain->name, a_chain->id.uint64, a_chain->load_progress);
+    // log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
+    //                 a_chain->net_name, a_chain->name, a_chain->id.uint64, a_chain->load_progress);
     dap_json_object_free(l_chain_info);
     return true;
 }

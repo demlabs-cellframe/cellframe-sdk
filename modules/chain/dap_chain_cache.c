@@ -28,6 +28,7 @@
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_global_db.h"
+#include "dap_global_db_pkt.h"
 #include "dap_time.h"
 #include "dap_list.h"
 #include <pthread.h>
@@ -129,18 +130,40 @@ dap_chain_cache_t *dap_chain_cache_create(dap_chain_t *a_chain, dap_config_t *a_
     atomic_init(&l_cache->compactions_count, 0);
     atomic_init(&l_cache->compaction_time_ms, 0);
     
+    // Initialize performance statistics
+    atomic_init(&l_cache->total_lookup_time_us, 0);
+    atomic_init(&l_cache->total_save_time_us, 0);
+    atomic_init(&l_cache->gdb_get_calls, 0);
+    atomic_init(&l_cache->gdb_set_calls, 0);
+    atomic_init(&l_cache->gdb_get_time_us, 0);
+    atomic_init(&l_cache->gdb_set_time_us, 0);
+    
     // Initialize compaction lock
     pthread_mutex_init(&l_cache->compaction_lock, NULL);
     l_cache->compaction_in_progress = false;
     
+    // Initialize batch buffer for performance during cell loading
+    // Use larger batch size (500) to reduce number of GlobalDB transactions
+    l_cache->batch_capacity = 500;  // Flush every 500 blocks
+    l_cache->batch_buffer = DAP_NEW_Z_SIZE(dap_chain_cache_batch_entry_t, 
+                                           l_cache->batch_capacity * sizeof(dap_chain_cache_batch_entry_t));
+    l_cache->batch_size = 0;
+    pthread_mutex_init(&l_cache->batch_lock, NULL);
+    
     // Build GlobalDB group names
-    l_cache->gdb_group = dap_strdup(DAP_CHAIN_CACHE_GDB_GROUP);
+    // Format: "local.cache" - simple 2-level local group
+    // Network and chain info will be in keys: "{net}.{chain}.{block_hash}"
+    l_cache->gdb_group = dap_strdup("local.cache");
     l_cache->gdb_subgroup = s_cache_build_subgroup(a_chain);
     
-    log_it(L_INFO, "Chain cache created for %s:%s, mode=%s, threshold=%u",
-        a_chain->net_name, a_chain->name,
-        l_cache->mode == DAP_CHAIN_CACHE_MODE_CACHED ? "cached" : "full",
-        l_cache->compaction_threshold);
+    log_it(L_NOTICE, "Chain cache created for %s:%s", a_chain->net_name, a_chain->name);
+    log_it(L_NOTICE, "  - Mode: %s", l_cache->mode == DAP_CHAIN_CACHE_MODE_CACHED ? "CACHED" : "FULL");
+    log_it(L_NOTICE, "  - GlobalDB group: '%s'", l_cache->gdb_group);
+    log_it(L_NOTICE, "  - Incremental save: %s", l_cache->incremental_save ? "enabled" : "disabled");
+    log_it(L_NOTICE, "  - Compaction threshold: %u blocks", l_cache->compaction_threshold);
+    log_it(L_NOTICE, "  - Compaction async: %s", l_cache->compaction_async ? "yes" : "no");
+    log_it(L_NOTICE, "  - Debug logging: %s", l_cache->debug ? "enabled" : "disabled");
+    log_it(L_NOTICE, "  - Batch buffer capacity: %zu blocks", l_cache->batch_capacity);
     
     return l_cache;
 }
@@ -156,6 +179,9 @@ void dap_chain_cache_delete(dap_chain_cache_t *a_cache)
     log_it(L_INFO, "Deleting chain cache for %s:%s",
         a_cache->chain->net_name, a_cache->chain->name);
     
+    // Print final statistics before deletion
+    dap_chain_cache_print_stats(a_cache);
+    
     // Wait for compaction to finish if in progress
     pthread_mutex_lock(&a_cache->compaction_lock);
     if (a_cache->compaction_in_progress) {
@@ -163,6 +189,9 @@ void dap_chain_cache_delete(dap_chain_cache_t *a_cache)
         // TODO: add condition variable for proper wait
     }
     pthread_mutex_unlock(&a_cache->compaction_lock);
+    
+    // Flush any pending batch writes
+    dap_chain_cache_batch_flush(a_cache);
     
     // Perform final compaction if needed
     uint32_t l_incremental_count = atomic_load(&a_cache->incremental_count);
@@ -173,6 +202,8 @@ void dap_chain_cache_delete(dap_chain_cache_t *a_cache)
     
     // Free resources
     pthread_mutex_destroy(&a_cache->compaction_lock);
+    pthread_mutex_destroy(&a_cache->batch_lock);
+    DAP_DELETE(a_cache->batch_buffer);
     DAP_DELETE(a_cache->gdb_group);
     DAP_DELETE(a_cache->gdb_subgroup);
     DAP_DELETE(a_cache);
@@ -189,12 +220,22 @@ bool dap_chain_cache_has_block(dap_chain_cache_t *a_cache,
 {
     dap_return_val_if_fail(a_cache && a_block_hash, false);
     
-    char *l_key = s_cache_build_block_key(a_block_hash);
+    char *l_key = s_cache_build_block_key_ex(a_cache->gdb_subgroup, a_block_hash);
     
     void *l_value = NULL;
     size_t l_value_size = 0;
     
     int l_ret = s_cache_gdb_get(a_cache, l_key, &l_value, &l_value_size);
+    
+    // Debug: log first few cache lookups
+    static uint32_t s_lookup_count = 0;
+    s_lookup_count++;
+    if (s_lookup_count <= 5) {
+        log_it(L_NOTICE, "Cache lookup #%u: key='%s', group='%s', result=%s",
+               s_lookup_count, l_key, a_cache->gdb_group, 
+               (l_ret == 0 && l_value) ? "HIT" : "MISS");
+    }
+    
     DAP_DELETE(l_key);
     
     if (l_ret < 0 || !l_value) {
@@ -225,11 +266,20 @@ int dap_chain_cache_get_block(dap_chain_cache_t *a_cache,
 {
     dap_return_val_if_fail(a_cache && a_block_hash && a_out_entry, -1);
     
-    if (!dap_chain_cache_has_block(a_cache, a_block_hash, a_out_entry)) {
-        return -1;
+    CACHE_TIMING_START();
+    
+    bool l_found = dap_chain_cache_has_block(a_cache, a_block_hash, a_out_entry);
+    
+    // Track timing
+    uint64_t l_elapsed_us = CACHE_TIMING_END_US();
+    atomic_fetch_add(&a_cache->total_lookup_time_us, l_elapsed_us);
+    
+    if (a_cache->debug && l_elapsed_us > 1000) { // Log if > 1ms
+        log_it(L_DEBUG, "[CACHE-TIMING] get_block: %.3f ms %s", 
+               l_elapsed_us / 1000.0, l_found ? "(HIT)" : "(MISS)");
     }
     
-    return 0;
+    return l_found ? 0 : -1;
 }
 
 /**
@@ -244,6 +294,8 @@ int dap_chain_cache_save_block(dap_chain_cache_t *a_cache,
 {
     dap_return_val_if_fail(a_cache && a_block_hash, -1);
     
+    CACHE_TIMING_START();
+    
     dap_chain_cache_entry_t l_entry = {
         .cell_id = a_cell_id,
         .file_offset = a_file_offset,
@@ -251,11 +303,15 @@ int dap_chain_cache_save_block(dap_chain_cache_t *a_cache,
         .tx_count = a_tx_count
     };
     
-    char *l_key = s_cache_build_block_key(a_block_hash);
+    char *l_key = s_cache_build_block_key_ex(a_cache->gdb_subgroup, a_block_hash);
     
     int l_ret = s_cache_gdb_set(a_cache, l_key, &l_entry, sizeof(l_entry));
     
     DAP_DELETE(l_key);
+    
+    // Track timing
+    uint64_t l_elapsed_us = CACHE_TIMING_END_US();
+    atomic_fetch_add(&a_cache->total_save_time_us, l_elapsed_us);
     
     if (l_ret < 0) {
         log_it(L_ERROR, "Failed to save block to cache: %d", l_ret);
@@ -263,8 +319,10 @@ int dap_chain_cache_save_block(dap_chain_cache_t *a_cache,
     }
     
     if (a_cache->debug) {
-        log_it(L_DEBUG, "Block saved to cache: cell=%"DAP_UINT64_FORMAT_U", offset=%"DAP_UINT64_FORMAT_U", size=%u",
-            a_cell_id, a_file_offset, a_block_size);
+        if (l_elapsed_us > 1000) { // Log if > 1ms
+            log_it(L_DEBUG, "[CACHE-TIMING] save_block: %.3f ms (cell=%"DAP_UINT64_FORMAT_U", offset=%"DAP_UINT64_FORMAT_U")",
+                l_elapsed_us / 1000.0, a_cell_id, a_file_offset);
+        }
     }
     
     return 0;
@@ -367,7 +425,86 @@ void dap_chain_cache_reset_stats(dap_chain_cache_t *a_cache)
     atomic_store(&a_cache->compactions_count, 0);
     atomic_store(&a_cache->compaction_time_ms, 0);
     
+    // Reset performance statistics
+    atomic_store(&a_cache->total_lookup_time_us, 0);
+    atomic_store(&a_cache->total_save_time_us, 0);
+    atomic_store(&a_cache->gdb_get_calls, 0);
+    atomic_store(&a_cache->gdb_set_calls, 0);
+    atomic_store(&a_cache->gdb_get_time_us, 0);
+    atomic_store(&a_cache->gdb_set_time_us, 0);
+    
     log_it(L_INFO, "Cache statistics reset");
+}
+
+/**
+ * @brief Print detailed cache statistics (for debugging)
+ */
+void dap_chain_cache_print_stats(dap_chain_cache_t *a_cache)
+{
+    if (!a_cache)
+        return;
+    
+    uint64_t hits = atomic_load(&a_cache->cache_hits);
+    uint64_t misses = atomic_load(&a_cache->cache_misses);
+    uint64_t total_lookups = hits + misses;
+    
+    uint64_t total_lookup_us = atomic_load(&a_cache->total_lookup_time_us);
+    uint64_t total_save_us = atomic_load(&a_cache->total_save_time_us);
+    
+    uint64_t gdb_get_calls = atomic_load(&a_cache->gdb_get_calls);
+    uint64_t gdb_set_calls = atomic_load(&a_cache->gdb_set_calls);
+    uint64_t gdb_get_time_us = atomic_load(&a_cache->gdb_get_time_us);
+    uint64_t gdb_set_time_us = atomic_load(&a_cache->gdb_set_time_us);
+    
+    log_it(L_NOTICE, "=== CACHE PERFORMANCE STATISTICS ===");
+    log_it(L_NOTICE, "Chain: %s:%s", a_cache->chain->net_name, a_cache->chain->name);
+    log_it(L_NOTICE, "Mode: %s", a_cache->mode == DAP_CHAIN_CACHE_MODE_CACHED ? "CACHED" : "FULL");
+    
+    if (total_lookups > 0) {
+        double hit_rate = (hits * 100.0) / total_lookups;
+        double avg_lookup_ms = total_lookup_us / (double)total_lookups / 1000.0;
+        
+        log_it(L_NOTICE, "Lookups: %llu total (%.1f%% hit rate)", total_lookups, hit_rate);
+        log_it(L_NOTICE, "  - Hits: %llu", hits);
+        log_it(L_NOTICE, "  - Misses: %llu", misses);
+        log_it(L_NOTICE, "  - Avg time: %.3f ms", avg_lookup_ms);
+        log_it(L_NOTICE, "  - Total time: %.1f sec", total_lookup_us / 1000000.0);
+    }
+    
+    if (gdb_get_calls > 0) {
+        double avg_gdb_get_ms = gdb_get_time_us / (double)gdb_get_calls / 1000.0;
+        log_it(L_NOTICE, "GlobalDB GET: %llu calls, avg %.3f ms, total %.1f sec", 
+               gdb_get_calls, avg_gdb_get_ms, gdb_get_time_us / 1000000.0);
+    }
+    
+    if (gdb_set_calls > 0) {
+        double avg_gdb_set_ms = gdb_set_time_us / (double)gdb_set_calls / 1000.0;
+        double avg_save_ms = total_save_us / (double)gdb_set_calls / 1000.0;
+        log_it(L_NOTICE, "GlobalDB SET: %llu calls, avg %.3f ms, total %.1f sec", 
+               gdb_set_calls, avg_gdb_set_ms, gdb_set_time_us / 1000000.0);
+        log_it(L_NOTICE, "Save operations: avg %.3f ms total per save", avg_save_ms);
+    }
+    
+    uint64_t total_overhead_sec = (total_lookup_us + total_save_us) / 1000000;
+    log_it(L_NOTICE, "Total cache overhead: %llu sec (%.1f min)", 
+           total_overhead_sec, total_overhead_sec / 60.0);
+    
+    // Performance warnings
+    if (gdb_get_calls > 0) {
+        double avg_gdb_get_ms = gdb_get_time_us / (double)gdb_get_calls / 1000.0;
+        if (avg_gdb_get_ms > 1.0) {
+            log_it(L_WARNING, "⚠️  GlobalDB GET is slow (%.3f ms avg) - consider optimization!", avg_gdb_get_ms);
+        }
+    }
+    
+    if (gdb_set_calls > 0) {
+        double avg_gdb_set_ms = gdb_set_time_us / (double)gdb_set_calls / 1000.0;
+        if (avg_gdb_set_ms > 1.0) {
+            log_it(L_WARNING, "⚠️  GlobalDB SET is slow (%.3f ms avg) - consider batch operations!", avg_gdb_set_ms);
+        }
+    }
+    
+    log_it(L_NOTICE, "====================================");
 }
 
 /**
@@ -578,7 +715,9 @@ int s_cache_gdb_set(dap_chain_cache_t *a_cache,
 {
     dap_return_val_if_fail(a_cache && a_key && a_value && a_value_size > 0, -1);
     
-    bool l_ret = dap_global_db_set_sync(
+    CACHE_TIMING_START();
+    
+    int l_ret = dap_global_db_set_sync(
         a_cache->gdb_group,
         a_key,
         a_value,
@@ -586,7 +725,31 @@ int s_cache_gdb_set(dap_chain_cache_t *a_cache,
         false  // No history
     );
     
-    return l_ret ? 0 : -1;
+    // Track timing
+    uint64_t l_elapsed_us = CACHE_TIMING_END_US();
+    atomic_fetch_add(&a_cache->gdb_set_calls, 1);
+    atomic_fetch_add(&a_cache->gdb_set_time_us, l_elapsed_us);
+    
+    if (l_ret != 0) {
+        // GlobalDB set failed - log details
+        static uint32_t s_error_count = 0;
+        if (s_error_count < 5) { // Only log first 5 errors to avoid spam
+            log_it(L_ERROR, "GlobalDB set failed: group='%s', key='%s', size=%zu, error=%d", 
+                   a_cache->gdb_group, a_key, a_value_size, l_ret);
+            s_error_count++;
+            if (s_error_count == 5) {
+                log_it(L_ERROR, "Further GlobalDB errors will be suppressed...");
+            }
+        }
+        return -1;
+    }
+    
+    if (a_cache->debug && l_elapsed_us > 2000) { // Log if > 2ms (slow!)
+        log_it(L_WARNING, "[CACHE-TIMING] GDB SET SLOW: %.3f ms for key %s", 
+               l_elapsed_us / 1000.0, a_key);
+    }
+    
+    return 0;
 }
 
 /**
@@ -599,6 +762,8 @@ int s_cache_gdb_get(dap_chain_cache_t *a_cache,
 {
     dap_return_val_if_fail(a_cache && a_key && a_out_value && a_out_size, -1);
     
+    CACHE_TIMING_START();
+    
     *a_out_value = dap_global_db_get_sync(
         a_cache->gdb_group,
         a_key,
@@ -606,6 +771,16 @@ int s_cache_gdb_get(dap_chain_cache_t *a_cache,
         NULL,
         NULL
     );
+    
+    // Track timing
+    uint64_t l_elapsed_us = CACHE_TIMING_END_US();
+    atomic_fetch_add(&a_cache->gdb_get_calls, 1);
+    atomic_fetch_add(&a_cache->gdb_get_time_us, l_elapsed_us);
+    
+    if (a_cache->debug && l_elapsed_us > 2000) { // Log if > 2ms (slow!)
+        log_it(L_WARNING, "[CACHE-TIMING] GDB GET SLOW: %.3f ms for key %s", 
+               l_elapsed_us / 1000.0, a_key);
+    }
     
     return *a_out_value ? 0 : -1;
 }
@@ -618,9 +793,9 @@ int s_cache_gdb_del(dap_chain_cache_t *a_cache,
 {
     dap_return_val_if_fail(a_cache && a_key, -1);
     
-    bool l_ret = dap_global_db_del_sync(a_cache->gdb_group, a_key);
+    int l_ret = dap_global_db_del_sync(a_cache->gdb_group, a_key);
     
-    return l_ret ? 0 : -1;
+    return (l_ret == 0) ? 0 : -1;
 }
 
 /**
@@ -750,5 +925,175 @@ int s_cache_delete_incremental_entries(dap_chain_cache_t *a_cache,
     }
     
     return l_errors > 0 ? -l_errors : 0;
+}
+
+/**
+ * @brief Add block to batch buffer (for performance during cell loading)
+ */
+int dap_chain_cache_batch_add(dap_chain_cache_t *a_cache,
+                               const dap_hash_fast_t *a_block_hash,
+                               uint64_t a_cell_id,
+                               uint64_t a_file_offset,
+                               uint32_t a_block_size,
+                               uint32_t a_tx_count)
+{
+    dap_return_val_if_fail(a_cache && a_block_hash, -1);
+    
+    pthread_mutex_lock(&a_cache->batch_lock);
+    
+    // Check if buffer is full
+    if (a_cache->batch_size >= a_cache->batch_capacity) {
+        pthread_mutex_unlock(&a_cache->batch_lock);
+        // Flush buffer
+        int l_ret = dap_chain_cache_batch_flush(a_cache);
+        if (l_ret < 0) {
+            return l_ret;
+        }
+        pthread_mutex_lock(&a_cache->batch_lock);
+    }
+    
+    // Add to buffer
+    dap_chain_cache_batch_entry_t *l_entry = &a_cache->batch_buffer[a_cache->batch_size];
+    memcpy(&l_entry->block_hash, a_block_hash, sizeof(dap_hash_fast_t));
+    l_entry->cache_entry.cell_id = a_cell_id;
+    l_entry->cache_entry.file_offset = a_file_offset;
+    l_entry->cache_entry.block_size = a_block_size;
+    l_entry->cache_entry.tx_count = a_tx_count;
+    
+    // Debug: log first few batched blocks
+    static uint32_t s_batch_add_count = 0;
+    s_batch_add_count++;
+    if (s_batch_add_count <= 3) {
+        char *l_hash_str = dap_hash_fast_to_str_new(a_block_hash);
+        log_it(L_NOTICE, "Cache batch_add #%u: hash=%s, cell=0x%016"DAP_UINT64_FORMAT_X", offset=%"PRIu64,
+               s_batch_add_count, l_hash_str, a_cell_id, a_file_offset);
+        DAP_DELETE(l_hash_str);
+    }
+    
+    a_cache->batch_size++;
+    
+    pthread_mutex_unlock(&a_cache->batch_lock);
+    
+    return 0;
+}
+
+/**
+ * @brief Flush batch buffer to GlobalDB (bulk write with transaction)
+ */
+int dap_chain_cache_batch_flush(dap_chain_cache_t *a_cache)
+{
+    dap_return_val_if_fail(a_cache, -1);
+    
+    pthread_mutex_lock(&a_cache->batch_lock);
+    
+    if (a_cache->batch_size == 0) {
+        pthread_mutex_unlock(&a_cache->batch_lock);
+        return 0;
+    }
+    
+    CACHE_TIMING_START();
+    
+    size_t l_batch_size = a_cache->batch_size;
+    
+    if (a_cache->debug) {
+        log_it(L_DEBUG, "Flushing batch buffer: %zu blocks", l_batch_size);
+    }
+    
+    // Prepare array of dap_store_obj_t for GlobalDB batch write
+    dap_store_obj_t *l_store_objs = DAP_NEW_Z_SIZE(dap_store_obj_t, 
+                                                    l_batch_size * sizeof(dap_store_obj_t));
+    if (!l_store_objs) {
+        pthread_mutex_unlock(&a_cache->batch_lock);
+        log_it(L_ERROR, "Memory allocation failed for batch flush");
+        return -1;
+    }
+    
+    dap_nanotime_t l_ts = dap_nanotime_now();
+    
+    // Get GlobalDB signing key
+    dap_global_db_instance_t *l_dbi = dap_global_db_instance_get_default();
+    if (!l_dbi) {
+        pthread_mutex_unlock(&a_cache->batch_lock);
+        DAP_DELETE(l_store_objs);
+        log_it(L_ERROR, "GlobalDB instance not available");
+        return -1;
+    }
+    
+    // Convert batch entries to store objects and sign them
+    for (size_t i = 0; i < l_batch_size; i++) {
+        dap_chain_cache_batch_entry_t *l_entry = &a_cache->batch_buffer[i];
+        dap_store_obj_t *l_obj = &l_store_objs[i];
+        
+        // Build key and group
+        l_obj->key = s_cache_build_block_key_ex(a_cache->gdb_subgroup, &l_entry->block_hash);
+        l_obj->group = dap_strdup(a_cache->gdb_group);
+        
+        // Debug: log first few keys being written
+        if (i < 3) {
+            log_it(L_NOTICE, "Cache flush key #%zu: group='%s', key='%s'",
+                   i+1, l_obj->group, l_obj->key);
+        }
+        
+        // Copy value
+        l_obj->value = DAP_DUP_SIZE(&l_entry->cache_entry, sizeof(dap_chain_cache_entry_t));
+        l_obj->value_len = sizeof(dap_chain_cache_entry_t);
+        
+        l_obj->timestamp = l_ts;
+        l_obj->flags = DAP_GLOBAL_DB_RECORD_NEW;
+        
+        // Sign the object (critical!)
+        l_obj->sign = dap_store_obj_sign(l_obj, l_dbi->signing_key, &l_obj->crc);
+        if (!l_obj->sign) {
+            log_it(L_ERROR, "Failed to sign store object %zu/%zu", i+1, l_batch_size);
+            // Cleanup already allocated objects
+            for (size_t j = 0; j <= i; j++) {
+                DAP_DELETE(l_store_objs[j].key);
+                DAP_DELETE(l_store_objs[j].group);
+                DAP_DELETE(l_store_objs[j].value);
+                if (l_store_objs[j].sign) {
+                    DAP_DELETE(l_store_objs[j].sign);
+                }
+            }
+            pthread_mutex_unlock(&a_cache->batch_lock);
+            DAP_DELETE(l_store_objs);
+            return -1;
+        }
+    }
+    
+    // Clear buffer before unlock (we copied all data)
+    a_cache->batch_size = 0;
+    
+    pthread_mutex_unlock(&a_cache->batch_lock);
+    
+    // Write all entries in ONE transaction (GlobalDB handles transaction automatically)
+    int l_ret = dap_global_db_set_raw_sync(l_store_objs, l_batch_size);
+    
+    // Free allocated memory (including signatures)
+    for (size_t i = 0; i < l_batch_size; i++) {
+        DAP_DELETE(l_store_objs[i].key);
+        DAP_DELETE(l_store_objs[i].group);
+        DAP_DELETE(l_store_objs[i].value);
+        DAP_DELETE(l_store_objs[i].sign);
+    }
+    DAP_DELETE(l_store_objs);
+    
+    uint64_t l_elapsed_us = CACHE_TIMING_END_US();
+    
+    if (l_ret != 0) {
+        log_it(L_ERROR, "Batch flush failed: %zu blocks, error=%d", l_batch_size, l_ret);
+        return -1;
+    }
+    
+    // Always log batch flush for debugging (not just in debug mode)
+    log_it(L_NOTICE, "Cache batch flushed: %zu blocks written to '%s' (took %.1f ms)",
+           l_batch_size, a_cache->gdb_group, l_elapsed_us / 1000.0);
+    
+    if (a_cache->debug) {
+        log_it(L_DEBUG, "Batch flush completed: %zu blocks, %.3f ms (%.1f blocks/ms)",
+               l_batch_size, l_elapsed_us / 1000.0, 
+               l_batch_size / (l_elapsed_us / 1000.0 + 0.001));
+    }
+    
+    return 0;
 }
 

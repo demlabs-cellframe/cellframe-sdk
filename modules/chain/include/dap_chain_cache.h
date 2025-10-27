@@ -238,6 +238,15 @@ int dap_chain_cache_get_stats(dap_chain_cache_t *a_cache,
 void dap_chain_cache_reset_stats(dap_chain_cache_t *a_cache);
 
 /**
+ * @brief Print detailed cache statistics
+ * 
+ * Prints performance metrics including timing data for debugging.
+ * 
+ * @param a_cache Cache handle
+ */
+void dap_chain_cache_print_stats(dap_chain_cache_t *a_cache);
+
+/**
  * @brief Clear cache for a chain
  * 
  * Removes all cache entries for the chain from GlobalDB.

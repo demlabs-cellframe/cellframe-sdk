@@ -817,8 +817,8 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg)
             dap_json_object_add_int(l_jobj_chain_info, "count_atoms", l_chain->callback_count_atom(l_chain));
             dap_json_object_add_int(l_jobj_chain_info, "load_process", l_chain->load_progress);
             dap_json_object_add_object(json_chains, l_chain->name, l_jobj_chain_info);
-            log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
-                            net->pub.name, l_chain->name, l_chain->id.uint64, l_chain->load_progress);
+            // log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
+            //                 net->pub.name, l_chain->name, l_chain->id.uint64, l_chain->load_progress);
         }
         dap_json_object_add_object(l_jobj_nets, net->pub.name, json_chains);
     }
