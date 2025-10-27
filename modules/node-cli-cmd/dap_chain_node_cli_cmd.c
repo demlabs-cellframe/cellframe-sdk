@@ -86,6 +86,7 @@
 #include "dap_json_rpc_request.h"
 #include "dap_client_pvt.h"
 #include "dap_notify_srv.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_policy.h"
@@ -2941,8 +2942,8 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                     return;
                 }
                 dap_json_object_add_object(l_jobj_datum, "srv_wallet_shared", l_jobj_emit_delegate_list);
-                dap_json_t *l_jobj_auction_bid_list = dap_json_array_new();
-                if (!l_jobj_auction_bid_list) {
+                dap_json_t *l_jobj_stake_ext_lock_list = dap_json_array_new();
+                if (!l_jobj_stake_ext_lock_list) {
                     dap_json_object_free(l_obj_chain);
                     dap_global_db_objs_delete(l_objs, l_objs_count);
                     dap_json_rpc_allocation_error(a_json_arr_reply);
@@ -3166,7 +3167,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
                                     uint256_t l_diff_value = {};
                                     memcpy(&l_diff_value, ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->data, sizeof(uint256_t));
                                     l_value_str = dap_uint256_to_char(l_diff_value, &l_value_coins_str);
-                                    l_jobj_diff = dap_json_array_new()();
+                                    l_jobj_diff = dap_json_array_new();
                                     dap_json_t *l_jobj_diff_obj = dap_json_object_new();
                                     dap_json_object_add_object(l_jobj_diff_obj, "value", dap_json_object_new_string(l_value_str));
                                     dap_json_object_add_object(l_jobj_diff_obj, "coins", dap_json_object_new_string(l_value_coins_str));
@@ -3390,7 +3391,7 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
 static dap_store_obj_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
 {
     dap_return_val_if_pass(a_datum_hash_str, NULL);
-    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     return dap_global_db_get_raw_sync(l_gdb_group_mempool, a_datum_hash_str);
 }
 
@@ -3467,7 +3468,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         if (l_store_obj && l_store_obj->value) {
             l_hole = DAP_FLAG_CHECK(l_store_obj->flags, DAP_GLOBAL_DB_RECORD_DEL);
             if (l_hole) {
-                l_ret_code = strtol(l_store_obj->value, NULL, 10);
+                l_ret_code = strtol((const char *)l_store_obj->value, NULL, 10);
             } else {
                 l_datum = DAP_DUP_SIZE(l_store_obj->value, l_store_obj->value_len);
             }
@@ -3536,8 +3537,8 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             dap_json_array_add(a_json_arr_reply, l_jobj_datum);
             return 0;
         }
-        dap_json_t *l_datum_obj_inf = json_object_new_object();
-        dap_chain_datum_dump_json(*a_json_arr_reply, l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id, true, a_version);
+        dap_json_t *l_datum_obj_inf = dap_json_object_new();
+        dap_chain_datum_dump_json(a_json_arr_reply, l_datum_obj_inf, l_datum, a_hash_out_type, a_net->pub.id, true, a_version);
         if (!l_datum_obj_inf) {
             if (!l_found_in_chains)
                 DAP_DELETE(l_datum);
@@ -3848,7 +3849,7 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
 int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, dap_json_t *a_json_arr_reply, int a_version, bool a_tx_to_json)
 {
     if (!a_net || !a_datum_hash || !a_hash_out_type) {
-        dap_json_rpc_error_add(*a_json_arr_reply, COM_DUMP_ERROR_NULL_IS_ARGUMENT_FUNCTION, "The following arguments are not set: network,"
+        dap_json_rpc_error_add(a_json_arr_reply, COM_DUMP_ERROR_NULL_IS_ARGUMENT_FUNCTION, "The following arguments are not set: network,"
                                                                          " datum hash, and output hash type. "
                                                                          "Functions required for operation.");
         return COM_DUMP_ERROR_NULL_IS_ARGUMENT_FUNCTION;

@@ -543,7 +543,6 @@ static void s_callback_decree(dap_chain_net_id_t a_net_id, int a_decree_type, da
         }
         l_tsd_offset += dap_tsd_size(l_tsd);
     }
-    return 0;
 }
 
 bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr, uint16_t *a_type)
@@ -1938,7 +1937,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, d
             dap_json_object_add_string(json_obj_order, "rate", l_cp_rate);
 
             dap_json_object_add_string(json_obj_order, "net", l_net->pub.name);
-            dap_json_array_add(*a_json_arr_reply, json_obj_order);
+            dap_json_array_add(a_json_arr_reply, json_obj_order);
             DAP_DELETE(l_owner_addr);
             if ( s_xchange_cache_state != XCHANGE_CACHE_ENABLED ) 
                 DAP_DEL_MULTY(l_token_buy, l_token_sell);

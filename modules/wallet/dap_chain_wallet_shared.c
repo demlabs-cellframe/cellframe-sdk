@@ -1028,7 +1028,7 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_json_t *a_
         if (!dap_chain_net_is_bridged(a_net, l_to_addr[i].net_id)) {
             DAP_DELETE(l_to_addr);
             dap_enc_key_delete(l_enc_key);
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_NETWORK, "destination source network is not bridget with recepient network");
+            dap_json_rpc_error_add(a_json_arr_reply, ERROR_NETWORK, "destination source network is not bridget with recepient network");
             return ERROR_NETWORK;
         }
     }
@@ -1243,7 +1243,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, dap_json_t *a_
     // token block
     const char *l_description = dap_ledger_get_description_by_ticker(a_net->pub.ledger, l_tx_ticker);
     dap_json_t *l_jobj_description = l_description ? dap_json_object_new_string(l_description)
-                                                    : json_object_new_null();
+                                                    : dap_json_object_new();
     dap_json_object_add_object(l_jobj_token, "ticker", dap_json_object_new_string(l_tx_ticker));
     dap_json_object_add_object(l_jobj_token, "description", l_jobj_description);
     // balance block
@@ -1491,7 +1491,7 @@ static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_h
 {
     size_t l_tx_hashes_count = 0;
     size_t l_shared_hashes_size = 0;
-    const char *l_pkey_hash_str = dap_hash_fast_to_str_new(a_pkey_hash);
+    char *l_pkey_hash_str = dap_hash_fast_to_str_new(a_pkey_hash);
     hold_tx_hashes_t *l_shared_hashes = (hold_tx_hashes_t *)dap_global_db_get_sync(a_group, l_pkey_hash_str, &l_shared_hashes_size, 0, false);
     if (!l_shared_hashes) {
         l_shared_hashes_size = sizeof(hold_tx_hashes_t) + sizeof(hold_tx_hash_item_t);

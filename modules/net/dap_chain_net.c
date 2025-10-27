@@ -926,7 +926,7 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
                 dap_json_object_add_object(l_net_item, "name", dap_json_object_new_string(l_bridget_net->pub.name));
                 dap_json_object_add_object(l_net_item, "id", dap_json_object_new_string(l_id_buff));
                 dap_json_object_add_object(l_net_item, "native_ticker", dap_json_object_new_string(l_bridget_net->pub.native_ticker));
-                dap_json_object_array_add(l_bridget, l_net_item);
+                dap_json_array_add(l_bridget, l_net_item);
                 ++l_bridget_count;
             }
         }

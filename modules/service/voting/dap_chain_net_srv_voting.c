@@ -962,9 +962,6 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
             case DAP_CHAIN_NET_VOTE_VOTING_CANCELLED: {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_CANCELLED, "This poll is cancelled.");
             } break;
-            case DAP_CHAIN_NET_VOTE_VOTING_CANCELLED: {
-                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_CANCELLED, "This poll is cancelled.");
-            } break;
              case DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED: {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED, 
                                                     "This poll required a delegated key. Parameter -cert must contain a valid certificate name");
