@@ -222,11 +222,11 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
                                                                                   uint256_t a_value, uint64_t a_time_unlock,
                                                                                   uint256_t a_reinvest_percent);
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_auction_bid(dap_chain_srv_uid_t a_srv_uid,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_lock(dap_chain_srv_uid_t a_srv_uid,
                                                                                   uint256_t a_value,
-                                                                                  const dap_hash_fast_t *a_auction_hash,
+                                                                                  const dap_hash_fast_t *a_stake_ext_hash,
                                                                                   dap_time_t a_lock_time,
-                                                                                  uint32_t a_project_id,
+                                                                                  uint32_t a_position_id,
                                                                                   const void *a_params, size_t a_params_size);
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,

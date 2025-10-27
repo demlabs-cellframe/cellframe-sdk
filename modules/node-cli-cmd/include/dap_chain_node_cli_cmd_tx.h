@@ -92,13 +92,13 @@ dap_json_t *dap_db_history_tx_all(dap_json_t* a_json_arr_reply, dap_chain_t *l_c
  * ledger command
  *
  */
-int com_ledger(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
+int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
  * token command
  *
  */
-int com_token(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
+int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 #ifdef __cplusplus
 }

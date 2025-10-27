@@ -31,7 +31,7 @@ static void add_value_text(dap_string_t *l_str, char *l_addstr, uintmax_t a_valu
  *
  * VPN statistics
  */
-int com_vpn_statistics(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+int com_vpn_statistics(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, UNUSED_ARG int a_version)
 {
     // get statistics for all actual sessions
     dap_list_t *l_sessions_list = dap_stream_session_get_list_sessions(), *l_item;
@@ -78,9 +78,9 @@ int com_vpn_statistics(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
     dap_list_free(l_sessions_list);
     dap_stream_session_get_list_sessions_unlock();
     if(l_conn>0)
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str->str);
+        dap_json_rpc_error_add(a_json_arr_reply, -1, l_str->str);
     else
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "No VPN connections");
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "No VPN connections");
     // free tmp memory
     dap_string_free(l_str, true);
     return 0;
@@ -91,7 +91,7 @@ int com_vpn_statistics(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
  *
  * VPN client control
  */
-int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+int com_vpn_client(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, UNUSED_ARG int a_version)
 {
 #ifndef _WIN32
     enum {
@@ -104,13 +104,13 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
     // find net
     dap_chain_net_t *l_net = NULL;
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net, CHAIN_TYPE_INVALID) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_json_arr_reply, NULL, &l_net, CHAIN_TYPE_INVALID) < 0)
         return -2;
 
     int cmd_num = CMD_NONE;
@@ -133,10 +133,13 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
             }
     }
     if(cmd_num == CMD_NONE) {
-        if(!a_argv[1])
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");
-        else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "parameter %s not recognized", a_argv[1]);
+        if(!a_argv[1]) {
+            dap_json_rpc_error_add(a_json_arr_reply, -1, "invalid parameters");
+        } else {
+            char *l_reply_str = dap_strdup_printf("parameter %s not recognized", a_argv[1]);
+            dap_json_rpc_error_add(a_json_arr_reply, -1, l_reply_str);
+            DAP_DELETE(l_reply_str);
+        }
         return -1;
     }
 
@@ -144,7 +147,7 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
     {
     case CMD_CHECK_RESULT: {
         char *l_str = dap_chain_net_vpn_client_check_result(l_net, l_hash_out_type);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str);
+        dap_json_rpc_error_add(a_json_arr_reply, -1, l_str);
         DAP_DELETE(l_str);
     }
     break;
@@ -153,14 +156,14 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
         const char * l_str_port = NULL; // for example, "8079"
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_str_addr);
         if(!l_str_addr) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
+            dap_json_rpc_error_add(a_json_arr_reply, -1,
                     "VPN server address not defined, use -addr <vpn server ipv4 address> parameter");
             break;
         }
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_str_port);
         int l_srv_port = (l_str_port) ? (int) strtoll(l_str_port, 0, 10) : 0;
         if(!l_srv_port) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
+            dap_json_rpc_error_add(a_json_arr_reply, -1,
                     "VPN server port not defined, use -port <vpn server port>  parameter");
             break;
         }
@@ -178,15 +181,18 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
         }
         switch (l_res) {
         case 0:
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tested VPN server successfully");
+            dap_json_rpc_error_add(a_json_arr_reply, 0, "tested VPN server successfully");
             break;
         case -2:
         case -3:
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect to VPN server");
+            dap_json_rpc_error_add(a_json_arr_reply, l_res, "Can't connect to VPN server");
             break;
-        default:
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize error code=%d", l_res);
+        default: {
+            char *l_reply_str = dap_strdup_printf("Can't recognize error code=%d", l_res);
+            dap_json_rpc_error_add(a_json_arr_reply, l_res, l_reply_str);
+            DAP_DELETE(l_reply_str);
             break;
+        }
         }
         return l_res;
     }
@@ -203,30 +209,30 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_str_value);
 
             if(!l_str_wallet) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet not defined, use -w <wallet_name> or -wallet <wallet_name> parameter");
+                dap_json_rpc_error_add(a_json_arr_reply, -1, "Wallet not defined, use -w <wallet_name> or -wallet <wallet_name> parameter");
                 break;
             }
             if(!l_str_token) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Token not defined, use -token <token_name> parameter");
+                dap_json_rpc_error_add(a_json_arr_reply, -1, "Token not defined, use -token <token_name> parameter");
                 break;
             }
             if(!l_str_value) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Value of datoshi not defined, use -value <value of datoshi> parameter");
+                dap_json_rpc_error_add(a_json_arr_reply, -1, "Value of datoshi not defined, use -value <value of datoshi> parameter");
                 break;
             }
             uint256_t l_a_value_datoshi = dap_chain_balance_scan(l_str_value);
             if(IS_ZERO_256(l_a_value_datoshi)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Value of datoshi have to be more then 0");
+                dap_json_rpc_error_add(a_json_arr_reply, -1, "Value of datoshi have to be more then 0");
                 break;
             }
             int l_res = 0;//dap_chain_net_vpn_client_update(l_net, l_str_wallet, l_str_token, l_a_value_datoshi);
             if(!l_res)
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "VPN client init successfully");
+                dap_json_rpc_error_add(a_json_arr_reply, 0, "VPN client init successfully");
             else{
                 if(l_res==-3)
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "VPN client init successfully, but probably not enough founds in the wallet");
+                    dap_json_rpc_error_add(a_json_arr_reply, l_res, "VPN client init successfully, but probably not enough founds in the wallet");
                 else
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "VPN client not init");
+                    dap_json_rpc_error_add(a_json_arr_reply, l_res, "VPN client not init");
             }
             return l_res;
     }
@@ -236,31 +242,31 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
         const char * l_str_port = NULL; // for example, "8079"
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_str_addr);
         if(!l_str_addr) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
+            dap_json_rpc_error_add(a_json_arr_reply, -1,
                     "VPN server address not defined, use -addr <vpn server ipv4 address> parameter");
             break;
         }
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-port", &l_str_port);
         int l_srv_port = (l_str_port) ? (int) strtoll(l_str_port, 0, 10) : 0;
         if(!l_srv_port) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
+            dap_json_rpc_error_add(a_json_arr_reply, -1,
                     "VPN server port not defined, use -port <vpn server port>  parameter");
             break;
         }
         int l_res = dap_chain_net_vpn_client_start(l_net, l_str_addr, l_srv_port);
         switch (l_res) {
         case 0:
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "VPN client started successfully");
+            dap_json_rpc_error_add(a_json_arr_reply, 0, "VPN client started successfully");
             break;
         case 1:
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "VPN client already started");
+            dap_json_rpc_error_add(a_json_arr_reply, 1, "VPN client already started");
             break;
         case -2:
         case -3:
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect to VPN server");
+            dap_json_rpc_error_add(a_json_arr_reply, l_res, "Can't connect to VPN server");
             break;
         default:
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't start VPN client");
+            dap_json_rpc_error_add(a_json_arr_reply, l_res, "Can't start VPN client");
             break;
         }
         return l_res;
@@ -269,9 +275,9 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
     case CMD_STOP: {
         int res = dap_chain_net_vpn_client_stop();
         if(!res)
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "VPN client stopped successfully");
+            dap_json_rpc_error_add(a_json_arr_reply, 0, "VPN client stopped successfully");
         else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "VPN client not stopped");
+            dap_json_rpc_error_add(a_json_arr_reply, res, "VPN client not stopped");
         return res;
     }
         break;
@@ -300,9 +306,11 @@ int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG in
             break;
         }
         char *l_value_str = dap_chain_balance_coins_print(l_value_datoshi);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nused:\nwallet:%s\nreceipt:%s %s", l_status_txt,
+        char *l_reply_str = dap_strdup_printf("%s\nused:\nwallet:%s\nreceipt:%s %s", l_status_txt,
                 l_wallet_name, l_value_str, l_str_token);
+        dap_json_rpc_error_add(a_json_arr_reply, 0, l_reply_str);
         DAP_DELETE(l_value_str);
+        DAP_DELETE(l_reply_str);
         break;
     }
     }

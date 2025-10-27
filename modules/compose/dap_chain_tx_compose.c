@@ -40,9 +40,11 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_node_client.h"
 #include "dap_client_http.h"
+#include "dap_http_status_code.h"
 #include "dap_worker.h"
 #include "dap_json.h"
 #include "dap_rand.h"
+#include "dap_http_status_code.h"
 
 #define LOG_TAG "dap_chain_tx_compose"
 
@@ -333,7 +335,7 @@ void s_cmd_request_free(struct cmd_request *a_cmd_request)
 }
 
 static void s_cmd_response_handler(void *a_response, size_t a_response_size, void *a_arg,
-                                            http_status_code_t http_status_code) {
+                                            dap_http_status_code_t http_status_code) {
     (void)http_status_code;
     struct cmd_request *l_cmd_request = (struct cmd_request *)a_arg;
     if (!l_cmd_request || !a_response)

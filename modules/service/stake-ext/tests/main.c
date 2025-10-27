@@ -22,10 +22,10 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_chain_net_srv_auctions_tests.h"
+#include "dap_chain_net_srv_stake_ext_tests.h"
 
 int main(void)
 {
-    dap_auctions_test_run();
+    dap_chain_srv_stake_ext_test_run();
     return 0;
 }
