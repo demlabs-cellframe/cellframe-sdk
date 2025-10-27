@@ -410,23 +410,58 @@ static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
 
 static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_item_t *a_event_item)
 {
-    dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
-    if (!l_datum) {
+    /* Validate event pointer and size */
+    if (!a_event_item->event) {
+        log_it(L_ERROR, "NULL event pointer, rejecting");
+        return -6;
+    }
+    
+    if (a_event_item->event_size < sizeof(dap_chain_cs_dag_event_t) || 
+        a_event_item->event_size > 10 * 1024 * 1024) {  /* Max 10MB per event */
+        log_it(L_ERROR, "Invalid event size %zu, rejecting", a_event_item->event_size);
+        return -7;
+    }
+    
+    /* NOTE: Unaligned events are now handled in s_chain_callback_atom_add by copying to aligned buffer */
+    
+    dap_chain_cs_dag_event_t *l_event = a_event_item->event;
+    
+    uint8_t *l_datum_ptr = (uint8_t*) dap_chain_cs_dag_event_get_datum(l_event, a_event_item->event_size);
+    if (!l_datum_ptr) {
         log_it(L_WARNING, "Corrupted event, failed to extract datum from event.");
         return -2;
     }
-    if(a_event_item->event_size < sizeof(l_datum->header) ){
+    
+    /* Check if we have enough space for datum header to safely read it */
+    size_t l_datum_offset = l_event->header.hash_count * sizeof(dap_chain_hash_fast_t);
+    size_t l_remaining_size = a_event_item->event_size - sizeof(l_event->header) - l_datum_offset;
+    if(l_remaining_size < sizeof(dap_chain_datum_t)) {
         log_it(L_WARNING, "Corrupted event, too small to fit datum in it");
         return -1;
     }
-    size_t l_datum_size = dap_chain_datum_size(l_datum);
-    size_t l_datum_size_max = dap_chain_cs_dag_event_get_datum_size_maximum(a_event_item->event, a_event_item->event_size);
-    if(l_datum_size >l_datum_size_max ){
+    
+    /* Safe access to potentially unaligned datum: read header first using memcpy */
+    dap_chain_datum_t l_datum_hdr;
+    memcpy(&l_datum_hdr, l_datum_ptr, sizeof(dap_chain_datum_t));
+    size_t l_datum_size = dap_chain_datum_size(&l_datum_hdr);
+    
+    size_t l_datum_size_max = dap_chain_cs_dag_event_get_datum_size_maximum(l_event, a_event_item->event_size);
+    if(l_datum_size > l_datum_size_max ){
         log_it(L_WARNING, "Corrupted event, too big size %zd in header when event's size max is only %zd", l_datum_size, l_datum_size_max);
         return -1;
     }
+    
+    /* Copy entire datum to aligned buffer to avoid SIGBUS on unaligned access */
+    dap_chain_datum_t *l_datum = DAP_NEW_SIZE(dap_chain_datum_t, l_datum_size);
+    if (!l_datum) {
+        log_it(L_CRITICAL, "Memory allocation failed for datum copy");
+        return -4;
+    }
+    memcpy(l_datum, l_datum_ptr, l_datum_size);
+    
     dap_hash_fast_t l_datum_hash;
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
+    /* NOTE: dap_chain_datum_add() takes ownership of l_datum pointer, do NOT free it here! */
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
     // Note: tx_count increment moved to dap_ledger_tx_add() to ensure it only increments for successfully verified transactions
     a_event_item->datum_hash = l_datum_hash;
@@ -448,6 +483,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
         log_it(L_INFO, "Dag event %s checked, ret code %d : %s", l_buf_hash, l_ret,
                l_ret ? dap_chain_net_verify_datum_err_code_to_str(l_datum, l_ret) : "Ok");
     }
+    
     return l_ret;
 }
 
@@ -511,7 +547,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         .ts_added   = dap_time_now(),
         .event      = a_chain->is_mapped ? l_event : DAP_DUP_SIZE(l_event, a_atom_size),
         .event_size = a_atom_size,
-        .ts_created = l_event->header.ts_created
+        .ts_created = l_event->header.ts_created,
+        .mapped_region = a_chain->is_mapped ? (char*)l_event : NULL  /* Mark mmap pointer */
     };
 
     switch (ret) {
@@ -538,10 +575,43 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
                 break;
             } else if (a_chain->is_mapped) {
                 l_event_item->event = (dap_chain_cs_dag_event_t*)( l_cell->map_pos += sizeof(uint64_t) );
+                l_event_item->mapped_region = (char*)l_event_item->event;  /* Mark as mmap pointer */
                 l_cell->map_pos += a_atom_size;
+                
+                /* If event is unaligned, copy it to aligned buffer to avoid SIGBUS */
+                if (((uintptr_t)l_event_item->event & 0x7) != 0) {
+                    log_it(L_WARNING, "Unaligned event pointer %p (size %zu), copying to aligned buffer", 
+                           l_event_item->event, a_atom_size);
+                    dap_chain_cs_dag_event_t *l_event_copy = DAP_DUP_SIZE(l_event_item->event, a_atom_size);
+                    if (!l_event_copy) {
+                        log_it(L_CRITICAL, "Memory allocation failed for event copy");
+                        ret = ATOM_REJECT;
+                        break;
+                    }
+                    l_event_item->event = l_event_copy;
+                    l_event_item->mapped_region = NULL;  /* Not mapped anymore, it's a copy */
+                }
             }
         }
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, l_event_item);
+        
+        /* If event is invalid or corrupted BEFORE adding to hash table, reject it completely */
+        /* Codes -1,-2,-4,-6,-7 mean event was NOT added to hash table, so we can free it */
+        if (l_consensus_check == -1 || l_consensus_check == -2 || l_consensus_check == -4 ||
+            l_consensus_check == -6 || l_consensus_check == -7) {
+            debug_if(s_debug_more, L_WARNING, "... rejected: invalid/corrupted event (code %d)", l_consensus_check);
+            /* Set reject flag, cleanup will be done at the end of function (line 640-646) */
+            ret = ATOM_REJECT;
+            break;
+        }
+        
+        /* If l_consensus_check < 0 but not in the list above, event was added to datums hash table */
+        /* In this case, we MUST NOT free l_event_item, it's owned by the hash table now */
+        if (l_consensus_check < 0) {
+            debug_if(s_debug_more, L_WARNING, "... added with error code %d (event in datums hash)", l_consensus_check);
+            /* Don't set ATOM_REJECT here, event is in hash table */
+        }
+        
         switch (l_consensus_check) {
         case 0:
             debug_if(s_debug_more, L_DEBUG, "... added");
@@ -577,8 +647,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     }
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     if (ret == ATOM_REJECT) { // Neither added, nor freed
-        if (!a_chain->is_mapped)
+        /* Free the event only if it's not from mmap (mapped_region == NULL means it's a copy) */
+        if (l_event_item->mapped_region == NULL) {
             DAP_DELETE(l_event_item->event);
+        }
         DAP_DELETE(l_event_item);
     }
     return ret;
@@ -760,6 +832,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
     dap_chain_atom_verify_res_t res = ATOM_ACCEPT;
     pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
+    
     if (a_atom_size < sizeof(dap_chain_cs_dag_event_t)) {
         log_it(L_WARNING, "Too small event size %zu, less than event header", a_atom_size);
         return ATOM_REJECT;

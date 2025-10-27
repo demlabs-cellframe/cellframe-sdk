@@ -477,13 +477,26 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                 break;
             }
 #endif
-            /* Check memory alignment for mmap to avoid bus errors */
-            if ( ((uintptr_t)a_cell->map_pos & 0x7) != 0 ) {
-                log_it(L_WARNING, "Unaligned memory access at position %zu, chain %s may be corrupted", 
-                       l_pos, a_cell->file_storage_path);
-            }
             a_cell->map_pos += sizeof(uint64_t);
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos);
+            
+            /* Check memory alignment for mmap to avoid bus errors on strict architectures */
+#if defined(__ARM_ARCH) || defined(__aarch64__) || defined(__riscv) || defined(__sparc__)
+            /* ARM, RISC-V, SPARC require strict alignment */
+            if ( ((uintptr_t)l_atom & 0x7) != 0 ) {
+                log_it(L_ERROR, "Unaligned atom pointer %p at position %zu, chain %s is corrupted", 
+                       l_atom, l_pos, a_cell->file_storage_path);
+                log_it(L_ERROR, "Chain file is damaged beyond recovery, stopping load");
+                l_ret = -6;
+                break;
+            }
+#else
+            /* x86/x86_64 allows unaligned access (just slower), only warn */
+            if ( ((uintptr_t)l_atom & 0x7) != 0 ) {
+                log_it(L_WARNING, "Unaligned atom pointer %p at position %zu, chain %s may have alignment issues", 
+                       l_atom, l_pos, a_cell->file_storage_path);
+            }
+#endif
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
             a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash, false);
             
