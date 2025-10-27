@@ -15,6 +15,7 @@
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_json.h"
+#include "dap_config.h"
 
 // Forward declarations
 typedef struct dap_chain dap_chain_t;

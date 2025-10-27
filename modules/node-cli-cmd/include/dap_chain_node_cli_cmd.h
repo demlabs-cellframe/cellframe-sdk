@@ -339,18 +339,18 @@ typedef enum s_com_file_err{
 extern "C" {
 #endif
 
-int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, void **a_str_reply,
+int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_chain_type);
 
 
 /**
 * global_db command
 */
-int com_global_db(int a_argc,  char **a_argv, void **a_str_reply, int a_version);
+int com_global_db(int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 /**
 * Node command
 */
-int com_node(int a_argc,  char **a_argv, void **a_str_reply, int a_version);
+int com_node(int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 #ifndef DAP_OS_ANDROID
 /**
@@ -358,62 +358,62 @@ int com_node(int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 *
 * return 0 OK, -1 Err
 */
-int com_traceroute(int a_argc,  char** argv, void **a_str_reply, int a_version);
+int com_traceroute(int a_argc,  char** argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * Tracepath command
 *
 * return 0 OK, -1 Err
 */
-int com_tracepath(int a_argc,  char** argv, void **a_str_reply, int a_version);
+int com_tracepath(int a_argc,  char** argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * Ping command
 *
 * return 0 OK, -1 Err
 */
-int com_ping(int a_argc,  char** argv, void **a_str_reply, int a_version);
+int com_ping(int a_argc,  char** argv, dap_json_t *a_json_arr_reply, int a_version);
 #endif
 /**
 * Help command
 */
-int com_help(int a_argc,  char **a_argv, void **a_str_reply, int a_version);
+int com_help(int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
-int com_version(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_version(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * Token declaration
 */
-int com_token_decl(int a_argc,  char **a_argv, void **a_str_reply, int a_version);
+int com_token_decl(int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
-int com_token_update(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_token_update(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * Token declaration add sign
 */
-int com_token_decl_sign ( int a_argc,  char **a_argv, void **a_str_reply, int a_version);
+int com_token_decl_sign ( int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /*
 * Token update sign
 */
-int com_token_update_sign(int argc, char ** argv, void **a_str_reply, int a_version);
+int com_token_update_sign(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * Token emission
 */
-int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply, int a_version);
+int com_token_emit (int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * com_tx_create command
 *
 * Wallet info
 */
-int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
-int com_tx_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 void json_rpc_tx_create(json_object *a_param, json_object *a_reply, int a_version);
-int com_tx_create_json(int a_argc, char **a_argv, void **reply, int a_version);
-int com_tx_cond_create(int a_argc, char **a_argv, void **reply, int a_version);
+int com_tx_create_json(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_cond_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 typedef enum dap_chain_node_cli_cmd {
     DAP_CHAIN_NODE_CLI_CMD_ID_UNKNOWN,
@@ -471,8 +471,8 @@ typedef enum dap_chain_node_cli_cmd {
 
 dap_chain_node_cli_cmd_t dap_chain_node_cli_cmd_id_from_str(const char *a_cmd_str);
 
-int com_tx_cond_remove(int a_argc, char **a_argv, void **reply, int a_version);
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply, int a_version);
+int com_tx_cond_remove(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 
 /**
@@ -481,7 +481,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply, int a_vers
 * Verifing transaction
 */
 
-int com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
+int com_tx_verify(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
 typedef enum s_com_tx_node_err{
     DAP_CHAIN_NODE_CLI_COM_NODE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_NODE_COMMAND_NOT_RECOGNIZED_ERR,
@@ -613,32 +613,32 @@ char *dap_chain_node_cli_com_tx_history_err(int a_code);
 *
 * Transaction history for an address
 */
-int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
+int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 // Print statistics
-int com_stats(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_stats(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
-int com_exit(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_exit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
-int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, int a_version);
-int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply, int a_version);
-int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version);
-int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
+int cmd_gdb_import(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int cmd_gdb_export(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * decree command
 *
 */
-int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * Place public CA into the mempool
 */
-int com_chain_ca_pub( int a_argc,  char **a_argv, void **a_str_reply, int a_version);
-int com_chain_ca_copy( int a_argc,  char **a_argv, void **a_str_reply, int a_version);
-int com_signer(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_chain_ca_pub( int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_chain_ca_copy( int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_signer(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 //remove func
-int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int cmd_remove(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * Handler coomand find
@@ -647,18 +647,18 @@ int cmd_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 * @param a_str_reply
 * @return
 */
-int cmd_find(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int cmd_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
 
-int com_exec_cmd(int argc, char **argv, void **reply, int a_version);
+int com_exec_cmd(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 
-int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
+int com_file(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
 * Policy management
 */
-int com_policy(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_policy(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 #ifdef __cplusplus
 }

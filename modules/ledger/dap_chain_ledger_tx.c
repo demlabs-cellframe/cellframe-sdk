@@ -29,6 +29,7 @@
 #include "dap_chain_ledger_pvt.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_shared.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_json.h"
 
@@ -427,7 +428,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 // Support multiple services that can use delegated m-tokens
                 static const uint16_t l_supported_service_subtypes[] = {
                     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,
-                    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_AUCTION_BID
+                    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK
                 };
                 static const size_t l_subtypes_count = sizeof(l_supported_service_subtypes) / sizeof(l_supported_service_subtypes[0]);
                 
@@ -446,7 +447,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 }
                 UNUSED(l_detected_subtype);
                 if (!l_tx_service_out_cond) {
-                    debug_if(g_debug_ledger, L_WARNING, "No supported service OUT_COND found for IN_EMS [%s] (checked: stake_lock, auction_bid)", l_tx_in_ems->header.ticker);
+                    debug_if(g_debug_ledger, L_WARNING, "No supported service OUT_COND found for IN_EMS [%s] (checked: stake_lock, stake_ext_lock)", l_tx_in_ems->header.ticker);
                     l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_NO_OUT_COND_FOR_IN_EMS;
                     break;
                 }
@@ -779,7 +780,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     break;
                 }
                 // Check permissions
-                if (dap_ledger_pvt_addr_check(l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+                if (dap_ledger_pvt_addr_check(a_ledger, l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
                     debug_if(g_debug_ledger, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str_static(l_addr_from));
                     l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
                     break;
@@ -1030,7 +1031,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             break;
         }
         // Check permissions
-        if (dap_ledger_pvt_addr_check(l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+        if (dap_ledger_pvt_addr_check(a_ledger, l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
             debug_if(g_debug_ledger, L_WARNING, "No permission to receive for addr %s", dap_chain_addr_to_str_static(&l_tx_out_to));
             l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
             break;
@@ -1536,6 +1537,17 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
 
         return l_ret_check;
     }
+
+    // add info for wallet shared
+    if (
+        !dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF) &&
+        !dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL)
+        )
+    {
+        dap_chain_wallet_shared_hold_tx_add(a_tx, a_ledger->net->pub.name);
+    }
+
+
     debug_if(g_debug_ledger, L_DEBUG, "dap_ledger_tx_add() check passed for tx %s", l_tx_hash_str);
     if ( a_datum_index_data != NULL){
         dap_strncpy(a_datum_index_data->token_ticker, l_main_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);

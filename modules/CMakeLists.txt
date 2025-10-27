@@ -126,7 +126,8 @@ if (CELLFRAME_MODULES MATCHES "srv-emission")
     add_subdirectory(service/emission)
 endif()
 
-# Service for auctions
-if (CELLFRAME_MODULES MATCHES "srv-auctions")
-    add_subdirectory(service/auctions)
+# Service for stake-ext
+if (CELLFRAME_MODULES MATCHES "srv-stake-ext")
+    add_subdirectory(service/stake-ext)
 endif()
+
