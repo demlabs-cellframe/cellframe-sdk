@@ -28,6 +28,7 @@
 #include "dap_math_ops.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_chain_datum_decree.h"
+#include "dap_chain_net_srv_order.h"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
@@ -105,3 +106,4 @@ dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_chai
 uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id, uint256_t *a_locked_weight);
 size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_t *a_in_active_count);
 dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hash);
+int dap_chain_net_srv_stake_get_validator_ext(dap_chain_net_srv_order_t *a_order, uint256_t *a_tax, uint256_t *a_value_max);

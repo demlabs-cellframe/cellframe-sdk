@@ -161,7 +161,7 @@ dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_u
     if (l_net_srv_uid_str_len >2){
         a_net_srv_uid_str+=2;
         l_net_srv_uid_str_len-=2;
-        if (l_net_srv_uid_str_len == sizeof (l_ret)/2 ){
+        if (l_net_srv_uid_str_len == sizeof (l_ret) * 2 ){
             size_t l_pos =0;
             char l_byte[3];
             while(l_net_srv_uid_str_len){
