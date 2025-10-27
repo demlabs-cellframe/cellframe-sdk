@@ -109,7 +109,7 @@
 #include "dap_chain_policy.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_srv.h"
-
+#include "dap_chain_mempool.h"
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -2417,7 +2417,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type) {
                 dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(l_chain);
-                return (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(l_chain) : NULL;
+                return dap_chain_mempool_group_new(l_chain);
             }
         }
     }

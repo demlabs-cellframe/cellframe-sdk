@@ -19,9 +19,10 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+ #include "dap_common.h"
 #include "dap_chain_block.h"
 #include "dap_chain_common.h"
-#include "dap_common.h"
+#include "dap_chain_mempool.h"
 #include "dap_hash.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net.h"
@@ -503,8 +504,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
         fclose(l_file);
     }
 #endif
-    dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
-    char *l_gdb_group_mempool = (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(a_chain) : NULL;
+    char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     if (l_objs_count) {
@@ -840,8 +840,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         }
         l_states->main_iterator = NULL;
     case STATE_MEMPOOL: {
-        dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
-        char *l_gdb_group_mempool = (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(a_chain) : NULL;
+        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
         size_t l_objs_count = 0;
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
         for (size_t i = 0; i < l_objs_count; i++) {
@@ -1251,8 +1250,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             break;
         }
         dap_hash_str_t l_key = dap_get_data_hash_str(a_datum->data, a_datum->header.data_size);
-        dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
-        char *l_gdb_group_mempool = (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(a_chain) : NULL;
+        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
         size_t l_objs_count = 0;
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
         for (size_t i = 0; i < l_objs_count; i++) {
