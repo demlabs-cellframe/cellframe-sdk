@@ -43,6 +43,7 @@
 #include "json_object.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_json_rpc.h"
 
 
 #define LOG_TAG "dap_chain_net_tx"
@@ -565,37 +566,9 @@ bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, da
     return true;
 }
 
-static const char* s_json_get_text(struct json_object *a_json, const char *a_key)
-{
-    if(!a_json || !a_key)
-        return NULL;
-    struct json_object *l_json = json_object_object_get(a_json, a_key);
-    if(l_json && json_object_is_type(l_json, json_type_string)) {
-        // Read text
-        return json_object_get_string(l_json);
-    }
-    return NULL;
-}
-
-static bool s_json_get_int64_uint64(struct json_object *a_json, const char *a_key, void *a_out, bool a_is_uint64)
-{
-    if(!a_json || !a_key || !a_out)
-        return false;
-    struct json_object *l_json = json_object_object_get(a_json, a_key);
-    if(l_json) {
-        if(a_is_uint64) {
-            *(uint64_t*)a_out = json_object_get_uint64(l_json);
-        } else {
-            *(int64_t*)a_out = json_object_get_int64(l_json);
-        }
-        return true;
-    }
-    return false;
-}
-
 static bool s_json_get_unit(struct json_object *a_json, const char *a_key, dap_chain_net_srv_price_unit_uid_t *a_out)
 {
-    const char *l_unit_str = s_json_get_text(a_json, a_key);
+    const char *l_unit_str = dap_json_rpc_get_text(a_json, a_key);
     if(!l_unit_str || !a_out)
         return false;
     dap_chain_net_srv_price_unit_uid_t l_unit = dap_chain_net_srv_price_unit_uid_from_str(l_unit_str);
@@ -607,7 +580,7 @@ static bool s_json_get_unit(struct json_object *a_json, const char *a_key, dap_c
 
 static bool s_json_get_uint256(struct json_object *a_json, const char *a_key, uint256_t *a_out)
 {
-    const char *l_uint256_str = s_json_get_text(a_json, a_key);
+    const char *l_uint256_str = dap_json_rpc_get_text(a_json, a_key);
     if(!a_out || !l_uint256_str)
         return false;
     uint256_t l_value = dap_chain_balance_scan(l_uint256_str);
@@ -622,14 +595,14 @@ static bool s_json_get_srv_uid(struct json_object *a_json, const char *a_key_ser
     if(!a_out)
         return false;
     // Read service id
-    const char *l_id = s_json_get_text(a_json, a_key_service_id);
+    const char *l_id = dap_json_rpc_get_text(a_json, a_key_service_id);
     
     if(l_id && sscanf(l_id,"0x%016"DAP_UINT64_FORMAT_x, &l_srv_id) == 1) {
         *a_out = l_srv_id;
         return true;
     } else {
         // Read service as name
-        const char *l_service = s_json_get_text(a_json, a_key_service);
+        const char *l_service = dap_json_rpc_get_text(a_json, a_key_service);
         if(l_service) {
             dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get_by_name(l_service);
             if(!l_srv)
@@ -643,12 +616,12 @@ static bool s_json_get_srv_uid(struct json_object *a_json, const char *a_key_ser
 
 static dap_chain_wallet_t* s_json_get_wallet(struct json_object *a_json, const char *a_key)
 {
-    return dap_chain_wallet_open(s_json_get_text(a_json, a_key), dap_chain_wallet_get_path(g_config), NULL);
+    return dap_chain_wallet_open(dap_json_rpc_get_text(a_json, a_key), dap_chain_wallet_get_path(g_config), NULL);
 }
 
 static const dap_cert_t* s_json_get_cert(struct json_object *a_json, const char *a_key)
 {
-    return dap_cert_find_by_name(s_json_get_text(a_json, a_key));
+    return dap_cert_find_by_name(dap_json_rpc_get_text(a_json, a_key));
 }
 
 // Read pkey from wallet or cert
@@ -695,9 +668,9 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
 
         switch (l_item_type) {
             case TX_ITEM_TYPE_IN: {
-                const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
+                const char *l_prev_hash_str = dap_json_rpc_get_text(l_json_item_obj, "prev_hash");
                 uint64_t l_out_prev_idx = 0;
-                bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
+                bool l_is_out_prev_idx = dap_json_rpc_get_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
                 // If prev_hash and out_prev_idx were read
                 if(l_prev_hash_str && l_is_out_prev_idx){
                     dap_chain_hash_fast_t l_tx_prev_hash = {};
@@ -735,10 +708,10 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
                 }
             }break;
             case TX_ITEM_TYPE_IN_COND: {
-                const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
+                const char *l_prev_hash_str = dap_json_rpc_get_text(l_json_item_obj, "prev_hash");
                 uint64_t l_out_prev_idx = 0;
                 char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
-                bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
+                bool l_is_out_prev_idx = dap_json_rpc_get_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
                 if(l_prev_hash_str && l_is_out_prev_idx){
                     dap_chain_hash_fast_t l_tx_prev_hash = {};
                     dap_chain_tx_out_cond_t	*l_tx_out_cond = NULL;
@@ -768,8 +741,8 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
                 }
             }break;
             case TX_ITEM_TYPE_IN_EMS: {
-                const char *l_emission_hash_str = s_json_get_text(l_json_item_obj, "emission_hash");
-                const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+                const char *l_emission_hash_str = dap_json_rpc_get_text(l_json_item_obj, "emission_hash");
+                const char *l_json_item_token = dap_json_rpc_get_text(l_json_item_obj, "token");
                 if (l_json_item_token){
                     if (dap_strcmp(l_json_item_token, a_net->pub.native_ticker))//not native
                     {
@@ -807,9 +780,9 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
 static uint8_t *s_dap_chain_net_tx_create_in_item (json_object *a_json_item_obj, json_object *a_jobj_arr_errors) {
     // Save item obj for in
     // Read prev_hash and out_prev_idx
-    const char *l_prev_hash_str = s_json_get_text(a_json_item_obj, "prev_hash");
+    const char *l_prev_hash_str = dap_json_rpc_get_text(a_json_item_obj, "prev_hash");
     uint64_t l_out_prev_idx = 0;
-    bool l_is_out_prev_idx = s_json_get_int64_uint64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
+    bool l_is_out_prev_idx = dap_json_rpc_get_uint64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx);
     // If prev_hash and out_prev_idx were read
     if(l_prev_hash_str && l_is_out_prev_idx) {
         dap_chain_hash_fast_t l_tx_prev_hash;
@@ -835,12 +808,12 @@ static uint8_t *s_dap_chain_net_tx_create_in_item (json_object *a_json_item_obj,
 static uint8_t *s_dap_chain_net_tx_create_in_ems_item (json_object *a_json_item_obj, json_object *a_jobj_arr_errors) {
     dap_chain_id_t l_chain_id;
     uint64_t l_chain_id_int = 0;
-    bool l_is_chain_id = s_json_get_int64_uint64(a_json_item_obj, "chain_id", &l_chain_id_int, true);
+    bool l_is_chain_id = dap_json_rpc_get_uint64(a_json_item_obj, "chain_id", &l_chain_id_int);
     l_chain_id.uint64 = l_chain_id_int;
-    const char *l_json_item_token = s_json_get_text(a_json_item_obj, "token");
+    const char *l_json_item_token = dap_json_rpc_get_text(a_json_item_obj, "token");
     if (l_json_item_token && l_is_chain_id){
         dap_hash_fast_t l_token_ems_hash = {};
-        const char *l_json_item_token_ems_hash = s_json_get_text(a_json_item_obj, "token_ems_hash");
+        const char *l_json_item_token_ems_hash = dap_json_rpc_get_text(a_json_item_obj, "token_ems_hash");
         if(l_json_item_token_ems_hash && dap_chain_hash_fast_from_str(l_json_item_token_ems_hash, &l_token_ems_hash)) {
             log_it(L_WARNING, "Invalid 'in_ems' item, bad hash");
             dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create in for transaction. Invalid 'in_ems' item, bad hash");
@@ -863,7 +836,7 @@ static uint8_t *s_dap_chain_net_tx_create_in_ems_item (json_object *a_json_item_
 }
 
 static uint8_t *s_dap_chain_net_tx_create_in_reward_item (json_object *a_json_item_obj, json_object *a_jobj_arr_errors) {
-    const char *l_block_hash_str = s_json_get_text(a_json_item_obj, "block_hash");
+    const char *l_block_hash_str = dap_json_rpc_get_text(a_json_item_obj, "block_hash");
     dap_hash_fast_t l_block_hash;
     if(l_block_hash_str && !dap_chain_hash_fast_from_str(l_block_hash_str, &l_block_hash)) {             
         dap_chain_tx_in_reward_t *l_in_reward = dap_chain_datum_tx_item_in_reward_create(&l_block_hash);
@@ -876,16 +849,16 @@ static uint8_t *s_dap_chain_net_tx_create_in_reward_item (json_object *a_json_it
 }
 
 static uint8_t *s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item_obj, json_object *a_jobj_arr_errors, dap_chain_net_t *a_net) {
-    const char *l_prev_hash_str = s_json_get_text(a_json_item_obj, "prev_hash");
+    const char *l_prev_hash_str = dap_json_rpc_get_text(a_json_item_obj, "prev_hash");
     uint64_t l_out_prev_idx = 0;
-    bool l_is_out_prev_idx = s_json_get_int64_uint64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx, true);
+    bool l_is_out_prev_idx = dap_json_rpc_get_uint64(a_json_item_obj, "out_prev_idx", &l_out_prev_idx);
     if(l_prev_hash_str && l_is_out_prev_idx){
         dap_chain_hash_fast_t l_tx_prev_hash = {};
         dap_chain_tx_out_cond_t	*l_tx_out_cond = NULL;
         if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
             if (!a_net) {
                 uint64_t l_receipt_idx = 0;
-                s_json_get_int64_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx, true);
+                dap_json_rpc_get_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx);
                 return (uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
             }
             //check out token
@@ -918,7 +891,7 @@ static uint8_t *s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
                             l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE ||
                             l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED)) {
                             uint64_t l_receipt_idx = 0;
-                            s_json_get_int64_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx, true);
+                            dap_json_rpc_get_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx);
                             dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
                             return (uint8_t *)l_in_cond;
                         }  
@@ -936,7 +909,7 @@ static uint8_t *s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
 static uint8_t *s_dap_chain_net_tx_create_out_item (json_object *a_json_item_obj, json_object *a_jobj_errors) {
     // Read address and value
     uint256_t l_value = { };
-    const char *l_json_item_addr_str = s_json_get_text(a_json_item_obj, "addr");
+    const char *l_json_item_addr_str = dap_json_rpc_get_text(a_json_item_obj, "addr");
     bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
     if (l_is_value && l_json_item_addr_str) {
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
@@ -954,9 +927,9 @@ static uint8_t *s_dap_chain_net_tx_create_out_item (json_object *a_json_item_obj
 static uint8_t *s_dap_chain_net_tx_create_out_ext_item (json_object *a_json_item_obj, json_object *a_jobj_errors, int a_type_tx) {
     // Read address and value
     uint256_t l_value = { };
-    const char *l_json_item_addr_str = s_json_get_text(a_json_item_obj, "addr");
+    const char *l_json_item_addr_str = dap_json_rpc_get_text(a_json_item_obj, "addr");
     bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
-    const char *l_token = s_json_get_text(a_json_item_obj, "token");
+    const char *l_token = dap_json_rpc_get_text(a_json_item_obj, "token");
     if (l_is_value && l_json_item_addr_str) {
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
@@ -993,11 +966,11 @@ static uint8_t *s_dap_chain_net_tx_create_out_ext_item (json_object *a_json_item
 static uint8_t *s_dap_chain_net_tx_create_out_std_item (json_object *a_json_item_obj, json_object *a_jobj_errors, int a_type_tx) {
     // Read address and value
     uint256_t l_value = { };
-    const char *l_json_item_addr_str = s_json_get_text(a_json_item_obj, "addr");
+    const char *l_json_item_addr_str = dap_json_rpc_get_text(a_json_item_obj, "addr");
     bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
-    const char *l_token = s_json_get_text(a_json_item_obj, "token");
+    const char *l_token = dap_json_rpc_get_text(a_json_item_obj, "token");
     dap_time_t l_time_unlock = 0;
-    const char* l_time_unlock_str = s_json_get_text(a_json_item_obj, "time_unlock");
+    const char* l_time_unlock_str = dap_json_rpc_get_text(a_json_item_obj, "time_unlock");
     if (l_time_unlock_str && sscanf(l_time_unlock_str, "%"DAP_UINT64_FORMAT_U, &l_time_unlock) != 1){
         log_it(L_ERROR, "Json TX: bad time_unlock");
         return NULL;
@@ -1038,7 +1011,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 uint256_t *a_value_need, dap_chain_addr_t *a_seller_addr, size_t i, dap_chain_net_t *a_net)
 {
     // Read subtype of item
-    const char *l_subtype_str = s_json_get_text(a_json_item_obj, "subtype");
+    const char *l_subtype_str = dap_json_rpc_get_text(a_json_item_obj, "subtype");
     dap_chain_tx_out_cond_subtype_t l_subtype = dap_chain_tx_out_cond_subtype_from_str_short(l_subtype_str);
     switch (l_subtype) {
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
@@ -1065,7 +1038,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 // Default service DAP_CHAIN_NET_SRV_VPN_ID
                 l_srv_uid.uint64 = 0x0000000000000001;
             }
-            const char *l_params_str = s_json_get_text(a_json_item_obj, "params");
+            const char *l_params_str = dap_json_rpc_get_text(a_json_item_obj, "params");
             uint8_t *l_params = NULL;
             size_t l_params_size = 0;
             if (l_params_str) {
@@ -1074,7 +1047,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 l_params_size = dap_enc_base58_decode(l_params_str, l_params);
             }
 
-            const char *l_pkey_hash_str = s_json_get_text(a_json_item_obj, "pkey_hash");
+            const char *l_pkey_hash_str = dap_json_rpc_get_text(a_json_item_obj, "pkey_hash");
             dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
             dap_hash_fast_t l_pkey_hash = {};
             // From "wallet" or "cert"
@@ -1111,19 +1084,19 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 l_srv_uid.uint64 = 0x2;
             }
             dap_chain_net_id_t l_buy_net_id = {}; 
-            if(dap_chain_net_id_parse(s_json_get_text(a_json_item_obj, "buy_net_id"), &l_buy_net_id)) {
+            if(dap_chain_net_id_parse(dap_json_rpc_get_text(a_json_item_obj, "buy_net_id"), &l_buy_net_id)) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: buy_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 log_it(L_ERROR, "Json TX: buy_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 return NULL;
             }  
             dap_chain_net_id_t l_sell_net_id = {}; 
-            if(dap_chain_net_id_parse(s_json_get_text(a_json_item_obj, "sell_net_id"), &l_sell_net_id)) {
+            if(dap_chain_net_id_parse(dap_json_rpc_get_text(a_json_item_obj, "sell_net_id"), &l_sell_net_id)) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: sell_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 log_it(L_ERROR, "Json TX: sell_net_id net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 return NULL;
             }              
 
-            const char *l_token_buy = s_json_get_text(a_json_item_obj, "buy_token");
+            const char *l_token_buy = dap_json_rpc_get_text(a_json_item_obj, "buy_token");
             if(!l_token_buy) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad buy_token in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 log_it(L_ERROR, "Json TX: bad buy_token in OUT_COND_SUBTYPE_SRV_XCHANGE");
@@ -1141,7 +1114,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 log_it(L_ERROR, "Json TX: bad value rate in OUT_COND_SUBTYPE_SRV_XCHANGE");
                 return NULL;
             }
-            const char *l_seller_addr_str = s_json_get_text(a_json_item_obj, "seller_addr");
+            const char *l_seller_addr_str = dap_json_rpc_get_text(a_json_item_obj, "seller_addr");
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
                 dap_chain_addr_t *l_seller_addr = dap_chain_addr_from_str(l_seller_addr_str);
 #else
@@ -1151,7 +1124,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                     return NULL;
 #endif
 
-            const char *l_params_str = s_json_get_text(a_json_item_obj, "params");
+            const char *l_params_str = dap_json_rpc_get_text(a_json_item_obj, "params");
             uint8_t *l_params = NULL;
             size_t l_params_size = 0;
             if (l_params_str) {
@@ -1188,7 +1161,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             }
 
             dap_time_t l_time_staking = 0;
-            const char* l_time_staking_str = s_json_get_text(a_json_item_obj, "time_staking");
+            const char* l_time_staking_str = dap_json_rpc_get_text(a_json_item_obj, "time_staking");
             if (sscanf(l_time_staking_str, "%"DAP_UINT64_FORMAT_U, &l_time_staking) != 1 || !l_time_staking){
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                 log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
@@ -1197,7 +1170,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
 
             uint256_t l_reinvest_percent = uint256_0;
             const char* l_reinvest_percent_str = NULL;
-            if((l_reinvest_percent_str = s_json_get_text(a_json_item_obj, "reinvest_percent"))!=NULL) {
+            if((l_reinvest_percent_str = dap_json_rpc_get_text(a_json_item_obj, "reinvest_percent"))!=NULL) {
                 l_reinvest_percent = dap_chain_coins_to_balance(l_reinvest_percent_str);
                 if (compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1){
                     dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
@@ -1220,7 +1193,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             // Save value for using in In item
             if(l_out_cond_item) {
                 uint64_t l_flags = 0;
-                if (s_json_get_int64_uint64(a_json_item_obj, "flags", &l_flags, true)) {
+                if (dap_json_rpc_get_uint64(a_json_item_obj, "flags", &l_flags)) {
                     l_out_cond_item->subtype.srv_stake_lock.flags = l_flags;
                 }
                 return (uint8_t *)l_out_cond_item;
@@ -1242,7 +1215,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 return NULL;
             }
 
-            const char *l_signing_addr_str = s_json_get_text(a_json_item_obj, "signing_addr");
+            const char *l_signing_addr_str = dap_json_rpc_get_text(a_json_item_obj, "signing_addr");
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
             dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(l_signing_addr_str);
 #else
@@ -1258,14 +1231,14 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             }                
 
             dap_chain_node_addr_t l_signer_node_addr;
-            const char *l_node_addr_str = s_json_get_text(a_json_item_obj, "signer_node_addr");
+            const char *l_node_addr_str = dap_json_rpc_get_text(a_json_item_obj, "signer_node_addr");
             if(!l_node_addr_str || dap_chain_node_addr_from_str(&l_signer_node_addr, l_node_addr_str)) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 log_it(L_ERROR, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 return NULL;
             }
 
-            const char *l_params_str = s_json_get_text(a_json_item_obj, "params");
+            const char *l_params_str = dap_json_rpc_get_text(a_json_item_obj, "params");
             uint8_t *l_params = NULL;
             size_t l_params_size = 0;
             if (l_params_str) {
@@ -1281,7 +1254,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             if(l_out_cond_item) {
                 SUM_256_256(*a_value_need, l_value, a_value_need);
                 uint64_t l_flags = 0;
-                if (s_json_get_int64_uint64(a_json_item_obj, "flags", &l_flags, true)) {
+                if (dap_json_rpc_get_uint64(a_json_item_obj, "flags", &l_flags)) {
                     l_out_cond_item->subtype.srv_stake_pos_delegate.flags = l_flags;
                 }
                 return (uint8_t *)l_out_cond_item;
@@ -1325,8 +1298,8 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 break;
             }
             
-            int64_t l_min_sig_count;
-            if(!s_json_get_int64_uint64(a_json_item_obj, "min_sig_count", &l_min_sig_count, true)) {
+            uint64_t l_min_sig_count;
+            if(!dap_json_rpc_get_uint64(a_json_item_obj, "min_sig_count", &l_min_sig_count)) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
@@ -1445,7 +1418,7 @@ static uint8_t *s_dap_chain_net_tx_create_receipt_item(json_object *a_json_item_
         return NULL;
     }
     uint64_t l_units = 0;
-    if(!s_json_get_int64_uint64(a_json_item_obj, "units", &l_units, true)) {
+    if(!dap_json_rpc_get_uint64(a_json_item_obj, "units", &l_units)) {
         log_it(L_ERROR, "Json TX: bad units in TYPE_RECEIPT");
         return NULL;
     }
@@ -1454,7 +1427,7 @@ static uint8_t *s_dap_chain_net_tx_create_receipt_item(json_object *a_json_item_
         log_it(L_ERROR, "Json TX: bad value in TYPE_RECEIPT");
         return NULL;
     }
-    const char *l_params_str = s_json_get_text(a_json_item_obj, "params");
+    const char *l_params_str = dap_json_rpc_get_text(a_json_item_obj, "params");
     char *l_params = NULL;
     size_t l_params_size = 0;
     if (l_params_str) {
@@ -1464,7 +1437,7 @@ static uint8_t *s_dap_chain_net_tx_create_receipt_item(json_object *a_json_item_
     }
     dap_hash_fast_t l_prev_tx_hash = {};
     const char* l_prev_tx_hash_str = NULL;
-    if((l_prev_tx_hash_str = s_json_get_text(a_json_item_obj, "prev_tx")) == NULL) {
+    if((l_prev_tx_hash_str = dap_json_rpc_get_text(a_json_item_obj, "prev_tx")) == NULL) {
         log_it(L_ERROR, "Json TX: bad prev_tx in TYPE_RECEIPT");
         return NULL;
     }
@@ -1484,15 +1457,15 @@ static uint8_t *s_dap_chain_net_tx_create_tsd_item(json_object *a_json_item_obj,
     int64_t l_tsd_type = 0;
     uint64_t l_tsd_data_size = 0;
         
-    if(!s_json_get_int64_uint64(a_json_item_obj, "data_type", &l_tsd_type, false)) {
+    if(!dap_json_rpc_get_int64(a_json_item_obj, "data_type", &l_tsd_type)) {
         log_it(L_ERROR, "Json TX: bad data_type in TYPE_TSD");
         return NULL;
     }
-    if(!s_json_get_int64_uint64(a_json_item_obj, "data_size", &l_tsd_data_size, true) || !l_tsd_data_size) {
+    if(!dap_json_rpc_get_uint64(a_json_item_obj, "data_size", &l_tsd_data_size) || !l_tsd_data_size) {
         log_it(L_ERROR, "Json TX: bad data_size in TYPE_TSD");
         return NULL;
     }
-    const char *l_tsd_data_str = s_json_get_text(a_json_item_obj, "data");
+    const char *l_tsd_data_str = dap_json_rpc_get_text(a_json_item_obj, "data");
     if (!l_tsd_data_str) {
         log_it(L_ERROR, "Json TX: bad data in TYPE_TSD");
         return NULL;
@@ -1502,8 +1475,7 @@ static uint8_t *s_dap_chain_net_tx_create_tsd_item(json_object *a_json_item_obj,
     size_t l_tsd_data_size_decoded = dap_enc_base58_decode(l_tsd_data_str, l_tsd_data);
     if (l_tsd_data_size_decoded != l_tsd_data_size) {
         log_it(L_ERROR, "Json TX: data size in tsd section - %zu, expected - %"DAP_UINT64_FORMAT_U, l_tsd_data_size_decoded, l_tsd_data_size);
-        if (a_jobj_arr_errors)
-                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: data size in tsd section - %zu, expected - %zu", l_tsd_data_size_decoded, l_tsd_data_size);
+        dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: data size in tsd section - %zu, expected - %zu", l_tsd_data_size_decoded, l_tsd_data_size);
         DAP_DELETE(l_tsd_data);
         return NULL;
     }
@@ -1530,11 +1502,11 @@ static uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj,
         l_sign_size = 0,
         l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
         l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
-    if ( !s_json_get_int64_uint64(a_json_item_obj, "sig_size", &l_sign_size, true) )
+    if ( !dap_json_rpc_get_uint64(a_json_item_obj, "sig_size", &l_sign_size) )
         log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
 
     uint64_t l_version = 1;
-    s_json_get_int64_uint64(a_json_item_obj, "sig_version", &l_version, true);
+    dap_json_rpc_get_uint64(a_json_item_obj, "sig_version", &l_version);
 
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
@@ -1567,8 +1539,8 @@ static uint8_t *s_dap_chain_net_tx_create_voting_item(json_object *a_jobj_arr_er
 static uint8_t *s_dap_chain_net_tx_create_vote_item(json_object *a_json_item_obj, json_object *a_jobj_arr_errors)
 {
     uint64_t l_value_idx = 0;
-    const char *l_voting_hash_str = s_json_get_text(a_json_item_obj, "voting_hash");
-    bool l_is_value = s_json_get_int64_uint64(a_json_item_obj, "answer_idx", &l_value_idx, true);
+    const char *l_voting_hash_str = dap_json_rpc_get_text(a_json_item_obj, "voting_hash");
+    bool l_is_value = dap_json_rpc_get_uint64(a_json_item_obj, "answer_idx", &l_value_idx);
     if(l_voting_hash_str ) {
         dap_hash_fast_t l_voting_hash;
         if(l_is_value && !dap_chain_hash_fast_from_str(l_voting_hash_str, &l_voting_hash)) {                             
@@ -1668,15 +1640,15 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 
             switch (l_item_type) {
                 case TX_ITEM_TYPE_IN: {
-                    const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+                    const char *l_json_item_token = dap_json_rpc_get_text(l_json_item_obj, "token");
                     if (l_json_item_token && dap_strcmp(l_json_item_token, l_native_token)){
                         l_multichanel = true;
                         l_main_token = l_json_item_token;
                         break;
                     }
-                    const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
+                    const char *l_prev_hash_str = dap_json_rpc_get_text(l_json_item_obj, "prev_hash");
                     int64_t l_out_prev_idx = 0;
-                    bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx,false);
+                    bool l_is_out_prev_idx = dap_json_rpc_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
                     // If prev_hash and out_prev_idx were read
                     if(l_prev_hash_str && l_is_out_prev_idx){
                         dap_chain_hash_fast_t l_tx_prev_hash = {};
@@ -1755,7 +1727,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
         case TX_ITEM_TYPE_EVENT: {
-            const char *l_group_name = s_json_get_text(l_json_item_obj, "group_name");
+            const char *l_group_name = dap_json_rpc_get_text(l_json_item_obj, "group_name");
             if (!l_group_name) {
                 log_it(L_ERROR, "Json TX: bad group_name in TX_ITEM_TYPE_EVENT");
                 char *l_str_err = dap_strdup_printf("For item %zu of type 'event' the 'group_name' is missing.", i);
@@ -1766,7 +1738,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
 
             int64_t l_event_type_int;
-            if (!s_json_get_int64_uint64(l_json_item_obj, "event_type", &l_event_type_int, false)) {
+            if (!dap_json_rpc_get_int64(l_json_item_obj, "event_type", &l_event_type_int)) {
                 log_it(L_ERROR, "Json TX: bad event_type in TX_ITEM_TYPE_EVENT");
                 char *l_str_err = dap_strdup_printf("For item %zu of type 'event' the 'event_type' is missing or invalid.", i);
                 json_object *l_jobj_err = json_object_new_string(l_str_err);
@@ -1799,9 +1771,9 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         case TX_ITEM_TYPE_IN: {
             // Save item obj for in
             // Read prev_hash and out_prev_idx
-            const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
+            const char *l_prev_hash_str = dap_json_rpc_get_text(l_json_item_obj, "prev_hash");
             int64_t l_out_prev_idx = 0;
-            bool l_is_out_prev_idx = s_json_get_int64_uint64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx, false);
+            bool l_is_out_prev_idx = dap_json_rpc_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
             // If prev_hash and out_prev_idx were read
             if(l_prev_hash_str && l_is_out_prev_idx) {
                 dap_chain_hash_fast_t l_tx_prev_hash;
@@ -1833,9 +1805,9 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         case TX_ITEM_TYPE_OUT_STD: {
             // Read address and value
             uint256_t l_value = { };
-            const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr");
+            const char *l_json_item_addr_str = dap_json_rpc_get_text(l_json_item_obj, "addr");
             bool l_is_value = s_json_get_uint256(l_json_item_obj, "value", &l_value);
-            const char *l_token = s_json_get_text(l_json_item_obj, "token");
+            const char *l_token = dap_json_rpc_get_text(l_json_item_obj, "token");
             if(l_is_value && l_json_item_addr_str) {
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
                 if(l_addr && !IS_ZERO_256(l_value)) {
@@ -1934,7 +1906,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             break;
         case TX_ITEM_TYPE_OUT_COND: {
             // Read subtype of item
-            const char *l_subtype_str = s_json_get_text(l_json_item_obj, "subtype");
+            const char *l_subtype_str = dap_json_rpc_get_text(l_json_item_obj, "subtype");
             dap_chain_tx_out_cond_subtype_t l_subtype = dap_chain_tx_out_cond_subtype_from_str_short(l_subtype_str);
             switch (l_subtype) {
 
@@ -1968,7 +1940,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     log_it(L_ERROR, "Json TX: bad pkey in OUT_COND_SUBTYPE_SRV_PAY");
                     break;
                 }
-                const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+                const char *l_params_str = dap_json_rpc_get_text(l_json_item_obj, "params");
                 size_t l_params_size = dap_strlen(l_params_str);
                 dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_pay(l_pkey, l_srv_uid, l_value, l_value_max_per_unit,
                         l_price_unit, l_params_str, l_params_size);
@@ -1993,12 +1965,12 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     // Default service DAP_CHAIN_NET_SRV_XCHANGE_ID
                     l_srv_uid.uint64 = 0x2;
                 }
-                dap_chain_net_t *l_net = dap_chain_net_by_name(s_json_get_text(l_json_item_obj, "net"));
+                dap_chain_net_t *l_net = dap_chain_net_by_name(dap_json_rpc_get_text(l_json_item_obj, "net"));
                 if(!l_net) {
                     log_it(L_ERROR, "Json TX: bad net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
                 }
-                const char *l_token = s_json_get_text(l_json_item_obj, "token");
+                const char *l_token = dap_json_rpc_get_text(l_json_item_obj, "token");
                 if(!l_token) {
                     log_it(L_ERROR, "Json TX: bad token in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
@@ -2008,7 +1980,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
                 }
-                //const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+                //const char *l_params_str = dap_json_rpc_get_text(l_json_item_obj, "params");
                 //size_t l_params_size = dap_strlen(l_params_str);
                 dap_chain_tx_out_cond_t *l_out_cond_item = NULL; //dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id, l_token, l_value, l_params_str, l_params_size);
                 l_item = (const uint8_t*) l_out_cond_item;
@@ -2036,7 +2008,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     break;
                 }
                 const char* l_time_staking_str = NULL;
-                if((l_time_staking_str = s_json_get_text(l_json_item_obj, "time_staking")) == NULL || dap_strlen(l_time_staking_str) != 6)  {
+                if((l_time_staking_str = dap_json_rpc_get_text(l_json_item_obj, "time_staking")) == NULL || dap_strlen(l_time_staking_str) != 6)  {
                     log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                     break;
                 }
@@ -2071,7 +2043,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
 
                 uint256_t l_reinvest_percent = uint256_0;
                 const char* l_reinvest_percent_str = NULL;
-                if((l_reinvest_percent_str = s_json_get_text(l_json_item_obj, "reinvest_percent"))!=NULL) {
+                if((l_reinvest_percent_str = dap_json_rpc_get_text(l_json_item_obj, "reinvest_percent"))!=NULL) {
                     l_reinvest_percent = dap_chain_coins_to_balance(l_reinvest_percent_str);
                     if (compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1){
                     log_it(L_ERROR, "Json TX: bad reinvest percent in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
@@ -2118,7 +2090,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     break;
                 }
                 
-                const char *l_signing_addr_str = s_json_get_text(l_json_item_obj, "signing_addr");
+                const char *l_signing_addr_str = dap_json_rpc_get_text(l_json_item_obj, "signing_addr");
                 dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(l_signing_addr_str);
                 if(!l_signing_addr) {
                     log_it(L_ERROR, "Json TX: bad signing_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
@@ -2126,7 +2098,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 }                
 
                 dap_chain_node_addr_t l_signer_node_addr;
-                const char *l_node_addr_str = s_json_get_text(l_json_item_obj, "node_addr");
+                const char *l_node_addr_str = dap_json_rpc_get_text(l_json_item_obj, "node_addr");
                 if(!l_node_addr_str || dap_chain_node_addr_from_str(&l_signer_node_addr, l_node_addr_str)) {
                     log_it(L_ERROR, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                     break;
@@ -2184,7 +2156,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 }
                 
                 int64_t l_min_sig_count;
-                if(!s_json_get_int64_uint64(l_json_item_obj, "min_sig_count", &l_min_sig_count, false)) {
+                if(!dap_json_rpc_get_int64(l_json_item_obj, "min_sig_count", &l_min_sig_count)) {
                     dap_json_rpc_error_add(l_jobj_errors, -1, "Bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                     log_it(L_ERROR, "Json TX: bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                     break;
@@ -2236,7 +2208,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 }
                 
                 // Read optional params
-                const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+                const char *l_params_str = dap_json_rpc_get_text(l_json_item_obj, "params");
                 char *l_tag_str = NULL;
                 if (l_params_str) {
                     size_t l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
@@ -2298,7 +2270,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
             int64_t l_sign_size = 0, l_sign_b64_strlen = json_object_get_string_len(l_jobj_sign),
                     l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
-            if ( !s_json_get_int64_uint64(l_json_item_obj, "sig_size", &l_sign_size, false) )
+            if ( !dap_json_rpc_get_int64(l_json_item_obj, "sig_size", &l_sign_size) )
                 log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
 
             dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
@@ -2336,7 +2308,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 break;
             }
             int64_t l_units = 0;
-            if(!s_json_get_int64_uint64(l_json_item_obj, "units", &l_units, false)){
+            if(!dap_json_rpc_get_int64(l_json_item_obj, "units", &l_units)){
                 log_it(L_ERROR, "Json TX: bad units in TYPE_RECEIPT");
                 break;
             }
@@ -2347,12 +2319,12 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
             dap_hash_fast_t l_prev_tx_hash = {};
             const char* l_prev_tx_hash_str = NULL;
-            if((l_prev_tx_hash_str = s_json_get_text(l_json_item_obj, "prev_tx")) == NULL) {
+            if((l_prev_tx_hash_str = dap_json_rpc_get_text(l_json_item_obj, "prev_tx")) == NULL) {
                 log_it(L_ERROR, "Json TX: bad prev_tx in TYPE_RECEIPT");
                 break;
             }
             dap_chain_hash_fast_from_str(l_prev_tx_hash_str, &l_prev_tx_hash);
-            const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+            const char *l_params_str = dap_json_rpc_get_text(l_json_item_obj, "params");
             size_t l_params_size = dap_strlen(l_params_str);
             dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params_str, l_params_size, &l_prev_tx_hash);
             l_item = (const uint8_t*) l_receipt;
@@ -2367,11 +2339,11 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             break;
         case TX_ITEM_TYPE_TSD: {
             int64_t l_tsd_type = 0;
-            if(!s_json_get_int64_uint64(l_json_item_obj, "type_tsd", &l_tsd_type, false)) {
+            if(!dap_json_rpc_get_int64(l_json_item_obj, "type_tsd", &l_tsd_type)) {
                 log_it(L_ERROR, "Json TX: bad type_tsd in TYPE_TSD");
                 break;
             }
-            const char *l_tsd_data = s_json_get_text(l_json_item_obj, "data");
+            const char *l_tsd_data = dap_json_rpc_get_text(l_json_item_obj, "data");
             if (!l_tsd_data) {
                 log_it(L_ERROR, "Json TX: bad data in TYPE_TSD");
                 break;
@@ -2404,8 +2376,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
         while(l_list) {
             struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
 
-            const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr_from");
-            const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+            const char *l_json_item_addr_str = dap_json_rpc_get_text(l_json_item_obj, "addr_from");
+            const char *l_json_item_token = dap_json_rpc_get_text(l_json_item_obj, "token");
             l_main_token = l_json_item_token;
             dap_chain_addr_t *l_addr_from = NULL;
             if(l_json_item_addr_str) {
@@ -2739,7 +2711,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
             return DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR;
         } else {        
             // Add item to transaction
-            const char *l_hash_str = s_json_get_text(l_json_item_obj, "item_hash");
+            const char *l_hash_str = dap_json_rpc_get_text(l_json_item_obj, "item_hash");
             if (l_hash_str) {
                 char *l_hash_str_current = dap_hash_fast_str_new(l_item, dap_chain_datum_item_tx_get_size(l_item, 0));
                 if (l_hash_str_current && strcmp(l_hash_str, l_hash_str_current)) {
@@ -2882,7 +2854,6 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             json_object_object_add(json_obj_item,"token", json_object_new_string(((dap_chain_tx_out_ext_t*)item)->token));
             json_object_object_add(json_obj_item,"value", json_object_new_string(l_value_str));
             json_object_object_add(json_obj_item, "coins", json_object_new_string(l_coins_str));
-            
         } break;
         case TX_ITEM_TYPE_SIG: {
             dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)item);

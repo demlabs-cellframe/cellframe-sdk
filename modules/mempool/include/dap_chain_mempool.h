@@ -70,6 +70,13 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
         uint256_t* a_value, uint256_t a_value_fee, const char *a_hash_out_type,
         size_t a_tx_num, dap_time_t *a_time_unlock);
 
+// Extended version with support for arbitrary TSD sections (e.g. for arbitrage transactions)
+char *dap_chain_mempool_tx_create_extended(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+        const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
+        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+        uint256_t* a_value, uint256_t a_value_fee, const char *a_hash_out_type,
+        size_t a_tx_num, dap_time_t *a_time_unlock, dap_list_t *a_tsd_list);
+
 // Make transfer transaction & insert to cache
 char* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
         dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,

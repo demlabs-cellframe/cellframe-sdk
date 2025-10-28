@@ -211,7 +211,6 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
         l_ret = s_common_decree_handler(a_decree, a_net, false, a_anchored);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
-        l_ret = s_service_decree_handler(a_decree, a_net, false);
     break;
     default:
         log_it(L_WARNING, "Decree type is undefined!");
@@ -288,7 +287,6 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, a_anchored);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
-        ret_val = s_service_decree_handler(l_new_decree->decree, l_net, true);
         break;
     default:
         log_it(L_WARNING,"Decree type is undefined!");
@@ -644,6 +642,27 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             return dap_chain_policy_apply(l_policy, a_net->pub.id);
         }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN: {
+            if (!a_apply)
+                break;
+            if (!a_anchored)
+                break;
+            uint16_t l_blockgen_period = 0;
+            if (dap_chain_datum_decree_get_empty_block_every_times(a_decree, &l_blockgen_period)){
+                log_it(L_WARNING,"Can't get empty blockgen period from decree.");
+                return -105;
+            }
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+                log_it(L_WARNING, "Can't apply this decree to specified chain");
+                return -115;
+            }
+            return dap_chain_esbocs_set_empty_block_every_times(l_chain, l_blockgen_period);
+        }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD: {
             dap_hash_fast_t l_pkey_hash;
             if (dap_chain_datum_decree_get_hash(a_decree, &l_pkey_hash)) {
@@ -697,23 +716,6 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
         default:
             return -1;
     }
-
-    return 0;
-}
-
-static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, bool a_apply)
-{
-   // size_t l_datum_data_size = ;
-   //            dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_decree->header.srv_id);
-   //            if(l_srv){
-   //                if(l_srv->callbacks.decree){
-   //                    dap_chain_net_t * l_net = dap_chain_net_by_id(a_chain->net_id);
-   //                    l_srv->callbacks.decree(l_srv,l_net,a_chain,l_decree,l_datum_data_size);
-   //                 }
-   //            }else{
-   //                log_it(L_WARNING,"Decree for unknown srv uid 0x%016"DAP_UINT64_FORMAT_X , l_decree->header.srv_id.uint64);
-   //                return -103;
-   //            }
 
     return 0;
 }
