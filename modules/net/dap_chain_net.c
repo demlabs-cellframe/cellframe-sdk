@@ -957,23 +957,42 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
     
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
-        // Reset esbocs validators count BEFORE purging the chain
-        // This must be done while the consensus data is still valid
-        if (l_chain && !dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-            dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
-            if (l_blocks && l_blocks->_inheritor) {
-                // Check that esbocs structure is still valid before accessing it
-                dap_chain_esbocs_set_min_validators_count(l_chain, 0);
+        // Delete chain cell files BEFORE purging to remove corrupted data
+        // This prevents infinite sync loops with corrupted events
+        // Must be done BEFORE callback_purge because it clears the cells hash table
+        log_it(L_INFO, "Purging chain '%s' in network '%s'", l_chain->name, l_net->pub.name);
+        dap_chain_cell_t *l_cell = NULL, *l_cell_tmp = NULL;
+        int l_cells_count = HASH_COUNT(l_chain->cells);
+        log_it(L_INFO, "Chain '%s' has %d cells before purge", l_chain->name, l_cells_count);
+        
+        HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
+            log_it(L_INFO, "Processing cell with file_storage_path: '%s'", l_cell->file_storage_path);
+            if (l_cell->file_storage_path[0]) {
+                log_it(L_INFO, "Attempting to delete chain cell file: %s", l_cell->file_storage_path);
+                if (unlink(l_cell->file_storage_path) == 0) {
+                    log_it(L_INFO, "Successfully deleted chain cell file: %s", l_cell->file_storage_path);
+                } else {
+                    log_it(L_WARNING, "Failed to delete chain cell file: %s (errno: %d - %s)", 
+                           l_cell->file_storage_path, errno, strerror(errno));
+                }
+            } else {
+                log_it(L_WARNING, "Cell has empty file_storage_path, skipping");
             }
         }
         
-        // Now purge the chain data
+        // Now purge the chain data (this will clear the cells hash table)
         if (l_chain->callback_purge) {
             l_chain->callback_purge(l_chain);
         }
         
-        // Reload chain from disk
-        dap_chain_load_all(l_chain);
+        // Reset chain synchronization state to start from genesis
+        l_chain->atom_num_last = 0;
+        l_chain->state = CHAIN_SYNC_STATE_IDLE;
+        log_it(L_INFO, "Reset chain '%s' sync state: atom_num_last=0, state=IDLE", l_chain->name);
+        
+        // DON'T reload chain from disk - files were deleted above!
+        // The chain will start fresh synchronization from genesis
+        // dap_chain_load_all(l_chain);  // REMOVED: would load nothing since files are deleted
         
         // Reset network fees
         l_net->pub.fee_value = uint256_0;
@@ -986,6 +1005,11 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
             while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
                 debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
+    }
+    
+    // Reset chain sync state to IDLE so they will be re-synced after purge
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        l_chain->state = CHAIN_SYNC_STATE_IDLE;
     }
     
     dap_chain_net_decree_init(l_net);

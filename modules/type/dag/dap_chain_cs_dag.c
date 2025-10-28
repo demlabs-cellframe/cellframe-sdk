@@ -567,7 +567,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         break;
     }
     case ATOM_ACCEPT: {
-        dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_event->header.cell_id);
+        dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, l_event->header.cell_id);
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
             if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_event_hash : NULL) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file");
@@ -595,13 +595,18 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         }
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, l_event_item);
         
-        /* If event is invalid or corrupted BEFORE adding to hash table, reject it completely */
+        /* If event is invalid or corrupted BEFORE adding to hash table, skip it but continue sync */
         /* Codes -1,-2,-4,-6,-7 mean event was NOT added to hash table, so we can free it */
         if (l_consensus_check == -1 || l_consensus_check == -2 || l_consensus_check == -4 ||
             l_consensus_check == -6 || l_consensus_check == -7) {
-            debug_if(s_debug_more, L_WARNING, "... rejected: invalid/corrupted event (code %d)", l_consensus_check);
-            /* Set reject flag, cleanup will be done at the end of function (line 640-646) */
-            ret = ATOM_REJECT;
+            debug_if(s_debug_more, L_WARNING, "... skipped: invalid/corrupted event (code %d), continuing sync", l_consensus_check);
+            /* Free the event item but return ATOM_ACCEPT to continue synchronization */
+            if (l_event_item->mapped_region == NULL) {
+                DAP_DELETE(l_event_item->event);
+            }
+            DAP_DELETE(l_event_item);
+            /* Return ATOM_ACCEPT to continue sync, don't break the sync process */
+            ret = ATOM_ACCEPT;
             break;
         }
         
@@ -1013,7 +1018,7 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
         if (ret == DAP_THRESHOLD_OK) {
             debug_if(s_debug_more, L_DEBUG, "Processing event (threshold): %s...",
                     dap_chain_hash_fast_to_str_static(&l_event_item->hash));
-            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_dag->chain, l_event_item->event->header.cell_id);
+            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_dag->chain, l_event_item->event->header.cell_id);
             if ( !l_event_item->mapped_region ) {
                 if ( dap_chain_atom_save(l_cell, (const byte_t*)l_event_item->event, l_event_item->event_size, NULL) < 0 ) {
                     log_it(L_CRITICAL, "Can't move atom from threshold to file");

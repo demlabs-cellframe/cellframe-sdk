@@ -618,7 +618,8 @@ static bool s_sync_in_chains_callback(void *a_arg)
         l_ack_send = true;
         break;
     case ATOM_REJECT: {
-        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        log_it(L_WARNING, "Atom with hash %s for %s:%s rejected, sending ACK to continue sync", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        l_ack_send = true;  /* Send ACK even for rejected atoms to continue synchronization */
         break;
     }
     case ATOM_FORK: {
@@ -636,8 +637,10 @@ static bool s_sync_in_chains_callback(void *a_arg)
                                                          &l_ack_num, sizeof(uint64_t), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
         dap_stream_ch_pkt_send_by_addr(&l_args->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
         DAP_DELETE(l_pkt);
-        debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_ACK %s for net %s to destination " NODE_ADDR_FP_STR " with num %" DAP_UINT64_FORMAT_U,
-                                         l_chain->name, l_chain->net_name, NODE_ADDR_FP_ARGS_S(l_args->addr), l_ack_num);
+        log_it(L_INFO, "Out: CHAIN_ACK %s for net %s to destination " NODE_ADDR_FP_STR " with num %" DAP_UINT64_FORMAT_U " (atom result: %d)",
+                       l_chain->name, l_chain->net_name, NODE_ADDR_FP_ARGS_S(l_args->addr), l_ack_num, l_atom_add_res);
+    } else {
+        log_it(L_WARNING, "NOT sending ACK: l_ack_send=%d, ack_req=%d, atom_result=%d", l_ack_send, l_args->ack_req, l_atom_add_res);
     }
     DAP_DELETE(l_args);
     return false;
