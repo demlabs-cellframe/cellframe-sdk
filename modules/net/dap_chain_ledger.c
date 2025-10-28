@@ -6864,13 +6864,7 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
      dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
      pthread_rwlock_rdlock(&l_ledger_pvt->event_pkeys_rwlock);
      dap_ledger_event_pkey_item_t *l_item = NULL;
-     
-     // If no keys are in the allowed list, all keys are allowed by default
-     if (!l_ledger_pvt->event_pkeys_allowed) {
-         pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
-         return 0;
-     }
-     
+         
      HASH_FIND(hh, l_ledger_pvt->event_pkeys_allowed, a_pkey_hash, sizeof(dap_hash_fast_t), l_item);
      pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
      

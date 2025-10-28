@@ -676,7 +676,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_anchored)
                 break;
-            if (dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
+            if (!dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
                 log_it(L_WARNING, "Event pkey already exists in ledger");
                 return -116;
             }
@@ -701,7 +701,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_anchored)
                 break;
-            if (!dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
+            if (dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
                 log_it(L_WARNING, "Event pkey not found in ledger");
                 return -116;
             }
