@@ -993,7 +993,7 @@ static dap_chain_net_srv_order_t *s_get_remote_srv_order(const char* l_order_has
         return NULL;
     }
     uint64_t l_order_data_size = 0;
-    if(!dap_json_rpc_get_int64_uint64(l_responce, "data_size", &l_order_data_size, true) || !l_order_data_size) {
+    if(!dap_json_object_get_uint64_ext(l_responce, "data_size", &l_order_data_size) || !l_order_data_size) {
         log_it(L_ERROR, "Json order: bad data_size");
         dap_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_BAD_DATA_SIZE, "Json order: bad data_size");
         dap_json_object_free(l_raw_response);
