@@ -109,7 +109,7 @@ static xchange_cache_state_t s_xchange_cache_state = XCHANGE_CACHE_DISABLED;
 static int s_callback_decree(dap_chain_net_id_t a_net_id, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
 static void *s_callback_start(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
 static int s_xchange_verificator_callback(dap_ledger_t * a_ledger,
-                            dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply);
+                            dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
 const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid = { .uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID };
 
 dap_json_t *s_print_fee_json(dap_chain_net_id_t a_net_id) { return dap_json_object_new(); }
@@ -393,7 +393,7 @@ void dap_chain_net_srv_xchange_deinit()
  * @return
  */
 static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash,
-                                          dap_chain_tx_out_cond_t *a_tx_out_cond, bool a_owner, bool a_check_for_apply)
+                                          dap_chain_tx_out_cond_t *a_tx_out_cond, bool a_owner, bool a_from_mempool)
 {
     if (a_owner)
         return 0;

@@ -110,7 +110,7 @@ static int s_stake_ext_event_verify(dap_chain_net_id_t a_net_id, const char *a_e
 static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_item);
 static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
 static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,
-                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_check_for_apply);
+                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_from_mempool);
 // Event fixation callback (for ledger event notifications)
 static void s_stake_ext_cache_event_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode);
 // Forward declaration for optimization function
@@ -1159,7 +1159,7 @@ static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chai
  * @return Returns 0 on success, negative error code otherwise
  */
 static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,
-                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_check_for_apply)
+                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_from_mempool)
 {
     struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
     if (!l_stake_ext_service) {

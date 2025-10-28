@@ -122,7 +122,7 @@ struct srv_stake {
 
 static int s_cli_srv_stake(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
-static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply);
+static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
 static int s_stake_out_check_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond);
 static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond);
@@ -265,7 +265,7 @@ void dap_chain_net_srv_stake_pos_delegate_deinit()
 }
 
 static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash,
-                                        dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply)
+                                        dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool)
 {
     dap_return_val_if_fail(a_ledger && a_cond && a_tx_in, -1);
     struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);

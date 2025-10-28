@@ -63,7 +63,7 @@
 
 static int s_cli_net_srv(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 
-static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply);
+static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
 static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_price_unit_uid_t *a_price_unit);
 
@@ -619,7 +619,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
  * @param a_owner
  * @return
  */
-static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply)
+static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool)
 {
     if (a_owner)
         return 0;

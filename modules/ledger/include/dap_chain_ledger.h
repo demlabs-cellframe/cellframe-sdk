@@ -329,7 +329,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     }
 }
 
-typedef int   (*dap_ledger_cond_in_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_check_for_apply);
+typedef int   (*dap_ledger_cond_in_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_from_mempool);
 typedef int  (*dap_ledger_cond_out_verify_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 typedef void     (*dap_ledger_cond_in_add_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void    (*dap_ledger_cond_out_add_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
