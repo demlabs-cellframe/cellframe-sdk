@@ -191,6 +191,47 @@ uint32_t dap_chain_datum_token_flag_from_str(const char *a_str)
 }
 
 /**
+ * @brief Convert UTXO flag (stored in TSD) to string representation
+ * @param a_utxo_flag Single UTXO flag value
+ * @return String representation of the UTXO flag
+ */
+const char *dap_chain_datum_token_utxo_flag_to_str(uint32_t a_utxo_flag)
+{
+    switch (a_utxo_flag) {
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED: return "UTXO_BLOCKING_DISABLED";
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST: return "UTXO_STATIC_BLOCKLIST";
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING: return "UTXO_DISABLE_ADDRESS_SENDER_BLOCKING";
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING: return "UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING";
+    case DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED: return "UTXO_ARBITRAGE_TX_DISABLED";
+    default: return "UNKNOWN_UTXO_FLAG";
+    }
+}
+
+/**
+ * @brief Convert string to UTXO flag value
+ * @param a_str String representation
+ * @return UTXO flag value, or 0 if unknown
+ */
+uint32_t dap_chain_datum_token_utxo_flag_from_str(const char *a_str)
+{
+    if (!a_str)
+        return 0;
+    
+    if (strcmp(a_str, "UTXO_BLOCKING_DISABLED") == 0)
+        return DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
+    if (strcmp(a_str, "UTXO_STATIC_BLOCKLIST") == 0)
+        return DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST;
+    if (strcmp(a_str, "UTXO_DISABLE_ADDRESS_SENDER_BLOCKING") == 0)
+        return DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING;
+    if (strcmp(a_str, "UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING") == 0)
+        return DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING;
+    if (strcmp(a_str, "UTXO_ARBITRAGE_TX_DISABLED") == 0)
+        return DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
+    
+    return 0;  // Unknown UTXO flag
+}
+
+/**
  * @brief dap_chain_datum_token_flags_dump_to_json
  * @param json_obj_out
  * @param a_flags
