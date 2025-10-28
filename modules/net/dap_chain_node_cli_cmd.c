@@ -8597,34 +8597,20 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
 
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ts_after", &l_str_ts_after);
         if (l_str_ts_after) {
-            struct tm l_tm = { };
-            char *l_parse_result = strptime(l_str_ts_after, /* "[%x-%X" */ "%m/%d/%y-%H:%M:%S", &l_tm);
-            
-            // Check if strptime successfully parsed the date string
-            if (!l_parse_result || *l_parse_result != '\0') {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, 
-                    "Invalid date format in '-ts_after' parameter: '%s'. Expected format: MM/DD/YY-HH:MM:SS (e.g., 01/15/24-14:30:00)", 
+            dap_time_t l_parsed = dap_time_from_str_custom(l_str_ts_after, "%m/%d/%y-%H:%M:%S");
+            if (!l_parsed) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR,
+                    "Invalid date format in '-ts_after' parameter: '%s'. Expected format: MM/DD/YY-HH:MM:SS (e.g., 01/15/24-14:30:00)",
                     l_str_ts_after);
                 return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
             }
-            
-            // Set DST flag to auto-detect to avoid ambiguity
-            l_tm.tm_isdst = -1;
-            l_ts_after = mktime(&l_tm);
-            
-            // Check if mktime produced a valid timestamp (invalid dates like 02/30/2024 return -1)
-            if (l_ts_after == -1) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, 
-                    "Invalid or non-existent date in '-ts_after' parameter: '%s'. Please check the date is valid (e.g., not February 30th)", 
-                    l_str_ts_after);
-                return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
-            }
+            l_ts_after = (time_t)l_parsed;
             
             // Check if date is in the future
             time_t l_current_time = time(NULL);
             if (l_ts_after > l_current_time) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, 
-                    "Date in '-ts_after' parameter is in the future: '%s'. Please specify a date that has already occurred", 
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR,
+                    "Date in '-ts_after' parameter is in the future: '%s'. Please specify a date that has already occurred",
                     l_str_ts_after);
                 return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
             }
