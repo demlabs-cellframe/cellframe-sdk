@@ -101,12 +101,15 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX,
     DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL,
     DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN,
+    DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED,
+    DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED,
     /* Emisssion check return codes */
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
     DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN,
     /* Token declaration/update return codes */
     DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS,
     DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN,
+    DAP_LEDGER_TOKEN_UPDATE_CHECK_IRREVERSIBLE_FLAGS_VIOLATION,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH,
@@ -179,6 +182,9 @@ typedef struct dap_ledger_datum_iter_data {
 
 #define DAP_LEDGER_THRESHOLD_ENABLED        0x0800
 
+// UTXO blocking history display defaults
+#define DAP_LEDGER_UTXO_HISTORY_DEFAULT_LIMIT   10      ///< Default number of history items to display in token info
+
 // Error code for no previous transaction (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
 // Error code for no emission for a transaction (for stay in mempool)
@@ -246,12 +252,15 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET: return "The transaction was rejected because it contains multiple outputs to other networks.";
     case DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL: return "Usage of timed locked out is forbidden for this tx";
     case DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN: return "Legacy stakes are not accepted from mempool anymore!";
+    case DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED: return "Transaction output is blocked in UTXO blocklist for this token";
+    case DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED: return "Arbitrage transaction not authorized: invalid owner signature or arbitrage disabled for token";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";
     /* Token declaration/update return codes */
     case DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS: return "Not all token signs is unique";
     case DAP_LEDGER_TOKEN_ADD_CHECK_LEGACY_FORBIDDEN: return "Legacy type of tokens are present for old chains comliance only";
+    case DAP_LEDGER_TOKEN_UPDATE_CHECK_IRREVERSIBLE_FLAGS_VIOLATION: return "Attempt to unset irreversible flags (UTXO_BLOCKING_DISABLED, UTXO_ARBITRAGE_TX_DISABLED, UTXO_DISABLE_ADDRESS_SENDER_BLOCKING, UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING)";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_SUPPLY: return "Specified supply must be greater than current one";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_INVALID_ADDR: return "Specified address has invalid format";
     case DAP_LEDGER_TOKEN_ADD_CHECK_TSD_ADDR_MISMATCH: return "Specified address can't be processed cause double (for adding) or absent (for removing)";
@@ -322,8 +331,8 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t * a_ledger, 
 int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time);
 int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time);
 int dap_ledger_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
-json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version);
-json_object *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version);
+json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version, int a_history_limit);
+json_object *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version, int a_history_limit);
 
 // Get all token-declarations
 dap_list_t* dap_ledger_token_decl_all(dap_ledger_t *a_ledger);
@@ -349,6 +358,15 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
 int dap_ledger_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash);
 
 dap_chain_datum_token_emission_t *dap_ledger_token_emission_find(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
+
+/**
+ * @brief Get first emission hash for token
+ * @param a_ledger Ledger instance
+ * @param a_token_ticker Token ticker
+ * @param a_emission_hash Output parameter for emission hash
+ * @return true if emission found, false otherwise
+ */
+bool dap_ledger_token_get_first_emission_hash(dap_ledger_t *a_ledger, const char *a_token_ticker, dap_chain_hash_fast_t *a_emission_hash);
 
 const char* dap_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,dap_chain_hash_fast_t *a_tx_hash);
 

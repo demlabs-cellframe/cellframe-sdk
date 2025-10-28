@@ -139,6 +139,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "token_update -net <net_name> [-chain <chain_name>] -token <existing_token_ticker> -type <CF20|private> [-total_supply_change <value>] "
                             "-certs <name_certs> [-flag_set <flag>] [-flag_unset <flag>] [-total_signs_valid <value>] [-description <value>] "
                             "[-tx_receiver_allowed <value>] [-tx_receiver_blocked <value>] [-tx_sender_allowed <value>] [-tx_sender_blocked <value>] "
+                            "[-utxo_blocked_add <tx_hash>:<out_idx>[:<timestamp>]] [-utxo_blocked_remove <tx_hash>:<out_idx>[:<timestamp>]] [-utxo_blocked_clear] "
                             "[-add_cert <name_certs>] [-remove_certs <pkeys_hash>]\n"
                             "==Flags==\n"
                             "\tALL_BLOCKED: \t\t\t\tBlocks all permissions.\n"
@@ -171,6 +172,22 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "\nTx sender addresses allowed/blocked:\n"
                             "\t -tx_sender_allowed <wallet_addr>:\t Adds specified wallet address to the list of allowed senders.\n"
                             "\t -tx_sender_blocked <wallet_addr>:\t Adds specified wallet address to the list of blocked senders.\n"
+                            "\nUTXO blocklist management (for CF20 tokens with UTXO blocking enabled by default):\n"
+                            "\t -utxo_blocked_add <tx_hash>:<out_idx>[:<timestamp>]:\n"
+                            "\t\t   Blocks specified UTXO. Use <timestamp> for delayed blocking (blockchain time).\n"
+                            "\t\t   Format: <tx_hash>:<out_idx> for immediate blocking\n"
+                            "\t\t           <tx_hash>:<out_idx>:<timestamp> for delayed activation\n"
+                            "\t -utxo_blocked_remove <tx_hash>:<out_idx>[:<timestamp>]:\n"
+                            "\t\t   Unblocks specified UTXO. Use <timestamp> for delayed unblocking.\n"
+                            "\t\t   Format: <tx_hash>:<out_idx> for immediate removal\n"
+                            "\t\t           <tx_hash>:<out_idx>:<timestamp> for scheduled auto-unblock\n"
+                            "\t -utxo_blocked_clear:\t\t\t Clears entire UTXO blocklist for this token.\n"
+                            "\nNOTE: UTXO blocking flags (use with -flag_set / -flag_unset):\n"
+                            "\t UTXO_BLOCKING_DISABLED:\t Disables UTXO blocking mechanism (opt-out).\n"
+                            "\t UTXO_STATIC_BLOCKLIST:\t\t Makes UTXO blocklist immutable after first set.\n"
+                            "\t UTXO_DISABLE_ADDRESS_SENDER_BLOCKING:\t Disables tx_send_block/tx_send_allow checks.\n"
+                            "\t UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING:\t Disables tx_recv_block/tx_recv_allow checks.\n"
+                            "\t UTXO_ARBITRAGE_TX_DISABLED:\t Disables arbitrage transactions for this token.\n"
                             "\n"
     );
     dap_cli_server_cmd_add ("wallet", com_tx_wallet, NULL, "Wallet operations",
@@ -263,6 +280,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
             "\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
             "\n"
+            "\t UTXO_BLOCKING_DISABLED:\t Disables UTXO blocking mechanism (opt-out, blocking enabled by default)\n"
+            "\t UTXO_STATIC_BLOCKLIST:\t Makes UTXO blocklist immutable after token creation\n"
+            "\t UTXO_DISABLE_ADDRESS_SENDER_BLOCKING:\t Disables address-based sender blocking (tx_send_block/tx_send_allow ignored)\n"
+            "\t UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING:\t Disables address-based receiver blocking (tx_recv_block/tx_recv_allow ignored)\n"
+            "\t UTXO_ARBITRAGE_TX_DISABLED:\t Disables arbitrage transactions for this token\n"
+            "\n"
             "==Params==\n"
             "General:\n"
             "\t -flags <value>:\t List of flags from <value> to token declaration\n"
@@ -328,8 +351,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, NULL, "Make transaction",
-            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822 or YYMMDD>]"
-            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n");
+            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822 or YYMMDD>] [-arbitrage]"
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n"
+            "OPTIONS:\n"
+            "  -arbitrage: Create arbitrage transaction (requires token owner signature, bypasses UTXO blocking)\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, NULL, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool",
@@ -363,7 +388,26 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token info
     dap_cli_server_cmd_add("token", com_token, NULL, "Token info",
             "token list -net <net_name> [-full] [-h]\n"
-            "token info -net <net_name> -name <token_ticker> [-h]\n");
+            "\tLists all tokens in specified network. Use -full for detailed information.\n\n"
+            "token info -net <net_name> -name <token_ticker> [-history_limit <N>] [-h]\n"
+            "\tDisplays detailed token information including:\n"
+            "\t  - Token properties (ticker, type, supply, decimals)\n"
+            "\t  - Flags (including UTXO blocking and arbitrage flags)\n"
+            "\t  - Permissions (sender/receiver allow/block lists)\n"
+            "\t  - UTXO blocklist (if UTXO blocking is enabled):\n"
+            "\t      * tx_hash: Transaction hash of blocked UTXO\n"
+            "\t      * out_idx: Output index\n"
+            "\t      * blocked_time: When UTXO was added to blocklist\n"
+            "\t      * becomes_effective: When blocking activates (delayed activation)\n"
+            "\t      * becomes_unblocked: When blocking expires (0 = permanent)\n"
+            "\t      * history_recent: Last N blocking history changes (ADD/REMOVE/CLEAR)\n"
+            "\t      * history_total_count: Total number of history records\n"
+            "\t  - Emission history\n"
+            "\t  - Update history\n\n"
+            "\tOPTIONS:\n"
+            "\t  -history_limit <N>: Number of history items to display (default: 10)\n"
+            "\t                      Use 0 to display all history items\n\n"
+            "\tNOTE: UTXO blocklist is displayed only if UTXO_BLOCKING_DISABLED flag is NOT set.\n");
 
     // Log
     dap_cli_server_cmd_add ("print_log", com_print_log, NULL, "Print log info",
