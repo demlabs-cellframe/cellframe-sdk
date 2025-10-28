@@ -55,8 +55,6 @@ typedef struct dap_chain_cs_callbacks {
     
     // ===== Mempool callbacks (net → mempool communication) =====
     
-    // Get mempool GDB group name for a chain
-    char* (*mempool_group_new)(dap_chain_t *a_chain);
     // Add datum to mempool
     char* (*mempool_datum_add)(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_datum_hash_out_type);
 } dap_chain_cs_callbacks_t;
