@@ -285,9 +285,9 @@ int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
-#ifdef  DAP_LEDGER_TEST
-    return 0;
-#endif
+// #ifdef  DAP_LEDGER_TEST
+//     return 0;
+// #endif
     const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_prefix");
     if (!l_auth_certs_prefix)
         return -1;
@@ -338,6 +338,14 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
                 break;
             }
         }
+        
+
+        if (!dap_cert_is_public(l_cert_cur)) {
+            log_it(L_ERROR, "Certificate \"%s\" is not public. Validators must have public keys to sign blocks.", l_cert_name);
+            l_ret = -8;
+            break;
+        }
+        
         dap_chain_addr_t l_signing_addr;
         log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
         dap_chain_addr_fill_from_key(&l_signing_addr, l_cert_cur->enc_key, a_chain->net_id);
@@ -576,7 +584,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
             dap_list_free_full(l_validators, NULL);
             return -1;
-        } else if (l_sign_cert->enc_key->priv_key_data) {
+        } else if (dap_cert_is_private(l_sign_cert)) {
             l_esbocs_pvt->blocks_sign_key = l_sign_cert->enc_key;
             log_it(L_INFO, "Loaded \"%s\" certificate for net %s to sign ESBOCS blocks", l_sign_cert_str, a_chain->net_name);
         } else {
