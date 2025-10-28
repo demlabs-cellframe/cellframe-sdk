@@ -419,6 +419,174 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
     return l_ret;
 }
 
+/**
+ * @brief dap_chain_mempool_tx_create_extended
+ * Extended version of dap_chain_mempool_tx_create with support for arbitrary TSD sections
+ * 
+ * @param a_chain Target chain
+ * @param a_key_from Sender's private key
+ * @param a_addr_from Sender's address
+ * @param a_addr_to Recipient addresses (array)
+ * @param a_token_ticker Token ticker
+ * @param a_value Transfer values (array)
+ * @param a_value_fee Fee value
+ * @param a_hash_out_type Output hash type
+ * @param a_tx_num Number of outputs
+ * @param a_time_unlock Lock times (array, optional)
+ * @param a_tsd_list List of TSD sections to add (optional, can be NULL)
+ * @return Transaction hash string or NULL on error
+ */
+char *dap_chain_mempool_tx_create_extended(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+                                           const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
+                                           const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX], uint256_t *a_value,
+                                           uint256_t a_value_fee, const char *a_hash_out_type,
+                                           size_t a_tx_num, dap_time_t *a_time_unlock, dap_list_t *a_tsd_list)
+{
+    // Check valid param
+    dap_return_val_if_pass(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
+            dap_chain_addr_check_sum(a_addr_from) || !a_tx_num || !a_value, NULL);
+    for (size_t i = 0; i < a_tx_num; ++i) {
+        dap_return_val_if_pass((a_addr_to && dap_chain_addr_check_sum(a_addr_to[i])) || IS_ZERO_256(a_value[i]), NULL);
+    }
+
+    const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
+    bool l_single_channel = !dap_strcmp(a_token_ticker, l_native_ticker);
+    // Find the transactions from which to take away coins
+    uint256_t l_value_transfer = {}; // how many coins to transfer
+    uint256_t l_value_total = {}, l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
+    for (size_t i = 0; i < a_tx_num; ++i) {
+        SUM_256_256(l_value_total, a_value[i], &l_value_total);
+    }
+    uint256_t l_value_need = l_value_total;
+    dap_chain_addr_t l_addr_fee = {};
+    dap_list_t *l_list_fee_out = NULL;
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
+    SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    if (l_single_channel)
+        SUM_256_256(l_value_need, l_total_fee, &l_value_need);
+    else if (!IS_ZERO_256(l_total_fee)) {
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, a_addr_from, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                                    a_addr_from, l_total_fee, &l_fee_transfer);
+        if (!l_list_fee_out) {
+            log_it(L_WARNING, "Not enough funds to pay fee");
+            return NULL;
+        }
+    }
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+                                            a_addr_from, l_value_need, &l_value_transfer);
+    if (!l_list_used_out) {
+        log_it(L_WARNING, "Not enough funds to transfer");
+        return NULL;
+    }
+    // Create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    // Add 'in' items
+    {
+        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+        assert(EQUAL_256(l_value_to_items, l_value_transfer));
+        dap_list_free_full(l_list_used_out, NULL);
+        if (l_list_fee_out) {
+            uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+            assert(EQUAL_256(l_value_fee_items, l_fee_transfer));
+            dap_list_free_full(l_list_fee_out, NULL);
+        }
+
+    }
+    if (a_tx_num > 1) {
+        uint32_t l_tx_num = a_tx_num;
+        dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_tx_num, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
+        dap_chain_datum_tx_add_item(&l_tx, l_out_count);
+        DAP_DELETE(l_out_count);
+    }
+
+    // Add custom TSD sections if provided
+    if (a_tsd_list) {
+        for (dap_list_t *l_iter = a_tsd_list; l_iter; l_iter = l_iter->next) {
+            dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)l_iter->data;
+            if (l_tsd) {
+                if (dap_chain_datum_tx_add_item(&l_tx, l_tsd) != 1) {
+                    log_it(L_WARNING, "Failed to add custom TSD item to transaction");
+                    dap_chain_datum_tx_delete(l_tx);
+                    return NULL;
+                }
+            }
+        }
+    }
+
+    uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
+    for (size_t i = 0; i < a_tx_num; ++i) {
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_addr_to[i], a_value[i], a_token_ticker, a_time_unlock ? a_time_unlock[i] : 0) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        } else if (l_single_channel){
+            SUM_256_256(l_value_pack, a_value[i], &l_value_pack);
+        }
+    }
+
+    // Network fee
+    if (l_net_fee_used) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't add fee output");
+            return NULL;
+        }
+        if (l_single_channel)
+            SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+    }
+    // Validator fee
+    if (!IS_ZERO_256(a_value_fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't add fee output");
+            return NULL;
+        }
+        if (l_single_channel)
+            SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
+    }
+    // coin back
+    uint256_t l_value_back = {};
+    if (l_single_channel) {
+        SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+    } else {
+        SUBTRACT_256_256(l_value_transfer, l_value_total, &l_value_back);
+        if (!IS_ZERO_256(l_total_fee)) {
+            uint256_t l_fee_back = {};
+            SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_fee_back);
+            if (!IS_ZERO_256(l_fee_back)) {
+                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_fee_back, l_native_ticker) != 1) {
+                    dap_chain_datum_tx_delete(l_tx);
+                    log_it(L_WARNING, "Can't add fee back output");
+                    return NULL;
+                }
+            }
+        }
+    }
+    if (!IS_ZERO_256(l_value_back)) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back, a_token_ticker) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't add change output");
+            return NULL;
+        }
+    }
+    // add 'sign' item
+    if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_WARNING, "Can't add sign output");
+        return NULL;
+    }
+
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    dap_chain_datum_tx_delete(l_tx);
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, a_chain, a_hash_out_type);
+    DAP_DELETE(l_datum);
+    return l_ret;
+}
+
 
 /**
  * Make transfer transaction to collect block sign rewards and place it to the mempool
