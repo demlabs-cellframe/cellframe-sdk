@@ -1349,7 +1349,7 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
         dap_chain_datum_tx_t *l_stake_tx = dap_ledger_test_create_legacy_stake_tx_cond(a_from_key, a_hash_prev, dap_chain_uint256_from(200U), a_ledger);
         if (l_stake_tx) {
             dap_hash_fast(l_stake_tx, dap_chain_datum_tx_get_size(l_stake_tx), &l_stake_tx_hash);
-            // Try to add legacy stake transaction (should work with a_check_for_apply = true)
+            // Try to add legacy stake transaction (should work with a_from_mempool == false)
             int err_code = dap_ledger_tx_add(a_ledger, l_stake_tx, &l_stake_tx_hash, false, NULL);
             printf("Legacy stake tx add result: %d\n", err_code);
             dap_assert(!err_code, "Adding of legacy stake transaction to ledger is");
@@ -1383,7 +1383,7 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
         dap_chain_datum_tx_add_sign_item(&l_burning_tx, a_from_key);
         DAP_DEL_MULTY(l_in_ext, l_out_burn);
         dap_hash_fast(l_burning_tx, dap_chain_datum_tx_get_size(l_burning_tx), &l_burning_tx_hash);
-        // Try to add legacy stake transaction (should work with a_check_for_apply = true)
+        // Try to add legacy stake transaction (should work with a_from_mempool == false)
         int err_code = dap_ledger_tx_add(a_ledger, l_burning_tx, &l_burning_tx_hash, false, NULL);
         printf("Legacy burning tx add result: %d\n", err_code);
         dap_assert(!err_code, "Adding of legacy burning transaction to ledger is");

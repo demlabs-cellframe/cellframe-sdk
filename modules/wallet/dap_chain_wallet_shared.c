@@ -89,7 +89,7 @@ enum emit_delegation_error {
 #define LOG_TAG "dap_chain_wallet_shared"
 
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash,
-                                       dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner, bool UNUSED_ARG a_check_for_apply)
+                                       dap_chain_tx_out_cond_t *a_cond, bool UNUSED_ARG a_owner, bool UNUSED_ARG a_from_mempool)
 {
     size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];

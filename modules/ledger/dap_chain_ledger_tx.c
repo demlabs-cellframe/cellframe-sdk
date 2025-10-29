@@ -258,7 +258,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                             dap_chain_srv_uid_t *a_tag,
                             dap_chain_tx_tag_action_type_t *a_action,
                             bool a_check_for_removing,
-                            bool a_check_for_apply)
+                            bool a_from_mempool)
 {
     dap_return_val_if_fail(a_ledger && a_tx && a_tx_hash, DAP_LEDGER_CHECK_INVALID_ARGS);
     if (!a_from_threshold) {
@@ -370,7 +370,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 break;
             if ((l_girdled_ems = dap_hash_fast_is_blank(l_emission_hash)) ||
                     (l_stake_lock_emission = s_emissions_for_stake_lock_item_find(a_ledger, l_emission_hash))) {
-                if (l_stake_lock_emission && !a_check_for_apply) { // It's mempool process, so we don't accept f*cking legacy!
+                if (l_stake_lock_emission && a_from_mempool) { // It's mempool process, so we don't accept f*cking legacy!
                     log_it(L_WARNING, "Legacy stakes are not accepted from mempool anymore! Dismiss stake emission tx %s", dap_get_data_hash_str(a_tx, dap_chain_datum_tx_get_size(a_tx)).s);
                     l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN;
                     break;
@@ -819,7 +819,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
                     break;
                 }
-                l_err_num = l_verificator->callback_in_verify(a_ledger, a_tx, a_tx_hash, l_tx_prev_out_cond, l_owner, a_check_for_apply);
+                l_err_num = l_verificator->callback_in_verify(a_ledger, a_tx, a_tx_hash, l_tx_prev_out_cond, l_owner, a_from_mempool);
                 if (l_err_num != DAP_LEDGER_CHECK_OK && !dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true)) {
                     debug_if(g_debug_ledger, L_WARNING, "Verificator check error %d for conditional input %s",
                                                         l_err_num, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
@@ -1135,7 +1135,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 }
                 break;
             case TX_ITEM_TYPE_EVENT:
-                if (dap_ledger_pvt_event_verify_add(a_ledger, a_tx_hash, a_tx, false, a_check_for_apply)) {
+                if (dap_ledger_pvt_event_verify_add(a_ledger, a_tx_hash, a_tx, false, a_from_mempool)) {
                     l_err_num = DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE;
                     break;
                 }
@@ -1190,7 +1190,7 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         log_it (L_WARNING, "Inconsistent datum TX: datum size %zu != tx size %zu", a_datum_size, l_tx_size);
         return DAP_LEDGER_CHECK_INVALID_SIZE;
     }
-    int l_ret_check = s_tx_cache_check(a_ledger, a_tx, a_datum_hash, false, NULL, NULL, NULL, NULL, NULL, NULL, false, false);
+    int l_ret_check = s_tx_cache_check(a_ledger, a_tx, a_datum_hash, false, NULL, NULL, NULL, NULL, NULL, NULL, false, true);
     if(g_debug_ledger) {
         if (l_ret_check)
             log_it(L_NOTICE, "Ledger TX adding check not passed for TX %s: error %s",
@@ -1521,7 +1521,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     if( (l_ret_check = s_tx_cache_check(a_ledger, a_tx, &l_tx_hash, a_from_threshold,
                                         &l_list_bound_items, &l_list_tx_out,
                                         l_main_token_ticker, &l_values_from_cur_tx,
-                                        &l_tag, &l_action, false, true))) {
+                                        &l_tag, &l_action, false, false))) {
         if ((l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS ||
                 l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION) &&
                 is_ledger_threshld(l_ledger_pvt) && !dap_chain_net_get_load_mode(a_ledger->net)) {
@@ -2633,7 +2633,7 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
 {
     dap_hash_fast_t l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
     dap_chain_token_ticker_str_t l_ret = { };
-    int l_rc = s_tx_cache_check(a_ledger, a_tx, &l_tx_hash, false, NULL, NULL, (char*)&l_ret, NULL, NULL, NULL, false, false);
+    int l_rc = s_tx_cache_check(a_ledger, a_tx, &l_tx_hash, false, NULL, NULL, (char*)&l_ret, NULL, NULL, NULL, false, true);
     if (l_rc == DAP_LEDGER_CHECK_ALREADY_CACHED)
         dap_strncpy( (char*)&l_ret, dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_hash), DAP_CHAIN_TICKER_SIZE_MAX );
     if (a_ledger_rc)
