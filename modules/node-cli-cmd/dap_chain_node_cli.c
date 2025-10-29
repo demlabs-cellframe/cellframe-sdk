@@ -333,7 +333,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "json_datum_mempool_put  -net <net_name> [-chain <chain_name>] -json <json_file_path> | -tx_obj <tx_json_object>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction", dap_chain_node_cli_cmd_id_from_str("tx_cond_create"),
                 "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
-                " -cert <pub_cert_name> -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
+                " { -cert <pub_cert_name> | -pkey <pkey_hash> } -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
                 "Hint:\n"
                 "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
