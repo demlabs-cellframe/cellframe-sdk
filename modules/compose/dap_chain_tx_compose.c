@@ -776,7 +776,6 @@ static bool s_get_remote_net_fee_and_address(uint256_t *a_net_fee, dap_chain_add
 
     if(IS_ZERO_256(*a_net_fee)) {
         log_it(L_INFO, "%s network feee is zero", a_config->net_name);
-        s_json_compose_error_add(a_config->response_handler, -10, "%s network feee is zero", a_config->net_name);
         json_object_put(l_json_get_fee);
         return false;
     }
