@@ -37,6 +37,55 @@
 
 #define LOG_TAG "dap_chain_datum_tx_items"
 
+bool dap_chain_tx_belongs_to_addr(const dap_chain_datum_tx_t *a_tx, const dap_chain_addr_t *a_addr)
+{
+    if (!a_tx || !a_addr)
+        return false;
+
+    byte_t *l_item_out = NULL;
+    size_t l_item_out_size = 0;
+    int l_item_out_idx = 0;
+    TX_ITEM_ITER_TX_TYPE(l_item_out, TX_ITEM_TYPE_OUT, l_item_out_size, l_item_out_idx, (dap_chain_datum_tx_t *)a_tx) {
+        const dap_chain_tx_out_t *l_out = (const dap_chain_tx_out_t *)l_item_out;
+        if (dap_chain_addr_compare(&l_out->addr, a_addr))
+            return true;
+    }
+
+    byte_t *l_item_out_ext = NULL;
+    size_t l_item_out_ext_size = 0;
+    int l_item_out_ext_idx = 0;
+    TX_ITEM_ITER_TX_TYPE(l_item_out_ext, TX_ITEM_TYPE_OUT_EXT, l_item_out_ext_size, l_item_out_ext_idx, (dap_chain_datum_tx_t *)a_tx) {
+        const dap_chain_tx_out_ext_t *l_out_ext = (const dap_chain_tx_out_ext_t *)l_item_out_ext;
+        if (dap_chain_addr_compare(&l_out_ext->addr, a_addr))
+            return true;
+    }
+
+    byte_t *l_item_out_std = NULL;
+    size_t l_item_out_std_size = 0;
+    int l_item_out_std_idx = 0;
+    TX_ITEM_ITER_TX_TYPE(l_item_out_std, TX_ITEM_TYPE_OUT_STD, l_item_out_std_size, l_item_out_std_idx, (dap_chain_datum_tx_t *)a_tx) {
+        const dap_chain_tx_out_std_t *l_out_std = (const dap_chain_tx_out_std_t *)l_item_out_std;
+        if (dap_chain_addr_compare(&l_out_std->addr, a_addr))
+            return true;
+    }
+
+    byte_t *l_item_sig = NULL;
+    size_t l_item_sig_size = 0;
+    int l_item_sig_idx = 0;
+    TX_ITEM_ITER_TX_TYPE(l_item_sig, TX_ITEM_TYPE_SIG, l_item_sig_size, l_item_sig_idx, (dap_chain_datum_tx_t *)a_tx) {
+        const dap_chain_tx_sig_t *l_tx_sig = (const dap_chain_tx_sig_t *)l_item_sig;
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+        if (!l_sign)
+            continue;
+        dap_chain_addr_t l_signer_addr = {0};
+        if (dap_chain_addr_fill_from_sign(&l_signer_addr, l_sign, a_addr->net_id) == 0 &&
+                dap_chain_addr_compare(&l_signer_addr, a_addr))
+            return true;
+    }
+
+    return false;
+}
+
 /**
  * Get item type by item name
  *
