@@ -6695,7 +6695,8 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
         pthread_rwlock_wrlock(&l_ledger_pvt->events_rwlock);
     else
         pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
-    dap_ledger_event_t *l_event = NULL;
+    dap_ledger_event_t *l_event = NULL;  
+
     unsigned int l_hash_value = 0;
     HASH_VALUE(a_tx_hash, sizeof(dap_hash_fast_t), l_hash_value);
     HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->events, a_tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
@@ -6861,15 +6862,19 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
  */
  int dap_ledger_event_pkey_check(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash)
  {
-     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-     pthread_rwlock_rdlock(&l_ledger_pvt->event_pkeys_rwlock);
-     dap_ledger_event_pkey_item_t *l_item = NULL;
-         
-     HASH_FIND(hh, l_ledger_pvt->event_pkeys_allowed, a_pkey_hash, sizeof(dap_hash_fast_t), l_item);
-     pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->event_pkeys_rwlock);
+    dap_ledger_event_pkey_item_t *l_item = NULL;
+    // If no keys are in the allowed list, all keys are allowed by default
+    if (!l_ledger_pvt->event_pkeys_allowed) {
+        pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
+        return 0;
+    }    
+    HASH_FIND(hh, l_ledger_pvt->event_pkeys_allowed, a_pkey_hash, sizeof(dap_hash_fast_t), l_item);
+    pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
      
-     // If key found in allowed list - it's allowed
-     return l_item ? 0 : -1;
+    // If key found in allowed list - it's allowed
+    return l_item ? 0 : -1;
  }
  
  /**
