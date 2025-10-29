@@ -40,7 +40,6 @@
 #include "dap_chain_datum_token.h"
 #include "dap_global_db.h"
 #include "dap_chain_ledger.h"
-#include "json_object.h"
 #include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_ledger"

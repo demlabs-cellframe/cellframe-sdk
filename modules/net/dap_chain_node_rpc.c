@@ -289,7 +289,7 @@ int dap_chain_node_rpc_info_del(dap_chain_node_addr_t a_addr)
 
 /**
  * @brief Return string by rpc node list
- * @return pointer to json_object if Ok, NULL if error
+ * @return pointer to dap_json_t if Ok, NULL if error
  */
 dap_json_t *dap_chain_node_rpc_list()
 {

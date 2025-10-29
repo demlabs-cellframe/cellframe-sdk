@@ -38,7 +38,6 @@
 #include "rand/dap_rand.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_net_ch_pkt.h"
-#include "json_object.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_cli_server.h"
 #include "dap_chain_net_srv_order.h"

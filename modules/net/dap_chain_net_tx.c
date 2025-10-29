@@ -44,7 +44,6 @@
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv.h"
 #include "dap_enc_base64.h"
-#include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_json_rpc.h"
 
@@ -2015,7 +2014,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
     dap_json_object_add_object(json_obj_out, "items", json_arr_items);
 
     if(a_out_json) {
-        // Cast json_object to dap_json_t for assignment
+        // Cast dap_json_t to dap_json_t for assignment
         *(dap_json_t **)a_out_json = (dap_json_t *)json_obj_out;
     }
 

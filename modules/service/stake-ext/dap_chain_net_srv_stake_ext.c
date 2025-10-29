@@ -49,7 +49,6 @@
 #include "dap_chain_wallet.h"
 #include "dap_config.h"
 #include "json-c/json.h"
-#include "json_object.h"
 #include "uthash.h"
 #include "dap_chain_srv.h"
 
