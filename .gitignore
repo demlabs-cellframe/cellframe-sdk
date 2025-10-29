@@ -1,6 +1,6 @@
 # Prerequisites
-build/*
-debug/*
+build*/*
+debug*/*
 cmake-build-*/
 build_stretch/*
 test/build

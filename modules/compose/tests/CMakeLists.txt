@@ -10,7 +10,6 @@ add_executable(${PROJECT_NAME} ${DAP_COMPOSE_TESTS_SRC})
 target_include_directories(${PROJECT_NAME} 
     PUBLIC 
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/crypto/src/rand
 )
 
 # Link libraries
