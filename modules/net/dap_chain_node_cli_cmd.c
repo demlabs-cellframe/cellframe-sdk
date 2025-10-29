@@ -317,12 +317,14 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
             return -DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR;
         } else {
             json_object* json_node_list_obj = json_object_new_object();
-            if (!json_node_list_obj) return dap_json_rpc_allocation_put(json_node_list_obj),DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+            if (!json_node_list_obj)
+                return dap_json_rpc_allocation_put(json_node_list_obj), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+            
             json_object_object_add(json_node_list_obj, "got_nodes", json_object_new_uint64(l_nodes_count));
+            
             json_object* json_node_list_arr = json_object_new_array();
-            if (!json_node_list_arr) return dap_json_rpc_allocation_put(json_node_list_obj),DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;            
-            json_object_object_add(json_node_list_obj, "NODES", json_node_list_arr);
-            json_object_array_add(a_json_arr_reply, json_node_list_obj);
+            if (!json_node_list_arr)
+                return dap_json_rpc_allocation_put(json_node_list_obj), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
 
             for (size_t i = 0; i < l_nodes_count; i++) {
                 if (!l_objs[i].value) {
