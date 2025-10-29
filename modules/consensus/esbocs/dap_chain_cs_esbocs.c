@@ -285,9 +285,9 @@ int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
-// #ifdef  DAP_LEDGER_TEST
-//     return 0;
-// #endif
+#ifdef  DAP_LEDGER_TEST
+    return 0;
+#endif
     const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_prefix");
     if (!l_auth_certs_prefix)
         return -1;
@@ -345,7 +345,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             l_ret = -8;
             break;
         }
-        
+
         dap_chain_addr_t l_signing_addr;
         log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
         dap_chain_addr_fill_from_key(&l_signing_addr, l_cert_cur->enc_key, a_chain->net_id);
