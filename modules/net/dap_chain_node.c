@@ -855,7 +855,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                     l_datum->header.type_id != DAP_CHAIN_DATUM_ANCHOR)
                 continue;
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
-                log_it(L_WARNING, "Trying to process hardfork %s datum with incorrect size %zu (expect %zu)",
+                log_it(L_WARNING, "Trying to process hardfork %s datum with incorrect size %"DAP_UINT64_FORMAT_U" (expect %zu)",
                                             l_datum->header.type_id == DAP_CHAIN_DATUM_SERVICE_STATE ? "service state" : "anchor",
                                                 dap_chain_datum_size(l_datum), l_objs[i].value_len);
                 continue;
@@ -1022,7 +1022,7 @@ static int s_compare_events(dap_ledger_hardfork_events_t *a_list1, dap_ledger_ha
 int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, bool a_remove)
 {
     if (a_datum_size <= sizeof(dap_chain_datum_t) || dap_chain_datum_size(a_datum) != a_datum_size) {
-        log_it(L_WARNING, "Incorrect harfork datum size %zu", a_datum_size <= sizeof(dap_chain_datum_t) ? a_datum_size : dap_chain_datum_size(a_datum));
+        log_it(L_WARNING, "Incorrect harfork datum size %"DAP_UINT64_FORMAT_U, a_datum_size <= sizeof(dap_chain_datum_t) ? a_datum_size : dap_chain_datum_size(a_datum));
         return -1;
     }
     switch (a_datum->header.type_id) {
@@ -1280,7 +1280,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             }
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
-                log_it(L_WARNING, "Harfork datum service state with incorrect size %zu", dap_chain_datum_size(l_datum));
+                log_it(L_WARNING, "Harfork datum service state with incorrect size %"DAP_UINT64_FORMAT_U, dap_chain_datum_size(l_datum));
                 m_ret(-13);
             }
             dap_hash_str_t l_key = dap_get_data_hash_str(a_datum->data, a_datum->header.data_size);

@@ -213,7 +213,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addr(dap_chain_net_t *a_net);
-void dap_chain_net_announce_addr_all();
+void dap_chain_net_announce_addr_all(void *arg);
 char *dap_chain_net_links_dump(dap_chain_net_t*);
 dap_json_t *dap_chain_net_states_json_collect(dap_chain_net_t * l_net, int a_version);
 dap_json_t *dap_chain_net_list_json_collect(int a_version);

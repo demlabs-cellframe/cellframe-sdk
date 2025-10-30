@@ -112,6 +112,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include "dap_json.h"
 
 #define LOG_TAG "chain_net"
 
@@ -886,7 +887,7 @@ dap_string_t* dap_cli_list_net()
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version) {
     if (!a_net || !a_json_out)
         return;
-    char l_id_buff[17]={0};
+    char l_id_buff[20]= { };
     sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, a_net->pub.id.uint64);
     dap_json_object_add_object(a_json_out, "net", dap_json_object_new_string(a_net->pub.name));
     dap_json_object_add_object(a_json_out, "id", dap_json_object_new_string(l_id_buff));
@@ -914,7 +915,7 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
         dap_json_object_add_object(a_json_out, "links", l_jobj_links);
     }
     if (a_net->pub.bridged_networks_count) {
-        dap_json_t *l_bridget = json_object_new_array();
+        dap_json_t *l_bridget = dap_json_array_new();
         uint16_t l_bridget_count = 0;  // if can't get any info about bridget net
         for (uint16_t i = 0; i < a_net->pub.bridged_networks_count; ++i) {
             dap_chain_net_t *l_bridget_net = dap_chain_net_by_id(a_net->pub.bridged_networks[i]); 

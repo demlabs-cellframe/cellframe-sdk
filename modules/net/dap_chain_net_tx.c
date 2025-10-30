@@ -1305,7 +1305,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 break;
             }
             
-            int64_t l_min_sig_count;
+            uint64_t l_min_sig_count;
             if(!dap_json_object_get_uint64_ext(a_json_item_obj, "min_sig_count", &l_min_sig_count)) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
@@ -1337,7 +1337,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             bool l_pkey_hashes_valid = true;
             for(size_t j = 0; j < l_pkey_hashes_count; j++) {
                 dap_json_t *l_json_hash = dap_json_array_get_idx(l_json_pkey_hashes, j);
-                if(!l_json_hash || !dap_json_is_string(json_type_string)) {
+                if(!l_json_hash || !dap_json_is_string(l_json_hash)) {
                     dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Invalid pkey hash at index %zu", j);
                     log_it(L_ERROR, "Json TX: invalid pkey hash at index %zu", j);
                     l_pkey_hashes_valid = false;
@@ -1973,10 +1973,8 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
             dap_json_t *l_json_array = dap_json_array_new();
             dap_json_object_add_string(json_obj_item, "token", l_voting_params->token_ticker);
             dap_list_t *l_temp = l_voting_params->options;
-            uint8_t l_index = 0;
             while (l_temp) {
                 dap_json_array_add(l_json_array, dap_json_object_new_string((char *)l_temp->data));
-                l_index++;
                 l_temp = l_temp->next;
             }
             dap_json_object_add_object(json_obj_item, "answer_options", l_json_array);
