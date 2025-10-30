@@ -676,6 +676,10 @@ int dap_chain_load_all(dap_chain_t *a_chain)
     dap_time_t l_ts_start = dap_time_now();
     for (int i = 0; i < l_cell_idx; i++) {
         dap_timerfd_t* l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_load_notify_callback, a_chain);
+        if (!l_load_notify_timer) {
+            log_it(L_ERROR, "Cannot create notify timer");
+            return -4;
+        }
         l_err = dap_chain_cell_open(a_chain, l_cell_ids[i], 'a');
         dap_timerfd_delete(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
         if (l_err) {
