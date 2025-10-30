@@ -636,12 +636,13 @@ dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
             l_jobj_percent = dap_json_object_new_string(l_percent_str);
             DAP_DELETE(l_percent_str);
         }
-        dap_json_t *l_jobj_current = dap_json_object_new_uint64(l_chain->callback_count_atom(l_chain));
-        dap_json_t *l_jobj_total = dap_json_object_new_uint64(l_chain->atom_num_last);
+        char l_id_buff[20]={0};
+        sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, l_chain->id.uint64);
+        dap_json_object_add_string(l_jobj_chain, "id", l_id_buff);
         dap_json_object_add_int(l_jobj_chain, "generation", l_chain->generation);
         dap_json_object_add_object(l_jobj_chain, "status", l_jobj_chain_status);
-        dap_json_object_add_object(l_jobj_chain, "current", l_jobj_current);
-        dap_json_object_add_object(l_jobj_chain, a_version == 1 ? "in network" : "in_network", l_jobj_total);
+        dap_json_object_add_uint64(l_jobj_chain, "current", l_chain->callback_count_atom(l_chain));
+        dap_json_object_add_uint64(l_jobj_chain, a_version == 1 ? "in network" : "in_network", l_chain->atom_num_last);
         dap_json_object_add_object(l_jobj_chain, "percent", l_jobj_percent);
         dap_json_object_add_object(l_jobj_chains_array, l_chain->name, l_jobj_chain);
 
