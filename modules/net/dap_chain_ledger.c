@@ -2329,24 +2329,50 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_instance_t 
     for (size_t i = 0; i < a_values_count; i++) {
         if (a_values[i].value_len <= sizeof(dap_hash_fast_t))
             continue;
-        const char *c_token_ticker = ((dap_chain_datum_token_emission_t *)
-                                      (a_values[i].value + sizeof(dap_hash_fast_t)))->hdr.ticker;
+        
+        /* Check alignment of emission pointer (must be 8-byte aligned for correct struct access) */
+        void *l_emission_ptr = a_values[i].value + sizeof(dap_hash_fast_t);
+        size_t l_emission_size = a_values[i].value_len - sizeof(dap_hash_fast_t);
+        bool l_is_unaligned = ((uintptr_t)l_emission_ptr & 0x7) != 0;
+        dap_chain_datum_token_emission_t *l_emission_aligned = (dap_chain_datum_token_emission_t *)l_emission_ptr;
+        
+        if (l_is_unaligned) {
+            log_it(L_WARNING, "Unaligned emission pointer %p from GDB cache, copying to aligned buffer", l_emission_ptr);
+            /* Allocate aligned buffer and copy emission data */
+            l_emission_aligned = DAP_NEW_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
+            if (!l_emission_aligned) {
+                log_it(L_CRITICAL, "Memory allocation failed for aligned emission copy");
+                continue;
+            }
+            memcpy(l_emission_aligned, l_emission_ptr, l_emission_size);
+        }
+        
+        const char *c_token_ticker = l_emission_aligned->hdr.ticker;
         dap_ledger_token_item_t *l_token_item = NULL;
         HASH_FIND_STR(l_ledger_pvt->tokens, c_token_ticker, l_token_item);
         if (!l_token_item) {
             log_it(L_WARNING, "Not found token with ticker [%s], need to 'ledger reload' to update cache", c_token_ticker);
+            if (l_is_unaligned)
+                DAP_DELETE(l_emission_aligned);
             continue;
         }
         dap_ledger_token_emission_item_t *l_emission_item = DAP_NEW_Z(dap_ledger_token_emission_item_t);
         if ( !l_emission_item ) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            if (l_is_unaligned)
+                DAP_DELETE(l_emission_aligned);
             return false;
         }
         dap_chain_hash_fast_from_str(a_values[i].key, &l_emission_item->datum_token_emission_hash);
         l_emission_item->tx_used_out = *(dap_hash_fast_t*)a_values[i].value;
-        l_emission_item->datum_token_emission = DAP_DUP_SIZE(a_values[i].value + sizeof(dap_hash_fast_t),
-                                                             a_values[i].value_len - sizeof(dap_hash_fast_t));
-        l_emission_item->datum_token_emission_size = a_values[i].value_len - sizeof(dap_hash_fast_t);
+        
+        /* If we made an aligned copy, store it; otherwise duplicate from original buffer */
+        if (l_is_unaligned) {
+            l_emission_item->datum_token_emission = l_emission_aligned; /* Transfer ownership */
+        } else {
+            l_emission_item->datum_token_emission = DAP_DUP_SIZE(l_emission_ptr, l_emission_size);
+        }
+        l_emission_item->datum_token_emission_size = l_emission_size;
         HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash,
                  sizeof(dap_chain_hash_fast_t), l_emission_item);
     }
@@ -2390,14 +2416,37 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
             continue;
         dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t *)(a_values[i].value + sizeof(uint256_t));
         size_t l_token_size = a_values[i].value_len - sizeof(uint256_t);
-        if (strcmp(l_token->ticker, a_values[i].key)) {
+        
+        /* Check alignment of l_token pointer (must be 8-byte aligned for correct struct access) */
+        bool l_is_unaligned = ((uintptr_t)l_token & 0x7) != 0;
+        dap_chain_datum_token_t *l_token_aligned = l_token;
+        
+        if (l_is_unaligned) {
+            log_it(L_WARNING, "Unaligned token pointer %p (ticker: %s) from GDB cache, copying to aligned buffer", 
+                   l_token, a_values[i].key);
+            /* Allocate aligned buffer and copy token data */
+            l_token_aligned = DAP_NEW_SIZE(dap_chain_datum_token_t, l_token_size);
+            if (!l_token_aligned) {
+                log_it(L_CRITICAL, "Memory allocation failed for aligned token copy");
+                continue;
+            }
+            memcpy(l_token_aligned, l_token, l_token_size);
+        }
+        
+        if (strcmp(l_token_aligned->ticker, a_values[i].key)) {
             log_it(L_WARNING, "Corrupted token with ticker [%s], need to 'ledger reload' to update cache", a_values[i].key);
+            if (l_is_unaligned)
+                DAP_DELETE(l_token_aligned);
             continue;
         }
-        dap_ledger_token_add(l_ledger, (byte_t *)l_token, l_token_size, dap_time_now());
-        dap_ledger_token_item_t *l_token_item = s_ledger_find_token(l_ledger, l_token->ticker);
+        dap_ledger_token_add(l_ledger, (byte_t *)l_token_aligned, l_token_size, dap_time_now());
+        dap_ledger_token_item_t *l_token_item = s_ledger_find_token(l_ledger, l_token_aligned->ticker);
         if (l_token_item)
             l_token_item->current_supply = *(uint256_t*)a_values[i].value;
+        
+        /* Free aligned copy if it was allocated */
+        if (l_is_unaligned)
+            DAP_DELETE(l_token_aligned);
     }
 
     char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_EMISSIONS_STR);
