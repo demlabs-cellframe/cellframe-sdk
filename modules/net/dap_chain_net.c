@@ -615,6 +615,9 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
         }
         json_object *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
+        char l_id_buff[20]={0};
+        sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, l_chain->id.uint64);
+        json_object_object_add(l_jobj_chain, "id", json_object_new_string(l_id_buff));
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
         json_object_object_add(l_jobj_chain, "current", l_jobj_current);
         json_object_object_add(l_jobj_chain, a_version == 1 ? "in network" : "in_network", l_jobj_total);
@@ -874,9 +877,8 @@ dap_string_t* dap_cli_list_net()
 }
 
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_object *a_json_out, int a_version) {
-    if (!a_net || !a_json_out)
-        return;
-    char l_id_buff[17]={0};
+    dap_return_if_pass(!a_net || !a_json_out);
+    char l_id_buff[20]={0};
     sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x"", a_net->pub.id.uint64);
     json_object_object_add(a_json_out, "net", json_object_new_string(a_net->pub.name));
     json_object_object_add(a_json_out, "id", json_object_new_string(l_id_buff));

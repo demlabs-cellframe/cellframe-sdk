@@ -2850,10 +2850,8 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
             json_object *l_json_array = json_object_new_array();
             json_object_object_add(json_obj_item, "token", json_object_new_string(l_voting_params->token_ticker));
             dap_list_t *l_temp = l_voting_params->answers_list;
-            uint8_t l_index = 0;
             while (l_temp) {
                 json_object_array_add(l_json_array, json_object_new_string((char *)l_temp->data));
-                l_index++;
                 l_temp = l_temp->next;
             }
             json_object_object_add(json_obj_item, "answer_options", l_json_array);
