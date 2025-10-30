@@ -82,6 +82,7 @@ static pfn_NtExtendSection pfnNtExtendSection;
 #endif
 
 static bool s_debug_more = false;
+static atomic_bool s_load_skip = false;
 
 /**
  * @brief dap_chain_cell_init
@@ -455,7 +456,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     uint64_t l_el_size = 0, q = 0;
     if (a_chain->is_mapped) {
         dap_hash_fast_t l_atom_hash;
-        for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
+        for ( off_t l_vol_rest = 0; !s_load_skip && l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
             l_vol_rest = (off_t)(a_cell->map_end - a_cell->map_pos) - sizeof(uint64_t);
             if ( l_vol_rest <= 0 || (uint64_t)l_vol_rest < *(uint64_t*)a_cell->map_pos )
                 if ( s_cell_map_new_volume(a_cell, l_pos, true) ) {
@@ -479,7 +480,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     } else { 
         DAP_DELETE(l_hdr);
         size_t l_read = 0;
-        while ((l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage)) && !feof(a_cell->file_storage)) {
+        while (!s_load_skip && (l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage)) && !feof(a_cell->file_storage)) {
             if (l_read != sizeof(l_el_size) || l_el_size == 0) {
                 log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, a_cell->file_storage_path);
                 l_ret = -4;
@@ -510,7 +511,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             ++q;
         }
     }
-    if ( l_pos < l_full_size ) {
+    if ( !s_load_skip && l_pos < l_full_size ) {
         log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %zu bytes",
                         a_cell->file_storage_path, l_full_size - l_pos );
 #ifdef DAP_OS_WINDOWS
@@ -690,3 +691,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     return l_total_res;
 }
 
+void dap_chain_cell_set_load_skip()
+{
+    s_load_skip = true;
+}

@@ -122,6 +122,7 @@
 static bool s_debug_more = false;
 static const int c_sync_timer_period = 5000;  // msec
 static bool s_server_enabled = false;
+static atomic_bool s_load_skip = false;
 
 struct request_link_info {
     char addr[DAP_HOSTADDR_STRLEN + 1];
@@ -2030,7 +2031,7 @@ static void *s_net_load(void *a_arg)
     dap_chain_t *l_chain = l_net->pub.chains;
     clock_t l_chain_load_start_time; 
     l_chain_load_start_time = clock(); 
-    while (l_chain) {
+    while (!s_load_skip && l_chain) {
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         if (!dap_chain_load_all(l_chain)) {
@@ -3377,6 +3378,11 @@ bool dap_chain_net_stop(dap_chain_net_t *a_net)
         log_it(L_ERROR, "Can't stop net %s", a_net->pub.name);
     }
     return l_ret;
+}
+
+void dap_chain_net_set_load_skip()
+{
+    s_load_skip = true;
 }
 
 /*------------------------------------State machine block end---------------------------------*/

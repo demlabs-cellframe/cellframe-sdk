@@ -87,3 +87,4 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell,const void *a_atom, 
 DAP_STATIC_INLINE ssize_t dap_chain_cell_file_update(dap_chain_cell_t *a_cell) {
     return dap_chain_cell_file_append(a_cell, NULL, 0);
 }
+void dap_chain_cell_set_load_skip();

@@ -7444,6 +7444,8 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_ver
     UNUSED(a_argv);
     UNUSED(a_str_reply);
     dap_events_stop_all();
+    dap_chain_cell_set_load_skip();
+    dap_chain_net_set_load_skip();
     return 0;
 }
 
