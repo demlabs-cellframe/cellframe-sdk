@@ -121,6 +121,7 @@
 static bool s_debug_more = false;
 static const int c_sync_timer_period = 5000;  // msec
 static bool s_server_enabled = false;
+static atomic_bool s_load_skip = false;
 
 struct request_link_info {
     char addr[DAP_HOSTADDR_STRLEN + 1];
@@ -2064,6 +2065,8 @@ static void *s_net_load(void *a_arg)
     char l_gdb_groups_mask[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (s_load_skip)
+            break;
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         int l_ret = dap_chain_load_all(l_chain);
@@ -3350,4 +3353,9 @@ bool dap_chain_net_is_bridged(dap_chain_net_t *a_net, dap_chain_net_id_t a_net_i
             l_ret = a_net->pub.bridged_networks[i].uint64 == a_net_id.uint64;
     }
     return l_ret;
+}
+
+DAP_INLINE void dap_chain_net_set_load_skip()
+{
+    s_load_skip = true;
 }

@@ -5323,6 +5323,8 @@ int com_exit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_vers
     UNUSED(a_argv);
     UNUSED(a_json_arr_reply);
     dap_events_stop_all();
+    dap_chain_cell_set_load_skip();
+    dap_chain_net_set_load_skip();
     return 0;
 }
 

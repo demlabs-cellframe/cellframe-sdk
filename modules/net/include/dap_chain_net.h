@@ -219,6 +219,7 @@ dap_json_t *dap_chain_net_states_json_collect(dap_chain_net_t * l_net, int a_ver
 dap_json_t *dap_chain_net_list_json_collect(int a_version);
 dap_json_t *dap_chain_nets_info_json_collect(int a_version);
 bool dap_chain_net_is_bridged(dap_chain_net_t *a_net, dap_chain_net_id_t a_net_id);
+void dap_chain_net_set_load_skip();
 #ifdef __cplusplus
 }
 #endif
