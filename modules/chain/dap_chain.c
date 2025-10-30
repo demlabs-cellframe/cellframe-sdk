@@ -575,6 +575,11 @@ int dap_chain_load_all(dap_chain_t *a_chain)
             sscanf(l_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
             dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64 });
             dap_timerfd_t* l_download_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)download_notify_callback, a_chain);
+            if (!l_download_notify_timer) {
+                log_it(L_ERROR, "Cannot create notify timer");
+                closedir(l_dir);
+                return -4;
+            }
             l_ret += dap_chain_cell_load(a_chain, l_cell);
             if ( DAP_CHAIN_PVT(a_chain)->need_reorder ) {
 #ifdef DAP_OS_WINDOWS
