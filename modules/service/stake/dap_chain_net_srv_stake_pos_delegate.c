@@ -3956,7 +3956,6 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
         return NULL;
     }     
 
-    const char *l_native_ticker = a_net->pub.native_ticker;
     if (!a_chain->callback_datum_iter_create) {
         log_it(L_WARNING, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
@@ -3997,7 +3996,6 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
                             l_datum = iter_direc(l_datum_iter))
     {
         dap_hash_fast_t l_ttx_hash = {0};
-        dap_chain_hash_fast_t l_datum_hash;
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_hash_fast(l_tx, l_datum->header.data_size, &l_ttx_hash);
         const char *l_tx_token_ticker = NULL;        
@@ -4080,7 +4078,6 @@ static dap_json_t* s_dap_chain_net_srv_stake_reward_all(dap_json_t* a_json_arr_r
                 json_block_hash = dap_json_object_new();
                 dap_json_object_add_string(json_block_hash, a_version == 1 ? "block hash" : "block_hash", dap_chain_hash_fast_to_str_static(&l_in_reward->block_hash)); 
                 dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-                size_t l_sign_size = dap_sign_get_size(l_sign);
                 dap_chain_hash_fast_t l_pkey_hash;
                 dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
                 char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
