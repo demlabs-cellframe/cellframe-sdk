@@ -1562,7 +1562,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
-    const char *l_datum_str = json_object_to_json_string(a_tx_json);
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
         json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
@@ -1593,7 +1592,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
         }
     }
-    l_datum_str = json_object_to_json_string(a_tx_json);
     return dap_chain_tx_datum_from_json(a_tx_json, a_net, a_json_obj_error, a_out_tx, a_items_count, a_items_ready);
 }
 
