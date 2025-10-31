@@ -1563,43 +1563,37 @@ uint8_t *s_dap_chain_net_tx_create_vote_item(dap_json_t *a_json_item_obj, dap_js
     return NULL;
 }
 
-int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_json_obj_error, 
+int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_json_obj_error, 
                                         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
     dap_return_val_if_pass(!a_tx_json || !a_out_tx, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS);
 
     // Read items from json file
-    json_object *l_json_items = json_object_object_get(a_tx_json, "items");
+    dap_json_t *l_json_items = dap_json_object_get_object(a_tx_json, "items");
     size_t l_items_count;
-    if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
+    if(!l_json_items || !dap_json_is_array(l_json_items) || !(l_items_count = dap_json_array_length(l_json_items))) {
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
-        json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
-        if(!l_json_item_obj || !json_object_is_type(l_json_item_obj, json_type_object)) {
+        dap_json_t *l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
+        if(!l_json_item_obj || !dap_json_is_object(l_json_item_obj)) {
             continue;
         }
-        json_object *l_json_item_type = json_object_object_get(l_json_item_obj, "type");
-        if(!l_json_item_type && json_object_is_type(l_json_item_type, json_type_string)) {
-            log_it(L_WARNING, "Item %zu without type", i);
-            continue;
-        }
-        const char *l_item_type_str = json_object_get_string(l_json_item_type);
+        const char *l_item_type_str = dap_json_object_get_string(l_json_item_obj, "type");
         dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
         if(l_item_type != TX_ITEM_TYPE_TSD) {
-            log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
             continue;
         }
 
         int64_t l_tsd_type = 0;
-        if(dap_json_rpc_get_int64(l_json_item_obj, "type_tsd", &l_tsd_type)) {
-            json_object_object_add(l_json_item_obj,"data_type", json_object_new_int(l_tsd_type));
-            const char *l_tsd_data = dap_json_rpc_get_text(l_json_item_obj, "data");
+        if(dap_json_object_get_int64_ext(l_json_item_obj, "type_tsd", &l_tsd_type)) {
+            dap_json_object_add_int(l_json_item_obj,"data_type", l_tsd_type);
+            const char *l_tsd_data = dap_json_object_get_string(l_json_item_obj, "data");
             if (l_tsd_data) {
-                json_object_object_add(l_json_item_obj,"data_size", json_object_new_uint64(strlen(l_tsd_data)));
+                dap_json_object_add_uint64(l_json_item_obj,"data_size", strlen(l_tsd_data));
                 char *l_tsd_str = dap_enc_base58_encode_to_str(l_tsd_data, strlen(l_tsd_data));
-                json_object_object_add(l_json_item_obj,"data", json_object_new_string(l_tsd_str));
+                dap_json_object_add_string(l_json_item_obj,"data", l_tsd_str);
                 DAP_DELETE(l_tsd_str);
             }
         }
@@ -1607,15 +1601,15 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     return dap_chain_tx_datum_from_json(a_tx_json, a_net, a_json_obj_error, a_out_tx, a_items_count, a_items_ready);
 }
 
-static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net, dap_list_t *a_in_list, uint256_t a_value_need, uint256_t a_value_need_fee, json_object *a_jobj_errors)
+static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net, dap_list_t *a_in_list, uint256_t a_value_need, uint256_t a_value_need_fee, dap_json_t *a_jobj_errors)
 {
     dap_return_val_if_pass(!a_tx || !a_net || IS_ZERO_256(a_value_need), 0);
     int l_ret = 0;
     for(dap_list_t *l_list = a_in_list; l_list; l_list = dap_list_next(l_list)) {
-        json_object *l_json_item_obj = (json_object*) l_list->data;
+        dap_json_t *l_json_item_obj = (dap_json_t *) l_list->data;
 
-        const char *l_json_item_addr_str = dap_json_rpc_get_text(l_json_item_obj, "addr_from");
-        const char *l_json_item_token = dap_json_rpc_get_text(l_json_item_obj, "token");
+        const char *l_json_item_addr_str = dap_json_object_get_string(l_json_item_obj, "addr_from");
+        const char *l_json_item_token = dap_json_object_get_string(l_json_item_obj, "token");
         dap_chain_addr_t *l_addr_from = NULL;
         if(l_json_item_addr_str) {
             l_addr_from = dap_chain_addr_from_str(l_json_item_addr_str);
@@ -1648,7 +1642,7 @@ static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net
         if (!dap_strcmp(a_net->pub.native_ticker, l_json_item_token)) {
             SUM_256_256(l_value_need_check, a_value_need, &l_value_need_check);
             SUM_256_256(l_value_need_check, a_value_need_fee, &l_value_need_check);
-            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
+            l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
                                                                                         l_addr_from, l_value_need_check, &l_value_transfer);
             if(!l_list_used_out) {
                 log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -1658,7 +1652,7 @@ static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net
             }
         } else {
             //CHECK value need
-            l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
+            l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
                                                                                         l_addr_from, a_value_need, &l_value_transfer);
             if(!l_list_used_out) {
                 log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -1667,7 +1661,7 @@ static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net
                 continue;
             }
             //CHECK value fee
-            l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, a_net->pub.native_ticker,
+            l_list_used_out_fee = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, a_net->pub.native_ticker,
                                                                                 l_addr_from, a_value_need_fee, &l_value_transfer_fee);
             if(!l_list_used_out_fee) {
                 log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -1707,7 +1701,7 @@ static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net
     return l_ret;
 }
 
-int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_arr_errors, 
+int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_jobj_arr_errors, 
         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
 
@@ -1860,7 +1854,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
     dap_list_free(l_in_list);
     // Add signs
     for(dap_list_t *l_list = l_sign_list; l_list; l_list = dap_list_next(l_list) ) {
-        json_object *l_json_item_obj = (json_object*) l_list->data;
+        dap_json_t *l_json_item_obj = (dap_json_t *) l_list->data;
         dap_enc_key_t * l_enc_key  = NULL;
         
         //get wallet or cert
