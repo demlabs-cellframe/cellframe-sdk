@@ -26,6 +26,7 @@
 
 #include "dap_chain_cache.h"
 #include "dap_global_db.h"
+#include "dap_string.h"
 #include <pthread.h>
 #include <stdatomic.h>
 #include <sys/time.h>
@@ -59,6 +60,16 @@ typedef struct dap_chain_cache_batch_entry {
 } dap_chain_cache_batch_entry_t;
 
 /**
+ * @brief In-memory cell cache for batch loading
+ * Hash table for fast O(1) lookups during cell file loading
+ */
+typedef struct dap_chain_cache_cell_entry {
+    dap_hash_fast_t block_hash;           // Key
+    dap_chain_cache_entry_t cache_entry;  // Value
+    UT_hash_handle hh;                     // UTHash handle
+} dap_chain_cache_cell_entry_t;
+
+/**
  * @brief Internal cache structure
  */
 struct dap_chain_cache {
@@ -70,6 +81,7 @@ struct dap_chain_cache {
     uint32_t compaction_threshold;          // Compaction trigger (block count)
     bool compaction_async;                  // Run compaction in background
     bool debug;                             // Debug logging
+    bool legacy_fallback;                   // Allow fallback to legacy groups (local.cache, old per-chain)
     
     // Incremental save state
     atomic_uint incremental_count;          // Incremental blocks saved (atomic for thread-safety)
@@ -103,6 +115,9 @@ struct dap_chain_cache {
     // GlobalDB group names
     char *gdb_group;                        // "chain.cache"
     char *gdb_subgroup;                     // "{net_name}.{chain_name}"
+    
+    // Validation/cleanup metrics
+    atomic_ullong invalid_entries_ignored;  // Legacy entries skipped due to invalid size/corruption
 };
 
 /**
@@ -145,6 +160,46 @@ static inline char *s_cache_build_block_key(const dap_hash_fast_t *a_hash)
 {
     return dap_hash_fast_to_str_new(a_hash);
 }
+
+/**
+ * @brief Compact cell index structures (Plan C)
+ */
+
+typedef struct DAP_ALIGN_PACKED dap_chain_block_index_entry {
+    dap_hash_fast_t block_hash;    // 32 bytes
+    uint64_t        file_offset;   // 8 bytes
+    uint32_t        block_size;    // 4 bytes
+    uint32_t        tx_count;      // 4 bytes
+} dap_chain_block_index_entry_t;
+
+typedef struct DAP_ALIGN_PACKED dap_chain_cell_compact_header {
+    uint64_t cell_id;              // 8 bytes
+    uint32_t block_count;          // 4 bytes
+    uint32_t reserved;             // 4 bytes (alignment)
+} dap_chain_cell_compact_header_t;
+
+// Build cell key: "{subgroup}.cell_<id>"
+static inline char *s_cache_build_cell_key(const char *a_subgroup, uint64_t a_cell_id)
+{
+    return dap_strdup_printf("%s.cell_%016"DAP_UINT64_FORMAT_x, a_subgroup, a_cell_id);
+}
+
+// Build "cell ready" marker key: "{subgroup}.cell_<id>.ready"
+static inline char *s_cache_build_cell_ready_key(const char *a_subgroup, uint64_t a_cell_id)
+{
+    return dap_strdup_printf("%s.cell_%016"DAP_UINT64_FORMAT_x".ready", a_subgroup, a_cell_id);
+}
+
+// Save compact cell index into GlobalDB
+int dap_chain_cache_save_cell_index(struct dap_chain_cache *a_cache,
+                                    uint64_t a_cell_id,
+                                    const dap_chain_block_index_entry_t *a_entries,
+                                    uint32_t a_count);
+
+// Append single block index entry into compact cell record (read-modify-write)
+int dap_chain_cache_append_cell_entry(struct dap_chain_cache *a_cache,
+                                      uint64_t a_cell_id,
+                                      const dap_chain_block_index_entry_t *a_entry);
 
 /**
  * @brief Internal functions

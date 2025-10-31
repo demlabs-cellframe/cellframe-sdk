@@ -24,6 +24,7 @@
 
 #include "dap_chain_cache.h"
 #include "dap_chain_cache_internal.h"
+#include "dap_chain_cell.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
@@ -34,8 +35,13 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <string.h>
+#include <sys/types.h>
 
 #define LOG_TAG "dap_chain_cache"
+
+// Forward declaration to ensure availability for C compilers if header include paths differ
+extern void *dap_chain_cell_read_atom_by_offset(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
+                                               off_t a_offset, size_t *a_atom_size);
 
 // Global init flag
 static bool s_cache_initialized = false;
@@ -117,6 +123,7 @@ dap_chain_cache_t *dap_chain_cache_create(dap_chain_t *a_chain, dap_config_t *a_
     l_cache->compaction_threshold = l_threshold;
     
     l_cache->compaction_async = dap_config_get_item_bool_default(a_config, "chain", "cache_compaction_async", true);
+    l_cache->legacy_fallback = dap_config_get_item_bool_default(a_config, "chain", "cache_legacy_fallback", false);
     l_cache->debug = dap_config_get_item_bool_default(a_config, "chain", "cache_debug", false);
     
     // Initialize incremental counter
@@ -143,17 +150,20 @@ dap_chain_cache_t *dap_chain_cache_create(dap_chain_t *a_chain, dap_config_t *a_
     l_cache->compaction_in_progress = false;
     
     // Initialize batch buffer for performance during cell loading
-    // Use larger batch size (500) to reduce number of GlobalDB transactions
-    l_cache->batch_capacity = 500;  // Flush every 500 blocks
+    // Use large batch size (10000) to minimize number of GlobalDB transactions
+    // Memory usage: 10000 * 56 bytes = ~560 KB (acceptable)
+    l_cache->batch_capacity = 10000;  // Flush every 10000 blocks
     l_cache->batch_buffer = DAP_NEW_Z_SIZE(dap_chain_cache_batch_entry_t, 
                                            l_cache->batch_capacity * sizeof(dap_chain_cache_batch_entry_t));
     l_cache->batch_size = 0;
     pthread_mutex_init(&l_cache->batch_lock, NULL);
     
     // Build GlobalDB group names
-    // Format: "local.cache" - simple 2-level local group
-    // Network and chain info will be in keys: "{net}.{chain}.{block_hash}"
-    l_cache->gdb_group = dap_strdup("local.cache");
+    // Strong per-chain identity: include numeric IDs to avoid cross-network collisions with same names
+    // Format: local.chain.cache.{net}.{chain}.{netIdHex}.{chainIdHex}
+    l_cache->gdb_group = dap_strdup_printf("local.chain.cache.%s.%s.%016"DAP_UINT64_FORMAT_x".%016"DAP_UINT64_FORMAT_x,
+                                           a_chain->net_name, a_chain->name,
+                                           a_chain->net_id.uint64, a_chain->id.uint64);
     l_cache->gdb_subgroup = s_cache_build_subgroup(a_chain);
     
     log_it(L_NOTICE, "Chain cache created for %s:%s", a_chain->net_name, a_chain->name);
@@ -162,6 +172,7 @@ dap_chain_cache_t *dap_chain_cache_create(dap_chain_t *a_chain, dap_config_t *a_
     log_it(L_NOTICE, "  - Incremental save: %s", l_cache->incremental_save ? "enabled" : "disabled");
     log_it(L_NOTICE, "  - Compaction threshold: %u blocks", l_cache->compaction_threshold);
     log_it(L_NOTICE, "  - Compaction async: %s", l_cache->compaction_async ? "yes" : "no");
+    log_it(L_NOTICE, "  - Legacy fallback: %s", l_cache->legacy_fallback ? "enabled" : "disabled");
     log_it(L_NOTICE, "  - Debug logging: %s", l_cache->debug ? "enabled" : "disabled");
     log_it(L_NOTICE, "  - Batch buffer capacity: %zu blocks", l_cache->batch_capacity);
     
@@ -343,11 +354,30 @@ int dap_chain_cache_on_block_added(dap_chain_cache_t *a_cache,
     if (!a_cache->incremental_save) {
         return 0;
     }
+    /* Skip per-block index updates until the cell is fully validated
+     * This avoids quadratic read-modify-write of a growing compact blob during first load
+     */
+    {
+        char *l_ready_key = s_cache_build_cell_ready_key(a_cache->gdb_subgroup, a_cell_id);
+        size_t l_ready_sz = 0;
+        void *l_ready_val = dap_global_db_get_sync(a_cache->gdb_group, l_ready_key, &l_ready_sz, NULL, NULL);
+        if (!l_ready_val) {
+            if (a_cache->debug)
+                log_it(L_DEBUG, "Cache disabled for cell 0x%016"DAP_UINT64_FORMAT_X" (first load): deferring index append", a_cell_id);
+            DAP_DELETE(l_ready_key);
+            return 0;
+        }
+        DAP_DELETE(l_ready_val);
+        DAP_DELETE(l_ready_key);
+    }
     
-    // Save to cache
-    int l_ret = dap_chain_cache_save_block(a_cache, a_block_hash,
-                                            a_cell_id, a_file_offset,
-                                            a_block_size, a_tx_count);
+    // Plan C: append to compact cell index instead of per-block key
+    dap_chain_block_index_entry_t l_entry = {0};
+    memcpy(&l_entry.block_hash, a_block_hash, sizeof(dap_hash_fast_t));
+    l_entry.file_offset = a_file_offset;
+    l_entry.block_size = a_block_size;
+    l_entry.tx_count = a_tx_count;
+    int l_ret = dap_chain_cache_append_cell_entry(a_cache, a_cell_id, &l_entry);
     if (l_ret < 0) {
         return l_ret;
     }
@@ -396,6 +426,7 @@ int dap_chain_cache_get_stats(dap_chain_cache_t *a_cache,
     a_out_stats->incremental_saved = atomic_load(&a_cache->incremental_saved);
     a_out_stats->compactions_count = atomic_load(&a_cache->compactions_count);
     a_out_stats->compaction_time_ms = atomic_load(&a_cache->compaction_time_ms);
+    a_out_stats->invalid_entries_ignored = atomic_load(&a_cache->invalid_entries_ignored);
     
     // Calculate averages
     uint64_t l_total_lookups = a_out_stats->cache_hits + a_out_stats->cache_misses;
@@ -409,6 +440,68 @@ int dap_chain_cache_get_stats(dap_chain_cache_t *a_cache,
     }
     
     return 0;
+}
+/**
+ * @brief Read block by hash directly by scanning compact cell indices in per-chain group
+ */
+void* dap_chain_cache_read_block_by_hash(dap_chain_cache_t *a_cache,
+                                         const dap_hash_fast_t *a_hash,
+                                         size_t *a_out_size)
+{
+    dap_return_val_if_fail(a_cache && a_hash && a_out_size, NULL);
+    *a_out_size = 0;
+
+    // Build key prefix for compact cells in this chain
+    char *l_cell_key_prefix = dap_strdup_printf("%s.cell_", a_cache->gdb_subgroup);
+    size_t l_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_cache->gdb_group, &l_count);
+    if (!l_objs || l_count == 0) {
+        // Fallback to legacy group on first run
+        l_objs = dap_global_db_get_all_sync("local.cache", &l_count);
+        if (!l_objs || l_count == 0) {
+            DAP_DELETE(l_cell_key_prefix);
+            return NULL;
+        }
+    }
+
+    // Iterate compact cell blobs
+    for (size_t i = 0; i < l_count; i++) {
+        dap_global_db_obj_t *l_obj = &l_objs[i];
+        if (!l_obj->key || !l_obj->value)
+            continue;
+        if (strncmp(l_obj->key, l_cell_key_prefix, strlen(l_cell_key_prefix)) != 0)
+            continue; // not a compact cell key
+        if (l_obj->value_len < sizeof(dap_chain_cell_compact_header_t))
+            continue;
+
+        const byte_t *l_ptr = (const byte_t *)l_obj->value;
+        const dap_chain_cell_compact_header_t *l_hdr = (const dap_chain_cell_compact_header_t *)l_ptr;
+        uint32_t l_block_count = l_hdr->block_count;
+        size_t l_expected = sizeof(dap_chain_cell_compact_header_t) + (size_t)l_block_count * sizeof(dap_chain_block_index_entry_t);
+        if (l_obj->value_len < l_expected)
+            continue;
+
+        const dap_chain_block_index_entry_t *l_idx = (const dap_chain_block_index_entry_t *)(l_ptr + sizeof(dap_chain_cell_compact_header_t));
+        for (uint32_t j = 0; j < l_block_count; j++) {
+            if (memcmp(&l_idx[j].block_hash, a_hash, sizeof(dap_hash_fast_t)) == 0) {
+                // Read atom by offset
+                size_t l_atom_size = 0;
+                void *l_atom = dap_chain_cell_read_atom_by_offset(a_cache->chain,
+                                                                  (dap_chain_cell_id_t){ .uint64 = l_hdr->cell_id },
+                                                                  (off_t)l_idx[j].file_offset, &l_atom_size);
+                if (l_atom) {
+                    *a_out_size = l_atom_size;
+                    dap_global_db_objs_delete(l_objs, l_count);
+                    DAP_DELETE(l_cell_key_prefix);
+                    return l_atom;
+                }
+            }
+        }
+    }
+
+    dap_global_db_objs_delete(l_objs, l_count);
+    DAP_DELETE(l_cell_key_prefix);
+    return NULL;
 }
 
 /**
@@ -432,6 +525,7 @@ void dap_chain_cache_reset_stats(dap_chain_cache_t *a_cache)
     atomic_store(&a_cache->gdb_set_calls, 0);
     atomic_store(&a_cache->gdb_get_time_us, 0);
     atomic_store(&a_cache->gdb_set_time_us, 0);
+    atomic_store(&a_cache->invalid_entries_ignored, 0);
     
     log_it(L_INFO, "Cache statistics reset");
 }
@@ -777,11 +871,6 @@ int s_cache_gdb_get(dap_chain_cache_t *a_cache,
     atomic_fetch_add(&a_cache->gdb_get_calls, 1);
     atomic_fetch_add(&a_cache->gdb_get_time_us, l_elapsed_us);
     
-    if (a_cache->debug && l_elapsed_us > 2000) { // Log if > 2ms (slow!)
-        log_it(L_WARNING, "[CACHE-TIMING] GDB GET SLOW: %.3f ms for key %s", 
-               l_elapsed_us / 1000.0, a_key);
-    }
-    
     return *a_out_value ? 0 : -1;
 }
 
@@ -928,6 +1017,52 @@ int s_cache_delete_incremental_entries(dap_chain_cache_t *a_cache,
 }
 
 /**
+ * @brief Context for async chunk flush callback
+ */
+typedef struct {
+    dap_store_obj_t *store_objs;
+    size_t count;
+    size_t chunk_number;
+} cache_chunk_async_context_t;
+
+/**
+ * @brief Callback for async chunk flush - frees memory after write completes
+ */
+static bool s_cache_chunk_async_callback(dap_global_db_instance_t *a_dbi,
+                                         int a_rc,
+                                         const char *a_group,
+                                         const size_t a_values_current,
+                                         const size_t a_values_count,
+                                         dap_store_obj_t *a_values,
+                                         void *a_arg)
+{
+    UNUSED(a_dbi);
+    UNUSED(a_group);
+    UNUSED(a_values_current);
+    UNUSED(a_values_count);
+    UNUSED(a_values);
+    
+    cache_chunk_async_context_t *l_ctx = (cache_chunk_async_context_t *)a_arg;
+    
+    if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS) {
+        log_it(L_ERROR, "Async write #%zu failed, error=%d", 
+               l_ctx->chunk_number, a_rc);
+    }
+    // Success logging disabled to avoid spam (10000+ messages)
+    
+    // Free allocated memory for this single object
+    DAP_DELETE(l_ctx->store_objs->key);
+    DAP_DELETE(l_ctx->store_objs->group);
+    DAP_DELETE(l_ctx->store_objs->value);
+    DAP_DELETE(l_ctx->store_objs->sign);
+    DAP_DELETE(l_ctx->store_objs);
+    DAP_DELETE(l_ctx);
+    
+    return true;
+}
+
+
+/**
  * @brief Add block to batch buffer (for performance during cell loading)
  */
 int dap_chain_cache_batch_add(dap_chain_cache_t *a_cache,
@@ -941,9 +1076,11 @@ int dap_chain_cache_batch_add(dap_chain_cache_t *a_cache,
     
     pthread_mutex_lock(&a_cache->batch_lock);
     
-    // Check if buffer is full
+    // Check if buffer is full - auto-flush to avoid blocking
     if (a_cache->batch_size >= a_cache->batch_capacity) {
         pthread_mutex_unlock(&a_cache->batch_lock);
+        log_it(L_INFO, "Cache batch buffer full (%zu blocks), auto-flushing to GlobalDB...", 
+               a_cache->batch_capacity);
         // Flush buffer
         int l_ret = dap_chain_cache_batch_flush(a_cache);
         if (l_ret < 0) {
@@ -1065,35 +1202,317 @@ int dap_chain_cache_batch_flush(dap_chain_cache_t *a_cache)
     
     pthread_mutex_unlock(&a_cache->batch_lock);
     
-    // Write all entries in ONE transaction (GlobalDB handles transaction automatically)
-    int l_ret = dap_global_db_set_raw_sync(l_store_objs, l_batch_size);
-    
-    // Free allocated memory (including signatures)
-    for (size_t i = 0; i < l_batch_size; i++) {
-        DAP_DELETE(l_store_objs[i].key);
-        DAP_DELETE(l_store_objs[i].group);
-        DAP_DELETE(l_store_objs[i].value);
-        DAP_DELETE(l_store_objs[i].sign);
-    }
-    DAP_DELETE(l_store_objs);
-    
+    // Transactional write: single set_raw_sync with all prepared objects
+    int l_rc = dap_global_db_set_raw_sync(l_store_objs, l_batch_size);
     uint64_t l_elapsed_us = CACHE_TIMING_END_US();
+    if (l_rc == 0) {
+        log_it(L_NOTICE, "Cache batch flush committed: %zu records to '%s' (%.1f ms)",
+               l_batch_size, a_cache->gdb_group, l_elapsed_us / 1000.0);
+    } else {
+        log_it(L_WARNING, "Cache batch flush failed with code %d after %.1f ms", l_rc, l_elapsed_us / 1000.0);
+    }
+    // Free all store objects and array
+    dap_store_obj_free(l_store_objs, l_batch_size);
+    return l_rc == 0 ? 0 : -1;
+}
+
+/**
+ * @brief Batch load all cache entries for a cell into memory
+ * 
+ * This function loads ALL cache entries for a specific cell from GlobalDB
+ * into an in-memory hash table for fast lookups during cell loading.
+ * 
+ * Performance: 500ms batch load vs 27ms × 8000 = 216 seconds per-block queries
+ */
+void* dap_chain_cache_load_cell(dap_chain_cache_t *a_cache, uint64_t a_cell_id)
+{
+    dap_return_val_if_fail(a_cache, NULL);
     
-    if (l_ret != 0) {
-        log_it(L_ERROR, "Batch flush failed: %zu blocks, error=%d", l_batch_size, l_ret);
-        return -1;
+    CACHE_TIMING_START();
+    
+    // 0) Use cache only if this cell was previously fully validated (ready marker exists)
+    char *l_ready_key = s_cache_build_cell_ready_key(a_cache->gdb_subgroup, a_cell_id);
+    size_t l_ready_size = 0;
+    void *l_ready_val = dap_global_db_get_sync(a_cache->gdb_group, l_ready_key, &l_ready_size, NULL, NULL);
+    if (!l_ready_val) {
+        // No ready marker -> force full validation on this cell
+        log_it(L_INFO, "Cache disabled for cell 0x%016"DAP_UINT64_FORMAT_X" (first load): forcing full validation", a_cell_id);
+        DAP_DELETE(l_ready_key);
+        return NULL;
+    }
+    DAP_DELETE(l_ready_val);
+    DAP_DELETE(l_ready_key);
+
+    // 1) Try compact cell record first: key = "{subgroup}.cell_<id>"
+    char *l_cell_key = s_cache_build_cell_key(a_cache->gdb_subgroup, a_cell_id);
+    size_t l_cell_blob_size = 0;
+    void *l_cell_blob = dap_global_db_get_sync(a_cache->gdb_group, l_cell_key, &l_cell_blob_size, NULL, NULL);
+    
+    if (l_cell_blob && l_cell_blob_size >= sizeof(dap_chain_cell_compact_header_t)) {
+        const byte_t *l_ptr = (const byte_t *)l_cell_blob;
+        const dap_chain_cell_compact_header_t *l_hdr = (const dap_chain_cell_compact_header_t *)l_ptr;
+        uint32_t l_block_count = l_hdr->block_count;
+        size_t l_expected = sizeof(dap_chain_cell_compact_header_t) + (size_t)l_block_count * sizeof(dap_chain_block_index_entry_t);
+        
+        if (l_hdr->cell_id == a_cell_id && l_cell_blob_size >= l_expected) {
+            // Build in-memory hash table from compact entries
+            dap_chain_cache_cell_entry_t *l_cell_cache = NULL;
+            size_t l_loaded = 0;
+            const dap_chain_block_index_entry_t *l_idx = (const dap_chain_block_index_entry_t *)(l_ptr + sizeof(dap_chain_cell_compact_header_t));
+            for (uint32_t i = 0; i < l_block_count; i++) {
+                const dap_chain_block_index_entry_t *l_e = &l_idx[i];
+                dap_chain_cache_cell_entry_t *l_cell_entry = DAP_NEW_Z(dap_chain_cache_cell_entry_t);
+                if (!l_cell_entry) {
+                    log_it(L_ERROR, "Memory allocation failed");
+                    continue;
+                }
+                memcpy(&l_cell_entry->block_hash, &l_e->block_hash, sizeof(dap_hash_fast_t));
+                l_cell_entry->cache_entry.cell_id = a_cell_id;
+                l_cell_entry->cache_entry.file_offset = l_e->file_offset;
+                l_cell_entry->cache_entry.block_size = l_e->block_size;
+                l_cell_entry->cache_entry.tx_count   = l_e->tx_count;
+                HASH_ADD(hh, l_cell_cache, block_hash, sizeof(dap_hash_fast_t), l_cell_entry);
+                l_loaded++;
+            }
+            DAP_DELETE(l_cell_blob);
+            DAP_DELETE(l_cell_key);
+            uint64_t l_elapsed_us = CACHE_TIMING_END_US();
+            log_it(L_NOTICE, "Loaded compact cell index: %zu entries for cell 0x%016"DAP_UINT64_FORMAT_X" (%.1f ms)",
+                   l_loaded, a_cell_id, l_elapsed_us / 1000.0);
+            return (void *)l_cell_cache;
+        }
+        DAP_DELETE(l_cell_blob);
+    }
+    DAP_DELETE(l_cell_key);
+
+    // 2) Fallback: legacy per-block entries via get_all_sync() with filtering
+    char *l_pattern = dap_strdup_printf("%s.", a_cache->gdb_subgroup);
+    size_t l_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_cache->gdb_group, &l_count);
+    if (!l_objs || l_count == 0) {
+        // Optional fallback to legacy group(s)
+        if (a_cache->legacy_fallback) {
+            l_objs = dap_global_db_get_all_sync("local.cache", &l_count);
+        }
+        if (!l_objs || l_count == 0) {
+            if (a_cache->debug)
+                log_it(L_DEBUG, "No cache entries found for cell 0x%016"DAP_UINT64_FORMAT_X, a_cell_id);
+            DAP_DELETE(l_pattern);
+            return NULL;
+        }
+    }
+    dap_chain_cache_cell_entry_t *l_cell_cache = NULL;
+    size_t l_loaded = 0;
+    for (size_t i = 0; i < l_count; i++) {
+        dap_global_db_obj_t *l_obj = &l_objs[i];
+        if (!l_obj->key || strncmp(l_obj->key, l_pattern, strlen(l_pattern)) != 0)
+            continue;
+        if (!l_obj->value || l_obj->value_len != sizeof(dap_chain_cache_entry_t)) {
+            atomic_fetch_add(&a_cache->invalid_entries_ignored, 1);
+            continue;
+        }
+        dap_chain_cache_entry_t *l_entry = (dap_chain_cache_entry_t *)l_obj->value;
+        if (l_entry->cell_id != a_cell_id)
+            continue;
+        const char *l_hash_str = strrchr(l_obj->key, '.');
+        if (!l_hash_str)
+            continue;
+        l_hash_str++;
+        dap_hash_fast_t l_block_hash;
+        if (dap_chain_hash_fast_from_str(l_hash_str, &l_block_hash) != 0)
+            continue;
+        dap_chain_cache_cell_entry_t *l_cell_entry = DAP_NEW_Z(dap_chain_cache_cell_entry_t);
+        if (!l_cell_entry)
+            continue;
+        memcpy(&l_cell_entry->block_hash, &l_block_hash, sizeof(dap_hash_fast_t));
+        memcpy(&l_cell_entry->cache_entry, l_entry, sizeof(dap_chain_cache_entry_t));
+        HASH_ADD(hh, l_cell_cache, block_hash, sizeof(dap_hash_fast_t), l_cell_entry);
+        l_loaded++;
+    }
+    dap_global_db_objs_delete(l_objs, l_count);
+    
+    // If nothing loaded from per-chain group, try one more pass over old group
+    if (l_loaded == 0 && a_cache->legacy_fallback) {
+        l_objs = dap_global_db_get_all_sync("local.cache", &l_count);
+        if (l_objs && l_count) {
+            for (size_t i = 0; i < l_count; i++) {
+                dap_global_db_obj_t *l_obj = &l_objs[i];
+                if (!l_obj->key || strncmp(l_obj->key, l_pattern, strlen(l_pattern)) != 0)
+                    continue;
+                if (!l_obj->value || l_obj->value_len != sizeof(dap_chain_cache_entry_t)) {
+                    atomic_fetch_add(&a_cache->invalid_entries_ignored, 1);
+                    continue;
+                }
+                dap_chain_cache_entry_t *l_entry = (dap_chain_cache_entry_t *)l_obj->value;
+                if (l_entry->cell_id != a_cell_id)
+                    continue;
+                const char *l_hash_str = strrchr(l_obj->key, '.');
+                if (!l_hash_str)
+                    continue;
+                l_hash_str++;
+                dap_hash_fast_t l_block_hash;
+                if (dap_chain_hash_fast_from_str(l_hash_str, &l_block_hash) != 0)
+                    continue;
+                dap_chain_cache_cell_entry_t *l_cell_entry = DAP_NEW_Z(dap_chain_cache_cell_entry_t);
+                if (!l_cell_entry)
+                    continue;
+                memcpy(&l_cell_entry->block_hash, &l_block_hash, sizeof(dap_hash_fast_t));
+                memcpy(&l_cell_entry->cache_entry, l_entry, sizeof(dap_chain_cache_entry_t));
+                HASH_ADD(hh, l_cell_cache, block_hash, sizeof(dap_hash_fast_t), l_cell_entry);
+                l_loaded++;
+            }
+            dap_global_db_objs_delete(l_objs, l_count);
+        }
     }
     
-    // Always log batch flush for debugging (not just in debug mode)
-    log_it(L_NOTICE, "Cache batch flushed: %zu blocks written to '%s' (took %.1f ms)",
-           l_batch_size, a_cache->gdb_group, l_elapsed_us / 1000.0);
+    DAP_DELETE(l_pattern);
+    uint64_t l_elapsed_us = CACHE_TIMING_END_US();
+    if (l_loaded > 0)
+        log_it(L_NOTICE, "Batch loaded %zu legacy cache entries for cell 0x%016"DAP_UINT64_FORMAT_X" (%.1f ms)", l_loaded, a_cell_id, l_elapsed_us / 1000.0);
+    else if (a_cache->debug)
+        log_it(L_DEBUG, "No cache entries loaded for cell 0x%016"DAP_UINT64_FORMAT_X" (%.1f ms)", a_cell_id, l_elapsed_us / 1000.0);
+    return (void *)l_cell_cache;
+}
+/**
+ * @brief Append single block entry into compact cell record
+ */
+int dap_chain_cache_append_cell_entry(dap_chain_cache_t *a_cache,
+                                      uint64_t a_cell_id,
+                                      const dap_chain_block_index_entry_t *a_entry)
+{
+    dap_return_val_if_fail(a_cache && a_entry, -1);
+    char *l_key = s_cache_build_cell_key(a_cache->gdb_subgroup, a_cell_id);
+    size_t l_blob_size = 0;
+    void *l_blob = dap_global_db_get_sync(a_cache->gdb_group, l_key, &l_blob_size, NULL, NULL);
+    int l_ret = 0;
+    if (l_blob && l_blob_size >= sizeof(dap_chain_cell_compact_header_t)) {
+        const dap_chain_cell_compact_header_t *l_hdr_in = (const dap_chain_cell_compact_header_t *)l_blob;
+        if (l_hdr_in->cell_id != a_cell_id) {
+            DAP_DELETE(l_blob);
+            DAP_DELETE(l_key);
+            return -2;
+        }
+        uint32_t l_old_count = l_hdr_in->block_count;
+        size_t l_new_size = sizeof(dap_chain_cell_compact_header_t) + ((size_t)l_old_count + 1) * sizeof(dap_chain_block_index_entry_t);
+        byte_t *l_new_blob = DAP_NEW_Z_SIZE(byte_t, l_new_size);
+        if (!l_new_blob) {
+            DAP_DELETE(l_blob);
+            DAP_DELETE(l_key);
+            return -3;
+        }
+        dap_chain_cell_compact_header_t *l_hdr_out = (dap_chain_cell_compact_header_t *)l_new_blob;
+        l_hdr_out->cell_id = a_cell_id;
+        l_hdr_out->block_count = l_old_count + 1;
+        l_hdr_out->reserved = 0;
+        size_t l_idx_bytes = (size_t)l_old_count * sizeof(dap_chain_block_index_entry_t);
+        if (l_blob_size >= sizeof(dap_chain_cell_compact_header_t) + l_idx_bytes)
+            memcpy(l_new_blob + sizeof(*l_hdr_out), (byte_t*)l_blob + sizeof(dap_chain_cell_compact_header_t), l_idx_bytes);
+        memcpy(l_new_blob + sizeof(*l_hdr_out) + l_idx_bytes, a_entry, sizeof(*a_entry));
+        l_ret = s_cache_gdb_set(a_cache, l_key, l_new_blob, l_new_size);
+        DAP_DELETE(l_new_blob);
+        DAP_DELETE(l_blob);
+    } else {
+        // Create new compact record with single entry
+        size_t l_new_size = sizeof(dap_chain_cell_compact_header_t) + sizeof(dap_chain_block_index_entry_t);
+        byte_t *l_new_blob = DAP_NEW_Z_SIZE(byte_t, l_new_size);
+        if (!l_new_blob) {
+            DAP_DELETE(l_key);
+            return -3;
+        }
+        dap_chain_cell_compact_header_t *l_hdr = (dap_chain_cell_compact_header_t *)l_new_blob;
+        l_hdr->cell_id = a_cell_id;
+        l_hdr->block_count = 1;
+        l_hdr->reserved = 0;
+        memcpy(l_new_blob + sizeof(*l_hdr), a_entry, sizeof(*a_entry));
+        l_ret = s_cache_gdb_set(a_cache, l_key, l_new_blob, l_new_size);
+        DAP_DELETE(l_new_blob);
+        if (l_blob)
+            DAP_DELETE(l_blob);
+    }
+    DAP_DELETE(l_key);
+    return l_ret;
+}
+
+/**
+ * @brief Fast O(1) lookup in batch-loaded cell cache
+ */
+int dap_chain_cache_lookup_in_cell(void *a_cell_cache, 
+                                     const dap_hash_fast_t *a_block_hash,
+                                     dap_chain_cache_entry_t *a_out_entry)
+{
+    dap_return_val_if_fail(a_cell_cache && a_block_hash && a_out_entry, -1);
     
-    if (a_cache->debug) {
-        log_it(L_DEBUG, "Batch flush completed: %zu blocks, %.3f ms (%.1f blocks/ms)",
-               l_batch_size, l_elapsed_us / 1000.0, 
-               l_batch_size / (l_elapsed_us / 1000.0 + 0.001));
+    dap_chain_cache_cell_entry_t *l_cell_cache = (dap_chain_cache_cell_entry_t *)a_cell_cache;
+    dap_chain_cache_cell_entry_t *l_found = NULL;
+    
+    // Fast O(1) hash table lookup
+    HASH_FIND(hh, l_cell_cache, a_block_hash, sizeof(dap_hash_fast_t), l_found);
+    
+    if (l_found) {
+        memcpy(a_out_entry, &l_found->cache_entry, sizeof(dap_chain_cache_entry_t));
+        return 0;
     }
     
-    return 0;
+    return -1; // Not found
+}
+
+/**
+ * @brief Free batch-loaded cell cache
+ */
+void dap_chain_cache_unload_cell(void *a_cell_cache)
+{
+    if (!a_cell_cache) {
+        return;
+    }
+    
+    dap_chain_cache_cell_entry_t *l_cell_cache = (dap_chain_cache_cell_entry_t *)a_cell_cache;
+    dap_chain_cache_cell_entry_t *l_entry, *l_tmp;
+    
+    // Free all entries in hash table
+    HASH_ITER(hh, l_cell_cache, l_entry, l_tmp) {
+        HASH_DEL(l_cell_cache, l_entry);
+        DAP_DELETE(l_entry);
+    }
+}
+
+/**
+ * @brief Save compact cell index to GlobalDB
+ */
+int dap_chain_cache_save_cell_index(dap_chain_cache_t *a_cache,
+                                    uint64_t a_cell_id,
+                                    const dap_chain_block_index_entry_t *a_entries,
+                                    uint32_t a_count)
+{
+    dap_return_val_if_fail(a_cache && a_entries && a_count, -1);
+    size_t l_blob_size = sizeof(dap_chain_cell_compact_header_t) + (size_t)a_count * sizeof(dap_chain_block_index_entry_t);
+    byte_t *l_blob = DAP_NEW_Z_SIZE(byte_t, l_blob_size);
+    if (!l_blob) {
+        log_it(L_CRITICAL, "Memory allocation error while serializing cell index");
+        return -2;
+    }
+    dap_chain_cell_compact_header_t *l_hdr = (dap_chain_cell_compact_header_t *)l_blob;
+    l_hdr->cell_id = a_cell_id;
+    l_hdr->block_count = a_count;
+    l_hdr->reserved = 0;
+    memcpy(l_blob + sizeof(*l_hdr), a_entries, (size_t)a_count * sizeof(dap_chain_block_index_entry_t));
+    char *l_key = s_cache_build_cell_key(a_cache->gdb_subgroup, a_cell_id);
+    int l_ret = s_cache_gdb_set(a_cache, l_key, l_blob, l_blob_size);
+    if (l_ret == 0)
+        log_it(L_INFO, "Saved compact cell index: %u entries for cell 0x%016"DAP_UINT64_FORMAT_X, a_count, a_cell_id);
+    else
+        log_it(L_WARNING, "Failed to save compact cell index for cell 0x%016"DAP_UINT64_FORMAT_X, a_cell_id);
+    DAP_DELETE(l_key);
+    DAP_DELETE(l_blob);
+
+    // Set ready marker to allow cache usage on subsequent loads
+    if (l_ret == 0) {
+        char *l_ready_key = s_cache_build_cell_ready_key(a_cache->gdb_subgroup, a_cell_id);
+        const char l_ready_val = 1;
+        int l_r2 = s_cache_gdb_set(a_cache, l_ready_key, &l_ready_val, sizeof(l_ready_val));
+        if (l_r2 != 0)
+            log_it(L_WARNING, "Failed to set ready marker for cell 0x%016"DAP_UINT64_FORMAT_X, a_cell_id);
+        DAP_DELETE(l_ready_key);
+    }
+    return l_ret;
 }
 

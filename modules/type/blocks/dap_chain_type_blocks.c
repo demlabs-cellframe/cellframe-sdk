@@ -1912,7 +1912,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         }
 #endif
         if (!( l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped) )) {
-            log_it(L_ERROR, "Block %s is corrupted!", l_block_cache->block_hash_str);
+            log_it(L_ERROR, "Block %s is corrupted!", dap_hash_fast_to_str_static(&l_block_hash));
             return dap_chain_net_get_load_mode(l_net) ? ATOM_CORRUPTED : ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
@@ -2034,7 +2034,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         return ATOM_REJECT;
                     }
                     if (!( l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped) )) {
-                        log_it(L_ERROR, "Block %s is corrupted!", l_block_cache->block_hash_str);
+                        log_it(L_ERROR, "Block %s is corrupted!", dap_hash_fast_to_str_static(&l_block_hash));
                         return ATOM_REJECT;
                     }
                 }

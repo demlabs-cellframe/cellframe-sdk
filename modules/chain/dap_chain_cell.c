@@ -350,6 +350,10 @@ typedef struct {
 DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
 {
     cell_load_stats_t l_stats = {0};
+    // Plan C: prepare compact cell index buffer
+    dap_chain_block_index_entry_t *l_index = NULL;
+    uint32_t l_index_count = 0;
+    uint32_t l_index_capacity = 0;
     
     off_t l_pos, l_full_size = !fseeko(a_cell->file_storage, 0, SEEK_END) ? ftello(a_cell->file_storage) : -1;
     dap_return_val_if_fail_err(l_full_size > 0, 1, "Can't get chain size, error %d: \"%s\"", errno, dap_strerror(errno));
@@ -391,43 +395,63 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     if (!l_atom_count)
         log_it(L_WARNING, "Can't get atom count from global DB, will use file size to calculate progress");
     
+    /* Batch-load cache entries for this cell into memory (for performance) */
+    void *l_cell_cache = NULL;
+    if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+        l_cell_cache = dap_chain_cache_load_cell(a_cell->chain->cache, a_cell->id.uint64);
+        if (l_cell_cache) {
+            log_it(L_INFO, "Using batch-loaded cache for fast cell loading (chain %s)", a_cell->chain->name);
+        } else {
+            log_it(L_DEBUG, "No cache entries found for cell 0x%016"DAP_UINT64_FORMAT_X, a_cell->id.uint64);
+        }
+    }
+    
     /* Load atoms */
     int l_ret = 0;    
-    off_t l_el_size = 0, q = 0;
+    uint64_t l_el_size = 0; off_t q = 0;
     dap_chain_atom_ptr_t l_atom;
     dap_hash_fast_t l_atom_hash;
     if (a_cell->chain->is_mapped) {
         for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += sizeof(uint64_t) + l_el_size ) {
             l_vol_rest = (off_t)( a_cell->mapping->volumes[a_cell->mapping->volumes_current]->base + 
                                  a_cell->mapping->volumes[a_cell->mapping->volumes_current]->size - a_cell->mapping->cursor - sizeof(uint64_t) );
-            if ( l_vol_rest <= 0 || l_vol_rest < ( l_el_size = *(uint64_t*)a_cell->mapping->cursor ) )
+            if ( l_vol_rest <= 0 || l_vol_rest < ( (off_t)( l_el_size = *(uint64_t*)a_cell->mapping->cursor ) ) )
                 dap_return_val_if_pass_err( s_cell_map_new_volume(a_cell, l_pos, true), -7, "Error on mapping a new volume" );
-            if ( !l_el_size || l_el_size > l_full_size - l_pos )
+            if ( l_el_size == 0 || l_el_size > (uint64_t)(l_full_size - l_pos) )
                 break;
             l_atom = (dap_chain_atom_ptr_t)(a_cell->mapping->cursor + sizeof(uint64_t));
-            dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            dap_hash_fast(l_atom, (size_t)l_el_size, &l_atom_hash);
             
             l_stats.total_blocks++;
+
+            // Append block entry to compact cell index
+            if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+                if (l_index_count == l_index_capacity) {
+                    uint32_t l_new_cap = l_index_capacity ? l_index_capacity * 2 : 1024;
+                    dap_chain_block_index_entry_t *l_new = DAP_REALLOC(l_index, l_new_cap * sizeof(*l_index));
+                    if (!l_new) {
+                        log_it(L_CRITICAL, "Memory allocation error for cell index");
+                        l_ret = -12;
+                        break;
+                    }
+                    l_index = l_new;
+                    l_index_capacity = l_new_cap;
+                }
+                l_index[l_index_count].block_hash = l_atom_hash;
+                l_index[l_index_count].file_offset = (uint64_t)l_pos;
+                l_index[l_index_count].block_size = (uint32_t)l_el_size;
+                l_index[l_index_count].tx_count = 0;
+                l_index_count++;
+            }
             
             // Check cache for fast loading (mapped mode)
             bool l_cache_hit = false;
             dap_chain_atom_verify_res_t l_verif = ATOM_REJECT;
             
-            if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+            if (l_cell_cache) {
                 dap_chain_cache_entry_t l_cache_entry;
-                int l_get_result = dap_chain_cache_get_block(a_cell->chain->cache, &l_atom_hash, &l_cache_entry);
-                
-                // Debug: log first few cache check details
-                static uint32_t s_cache_detail_count = 0;
-                s_cache_detail_count++;
-                if (s_cache_detail_count <= 3) {
-                    log_it(L_NOTICE, "Cache detail #%u: get_result=%d, cached_offset=%"PRIu64", file_offset=%"PRIu64", cached_size=%u, file_size=%zu",
-                           s_cache_detail_count, l_get_result, 
-                           (l_get_result == 0) ? l_cache_entry.file_offset : 0,
-                           (uint64_t)l_pos,
-                           (l_get_result == 0) ? l_cache_entry.block_size : 0,
-                           l_el_size);
-                }
+                // Fast O(1) lookup in in-memory hash table (no GlobalDB query!)
+                int l_get_result = dap_chain_cache_lookup_in_cell(l_cell_cache, &l_atom_hash, &l_cache_entry);
                 
                 if (l_get_result == 0 &&
                     l_cache_entry.file_offset == (uint64_t)l_pos &&
@@ -448,26 +472,10 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 }
                 
                 l_verif = a_cell->chain->callback_atom_prefetch
-                    ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
-                    : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
+                    ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash)
+                    : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash, false);
                 
-                // Debug: log why batch_add is not called
-                static uint32_t s_batch_check_count = 0;
-                s_batch_check_count++;
-                if (s_batch_check_count <= 5) {
-                    log_it(L_NOTICE, "Cache batch check #%u (chain %s): verif=%d, cache=%p, enabled=%d",
-                           s_batch_check_count, a_cell->chain->name, l_verif, 
-                           a_cell->chain->cache, 
-                           a_cell->chain->cache ? dap_chain_cache_enabled(a_cell->chain->cache) : 0);
-                }
-                
-                // Save to cache using batch buffer (for performance)
-                if (l_verif == ATOM_ACCEPT && a_cell->chain->cache && 
-                    dap_chain_cache_enabled(a_cell->chain->cache)) {
-                    uint32_t l_tx_count = 0;
-                    dap_chain_cache_batch_add(a_cell->chain->cache, &l_atom_hash,
-                        a_cell->id.uint64, l_pos, l_el_size, l_tx_count);
-                }
+                // Plan C: no per-block DB writes here; compact cell index is saved after cell load
             }
             
             if ( l_verif == ATOM_CORRUPTED ) {
@@ -492,36 +500,62 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     } else { 
         size_t l_read = 0;
         while (( l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage) ) && !feof(a_cell->file_storage) ) {
-            if ( !l_el_size || l_read != sizeof(l_el_size) ) {
+            if ( l_el_size == 0 || l_read != sizeof(l_el_size) ) {
                 log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, a_cell->file_storage_path);
                 l_ret = 8;
                 break;
             }
-            l_atom = DAP_NEW_SIZE(dap_chain_atom_ptr_t, l_el_size);
+            if ( l_el_size > (uint64_t)(l_full_size - l_pos) ) {
+                log_it(L_ERROR, "Element size %"DAP_UINT64_FORMAT_U" beyond file tail, stop cell loading", l_el_size);
+                l_ret = 11;
+                break;
+            }
+            l_atom = DAP_NEW_SIZE(dap_chain_atom_ptr_t, (size_t)l_el_size);
             if (!l_atom) {
                 log_it(L_CRITICAL, "Memory allocation error");
                 l_ret = -9;
                 break;
             }
-            l_read = fread((void*)l_atom, 1, l_el_size, a_cell->file_storage);
+            l_read = fread((void*)l_atom, 1, (size_t)l_el_size, a_cell->file_storage);
             if (l_read != (size_t)l_el_size) {
                 log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
                 DAP_DELETE(l_atom);
                 l_ret = 10;
                 break;
             }
-            dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            dap_hash_fast(l_atom, (size_t)l_el_size, &l_atom_hash);
             
             l_stats.total_blocks++;
+
+            // Append block entry to compact cell index
+            if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+                if (l_index_count == l_index_capacity) {
+                    uint32_t l_new_cap = l_index_capacity ? l_index_capacity * 2 : 1024;
+                    dap_chain_block_index_entry_t *l_new = DAP_REALLOC(l_index, l_new_cap * sizeof(*l_index));
+                    if (!l_new) {
+                        log_it(L_CRITICAL, "Memory allocation error for cell index");
+                        l_ret = -12;
+                        DAP_DELETE(l_atom);
+                        break;
+                    }
+                    l_index = l_new;
+                    l_index_capacity = l_new_cap;
+                }
+                l_index[l_index_count].block_hash = l_atom_hash;
+                l_index[l_index_count].file_offset = (uint64_t)l_pos;
+                l_index[l_index_count].block_size = (uint32_t)l_el_size;
+                l_index[l_index_count].tx_count = 0;
+                l_index_count++;
+            }
             
             // Check cache for fast loading
             bool l_cache_hit = false;
             dap_chain_atom_verify_res_t l_verif = ATOM_REJECT; // Default if no callbacks
             
-            if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
+            if (l_cell_cache) {
                 dap_chain_cache_entry_t l_cache_entry;
-                // Check if block is in cache and offset matches
-                if (dap_chain_cache_get_block(a_cell->chain->cache, &l_atom_hash, &l_cache_entry) == 0 &&
+                // Fast O(1) lookup in in-memory hash table (no GlobalDB query!)
+                if (dap_chain_cache_lookup_in_cell(l_cell_cache, &l_atom_hash, &l_cache_entry) == 0 &&
                     l_cache_entry.file_offset == (uint64_t)l_pos &&
                     l_cache_entry.block_size == (uint32_t)l_el_size) {
                     // CACHE HIT! Skip validation, block already verified
@@ -529,12 +563,6 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                     l_verif = ATOM_ACCEPT; // Assume accepted (was validated before)
                     l_stats.cache_hits++;
                     atomic_fetch_add(&a_cell->chain->cache->cache_hits, 1);
-                    if (a_cell->chain->cache->debug) {
-                        char l_hash_str[DAP_HASH_FAST_STR_SIZE];
-                        dap_hash_fast_to_str(&l_atom_hash, l_hash_str, sizeof(l_hash_str));
-                        log_it(L_DEBUG, "Cache hit for block %s at offset %"DAP_UINT64_FORMAT_U, 
-                            l_hash_str, (uint64_t)l_pos);
-                    }
                 }
             }
             
@@ -546,9 +574,9 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 }
                 
                 if (a_cell->chain->callback_atom_prefetch) {
-                    l_verif = a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash);
+                    l_verif = a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash);
                 } else if (a_cell->chain->callback_atom_add) {
-                    l_verif = a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
+                    l_verif = a_cell->chain->callback_atom_add(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash, false);
                 } else {
                     // No callbacks available - can't process atoms
                     log_it(L_WARNING, "No atom processing callbacks available for chain \"%s : %s\", cell loading incomplete",
@@ -557,14 +585,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                     break; // Stop loading, but not an error
                 }
                 
-                // Save to cache using batch buffer (for performance)
-                if (l_verif == ATOM_ACCEPT && a_cell->chain->cache && 
-                    dap_chain_cache_enabled(a_cell->chain->cache)) {
-                    // TODO: Get actual tx_count from block
-                    uint32_t l_tx_count = 0;
-                    dap_chain_cache_batch_add(a_cell->chain->cache, &l_atom_hash,
-                        a_cell->id.uint64, l_pos, l_el_size, l_tx_count);
-                }
+                // Plan C: no per-block DB writes here; compact cell index is saved after cell load
             }
             
             DAP_DELETE(l_atom);
@@ -606,6 +627,14 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
         dap_chain_cache_batch_flush(a_cell->chain->cache);
     }
+
+    // Save compact cell index only if cell changed (there were cache misses)
+    if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache) && l_index_count > 0 && l_stats.cache_misses > 0) {
+        int l_rc_idx = dap_chain_cache_save_cell_index(a_cell->chain->cache, a_cell->id.uint64, l_index, l_index_count);
+        if (l_rc_idx != 0) {
+            log_it(L_WARNING, "Failed to persist compact index for cell 0x%016"DAP_UINT64_FORMAT_X, a_cell->id.uint64);
+        }
+    }
     
     // Log simple statistics
     if (l_stats.total_blocks > 0) {
@@ -623,6 +652,15 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
         log_it(L_INFO, "Loaded cell \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X" - empty",
                a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
     }
+    
+    // Free batch-loaded cache memory
+    if (l_cell_cache) {
+        dap_chain_cache_unload_cell(l_cell_cache);
+    }
+
+    // Free temporary index memory
+    DAP_DELETE(l_index);
+    
     return l_ret;
 }
 
