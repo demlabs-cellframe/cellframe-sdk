@@ -1574,7 +1574,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     }
-    const char *l_datum_str = json_object_to_json_string(a_tx_json);
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
         json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
@@ -1605,7 +1604,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             }
         }
     }
-    l_datum_str = json_object_to_json_string(a_tx_json);
     return dap_chain_tx_datum_from_json(a_tx_json, a_net, a_json_obj_error, a_out_tx, a_items_count, a_items_ready);
 }
 
@@ -2151,43 +2149,4 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
     }
 
     return 0;
-}
-
-int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_json_obj_error, 
-                                        dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
-{
-    dap_return_val_if_pass(!a_tx_json || !a_out_tx, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS);
-
-    // Read items from json file
-    dap_json_t*l_json_items = dap_json_object_get_object(a_tx_json, "items");
-    size_t l_items_count;
-    if(!l_json_items || !dap_json_is_array(l_json_items) || !(l_items_count = dap_json_array_length(l_json_items))) {
-        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
-    }
-    // Creating and adding items to the transaction
-    for(size_t i = 0; i < l_items_count; ++i) {
-        dap_json_t*l_json_item_obj = dap_json_array_get_idx(l_json_items, i);
-        if(!l_json_item_obj || !dap_json_is_object(l_json_item_obj)) {
-            continue;
-        }
-        const char *l_item_type_str = dap_json_object_get_string(l_json_item_obj, "type");
-        dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_type_from_str_short(l_item_type_str);
-        if(l_item_type != TX_ITEM_TYPE_TSD) {
-            log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
-            continue;
-        }
-
-        int64_t l_tsd_type = 0;
-        if(dap_json_object_get_int64_ext(l_json_item_obj, "type_tsd", &l_tsd_type)) {
-            dap_json_object_add_object(l_json_item_obj,"data_type", dap_json_object_new_int(l_tsd_type));
-            const char *l_tsd_data = dap_json_object_get_string(l_json_item_obj, "data");
-            if (l_tsd_data) {
-                dap_json_object_add_object(l_json_item_obj,"data_size", dap_json_object_new_uint64(strlen(l_tsd_data)));
-                char *l_tsd_str = dap_enc_base58_encode_to_str(l_tsd_data, strlen(l_tsd_data));
-                dap_json_object_add_object(l_json_item_obj,"data", dap_json_object_new_string(l_tsd_str));
-                DAP_DELETE(l_tsd_str);
-            }
-        }
-    }
-    return dap_chain_tx_datum_from_json(a_tx_json, a_net, a_json_obj_error, a_out_tx, a_items_count, a_items_ready);
 }
