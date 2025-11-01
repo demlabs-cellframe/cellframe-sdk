@@ -1716,32 +1716,37 @@ int com_version(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a_vers
  */
 int com_help(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
+    dap_json_t *l_json_obj_out = dap_json_object_new();
     if (a_argc > 1) {
         log_it(L_DEBUG, "Help for command %s", a_argv[1]);
         dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find(a_argv[1]);
-        if(l_cmd) {
-            dap_json_rpc_error_add(a_json_arr_reply, -1, "%s:\n%s", l_cmd->doc, l_cmd->doc_ex);
+        if (l_cmd) {
+            dap_json_object_add_string(l_json_obj_out, "command", l_cmd->name);
+            dap_json_object_add_string(l_json_obj_out, "description", l_cmd->doc);
+            dap_json_object_add_string(l_json_obj_out, "description_extended", l_cmd->doc_ex);
+            dap_json_array_add(a_json_arr_reply, l_json_obj_out);
             return 0;
-        } else {
-            dap_json_rpc_error_add(a_json_arr_reply, -1, "command \"%s\" not recognized", a_argv[1]);
         }
-        return -1;
-    } else {
-        // TODO Read list of commands & return it
-        log_it(L_DEBUG, "General help requested");
-        dap_string_t * l_help_list_str = dap_string_new(NULL);
-        dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_get_first();
-        while(l_cmd) {
-            dap_string_append_printf(l_help_list_str, "%s:\t\t\t%s\n",
-                    l_cmd->name, l_cmd->doc ? l_cmd->doc : "(undocumented command)");
-            l_cmd = (dap_cli_cmd_t*) l_cmd->hh.next;
-        }
-        dap_json_rpc_error_add(a_json_arr_reply, -1,
-                "Available commands:\n\n%s\n",
-                l_help_list_str->len ? l_help_list_str->str : "NO ANY COMMAND WERE DEFINED");
-        dap_string_free(l_help_list_str, true);
-        return 0;
+        char *l_msg = dap_strdup_printf("command \"%s\" not recognized", a_argv[1]);
+        dap_json_object_add_string(l_json_obj_out, "status", l_msg);
+        DAP_DELETE(l_msg);
+        dap_json_array_add(a_json_arr_reply, l_json_obj_out);
+        return -2;
     }
+    log_it(L_DEBUG, "General help requested");
+    dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_get_first();
+    dap_json_object_add_string(l_json_obj_out, "available_commands", l_cmd ? "" : "No any command were defined");
+    dap_json_array_add(a_json_arr_reply, l_json_obj_out);
+    while (l_cmd) {
+        dap_json_t *l_json_obj_cmd = dap_json_object_new();
+        if (!l_json_obj_cmd)
+            return -1;
+        dap_json_object_add_string(l_json_obj_cmd, "command", l_cmd->name);
+        dap_json_object_add_string(l_json_obj_cmd, "description", l_cmd->doc ? l_cmd->doc : "(undocumented command)");
+        dap_json_array_add(a_json_arr_reply, l_json_obj_cmd);
+        l_cmd = (dap_cli_cmd_t*) l_cmd->hh.next;
+    }
+    return 0;
 }
 
 static void s_wallet_list(const char *a_wallet_path, dap_json_t *a_json_arr_out, dap_chain_addr_t *a_addr, int a_version){
