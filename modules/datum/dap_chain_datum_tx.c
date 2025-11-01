@@ -80,8 +80,8 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     *a_tx = tx_new;
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     char *l_hash = dap_hash_fast_str_new(a_item, size);
-    printf("Add \"%s\" item %s\n",  dap_chain_datum_tx_item_type_to_str_short(*(byte_t *)(a_item)), l_hash);
-    DAP_DEL_Z(l_hash);
+    log_it(L_INFO, "Add \"%s\" item %s\n",  dap_chain_datum_tx_item_type_to_str_short(*(byte_t *)(a_item)), l_hash);
+    DAP_DELETE(l_hash);
 #endif
     return 1;
 }
@@ -209,10 +209,14 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
 int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    if (false)
-        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, rand() % UINT64_MAX ) );
-    else
+    if (rand() % 2) {
+        dap_time_t l_ts_unlock = dap_min(rand() % UINT32_MAX, dap_time_now() / 10);
+        log_it(L_INFO, "Add out std item, token %s, ts_unlock %"DAP_UINT64_FORMAT_U, a_token, l_ts_unlock);
+        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, l_ts_unlock) );
+    } else {
+        log_it(L_INFO, "Add out ext item, token %s", a_token);
         return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,  dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
+    }
 #else
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, 0) );
 #endif
@@ -233,11 +237,11 @@ int dap_chain_datum_tx_add_out_std_item(dap_chain_datum_tx_t **a_tx, const dap_c
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_pkey_t *a_key, dap_chain_srv_uid_t a_srv_uid,
+int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
         uint256_t a_value, uint256_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit, const void *a_cond, size_t a_cond_size)
 {
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_cond_t,
-        dap_chain_datum_tx_item_out_cond_create_srv_pay( a_key, a_srv_uid,a_value, a_value_max_per_unit, a_unit, a_cond, a_cond_size ));
+        dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash( a_key_hash, a_srv_uid,a_value, a_value_max_per_unit, a_unit, a_cond, a_cond_size ));
 }
 
 

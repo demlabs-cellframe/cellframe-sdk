@@ -1537,7 +1537,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
 
         return l_ret_check;
     }
-
     // add info for wallet shared
     if (
         !dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF) &&
@@ -1546,7 +1545,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     {
         dap_chain_wallet_shared_hold_tx_add(a_tx, a_ledger->net->pub.name);
     }
-
 
     debug_if(g_debug_ledger, L_DEBUG, "dap_ledger_tx_add() check passed for tx %s", l_tx_hash_str);
     if ( a_datum_index_data != NULL){

@@ -70,7 +70,7 @@ void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
     }
 }
 
-void dap_chain_datum_anchor_certs_dump_json(dap_json_t * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
+void dap_chain_datum_anchor_certs_dump_json(dap_json_t *a_json_out, byte_t *a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
 {
     if (a_version == 1)
         dap_json_object_add_string(a_json_out, "signatures", "");
@@ -78,10 +78,10 @@ void dap_chain_datum_anchor_certs_dump_json(dap_json_t * a_json_out, byte_t * a_
         dap_json_object_add_string(a_json_out, a_version == 1 ? "Cert status" : "cert_status", "NONE");
         return;
     }
-    dap_json_t* json_arr_certs_out = dap_json_array_new();    
+    dap_json_t *json_arr_certs_out = dap_json_array_new();    
     size_t l_offset = 0;
     for (int i = 1; l_offset < (a_certs_size); i++) {
-        dap_json_t* json_obj_sign = dap_json_object_new();
+        dap_json_t *json_obj_sign = dap_json_object_new();
         dap_sign_t *l_sign = (dap_sign_t*)(a_signs + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {
