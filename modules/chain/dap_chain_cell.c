@@ -388,7 +388,15 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     uint64_t l_atom_count = 0;
     byte_t *l_atom_count_str = dap_global_db_get_sync(DAP_LOCAL_STAT_GROUP_NAME, l_key_name, &l_value_len, NULL, NULL);
     if (l_atom_count_str) {
-        l_atom_count = strtoull((char *)l_atom_count_str, NULL, 10);
+        size_t l_copy_len = l_value_len ? l_value_len : strlen((char *)l_atom_count_str);
+        char *l_atom_count_cstr = DAP_NEW_Z_COUNT(char, l_copy_len + 1);
+        if (!l_atom_count_cstr) {
+            log_it(L_CRITICAL, "Memory allocation error while reading atom count from local DB");
+        } else {
+            memcpy(l_atom_count_cstr, l_atom_count_str, l_copy_len);
+            l_atom_count = strtoull(l_atom_count_cstr, NULL, 10);
+            DAP_DELETE(l_atom_count_cstr);
+        }
         DAP_FREE(l_atom_count_str);
     }
     DAP_DELETE(l_key_name);
@@ -665,11 +673,12 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
 }
 
 DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, dap_chain_cell_id_t a_cell_id, const char a_mode) {
-    char mode[] = { a_mode, '+', 'b', '\0' }, *const a_filename = strrchr(a_filepath, '/') + 1;
+    char mode[] = { a_mode, '+', 'b', '\0' };
+    const char *l_filename_ptr = strrchr(a_filepath, '/');
+    const char *l_filename = l_filename_ptr ? l_filename_ptr + 1 : a_filepath;
     dap_chain_cell_t *l_cell = NULL;
-
-#define m_ret_err(err, ...) return ({ if (l_cell->file_storage) fclose(l_cell->file_storage); \
-                                      DAP_DELETE(l_cell); log_it(L_ERROR, ##__VA_ARGS__), err; })
+    FILE *l_file = NULL;
+    int l_err = 0;
 
     HASH_FIND(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
     if (l_cell) {
@@ -677,39 +686,79 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
             /* Attention! File rewriting requires that ledger was already purged */
             s_cell_close(l_cell);
             HASH_DEL(a_chain->cells, l_cell);
+            if (l_cell->mapping) {
+                DAP_DELETE(l_cell->mapping->volumes);
+                DAP_DELETE(l_cell->mapping);
+            }
             DAP_DELETE(l_cell);
-        } else
-            m_ret_err(EEXIST, "Cell \"%s\" is already loaded in chain \"%s : %s\"",
-                              a_filename, a_chain->net_name, a_chain->name);
+            l_cell = NULL;
+        } else {
+            log_it(L_ERROR, "Cell \"%s\" is already loaded in chain \"%s : %s\"",
+                              l_filename, a_chain->net_name, a_chain->name);
+            return EEXIST;
+        }
     }
 
-    FILE *l_file = fopen(a_filepath, mode);
-    if ( !l_file )
-        m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot be opened, error %d",
-                         a_chain->net_name, a_chain->name, a_filename, errno);
-    if (fseeko(l_file, 0, SEEK_END) != 0)
-        m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot be find end of file, error %d",
-                        a_chain->net_name, a_chain->name, a_filename, errno);
-                                          
+    l_file = fopen(a_filepath, mode);
+    if (!l_file) {
+        l_err = errno;
+        log_it(L_ERROR, "Cell \"%s : %s / \"%s\" cannot be opened, error %d",
+                         a_chain->net_name, a_chain->name, l_filename, l_err);
+        return l_err;
+    }
+    if (fseeko(l_file, 0, SEEK_END) != 0) {
+        l_err = errno ? errno : EIO;
+        log_it(L_ERROR, "Cell \"%s : %s / \"%s\" cannot reach end of file, error %d",
+                        a_chain->net_name, a_chain->name, l_filename, l_err);
+        goto cleanup;
+    }
+
     off_t l_file_size = ftello(l_file);
     // For write mode ('w'), file size 0 is normal for new files
-    if (l_file_size <= 0 && a_mode != 'w')
-        m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot get file size or file size 0, error %d",
-                        a_chain->net_name, a_chain->name, a_filename, errno);
-                        
-    fseeko(l_file, 0L, SEEK_SET);
-    uint16_t l_mapping_count = l_file_size > 0 ? l_file_size/DAP_MAPPED_VOLUME_LIMIT + 1 : 1;
+    if (l_file_size <= 0 && a_mode != 'w') {
+        l_err = errno ? errno : EINVAL;
+        log_it(L_ERROR, "Cell \"%s : %s / \"%s\" cannot get file size or file size is 0, error %d",
+                        a_chain->net_name, a_chain->name, l_filename, l_err);
+        goto cleanup;
+    }
+
+    if (fseeko(l_file, 0L, SEEK_SET) != 0) {
+        l_err = errno ? errno : EIO;
+        log_it(L_ERROR, "Cell \"%s : %s / \"%s\" cannot rewind file, error %d",
+                        a_chain->net_name, a_chain->name, l_filename, l_err);
+        goto cleanup;
+    }
+
+    uint16_t l_mapping_count = l_file_size > 0 ? l_file_size / DAP_MAPPED_VOLUME_LIMIT + 1 : 1;
 
     l_cell = DAP_NEW_Z(dap_chain_cell_t);
-    *l_cell = (dap_chain_cell_t) {
-        .id             = a_cell_id,
-        .chain          = a_chain,
-        .mapping        = a_chain->is_mapped ? DAP_NEW_Z(dap_chain_cell_mmap_data_t) : NULL,
-        .file_storage   = l_file,
-        //.storage_rwlock = PTHREAD_RWLOCK_INITIALIZER
-    };
+    if (!l_cell) {
+        l_err = ENOMEM;
+        log_it(L_CRITICAL, "Memory allocation error while opening cell \"%s : %s / \"%s\"",
+                             a_chain->net_name, a_chain->name, l_filename);
+        goto cleanup;
+    }
+
+    l_cell->id = a_cell_id;
+    l_cell->chain = a_chain;
+    l_cell->file_storage = l_file;
+    l_file = NULL; /* Ownership transferred to l_cell */
+
     if (a_chain->is_mapped) {
+        l_cell->mapping = DAP_NEW_Z(dap_chain_cell_mmap_data_t);
+        if (!l_cell->mapping) {
+            l_err = ENOMEM;
+            log_it(L_CRITICAL, "Memory allocation error while creating mapping for cell \"%s : %s / \"%s\"",
+                                 a_chain->net_name, a_chain->name, l_filename);
+            goto cleanup;
+        }
         l_cell->mapping->volumes = DAP_NEW_Z_COUNT(dap_chain_cell_mmap_volume_t*, l_mapping_count);
+        if (!l_cell->mapping->volumes) {
+            l_err = ENOMEM;
+            log_it(L_CRITICAL, "Memory allocation error while allocating volume table for cell \"%s : %s / \"%s\"",
+                                 a_chain->net_name, a_chain->name, l_filename);
+            goto cleanup;
+        }
         l_cell->mapping->volumes_count = 0;
         l_cell->mapping->volumes_max = l_mapping_count;
     }
@@ -719,13 +768,21 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
     switch (*mode) {
     case 'a': {
         int l_load_res = s_cell_load_from_file(l_cell);
-        if ( !l_load_res )
+        if (!l_load_res)
             break;
-        else if (l_load_res < 0)
-            m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot be loaded, code %d",
-                             a_chain->net_name, a_chain->name, a_filename, l_load_res);
+        if (l_load_res < 0) {
+            l_err = errno ? errno : EIO;
+            log_it(L_ERROR, "Cell \"%s : %s / \"%s\" cannot be loaded, code %d",
+                           a_chain->net_name, a_chain->name, l_filename, l_load_res);
+            goto cleanup;
+        }
         // Otherwise, rewrite the file from scratch
-        ftruncate(fileno(l_cell->file_storage), 0);
+        if (ftruncate(fileno(l_cell->file_storage), 0) != 0) {
+            l_err = errno ? errno : EIO;
+            log_it(L_ERROR, "Cannot truncate cell \"%s : %s / \"%s\" during reload, error %d",
+                           a_chain->net_name, a_chain->name, l_filename, l_err);
+            goto cleanup;
+        }
         *mode = 'w';
     }
     case 'w': {
@@ -737,24 +794,69 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
             .chain_net_id   = a_chain->net_id,
             .cell_id        = a_cell_id
         };
-        if ( !fwrite(&l_hdr, sizeof(l_hdr), 1, l_cell->file_storage) )
-            m_ret_err(errno, "fwrite() error %d", errno);
+        if (fwrite(&l_hdr, sizeof(l_hdr), 1, l_cell->file_storage) != 1) {
+            l_err = errno ? errno : EIO;
+            log_it(L_ERROR, "fwrite() error %d while writing header for cell \"%s : %s / \"%s\"",
+                           l_err, a_chain->net_name, a_chain->name, l_filename);
+            goto cleanup;
+        }
         fflush(l_cell->file_storage);
         l_cell->file_storage = freopen(a_filepath, "a+b", l_cell->file_storage);
+        if (!l_cell->file_storage) {
+            l_err = errno ? errno : EIO;
+            log_it(L_ERROR, "freopen() error %d while reopening cell \"%s : %s / \"%s\"",
+                           l_err, a_chain->net_name, a_chain->name, l_filename);
+            goto cleanup;
+        }
         if (a_chain->is_mapped) {
-            if (s_cell_map_new_volume(l_cell, 0, false))
-                m_ret_err(EINVAL, "Error on mapping the first volume");
+            if (s_cell_map_new_volume(l_cell, 0, false)) {
+                l_err = EINVAL;
+                log_it(L_ERROR, "Error on mapping the first volume for cell \"%s : %s / \"%s\"",
+                               a_chain->net_name, a_chain->name, l_filename);
+                goto cleanup;
+            }
             l_cell->mapping->cursor += sizeof(l_hdr);
         }
     }
     default:
         break;
     }
+
     HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
     log_it(L_INFO, "Cell storage \"%s\" is %s for chain \"%s : %s\"",
-                    a_filename, *mode == 'w' ? "created" : "opened", a_chain->net_name, a_chain->name);
+                    l_filename, *mode == 'w' ? "created" : "opened", a_chain->net_name, a_chain->name);
     return 0;
-#undef m_ret_err
+
+cleanup:
+    if (l_cell) {
+        if (l_cell->mapping) {
+            if (a_chain->is_mapped) {
+                for (uint16_t i = 0; i < l_cell->mapping->volumes_count; i++) {
+                    dap_chain_cell_mmap_volume_t *l_vol = l_cell->mapping->volumes[i];
+                    if (!l_vol)
+                        continue;
+#ifdef DAP_OS_WINDOWS
+                    pfnNtUnmapViewOfSection(GetCurrentProcess(), l_vol->base);
+#else
+                    if (l_vol->base && l_vol->base != MAP_FAILED)
+                        munmap(l_vol->base, l_vol->size);
+#endif
+                    DAP_DELETE(l_vol);
+                }
+            }
+            DAP_DELETE(l_cell->mapping->volumes);
+            DAP_DELETE(l_cell->mapping);
+        }
+        if (l_cell->file_storage) {
+            fclose(l_cell->file_storage);
+            l_cell->file_storage = NULL;
+        }
+        DAP_DELETE(l_cell);
+    }
+    if (l_file) {
+        fclose(l_file);
+    }
+    return l_err;
 }
 
 int dap_chain_cell_open(dap_chain_t *a_chain, const dap_chain_cell_id_t a_cell_id, const char a_mode) {
