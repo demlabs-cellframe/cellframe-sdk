@@ -36,7 +36,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 // Start service callback
 typedef void * (*dap_chain_srv_callback_start_t)(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
 // Process service decree
-typedef int (*dap_chain_srv_callback_decree_t)(dap_chain_net_id_t a_net_id, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
+typedef void (*dap_chain_srv_callback_decree_t)(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size);
 // Event verify service callback
 typedef int (*dap_chain_srv_callback_event_verify_t)(dap_chain_net_id_t a_net_id, const char *a_event_group_name, int a_event_type,
                                                      void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_event_tx_hash);

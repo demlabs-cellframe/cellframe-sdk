@@ -103,3 +103,4 @@ int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_
                                    const void *a_atom, size_t a_atom_size, char **a_atom_map);
 int dap_chain_cell_remove(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_archivate);
 int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, size_t a_delta);
+void dap_chain_cell_set_load_skip();

@@ -106,7 +106,7 @@ typedef struct xchange_orders_cache_net {
 static dap_list_t *s_net_cache = NULL;
 static xchange_cache_state_t s_xchange_cache_state = XCHANGE_CACHE_DISABLED;
 
-static int s_callback_decree(dap_chain_net_id_t a_net_id, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
+static void s_callback_decree(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size);
 static void *s_callback_start(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
 static int s_xchange_verificator_callback(dap_ledger_t * a_ledger,
                             dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
@@ -120,7 +120,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
                                           dap_chain_addr_t *a_owner_addr, dap_chain_addr_t *a_buyer_addr, dap_chain_datum_tx_t * a_tx, 
                                           dap_hash_fast_t *a_tx_hash, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash, 
                                           bool a_print_status,bool a_print_ts);
-static bool s_string_append_tx_cond_info_json( dap_json_t * a_json_out, dap_chain_net_t * a_net,
+static bool s_string_append_tx_cond_info_json( dap_json_t *a_json_out, dap_chain_net_t *a_net,
                                                dap_chain_addr_t *a_owner_addr, dap_chain_addr_t *a_buyer_addr, dap_chain_datum_tx_t * a_tx, dap_hash_fast_t *a_tx_hash,
                                                tx_opt_status_t a_filter_by_status, bool a_print_prev_hash, bool a_print_status, bool a_print_ts, int a_version);
 
@@ -132,7 +132,7 @@ static void s_ledger_tx_remove_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx
 static bool s_debug_more = false;
 
 // Implementation of s_string_append_tx_cond_info_json
-static bool s_string_append_tx_cond_info_json( dap_json_t * a_json_out, dap_chain_net_t * a_net,
+static bool s_string_append_tx_cond_info_json( dap_json_t *a_json_out, dap_chain_net_t *a_net,
                                                dap_chain_addr_t *a_owner_addr, dap_chain_addr_t *a_buyer_addr, dap_chain_datum_tx_t * a_tx, dap_hash_fast_t *a_tx_hash,
                                                tx_opt_status_t a_filter_by_status, bool a_print_prev_hash, bool a_print_status, bool a_print_ts, int a_version)
 {
@@ -518,12 +518,12 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datu
  * @param a_decree
  * @param a_decree_size
  */
-static int s_callback_decree(dap_chain_net_id_t a_net_id, bool a_apply, dap_tsd_t *a_params, size_t a_params_size)
+static void s_callback_decree(dap_chain_net_id_t a_net_id, int a_decree_type, dap_tsd_t *a_params, size_t a_params_size)
 {
     dap_chain_srv_fee_t *l_fee = dap_chain_srv_get_internal(a_net_id, c_dap_chain_net_srv_xchange_uid);
     if (l_fee == NULL) {
         log_it(L_WARNING, "Decree for net id 0x%016" DAP_UINT64_FORMAT_X " which haven't xchange service registered", a_net_id.uint64);
-        return -1;
+        return;
     }
     size_t l_tsd_offset = 0;
     while (l_tsd_offset < a_params_size) {
@@ -543,7 +543,6 @@ static int s_callback_decree(dap_chain_net_id_t a_net_id, bool a_apply, dap_tsd_
         }
         l_tsd_offset += dap_tsd_size(l_tsd);
     }
-    return 0;
 }
 
 bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr, uint16_t *a_type)
@@ -1399,7 +1398,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, d
             dap_chain_wallet_close(l_wallet);
             switch (ret_code) {
                 case XCHANGE_CREATE_ERROR_OK: {
-                    dap_json_t* json_obj_order = dap_json_object_new();
+                    dap_json_t *json_obj_order = dap_json_object_new();
                     dap_json_object_add_string(json_obj_order, "status", a_version == 1 ? "Successfully created" : "success");
                     dap_json_object_add_string(json_obj_order, "sign", l_sign_str);
                     dap_json_object_add_string(json_obj_order, "hash", l_hash_ret);
@@ -1472,7 +1471,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, d
         } break;
 
         case CMD_HISTORY:{
-            dap_json_t* l_json_obj_order = NULL;
+            dap_json_t *l_json_obj_order = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_REQ_PARAM_NET_ERR,
@@ -1532,7 +1531,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, d
                         }
                     }
                     l_json_obj_order = dap_json_object_new();
-                    dap_json_t* l_json_order_arr = dap_json_array_new();
+                    dap_json_t *l_json_order_arr = dap_json_array_new();
                     dap_chain_wallet_cache_iter_t *l_iter = dap_chain_wallet_cache_iter_create(*l_addr);
                     for(dap_chain_datum_tx_t *l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_FIRST);
                             l_datum_tx; l_datum_tx = dap_chain_wallet_cache_iter_get(l_iter, DAP_CHAIN_WALLET_CACHE_GET_NEXT))
@@ -1677,7 +1676,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, d
         {
             const char * l_order_hash_str = NULL;
             const char * l_fee_str = NULL;
-            dap_json_t* json_obj_order = NULL;
+            dap_json_t *json_obj_order = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_RMOVE_REQ_PARAM_NET_ERR, "Command 'order %s' requires parameter -net",
@@ -1918,7 +1917,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, d
             char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_tx->header.ts_created);
             
-            dap_json_t* json_obj_order = dap_json_object_new();
+            dap_json_t *json_obj_order = dap_json_object_new();
             dap_json_object_add_string(json_obj_order, "order_hash", l_order_hash_str);
             dap_json_object_add_string(json_obj_order, "ts_created", l_tmp_buf);
             dap_json_object_add_string(json_obj_order, "status", l_status_order);

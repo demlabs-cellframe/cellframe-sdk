@@ -131,7 +131,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
 
     int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
     if (l_report) {
-        dap_json_t* json_obj_net_srv = dap_json_object_new();
+        dap_json_t *json_obj_net_srv = dap_json_object_new();
         char *l_report_str = dap_chain_net_srv_ch_create_statistic_report();
         dap_json_object_add_string(json_obj_net_srv, "report", l_report_str);
         DAP_DELETE(l_report_str);
@@ -338,11 +338,11 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                 {
                     json_obj_net_srv = dap_json_object_new();
                     dap_json_object_add_uint64(json_obj_net_srv, "count", l_orders_num);
-                    dap_json_t* json_arr_out = dap_json_array_new();
+                    dap_json_t *json_arr_out = dap_json_array_new();
                     for (dap_list_t *l_temp = l_orders; l_temp; l_temp = l_temp->next){
-                        dap_json_t* json_obj_order = dap_json_object_new();
+                        dap_json_t *json_obj_order = dap_json_object_new();
                         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*)l_temp->data;
-                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, false, a_version);
+                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, a_version);
                         dap_json_array_add(json_arr_out, json_obj_order);
                     }
                     dap_json_object_add_object(json_obj_net_srv, "orders", json_arr_out);
@@ -353,15 +353,27 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                     l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR ;
                 }
             } else if(!dap_strcmp( l_order_str, "dump" )) {
-                bool l_need_sign = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-need_sign", NULL);
                 // Select with specified service uid
+                bool l_tx_to_json = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-tx_to_json", NULL);
                 if ( l_order_hash_str ){
-                    dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
+                    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
                     json_obj_net_srv = dap_json_object_new();                    
                     if (l_order) {
-                        dap_chain_net_srv_order_dump_to_json(l_order, json_obj_net_srv, l_hash_out_type, l_net->pub.native_ticker, l_need_sign, a_version);
-                        l_ret = 0;
-                    } else {
+                        if (l_tx_to_json) {
+                            uint64_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
+                            char *l_tx_hash_str = dap_hash_fast_str_new(l_order, dap_chain_net_srv_order_get_size(l_order));
+
+                            dap_json_object_add_object(json_obj_net_srv, "data_hash", dap_json_object_new_string(l_tx_hash_str));
+                            DAP_DELETE(l_tx_hash_str);
+                            dap_json_object_add_object(json_obj_net_srv,"data_type", dap_json_object_new_string("order"));
+                            dap_json_object_add_object(json_obj_net_srv,"data_size", dap_json_object_new_uint64(l_order_size));
+                            char *l_data_str = dap_enc_base58_encode_to_str(l_order, l_order_size);
+                            dap_json_object_add_object(json_obj_net_srv,"data", dap_json_object_new_string(l_data_str));
+                        } else {
+                            dap_chain_net_srv_order_dump_to_json(l_order, json_obj_net_srv, l_hash_out_type, l_net->pub.native_ticker, a_version);
+                            l_ret = 0;
+                        }
+                    } else {                        
                         if(!dap_strcmp(l_hash_out_type,"hex"))
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DUMP_CANT_FIND_ERR,
                                                                     "Can't find order with hash %s\n", l_order_hash_hex_str );
@@ -370,33 +382,34 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                                                                     "Can't find order with hash %s\n", l_order_hash_base58_str );
                         l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DUMP_CANT_FIND_ERR;                        
                     }
-                } else {
-                    dap_list_t * l_orders = NULL;
-                    size_t l_orders_num = 0;
-                    dap_chain_srv_uid_t l_srv_uid={{0}};
-                    uint256_t l_price_min = {};
-                    uint256_t l_price_max = {};
-                    dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
-                    dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
-
-                    if( !dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_num) ){
-                        json_obj_net_srv = dap_json_object_new();
-                        dap_json_object_add_uint64(json_obj_net_srv, "count", l_orders_num);
-                        dap_json_t* json_arr_out = dap_json_array_new();
-                        for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
-                            dap_json_t* json_obj_order = dap_json_object_new();
-                            dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
-                            dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, false, a_version);
-                            dap_json_array_add(json_arr_out, json_obj_order);
-                        }
-                        dap_json_object_add_object(json_obj_net_srv, "orders", json_arr_out);
-                        l_ret = 0;
-                    } else {
-                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR,"Can't get orders: some internal error or wrong params");
-                        l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR ;
-                    }
-                    dap_list_free_full(l_orders, NULL);
                 }
+                // else {  memory ciller cmd
+                //     dap_list_t * l_orders = NULL;
+                //     size_t l_orders_num = 0;
+                //     dap_chain_net_srv_uid_t l_srv_uid={{0}};
+                //     uint256_t l_price_min = {};
+                //     uint256_t l_price_max = {};
+                //     dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
+                //     dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
+
+                //     if( !dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_num) ){
+                //         json_obj_net_srv = dap_json_object_new();
+                //         dap_json_object_add_object(json_obj_net_srv, "count", dap_json_object_new_uint64(l_orders_num));
+                //         dap_json_t *json_arr_out = dap_json_array_new();
+                //         for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
+                //             dap_json_t *json_obj_order = dap_json_object_new();
+                //             dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
+                //             dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, l_need_sign, a_version);
+                //             dap_json_array_add(json_arr_out, json_obj_order);
+                //         }
+                //         dap_json_object_add_object(json_obj_net_srv, "orders", json_arr_out);
+                //         l_ret = 0;
+                //     }else{
+                //         dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR,"Can't get orders: some internal error or wrong params");
+                //         l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_FIND_CANT_GET_ERR ;
+                //     }
+                //     dap_list_free_full(l_orders, NULL);
+                // }
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
 
@@ -605,8 +618,8 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
             return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UNKNOWN;
         }
     }
-    if (json_obj_net_srv != NULL)
-                dap_json_array_add(a_json_arr_reply, json_obj_net_srv);
+    if (json_obj_net_srv)
+        dap_json_array_add(a_json_arr_reply, json_obj_net_srv);
     return l_ret;
 }
 

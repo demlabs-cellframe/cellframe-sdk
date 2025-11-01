@@ -98,7 +98,6 @@
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "rand/dap_rand.h"
-#include "json_object.h"
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
@@ -113,6 +112,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include "dap_json.h"
 
 #define LOG_TAG "chain_net"
 
@@ -121,6 +121,7 @@
 static bool s_debug_more = false;
 static const int c_sync_timer_period = 5000;  // msec
 static bool s_server_enabled = false;
+static atomic_bool s_load_skip = false;
 
 struct request_link_info {
     char addr[DAP_HOSTADDR_STRLEN + 1];
@@ -636,12 +637,13 @@ dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
             l_jobj_percent = dap_json_object_new_string(l_percent_str);
             DAP_DELETE(l_percent_str);
         }
-        dap_json_t *l_jobj_current = dap_json_object_new_uint64(l_chain->callback_count_atom(l_chain));
-        dap_json_t *l_jobj_total = dap_json_object_new_uint64(l_chain->atom_num_last);
+        char l_id_buff[20]={0};
+        sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, l_chain->id.uint64);
+        dap_json_object_add_string(l_jobj_chain, "id", l_id_buff);
         dap_json_object_add_int(l_jobj_chain, "generation", l_chain->generation);
         dap_json_object_add_object(l_jobj_chain, "status", l_jobj_chain_status);
-        dap_json_object_add_object(l_jobj_chain, "current", l_jobj_current);
-        dap_json_object_add_object(l_jobj_chain, a_version == 1 ? "in network" : "in_network", l_jobj_total);
+        dap_json_object_add_uint64(l_jobj_chain, "current", l_chain->callback_count_atom(l_chain));
+        dap_json_object_add_uint64(l_jobj_chain, a_version == 1 ? "in network" : "in_network", l_chain->atom_num_last);
         dap_json_object_add_object(l_jobj_chain, "percent", l_jobj_percent);
         dap_json_object_add_object(l_jobj_chains_array, l_chain->name, l_jobj_chain);
 
@@ -887,8 +889,11 @@ dap_string_t* dap_cli_list_net()
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version) {
     if (!a_net || !a_json_out)
         return;
-    dap_json_t *l_jobj_net_name  = dap_json_object_new_string(a_net->pub.name);
-    dap_json_object_add_object(a_json_out, "net", l_jobj_net_name);
+    char l_id_buff[20]= { };
+    sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, a_net->pub.id.uint64);
+    dap_json_object_add_object(a_json_out, "net", dap_json_object_new_string(a_net->pub.name));
+    dap_json_object_add_object(a_json_out, "id", dap_json_object_new_string(l_id_buff));
+    dap_json_object_add_object(a_json_out, "native_ticker", dap_json_object_new_string(a_net->pub.native_ticker));
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
     l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
     dap_json_t *l_jobj_cur_node_addr;
@@ -910,6 +915,25 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
         dap_json_object_add_object(l_jobj_links, "active", l_jobj_active_links);
         dap_json_object_add_object(l_jobj_links, "required", l_jobj_required_links);
         dap_json_object_add_object(a_json_out, "links", l_jobj_links);
+    }
+    if (a_net->pub.bridged_networks_count) {
+        dap_json_t *l_bridget = dap_json_array_new();
+        uint16_t l_bridget_count = 0;  // if can't get any info about bridget net
+        for (uint16_t i = 0; i < a_net->pub.bridged_networks_count; ++i) {
+            dap_chain_net_t *l_bridget_net = dap_chain_net_by_id(a_net->pub.bridged_networks[i]); 
+            if (l_bridget_net) {
+                dap_json_t *l_net_item = dap_json_object_new();
+                sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, a_net->pub.bridged_networks[i].uint64);
+                    
+                dap_json_object_add_object(l_net_item, "name", dap_json_object_new_string(l_bridget_net->pub.name));
+                dap_json_object_add_object(l_net_item, "id", dap_json_object_new_string(l_id_buff));
+                dap_json_object_add_object(l_net_item, "native_ticker", dap_json_object_new_string(l_bridget_net->pub.native_ticker));
+                dap_json_array_add(l_bridget, l_net_item);
+                ++l_bridget_count;
+            }
+        }
+        if (l_bridget_count)
+            dap_json_object_add_object(a_json_out, "bridged_networks", l_bridget);
     }
 
     dap_json_t *l_json_sync_status = s_net_sync_status(a_net, a_version);
@@ -957,16 +981,6 @@ void s_set_reply_text_node_status(dap_json_t *a_json_arr_reply, dap_chain_net_t 
 void dap_chain_net_purge(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_pvt = PVT(a_net);
-    dap_global_db_cluster_t *l_mempool = l_pvt->mempool_clusters;
-    while (l_mempool) {
-        dap_global_db_cluster_t *l_next = l_mempool->next;
-        dap_global_db_cluster_delete(l_mempool);
-        l_mempool = l_next;
-    }
-    dap_global_db_cluster_delete(l_pvt->orders_cluster);
-    dap_global_db_cluster_delete(l_pvt->nodes_cluster);
-    dap_global_db_cluster_delete(l_pvt->nodes_states);
-    dap_global_db_cluster_delete(l_pvt->common_orders);
     struct block_reward *l_reward, *l_tmp;
     DL_FOREACH_SAFE(l_pvt->rewards, l_reward, l_tmp) {
         DL_DELETE(l_pvt->rewards, l_reward);
@@ -1187,8 +1201,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
             // show list of nets
             for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
                 dap_json_t *l_jobj_network_name = dap_json_object_new_string(l_net->pub.name);
-                if (l_jobj_network_name)
-                    dap_json_array_add(l_jobj_networks, l_jobj_network_name);
+                dap_json_array_add(l_jobj_networks, l_jobj_network_name);
             }
             dap_json_object_add_object(l_jobj_return, "networks", l_jobj_networks);
         }
@@ -2052,6 +2065,8 @@ static void *s_net_load(void *a_arg)
     char l_gdb_groups_mask[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (s_load_skip)
+            break;
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         int l_ret = dap_chain_load_all(l_chain);
@@ -2750,6 +2765,12 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                                             dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_tx_size);
                 return -102;
             }
+            dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, 0);
+            if (l_sig && dap_sign_type_is_deprecated(l_sig->header.type)){
+                dap_chain_addr_t l_addr = {};
+                dap_chain_addr_fill_from_sign(&l_addr, l_sig, a_chain->net_id);
+                log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_chain_hash_fast_to_str_static(a_datum_hash));
+            }
             return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
         }
         case DAP_CHAIN_DATUM_CA:
@@ -3317,3 +3338,24 @@ bool dap_chain_net_stop(dap_chain_net_t *a_net)
 }
 
 /*------------------------------------State machine block end---------------------------------*/
+
+
+bool dap_chain_net_is_bridged(dap_chain_net_t *a_net, dap_chain_net_id_t a_net_id)
+{
+    dap_return_val_if_pass(!a_net, false);
+    // null  addr always pass
+    if (!a_net_id.uint64 || a_net->pub.id.uint64 == a_net_id.uint64)
+        return true;
+    if (!a_net->pub.bridged_networks_count)
+        return false;
+    bool l_ret = false;
+    for(uint16_t i = 0; i < a_net->pub.bridged_networks_count && !l_ret; ++i) {
+            l_ret = a_net->pub.bridged_networks[i].uint64 == a_net_id.uint64;
+    }
+    return l_ret;
+}
+
+DAP_INLINE void dap_chain_net_set_load_skip()
+{
+    s_load_skip = true;
+}

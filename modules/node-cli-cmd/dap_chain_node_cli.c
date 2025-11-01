@@ -275,6 +275,15 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\t-net <net_name>\n"
                                 "\t-tx <transaction_hash> - shared funds tx hash to get info\n"
                                 "\t[-H {hex(default) | base58}] - tx hash format\n"
+                            "wallet shared list - list wallet shared transactions from GDB\n"
+                                "\t[-net <net_name>] - filter by net name\n"
+                                "\t[-pkey <pkey_hash>] - filter by public key hash\n"
+                                "\t[-addr <address>] - filter by wallet address\n"
+                                "\t[-w <wallet_name>] - filter by wallet name\n"
+                                "\t[-cert <cert_name>] - filter by certificate name\n"
+                                "\t  Note: -pkey, -addr, -w, and -cert are mutually exclusive\n"
+                                "\t[-local] - filter by local wallets and certificates\n"
+                                "\t[-H {hex(default) | base58}] - hash format for output\n"
                             "Hint:\n"
                                 "\texample value_coins (only natural) 1.0 123.4567\n"
                                 "\texample value_datoshi (only integer) 1 20 0.4321e+4\n"
@@ -321,10 +330,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction", dap_chain_node_cli_cmd_id_from_str("tx_create_json"),
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, "Make transaction and put that to mempool", dap_chain_node_cli_cmd_id_from_str("mempool_add"),
-                "json_datum_mempool_put  -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
+                "json_datum_mempool_put  -net <net_name> [-chain <chain_name>] -json <json_file_path> | -tx_obj <tx_json_object>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction", dap_chain_node_cli_cmd_id_from_str("tx_cond_create"),
                 "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
-                " -cert <pub_cert_name> -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
+                " { -cert <pub_cert_name> | -pkey <pkey_hash> } -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
                 "Hint:\n"
                 "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");

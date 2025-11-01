@@ -27,7 +27,7 @@ dap_chain_datum_tx_t *dap_chain_mempool_compose_tx_create_cond(dap_chain_addr_t 
     if (!a_config->net_name || !*a_config->net_name || !a_key_cond || IS_ZERO_256(a_value) || !a_config->url_str || !*a_config->url_str || a_config->port == 0 || !a_wallet_addr)
         return NULL;
 
-    if (dap_strcmp(dap_chain_tx_compose_get_native_ticker(a_config->net_name), a_token_ticker)) {
+    if (dap_strcmp(a_config->native_ticker, a_token_ticker)) {
         dap_json_compose_error_add(a_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_NATIVE_TOKEN_REQUIRED, "Pay for service should be only in native token_ticker\n");
         return NULL;
     }
