@@ -157,13 +157,6 @@ int dap_chain_cs_stake_switch_table(dap_chain_t *a_chain, bool a_to_sandbox)
         cbs->stake_switch_table(a_chain->net_id, a_to_sandbox) : -1;
 }
 
-// Mempool wrappers
-char* dap_chain_cs_mempool_group_new(dap_chain_t *a_chain)
-{
-    dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
-    return (cbs && cbs->mempool_group_new) ? cbs->mempool_group_new(a_chain) : NULL;
-}
-
 char* dap_chain_cs_mempool_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_hash_out_type)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);

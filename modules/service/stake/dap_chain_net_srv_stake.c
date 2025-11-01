@@ -114,7 +114,7 @@ static dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, da
                                                int *res);
 // Callbacks
 static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_cond);
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply);
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
 
 static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
     size_t l_strlen = (size_t)strlen(str);
@@ -835,7 +835,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, dap_json_t *a_json_arr_re
             } return 1;
     }
 
-    dap_json_t* json_obj_out = dap_json_object_new();
+    dap_json_t *json_obj_out = dap_json_object_new();
     if (STAKE_NO_ERROR != errorCode) {
         s_error_handler(errorCode, output_line);
         dap_json_object_add_string(json_obj_out, "status", output_line->str);
@@ -995,7 +995,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_check_for_apply)
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool)
 {
     dap_chain_datum_tx_t									*l_burning_tx       = NULL;
     dap_chain_datum_tx_receipt_old_t						*l_receipt        = NULL;
@@ -1038,7 +1038,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         size_t l_receipt_size = 0;
         l_receipt = (dap_chain_datum_tx_receipt_old_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
         if (l_receipt) {
-            if (!a_check_for_apply) { // It's mempool process, so we don't accept f*cking legacy!
+            if (a_from_mempool) { // It's mempool process, so we don't accept f*cking legacy!
                 log_it(L_WARNING, "Legacy stakes are not accepted from mempool anymore! Dismiss unstake tx %s",
                                    dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
                 return -    DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN;
