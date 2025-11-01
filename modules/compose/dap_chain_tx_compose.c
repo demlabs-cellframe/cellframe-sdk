@@ -2762,7 +2762,7 @@ dap_json_t *dap_chain_tx_compose_wallet_shared_sign(dap_chain_net_id_t a_net_id,
     }
 
     dap_enc_key_t *l_enc_key = NULL;
-    if (a_wallet_str) {
+    if (a_wallet_str && a_wallets_path) {
         dap_chain_wallet_t *l_wallet = dap_wallet_open_with_pass(a_wallet_str, a_wallets_path, a_pass_str, l_config);
         if (!l_wallet) {
             dap_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_ERR_WALLET, "Can't open wallet");
