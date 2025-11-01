@@ -7235,7 +7235,6 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     const char *l_value_str = NULL;
     const char *l_arbitrage_str = NULL;
     bool l_is_arbitrage = false;
-    dap_cert_t *l_cert = NULL;
     dap_enc_key_t *l_priv_key = NULL;
     size_t l_tx_num = 0;
 
@@ -7552,7 +7551,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             
             // Create arbitrage transaction
             l_tx_hash_str = dap_chain_mempool_tx_create_extended(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
-                                                                 l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count, l_time_unlock, l_tsd_list);
+                                                                 l_token_ticker, l_value, *l_value_fee, l_hash_out_type, l_addr_el_count, l_time_unlock, l_tsd_list);
             
             // Cleanup
             dap_list_free(l_tsd_list);
@@ -7562,7 +7561,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         } else {
             // Normal transaction
             l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
-                                                        l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count, l_time_unlock);
+                                                        l_token_ticker, l_value, *l_value_fee, l_hash_out_type, l_addr_el_count, l_time_unlock);
         }
         
         if (l_tx_hash_str) {
