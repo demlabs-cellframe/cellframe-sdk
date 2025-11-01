@@ -2745,7 +2745,7 @@ typedef enum {
 dap_json_t *dap_chain_tx_compose_wallet_shared_sign(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                                   uint16_t a_port, const char *a_enc_cert_path, const char *a_tx_in_hash_str, const char *a_wallet_str, const char *a_wallets_path, const char *a_pass_str, const char *a_cert_str)
 {
-    dap_return_val_if_pass(!a_net_name || !a_tx_in_hash_str || (!a_wallet_str && !a_cert_str) || !a_url_str, NULL);
+    dap_return_val_if_pass(!a_net_name || !a_tx_in_hash_str || !a_url_str, NULL);
 
     dap_chain_tx_compose_config_t *l_config = dap_chain_tx_compose_config_init(a_net_id, a_net_name, a_native_ticker, a_url_str, a_port, a_enc_cert_path);
     if (!l_config) {
@@ -2781,9 +2781,7 @@ dap_json_t *dap_chain_tx_compose_wallet_shared_sign(dap_chain_net_id_t a_net_id,
         l_enc_key = dap_cert_get_keys_from_certs(&l_cert, 1, 0);
     }
     if (!l_enc_key) {
-        dap_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_ERR_ENC_KEY, "Can't recognize %s as a hex or base58 format hash", a_tx_in_hash_str);
-        log_it(L_ERROR, "Can't recognize %s as a hex or base58 format hash", a_tx_in_hash_str);
-        return dap_chain_tx_compose_config_return_response_handler(l_config);
+        log_it(L_INFO, "Can't get enc key, return datum to manual sign");
     }
 
     dap_hash_fast_t l_tx_in_hash;
@@ -2822,32 +2820,33 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_sign(const char *
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-
-    bool l_is_owner = false;
-    dap_hash_fast_t l_pkey_hash;
-    dap_enc_key_get_pkey_hash(a_enc_key, &l_pkey_hash);
-    dap_tsd_t *l_tsd; size_t l_tsd_size;
-    dap_tsd_iter(l_tsd, l_tsd_size, l_cond_out->tsd, l_cond_out->tsd_size) {
-        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t) &&
-                dap_hash_fast_compare(&l_pkey_hash, (dap_hash_fast_t *)l_tsd->data)) {
-            l_is_owner = true;
-            break;
+    if (a_enc_key) {
+        bool l_is_owner = false;
+        dap_hash_fast_t l_pkey_hash;
+        dap_enc_key_get_pkey_hash(a_enc_key, &l_pkey_hash);
+        dap_tsd_t *l_tsd; size_t l_tsd_size;
+        dap_tsd_iter(l_tsd, l_tsd_size, l_cond_out->tsd, l_cond_out->tsd_size) {
+            if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t) &&
+                    dap_hash_fast_compare(&l_pkey_hash, (dap_hash_fast_t *)l_tsd->data)) {
+                l_is_owner = true;
+                break;
+            }
         }
-    }
-    DAP_DELETE(l_cond_out);
+        DAP_DELETE(l_cond_out);
 
-    if (!l_is_owner) {
-        dap_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_ERR_TX_MISMATCH, "Signing pkey hash %s is not the owner", dap_hash_fast_to_str_static(&l_pkey_hash));
-        log_it(L_ERROR, "Signing pkey hash %s is not the owner", dap_hash_fast_to_str_static(&l_pkey_hash));
-        dap_chain_datum_tx_delete(l_tx);
-        return NULL;
-    }
+        if (!l_is_owner) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_ERR_TX_MISMATCH, "Signing pkey hash %s is not the owner", dap_hash_fast_to_str_static(&l_pkey_hash));
+            log_it(L_ERROR, "Signing pkey hash %s is not the owner", dap_hash_fast_to_str_static(&l_pkey_hash));
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
 
-    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1) {
-        dap_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_ERR_TX_COMPOSE, "Can't add sign item");
-        log_it(L_ERROR, "Can't add sign item");
-        dap_chain_datum_tx_delete(l_tx);
-        return NULL;
+        if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1) {
+            dap_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_ERR_TX_COMPOSE, "Can't add sign item");
+            log_it(L_ERROR, "Can't add sign item");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
     }
     return l_tx;
 }
