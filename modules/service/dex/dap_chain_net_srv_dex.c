@@ -209,7 +209,6 @@ static void s_ledger_tx_add_notify_dex(void *a_arg, dap_ledger_t *a_ledger,
 static dex_tx_type_t s_dex_tx_classify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_in_cond_t **a_in_cond,
                              dap_chain_tx_out_cond_t **a_out_cond, int *a_out_idx);
 static char* s_dex_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net);
-static int s_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
 
 static dex_match_table_entry_t *s_dex_matches_build_by_criteria(dap_chain_net_t *a_net, const dex_match_criteria_t *a_criteria, uint256_t *a_out_leftover_budget);
 static int s_dex_match_snapshot_by_tail(dap_chain_net_t *a_net, const dap_hash_fast_t *a_tail, dex_match_table_entry_t *a_out, dex_pair_key_t *a_out_key);
@@ -978,7 +977,9 @@ static dex_match_table_entry_t *s_dex_matches_build_by_criteria(dap_chain_net_t 
         if ( l_pct > 0 ) {
             int l_fetch_min = 0;
             if ( l_out->subtype.srv_dex.min_fill & 0x80 ) {
+                pthread_rwlock_rdlock(&s_dex_cache_rwlock);
                 l_fetch_min = s_dex_fetch_min_abs(a_net->pub.ledger, &it->cur_hash, &l_exec_min);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
             } else {
                 uint256_t l_min_value = s_calc_pct(l_out->header.value, l_pct);
                 // Convert to BASE for universal comparison
@@ -2306,7 +2307,8 @@ static void s_dex_indexes_remove(dex_order_cache_entry_t *a_entry)
             HASH_DELETE(hh_pair_bucket, pb->asks, a_entry);
         else
             HASH_DELETE(hh_pair_bucket, pb->bids, a_entry);
-        if (!pb->asks && !pb->bids) { HASH_DELETE(hh, s_dex_pair_index, pb); DAP_DELETE(pb); }
+        // Empty asks/bids buckets are OK - pair remains whitelisted until decree removal.
+        // if (!pb->asks && !pb->bids) { HASH_DELETE(hh, s_dex_pair_index, pb); DAP_DELETE(pb); }
         a_entry->pair_key_ptr = NULL;
     }
     // seller index
@@ -2341,7 +2343,8 @@ static void s_dex_indexes_insert(dex_order_cache_entry_t *a_entry)
     /* Check for tail collision and remove old entry if exists */
     dex_order_cache_entry_t *l_existing = NULL;
     HASH_REPLACE(level.hh_tail, s_dex_index_by_tail, level.match.tail, sizeof(a_entry->level.match.tail), a_entry, l_existing);
-    debug_if(l_existing, L_WARNING, "Tail collision detected: tail=%s, existing_root=%s, new_root=%s - removing old entry",
+    if (l_existing)
+        log_it(L_WARNING, "Tail collision detected: tail=%s, existing_root=%s, new_root=%s - removing old entry",
         dap_hash_fast_to_str_static(&a_entry->level.match.tail),
         dap_hash_fast_to_str_static(&l_existing->level.match.root),
         dap_hash_fast_to_str_static(&a_entry->level.match.root));
@@ -2406,10 +2409,10 @@ static void s_dex_cache_upsert(dap_ledger_t *a_ledger, const char *a_sell_token,
      * PHASE 2 (with WR lock): atomically update primary table and all indices
      * Strict order: find/create → update non-index fields → remove → apply indexed fields → insert → log
      */
-    pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+    //pthread_rwlock_wrlock(&s_dex_cache_rwlock);
     dex_pair_index_t *l_pb = s_dex_pair_index_get(&l_new_key);
     if (!l_pb) {
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
+        //pthread_rwlock_unlock(&s_dex_cache_rwlock);
         return log_it(L_WARNING, "Pair %s/%s not whitelisted, skipping cache upsert", l_new_key.token_base, l_new_key.token_quote);
     }
 
@@ -2438,7 +2441,7 @@ static void s_dex_cache_upsert(dap_ledger_t *a_ledger, const char *a_sell_token,
         if (l_is_new)
             /* New entry not yet committed to primary cache - clean it up */
             DAP_DELETE(e);
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
+        //pthread_rwlock_unlock(&s_dex_cache_rwlock);
         return log_it(L_ERROR, "Failed to create indices for root %s", dap_hash_fast_to_str_static(a_root));
     }
     e->pair_key_ptr = &l_pb->key;
@@ -2460,7 +2463,7 @@ static void s_dex_cache_upsert(dap_ledger_t *a_ledger, const char *a_sell_token,
            (e->side_version & 0x1) ? "BID" : "ASK",
            dap_uint256_to_char_ex(e->level.match.rate).frac, dap_uint256_to_char_ex(e->level.match.value).frac,
            dap_chain_addr_to_str_static((dap_chain_addr_t*)e->seller_addr_ptr));
-    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    //pthread_rwlock_unlock(&s_dex_cache_rwlock);
 }
 
 static inline void s_dex_cache_remove_entry(dex_order_cache_entry_t *a_entry)
@@ -3460,7 +3463,7 @@ typedef enum {
 } dex_decree_method_t;
 
 /*
- * s_dex_decree_callback
+ * dap_chain_net_srv_dex_decree_callback
  * Decree callback for DEX service governance.
  * Methods (first TSD section type=0x0000):
  *   - DEX_DECREE_FEE_SET (1): Set global fee (TSD: FEE_AMOUNT, FEE_ADDR)
@@ -3470,16 +3473,14 @@ typedef enum {
  *   - DEX_DECREE_PAIR_FEE_SET_ALL (5): Update fee_config for all pairs (TSD: FEE_CONFIG)
  * Returns 0 on success, negative on error.
  */
-static int s_dex_decree_callback(UNUSED_ARG dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size)
+int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size)
 {
     dap_ret_val_if_any(-1, !a_params);
     
     // Collect all TSD sections in one pass (including method)
-    dap_tsd_t *l_tsd_method = NULL;
-    dap_tsd_t *l_tsd_token_base = NULL, *l_tsd_token_quote = NULL;
-    dap_tsd_t *l_tsd_net_base = NULL, *l_tsd_net_quote = NULL;
-    dap_tsd_t *l_tsd_fee_config = NULL, *l_tsd_fee_amount = NULL, *l_tsd_fee_addr = NULL;
-    dap_tsd_t *l_tsd = NULL;
+    dap_tsd_t *l_tsd_method = NULL, *l_tsd_token_base = NULL, *l_tsd_token_quote = NULL,
+    *l_tsd_net_base = NULL, *l_tsd_net_quote = NULL, *l_tsd_fee_config = NULL,
+    *l_tsd_fee_amount = NULL, *l_tsd_fee_addr = NULL, *l_tsd = NULL;
     size_t l_tsd_size = 0;
     dap_tsd_iter(l_tsd, l_tsd_size, a_params, a_params_size) {
         switch (l_tsd->type) {
@@ -3502,16 +3503,16 @@ static int s_dex_decree_callback(UNUSED_ARG dap_ledger_t *a_ledger, bool a_apply
     switch (l_method) {
     case DEX_DECREE_FEE_SET:
         // Required: FEE_AMOUNT, FEE_ADDR; prohibited tokens and net-ids
-        dap_ret_val_if_any(-2, !l_tsd_fee_amount, !l_tsd_fee_addr,
+        dap_ret_val_if_any(-1, !l_tsd_fee_amount, !l_tsd_fee_addr,
             l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote);
         break;
     
     case DEX_DECREE_PAIR_FEE_SET_ALL: {
         // Required: FEE_CONFIG
-        dap_ret_val_if_any(-2, !l_tsd_fee_config, l_tsd_fee_amount, l_tsd_fee_addr,
+        dap_ret_val_if_any(-1, !l_tsd_fee_config, l_tsd_fee_amount, l_tsd_fee_addr,
             l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote);
-        uint8_t l_new_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
         if (a_apply) {
+            uint8_t l_new_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
             pthread_rwlock_wrlock(&s_dex_cache_rwlock);
             dex_pair_index_t *l_it, *l_tmp;
             int l_count = 0;
@@ -3520,19 +3521,19 @@ static int s_dex_decree_callback(UNUSED_ARG dap_ledger_t *a_ledger, bool a_apply
                 l_count++;
             }
             pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            l_ret = l_count ? 0 : -3;
             log_it(L_NOTICE, "Updated fee for %d pairs: 0x%02x", l_count, l_new_cfg);
         }
+        return l_ret;
     } break;
     
     case DEX_DECREE_PAIR_ADD:
     case DEX_DECREE_PAIR_REMOVE:
     case DEX_DECREE_PAIR_FEE_SET: {
         // Common validation and parsing for all pair operations
-        dap_ret_val_if_any(-2, !l_tsd_token_base, !l_tsd_token_quote, !l_tsd_net_base, !l_tsd_net_quote);
+        dap_ret_val_if_any(-1, !l_tsd_token_base, !l_tsd_token_quote, !l_tsd_net_base, !l_tsd_net_quote);
         const char *l_token_base = dap_tsd_get_string_const(l_tsd_token_base), *l_token_quote = dap_tsd_get_string_const(l_tsd_token_quote);
-        dap_ret_val_if_any(-3, !dap_strcmp(l_token_base, DAP_TSD_CORRUPTED_STRING), 
-                                !dap_strcmp(l_token_quote, DAP_TSD_CORRUPTED_STRING),
-                                !dap_strcmp(l_token_base, l_token_quote),
+        dap_ret_val_if_any(-2, !dap_strcmp(l_token_base, l_token_quote),
                                 !dap_isstralnum(l_token_base), !dap_isstralnum(l_token_quote));
         dap_chain_net_id_t l_net_base = { .uint64 = dap_tsd_get_scalar(l_tsd_net_base, uint64_t) },
             l_net_quote = { .uint64 = dap_tsd_get_scalar(l_tsd_net_quote, uint64_t) };
@@ -3542,50 +3543,51 @@ static int s_dex_decree_callback(UNUSED_ARG dap_ledger_t *a_ledger, bool a_apply
         
         // Method-specific validation and operations
         switch (l_method) {
-        case DEX_DECREE_PAIR_ADD: {
+        case DEX_DECREE_PAIR_ADD:
             // FEE_CONFIG is optional
-            uint8_t l_fee_cfg = 0;
-            if (l_tsd_fee_config)
-                l_fee_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
-            l_key.fee_config = l_fee_cfg;
+            l_key.fee_config = l_tsd_fee_config ? dap_tsd_get_scalar(l_tsd_fee_config, uint8_t) : 0;
             if (a_apply) {
                 pthread_rwlock_wrlock(&s_dex_cache_rwlock);
                 l_ret = s_dex_pair_index_add(&l_key);
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                log_it(L_INFO, "Added pair %s/%s, %s fee %u%% in QUOTE", l_key.token_base, l_key.token_quote,
+                    (l_key.fee_config & 0x80) ? "enabled" : "disabled", l_key.fee_config & 0x7F);
             }
-        } break;
+        break;
         
         case DEX_DECREE_PAIR_REMOVE:
             // FEE_CONFIG is forbidden
-            dap_ret_val_if_any(-2, l_tsd_fee_config);
+            dap_ret_val_if_any(-1, l_tsd_fee_config);
             if (a_apply) {
                 pthread_rwlock_wrlock(&s_dex_cache_rwlock);
                 l_ret = s_dex_pair_index_remove(&l_key);
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
             }
-            break;
+        break;
         
-        case DEX_DECREE_PAIR_FEE_SET: {
+        case DEX_DECREE_PAIR_FEE_SET:
             // FEE_CONFIG is required
-            dap_ret_val_if_any(-2, !l_tsd_fee_config);
-            uint8_t l_fee_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
-            
-            a_apply ? pthread_rwlock_wrlock(&s_dex_cache_rwlock) : pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-            dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
-            if (l_pair && a_apply) {
-                l_pair->key.fee_config = l_fee_cfg;
-                log_it(L_NOTICE, "Updated fee for pair %s/%s: 0x%02x", l_key.token_base, l_key.token_quote, l_fee_cfg);
+            dap_ret_val_if_any(-1, !l_tsd_fee_config);
+            if (a_apply) {
+                uint8_t l_fee_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
+                pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+                dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
+                if (l_pair)
+                    l_pair->key.fee_config = l_fee_cfg;
+                else
+                    l_ret = -3;
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                if (!l_ret)
+                    log_it(L_INFO, "%s fee %u%% for pair %s/%s in QUOTE",
+                        (l_key.fee_config & 0x80) ? "Enabled" : "Disabled", l_fee_cfg & 0x7F,
+                        l_key.token_base, l_key.token_quote);
             }
-            pthread_rwlock_unlock(&s_dex_cache_rwlock);
-            l_ret = l_pair ? 0 : -3;
-        };
-        
         default: break;
         }
     } break;
     
     default:
-        return log_it(L_WARNING, "Unknown decree method for DEX service: %u", (unsigned)l_method), -4;
+        return log_it(L_WARNING, "Unknown decree method for DEX service: %u", (unsigned)l_method), -2;
     }
     
     // Apply optional fee_set (if FEE_AMOUNT and FEE_ADDR present, for any method)
@@ -3595,21 +3597,12 @@ static int s_dex_decree_callback(UNUSED_ARG dap_ledger_t *a_ledger, bool a_apply
             memcpy(&s_dex_native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
         if ( l_tsd_fee_addr )
             memcpy(&s_dex_service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
+        log_it(L_NOTICE, "Service fee set: %s %s to %s",
+            a_ledger->net->pub.native_ticker, dap_uint256_to_char_ex(s_dex_native_fee_amount).frac,
+            dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
         pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        log_it(L_NOTICE, "Service fee set: %s to %s",
-               dap_uint256_to_char_ex(s_dex_native_fee_amount).str,
-               dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
     }
     return l_ret;
-}
-
-/*
- * dap_chain_net_srv_dex_get_decree_callback
- * Returns pointer to decree callback for external registration.
- */
- dap_ledger_srv_callback_decree_t dap_chain_net_srv_dex_get_decree_callback(void)
-{
-    return s_dex_decree_callback;
 }
 
 int dap_chain_net_srv_dex_init()
@@ -3623,7 +3616,7 @@ int dap_chain_net_srv_dex_init()
 
     log_it(L_INFO, "cross_net_policy=%s", s_cross_net_policy_str(s_cross_net_policy));
     // Read cache switch from config
-    s_dex_cache_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "memcached", false);
+    s_dex_cache_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "memcached", true);
     log_it(L_INFO, "cache %s", s_dex_cache_enabled ? "ENABLED" : "DISABLED");
     // Read history cache switch and bucket size
     s_dex_history_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "history_cache", false);
@@ -3633,7 +3626,7 @@ int dap_chain_net_srv_dex_init()
     // Subscribe cache to ledger notifications for all nets
     if (s_dex_cache_enabled || s_dex_history_enabled) {
         for (dap_chain_net_t *net = dap_chain_net_iter_start(); net; net = dap_chain_net_iter_next(net)) {
-            dap_ledger_srv_callback_decree_add(net->pub.ledger, (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_DEX_ID }, s_dex_decree_callback);
+            dap_ledger_srv_callback_decree_add(net->pub.ledger, (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_DEX_ID }, dap_chain_net_srv_dex_decree_callback);
             dap_ledger_tx_add_notify(net->pub.ledger, s_ledger_tx_add_notify_dex, NULL);
         }
     }
@@ -3681,8 +3674,7 @@ void dap_chain_net_srv_dex_deinit()
         DAP_DELETE(e_it);
     }
     
-    // At this point, pair_index and seller_index should be empty (auto-cleaned by s_dex_indexes_remove)
-    // Iterate for safety (cleanup orphaned entries if any)
+    // Cleanup pair whitelist (managed by decrees, persists independent of hot cache)
     dex_pair_index_t *pb_it, *pb_tmp; 
     HASH_ITER(hh, s_dex_pair_index, pb_it, pb_tmp) {
         HASH_DELETE(hh, s_dex_pair_index, pb_it);
@@ -3819,16 +3811,18 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
     switch ( s_dex_tx_classify(a_ledger, a_tx, &l_in_cond, &l_out_cond, &l_out_idx) ) {
     case DEX_TX_TYPE_UNDEFINED: return;
     case DEX_TX_TYPE_ORDER:
-        if ( a_opcode == 'a' ) {
-            // Add to cache
-            s_dex_cache_upsert(a_ledger, dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash), a_tx_hash, a_tx_hash, l_out_cond, /*prev_idx*/0);
-            log_it(L_DEBUG, "Order cached, root = tail = %s", dap_hash_fast_to_str_static(a_tx_hash));
-        } else {
-            // Remove from cache
+        if (s_dex_cache_enabled) {
             pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-            s_dex_cache_remove_by_root(a_tx_hash);
+            if ( a_opcode == 'a' ) {
+                // Add to cache
+                s_dex_cache_upsert(a_ledger, dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash), a_tx_hash, a_tx_hash, l_out_cond, /*prev_idx*/0);
+                log_it(L_DEBUG, "Order cached, root = tail = %s", dap_hash_fast_to_str_static(a_tx_hash));
+            } else {
+                // Remove from cache
+                s_dex_cache_remove_by_root(a_tx_hash);
+                log_it(L_DEBUG, "Order removed, root = %s", dap_hash_fast_to_str_static(a_tx_hash));
+            };
             pthread_rwlock_unlock(&s_dex_cache_rwlock);
-            log_it(L_DEBUG, "Order removed, root = %s", dap_hash_fast_to_str_static(a_tx_hash));
         } break;
     case DEX_TX_TYPE_EXCHANGE:
     case DEX_TX_TYPE_UPDATE: {
@@ -3904,7 +3898,7 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                 //  - if residual on the first IN (root matches) — update order under original root
                 //  - otherwise current tail is fully spent and must be removed from cache
                 if (s_dex_cache_enabled) {
-                    if (e && l_residual_update && l_in_idx == 0 && !dap_hash_fast_compare(&e->level.match.root, &l_residual_root)) {
+                    if (e && l_residual_update && l_in_idx == 0 && dap_hash_fast_compare(&e->level.match.root, &l_residual_root)) {
                         // side=0 (ASK): seller sells BASE; side=1 (BID): seller sells QUOTE
                         const char *l_sell_ticker = (e->side_version & 0x1) ? e->pair_key_ptr->token_quote : e->pair_key_ptr->token_base;
                         s_dex_cache_upsert(a_ledger, *l_sell_ticker ? l_sell_ticker : NULL, &l_out_cond->subtype.srv_dex.order_root_hash, a_tx_hash, l_out_cond, l_out_idx);
@@ -6843,125 +6837,3 @@ dap_chain_net_srv_dex_migrate_error_t dap_chain_net_srv_dex_migrate(
     *a_tx = l_tx;
     return DEX_MIGRATE_ERROR_OK;
 }
-
-#ifdef DAP_LEDGER_TEST
-
-int dap_chain_net_srv_dex_test_add_pair(dap_chain_net_id_t a_net_id, const char *a_base_ticker, const char *a_quote_ticker)
-{
-    if (!a_base_ticker || !a_quote_ticker || !*a_base_ticker || !*a_quote_ticker)
-        return log_it(L_ERROR, "Invalid pair tickers"), -EINVAL;
-    
-    // Normalize pair to canonical form
-    dex_pair_key_t l_key = {0};
-    s_pair_normalize(a_base_ticker, a_net_id, a_quote_ticker, a_net_id, uint256_0, &l_key, NULL, NULL);
-    
-    pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-    dex_pair_index_t *l_existing = s_dex_pair_index_get(&l_key);
-    if (l_existing) {
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        return 0; // Already exists
-    }
-    
-    dex_pair_index_t *l_new_pair = DAP_NEW_Z(dex_pair_index_t);
-    if (!l_new_pair) {
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        return log_it(L_ERROR, "Memory allocation failed"), -ENOMEM;
-    }
-    
-    l_new_pair->key = l_key;
-    HASH_ADD(hh, s_dex_pair_index, key, DEX_PAIR_KEY_CMP_SIZE, l_new_pair);
-    pthread_rwlock_unlock(&s_dex_cache_rwlock);
-    
-    log_it(L_NOTICE, "Test: Added pair %s/%s to whitelist", a_base_ticker, a_quote_ticker);
-    return 0;
-}
-
-void dap_chain_net_srv_dex_test_set_service_addr(dap_chain_addr_t *a_addr)
-{
-    pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-    if (a_addr)
-        s_dex_service_fee_addr = *a_addr;
-    else
-        memset(&s_dex_service_fee_addr, 0, sizeof(s_dex_service_fee_addr));
-    pthread_rwlock_unlock(&s_dex_cache_rwlock);
-    log_it(L_NOTICE, "Test: Service fee address set to %s", 
-           a_addr ? dap_chain_addr_to_str_static(a_addr) : "BLANK");
-}
-
-int dap_chain_net_srv_dex_test_set_fee(dap_chain_net_id_t a_net_id, const char *a_base_ticker, const char *a_quote_ticker, uint8_t a_fee_percent)
-{
-    if (a_fee_percent > 100)
-        return log_it(L_ERROR, "Fee percent must be 0-100"), -EINVAL;
-    
-    pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-    
-    if (a_base_ticker && a_quote_ticker) {
-        // Normalize pair to canonical form
-        dex_pair_key_t l_key = {0};
-        s_pair_normalize(a_base_ticker, a_net_id, a_quote_ticker, a_net_id, uint256_0, &l_key, NULL, NULL);
-        
-        dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
-        if (!l_pair) {
-            pthread_rwlock_unlock(&s_dex_cache_rwlock);
-            return log_it(L_ERROR, "Pair %s/%s not found in whitelist", a_base_ticker, a_quote_ticker), -ENOENT;
-        }
-        
-        // Set fee_config: bit7=1 (QUOTE fee), bits[6:0]=percent
-        l_pair->key.fee_config = 0x80 | a_fee_percent;
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        log_it(L_NOTICE, "Test: Set fee %u%% for pair %s/%s", a_fee_percent, a_base_ticker, a_quote_ticker);
-    } else {
-        // Set default fee for all pairs
-        dex_pair_index_t *l_it, *l_tmp;
-        int l_count = 0;
-        HASH_ITER(hh, s_dex_pair_index, l_it, l_tmp) {
-            // Set fee_config: bit7=1 (QUOTE fee), bits[6:0]=percent
-            l_it->key.fee_config = 0x80 | a_fee_percent;
-            l_count++;
-        }
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        log_it(L_NOTICE, "Test: Set default fee %u%% for %d pairs", a_fee_percent, l_count);
-    }
-    
-    return 0;
-}
-
-int dap_chain_net_srv_dex_test_set_native_fee(dap_chain_net_id_t a_net_id, const char *a_base_ticker, const char *a_quote_ticker, uint256_t a_native_fee)
-{
-    pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-    
-    if (a_base_ticker && a_quote_ticker) {
-        // Normalize pair to canonical form
-        dex_pair_key_t l_key = {0};
-        s_pair_normalize(a_base_ticker, a_net_id, a_quote_ticker, a_net_id, uint256_0, &l_key, NULL, NULL);
-        
-        dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
-        if (!l_pair) {
-            pthread_rwlock_unlock(&s_dex_cache_rwlock);
-            return log_it(L_ERROR, "Pair %s/%s not found in whitelist", a_base_ticker, a_quote_ticker), -ENOENT;
-        }
-        
-        // Set NATIVE fee: bit7=0 (NATIVE fee), bits[6:0] unused, store amount in s_dex_native_fee_amount
-        l_pair->key.fee_config = 0x00;  // NATIVE fee indicator
-        s_dex_native_fee_amount = a_native_fee;
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        log_it(L_NOTICE, "Test: Set NATIVE fee %s for pair %s/%s", 
-               dap_uint256_to_char_ex(a_native_fee).frac, a_base_ticker, a_quote_ticker);
-    } else {
-        // Set default NATIVE fee for all pairs
-        dex_pair_index_t *l_it, *l_tmp;
-        int l_count = 0;
-        HASH_ITER(hh, s_dex_pair_index, l_it, l_tmp) {
-            l_it->key.fee_config = 0x00;  // NATIVE fee indicator
-            l_count++;
-        }
-        s_dex_native_fee_amount = a_native_fee;
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
-        log_it(L_NOTICE, "Test: Set default NATIVE fee %s for %d pairs", 
-               dap_uint256_to_char_ex(a_native_fee).frac, l_count);
-    }
-    
-    return 0;
-}
-
-#endif // DAP_LEDGER_TEST

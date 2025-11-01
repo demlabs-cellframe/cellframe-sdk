@@ -44,6 +44,7 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_tsd.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
 #include "test_token_fixtures.h"
@@ -107,6 +108,131 @@ static void s_teardown(void)
     rmdir("/tmp/dex_test_config");
     
     log_it(L_NOTICE, "✓ Cleanup completed");
+}
+
+// ========================================================================
+// DECREE-BASED HELPERS
+// ========================================================================
+
+// TSD section types (from dap_chain_net_srv_dex.c)
+#define DEX_DECREE_TSD_METHOD        0x0000
+#define DEX_DECREE_TSD_TOKEN_BASE    0x0001
+#define DEX_DECREE_TSD_TOKEN_QUOTE   0x0002
+#define DEX_DECREE_TSD_NET_BASE      0x0003
+#define DEX_DECREE_TSD_NET_QUOTE     0x0004
+#define DEX_DECREE_TSD_FEE_CONFIG    0x0005
+#define DEX_DECREE_TSD_FEE_AMOUNT    0x0020
+#define DEX_DECREE_TSD_FEE_ADDR      0x0021
+
+// Decree methods (from dap_chain_net_srv_dex.c)
+typedef enum {
+    DEX_DECREE_UNKNOWN,
+    DEX_DECREE_FEE_SET,
+    DEX_DECREE_PAIR_ADD,
+    DEX_DECREE_PAIR_REMOVE,
+    DEX_DECREE_PAIR_FEE_SET,
+    DEX_DECREE_PAIR_FEE_SET_ALL
+} dex_decree_method_t;
+
+/**
+ * @brief Helper: Add pair to DEX whitelist via decree callback
+ * @param ledger Ledger instance
+ * @param token_base Base token ticker
+ * @param token_quote Quote token ticker
+ * @param net_id Network ID (for both tokens)
+ * @param fee_config Fee configuration byte (bit7: 0=NATIVE, 1=QUOTE; bits[6:0]: percent for QUOTE)
+ * @return 0 on success, error code otherwise
+ */
+static int test_decree_pair_add(dap_ledger_t *ledger, const char *token_base, const char *token_quote, 
+                                  dap_chain_net_id_t net_id, uint8_t fee_config)
+{
+    // Build TSD sections manually
+    byte_t l_tsd_buf[1024] = {0};
+    byte_t *l_ptr = l_tsd_buf;
+    
+    // METHOD
+    uint8_t l_method = (uint8_t)DEX_DECREE_PAIR_ADD;
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_METHOD, &l_method, sizeof(uint8_t));
+    
+    // TOKEN_BASE, TOKEN_QUOTE
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_BASE, token_base, dap_strlen(token_base)+1);
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_QUOTE, token_quote, dap_strlen(token_quote)+1);
+    
+    // NET_BASE, NET_QUOTE
+    uint64_t l_net_id = net_id.uint64;
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_NET_BASE, &l_net_id, sizeof(uint64_t));
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_NET_QUOTE, &l_net_id, sizeof(uint64_t));
+    
+    // FEE_CONFIG (optional)
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_CONFIG, &fee_config, sizeof(uint8_t));
+    
+    size_t l_tsd_size = l_ptr - l_tsd_buf;
+    
+    // Call decree callback
+    return dap_chain_net_srv_dex_decree_callback(ledger, true, (dap_tsd_t*)l_tsd_buf, l_tsd_size);
+}
+
+/**
+ * @brief Helper: Set fee for specific pair via decree callback
+ * @param ledger Ledger instance
+ * @param token_base Base token ticker
+ * @param token_quote Quote token ticker
+ * @param net_id Network ID (for both tokens)
+ * @param fee_config Full fee_config byte (bit7: 0=NATIVE, 1=QUOTE; bits[6:0]: percent for QUOTE or unused for NATIVE)
+ * @return 0 on success, error code otherwise
+ */
+static int test_decree_pair_fee_set(dap_ledger_t *ledger, const char *token_base, const char *token_quote,
+                                     dap_chain_net_id_t net_id, uint8_t fee_config)
+{
+    byte_t l_tsd_buf[1024] = {0};
+    byte_t *l_ptr = l_tsd_buf;
+    
+    // METHOD
+    uint8_t l_method = (uint8_t)DEX_DECREE_PAIR_FEE_SET;
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_METHOD, &l_method, sizeof(uint8_t));
+    
+    // TOKEN_BASE, TOKEN_QUOTE
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_BASE, token_base, dap_strlen(token_base)+1);
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_QUOTE, token_quote, dap_strlen(token_quote)+1);
+    
+    // NET_BASE, NET_QUOTE
+    uint64_t l_net_id = net_id.uint64;
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_NET_BASE, &l_net_id, sizeof(uint64_t));
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_NET_QUOTE, &l_net_id, sizeof(uint64_t));
+    
+    // FEE_CONFIG (full byte passed as-is)
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_CONFIG, &fee_config, sizeof(uint8_t));
+    
+    size_t l_tsd_size = l_ptr - l_tsd_buf;
+    
+    return dap_chain_net_srv_dex_decree_callback(ledger, true, (dap_tsd_t*)l_tsd_buf, l_tsd_size);
+}
+
+/**
+ * @brief Helper: Set global native fee and service address via decree callback
+ * @param ledger Ledger instance
+ * @param fee_amount Native token fee amount
+ * @param service_addr Service fee collector address
+ * @return 0 on success, error code otherwise
+ */
+static int test_decree_fee_set(dap_ledger_t *ledger, uint256_t fee_amount, const dap_chain_addr_t *service_addr)
+{
+    byte_t l_tsd_buf[1024] = {0};
+    byte_t *l_ptr = l_tsd_buf;
+    
+    // METHOD
+    uint8_t l_method = (uint8_t)DEX_DECREE_FEE_SET;
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_METHOD, &l_method, sizeof(uint8_t));
+    
+    // FEE_AMOUNT
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_AMOUNT, &fee_amount, sizeof(uint256_t));
+    
+    // FEE_ADDR
+    l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_ADDR, service_addr, sizeof(dap_chain_addr_t));
+    
+    size_t l_tsd_size = l_ptr - l_tsd_buf;
+    
+    return dap_chain_net_srv_dex_decree_callback(ledger, true, (dap_tsd_t*)l_tsd_buf, l_tsd_size);
 }
 
 // ========================================================================
@@ -278,19 +404,26 @@ static void test_verify_leftover(
 // ========================================================================
 
 /**
- * @brief Test 1: Basic order creation and matching (NO CACHE)
+ * @brief Test: Basic order creation and matching
+ * @param a_enable_hot_cache Enable hot cache for DEX orders
  */
-static void s_test_dex_basic_no_cache(void)
+static void s_test_dex_basic(bool a_enable_hot_cache)
 {
-    dap_print_module_name("DEX Test 1: Basic Trading (NO CACHE)");
+    const char *cache_status = a_enable_hot_cache ? "CACHE ENABLED" : "NO CACHE";
+    char test_name[128];
+    snprintf(test_name, sizeof(test_name), "dex_test_%s", a_enable_hot_cache ? "cache" : "no_cache");
+    
+    char module_name[128];
+    snprintf(module_name, sizeof(module_name), "DEX Basic Unit Tests (%s)", cache_status);
+    dap_print_module_name(module_name);
     
     // ========== SETUP ==========
     
-    log_it(L_NOTICE, "Test setup starting...");
+    log_it(L_NOTICE, "Test setup starting (hot cache: %s)...", a_enable_hot_cache ? "ENABLED" : "DISABLED");
     
     // 1. Create network
     log_it(L_NOTICE, "Creating test network fixture...");
-    test_net_fixture_t *net = test_net_fixture_create("dex_test_no_cache");
+    test_net_fixture_t *net = test_net_fixture_create(test_name);
     if (!net) {
         log_it(L_CRITICAL, "test_net_fixture_create() returned NULL!");
         dap_assert(false, "Network created");
@@ -299,18 +432,22 @@ static void s_test_dex_basic_no_cache(void)
     log_it(L_NOTICE, "Network fixture created successfully");
     dap_assert(net != NULL, "Network created");
     
-    // 2. Initialize DEX service
+    // 2. Initialize DEX service with cache control
     int dex_init = dap_chain_net_srv_dex_init();
     dap_assert(dex_init == 0, "DEX service initialized");
     
-    // 3. BYPASS DECREES: Add trading pairs to whitelist
-    int pair1_add = dap_chain_net_srv_dex_test_add_pair(net->net->pub.id, "KEL", "USDT");
-    dap_assert(pair1_add == 0, "Pair KEL/USDT added to whitelist");
+    // 3. Configure hot cache (BEFORE adding pairs!)
+    log_it(L_NOTICE, "Hot cache %s", a_enable_hot_cache ? "ENABLED" : "DISABLED");
     
-    int pair2_add = dap_chain_net_srv_dex_test_add_pair(net->net->pub.id, "KEL", "TestCoin");
-    dap_assert(pair2_add == 0, "Pair KEL/TestCoin added to whitelist");
+    // 4. BYPASS DECREES: Add trading pairs to whitelist
+    // Add allowed pairs via decree (with initial fee_config=0, no fee)
+    int pair1_add = test_decree_pair_add(net->net->pub.ledger, "KEL", "USDT", net->net->pub.id, 0);
+    dap_assert(pair1_add == 0, "Pair KEL/USDT added to whitelist via decree");
     
-    // 4. Create wallets (NOTE: will NOT close them due to cert deletion bug)
+    int pair2_add = test_decree_pair_add(net->net->pub.ledger, "KEL", "TestCoin", net->net->pub.id, 0);
+    dap_assert(pair2_add == 0, "Pair KEL/TestCoin added to whitelist via decree");
+    
+    // 5. Create wallets (NOTE: will NOT close them due to cert deletion bug)
     dap_chain_wallet_t *alice = dap_chain_wallet_create("alice", ".", (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM}, NULL);
     dap_chain_wallet_t *bob = dap_chain_wallet_create("bob", ".", (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM}, NULL);
     dap_chain_wallet_t *carol = dap_chain_wallet_create("carol", ".", (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM}, NULL);
@@ -328,16 +465,18 @@ static void s_test_dex_basic_no_cache(void)
     dap_chain_addr_t *l_ac = dap_chain_wallet_get_addr(carol, net->net->pub.id);
     carol_addr = *l_ac; DAP_DELETE(l_ac);
     
-    // 5. Set Carol as service wallet (will collect fees AND participate in trading)
-    dap_chain_net_srv_dex_test_set_service_addr(&carol_addr);
+    // 6. Set Carol as service wallet and configure fees via decree
+    // Set global native fee = 0 (we'll set QUOTE fees per-pair) and Carol as service addr
+    int fee_global_set = test_decree_fee_set(net->net->pub.ledger, uint256_0, &carol_addr);
+    dap_assert(fee_global_set == 0, "Global fee set via decree (Carol as service)");
     log_it(L_NOTICE, "Carol is service wallet: %s", dap_chain_addr_to_str_static(&carol_addr));
     
-    // 6. BYPASS DECREES: Set fee policies (5% for both pairs)
-    int fee1_set = dap_chain_net_srv_dex_test_set_fee(net->net->pub.id, "KEL", "USDT", 5);
-    dap_assert(fee1_set == 0, "Fee 5% set for KEL/USDT");
+    // 7. Set 5% QUOTE fee for both pairs via decree (bit7=1 for QUOTE, bits[6:0]=5)
+    int fee1_set = test_decree_pair_fee_set(net->net->pub.ledger, "KEL", "USDT", net->net->pub.id, 0x80 | 5);
+    dap_assert(fee1_set == 0, "Fee 5% QUOTE set for KEL/USDT via decree");
     
-    int fee2_set = dap_chain_net_srv_dex_test_set_fee(net->net->pub.id, "KEL", "TestCoin", 5);
-    dap_assert(fee2_set == 0, "Fee 5% set for KEL/TestCoin");
+    int fee2_set = test_decree_pair_fee_set(net->net->pub.ledger, "KEL", "TestCoin", net->net->pub.id, 0x80 | 5);
+    dap_assert(fee2_set == 0, "Fee 5% QUOTE set for KEL/TestCoin via decree");
     
     // Extract certificates from wallets using internal API (allowed in tests)
     dap_chain_wallet_internal_t *alice_int = DAP_CHAIN_WALLET_INTERNAL(alice);
@@ -360,8 +499,8 @@ static void s_test_dex_basic_no_cache(void)
     
     dap_assert(!dap_hash_fast_compare(&alice_pkey_hash, &bob_pkey_hash), "Alice and Bob have different pkeys");
     dap_assert(!dap_hash_fast_compare(&bob_pkey_hash, &carol_pkey_hash), "Bob and Carol have different pkeys");
-    dap_assert(!dap_hash_fast_compare(&alice_pkey_hash, &carol_pkey_hash), "Alice and Carol have different pkeys");
-    // 6. Create native token (TestCoin) for network fees - generous amounts
+    dap_assert(!dap_hash_fast_compare(&alice_pkey_hash, &carol_pkey_hash), "Alice and Carol have different pkeys");    
+    // 8. Create native token (TestCoin) for network fees - generous amounts
     dap_chain_hash_fast_t testcoin_alice_emission_hash, testcoin_bob_emission_hash, testcoin_carol_emission_hash;
     
     test_token_fixture_t *testcoin_token = test_token_fixture_create_with_emission(
@@ -404,7 +543,7 @@ static void s_test_dex_basic_no_cache(void)
     
     log_it(L_INFO, "TestCoin (native) distributed: 100k to each wallet for network fees");
     
-    // 7. Create tokens KEL and USDT with emissions
+    // 9. Create tokens KEL and USDT with emissions
     dap_chain_hash_fast_t kel_emission_hash, usdt_bob_emission_hash, usdt_carol_emission_hash;
     
     test_token_fixture_t *kel_token = test_token_fixture_create_with_emission(
@@ -444,7 +583,7 @@ static void s_test_dex_basic_no_cache(void)
     bool carol_hash_ok = test_emission_fixture_get_hash(usdt_carol_emission, &usdt_carol_emission_hash);
     dap_assert(carol_hash_ok, "Carol's emission hash retrieved");
     
-    // 8. Create transactions from emissions to actually credit wallets
+    // 10. Create transactions from emissions to actually credit wallets
     log_it(L_INFO, "Creating transactions from emissions...");
     
     // Prepare summary table buffer (will accumulate rows as tests progress)
@@ -527,7 +666,7 @@ static void s_test_dex_basic_no_cache(void)
     int carol_testcoin_tx_result = test_tx_fixture_add_to_ledger(net->ledger, carol_testcoin_tx);
     dap_assert(carol_testcoin_tx_result == 0, "Carol TestCoin TX added to ledger");
     
-    // 9. Verify balances
+    // 11. Verify balances
     log_it(L_INFO, "Verifying balances after transactions...");
     uint256_t alice_kel_balance = dap_ledger_calc_balance(net->ledger, &alice_addr, "KEL");
     uint256_t alice_testcoin_balance = dap_ledger_calc_balance(net->ledger, &alice_addr, "TestCoin");
@@ -840,8 +979,9 @@ static void s_test_dex_basic_no_cache(void)
     
     log_it(L_INFO, "=== Scenario 9: ASK + seller=service (Alice), fee aggregated to seller payout ===");
     
-    // Switch service wallet to Alice (temporarily)
-    dap_chain_net_srv_dex_test_set_service_addr(&alice_addr);
+    // Switch service wallet to Alice (temporarily) via decree
+    int fee_alice_set = test_decree_fee_set(net->net->pub.ledger, uint256_0, &alice_addr);
+    dap_assert(fee_alice_set == 0, "Alice set as service wallet via decree");
     log_it(L_NOTICE, "Alice is now service wallet (temporarily)");
     
     // Alice creates order: 500 KEL at rate 5.0 USDT/KEL
@@ -876,8 +1016,9 @@ static void s_test_dex_basic_no_cache(void)
     // In ASK with seller=service, fee is aggregated into seller's QUOTE payout (no separate OUT)
     // We already verified Alice received 2500 USDT (which includes 125 USDT fee aggregated)
     
-    // Restore Carol as service wallet
-    dap_chain_net_srv_dex_test_set_service_addr(&carol_addr);
+    // Restore Carol as service wallet via decree
+    int fee_carol_restore = test_decree_fee_set(net->net->pub.ledger, uint256_0, &carol_addr);
+    dap_assert(fee_carol_restore == 0, "Carol restored as service wallet via decree");
     log_it(L_NOTICE, "Carol restored as service wallet");
     
     log_it(L_INFO, "Scenario 9 PASSED: ASK + seller=service, fee aggregated to seller payout");
@@ -887,10 +1028,14 @@ static void s_test_dex_basic_no_cache(void)
     
     log_it(L_INFO, "=== Scenario 10: NATIVE fee, buyer=service (Carol), fee waived ===");
     
-    // Set NATIVE fee (10 TestCoin) for KEL/USDT pair
-    int native_fee_set = dap_chain_net_srv_dex_test_set_native_fee(net->net->pub.id, "KEL", "USDT", 
-                                                                     dap_chain_coins_to_balance("10.0"));
-    dap_assert(native_fee_set == 0, "NATIVE fee 10 TestCoin set for KEL/USDT");
+    // Set NATIVE fee (10 TestCoin) for KEL/USDT pair via decree
+    // First, reset KEL/USDT fee_config to NATIVE (bit7=0) via pair_fee_set
+    int native_fee_config_set = test_decree_pair_fee_set(net->net->pub.ledger, "KEL", "USDT", net->net->pub.id, 0);
+    dap_assert(native_fee_config_set == 0, "KEL/USDT fee_config reset to NATIVE via decree");
+    
+    // Then set global native fee amount via fee_set (keeps Carol as service addr)
+    int native_fee_amount_set = test_decree_fee_set(net->net->pub.ledger, dap_chain_coins_to_balance("10.0"), &carol_addr);
+    dap_assert(native_fee_amount_set == 0, "NATIVE fee 10 TestCoin set via decree");
     
     // Alice creates order: 300 KEL at rate 5.0 USDT/KEL
     dap_hash_fast_t order7_hash = {0};
@@ -1038,19 +1183,6 @@ static void s_test_dex_basic_no_cache(void)
     dap_pass_msg("DEX basic test (NO CACHE) - SETUP complete, order creation pending");
 }
 
-/**
- * @brief Test 2: Basic order creation and matching (WITH CACHE)
- */
-static void s_test_dex_basic_with_cache(void)
-{
-    dap_print_module_name("DEX Test 2: Basic Trading (WITH CACHE)");
-    
-    // TODO: Same as test 1, but enable hot cache
-    log_it(L_INFO, "Cache-enabled test - to be implemented");
-    
-    dap_pass_msg("DEX basic test (WITH CACHE) - pending implementation");
-}
-
 int main(int argc, char *argv[])
 {
     // Initialize test framework
@@ -1066,9 +1198,8 @@ int main(int argc, char *argv[])
     // Setup test environment (creates config, initializes consensus)
     s_setup();
     
-    // Run tests
-    s_test_dex_basic_no_cache();
-    // s_test_dex_basic_with_cache();  // Uncomment when ready
+    // Run test with hot cache DISABLED (default behavior)
+    s_test_dex_basic(false);  // Test without cache
     
     // Teardown
     s_teardown();
