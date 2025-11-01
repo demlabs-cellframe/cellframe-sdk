@@ -308,7 +308,7 @@ typedef struct _dap_sdk_cli_params {
     dap_cli_token_additional_params ext;
 } dap_sdk_cli_params, *pdap_sdk_cli_params;
 
-static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, dap_json_t* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
+static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
     a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-H", &a_params->hash_out_type);
@@ -445,7 +445,7 @@ dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd
     return l_tsd_list;
 }
 
-static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, dap_json_t* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
+static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &a_params->ext.flags);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &a_params->ext.total_signs_valid);
@@ -640,7 +640,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, dap_jso
     return 0;
 }
 
-static int s_token_decl_check_params_json(int a_argc, char **a_argv, dap_json_t* a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
+static int s_token_decl_check_params_json(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
     int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv, a_json_arr_reply, a_params, a_update_token);
     if (l_parse_params)
@@ -1364,7 +1364,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
-    dap_json_t* json_obj_out = dap_json_object_new();
+    dap_json_t *json_obj_out = dap_json_object_new();
     dap_json_object_add_string(json_obj_out, "result", l_str_reply_tmp);
     dap_json_array_add(a_json_arr_reply, json_obj_out);
     return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;

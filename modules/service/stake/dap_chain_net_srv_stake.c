@@ -835,7 +835,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, dap_json_t *a_json_arr_re
             } return 1;
     }
 
-    dap_json_t* json_obj_out = dap_json_object_new();
+    dap_json_t *json_obj_out = dap_json_object_new();
     if (STAKE_NO_ERROR != errorCode) {
         s_error_handler(errorCode, output_line);
         dap_json_object_add_string(json_obj_out, "status", output_line->str);

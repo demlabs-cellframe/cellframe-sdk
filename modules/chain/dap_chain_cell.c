@@ -101,6 +101,7 @@ static pfn_NtExtendSection pfnNtExtendSection;
 #endif
 
 static bool s_debug_more = false;
+static atomic_bool s_load_skip = false;
 
 /**
  * @brief dap_chain_cell_init
@@ -366,7 +367,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     dap_chain_atom_ptr_t l_atom;
     dap_hash_fast_t l_atom_hash;
     if (a_cell->chain->is_mapped) {
-        for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += sizeof(uint64_t) + l_el_size ) {
+        for ( off_t l_vol_rest = 0; !s_load_skip && l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += sizeof(uint64_t) + l_el_size ) {
             l_vol_rest = (off_t)( a_cell->mapping->volume->base + a_cell->mapping->volume->size - a_cell->mapping->cursor - sizeof(uint64_t) );
             if ( l_vol_rest <= 0 || l_vol_rest < ( l_el_size = *(uint64_t*)a_cell->mapping->cursor ) )
                 dap_return_val_if_pass_err( s_cell_map_new_volume(a_cell, l_pos, true), -7, "Error on mapping a new volume" );
@@ -398,7 +399,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
 #endif
     } else { 
         size_t l_read = 0;
-        while (( l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage) ) && !feof(a_cell->file_storage) ) {
+        while (!s_load_skip && ( l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage) ) && !feof(a_cell->file_storage) ) {
             if ( !l_el_size || l_read != sizeof(l_el_size) ) {
                 log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, a_cell->file_storage_path);
                 l_ret = 8;
@@ -439,7 +440,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             }
         }
     }
-    if ( l_pos < l_full_size && l_ret > 0 ) {
+    if ( !s_load_skip && l_pos < l_full_size && l_ret > 0 ) {
         log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %zu bytes",
                         a_cell->file_storage_path, l_full_size - l_pos );
 #ifdef DAP_OS_WINDOWS
@@ -620,4 +621,9 @@ int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_
     //pthread_rwlock_unlock(&l_cell->storage_rwlock);
     dap_chain_cell_remit(a_chain);
     return 0;
+}
+
+DAP_INLINE void dap_chain_cell_set_load_skip()
+{
+    s_load_skip = true;
 }
