@@ -1362,7 +1362,6 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
                 return NULL;
             }
             dap_json_object_add_object(l_jobj_net, "addr", l_addr_obj);
-            dap_json_object_add_object(l_jobj_network, l_net->pub.name, l_jobj_net);
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_net->pub.ledger, l_wallet_addr_in_net, &l_addr_tokens,
@@ -1416,8 +1415,10 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
                 dap_json_array_add(l_arr_balance, l_balance_data);
                 DAP_DELETE(l_addr_tokens[i]);
             }
-            dap_json_object_add_object(l_jobj_net, "tokens", l_arr_balance);
+            dap_json_object_add_array(l_jobj_net, "tokens", l_arr_balance);
             DAP_DEL_MULTY(l_addr_tokens, l_wallet_addr_in_net);
+            // Now it's safe to add l_jobj_net to parent (this invalidates l_jobj_net)
+            dap_json_object_add_object(l_jobj_network, l_net->pub.name, l_jobj_net);
         }
         dap_json_object_add_object(l_json_ret, "networks", l_jobj_network);
         dap_chain_wallet_close(l_wallet);
