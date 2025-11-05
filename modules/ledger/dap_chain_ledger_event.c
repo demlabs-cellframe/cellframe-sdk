@@ -469,6 +469,6 @@ dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(dap_ledger_t *a_ledger
         }
         DL_APPEND(ret, l_add);
     }
-    pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
     return ret;
 }
