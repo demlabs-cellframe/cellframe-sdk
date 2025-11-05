@@ -156,7 +156,7 @@ int dap_chain_type_dag_init()
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
-    dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands", dap_chain_node_cli_cmd_id_from_str("dag"),
+    dap_cli_server_cmd_add ("dag", s_cli_dag, NULL, "DAG commands", dap_chain_node_cli_cmd_id_from_str("dag"),
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
@@ -1315,7 +1315,7 @@ static void s_json_dag_pack_event(dap_json_t *a_json_out, dap_chain_type_dag_eve
     dap_json_array_add(a_json_out, json_obj_event_i);
 }
 
-static bool s_filter_event(dap_chain_cs_dag_event_item_t * a_event_item, dap_chain_hash_fast_t * a_l_to_hash,
+static bool s_filter_event(dap_chain_type_dag_event_item_t * a_event_item, dap_chain_hash_fast_t * a_l_to_hash,
     dap_chain_hash_fast_t * a_l_from_hash, size_t * a_i_tmp, size_t a_l_arr_end, size_t a_l_arr_start,  
     char * a_l_to_hash_str, char * a_l_from_hash_str, dap_time_t a_l_from_time, dap_time_t a_l_to_time,
     json_object * a_json_out, int a_version, bool a_l_head, bool * a_l_hash_flag)
@@ -1772,22 +1772,22 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 }
 
                 if (l_to_hash_str && l_from_hash_str) {
-                    dap_chain_cs_dag_event_item_t * l_event_item_to = NULL;
+                    dap_chain_type_dag_event_item_t * l_event_item_to = NULL;
                     HASH_FIND(hh,PVT(l_dag)->events,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
                     if (!l_event_item_to) {
                         HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
                         if (!l_event_item_to) {
-                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
+                            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
                                 "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_to_hash));
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
                     }
-                    dap_chain_cs_dag_event_item_t * l_event_item_from = NULL;
+                    dap_chain_type_dag_event_item_t * l_event_item_from = NULL;
                     HASH_FIND(hh,PVT(l_dag)->events,&l_from_hash,sizeof(l_from_hash),l_event_item_from);
                     if (!l_event_item_from) {
                         HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_from_hash,sizeof(l_from_hash),l_event_item_from);
                         if (!l_event_item_from) {
-                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
+                            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
                                 "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_from_hash));
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
@@ -1797,12 +1797,12 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 // Decide direction when mixing hash and date boundaries
                 // l_to_hash_str + l_from_date_str -> compare from_time with "to" event timestamp
                 if (l_to_hash_str && l_from_date_str) {
-                    dap_chain_cs_dag_event_item_t * l_event_item_to = NULL;
+                    dap_chain_type_dag_event_item_t * l_event_item_to = NULL;
                     HASH_FIND(hh, PVT(l_dag)->events, &l_to_hash, sizeof(l_to_hash), l_event_item_to);
                     if (!l_event_item_to) {
                         HASH_FIND(hh, PVT(l_dag)->events_treshold, &l_to_hash, sizeof(l_to_hash), l_event_item_to);
                         if (!l_event_item_to) {
-                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
+                            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
                                 "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_to_hash));
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
@@ -1811,12 +1811,12 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 }
                 // l_to_date_str + l_from_hash_str -> compare "from" event timestamp with to_time
                 if (l_to_date_str && l_from_hash_str) {
-                    dap_chain_cs_dag_event_item_t * l_event_item_from = NULL;
+                    dap_chain_type_dag_event_item_t * l_event_item_from = NULL;
                     HASH_FIND(hh, PVT(l_dag)->events, &l_from_hash, sizeof(l_from_hash), l_event_item_from);
                     if (!l_event_item_from) {
                         HASH_FIND(hh, PVT(l_dag)->events_treshold, &l_from_hash, sizeof(l_from_hash), l_event_item_from);
                         if (!l_event_item_from) {
-                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
+                            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
                                 "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_from_hash));
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }

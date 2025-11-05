@@ -214,7 +214,7 @@ int dap_chain_cs_esbocs_init()
                            NULL,
                            s_stream_ch_packet_in,
                            NULL);
-    dap_cli_server_cmd_add (DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_cli_esbocs, "ESBOCS commands", dap_chain_node_cli_cmd_id_from_str(DAP_CHAIN_ESBOCS_CS_TYPE_STR),
+    dap_cli_server_cmd_add (DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_cli_esbocs, NULL, "ESBOCS commands", dap_chain_node_cli_cmd_id_from_str(DAP_CHAIN_ESBOCS_CS_TYPE_STR),
         "esbocs min_validators_count set -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> -val_count <value>\n"
             "\tSets minimum validators count for ESBOCS consensus\n"
         "esbocs min_validators_count show -net <net_name> [-chain <chain_name>]\n"

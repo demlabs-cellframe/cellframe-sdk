@@ -295,7 +295,7 @@ static int datum_list_sort_by_date_back(const void *a, const void *b)
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands", dap_chain_node_cli_cmd_id_from_str("srv_xchange"),
+    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, NULL, "eXchange service commands", dap_chain_node_cli_cmd_id_from_str("srv_xchange"),
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"
