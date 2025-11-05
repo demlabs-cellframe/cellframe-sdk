@@ -394,7 +394,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, dap_chain_datum_de
                 dap_json_object_add_string(a_json_out, "wallet_addr_pair", "WRONG SIZE");
                 break;
             }
-            dap_json_t* l_json_obj = NULL;
+            dap_json_t *l_json_obj = NULL;
             if (!dap_strcmp(dap_tsd_get_string_const(l_tsd), DAP_TSD_CORRUPTED_STRING)) {
                 l_json_obj = dap_json_parse_string(dap_tsd_get_string_const(l_tsd));
             } else {
@@ -428,7 +428,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, dap_chain_datum_de
                                       a_decree->header.signs_size, a_hash_out_type, a_version);
 }
 
-void dap_chain_datum_decree_certs_dump_json(dap_json_t * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
+void dap_chain_datum_decree_certs_dump_json(dap_json_t *a_json_out, byte_t *a_signs, size_t a_certs_size, const char *a_hash_out_type, int a_version)
 {
     if (a_version == 1)
         dap_json_object_add_string(a_json_out, "signatures", "");
@@ -436,10 +436,10 @@ void dap_chain_datum_decree_certs_dump_json(dap_json_t * a_json_out, byte_t * a_
         dap_json_object_add_string(a_json_out, a_version == 1 ? "Cert status" : "cert_status", "NONE");
         return;
     }
-    dap_json_t* json_arr_certs_out = dap_json_array_new();
+    dap_json_t *json_arr_certs_out = dap_json_array_new();
     size_t l_offset = 0;
     for (int i = 1; l_offset < (a_certs_size); i++) {
-        dap_json_t* json_obj_sign = dap_json_object_new();
+        dap_json_t *json_obj_sign = dap_json_object_new();
         dap_sign_t *l_sign = (dap_sign_t *) (a_signs + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {

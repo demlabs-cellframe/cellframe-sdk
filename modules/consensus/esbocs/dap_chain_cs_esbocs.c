@@ -92,7 +92,7 @@ static size_t s_callback_block_sign(dap_chain_type_blocks_t *a_blocks, dap_chain
 static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size);
 static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
 static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr);
-static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+static int s_cli_esbocs(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
 {
@@ -1009,7 +1009,7 @@ static void s_callback_delete(dap_chain_type_blocks_t *a_blocks)
         HASH_DEL(l_session->penalty, l_pen_item);
         DAP_DELETE(l_pen_item);
     }
-    DAP_DEL_MULTY(l_session, a_blocks->_inheritor); // a_blocks->_inheritor - l_esbocs
+    DAP_DEL_MULTY(l_session, a_blocks->_inheritor, a_blocks->_pvt); // a_blocks->_inheritor - l_esbocs
 }
 
 static void *s_callback_list_copy(const void *a_validator, UNUSED_ARG void *a_data)
@@ -3361,18 +3361,17 @@ static void s_print_emergency_validators(dap_json_t *json_obj_out, dap_list_t *a
  * @param str_reply
  * @return
  */
-static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+static int s_cli_esbocs(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
     int l_arg_index = 1;
     dap_chain_net_t *l_chain_net = NULL;
     dap_chain_t *l_chain = NULL;
-    dap_json_t **a_json_arr_reply = (dap_json_t **)a_str_reply;
         
-    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_chain_net, CHAIN_TYPE_ANCHOR))
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_chain_net, CHAIN_TYPE_ANCHOR))
         return -3;
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
     if (strcmp(l_chain_type, DAP_CHAIN_ESBOCS_CS_TYPE_STR)) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHAIN_TYPE_ERR,"Type of chain \"%s\" is not block. Chain with current consensus \"%s\" is not supported by this command",
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHAIN_TYPE_ERR,"Type of chain \"%s\" is not block. Chain with current consensus \"%s\" is not supported by this command",
                         l_chain->name, l_chain_type);
             return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHAIN_TYPE_ERR;
     }
@@ -3423,22 +3422,22 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             const char *l_cert_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
             if (!l_cert_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -cert", l_subcmd_strs[l_subcmd]);
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -cert", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
             l_poa_cert = dap_cert_find_by_name(l_cert_str);
             if (!l_poa_cert) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CERT_ERR,"Specified certificate not found");
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CERT_ERR,"Specified certificate not found");
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CERT_ERR;
             }
             if (!l_poa_cert->enc_key || !l_poa_cert->enc_key->priv_key_data) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PVT_KEY_ERR,"Specified certificate doesn't contain a private key");
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PVT_KEY_ERR,"Specified certificate doesn't contain a private key");
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PVT_KEY_ERR;
             }
         } else if (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "show") > 0)
             l_subcommand_show = true;
         else if (l_subcmd != SUBCMD_STATUS)
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN,"Unrecognized subcommand '%s'", a_argv[l_arg_index]);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNKNOWN,"Unrecognized subcommand '%s'", a_argv[l_arg_index]);
     }
 
     int ret = 0;
@@ -3450,12 +3449,12 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             const char *l_value_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-val_count", &l_value_str);
             if (!l_value_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -val_count", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
             uint256_t l_value = dap_uint256_scan_uninteger(l_value_str);
             if (IS_ZERO_256(l_value)) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,"Unrecognized number in '-val_count' param");
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR,"Unrecognized number in '-val_count' param");
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_UNREC_COM_ERR;
             }
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_min_validators_count(
@@ -3465,17 +3464,17 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 dap_json_t * json_obj_out = dap_json_object_new();
                 dap_json_object_add_object(json_obj_out,"status", dap_json_object_new_string("Minimum validators count has been set"));
                 dap_json_object_add_string(json_obj_out, a_version == 1 ? "decree hash" : "decree_hash", l_decree_hash_str);
-                dap_json_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR,"Minimum validators count setting failed");
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR,"Minimum validators count setting failed");
                 DAP_DEL_Z(l_decree);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_MINVALSET_ERR;
             }
         } else{
             dap_json_t * json_obj_out = dap_json_object_new();
             dap_json_object_add_uint64(json_obj_out, a_version == 1 ? "Minimum validators count" : "min_validators_count", l_esbocs_pvt->min_validators_count);
-            dap_json_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_array_add(a_json_arr_reply, json_obj_out);
         }            
     } break;
 
@@ -3484,7 +3483,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             const char *l_value_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-round_count", &l_value_str);
             if (!l_value_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -round_count", l_subcmd_strs[l_subcmd]);
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR,"Command '%s' requires parameter -round_count", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_PARAM_ERR;
             }
             uint16_t l_value = strtoul(l_value_str, NULL, 10);
@@ -3495,17 +3494,17 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 dap_json_t * json_obj_out = dap_json_object_new();
                 dap_json_object_add_object(json_obj_out,"status", dap_json_object_new_string("Blockgen period has been set"));
                 dap_json_object_add_object(json_obj_out, a_version == 1 ? "decree hash" : "decree_hash", dap_json_object_new_string(l_decree_hash_str));
-                dap_json_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_BLOCKGEN_PERIOD_ERR,"Blockgen period setting failed");
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_BLOCKGEN_PERIOD_ERR,"Blockgen period setting failed");
                 DAP_DEL_Z(l_decree);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_BLOCKGEN_PERIOD_ERR;
             }
         } else{
             dap_json_t * json_obj_out = dap_json_object_new();
             dap_json_object_add_object(json_obj_out, "empty_block_every_times", dap_json_object_new_uint64(l_esbocs_pvt->empty_block_every_times));
-            dap_json_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_array_add(a_json_arr_reply, json_obj_out);
         }            
     } break;
 
@@ -3517,17 +3516,17 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
                 dap_json_object_add_object(json_obj_out, a_version == 1 ? "Checking signs structure has been" : "sig_check_status", l_subcommand_add ? dap_json_object_new_string("enabled") : dap_json_object_new_string("disabled"));
                 dap_json_object_add_string(json_obj_out, a_version == 1 ? "Decree hash" : "decree_hash", l_decree_hash_str);
-                dap_json_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,"Checking signs structure setting failed");
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,"Checking signs structure setting failed");
                 DAP_DEL_Z(l_decree);
                 dap_json_object_free(json_obj_out);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
         } else{
             dap_json_object_add_object(json_obj_out, a_version == 1 ? "Checking signs structure is" : "sig_check_status", l_esbocs_pvt->check_signs_structure ? dap_json_object_new_string("enabled") : dap_json_object_new_string("disabled"));
-            dap_json_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_array_add(a_json_arr_reply, json_obj_out);
         }            
     } break;
 
@@ -3536,12 +3535,12 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             const char *l_hash_str = NULL, *l_type_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pkey_hash", &l_hash_str);
             if (!l_hash_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_ERR,"Command '%s' requires parameter -pkey_hash", l_subcmd_strs[l_subcmd]);
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_ERR,"Command '%s' requires parameter -pkey_hash", l_subcmd_strs[l_subcmd]);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_ERR;
             }
             dap_hash_fast_t l_pkey_hash;
             if (dap_chain_hash_fast_from_str(l_hash_str, &l_pkey_hash)) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_FORMAT_ERR,"Invalid hash format in 'pkey_hash' param");
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_FORMAT_ERR,"Invalid hash format in 'pkey_hash' param");
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_HASH_FORMAT_ERR;
             }
             dap_sign_type_t l_sig_type = { .type = SIG_TYPE_DILITHIUM };
@@ -3555,10 +3554,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 dap_json_object_add_string(json_obj_out, a_version == 1 ? "Emergency validator" : "emergency_validator", dap_chain_hash_fast_to_str_static(&l_pkey_hash));
                 dap_json_object_add_object(json_obj_out, "status", l_subcommand_add ? dap_json_object_new_string("added") : dap_json_object_new_string("deleted"));
                 dap_json_object_add_string(json_obj_out, a_version == 1 ? "Decree hash" : "decree_hash", l_decree_hash_str);
-                dap_json_array_add(*a_json_arr_reply, json_obj_out);
+                dap_json_array_add(a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR,
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR,
                                         "Emergency validator %s failed", l_subcommand_add ? "adding" : "deleting");
                 DAP_DEL_Z(l_decree);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_ADD_DEL_ERR;
@@ -3566,7 +3565,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         } else{
             dap_json_t * json_obj_out = dap_json_object_new();
             s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs, a_version);
-            dap_json_array_add(*a_json_arr_reply, json_obj_out);
+            dap_json_array_add(a_json_arr_reply, json_obj_out);
         }            
     } break;
 
@@ -3574,7 +3573,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         const char * l_net_str = NULL, *l_chain_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
         if (!l_net_str) {
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET,"Command '%s' requires parameter -net", l_subcmd_strs[l_subcmd]);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET,"Command '%s' requires parameter -net", l_subcmd_strs[l_subcmd]);
             return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_NET;
         }
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_str);
@@ -3620,13 +3619,13 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         } else {
             dap_json_object_add_object(l_json_obj_banlist, a_version == 1 ? "BANLIST" : "banlist", l_json_arr_banlist);
         }
-        dap_json_array_add(*a_json_arr_reply, l_json_obj_banlist);   
+        dap_json_array_add(a_json_arr_reply, l_json_obj_banlist);   
 
         dap_json_t* l_json_obj_status = dap_json_object_new();
         dap_json_object_add_int(l_json_obj_status, "ban_list_count", l_penalties_count);
         dap_json_object_add_uint64(l_json_obj_status, "sync_attempt", l_session->cur_round.sync_attempt);
         dap_json_object_add_uint64(l_json_obj_status, "round_id", l_session->cur_round.id);
-        dap_json_array_add(*a_json_arr_reply, l_json_obj_status);
+        dap_json_array_add(a_json_arr_reply, l_json_obj_status);
         if (l_session->esbocs->last_submitted_candidate_timestamp) {
             char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
             dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_submitted_candidate_timestamp);
@@ -3655,7 +3654,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     } break;
 
     default:
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_SUB_ERR,"Unrecognized subcommand '%s'", a_argv[l_arg_index - 1]);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_SUB_ERR,"Unrecognized subcommand '%s'", a_argv[l_arg_index - 1]);
     }
     return ret;
 }

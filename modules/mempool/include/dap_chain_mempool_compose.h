@@ -15,7 +15,7 @@ typedef struct dap_chain_addr dap_chain_addr_t;
 typedef struct dap_pkey dap_pkey_t;
 
 // Error codes for mempool compose operations
-typedef enum {
+typedef enum dap_tx_cond_create_compose_error {
     TX_COND_CREATE_COMPOSE_ERROR_INVALID_FEE = 1,
     TX_COND_CREATE_COMPOSE_ERROR_INVALID_SERVICE_UID,
     TX_COND_CREATE_COMPOSE_ERROR_INVALID_UNIT,

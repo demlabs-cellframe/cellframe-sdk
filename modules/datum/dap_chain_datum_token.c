@@ -68,7 +68,7 @@ static const struct datum_token_flag_struct s_flags_table[] = {
 dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
     if (a_token_size < sizeof(dap_chain_datum_token_t)){
-        log_it(L_WARNING, "Token size %lu < %lu header size, corrupted token datum", a_token_size, sizeof(dap_chain_datum_token_t));
+        log_it(L_WARNING, "Token size %zu < %zu header size, corrupted token datum", a_token_size, sizeof(dap_chain_datum_token_t));
         return NULL;
     }
     return (dap_tsd_t*)a_token->tsd_n_signs;
@@ -195,7 +195,7 @@ uint32_t dap_chain_datum_token_flag_from_str(const char *a_str)
  * @param json_obj_out
  * @param a_flags
  */
-void dap_chain_datum_token_flags_dump_to_json(dap_json_t * json_obj_out, const char *a_key, uint16_t a_flags)
+void dap_chain_datum_token_flags_dump_to_json(dap_json_t *json_obj_out, const char *a_key, uint16_t a_flags)
 {
     if (!a_flags) {
         dap_json_object_add_object(json_obj_out, a_key, dap_json_object_new_string(dap_chain_datum_token_flag_to_str(DAP_CHAIN_DATUM_TOKEN_FLAG_NONE)));
@@ -272,9 +272,9 @@ void dap_chain_datum_token_certs_dump_to_json(dap_json_t *a_json_obj_out, byte_t
     }
 
     size_t l_offset = 0;
-    dap_json_t * json_arr_seg = dap_json_array_new();
+    dap_json_t *json_arr_seg = dap_json_array_new();
     for (int i = 1; l_offset < (a_certs_size); i++) {
-        dap_json_t * l_json_obj_out = dap_json_object_new();
+        dap_json_t *l_json_obj_out = dap_json_object_new();
         dap_sign_t *l_sign = (dap_sign_t *) (a_tsd_n_signs + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {
@@ -499,7 +499,7 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
         l_sign = (dap_sign_t *)((byte_t *)l_sign + l_sign_size);
     }
     if ((l_expected_size != l_actual_size) || (l_count < a_emission->data.type_auth.signs_count)) {
-        log_it(L_CRITICAL, "Malformed signs, only %lu of %hu are present (%lu != %lu)", l_count, a_emission->data.type_auth.signs_count,
+        log_it(L_CRITICAL, "Malformed signs, only %zu of %hu are present (%zu != %zu)", l_count, a_emission->data.type_auth.signs_count,
                l_actual_size, l_expected_size);
     }
     dap_sign_t *l_ret = DAP_NEW_Z_SIZE(dap_sign_t, l_actual_size);

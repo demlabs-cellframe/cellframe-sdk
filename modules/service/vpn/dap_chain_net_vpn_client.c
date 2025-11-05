@@ -39,6 +39,7 @@
 #include <arpa/inet.h>
 #include "dap_common.h"
 #include "dap_config.h"
+#include "dap_enc_key.h"
 #include "dap_strfuncs.h"
 #include "dap_time.h"
 #include "rand/dap_rand.h"
@@ -319,14 +320,19 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
     if(!l_tx_cond_hash) {
         dap_chain_wallet_t *l_wallet_from = a_wallet;
         log_it(L_DEBUG, "Create tx from wallet %s", l_wallet_from->name);
-        dap_pkey_t *l_client_key = dap_pkey_from_enc_key(l_enc_key);
         // where to take coins for service
         dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet_from, a_net->pub.id);
         dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_SEC };
         dap_chain_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
         uint256_t l_value = dap_chain_uint256_from(a_value_datoshi);
         uint256_t l_zero = {};
-        char *l_tx_cond_hash_str = dap_chain_mempool_tx_create_cond(a_net, l_enc_key, l_client_key, a_token_ticker,
+        dap_hash_fast_t l_pkey_hash = {};
+        dap_enc_key_get_pkey_hash(l_enc_key, &l_pkey_hash);
+        if (dap_hash_fast_is_blank(&l_pkey_hash)) {
+            log_it(L_ERROR, "Can't get pkey hash");
+            return NULL;
+        }
+        char *l_tx_cond_hash_str = dap_chain_mempool_tx_create_cond(a_net, l_enc_key, &l_pkey_hash, a_token_ticker,
                                                           l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0, "hex");
         DAP_DELETE(l_addr_from);
         if(!l_tx_cond_hash_str) {
@@ -338,7 +344,6 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
             // save transaction for login
             dap_global_db_set_sync(l_gdb_group, "client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), false);
         }
-        DAP_DELETE(l_client_key);
     }
     dap_enc_key_delete(l_enc_key);
     DAP_DELETE(l_gdb_group);

@@ -56,12 +56,6 @@ typedef enum s_type_of_tx {
     DAP_CHAIN_NET_TX_TYPE_ERR
 }s_type_of_tx_t;
 
-typedef struct dap_tx_creator_tokenizer {
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t sum;
-    UT_hash_handle hh;
-} dap_tx_creator_tokenizer_t;
-
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
     TX_SEARCH_TYPE_LOCAL,
@@ -152,7 +146,7 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
 /**
  * @brief Convert binary transaction to json
  * @param a_tx input transaction
- * @param a_out_json pointer to json object created by json_object_new_object()
+ * @param a_out_json pointer to json object created by dap_json_object_new()
  * 
  * @return s_com_tx_create_json_err_t status code
  */

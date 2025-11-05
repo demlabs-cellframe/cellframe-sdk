@@ -63,7 +63,6 @@ int dap_chain_cs_stake_hardfork_data_import(dap_chain_t *a_chain, dap_hash_fast_
 int dap_chain_cs_stake_switch_table(dap_chain_t *a_chain, bool a_to_sandbox);
 
 // Mempool wrappers
-char* dap_chain_cs_mempool_group_new(dap_chain_t *a_chain);
 char* dap_chain_cs_mempool_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
 
 // ===== Consensus registration and lifecycle =====

@@ -1790,20 +1790,20 @@ dap_json_t *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_ve
  */
 dap_json_t *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version)
 {
-    dap_json_t * json_obj_datum;
-    dap_json_t * json_arr_out = dap_json_array_new();
+    dap_json_t *json_obj_datum;
+    dap_json_t *json_arr_out = dap_json_array_new();
     dap_ledger_token_item_t *l_token_item, *l_tmp_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     size_t l_arr_start = 0;
     if (a_offset > 0) {
         l_arr_start = a_offset;
-        dap_json_t* json_obj_tx = dap_json_object_new();
+        dap_json_t *json_obj_tx = dap_json_object_new();
         dap_json_object_add_int(json_obj_tx, "offset", l_arr_start);
         dap_json_array_add(json_arr_out, json_obj_tx);
     }
     size_t l_arr_end = HASH_COUNT(PVT(a_ledger)->tokens);
     if (a_limit) {
-        dap_json_t* json_obj_tx = dap_json_object_new();
+        dap_json_t *json_obj_tx = dap_json_object_new();
         dap_json_object_add_int(json_obj_tx, "limit", a_limit);
         dap_json_array_add(json_arr_out, json_obj_tx);
         l_arr_end = l_arr_start + a_limit;

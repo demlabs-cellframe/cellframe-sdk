@@ -151,46 +151,6 @@ bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr)
 }
 
 /**
- * @brief dap_chain_srv_uid_from_str
- * @param a_net_str
- * @return
- */
-dap_chain_srv_uid_t dap_chain_srv_uid_from_str( const char * a_net_srv_uid_str)
-{
-    dap_chain_srv_uid_t l_ret={{0}};
-    size_t l_net_srv_uid_str_len = strlen( a_net_srv_uid_str);
-    if (l_net_srv_uid_str_len >2){
-        a_net_srv_uid_str+=2;
-        l_net_srv_uid_str_len-=2;
-        if (l_net_srv_uid_str_len == sizeof (l_ret)/2 ){
-            size_t l_pos =0;
-            char l_byte[3];
-            while(l_net_srv_uid_str_len){
-
-                // Copy two characters for bytes
-                memcpy(l_byte,a_net_srv_uid_str,2);
-                l_byte[2]='\0';
-
-                // Read byte chars
-                unsigned int l_bytechar;
-                if ( sscanf(l_byte,"%02x", &l_bytechar) != 1)
-                    if( sscanf(l_byte,"%02X", &l_bytechar) != 1 )
-                        break;
-                l_ret.raw[l_pos] = l_bytechar;
-                // Update pos
-                l_pos++;
-                // Reduce in two steps to not to break if input will have bad input
-                l_net_srv_uid_str_len-=1;
-                if(l_net_srv_uid_str_len)
-                    l_net_srv_uid_str_len-=1;
-            }
-        }else
-            log_it(L_WARNING,"Wrong input string \"%s\" not recognized as network id", a_net_srv_uid_str);
-    }
-    return  l_ret;
-}
-
-/**
  * @brief dap_chain_addr_fill_from_key
  * @param a_addr
  * @param a_key
@@ -260,10 +220,10 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     return memcmp(a_addr->checksum.raw, l_checksum.raw, sizeof(l_checksum.raw));
 }
 
-void dap_chain_set_offset_limit_json(dap_json_t * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count,
+void dap_chain_set_offset_limit_json(dap_json_t *a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count,
                                      bool a_last)
 {
-    dap_json_t* json_obj_lim = dap_json_object_new();
+    dap_json_t *json_obj_lim = dap_json_object_new();
     *a_and = a_and_count;
     if (a_offset > 0) {
         if ((a_last) && (a_and_count > a_offset)) {

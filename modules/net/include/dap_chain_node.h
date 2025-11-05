@@ -113,14 +113,14 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);
 bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
 
-int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t * a_changed_addrs);
+int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs);
 int dap_chain_node_hardfork_process(dap_chain_t *a_chain);
 int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 int dap_chain_node_hardfork_confirm(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 
 dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_ignored, size_t a_ignored_count);
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr);
-int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(dap_json_t* a_json_arr_reply, int *a_arg_index, int a_argc,
+int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(dap_json_t *a_json_arr_reply, int *a_arg_index, int a_argc,
                                                            char **a_argv,
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net,
                                                            dap_chain_type_t a_default_chain_type);
