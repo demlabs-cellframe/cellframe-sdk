@@ -423,7 +423,11 @@ dap_json_t* dap_enc_request_command_to_rpc(const char *a_request, const char * a
     }
 
     dap_json_rpc_params_t * params = dap_json_rpc_params_create();
-    char *l_cmd_str = dap_str_replace_char(l_cmd_str, ',', ';', false);
+    char *l_cmd_str = dap_str_replace_char(a_request, ',', ';', true);
+    if (!l_cmd_str) {
+        log_it(L_ERROR, "Failed to replace commas with semicolons");
+        return NULL;
+    }
     dap_json_rpc_params_add_data(params, l_cmd_str, TYPE_PARAM_STRING);
     uint64_t l_id_response = dap_json_rpc_response_get_new_id();
     char ** l_cmd_arr_str = dap_strsplit(l_cmd_str, ";", -1);

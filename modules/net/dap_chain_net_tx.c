@@ -1384,15 +1384,14 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 }
             }
             
-            dap_chain_srv_uid_t l_srv_uid;
-            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+            uint64_t l_srv_uid = 0;
+            if (!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid))
                 // Default service for wallet shared
-                l_srv_uid.uint64 = DAP_CHAIN_WALLET_SHARED_ID;
-            }
+                l_srv_uid = DAP_CHAIN_WALLET_SHARED_ID;
             
-            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared(
-                l_srv_uid, l_value, (uint32_t)l_min_sig_count, l_pkey_hashes, l_pkey_hashes_count, l_tag_str);
-            
+            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared((dap_chain_srv_uid_t){.uint64 = l_srv_uid},
+                                                                                                             l_value, (uint32_t)l_min_sig_count, l_pkey_hashes,
+                                                                                                             l_pkey_hashes_count, l_tag_str);
             DAP_DEL_MULTY(l_pkey_hashes, l_tag_str);
             
             if(l_out_cond_item) {

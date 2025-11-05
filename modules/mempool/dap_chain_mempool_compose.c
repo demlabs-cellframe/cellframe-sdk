@@ -11,6 +11,7 @@
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_ledger.h"
+#include "dap_pkey.h"
 
 #define LOG_TAG "mempool_compose"
 
@@ -73,7 +74,15 @@ dap_chain_datum_tx_t *dap_chain_mempool_compose_tx_create_cond(dap_chain_addr_t 
     // add 'out_cond' and 'out' items
     {
         uint256_t l_value_pack = {}; // how much coin add to 'out' items
-        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_key_cond, a_srv_uid, a_value, a_value_per_unit_max, a_unit, a_cond,
+        dap_hash_fast_t l_key_hash = {};
+        dap_pkey_get_hash(a_key_cond, &l_key_hash);
+        if (dap_hash_fast_is_blank(&l_key_hash)) {
+            dap_chain_datum_tx_delete(l_tx);
+            dap_json_compose_error_add(a_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_COND_OUTPUT_FAILED, "Cant get key hash\n");
+            return NULL;
+        }
+
+        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, &l_key_hash, a_srv_uid, a_value, a_value_per_unit_max, a_unit, a_cond,
                 a_cond_size) == 1) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
         } else {
