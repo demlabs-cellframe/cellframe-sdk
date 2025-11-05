@@ -32,9 +32,9 @@
 
 #define LOG_TAG "dap_chain_common"
 
-const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
-const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
-const dap_chain_addr_t c_dap_chain_addr_blank = {0};
+const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = { };
+const dap_chain_cell_id_t c_dap_chain_cell_id_null = { };
+const dap_chain_addr_t c_dap_chain_addr_blank = { };
 
 /**
  * @brief dap_chain_hash_to_str
@@ -161,7 +161,7 @@ dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_u
     if (l_net_srv_uid_str_len >2){
         a_net_srv_uid_str+=2;
         l_net_srv_uid_str_len-=2;
-        if (l_net_srv_uid_str_len == sizeof (l_ret)/2 ){
+        if (l_net_srv_uid_str_len == sizeof (l_ret) * 2 ){
             size_t l_pos =0;
             char l_byte[3];
             while(l_net_srv_uid_str_len){
@@ -274,7 +274,7 @@ void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_sta
         json_object_object_add(json_obj_lim, "offset", json_object_new_uint64(a_offset));
     }
     if (a_limit > 0) {
-        if (a_last && (a_and_count > a_limit)) {
+        if (a_last && (*a_and > a_limit)) {
             *a_start = *a_and - a_limit;            
         }
         else {

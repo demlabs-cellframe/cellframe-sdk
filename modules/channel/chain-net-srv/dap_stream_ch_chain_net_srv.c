@@ -806,8 +806,20 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         /* No need for bare copying, resend it back modified */
         if (l_request->data_size_recv) {
             l_request->data_size = l_request->data_size_recv;
-            if (!l_request->data_size_send){
+            if (!l_request->data_size_send) {
+                if (l_request->data_size > SIZE_MAX - sizeof(pkt_test_t)) {
+                    log_it(L_ERROR, "Integer overflow in packet allocation");
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
+                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+                    return false;
+                }
                 l_request = DAP_NEW_Z_SIZE(pkt_test_t, sizeof(pkt_test_t) + l_request->data_size);
+                if (!l_request) {
+                    log_it(L_ERROR, "Memory allocation failed for packet");
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+                    return false;
+                }
                 *l_request = *(pkt_test_t*)l_ch_pkt->data;
             }
 
@@ -964,6 +976,26 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                 l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
                 s_service_substate_go_to_error(l_usage);
                 break;
+            }
+        } else if (l_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT) {
+            if (l_usage->receipt_next){
+                DAP_DELETE(l_usage->receipt_next);
+                l_usage->receipt_next = DAP_DUP_SIZE(l_receipt, l_receipt_size);
+                if (!l_usage->receipt_next) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+                    s_service_substate_go_to_error(l_usage);
+                    break;
+                }
+            } else if (l_usage->receipt) {
+                DAP_DELETE(l_usage->receipt);
+                l_usage->receipt = DAP_DUP_SIZE(l_receipt, l_receipt_size);
+                if (!l_usage->receipt) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+                    s_service_substate_go_to_error(l_usage);
+                    break;
+                }
             }
         }
 

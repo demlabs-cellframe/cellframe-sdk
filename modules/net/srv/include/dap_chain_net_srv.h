@@ -50,7 +50,7 @@ typedef struct {
 
 typedef struct dap_chain_net_srv_abstract
 {
-    uint8_t class; //Class of service (once or permanent)
+    uint8_t c; //Class of service (once or permanent)
     dap_chain_net_srv_uid_t type_id; //Type of service
     union {
         struct {
@@ -225,12 +225,14 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section);
 dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_srv, const char *a_config_section, dap_chain_hash_fast_t* a_order_hash);
 
+
+
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
     switch ( a_uid.enm) {
-        case SERV_UNIT_B: return "BYTE";
-        case SERV_UNIT_SEC: return "SECOND";
-        case SERV_UNIT_PCS: return "PIECES";
+        case SERV_UNIT_B: return "bytes";
+        case SERV_UNIT_SEC: return "sec";
+        case SERV_UNIT_PCS: return "pieces";
         default: return "UNKNOWN";
     }
 }

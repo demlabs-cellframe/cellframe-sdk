@@ -133,6 +133,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
 static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
+static uint64_t s_dap_chain_callback_get_count_tx_increase(dap_chain_t *a_chain);
+static uint64_t s_dap_chain_callback_get_count_tx_decrease(dap_chain_t *a_chain);
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
@@ -153,15 +155,16 @@ int dap_chain_cs_dag_init()
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
-    dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands",
+    dap_cli_server_cmd_add ("dag", s_cli_dag, NULL, "DAG commands",
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
         "dag event dump -net <net_name> [-chain <chain_name>] -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round_id_in_hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head]"
-                            " [-from_hash <event_hash>] [-to_hash <event_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]\n\n"
-            "\tShow event list \n\n"
+        "dag event list -net <net_name> [-chain <chain_name>] -from {events | events_lasts | threshold | round.new | round.<Round_id_in_hex>} [-limit] [-offset] [-head] [-h]\n"
+                            "\tOR [-from_hash <event_hash> -to_hash <event_hash>] OR [-from_date <YYMMDD> -to_date <YYMMDD>]\n\n"
+            "\tShow event list. Use either hash range (from_hash + to_hash) or date range (from_date + to_date), not both.\n"
+            "\tDo not use limit/offset with hash/date ranges. Head parameter can be used with ranges \n\n"
         "dag event count -net <net_name> [-chain <chain_name>]\n"
             "\tShow count event \n\n"
         "dag round complete -net <net_name> [-chain <chain_name>] \n"
@@ -244,7 +247,8 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_get_txs = s_dap_chain_callback_get_txs;
     // Get tx count
     a_chain->callback_count_tx = s_dap_chain_callback_get_count_tx;
-
+    a_chain->callback_count_tx_increase = s_dap_chain_callback_get_count_tx_increase;
+    a_chain->callback_count_tx_decrease = s_dap_chain_callback_get_count_tx_decrease;
     // Get atom count in chain
     a_chain->callback_count_atom = s_dap_chain_callback_get_count_atom;
     // Get atom list in chain
@@ -424,8 +428,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
     dap_hash_fast_t l_datum_hash;
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
-    if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
-        PVT(a_dag)->tx_count++;
+    // Note: tx_count increment moved to dap_ledger_tx_add() to ensure it only increments for successfully verified transactions
     a_event_item->datum_hash = l_datum_hash;
     a_event_item->ret_code = l_ret;
     a_event_item->event_number = HASH_COUNT(PVT(a_dag)->events) + 1;
@@ -620,6 +623,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 
 static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_datum_t *a_datum)
 {
+    log_it(L_DEBUG, "Start mempool proc");
     dap_return_val_if_fail(a_datum && a_chain, false);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     /* If datum passes thru rounds, let's check if it wasn't added before */
@@ -673,7 +677,6 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
 #define always_true(ev) true
         dap_chain_cs_dag_event_item_t *l_tmp = NULL, *l_cur_ev, *l_tmp_ev;
         HASH_SELECT(hh_select, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, always_true); /* Always true predicate */
-        pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         while ((l_hashes_linked < l_hashes_size) && (HASH_CNT(hh_select, l_tmp) > 0)) {
             int l_random_id = rand() % HASH_CNT(hh_select, l_tmp), l_hash_id = 0;
             HASH_ITER(hh_select, l_tmp, l_cur_ev, l_tmp_ev) {
@@ -685,6 +688,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
             }
         }
         HASH_CLEAR(hh_select, l_tmp);
+        pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         if (l_hashes_linked < l_hashes_size) {
             log_it(L_ERROR, "No enough unlinked events present (only %lu of %lu), a dummy round?", l_hashes_linked, l_hashes_size);
             return false;
@@ -1694,6 +1698,16 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                 char *ptr;
                 size_t l_limit = l_limit_str ? strtoull(l_limit_str, &ptr, 10) : 1000;
                 size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0; 
+                // Validate mutually exclusive flag groups usage
+                bool l_has_loh = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
+                bool l_has_dates = (l_from_date_str != NULL) || (l_to_date_str != NULL);
+                bool l_has_hashes = (l_from_hash_str != NULL) || (l_to_hash_str != NULL);
+                int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_dates ? 1 : 0) + (l_has_hashes ? 1 : 0);
+                if (l_groups_cnt > 1) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,
+                        "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-from_date/-to_date} or {-from_hash/-to_hash}");
+                    return DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
+                }
                 
                 if (l_from_hash_str) {
                     if (dap_chain_hash_fast_from_str(l_from_hash_str, &l_from_hash)) {
@@ -1721,9 +1735,49 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR, "Can't convert \"%s\" to date", l_to_date_str);
                         return DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR;
                     }
-                    struct tm *l_localtime = localtime((time_t *)&l_to_time);
-                    l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
-                    l_to_time = mktime(l_localtime);
+                    if (!l_from_date_str) {
+                        struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                        l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
+                        l_to_time = mktime(l_localtime);
+                    } else {
+                        if (l_from_time > l_to_time) {
+                            struct tm *l_localtime = localtime((time_t *)&l_from_time);
+                            l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
+                            l_from_time = mktime(l_localtime);
+                            l_head = true;
+                        } else {
+                            struct tm *l_localtime = localtime((time_t *)&l_to_time);
+                            l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
+                            l_to_time = mktime(l_localtime);                        
+                        }
+                    }
+                    
+                } 
+                if (l_to_hash_str && l_from_hash_str) {
+                    dap_chain_cs_dag_event_item_t * l_event_item_to = NULL;
+                    HASH_FIND(hh,PVT(l_dag)->events,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
+                    if (!l_event_item_to) {
+                        HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
+                        if (!l_event_item_to) {
+                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
+                                "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_to_hash));
+                            return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
+                        }
+                    }
+                    dap_chain_cs_dag_event_item_t * l_event_item_from = NULL;
+                    HASH_FIND(hh,PVT(l_dag)->events,&l_from_hash,sizeof(l_from_hash),l_event_item_from);
+                    if (!l_event_item_from) {
+                        HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_from_hash,sizeof(l_from_hash),l_event_item_from);
+                        if (!l_event_item_from) {
+                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
+                                "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_from_hash));
+                            return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
+                        }
+                    }
+                    if (l_event_item_from->ts_created > l_event_item_to->ts_created) {
+                        l_head = true;
+                    }
+
                 }
 
                 if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
@@ -1767,17 +1821,17 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         HASH_ITER(hh, PVT(l_dag)->events, l_event_item, l_event_item_tmp) {
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end || 
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
+                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time)) {
                                 i_tmp++;
                             } else {
-                                if (l_from_hash_str && !l_hash_flag) {
-                                   if (!dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
+                                if (l_to_hash_str && !l_hash_flag) {
+                                   if (!dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
                                        continue;
                                    l_hash_flag = true;
                                 }
                                 i_tmp++;
                                 s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp, a_version);
-                                if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
+                                if (l_from_hash_str && dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
                                     break;
 
                             }
@@ -1788,17 +1842,17 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
+                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time)) {
                                 i_tmp++;
                             } else {
-                                if (l_from_hash_str && !l_hash_flag) {
-                                   if (!dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
+                                if (l_to_hash_str && !l_hash_flag) {
+                                   if (!dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
                                        continue;
                                    l_hash_flag = true;
                                 }
                                 i_tmp++;
                                 s_json_dag_pack_event(json_arr_obj_event, l_event_item, i_tmp, a_version);
-                                if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_event_item->hash))
+                                if (l_from_hash_str && dap_hash_fast_compare(&l_from_hash, &l_event_item->hash))
                                     break;
                             }
                         }
@@ -1825,7 +1879,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         HASH_ITER(hh, PVT(l_dag)->events_treshold, l_event_item, l_event_item_tmp) {
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
+                                (l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time)) {
                                 i_tmp++;
                             } else {
                                 if (l_from_hash_str && !l_hash_flag) {
@@ -1841,11 +1895,11 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         }
                     }
                     else {
-                        l_event_item = HASH_LAST(PVT(l_dag)->events);
+                        l_event_item = HASH_LAST(PVT(l_dag)->events_treshold);
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
                             dap_time_t l_ts = l_event_item->event->header.ts_created;
                             if (i_tmp < l_arr_start || i_tmp >= l_arr_end ||
-                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts >= l_to_time)) {
+                                (l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time)) {
                                 i_tmp++;
                             } else {
                                 if (l_from_hash_str && !l_hash_flag) {
@@ -2021,6 +2075,15 @@ static uint64_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain)
     return PVT(DAP_CHAIN_CS_DAG(a_chain))->tx_count;
 }
 
+static uint64_t s_dap_chain_callback_get_count_tx_increase(dap_chain_t *a_chain)
+{
+    return PVT(DAP_CHAIN_CS_DAG(a_chain))->tx_count++;
+}
+
+static uint64_t s_dap_chain_callback_get_count_tx_decrease(dap_chain_t *a_chain)
+{
+    return PVT(DAP_CHAIN_CS_DAG(a_chain))->tx_count--;
+}
 
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
 {

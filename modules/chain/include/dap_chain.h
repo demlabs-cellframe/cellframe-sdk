@@ -132,6 +132,8 @@ typedef void (*dap_chain_callback_datum_notify_t)(void *a_arg, dap_chain_hash_fa
 typedef void (*dap_chain_callback_datum_removed_notify_t)(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_datum_t *a_datum); //change in chain happened
 typedef void (*dap_chain_callback_blockchain_timer_t)(dap_chain_t *a_chain, dap_time_t a_time, void *a_arg, bool a_reverse);
 typedef uint64_t (*dap_chain_callback_get_count)(dap_chain_t *a_chain);
+typedef uint64_t (*dap_chain_callback_get_count_tx_increase)(dap_chain_t *a_chain);
+typedef uint64_t (*dap_chain_callback_get_count_tx_decrease)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
@@ -221,6 +223,8 @@ typedef struct dap_chain {
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;
 
     dap_chain_callback_get_count callback_count_tx;
+    dap_chain_callback_get_count_tx_increase callback_count_tx_increase;
+    dap_chain_callback_get_count_tx_decrease callback_count_tx_decrease;
     dap_chain_callback_get_list callback_get_txs;
     dap_chain_callback_get_count callback_count_atom;
     dap_chain_callback_get_list callback_get_atoms;

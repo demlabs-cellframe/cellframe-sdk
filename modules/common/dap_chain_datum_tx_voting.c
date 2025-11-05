@@ -60,6 +60,10 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_t
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
             l_voting_parms->vote_changing_allowed = *(bool*)l_tsd->data;
             break;
+        case VOTING_TSD_TYPE_TOKEN:
+            strncpy(l_voting_parms->token_ticker, (char*)l_tsd->data, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+            l_voting_parms->token_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+            break;
         default:
             break;
         }
@@ -147,6 +151,15 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_chain_has
 
     return l_tsd;
 }
+
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_chain_hash_fast_t a_voting_hash)
+{
+    
+    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&a_voting_hash, VOTING_TSD_TYPE_CANCEL, sizeof(dap_chain_hash_fast_t));
+
+    return l_tsd;
+}
+
 
 dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void)
 {

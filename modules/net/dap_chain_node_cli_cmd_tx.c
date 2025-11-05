@@ -46,6 +46,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
+#include "dap_enc_base64.h"
 
 #include "dap_chain_wallet_cache.h"
 
@@ -126,7 +127,7 @@ bool s_dap_chain_datum_tx_out_data(json_object* a_json_arr_reply,
     return true;
 }
 
-json_object * dap_db_tx_history_to_json(json_object* a_json_arr_reply,
+json_object *dap_db_tx_history_to_json(json_object* a_json_arr_reply,
                                         dap_chain_hash_fast_t* a_tx_hash,
                                         dap_hash_fast_t * l_atom_hash,
                                         dap_chain_datum_tx_t * l_tx,
@@ -1124,11 +1125,9 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         }
         return 0;
     } else if (l_cmd == CMD_TX_INFO){
-        //GET hash
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);
-        //get net
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
-        //get search type
+        bool l_need_sign  = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-need_sign", NULL);
         bool l_unspent_flag = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unspent", NULL);
         //check input
         if (l_tx_hash_str == NULL){
@@ -1158,16 +1157,76 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
         }
         json_object* json_datum = json_object_new_object();
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx_to_json", NULL)) {
+            const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, l_tx_hash);
+            json_object_object_add(json_datum, "token_ticker", json_object_new_string(l_ticker));
+            bool l_all_outs_unspent = true;
+            byte_t *l_item; size_t l_size; int index, l_out_idx = 0;
+            json_object* json_arr_items = json_object_new_array();
+            TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, index, l_datum_tx) {
+                dap_hash_fast_t l_spender = { };
+                if ( dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_out_idx, &l_spender) ) {
+                    l_all_outs_unspent = false;
+                    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+                    dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
+                    json_object * l_json_obj_datum = json_object_new_object();
+                    json_object_object_add(l_json_obj_datum, "out_idx", json_object_new_int(l_out_idx));
+                    json_object_object_add(l_json_obj_datum, "spent_by_tx", json_object_new_string(l_hash_str));
+                    json_object_array_add(json_arr_items, l_json_obj_datum);
+                }
+                ++l_out_idx;
+            }
+            json_object_object_add(json_datum, "all_outs_unspent", json_object_new_boolean(l_all_outs_unspent));
+            if (l_all_outs_unspent) {
+                json_object_put(json_arr_items);
+            } else {
+                json_object_object_add(json_datum, "spent_outs", json_arr_items);
+            }
+            dap_chain_net_tx_to_json(l_datum_tx, json_datum);
+            if (!json_object_object_length(json_datum)) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_TO_JSON_ERR, "Can't find transaction hash %s in ledger", l_tx_hash_str);
+                json_object_put(json_datum);
+                DAP_DELETE(l_tx_hash);
+                return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_TO_JSON_ERR;
+            }
+            json_object_array_add(*a_json_arr_reply, json_datum);
+            DAP_DELETE(l_tx_hash);
+            return 0;
+        }
         if (!s_dap_chain_datum_tx_out_data(*a_json_arr_reply,l_datum_tx, l_net->pub.ledger, json_datum, l_hash_out_type, l_tx_hash, a_version)){
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR, "Can't find transaction hash %s in ledger", l_tx_hash_str);
             json_object_put(json_datum);
             DAP_DEL_Z(l_tx_hash);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
         }
-        DAP_DEL_Z(l_tx_hash);
+        if (l_need_sign) {
+            byte_t *item; size_t l_size;
+            TX_ITEM_ITER_TX(item, l_size, l_datum_tx) {
+                if (*item == TX_ITEM_TYPE_SIG) {
+                    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*)item);
+                    char *l_sign_b64 = DAP_NEW_Z_SIZE(char, DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1);
+                    size_t l_sign_size = dap_sign_get_size(l_sign);
+                    dap_enc_base64_encode(l_sign, l_sign_size, l_sign_b64, DAP_ENC_DATA_TYPE_B64_URLSAFE);
+                    
+                    json_object *json_items = json_object_object_get(json_datum, "items");
+                    if (json_items && json_object_is_type(json_items, json_type_array)) {
+                        int array_len = json_object_array_length(json_items);
+                        for (int i = 0; i < array_len; i++) {
+                            json_object *item = json_object_array_get_idx(json_items, i);
+                            const char *item_type = json_object_get_string(json_object_object_get(item, "type"));
+                            if (item_type && strcmp(item_type, "sig_dil") == 0) {
+                                json_object_object_add(item, "sig_b64", json_object_new_string(l_sign_b64));
+                                json_object_object_add(item, "sig_b64_size", json_object_new_uint64(l_sign_size));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        DAP_DELETE(l_tx_hash);
         if (json_datum){
             json_object_array_add(*a_json_arr_reply, json_datum);
-        }        
+        }    
     }
     else{
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'ledger' requires parameter 'list' or 'info'", l_tx_hash_str);
@@ -1439,7 +1498,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 }
 
 // Decree commands handlers
-int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND, CMD_INFO };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};

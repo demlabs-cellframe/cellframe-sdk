@@ -160,3 +160,10 @@ DAP_STATIC_INLINE char *dap_chain_net_srv_order_get_common_group(dap_chain_net_t
 {
     return a_net ? dap_strdup_printf("%s.orders", a_net->pub.gdb_groups_prefix) : NULL;
 }
+
+DAP_STATIC_INLINE dap_sign_t *dap_chain_net_srv_order_get_sign(dap_chain_net_srv_order_t *a_order)
+{
+    if (!a_order)
+        return NULL;
+    return (dap_sign_t*)(a_order->ext_n_sign + a_order->ext_size);
+}

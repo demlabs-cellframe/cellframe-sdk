@@ -109,7 +109,7 @@ int dap_chain_cs_dag_poa_init()
     // Add consensus constructor
     dap_chain_cs_add("dag_poa", s_callback_new);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
+    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
     s_debug_more = dap_config_get_item_bool_default(g_config, "dag", "debug_more", s_debug_more);
@@ -171,7 +171,7 @@ void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_c
  * @param str_reply
  * @return
  */
-static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, int a_version)
+static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     int ret = -666;
     int arg_index = 1;
@@ -439,7 +439,7 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_cha
     int l_ret_event_verify = s_callback_event_verify(a_dag, a_event, &l_event_hash);
     if (l_ret_event_verify == 0)
         return true;
-    log_it(L_ERROR, "Round auto-complete error! Event %s is not passing consensus verification, ret code %d\n",
+    log_it(L_ERROR, "Round auto-complete error! Event %s is not passing consensus verification, ret code %d",
                           a_event_hash_hex_str, l_ret_event_verify );
     return false;
 }

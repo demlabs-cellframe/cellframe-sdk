@@ -28,6 +28,7 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_hash.h"
 #include "dap_enc_base58.h"
+#include "dap_enc_base64.h"
 #include "dap_global_db.h"
 #include "dap_chain_net_srv_countries.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
