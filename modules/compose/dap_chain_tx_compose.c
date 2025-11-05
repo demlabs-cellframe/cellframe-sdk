@@ -6181,6 +6181,14 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
 }
 
 
+json_object *dap_chain_tx_compose_wallet_shared_without_sign(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
+    uint16_t a_port, const char *a_enc_cert_path, const char *a_tx_in_hash_str)
+{
+    dap_return_val_if_pass(!a_net_name || !a_tx_in_hash_str || !a_url_str, NULL);
+
+    return dap_chain_tx_compose_wallet_shared_sign(a_net_id, a_net_name, a_native_ticker, a_url_str, a_port, a_enc_cert_path, a_tx_in_hash_str, NULL, NULL, NULL, NULL);
+}
+
 
 typedef enum {
     DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_OK = 0,
@@ -6229,7 +6237,7 @@ json_object *dap_chain_tx_compose_wallet_shared_sign(dap_chain_net_id_t a_net_id
         dap_chain_wallet_close(l_wallet);
     }
 
-    if (a_cert_str) {
+    if (a_cert_str && !l_enc_key) {
         dap_cert_t *l_cert = dap_cert_find_by_name(a_cert_str);
         if (!l_cert) {
             s_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_SIGN_COMPOSE_ERR_CERT, "Can't recognize %s as a hex or base58 format hash", a_tx_in_hash_str);
