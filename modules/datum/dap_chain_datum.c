@@ -416,8 +416,9 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
         case TX_ITEM_TYPE_TSD: {
             if (a_version == 1)
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("TSD data"));
-            dap_json_object_add_object(json_obj_item, a_version == 1 ? "type" : "data_type", dap_json_object_new_uint64(((dap_tsd_t *)((dap_chain_tx_tsd_t*)item)->tsd)->type));
-            dap_json_object_add_object(json_obj_item,"size", dap_json_object_new_uint64(((dap_chain_tx_tsd_t*)item)->header.size));            
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)item)->tsd;
+            dap_json_object_add_object(json_obj_item, a_version == 1 ? "type" : "data_type", dap_json_object_new_uint64(l_tsd->type));
+            dap_json_object_add_object(json_obj_item,"size", dap_json_object_new_uint64(l_tsd->size));
         } break;
         case TX_ITEM_TYPE_IN_COND:
             if (a_version == 1)
