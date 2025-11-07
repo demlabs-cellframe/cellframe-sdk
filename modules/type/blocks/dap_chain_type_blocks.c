@@ -1648,10 +1648,11 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     assert(!err);
     PVT(l_blocks)->blocks_count = 0;
-    HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
-        HASH_DEL(PVT(l_blocks)->blocks, l_block);
+        /* Remove from BOTH hash tables before freeing to prevent use-after-free */
+        HASH_DELETE(hh, PVT(l_blocks)->blocks, l_block);
+        HASH_DELETE(hh2, PVT(l_blocks)->blocks_num, l_block);
         if (!a_chain->is_mapped)
             DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
@@ -2299,8 +2300,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     }
 
     if (ret == ATOM_ACCEPT || (!l_generation && ret == ATOM_FORK)) {
-        // 2nd level consensus
-        if (l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
+        // 2nd level consensus (skip for genesis block - it establishes initial state)
+        if (!l_is_genesis && l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
             // Hard accept list
             struct cs_blocks_hal_item *l_hash_found = NULL;
             HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);

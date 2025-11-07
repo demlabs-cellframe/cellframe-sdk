@@ -46,6 +46,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <unistd.h>
 #endif
 
 #ifdef WIN32
@@ -992,8 +993,43 @@ void dap_chain_net_purge(dap_chain_net_t *a_net)
         dap_ledger_handle_free(a_net->pub.ledger);
     }
     if (a_net->pub.chains) {
-        dap_chain_t *l_chain = NULL, *l_tmp = NULL;
-        DL_FOREACH_SAFE(a_net->pub.chains, l_chain, l_tmp) {
+        dap_chain_t *l_chain = NULL;
+        DL_FOREACH(a_net->pub.chains, l_chain) {
+            log_it(L_INFO, "Purging chain '%s'", l_chain->name);
+            
+            /* Delete .dchaincell files BEFORE calling callback_purge (which clears cells hash table) */
+            dap_chain_cell_t *l_cell, *l_cell_tmp;
+            HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
+                log_it(L_INFO, "Processing cell with file_storage_path: '%s'", l_cell->file_storage_path);
+                if (l_cell->file_storage_path[0]) { // Check if path is not empty
+                    log_it(L_INFO, "Attempting to delete chain cell file: %s", l_cell->file_storage_path);
+                    if (unlink(l_cell->file_storage_path) == 0) {
+                        log_it(L_INFO, "Successfully deleted chain cell file: %s", l_cell->file_storage_path);
+                    } else {
+                        log_it(L_WARNING, "Failed to delete chain cell file: %s (errno: %d - %s)", 
+                               l_cell->file_storage_path, errno, strerror(errno));
+                    }
+                } else {
+                    log_it(L_WARNING, "Cell has empty file_storage_path, skipping");
+                }
+            }
+            
+            /* Now purge the chain data (this will clear the cells hash table) */
+            dap_chain_purge(l_chain);
+            
+            /* DON'T reload chain from disk - files were deleted above! */
+            /* The chain will start fresh synchronization from genesis */
+            /* dap_chain_load_all(l_chain);  // REMOVED: would load nothing since files are deleted */
+            
+            /* Reset chain synchronization state to start from genesis */
+            l_chain->atom_num_last = 0;
+            l_chain->state = CHAIN_SYNC_STATE_IDLE;
+            log_it(L_INFO, "Reset chain '%s' sync state: atom_num_last=0, state=IDLE", l_chain->name);
+        }
+        
+        /* Now delete chain objects */
+        dap_chain_t *l_chain_tmp = NULL;
+        DL_FOREACH_SAFE(a_net->pub.chains, l_chain, l_chain_tmp) {
             DL_DELETE(a_net->pub.chains, l_chain);
             dap_chain_delete(l_chain);
         }

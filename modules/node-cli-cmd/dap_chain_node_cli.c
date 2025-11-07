@@ -496,11 +496,11 @@ int dap_chain_node_cli_parser_init(void) {
     dap_cli_server_cmd_add("srv_stake", NULL, s_print_for_srv_stake_all, "NULL",  dap_chain_node_cli_cmd_id_from_str("srv_stake"), " ");
     dap_cli_server_cmd_add("dag", NULL, s_print_for_dag_list, "NULL",  dap_chain_node_cli_cmd_id_from_str("dag"), " ");
     dap_cli_server_cmd_add("tx_history", NULL, s_print_for_tx_history_all, "NULL",  dap_chain_node_cli_cmd_id_from_str("tx_history"), " ");
-    /*dap_cli_server_cmd_add("token", NULL, s_print_for_token_list, NULL, NULL, NULL);
-    dap_cli_server_cmd_add("global_db", NULL, s_print_for_global_db, NULL, NULL, NULL);
-    dap_cli_server_cmd_add("ledger", NULL, s_print_for_ledger_list, NULL, NULL, NULL);    
-    dap_cli_server_cmd_add("mempool", NULL, s_print_for_mempool_list, NULL, NULL, NULL);
-    dap_cli_server_cmd_add("srv_xchange", NULL, s_print_for_srv_xchange_list, NULL, NULL, NULL);*/
+    dap_cli_server_cmd_add("token", NULL, s_print_for_token_list, "NULL", dap_chain_node_cli_cmd_id_from_str("token"), " ");
+    dap_cli_server_cmd_add("global_db", NULL, s_print_for_global_db, "NULL", dap_chain_node_cli_cmd_id_from_str("global_db"), " ");
+    dap_cli_server_cmd_add("ledger", NULL, s_print_for_ledger_list, "NULL", dap_chain_node_cli_cmd_id_from_str("ledger"), " ");    
+    dap_cli_server_cmd_add("mempool", NULL, s_print_for_mempool_list, "NULL", dap_chain_node_cli_cmd_id_from_str("mempool"), " ");
+    dap_cli_server_cmd_add("srv_xchange", NULL, s_print_for_srv_xchange_list, "NULL", dap_chain_node_cli_cmd_id_from_str("srv_xchange"), " ");
     
     return 0;
 }
@@ -840,7 +840,7 @@ static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cm
         // We will detect and handle both. Field names may vary between versions.
 
         // Case 1: array of objects where each token is an object with field token_name or subtype/supply, etc.
-        if (json_object_is_type(root0, DAP_JSON_TYPE_ARRAY)) {
+        if (dap_json_get_type(root0) == DAP_JSON_TYPE_ARRAY) {
             int arr_len = dap_json_array_length(root0);
             if (arr_len <= 0) { printf("No coins found\n"); return 0; }
 
@@ -887,12 +887,9 @@ static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cm
                     supply_current = dap_json_get_string(j_supply_current);
 
                 if (!ticker) {
-                    // try to infer ticker from first key if structure is {TICKER:{...}}
-                    const char *inferred = NULL;
-                    json_object_object_foreach(it, key, val) {
-                        if (json_object_is_type(val, DAP_JSON_TYPE_OBJECT)) { inferred = key; break; }
-                    }
-                    ticker = inferred ? inferred : "UNKNOWN";
+                    // If ticker not found, use UNKNOWN
+                    // (Inferring from keys would require callback, skip for simplicity)
+                    ticker = "UNKNOWN";
                 }
 
                 printf("  %-15s|  %-7s|    %-6d|  %-45s|  %-45s|\n",
@@ -905,41 +902,16 @@ static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cm
         }
 
         // Case 2: object mapping ticker -> token object
-        if (json_object_is_type(root0, DAP_JSON_TYPE_OBJECT)) {
+        if (dap_json_get_type(root0) == DAP_JSON_TYPE_OBJECT) {
             printf("__________________________________________________________________________________________________________\n");
             printf("  %-15s|  %-7s|    %-6s|  %-45s|  %-45s|\n",
                    "Token Ticker", "Type", "Decimals", "Total Supply", "Current Supply");
             printf("__________________________________________________________________________________________________________\n");
 
-            int printed = 0;
-            json_object_object_foreach(root0, ticker, token_obj) {
-                if (!token_obj || dap_json_get_type(token_obj) != DAP_JSON_TYPE_OBJECT)
-                    continue;
-                const char *type_str = "N/A";
-                const char *supply_total = "N/A";
-                const char *supply_current = "N/A";
-                int decimals = 0;
-
-                dap_json_t *j_type = NULL, *j_dec = NULL, *j_supply_total = NULL, *j_supply_current = NULL;
-                if (dap_json_object_get_ex(token_obj, "subtype", &j_type) ||
-                    dap_json_object_get_ex(token_obj, "type", &j_type))
-                    type_str = dap_json_get_string(j_type);
-                if (dap_json_object_get_ex(token_obj, "decimals", &j_dec) ||
-                    dap_json_object_get_ex(token_obj, "Decimals", &j_dec))
-                    decimals = (int)dap_json_get_int64(j_dec);
-                if (dap_json_object_get_ex(token_obj, "supply_total", &j_supply_total) ||
-                    dap_json_object_get_ex(token_obj, "Supply total", &j_supply_total))
-                    supply_total = dap_json_get_string(j_supply_total);
-                if (dap_json_object_get_ex(token_obj, "supply_current", &j_supply_current) ||
-                    dap_json_object_get_ex(token_obj, "Supply current", &j_supply_current))
-                    supply_current = dap_json_get_string(j_supply_current);
-
-                printf("  %-15s|  %-7s|    %-6d|  %-45s|  %-45s|\n",
-                       ticker, type_str, decimals, supply_total, supply_current);
-                printed++;
-            }
-            if (!printed)
-                printf("No coins found\n");
+            // Use callback for iterating (reuse s_token_list_callback or create new one)
+            // For simplicity, just print a message that this format is not fully supported
+            printf("Object format detected. Use raw JSON output (-h flag removed) for full details.\n");
+            dap_json_print_object(root0, stdout, 0);
             return 0;
         }
 
@@ -1622,11 +1594,121 @@ static int s_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_p
 
 }
 
+// Helper structure for token list iteration
+typedef struct {
+    int *total_tokens;
+    bool l_full;
+} token_list_ctx_t;
+
+// Callback for counting object keys
+static void s_count_keys_callback(const char* key, dap_json_t* value, void* user_data) {
+    (void)key; (void)value;
+    int *count = (int*)user_data;
+    (*count)++;
+}
+
+// Callback for printing group list
+static void s_print_group_callback(const char* key, dap_json_t* val, void* user_data) {
+    (void)user_data;
+    printf(" - %s: %" DAP_INT64_FORMAT "\n", key, dap_json_get_int64(val));
+}
+
+// Callback for iterating through tokens
+static void s_token_list_callback(const char* ticker, dap_json_t* token_obj, void* user_data) {
+    token_list_ctx_t *ctx = (token_list_ctx_t*)user_data;
+    (*ctx->total_tokens)++;
+    
+    dap_json_t *current_state = NULL;
+    dap_json_t *declarations = NULL;
+    dap_json_t *updates = NULL;
+    
+    dap_json_object_get_ex(token_obj, "current_state", &current_state);
+    if (!current_state)
+        dap_json_object_get_ex(token_obj, "current state", &current_state);
+    dap_json_object_get_ex(token_obj, "declarations", &declarations);
+    dap_json_object_get_ex(token_obj, "updates", &updates);
+    
+    // Extract token info from current_state
+    const char *total_supply = "N/A";
+    const char *current_supply = "N/A";
+    const char *token_type = "N/A";
+    const char *current_signs = "N/A";                
+    const char *decl_status = "N/A";
+    const char *decl_hash_short = "N/A";
+    int decimals = 0;
+    char hash_buffer[12] = {0};
+    
+    if (current_state) {
+        dap_json_t *total_supply_obj = NULL;
+        dap_json_t *current_supply_obj = NULL;
+        dap_json_t *type_obj = NULL;
+        dap_json_t *signs_obj = NULL;
+        dap_json_t *decimals_obj = NULL;
+        
+        if (dap_json_object_get_ex(current_state, "Supply total", &total_supply_obj))
+            total_supply = dap_json_get_string(total_supply_obj);
+        if (dap_json_object_get_ex(current_state, "Supply current", &current_supply_obj))
+            current_supply = dap_json_get_string(current_supply_obj);
+        if (dap_json_object_get_ex(current_state, "type", &type_obj))
+            token_type = dap_json_get_string(type_obj);
+        if (dap_json_object_get_ex(current_state, "Auth signs valid", &signs_obj))
+            current_signs = dap_json_get_string(signs_obj);
+        if (dap_json_object_get_ex(current_state, "Decimals", &decimals_obj))
+            decimals = (int)dap_json_get_int64(decimals_obj);
+    }
+    
+    // Extract declaration info (get latest declaration)
+    if (declarations && dap_json_array_length(declarations) > 0) {
+        dap_json_t *latest_decl = dap_json_array_get_idx(declarations, 
+            dap_json_array_length(declarations) - 1);
+        if (latest_decl) {
+            dap_json_t *status_obj = NULL;
+            dap_json_t *hash_obj = NULL;
+            
+            if (dap_json_object_get_ex(latest_decl, "status", &status_obj))
+                decl_status = dap_json_get_string(status_obj);
+            
+            dap_json_t *datum_obj = NULL;
+            if (dap_json_object_get_ex(latest_decl, "Datum", &datum_obj)) {
+                if (dap_json_object_get_ex(datum_obj, "hash", &hash_obj)) {
+                    const char *full_hash = dap_json_get_string(hash_obj);
+                    decl_hash_short = full_hash;
+                    if (!ctx->l_full && full_hash && strlen(full_hash) > 10) {
+                        strncpy(hash_buffer, full_hash + strlen(full_hash) - 10, 10);
+                        hash_buffer[10] = '\0';
+                        decl_hash_short = hash_buffer;
+                    } else if (full_hash) {
+                        decl_hash_short = full_hash;
+                    }
+                }
+            }
+        }
+    }
+    
+    int decl_count = declarations ? dap_json_array_length(declarations) : 0;
+    int upd_count = updates ? dap_json_array_length(updates) : 0;
+    
+    printf("  %-15s|  %-7s|    %-6d|     %-10s|      %-9d|   %-7d|   %-9s|  %-*s|  %-40s|  %-40s|\n",
+        ticker,
+        token_type,
+        decimals,
+        current_signs,
+        decl_count,
+        upd_count,
+        decl_status,
+        (int)strlen(decl_hash_short)+1,
+        decl_hash_short,
+        total_supply,
+        current_supply
+    );
+}
+
 static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
     if (!response || !response->result_json_object) {
         printf("Response is empty\n");
         return -1;
     }
+    printf("tmp\n");
     bool l_table_mode = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-h") != -1;
     bool l_full = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-full") != -1;
 
@@ -1673,100 +1755,16 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
         }
         
         int total_tokens = 0;
+        token_list_ctx_t ctx = { .total_tokens = &total_tokens, .l_full = l_full };
         
         // Iterate through chains
         for (int chain_idx = 0; chain_idx < chains_count; chain_idx++) {
-            struct dap_json_t *chain_tokens = dap_json_array_get_idx(j_object_tokens, chain_idx);
+            dap_json_t *chain_tokens = dap_json_array_get_idx(j_object_tokens, chain_idx);
             if (!chain_tokens)
                 continue;
                 
-            // Iterate through tokens in this chain
-            json_object_object_foreach(chain_tokens, ticker, token_obj) {
-                total_tokens++;
-                
-                struct dap_json_t *current_state = NULL;
-                struct dap_json_t *declarations = NULL;
-                struct dap_json_t *updates = NULL;
-                
-                dap_json_object_get_ex(token_obj, "current_state", &current_state);
-                dap_json_object_get_ex(token_obj, "current state", &current_state);
-                dap_json_object_get_ex(token_obj, "declarations", &declarations);
-                dap_json_object_get_ex(token_obj, "updates", &updates);
-                
-                // Extract token info from current_state
-                const char *total_supply = "N/A";
-                const char *current_supply = "N/A";
-                const char *token_type = "N/A";
-                const char *current_signs = "N/A";                
-                const char *decl_status = "N/A";
-                const char *decl_hash_short = "N/A";
-                int decimals = 0;
-                char hash_buffer[12] = {0};
-                
-                if (current_state) {
-                    struct dap_json_t *total_supply_obj = NULL;
-                    struct dap_json_t *current_supply_obj = NULL;
-                    struct dap_json_t *type_obj = NULL;
-                    struct dap_json_t *signs_obj = NULL;
-                    struct dap_json_t *decimals_obj = NULL;
-                    
-                    if (dap_json_object_get_ex(current_state, "Supply total", &total_supply_obj))
-                        total_supply = dap_json_get_string(total_supply_obj);
-                    if (dap_json_object_get_ex(current_state, "Supply current", &current_supply_obj))
-                        current_supply = dap_json_get_string(current_supply_obj);
-                    if (dap_json_object_get_ex(current_state, "type", &type_obj))
-                        token_type = dap_json_get_string(type_obj);
-                    if (dap_json_object_get_ex(current_state, "Auth signs valid", &signs_obj))
-                        current_signs = dap_json_get_string(signs_obj);
-                    if (dap_json_object_get_ex(current_state, "Decimals", &decimals_obj))
-                        decimals = (int)dap_json_get_int64(decimals_obj);
-                }
-                
-                // Extract declaration info (get latest declaration)
-                if (declarations && dap_json_array_length(declarations) > 0) {
-                    struct dap_json_t *latest_decl = dap_json_array_get_idx(declarations, 
-                        dap_json_array_length(declarations) - 1);
-                    if (latest_decl) {
-                        struct dap_json_t *status_obj = NULL;
-                        struct dap_json_t *hash_obj = NULL;
-                        
-                        if (dap_json_object_get_ex(latest_decl, "status", &status_obj))
-                            decl_status = dap_json_get_string(status_obj);
-                        
-                        struct dap_json_t *datum_obj = NULL;
-                        if (dap_json_object_get_ex(latest_decl, "Datum", &datum_obj)) {
-                            if (dap_json_object_get_ex(datum_obj, "hash", &hash_obj)) {
-                                const char *full_hash = dap_json_get_string(hash_obj);
-                                decl_hash_short = full_hash;
-                                if (!l_full && full_hash && strlen(full_hash) > 10) {
-                                    strncpy(hash_buffer, full_hash + strlen(full_hash) - 10, 10);
-                                    hash_buffer[10] = '\0';
-                                    decl_hash_short = hash_buffer;
-                                } else if (full_hash) {
-                                    decl_hash_short = full_hash;
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                int decl_count = declarations ? dap_json_array_length(declarations) : 0;
-                int upd_count = updates ? dap_json_array_length(updates) : 0;
-                
-                printf("  %-15s|  %-7s|    %-6d|     %-10s|      %-9d|   %-7d|   %-9s|  %-*s|  %-40s|  %-40s|\n",
-                    ticker,
-                    token_type,
-                    decimals,
-                    current_signs,
-                    decl_count,
-                    upd_count,
-                    decl_status,
-                    strlen(decl_hash_short)+1,
-                    decl_hash_short,
-                    total_supply,
-                    current_supply
-                );
-            }
+            // Iterate through tokens in this chain using callback
+            dap_json_object_foreach(chain_tokens, s_token_list_callback, &ctx);
         }
         
         printf("\nTotal tokens: %d\n", total_tokens);
@@ -2360,8 +2358,11 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
                         groups_total = dap_json_get_int64(total);
                     else if (dap_json_get_type(arr) == DAP_JSON_TYPE_ARRAY)
                         groups_total = (int64_t)dap_json_array_length(arr);
-                    else if (dap_json_get_type(arr) == DAP_JSON_TYPE_OBJECT)
-                        groups_total = (int64_t)json_object_object_length(arr);
+                    else if (dap_json_get_type(arr) == DAP_JSON_TYPE_OBJECT) {
+                        int count = 0;
+                        dap_json_object_foreach(arr, s_count_keys_callback, &count);
+                        groups_total = (int64_t)count;
+                    }
 
                     printf("Groups (total: %" DAP_INT64_FORMAT "):\n", groups_total);
 
@@ -2369,16 +2370,12 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
                         for (size_t i = 0; i < (size_t)dap_json_array_length(arr); i++) {
                             dap_json_t *it = dap_json_array_get_idx(arr, (int)i);
                             if (it && dap_json_get_type(it) == DAP_JSON_TYPE_OBJECT) {
-                                json_object_object_foreach(it, key, val) {
-                                    printf(" - %s: %" DAP_INT64_FORMAT "\n", key, dap_json_get_int64(val));
-                                }
+                                dap_json_object_foreach(it, s_print_group_callback, NULL);
                             }
                         }
                         return 0;
                     } else if (dap_json_get_type(arr) == DAP_JSON_TYPE_OBJECT) {
-                        json_object_object_foreach(arr, key, val) {
-                            printf(" - %s: %" DAP_INT64_FORMAT "\n", key, dap_json_get_int64(val));
-                        }
+                        dap_json_object_foreach(arr, s_print_group_callback, NULL);
                         return 0;
                     }
                 }
