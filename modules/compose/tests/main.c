@@ -60,7 +60,67 @@ static struct tests_data *s_data = NULL;
 int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_jobj_arr_errors,
         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json);
+bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply, dap_chain_datum_tx_t *a_datum, const char *a_ticker,
+        dap_json_t *json_obj_out, const char *a_hash_out_type, dap_hash_fast_t *a_tx_hash, 
+        dap_chain_net_id_t a_net_id, int a_version);
 
+/**
+ * @brief Dump transaction to log with both hex and structured formats
+ * @details Outputs transaction size, hex dump via dap_dump_hex(), and structured dump 
+ *          via dap_chain_datum_dump_tx_json() for comprehensive diagnostics.
+ * @param a_tx_name Transaction name for logging (e.g. "datum_1", "datum_2")
+ * @param a_tx Pointer to transaction datum
+ * @param a_tx_size Size of transaction in bytes
+ */
+static void s_dump_transaction(const char *a_tx_name, dap_chain_datum_tx_t *a_tx, size_t a_tx_size)
+{
+    if (!a_tx || !a_tx_name) {
+        log_it(L_ERROR, "Invalid parameters for transaction dump");
+        return;
+    }
+    
+    log_it(L_ERROR, "Transaction '%s' size: %zu bytes", a_tx_name, a_tx_size);
+    
+    // Hex dump
+    char *l_hex_dump = dap_dump_hex((byte_t *)a_tx, a_tx_size);
+    if (l_hex_dump) {
+        log_it(L_ERROR, "Transaction '%s' hex dump:\n%s", a_tx_name, l_hex_dump);
+        DAP_DELETE(l_hex_dump);
+    } else {
+        log_it(L_ERROR, "Failed to create hex dump for transaction '%s'", a_tx_name);
+    }
+    
+    // Structured dump via dap_chain_datum_dump_tx_json
+    dap_hash_fast_t l_tx_hash = {};
+    dap_hash_fast(a_tx, a_tx_size, &l_tx_hash);
+    
+    dap_json_t *l_json_dump = dap_json_object_new();
+    if (l_json_dump) {
+        dap_chain_net_id_t l_net_id = {.uint64 = 0}; // Use default net_id for test
+        bool l_dump_result = dap_chain_datum_dump_tx_json(NULL, a_tx, s_ticker_native, 
+                                                           l_json_dump, "hex", &l_tx_hash, 
+                                                           l_net_id, 2);
+        
+        if (l_dump_result) {
+            char *l_json_str = dap_json_to_string(l_json_dump);
+            if (l_json_str) {
+                log_it(L_ERROR, "Transaction '%s' structured dump:\n%s", a_tx_name, l_json_str);
+                DAP_DELETE(l_json_str);
+            }
+        } else {
+            log_it(L_ERROR, "Failed to create structured dump for transaction '%s'", a_tx_name);
+        }
+        
+        dap_json_object_free(l_json_dump);
+    }
+}
+
+/**
+ * @brief Sign and verify transaction datum, test JSON serialization/deserialization
+ * @details Creates random TSD sections and signatures, then tests JSON conversion roundtrip.
+ *          If binary content mismatch detected, outputs full hex dumps of both transactions.
+ * @param a_datum Pointer to transaction datum pointer (can be reallocated during signing)
+ */
 void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
 {
     size_t l_signs_count = rand() % KEY_COUNT + 1;
@@ -68,10 +128,6 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     for (size_t i = 0; i < l_signs_count; ++i) {
         int l_rand_data = rand() % dap_maxval(l_rand_data);
         dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand() % dap_maxval(l_rand_data), sizeof(l_rand_data));
-        if (l_tsd->header.size != sizeof(dap_time_t)) {
-            log_it(L_WARNING, "Invalid expire time size");
-            continue;
-        }
         dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum_1 add tsd");
         DAP_DEL_Z(l_tsd);
     }
@@ -89,30 +145,52 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_json_t *l_error_json = dap_json_array_new();
     dap_test_msg("convert to json");
     int l_json_result = dap_chain_net_tx_to_json(*a_datum, l_datum_1_json);
-    if (l_json_result == 0 && l_datum_1_json && dap_json_is_object(l_datum_1_json) && dap_json_object_length(l_datum_1_json) > 0) {
-        dap_test_msg("dap_chain_net_tx_to_json PASS.");
-        printf("\n");
+    dap_assert(l_json_result == 0 && l_datum_1_json && dap_json_is_object(l_datum_1_json) && dap_json_object_length(l_datum_1_json) > 0, "dap_chain_net_tx_to_json");
+    dap_pass_msg("dap_chain_net_tx_to_json");   
+    dap_chain_datum_tx_t *l_datum_2 = dap_chain_datum_tx_create();
+    size_t l_items_count = 0, l_items_ready = 0;
+    dap_test_msg("create datum from json");
+    int l_from_json_result = dap_chain_tx_datum_from_json(l_datum_1_json, NULL, l_error_json, &l_datum_2, &l_items_count, &l_items_ready);
+    
+    // Check for JSON deserialization errors and dump transactions if failed
+    if (l_from_json_result != 0) {
+        size_t l_datum_1_size = dap_chain_datum_tx_get_size(*a_datum);
+        size_t l_datum_2_size = l_datum_2 ? dap_chain_datum_tx_get_size(l_datum_2) : 0;
         
-        dap_chain_datum_tx_t *l_datum_2 = dap_chain_datum_tx_create();
-        size_t l_items_count = 0, l_items_ready = 0;
-        dap_test_msg("create datum from json");
-        int l_from_json_result = dap_chain_tx_datum_from_json(l_datum_1_json, NULL, l_error_json, &l_datum_2, &l_items_count, &l_items_ready);
+        log_it(L_ERROR, "JSON deserialization failed with code %d", l_from_json_result);
         
-        if (l_from_json_result == 0) {
-            dap_test_msg("tx_create_by_json PASS.");
-            dap_assert(l_items_count == l_items_ready, "items_count == items_ready");
-            dap_assert((*a_datum)->header.tx_items_size == l_datum_2->header.tx_items_size, "items_size_1 == items_size_2");
-            dap_assert(!memcmp((*a_datum), l_datum_2, dap_chain_datum_tx_get_size(*a_datum)), "datum_1 == datum_2");
-            
-        } else {
-            dap_test_msg("tx_create_by_json FAILED.");
-        }
+        // Dump original transaction
+        s_dump_transaction("datum_1", *a_datum, l_datum_1_size);
         
+        // Dump deserialized transaction if exists
         if (l_datum_2) {
-            dap_chain_datum_tx_delete(l_datum_2);
+            s_dump_transaction("datum_2", l_datum_2, l_datum_2_size);
         }
-    } else {
-        dap_test_msg("dap_chain_net_tx_to_json FAILED.");
+    }
+    
+    dap_assert(l_from_json_result == 0, "tx_create_by_json");
+    dap_pass_msg("tx_create_by_json"); 
+    dap_assert(l_items_count == l_items_ready, "items_count == items_ready");
+    dap_assert((*a_datum)->header.tx_items_size == l_datum_2->header.tx_items_size, "items_size_1 == items_size_2");
+    
+    // Check for binary content mismatch and dump transactions if not equal
+    size_t l_datum_1_size = dap_chain_datum_tx_get_size(*a_datum);
+    size_t l_datum_2_size = dap_chain_datum_tx_get_size(l_datum_2);
+    bool l_transactions_equal = (l_datum_1_size == l_datum_2_size) && 
+                                !memcmp((*a_datum), l_datum_2, l_datum_1_size);
+    
+    if (!l_transactions_equal) {
+        log_it(L_ERROR, "Binary content mismatch detected between original and deserialized transactions");
+        
+        // Dump both transactions using unified dump function
+        s_dump_transaction("datum_1", *a_datum, l_datum_1_size);
+        s_dump_transaction("datum_2", l_datum_2, l_datum_2_size);
+    }
+    
+    dap_assert(l_transactions_equal, "datum_1 == datum_2");       
+
+    if (l_datum_2) {
+        dap_chain_datum_tx_delete(l_datum_2);
     }
     
     dap_json_object_free(l_datum_1_json);

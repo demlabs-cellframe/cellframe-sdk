@@ -2342,7 +2342,7 @@ void dap_chain_srv_stake_ext_test_error_handling(void)
     
     // Test with extremely large position count
     dap_chain_tx_event_data_stake_ext_started_t l_large_data;
-    l_large_data.total_positions = UINT16_MAX;
+    l_large_data.total_positions =  (byte_t)UINT16_MAX;
     
     dap_hash_fast_t l_large_hash;
     memset(&l_large_hash, 0x02, sizeof(l_large_hash));

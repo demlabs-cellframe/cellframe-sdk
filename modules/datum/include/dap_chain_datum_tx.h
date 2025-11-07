@@ -153,7 +153,7 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
  */
 int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
                                         uint32_t a_tx_out_prev_idx,
-                                        uint32_t a_receipt_idx);
+                                        int32_t a_receipt_idx);
 
 /**
  * Create 'in_cond' items from list  and insert to transaction

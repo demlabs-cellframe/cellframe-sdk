@@ -855,8 +855,8 @@ static uint8_t *s_dap_chain_net_tx_create_in_cond_item (dap_json_t *a_json_item_
         dap_chain_tx_out_cond_t	*l_tx_out_cond = NULL;
         if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
             if (!a_net) {
-                uint64_t l_receipt_idx = 0;
-                dap_json_object_get_uint64_ext(a_json_item_obj, "receipt_idx", &l_receipt_idx);
+                int32_t l_receipt_idx = 0;
+                l_receipt_idx = dap_json_object_get_int(a_json_item_obj, "receipt_idx");
                 return (uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
             }
             //check out token
@@ -1848,9 +1848,10 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
         }
 
     }
-
-    l_items_ready += s_append_in_items(&l_tx, a_net, l_in_list, l_value_need, l_value_need_fee, a_jobj_arr_errors);
-    dap_list_free(l_in_list);
+    if (l_in_list) {
+        l_items_ready += s_append_in_items(&l_tx, a_net, l_in_list, l_value_need, l_value_need_fee, a_jobj_arr_errors);
+        dap_list_free(l_in_list);
+    }
     // Add signs
     for(dap_list_t *l_list = l_sign_list; l_list; l_list = dap_list_next(l_list) ) {
         dap_json_t *l_json_item_obj = (dap_json_t *) l_list->data;
@@ -1886,16 +1887,8 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
             dap_enc_key_delete(l_enc_key);
         }  
     }
-
-    dap_list_free(l_sign_list);
-
-    if (dap_chain_datum_tx_verify_sign_all(l_tx)) {
-        log_it(L_ERROR, "Json TX: Sign verification failed!");
-        if (a_jobj_arr_errors)
-            dap_json_rpc_error_add(a_jobj_arr_errors,-1,"Sign verification failed!");
-        DAP_DELETE(l_tx);
-        return DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED;
-    }
+    if (l_sign_list)
+        dap_list_free(l_sign_list);
 
     *a_out_tx = l_tx;
 
@@ -1905,6 +1898,12 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
     if(a_items_ready)
         *a_items_ready = l_items_ready;
 
+    if (dap_chain_datum_tx_verify_sign_all(l_tx)) {
+        log_it(L_WARNING, "Json TX: Sign verification failed!");
+        if (a_jobj_arr_errors)
+            dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Sign verification failed!");
+        return DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED;
+    }
     return DAP_CHAIN_NET_TX_CREATE_JSON_OK;   
 
 }
@@ -2135,11 +2134,6 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
     }
 
     dap_json_object_add_object(json_obj_out, "items", json_arr_items);
-
-    if(a_out_json) {
-        // Cast dap_json_t to dap_json_t for assignment
-        *(dap_json_t **)a_out_json = (dap_json_t *)json_obj_out;
-    }
 
     return 0;
 }

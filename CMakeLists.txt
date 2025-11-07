@@ -36,6 +36,16 @@ add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 # Option to build Cellframe SDK tests (can be overridden from command line)
 option(BUILD_CELLFRAME_SDK_TESTS "Build Cellframe SDK tests" OFF)
+# Configure DAP SDK modules
+# Default modules are set in dap-sdk/CMakeLists.txt: crypto plugin io network-* global-db
+if(BUILD_CELLFRAME_SDK_TESTS)
+    # Add test-framework to default modules, don't replace them
+    if(NOT DEFINED DAPSDK_MODULES OR DAPSDK_MODULES STREQUAL "")
+        set(DAPSDK_MODULES "crypto plugin io network-core network-server network-client network-link_manager global-db test-framework")
+    else()
+        set(DAPSDK_MODULES "${DAPSDK_MODULES} test-framework")
+    endif()
+endif()
 
 # =========================================
 # INTERNAL MODULE CREATION MACRO
@@ -154,27 +164,13 @@ endif()
 if(NOT TARGET dap_sdk)
     # DAP SDK not found - include our own copy
     message("[+] Cellframe SDK: Using embedded DAP SDK")
-
     include (dap-sdk/cmake/OS_Detection.cmake)
-
-    # Configure DAP SDK modules
-    # Default modules are set in dap-sdk/CMakeLists.txt: crypto plugin io network-* global-db
-    if(BUILD_CELLFRAME_SDK_TESTS)
-        # Add test-framework to default modules, don't replace them
-        if(NOT DEFINED DAPSDK_MODULES OR DAPSDK_MODULES STREQUAL "")
-            set(DAPSDK_MODULES "crypto plugin io network-core network-server network-client network-link_manager global-db test-framework")
-        else()
-            set(DAPSDK_MODULES "${DAPSDK_MODULES} test-framework")
-        endif()
-    endif()
-
     add_subdirectory(dap-sdk)
     set(CELLFRAME_USING_EXTERNAL_DAP_SDK OFF)
 else()
     # DAP SDK already available from parent - use it
     message("[+] Cellframe SDK: Using external DAP SDK (target: dap_sdk)")
-    message("[+] Cellframe SDK: ✅ No DAP SDK duplication - using shared instance")
-
+    message("[+] Cellframe SDK: No DAP SDK duplication - using shared instance")
     # Set the flag to indicate we're using external DAP SDK
     set(CELLFRAME_USING_EXTERNAL_DAP_SDK ON)
 endif()

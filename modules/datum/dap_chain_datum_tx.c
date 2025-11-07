@@ -129,7 +129,7 @@ uint256_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_l
  */
 int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
                                         uint32_t a_tx_out_prev_idx,
-                                        uint32_t a_receipt_idx)
+                                        int32_t a_receipt_idx)
 {
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_in_cond_t,
         dap_chain_datum_tx_item_in_cond_create(a_tx_prev_hash, a_tx_out_prev_idx, a_receipt_idx) );
