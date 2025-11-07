@@ -156,7 +156,9 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
             DAP_DELETE(l_token);
             return NULL;
         }
-        return memcpy(l_token, a_token_serial, l_token_size);
+        memcpy(l_token, a_token_serial, l_token_size);
+        *a_token_size = l_token_size;  // Update size to match allocated size
+        return l_token;
 
     default:
         log_it(L_NOTICE, "Unknown token type '%d' read", ((dap_chain_datum_token_t*)a_token_serial)->type);
@@ -215,7 +217,7 @@ const char *dap_chain_datum_token_utxo_flag_to_str(uint32_t a_utxo_flag)
 uint32_t dap_chain_datum_token_utxo_flag_from_str(const char *a_str)
 {
     if (!a_str)
-        return 0;
+        return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;
     
     if (strcmp(a_str, "UTXO_BLOCKING_DISABLED") == 0)
         return DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
@@ -228,7 +230,7 @@ uint32_t dap_chain_datum_token_utxo_flag_from_str(const char *a_str)
     if (strcmp(a_str, "UTXO_ARBITRAGE_TX_DISABLED") == 0)
         return DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
     
-    return 0;  // Unknown UTXO flag
+    return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;  // Unknown UTXO flag
 }
 
 /**

@@ -74,6 +74,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     if ( !dap_config_get_item_bool_default(g_config, "cli-server", "enabled", true) )
         return log_it( L_WARNING, "CLI server is disabled" ), 0;
     s_debug_cli = dap_config_get_item_bool_default(g_config, "cli-server", "debug-cli", false);
+    
+    // Initialize CLI commands module
+    dap_chain_node_cli_cmd_init(g_config);
+    
     if ( dap_cli_server_init(s_debug_cli, "cli-server") )
         return log_it(L_ERROR, "Can't init CLI server!"), -1;
 

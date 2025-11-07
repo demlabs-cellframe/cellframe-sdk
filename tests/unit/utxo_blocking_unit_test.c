@@ -81,6 +81,7 @@ static void s_test_flag_string_conversion(void)
 /**
  * @brief Unit Test 2: Irreversible flags mask validation
  * @details Verify DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK contains all required flags
+ *          Note: UTXO_BLOCKING_DISABLED is NOT in the mask (it's reversible)
  */
 static void s_test_irreversible_flags_mask(void)
 {
@@ -88,15 +89,17 @@ static void s_test_irreversible_flags_mask(void)
     
     uint32_t l_mask = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
     
-    // Check that mask includes all 4 irreversible flags
-    dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) != 0,
-               "Mask should include UTXO_BLOCKING_DISABLED");
+    // Check that mask includes all 3 irreversible flags (NOT 4 - UTXO_BLOCKING_DISABLED is reversible)
     dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED) != 0,
                "Mask should include ARBITRAGE_TX_DISABLED");
     dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING) != 0,
                "Mask should include DISABLE_ADDRESS_SENDER_BLOCKING");
     dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING) != 0,
                "Mask should include DISABLE_ADDRESS_RECEIVER_BLOCKING");
+    
+    // Verify UTXO_BLOCKING_DISABLED is NOT in the mask (it's reversible)
+    dap_assert((l_mask & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) == 0,
+               "Mask should NOT include UTXO_BLOCKING_DISABLED (reversible flag)");
     
     log_it(L_DEBUG, "Irreversible mask = 0x%08X", l_mask);
     
@@ -111,53 +114,84 @@ static void s_test_irreversible_flags_mask(void)
 
 /**
  * @brief Unit Test 3: Irreversibility logic simulation
- * @details Test that new_flags & MASK >= old_flags & MASK
+ * @details Test bitwise validation: ((new & MASK) & (old & MASK)) == (old & MASK)
+ *          This ensures all previously set bits remain set (correct bitwise check)
+ *          Note: Numeric comparison (>=) fails for bitwise operations
  */
 static void s_test_irreversibility_logic(void)
 {
-    dap_print_module_name("Unit Test 3: Irreversibility Logic");
+    dap_print_module_name("Unit Test 3: Irreversibility Logic (Bitwise Check)");
     
     uint32_t l_mask = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
     
+    // Helper function for bitwise check
+    #define CHECK_IRREVERSIBLE(old, new) \
+        (((new & l_mask) & (old & l_mask)) == (old & l_mask))
+    
     // Test Case 1: No flags set -> Set one flag (ALLOWED)
     uint32_t l_old1 = 0;
-    uint32_t l_new1 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
-    dap_assert((l_new1 & l_mask) >= (l_old1 & l_mask),
-               "Setting UTXO_BLOCKING_DISABLED from 0 should be allowed");
+    uint32_t l_new1 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
+    dap_assert(CHECK_IRREVERSIBLE(l_old1, l_new1),
+               "Setting ARBITRAGE_TX_DISABLED from 0 should be allowed");
     
     // Test Case 2: One flag set -> Same flag (ALLOWED)
-    uint32_t l_old2 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
-    uint32_t l_new2 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
-    dap_assert((l_new2 & l_mask) >= (l_old2 & l_mask),
-               "Keeping UTXO_BLOCKING_DISABLED set should be allowed");
+    uint32_t l_old2 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
+    uint32_t l_new2 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
+    dap_assert(CHECK_IRREVERSIBLE(l_old2, l_new2),
+               "Keeping ARBITRAGE_TX_DISABLED set should be allowed");
     
     // Test Case 3: One flag set -> Two flags (ALLOWED)
-    uint32_t l_old3 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
-    uint32_t l_new3 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED | 
-                      DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
-    dap_assert((l_new3 & l_mask) >= (l_old3 & l_mask),
-               "Adding ARBITRAGE_TX_DISABLED to existing flag should be allowed");
+    uint32_t l_old3 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
+    uint32_t l_new3 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED | 
+                      DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING;
+    dap_assert(CHECK_IRREVERSIBLE(l_old3, l_new3),
+               "Adding DISABLE_ADDRESS_SENDER_BLOCKING to existing flag should be allowed");
     
     // Test Case 4: One flag set -> Zero flags (FORBIDDEN)
-    uint32_t l_old4 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
+    uint32_t l_old4 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
     uint32_t l_new4 = 0;
-    dap_assert((l_new4 & l_mask) < (l_old4 & l_mask),
-               "Unsetting UTXO_BLOCKING_DISABLED should be FORBIDDEN");
-    
-    // Test Case 5: Two flags set -> One flag (FORBIDDEN)
-    uint32_t l_old5 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED | 
-                      DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
-    uint32_t l_new5 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED;
-    dap_assert((l_new5 & l_mask) < (l_old5 & l_mask),
+    dap_assert(!CHECK_IRREVERSIBLE(l_old4, l_new4),
                "Unsetting ARBITRAGE_TX_DISABLED should be FORBIDDEN");
     
-    // Test Case 6: All 4 flags set -> All 4 flags (ALLOWED)
+    // Test Case 5: Two flags set -> One flag (FORBIDDEN)
+    uint32_t l_old5 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED | 
+                      DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING;
+    uint32_t l_new5 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED;
+    dap_assert(!CHECK_IRREVERSIBLE(l_old5, l_new5),
+               "Unsetting DISABLE_ADDRESS_SENDER_BLOCKING should be FORBIDDEN");
+    
+    // Test Case 6: All 3 flags set -> All 3 flags (ALLOWED)
     uint32_t l_old6 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
     uint32_t l_new6 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
-    dap_assert((l_new6 & l_mask) >= (l_old6 & l_mask),
+    dap_assert(CHECK_IRREVERSIBLE(l_old6, l_new6),
                "Keeping all irreversible flags should be allowed");
     
-    dap_pass_msg("Irreversibility logic test passed");
+    // Test Case 7: CRITICAL - Bit 2 set -> Bit 4 set (bit 2 unset) (FORBIDDEN)
+    // This is the case that numeric comparison (<) fails to catch
+    uint32_t l_old7 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING; // BIT 2 = 0x04
+    uint32_t l_new7 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED; // BIT 4 = 0x10
+    // Numeric: 0x10 >= 0x04 would pass (WRONG!)
+    // Bitwise: (0x10 & 0x04) != 0x04 → 0x00 != 0x04 → true (CORRECT!)
+    dap_assert(!CHECK_IRREVERSIBLE(l_old7, l_new7),
+               "CRITICAL: Unsetting bit 2 while setting bit 4 should be FORBIDDEN (numeric check fails here)");
+    
+    // Test Case 8: Bit 2 set -> Bit 2 and Bit 4 set (ALLOWED)
+    uint32_t l_old8 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING; // BIT 2 = 0x04
+    uint32_t l_new8 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING | 
+                      DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED; // BIT 2 | BIT 4 = 0x14
+    dap_assert(CHECK_IRREVERSIBLE(l_old8, l_new8),
+               "Setting bit 4 while keeping bit 2 should be ALLOWED");
+    
+    // Test Case 9: Multiple flags set -> Different flags set (some unset) (FORBIDDEN)
+    uint32_t l_old9 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING | 
+                      DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING; // BIT 2 | BIT 3 = 0x0C
+    uint32_t l_new9 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED; // BIT 4 = 0x10
+    dap_assert(!CHECK_IRREVERSIBLE(l_old9, l_new9),
+               "Unsetting bits 2 and 3 while setting bit 4 should be FORBIDDEN");
+    
+    #undef CHECK_IRREVERSIBLE
+    
+    dap_pass_msg("Irreversibility logic test passed (bitwise check)");
 }
 
 /**

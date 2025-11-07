@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "dap_config.h"
 #include "dap_chain.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
@@ -247,6 +248,12 @@ typedef enum cmd_mempool_list_err{
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Initialize CLI commands module
+ * @param a_config Configuration object
+ */
+void dap_chain_node_cli_cmd_init(dap_config_t *a_config);
 
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_arr_reply, int *a_arg_index, int a_argc,
                                                            char **a_argv,

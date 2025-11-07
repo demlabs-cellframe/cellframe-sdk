@@ -346,6 +346,15 @@ dap_list_t *dap_ledger_token_get_auth_pkeys_hashes(dap_ledger_t *a_ledger, const
 uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char *a_token_ticker);
 
 /**
+ * @brief Get current flags for a token 
+ * @param a_ledger Ledger instance
+ * @param a_token_ticker Token ticker
+ * @param a_flags Output parameter for all flags 
+ * @return 0 on success, -1 if token not found
+ */
+int dap_ledger_token_get_flags(dap_ledger_t *a_ledger, const char *a_token_ticker, uint32_t *a_flags);
+
+/**
  * Add token emission datum
  */
 int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_hash_fast_t *a_emission_hash);

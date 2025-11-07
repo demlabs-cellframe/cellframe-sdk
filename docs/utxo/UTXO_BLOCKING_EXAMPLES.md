@@ -12,6 +12,7 @@ The UTXO (Unspent Transaction Output) blocking mechanism allows token issuers to
 4. [Integration with Address-Based Blocking](#integration-with-address-based-blocking)
 5. [Common Use Cases](#common-use-cases)
 6. [Best Practices](#best-practices)
+7. [Arbitrage Transactions](#10-arbitrage-transactions)
 
 ---
 
@@ -557,8 +558,11 @@ When ledger processes arbitrage transaction, it performs these checks:
 
 1. **TSD Marker Check** - TX must have `DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE` (0x00A1) TSD
 2. **Flag Check** - Token must not have `UTXO_ARBITRAGE_TX_DISABLED` set
-3. **Signature Check** - TX must be signed by at least `auth_signs_valid` token owners
-4. **Output Address Check** - **ALL** TX outputs must go **ONLY** to network fee address (`net->pub.fee_addr`)
+3. **Signature Check** - TX must be signed by:
+   - **Emission owner** (to authorize spending the UTXO)
+   - **Token owner** (to authorize arbitrage - must be in `auth_pkeys` and meet `auth_signs_valid` threshold)
+4. **Network Fee Address Check** - Network must have `fee_addr` configured
+5. **Output Address Check** - **ALL** TX outputs must go **ONLY** to network fee address (`net->pub.fee_addr`)
 
 ⚠️ **CRITICAL:** Arbitrage transactions can ONLY send funds to the network fee collection address.
 
@@ -576,7 +580,96 @@ Arbitrage transactions **bypass ALL** of these checks:
 
 | Error Code | Error Message | Cause |
 |-----------|---------------|-------|
-| `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED` | Arbitrage TX not authorized | Missing owner signatures, disabled arbitrage, or output to non-allowed address |
+| `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED` | Arbitrage TX not authorized | Missing owner signatures, disabled arbitrage, output to non-allowed address, or network fee address not configured |
+
+### Common Scenarios
+
+#### Scenario 1: Arbitrage Disabled
+
+If token has `UTXO_ARBITRAGE_TX_DISABLED` flag set, arbitrage transactions are permanently disabled:
+
+```bash
+# Check if arbitrage is disabled
+cellframe-node-cli token info -net mynetwork -name MYTOKEN
+# Look for flags containing UTXO_ARBITRAGE_TX_DISABLED
+
+# Attempt arbitrage (will fail)
+cellframe-node-cli tx_create \
+    -net mynetwork \
+    -token MYTOKEN \
+    -from_wallet owner_wallet \
+    -to <network_fee_address> \
+    -value 1000.0 \
+    -arbitrage \
+    -certs token_owner_cert
+# Error: Arbitrage transactions disabled for token MYTOKEN
+```
+
+#### Scenario 2: Network Fee Address Not Configured
+
+If network does not have `fee_addr` configured, arbitrage transactions are rejected:
+
+```bash
+# Check network fee address
+cellframe-node-cli net get -net mynetwork fee_addr
+# If blank, arbitrage will fail
+
+# Attempt arbitrage (will fail)
+cellframe-node-cli tx_create \
+    -net mynetwork \
+    -token MYTOKEN \
+    -from_wallet owner_wallet \
+    -to <any_address> \
+    -value 1000.0 \
+    -arbitrage \
+    -certs token_owner_cert
+# Error: Arbitrage TX rejected: network has no fee address configured
+```
+
+**Solution:** Network operators must configure `fee_addr` before arbitrage can be used.
+
+#### Scenario 3: Arbitrage Bypasses Address Blocking
+
+Arbitrage transactions bypass address-based blocking (both sender and receiver):
+
+```bash
+# Step 1: Block an address as sender
+cellframe-node-cli token_update \
+    -net mynetwork \
+    -token MYTOKEN \
+    -tx_sender_blocked_add 0xblocked_address \
+    -certs owner_cert
+
+# Step 2: Create arbitrage transaction from blocked address (will succeed)
+cellframe-node-cli tx_create \
+    -net mynetwork \
+    -token MYTOKEN \
+    -from_wallet blocked_wallet \  # Address is blocked
+    -to <network_fee_address> \
+    -value 1000.0 \
+    -arbitrage \
+    -certs token_owner_cert
+# Success: Arbitrage bypasses address blocking
+```
+
+#### Scenario 4: Multi-Signature Requirements
+
+If token requires multiple owner signatures (`auth_signs_valid > 1`), arbitrage transaction must be signed by at least that many token owners:
+
+```bash
+# Token requires 2 owner signatures (auth_signs_valid = 2)
+# Create arbitrage transaction with 2 owner signatures
+cellframe-node-cli tx_create \
+    -net mynetwork \
+    -token MYTOKEN \
+    -from_wallet owner_wallet \
+    -to <network_fee_address> \
+    -value 1000.0 \
+    -arbitrage \
+    -certs token_owner_cert1,token_owner_cert2  # Both owners must sign
+```
+
+**Note:** The transaction must also be signed by the emission owner (who owns the UTXO being spent).
 
 ### Example: Emergency UTXO Recovery
 

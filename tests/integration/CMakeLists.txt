@@ -3,6 +3,9 @@
 # UTXO Blocking Integration Tests
 add_executable(utxo_blocking_integration_test
     utxo_blocking_integration_test.c
+    utxo_blocking_test_helpers.c
+    utxo_blocking_basic_tests.c
+    utxo_blocking_arbitrage_tests.c
 )
 
 target_include_directories(utxo_blocking_integration_test PRIVATE 
@@ -36,6 +39,7 @@ set_tests_properties(utxo_blocking_integration PROPERTIES
 # UTXO Blocking CLI Integration Tests
 add_executable(utxo_blocking_cli_integration_test
     utxo_blocking_cli_integration_test.c
+    utxo_blocking_test_helpers.c
 )
 
 target_include_directories(utxo_blocking_cli_integration_test PRIVATE 

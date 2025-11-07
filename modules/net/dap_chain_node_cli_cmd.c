@@ -116,6 +116,21 @@
 
 #define LOG_TAG "chain_node_cli_cmd"
 
+// Debug flag for CLI commands (read from config: cli-server.debug_more)
+static bool s_debug_more = false;
+
+/**
+ * @brief Initialize CLI commands module
+ * Called during module initialization
+ * @param a_config Configuration object
+ */
+void dap_chain_node_cli_cmd_init(dap_config_t *a_config)
+{
+    if (a_config) {
+        s_debug_more = dap_config_get_item_bool_default(a_config, "cli-server", "debug_more", false);
+    }
+}
+
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 static void s_new_wallet_info_notify(const char *a_wallet_name); 
 struct json_object *wallet_list_json_collect(int a_version);
@@ -2360,10 +2375,16 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_a
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
 
-    // Net name
-    if(a_net)
-        dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-net", &l_net_str);
-    else {
+    // Net name - search from beginning (index 0) to find -net parameter
+    if(a_net) {
+        // Debug: log all arguments to understand command structure
+        debug_if(s_debug_more, L_DEBUG, "dap_chain_node_cli_cmd_values_parse_net_chain_for_json: argc=%d, argv[0]=%s", a_argc, a_argv[0] ? a_argv[0] : "NULL");
+        for (int i = 0; i < a_argc && i < 10; i++) {
+            debug_if(s_debug_more, L_DEBUG, "  argv[%d]=%s", i, a_argv[i] ? a_argv[i] : "NULL");
+        }
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
+        debug_if(s_debug_more, L_DEBUG, "After search for -net: l_net_str=%s", l_net_str ? l_net_str : "NULL");
+    } else {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_INTERNAL_COMMAND_PROCESSING,
                                "Error in internal command processing.");
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_INTERNAL_COMMAND_PROCESSING;
@@ -2371,7 +2392,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_a
 
     // Select network
     if(!l_net_str) {
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL, "%s requires parameter '-net'", a_argv[0]);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL, "%s requires parameter '-net'", a_argv[0] ? a_argv[0] : "unknown");
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL;
     }
 
@@ -2401,17 +2422,22 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_a
                 return DAP_DELETE(l_str_reply), DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
             }
         } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
+            // First try to get default chain by type
             if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL) {
                 return 0;
-            } else {
-                dap_json_rpc_error_add(a_json_arr_reply, 
-                        DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE,
-                        "Unable to get the default chain of type %s for the network.", dap_chain_type_to_str(a_default_chain_type));
-                return DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE;
-
             }
+            // If default chain not found, try to get any chain that supports this type
+            if ((*a_chain = dap_chain_net_get_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL) {
+                return 0;
+            }
+            // If still not found, return error
+            dap_json_rpc_error_add(a_json_arr_reply, 
+                    DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE,
+                    "Unable to get the default chain of type %s for the network.", dap_chain_type_to_str(a_default_chain_type));
+            return DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE;
         }
     }
+    
     return 0;
 }
 
@@ -2431,7 +2457,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
 
-    // Net name
+    // Net name - search from current position (*a_arg_index) to find -net parameter
     if(a_net)
         dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-net", &l_net_str);
     else
@@ -4491,6 +4517,8 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, json_object
 
 static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_object* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
 {
+    debug_if(s_debug_more, L_DEBUG, "s_parse_additional_token_decl_arg: a_update_token=%d, subtype=%d", a_update_token, a_params->subtype);
+    
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &a_params->ext.flags);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &a_params->ext.total_signs_valid);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_supply_change", &a_params->ext.total_supply_change);
@@ -4503,8 +4531,10 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_params->ext.tx_receiver_allowed);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_sender_blocked", &a_params->ext.tx_sender_blocked);
 
-    if (a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE)
+    if (a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE) {
+        debug_if(s_debug_more, L_DEBUG, "SIMPLE subtype, skipping flag processing");
         return 0;
+    }
 
     dap_list_t *l_tsd_list = NULL;
     size_t l_tsd_total_size = 0;
@@ -4547,6 +4577,9 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         const char *l_unset_flags = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flag_set", &l_set_flags);
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flag_unset", &l_unset_flags);
+
+        debug_if(s_debug_more, L_DEBUG, "Found flags: -flag_set='%s', -flag_unset='%s'", 
+               l_set_flags ? l_set_flags : "NULL", l_unset_flags ? l_unset_flags : "NULL");
         if (l_set_flags) {
             l_str_flags = dap_strsplit(l_set_flags,",",0xffff );
             while (l_str_flags && *l_str_flags){
@@ -4586,20 +4619,41 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
             }
         }
         if (l_unset_flags) {
+            debug_if(s_debug_more, L_DEBUG, "Processing -flag_unset with flags: '%s'", l_unset_flags);
             l_str_flags = dap_strsplit(l_unset_flags,",",0xffff );
             while (l_str_flags && *l_str_flags){
                 // Try parsing as regular flag first
                 uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
+                debug_if(s_debug_more, L_DEBUG, "Parsing flag: '%s' -> regular flag=0x%04X (UNDEFINED=0x%04X)", 
+                       *l_str_flags, l_flag, DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED);
                 
                 // If not a regular flag, try parsing as UTXO flag
                 if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
                     uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_str_flags);
+                    debug_if(s_debug_more, L_DEBUG, "Parsing UTXO flag: '%s' -> 0x%08X", *l_str_flags, l_utxo_flag);
+                    
                     if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
                                    "Flag can't be \"%s\"",*l_str_flags);
                         return -20;
                     }
-                    l_utxo_flags |= l_utxo_flag;  // UTXO flag
+                    
+                    // Check if this UTXO flag is irreversible
+                    // Irreversible flags cannot be unset once they are set
+                    // This check prevents unsetting: ARBITRAGE_TX_DISABLED, DISABLE_ADDRESS_SENDER_BLOCKING, DISABLE_ADDRESS_RECEIVER_BLOCKING
+                    uint32_t l_irreversible_mask = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
+                    debug_if(s_debug_more, L_DEBUG, "Checking irreversible: flag=0x%08X, mask=0x%08X, result=0x%08X", 
+                           l_utxo_flag, l_irreversible_mask, l_utxo_flag & l_irreversible_mask);
+                    
+                    if (l_utxo_flag & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK) {
+                        log_it(L_WARNING, "Attempt to unset irreversible UTXO flag 0x%08X (flag: %s) via -flag_unset is not allowed", 
+                               l_utxo_flag, *l_str_flags);
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                   "Cannot unset irreversible UTXO flags (ARBITRAGE_TX_DISABLED, DISABLE_ADDRESS_SENDER_BLOCKING, DISABLE_ADDRESS_RECEIVER_BLOCKING)");
+                        return -21;
+                    }
+                    
+                    l_utxo_flags |= l_utxo_flag;  // UTXO flag (only reversible ones allowed here)
                 } else {
                     l_flags |= l_flag;  // Regular flag
                 }
@@ -4614,14 +4668,31 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                 l_tsd_total_size += dap_tsd_size(l_flag_unset_tsd);
             }
             
-            // Note: UTXO flags cannot be unset (they are irreversible)
-            // If l_utxo_flags != 0 here, it's an error condition that should be caught
-            // by ledger validation layer
+            // For UTXO flags: need to get current flags and create new UTXO_FLAGS TSD without unset flags
+            // UTXO flags are set/unset by providing full new value in UTXO_FLAGS TSD
             if (l_utxo_flags != 0) {
-                log_it(L_WARNING, "Attempt to unset UTXO flags via -flag_unset is not allowed (flags are irreversible)");
-                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                           "Cannot unset UTXO flags - they are irreversible");
-                return -21;
+                // Get current flags using public API
+                uint32_t l_current_flags = 0;
+                int l_res = dap_ledger_token_get_flags(a_params->net->pub.ledger, a_params->ticker, &l_current_flags);
+                
+                if (l_res != 0) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_LEDGER_TOKEN_TICKER,
+                               "Token '%s' not found in ledger", a_params->ticker);
+                    return -7;
+                }
+                
+                // Extract current UTXO flags using mask
+                uint32_t l_current_utxo_flags = l_current_flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK;
+                
+                // Remove flags that should be unset
+                uint32_t l_new_utxo_flags = l_current_utxo_flags & ~l_utxo_flags;
+                
+                // Create UTXO_FLAGS TSD with new value
+                dap_tsd_t *l_utxo_flags_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS, 
+                                                              &l_new_utxo_flags, sizeof(uint32_t));
+                l_tsd_list = dap_list_append(l_tsd_list, l_utxo_flags_tsd);
+                l_tsd_total_size += dap_tsd_size(l_utxo_flags_tsd);
+                l_utxo_flags = 0;
             }
         }
     }
@@ -4716,9 +4787,10 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         l_tsd_list = dap_list_append(l_tsd_list, l_utxo_add_tsd);
         l_tsd_total_size += dap_tsd_size(l_utxo_add_tsd);
         
-        DAP_DELETE(l_utxo_str_copy);
+        // Log before freeing l_utxo_str_copy (l_hash_str points into it)
         log_it(L_INFO, "Added UTXO blocking: %s:%u%s", l_hash_str, l_out_idx, 
                l_timestamp ? " (delayed)" : "");
+        DAP_DELETE(l_utxo_str_copy);
     }
     
     // Process -utxo_blocked_remove
@@ -4925,6 +4997,23 @@ static int s_token_decl_check_params_json(int a_argc, char **a_argv, json_object
     int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv, a_json_arr_reply, a_params, a_update_token);
     if (l_parse_params)
         return l_parse_params;
+
+    // For token_update, load existing token from ledger to determine its subtype
+    // This is needed because s_parse_additional_token_decl_arg checks subtype
+    if (a_update_token && a_params->net && a_params->chain && a_params->ticker) {
+        dap_ledger_t *l_ledger = a_params->net->pub.ledger;
+        dap_chain_datum_token_t *l_existing_token = dap_ledger_token_ticker_check(l_ledger, a_params->ticker);
+        if (l_existing_token) {
+            log_it(L_INFO, "Token '%s' found in ledger, subtype=%d (was %d)", 
+                   a_params->ticker, l_existing_token->subtype, a_params->subtype);
+            a_params->subtype = l_existing_token->subtype;
+            // NOTE: l_existing_token is a pointer to internal ledger data (l_token_item->datum_token)
+            // It should NOT be freed - it's managed by the ledger and will be freed when ledger is destroyed
+        } else {
+            log_it(L_WARNING, "Token '%s' not found in ledger, using default subtype=%d", 
+                   a_params->ticker, a_params->subtype);
+        }
+    }
 
     l_parse_params = s_parse_additional_token_decl_arg(a_argc,a_argv, a_json_arr_reply, a_params, a_update_token);
     if (l_parse_params)
@@ -7248,7 +7337,10 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         // If arbitrage flag is set, use extended API with TSD
         if (l_is_arbitrage) {
             // Create arbitrage TSD marker
-            dap_chain_tx_tsd_t *l_tsd_arbitrage = dap_chain_datum_tx_item_tsd_create(NULL, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 0);
+            // Note: dap_chain_datum_tx_item_tsd_create requires non-NULL data and size > 0
+            // For arbitrage TSD, we use minimal data (1 byte) as the marker itself is sufficient
+            byte_t l_arb_data = 0;
+            dap_chain_tx_tsd_t *l_tsd_arbitrage = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
             if (!l_tsd_arbitrage) {
                 log_it(L_ERROR, "Failed to create arbitrage TSD marker");
                 dap_chain_wallet_close(l_wallet);

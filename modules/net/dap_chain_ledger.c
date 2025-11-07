@@ -442,7 +442,7 @@ static int s_ledger_tx_check_arbitrage_auth(dap_ledger_t *a_ledger, dap_chain_da
 
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
-static bool s_debug_more = true;
+static bool s_debug_more = false;
 static size_t s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
@@ -611,7 +611,20 @@ int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_led
  */
 int dap_ledger_init()
 {
-    s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
+    // Read debug_more from config (default: false if g_config is NULL, otherwise use config value)
+    if (g_config) {
+        // Check if config item exists by checking its type
+        dap_config_item_type_t l_item_type = dap_config_get_item_type(g_config, "ledger", "debug_more");
+        
+        if (l_item_type != DAP_CONFIG_ITEM_UNKNOWN) {
+            bool l_debug_more_from_config = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
+            s_debug_more = l_debug_more_from_config;
+            debug_if(s_debug_more, L_INFO, "Ledger debug_more read from config: %s", 
+                    s_debug_more ? "enabled" : "disabled");
+        }
+        // If config item not found, keep default value (false)
+    }
+    // If g_config is NULL, keep default value (false)
     
     pthread_rwlock_init(&s_verificators_rwlock, NULL);
     pthread_rwlock_init(&s_services_rwlock, NULL);
@@ -1240,13 +1253,22 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             
             uint32_t l_utxo_flags = dap_tsd_get_scalar(l_tsd, uint32_t);
             
-            // Merge UTXO flags into token item's flags
+            // For UPDATE type: REPLACE UTXO flags (clear old, set new)
+            // For DECL type: MERGE UTXO flags (add to existing)
             // Note: UTXO flags use BIT(0-4) in TSD, but are conceptually separate from header flags
             // We store them in the same token_item->flags field for simplicity
-            a_item_apply_to->flags |= l_utxo_flags;
-            
-            log_it(L_INFO, "Applied UTXO flags 0x%08X to token %s (total flags: 0x%08X)", 
-                   l_utxo_flags, a_item_apply_to->ticker, a_item_apply_to->flags);
+            if (a_current_datum->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
+                // Clear old UTXO flags and set new ones
+                a_item_apply_to->flags &= ~DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK;  // Clear UTXO flags
+                a_item_apply_to->flags |= l_utxo_flags;  // Set new UTXO flags
+                log_it(L_INFO, "Replaced UTXO flags 0x%08X for token %s (total flags: 0x%08X)", 
+                       l_utxo_flags, a_item_apply_to->ticker, a_item_apply_to->flags);
+            } else {
+                // Merge UTXO flags into token item's flags (for DECL type)
+                a_item_apply_to->flags |= l_utxo_flags;
+                log_it(L_INFO, "Applied UTXO flags 0x%08X to token %s (total flags: 0x%08X)", 
+                       l_utxo_flags, a_item_apply_to->ticker, a_item_apply_to->flags);
+            }
         } break;
 
         // ============================================================================
@@ -1720,47 +1742,65 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             DAP_DELETE(l_token);
             return DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS;
         }
-        dap_hash_fast(l_token, l_token_size, &l_token_update_hash);
-        dap_ledger_token_update_item_t *l_token_update_item = NULL;
-        pthread_rwlock_rdlock(&l_token_item->token_ts_updated_rwlock);
-        HASH_FIND(hh, l_token_item->token_ts_updated, &l_token_update_hash, sizeof(dap_hash_fast_t), l_token_update_item);
-        pthread_rwlock_unlock(&l_token_item->token_ts_updated_rwlock);
-        if (l_token_update_item) {
-            log_it(L_WARNING, "This update for token '%s' was already applied", l_token->ticker);
-            DAP_DELETE(l_token);
-            return DAP_LEDGER_CHECK_ALREADY_CACHED;
-        }
-        if (a_token_update_hash)
-            *a_token_update_hash = l_token_update_hash;
         
+        // Check irreversible flags FIRST - before duplicate check
+        // This ensures that attempts to unset irreversible flags are rejected with proper error code
+        // instead of being rejected as duplicates
         // Check irreversible flags - they can only be SET, never UNSET
-        // This applies to: UTXO_BLOCKING_DISABLED, ARBITRAGE_TX_DISABLED
+        // This applies to: ARBITRAGE_TX_DISABLED, DISABLE_ADDRESS_SENDER_BLOCKING, DISABLE_ADDRESS_RECEIVER_BLOCKING
+        // Note: UTXO_BLOCKING_DISABLED is reversible and can be unset
         uint32_t l_old_irreversible = l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
         uint32_t l_new_flags = 0;
         
+        // Debug: log initial state
+        debug_if(s_debug_more, L_INFO, "Checking irreversible flags for token '%s': l_token_item->flags=0x%08X, l_old_irreversible=0x%08X",
+                 l_token->ticker, l_token_item->flags, l_old_irreversible);
+        
         // Get new flags from token datum (different header structure for PRIVATE vs NATIVE)
-        switch (l_token->subtype) {
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_new_flags = l_token->header_private_decl.flags;
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_new_flags = l_token->header_native_decl.flags;
-            break;
-        default:
-            l_new_flags = 0;
+        // For UPDATE type, flags are not in header (padding field), only in TSD
+        if (!l_update_token) {
+            switch (l_token->subtype) {
+            case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+                l_new_flags = l_token->header_private_decl.flags;
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+                l_new_flags = l_token->header_native_decl.flags;
+                break;
+            default:
+                l_new_flags = 0;
+            }
+        } else {
+            // For UPDATE type: start with old flags from token_item
+            // We'll replace UTXO flags from TSD if present, otherwise inherit them
+            l_new_flags = l_token_item->flags;
         }
         
         // Extract UTXO flags from TSD if present in token_update
         // If UTXO_FLAGS TSD is NOT present, inherit old UTXO flags (they don't change)
         size_t l_tsd_total = 0;
         bool l_utxo_flags_in_tsd = false;
-        switch (l_token->subtype) {
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_tsd_total = l_token->header_private_decl.tsd_total_size;
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_tsd_total = l_token->header_native_decl.tsd_total_size;
-            break;
+        if (l_update_token) {
+            switch (l_token->subtype) {
+            case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+                l_tsd_total = l_token->header_private_update.tsd_total_size;
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+                l_tsd_total = l_token->header_native_update.tsd_total_size;
+                break;
+            default:
+                l_tsd_total = 0;
+            }
+        } else {
+            switch (l_token->subtype) {
+            case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+                l_tsd_total = l_token->header_private_decl.tsd_total_size;
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+                l_tsd_total = l_token->header_native_decl.tsd_total_size;
+                break;
+            default:
+                l_tsd_total = 0;
+            }
         }
         
         if (l_tsd_total > 0) {
@@ -1776,7 +1816,19 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
                 if (l_tsd_item->type == DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS && 
                     l_tsd_item->size == sizeof(uint32_t)) {
                     uint32_t l_utxo_flags_from_tsd = dap_tsd_get_scalar(l_tsd_item, uint32_t);
-                    l_new_flags |= l_utxo_flags_from_tsd;
+                    // For UPDATE type: REPLACE UTXO flags (clear old, set new)
+                    // For DECL type: MERGE UTXO flags (add to existing)
+                    debug_if(s_debug_more, L_INFO, "Found UTXO_FLAGS TSD for token '%s': flags_from_tsd=0x%08X, l_new_flags before=0x%08X",
+                             l_token->ticker, l_utxo_flags_from_tsd, l_new_flags);
+                    if (l_update_token) {
+                        // Clear old UTXO flags and set new ones
+                        l_new_flags &= ~DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK;  // Clear UTXO flags
+                        l_new_flags |= l_utxo_flags_from_tsd;  // Set new UTXO flags
+                        debug_if(s_debug_more, L_INFO, "After setting new UTXO flags: l_new_flags=0x%08X", l_new_flags);
+                    } else {
+                        // Merge UTXO flags (for DECL type)
+                        l_new_flags |= l_utxo_flags_from_tsd;
+                    }
                     l_utxo_flags_in_tsd = true;
                     break;
                 }
@@ -1786,21 +1838,47 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         
         // If UTXO_FLAGS TSD is not present in token_update, inherit old UTXO flags
         // (token_update that doesn't change UTXO flags shouldn't include UTXO_FLAGS TSD)
+        // Note: We need to inherit ALL UTXO flags (BIT 0-4), not just irreversible ones
         if (!l_utxo_flags_in_tsd) {
-            uint32_t l_old_utxo_flags = l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
+            // Get all UTXO flags using mask
+            uint32_t l_old_utxo_flags = l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK;
             l_new_flags |= l_old_utxo_flags;
         }
         
         uint32_t l_new_irreversible = l_new_flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
         
-        // Validate: new irreversible flags must be >= old irreversible flags
+        // Validate: all previously set irreversible flags must remain set
         // This means: once a bit is set, it stays set forever
-        if (l_new_irreversible < l_old_irreversible) {
-            log_it(L_WARNING, "Attempt to unset irreversible flags for token '%s': old=0x%08X new=0x%08X",
-                   l_token->ticker, l_old_irreversible, l_new_irreversible);
+        // Use bitwise check: (new & old) == old ensures all old bits are still present
+        // Numeric comparison (<) fails for bitwise operations (e.g., old=0x04, new=0x10 passes incorrectly)
+        debug_if(s_debug_more, L_INFO, "Irreversible flags check for token '%s': old_irrev=0x%08X new_irrev=0x%08X (old_utxo=0x%08X new_utxo=0x%08X, old_flags=0x%08X new_flags=0x%08X, check=%d)",
+                 l_token->ticker, l_old_irreversible, l_new_irreversible,
+                 l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK,
+                 l_new_flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK,
+                 l_token_item->flags, l_new_flags,
+                 ((l_new_irreversible & l_old_irreversible) != l_old_irreversible));
+        if ((l_new_irreversible & l_old_irreversible) != l_old_irreversible) {
+            log_it(L_WARNING, "Attempt to unset irreversible flags for token '%s': old=0x%08X new=0x%08X (missing bits: 0x%08X)",
+                   l_token->ticker, l_old_irreversible, l_new_irreversible, 
+                   l_old_irreversible & ~l_new_irreversible);
             DAP_DELETE(l_token);
             return DAP_LEDGER_TOKEN_UPDATE_CHECK_IRREVERSIBLE_FLAGS_VIOLATION;
         }
+        
+        // Now check for duplicates AFTER irreversible flags validation
+        // This ensures that duplicate updates are detected correctly
+        dap_hash_fast(l_token, l_token_size, &l_token_update_hash);
+        dap_ledger_token_update_item_t *l_token_update_item = NULL;
+        pthread_rwlock_rdlock(&l_token_item->token_ts_updated_rwlock);
+        HASH_FIND(hh, l_token_item->token_ts_updated, &l_token_update_hash, sizeof(dap_hash_fast_t), l_token_update_item);
+        pthread_rwlock_unlock(&l_token_item->token_ts_updated_rwlock);
+        if (l_token_update_item) {
+            log_it(L_WARNING, "This update for token '%s' was already applied", l_token->ticker);
+            DAP_DELETE(l_token);
+            return DAP_LEDGER_CHECK_ALREADY_CACHED;
+        }
+        if (a_token_update_hash)
+            *a_token_update_hash = l_token_update_hash;
         
     } else if (l_update_token) {
         log_it(L_WARNING, "Can't update token that doesn't exist for ticker '%s'", l_token->ticker);
@@ -1817,9 +1895,9 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     if (l_update_token) {
         switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
         default:
             /* Bogdanoff, unknown token subtype update. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' update! "
@@ -1833,9 +1911,9 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     } else {
         switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
         default:
             /* Bogdanoff, unknown token subtype declaration. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' declaration! "
@@ -2387,6 +2465,35 @@ uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char 
     if (!l_token_item || !l_token_item->is_delegated)
         return uint256_0;
     return l_token_item->emission_rate;
+}
+
+/**
+ * @brief Get current flags for a token (includes both regular and UTXO flags)
+ * @param a_ledger Ledger instance
+ * @param a_token_ticker Token ticker
+ * @param a_flags Output parameter for all flags (uint32_t: regular flags in lower 16 bits, UTXO flags in bits 0-4)
+ * @return 0 on success, -1 if token not found
+ */
+int dap_ledger_token_get_flags(dap_ledger_t *a_ledger, const char *a_token_ticker, uint32_t *a_flags)
+{
+    if (!a_ledger || !a_token_ticker || !a_flags)
+        return -1;
+    
+    dap_ledger_token_item_t *l_token_item = NULL;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    HASH_FIND_STR(PVT(a_ledger)->tokens, a_token_ticker, l_token_item);
+    
+    if (!l_token_item) {
+        pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+        return -1;
+    }
+    
+    // Return all flags (includes both regular flags and UTXO flags)
+    // Note: UTXO flags are in BIT 0-4 range (see DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK)
+    *a_flags = l_token_item->flags;
+    
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    return 0;
 }
 
 json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_version, int a_history_limit)
@@ -4450,8 +4557,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
                     break;
                 }
-                // Check permissions
-                if (s_ledger_addr_check(a_ledger, l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+                // Check permissions - skip address blocking check for arbitrage transactions
+                if (!l_is_arbitrage && 
+                    s_ledger_addr_check(a_ledger, l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
                     debug_if(s_debug_more, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str_static(l_addr_from));
                     l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
                     break;
@@ -4696,8 +4804,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
             break;
         }
-        // Check permissions
-        if (s_ledger_addr_check(a_ledger, l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+        // Check permissions - skip address blocking check for arbitrage transactions
+        if (!l_is_arbitrage && 
+            s_ledger_addr_check(a_ledger, l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
             debug_if(s_debug_more, L_WARNING, "[%s] No permission to receive for addr %s", dap_chain_hash_fast_to_str_static(a_tx_hash), dap_chain_addr_to_str_static(&l_tx_out_to));
             l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
             break;
@@ -7113,14 +7222,13 @@ static int s_ledger_tx_check_arbitrage_auth(dap_ledger_t *a_ledger,
                 if (dap_hash_fast_compare(&l_pkey_hash, &l_owner_hash)) {
                     l_is_owner = true;
                     l_valid_owner_signs++;
-                    break;
+                    break;  // Found this owner, check next signature
                 }
             }
         }
         
-        if (l_is_owner) {
-            break;  // Found at least one owner signature - sufficient for arbitrage
-        }
+        // Continue to next signature to count all owner signatures
+        // (needed for multi-sig requirements)
     }
 
     dap_list_free(l_list_tx_sign);
