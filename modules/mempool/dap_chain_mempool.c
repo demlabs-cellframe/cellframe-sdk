@@ -1076,7 +1076,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
  * return dap_chain_datum_t, NULL if Error
  */
 char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
-        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
+        dap_enc_key_t *a_key_from, dap_hash_fast_t *a_pkey_cond_hash,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max,
         dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
@@ -1085,7 +1085,7 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
 {
     dap_ledger_t * l_ledger = a_net ? dap_ledger_by_net_name( a_net->pub.name ) : NULL;
     // check valid param
-    if (!a_net || !l_ledger || !a_key_from || !a_key_cond ||
+    if (!a_net || !l_ledger || !a_key_from || !a_pkey_cond_hash ||
             !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || IS_ZERO_256(a_value))
         return NULL;
 
@@ -1128,7 +1128,7 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
     // add 'out_cond' and 'out' items
     {
         uint256_t l_value_pack = {}; // how much coin add to 'out' items
-        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_key_cond, a_srv_uid, a_value, a_value_per_unit_max, a_unit, a_cond,
+        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_pkey_cond_hash, a_srv_uid, a_value, a_value_per_unit_max, a_unit, a_cond,
                 a_cond_size) == 1) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
         } else {
