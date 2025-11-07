@@ -150,7 +150,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_create(const char *a_quest
     }
 
     const char *l_native_ticker = a_config->native_ticker;
-    uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer;
+    uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer = {};
     dap_chain_addr_t *l_addr_fee = NULL;
     bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
     SUM_256_256(l_net_fee, a_fee, &l_total_fee);
@@ -330,7 +330,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_create(const char *a_quest
         }
     }
     // coin back
-    uint256_t l_value_back;
+    uint256_t l_value_back = {};
     SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
     if(!IS_ZERO_256(l_value_back)) {
         if(dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_native_ticker) != 1) {
@@ -577,7 +577,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
 
 
 
-    uint256_t l_net_fee = {}, l_total_fee = a_fee, l_value_transfer, l_fee_transfer;
+    uint256_t l_net_fee = {}, l_total_fee = a_fee, l_value_transfer = {}, l_fee_transfer = {};
     dap_chain_addr_t *l_addr_fee = NULL;
     bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_addr_fee, a_config);
     if (l_net_fee_used)

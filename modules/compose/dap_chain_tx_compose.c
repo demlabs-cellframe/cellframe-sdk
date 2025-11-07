@@ -31,6 +31,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_mempool_compose.h"
+#include "dap_math_ops.h"
 #include "dap_net.h"
 #include "dap_app_cli.h"
 #include "dap_json_rpc.h"
@@ -673,7 +674,7 @@ bool dap_chain_tx_compose_get_remote_net_fee_and_address(uint256_t *a_net_fee, d
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     *a_addr_fee = DAP_NEW_Z(dap_chain_addr_t);
     randombytes(*a_addr_fee, sizeof(dap_chain_addr_t));
-    a_net_fee->_lo.b = rand() % 500;
+    *a_net_fee = GET_256_FROM_64(rand() % 500);
 #else
     if (!a_net_fee || !a_addr_fee || !a_config || !a_config->net_name) {
         return false;
@@ -2279,7 +2280,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_refill(dap_chain_
     size_t l_owner_hashes_count = rand() % 10 + 1;
     size_t l_signs_min = rand() % l_owner_hashes_count + 1;
     dap_hash_fast_t *l_owner_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_hash_fast_t, l_owner_hashes_count * sizeof(dap_hash_fast_t), NULL);
-    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count, NULL);
+    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count + 1, NULL);
     dap_random_string_fill(l_rand_tag, l_owner_hashes_count);
     randombytes(l_owner_hashes, l_owner_hashes_count * sizeof(dap_hash_fast_t));
     dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_item_out_cond_create_wallet_shared(l_srv_uid, l_value_out, l_signs_min, l_owner_hashes, l_owner_hashes_count, l_rand_tag);
@@ -2536,7 +2537,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
     size_t l_owner_hashes_count = rand() % 10 + 1;
     size_t l_signs_min = rand() % l_owner_hashes_count + 1;
     dap_hash_fast_t *l_owner_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_hash_fast_t, l_owner_hashes_count * sizeof(dap_hash_fast_t), NULL);
-    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count, NULL);
+    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count + 1, NULL);
     dap_random_string_fill(l_rand_tag, l_owner_hashes_count);
     randombytes(l_owner_hashes, l_owner_hashes_count * sizeof(dap_hash_fast_t));
     dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_item_out_cond_create_wallet_shared(l_srv_uid, l_value_out, l_signs_min, l_owner_hashes, l_owner_hashes_count, l_rand_tag);

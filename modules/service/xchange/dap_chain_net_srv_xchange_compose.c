@@ -461,12 +461,12 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     const char *l_native_ticker = a_config->native_ticker;
     const char *l_service_ticker = NULL;
     // find the transactions from which to take away coins
-    uint256_t l_value_transfer, // how many coins to transfer
+    uint256_t l_value_transfer = {}, // how many coins to transfer
               l_value_need = a_datoshi_buy,
               l_net_fee = {},
               l_service_fee,
               l_total_fee = a_datoshi_fee,
-              l_fee_transfer;
+              l_fee_transfer = {};
     dap_chain_addr_t *l_net_fee_addr = NULL, *l_service_fee_addr = NULL;
     dap_list_t *l_list_fee_out = NULL;
     bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_net_fee_addr, a_config);
@@ -592,7 +592,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     // transfer selling coins
     uint256_t l_datoshi_sell,
               l_datoshi_buy,
-              l_value_back;
+              l_value_back = {};
     if (!IS_ZERO_256(a_price->rate)) {
         DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
         if (compare256(a_cond_tx->header.value, l_datoshi_sell) < 0) {
@@ -867,9 +867,9 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
     const char *l_native_ticker = a_config->native_ticker;
     bool l_single_channel = !dap_strcmp(a_price->token_sell, l_native_ticker);
     // find the transactions from which to take away coins
-    uint256_t l_value_transfer; // how many coins to transfer
+    uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need = a_price->datoshi_sell,
-              l_net_fee,
+              l_net_fee = {},
               l_total_fee = a_price->fee,
               l_fee_transfer;
     dap_chain_addr_t *l_addr_net_fee = NULL;

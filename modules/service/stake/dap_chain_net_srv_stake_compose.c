@@ -767,7 +767,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_invalidate(dap_hash_f
 #endif
     uint256_t l_fee_transfer = {}; // how many coins to transfer
     // list of transaction with 'out' items to sell
-    uint256_t l_net_fee, l_fee_total = a_fee;
+    uint256_t l_net_fee = {}, l_fee_total = a_fee;
     dap_chain_addr_t*l_net_fee_addr = NULL;
     bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_net_fee_addr, a_config);
     if (l_net_fee_used)
@@ -1342,7 +1342,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_delegate(dap_chain_ad
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_native_ticker);
     uint256_t l_value_transfer = {}, l_fee_transfer = {}; 
 
-    uint256_t l_net_fee, l_fee_total = a_fee;
+    uint256_t l_net_fee = {}, l_fee_total = a_fee;
     dap_chain_addr_t *l_net_fee_addr = NULL;
     bool l_net_fee_used = dap_chain_tx_compose_get_remote_net_fee_and_address(&l_net_fee, &l_net_fee_addr, a_config);
     if (l_net_fee_used)
