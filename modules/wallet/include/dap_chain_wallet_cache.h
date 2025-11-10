@@ -54,6 +54,15 @@ int dap_chain_wallet_cache_init();
 int dap_chain_wallet_cache_deinit();
 
 /**
+ * @brief Load wallet cache for all opened wallets in the specified network
+ * This function should be called when network transitions to NET_STATE_ONLINE
+ * to ensure wallet cache is populated even if wallets were opened during NET_STATE_LOADING
+ * @param a_net Network to load wallet cache for
+ * @return 0 on success, -1 on error
+ */
+int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net);
+
+/**
  * @brief Find next transactions after l_tx_hash_curr for wallet addr and save pointer to datum into a_tx. If l_tx_hash_curr is NULL then function find first tx for addr.
  * @param a_addr wallet address
  * @param a_token token ticker for transactions filtering  by it

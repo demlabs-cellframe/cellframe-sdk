@@ -2161,6 +2161,9 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
         default:;
         }
+        // Clear UTXO flags initially - they will be set from UTXO_FLAGS TSD if present
+        // By default (if UTXO_FLAGS TSD is absent), UTXO flags remain 0, meaning arbitrage is ALLOWED
+        l_token_item->flags &= ~DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK;
         if ( !l_token_item->auth_pkeys ) {
             DAP_DEL_MULTY(l_token, l_token_item);
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -5385,11 +5388,23 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     l_tx_item->cache_data.multichannel = l_multichannel;
     l_tx_item->ts_added = dap_nanotime_now();
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
-    if (dap_chain_net_get_load_mode(a_ledger->net) || dap_chain_net_get_state(a_ledger->net) == NET_STATE_SYNC_CHAINS)
+    unsigned l_ledger_items_count_before = HASH_COUNT(l_ledger_pvt->ledger_items);
+    bool l_is_load_mode = dap_chain_net_get_load_mode(a_ledger->net);
+    bool l_is_sync_chains = dap_chain_net_get_state(a_ledger->net) == NET_STATE_SYNC_CHAINS;
+    debug_if(s_debug_more, L_DEBUG, "[LEDGER_TX_ADD] Adding tx %s to ledger_items (count before: %u, load_mode: %d, sync_chains: %d, net_state: %d)",
+             l_tx_hash_str, l_ledger_items_count_before, l_is_load_mode, l_is_sync_chains, dap_chain_net_get_state(a_ledger->net));
+    if (l_is_load_mode || l_is_sync_chains)
         HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
     else
         HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
                          l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
+    unsigned l_ledger_items_count_after = HASH_COUNT(l_ledger_pvt->ledger_items);
+    debug_if(s_debug_more, L_DEBUG, "[LEDGER_TX_ADD] Added tx %s to ledger_items (count after: %u, token: '%s', n_outs: %u)",
+             l_tx_hash_str, l_ledger_items_count_after, l_main_token_ticker, l_outs_count);
+    if (l_ledger_items_count_after == l_ledger_items_count_before) {
+        log_it(L_WARNING, "[LEDGER_TX_ADD] CRITICAL: Transaction %s was NOT added to ledger_items! Count unchanged: %u -> %u",
+               l_tx_hash_str, l_ledger_items_count_before, l_ledger_items_count_after);
+    }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     // Callable callback
     dap_list_t *l_notifier;
@@ -5739,17 +5754,32 @@ FIN:
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
 #ifndef DAP_LEDGER_TEST
-    if (dap_chain_net_get_load_mode(a_ledger->net)) {
+    bool l_is_load_mode = dap_chain_net_get_load_mode(a_ledger->net);
+    int l_net_state = dap_chain_net_get_state(a_ledger->net);
+    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {'\0'};
+    dap_chain_hash_fast_to_str(a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+    debug_if(s_debug_more, L_DEBUG, "[LEDGER_TX_LOAD] Loading tx %s (load_mode: %d, net_state: %d)",
+             l_tx_hash_str, l_is_load_mode, l_net_state);
+    if (l_is_load_mode) {
         if (PVT(a_ledger)->cache_tx_check_callback)
             PVT(a_ledger)->cache_tx_check_callback(a_ledger, a_tx_hash);
         dap_ledger_tx_item_t *l_tx_item = NULL;
         unsigned l_hash_value;
         HASH_VALUE(a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value);
         pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
+        unsigned l_ledger_items_count = HASH_COUNT(PVT(a_ledger)->ledger_items);
         HASH_FIND_BYHASHVALUE(hh, PVT(a_ledger)->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value, l_tx_item);
         pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
-        if (l_tx_item)
+        if (l_tx_item) {
+            debug_if(s_debug_more, L_DEBUG, "[LEDGER_TX_LOAD] Tx %s already in ledger_items (count: %u), skipping",
+                     l_tx_hash_str, l_ledger_items_count);
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
+        }
+        debug_if(s_debug_more, L_DEBUG, "[LEDGER_TX_LOAD] Tx %s not found in ledger_items (count: %u), will add",
+                 l_tx_hash_str, l_ledger_items_count);
+    } else {
+        debug_if(s_debug_more, L_DEBUG, "[LEDGER_TX_LOAD] NOT in load_mode (net_state: %d), will add tx %s",
+                 l_net_state, l_tx_hash_str);
     }
 #endif
     return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
@@ -6170,11 +6200,23 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
     else if ( a_limit )
         a_out_value = &l_out_value;
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    unsigned l_ledger_items_count = HASH_COUNT(l_ledger_pvt->ledger_items);
+    debug_if(s_debug_more, L_DEBUG, "[UTXO_SEARCH] Searching UTXO in ledger_items (count: %u) for token '%s', addr: %s",
+             l_ledger_items_count, a_token ? a_token : "any",
+             a_addr ? dap_chain_addr_to_str_static(a_addr) : "any");
     HASH_ITER(hh, l_ledger_pvt->ledger_items, l_cur, l_tmp) {
-        if ( l_cur->cache_data.ts_spent )
+        if ( l_cur->cache_data.ts_spent ) {
+            debug_if(s_debug_more, L_DEBUG, "[UTXO_SEARCH] Skipping tx %s: ts_spent=%llu",
+                     dap_chain_hash_fast_to_str_static(&l_cur->tx_hash_fast),
+                     (unsigned long long)l_cur->cache_data.ts_spent);
             continue;
-        if ( a_token && dap_strcmp(l_cur->cache_data.token_ticker, a_token) && !l_cur->cache_data.multichannel )
+        }
+        if ( a_token && dap_strcmp(l_cur->cache_data.token_ticker, a_token) && !l_cur->cache_data.multichannel ) {
+            debug_if(s_debug_more, L_DEBUG, "[UTXO_SEARCH] Skipping tx %s: token mismatch (tx_token='%s', search_token='%s', multichannel=%d)",
+                     dap_chain_hash_fast_to_str_static(&l_cur->tx_hash_fast),
+                     l_cur->cache_data.token_ticker, a_token, l_cur->cache_data.multichannel);
             continue;
+        }
         byte_t *l_item; size_t l_size; int l_out_idx = -1;
         TX_ITEM_ITER_TX(l_item, l_size, l_cur->tx) {
             dap_chain_addr_t l_addr = { };
@@ -6225,10 +6267,16 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
             default:
                 continue;
             }
-            if ( s_ledger_tx_hash_is_used_out_item(l_cur, l_out_idx, NULL) )
+            if ( s_ledger_tx_hash_is_used_out_item(l_cur, l_out_idx, NULL) ) {
+                debug_if(s_debug_more, L_DEBUG, "[UTXO_SEARCH] Skipping tx %s out #%d: already used",
+                         dap_chain_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx);
                 continue;
-            if ( a_token && dap_strcmp(l_token, a_token) )
+            }
+            if ( a_token && dap_strcmp(l_token, a_token) ) {
+                debug_if(s_debug_more, L_DEBUG, "[UTXO_SEARCH] Skipping tx %s out #%d: token mismatch (out_token='%s', search_token='%s')",
+                         dap_chain_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx, l_token ? l_token : "NULL", a_token);
                 continue;
+            }
             if ( a_cond_only ) {
                 dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, l_cur->tx, ((dap_chain_tx_out_cond_t*)l_item)->header.subtype);
                 dap_chain_datum_tx_t *l_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
@@ -6241,14 +6289,21 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
                 if ( !dap_sign_get_pkey_hash(l_sign, &l_sign_hash)
                     || !dap_hash_fast_compare(&l_sign_hash, &a_addr->data.hash_fast) )
                     continue;
-            } else if ( a_addr && !dap_chain_addr_compare(a_addr, &l_addr) )
+            } else if ( a_addr && !dap_chain_addr_compare(a_addr, &l_addr) ) {
+                debug_if(s_debug_more, L_DEBUG, "[UTXO_SEARCH] Skipping tx %s out #%d: addr mismatch",
+                         dap_chain_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx);
                 continue;
-            if (a_mempool_check && dap_chain_mempool_out_is_used(a_ledger->net, &l_cur->tx_hash_fast, l_out_idx))
+            }
+            if (a_mempool_check && dap_chain_mempool_out_is_used(a_ledger->net, &l_cur->tx_hash_fast, l_out_idx)) {
+                debug_if(s_debug_more, L_DEBUG, "[UTXO_SEARCH] Skipping tx %s out #%d: used in mempool",
+                         dap_chain_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx);
                 continue;
+            }
             dap_chain_tx_used_out_item_t *l_utxo = DAP_NEW(dap_chain_tx_used_out_item_t);
             *l_utxo = (dap_chain_tx_used_out_item_t) { l_cur->tx_hash_fast, (uint32_t)l_out_idx, l_value };
-            log_it(L_DEBUG, "UTXO: tx %s out #%d",
-                dap_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx);
+            const char *l_value_str = dap_uint256_to_char(l_value, NULL);
+            log_it(L_DEBUG, "[UTXO_SEARCH] UTXO found: tx %s out #%d value=%s",
+                dap_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx, l_value_str);
             l_ret = dap_list_append(l_ret, l_utxo);
             if (a_out_value) {
                 SUM_256_256(*a_out_value, l_value, a_out_value);
@@ -7173,10 +7228,16 @@ static int s_ledger_tx_check_arbitrage_auth(dap_ledger_t *a_ledger,
     }
 
     // Check if arbitrage is disabled for this token
+    // By default, arbitrage is ALLOWED (flag is NOT set)
+    // Only if UTXO_ARBITRAGE_TX_DISABLED flag is explicitly set, arbitrage is disabled
     if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED) {
-        log_it(L_WARNING, "Arbitrage transactions disabled for token %s", a_token_item->ticker);
+        log_it(L_WARNING, "Arbitrage transactions disabled for token %s (UTXO_ARBITRAGE_TX_DISABLED flag is set)", a_token_item->ticker);
         return -1;
     }
+    
+    // Arbitrage is allowed by default (flag is not set)
+    debug_if(s_debug_more, L_DEBUG, "Arbitrage transactions allowed for token %s (UTXO_ARBITRAGE_TX_DISABLED flag is not set, flags=0x%08X)", 
+             a_token_item->ticker, a_token_item->flags);
 
     // Get TX signatures
     int l_sign_count = 0;

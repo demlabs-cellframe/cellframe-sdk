@@ -435,12 +435,38 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
     unsigned l_hash_item_hashv;
     HASH_VALUE(&l_datum_hash, sizeof(l_datum_hash), l_hash_item_hashv);
     pthread_mutex_lock(&PVT(a_dag)->events_mutex);
+    // Count datums manually using hh_datums field (HASH_COUNT uses hardcoded 'hh' field)
+    size_t l_datums_count_before = 0;
+    for (dap_chain_cs_dag_event_item_t *ptr = PVT(a_dag)->datums; ptr != NULL; ptr = ptr->hh_datums.next)
+        l_datums_count_before++;
     dap_chain_cs_dag_event_item_t *l_datum_present = NULL;
     HASH_FIND_BYHASHVALUE(hh_datums, PVT(a_dag)->datums, &l_datum_hash, sizeof(l_datum_hash),
                           l_hash_item_hashv, l_datum_present);
-    if (!l_datum_present)
+    debug_if(s_debug_more, L_DEBUG, "[DATUMS] Checking datum hash %s in datums table (count before: %zu, found: %s, datums head: %p)",
+             dap_chain_hash_fast_to_str_static(&l_datum_hash), l_datums_count_before,
+             l_datum_present ? "YES" : "NO", (void*)PVT(a_dag)->datums);
+    if (!l_datum_present) {
         HASH_ADD_BYHASHVALUE(hh_datums, PVT(a_dag)->datums, datum_hash, sizeof(l_datum_hash),
                              l_hash_item_hashv, a_event_item);
+        // Count datums manually using hh_datums field after add
+        size_t l_datums_count_after = 0;
+        for (dap_chain_cs_dag_event_item_t *ptr = PVT(a_dag)->datums; ptr != NULL; ptr = ptr->hh_datums.next)
+            l_datums_count_after++;
+        debug_if(s_debug_more, L_DEBUG, "[DATUMS] Added datum hash %s to datums table (count after: %zu, event_item: %p, hh_datums.tbl: %p, hh.tbl: %p)",
+                 dap_chain_hash_fast_to_str_static(&l_datum_hash), l_datums_count_after,
+                 (void*)a_event_item,
+                 (void*)(a_event_item ? a_event_item->hh_datums.tbl : NULL),
+                 (void*)(a_event_item ? a_event_item->hh.tbl : NULL));
+        if (l_datums_count_after == l_datums_count_before) {
+            log_it(L_WARNING, "[DATUMS] CRITICAL: Datum hash %s was NOT added to datums table! Count unchanged: %zu -> %zu (hh_datums.tbl: %p, hh.tbl: %p)",
+                   dap_chain_hash_fast_to_str_static(&l_datum_hash), l_datums_count_before, l_datums_count_after,
+                   (void*)(a_event_item ? a_event_item->hh_datums.tbl : NULL),
+                   (void*)(a_event_item ? a_event_item->hh.tbl : NULL));
+        }
+    } else {
+        debug_if(s_debug_more, L_DEBUG, "[DATUMS] Datum hash %s already present in datums table, skipping add",
+                 dap_chain_hash_fast_to_str_static(&l_datum_hash));
+    }
     pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
     if (s_debug_more) {
         char l_buf_hash[DAP_CHAIN_HASH_FAST_STR_SIZE] = {'\0'};

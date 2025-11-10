@@ -4648,8 +4648,14 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                     if (l_utxo_flag & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK) {
                         log_it(L_WARNING, "Attempt to unset irreversible UTXO flag 0x%08X (flag: %s) via -flag_unset is not allowed", 
                                l_utxo_flag, *l_str_flags);
-                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                                   "Cannot unset irreversible UTXO flags (ARBITRAGE_TX_DISABLED, DISABLE_ADDRESS_SENDER_BLOCKING, DISABLE_ADDRESS_RECEIVER_BLOCKING)");
+                        // Provide specific error message for ARBITRAGE_TX_DISABLED
+                        if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED) {
+                            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                       "Cannot unset UTXO_ARBITRAGE_TX_DISABLED flag. This flag can only be SET (via -flag_set), never unset. Once set, arbitrage transactions are permanently disabled for this token.");
+                        } else {
+                            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                       "Cannot unset irreversible UTXO flags (ARBITRAGE_TX_DISABLED, DISABLE_ADDRESS_SENDER_BLOCKING, DISABLE_ADDRESS_RECEIVER_BLOCKING). These flags can only be SET, never unset.");
+                        }
                         return -21;
                     }
                     

@@ -2027,6 +2027,14 @@ static void *s_net_load(void *a_arg)
     }
 
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    
+    // CRITICAL: Ensure network is in LOADING state during chain file loading
+    // This ensures dap_ledger_tx_load uses HASH_ADD instead of HASH_ADD_INORDER
+    log_it(L_INFO, "[NET_LOAD] Starting chain file loading for net %s, current state: %d (%s), setting to NET_STATE_LOADING",
+           l_net->pub.name, l_net_pvt->state, 
+           l_net_pvt->state == NET_STATE_LOADING ? "NET_STATE_LOADING" : 
+           l_net_pvt->state == NET_STATE_OFFLINE ? "NET_STATE_OFFLINE" : "OTHER");
+    l_net_pvt->state = NET_STATE_LOADING;
 
     // reload ledger cache at once
     /*if (s_chain_net_reload_ledger_cache_once(l_net)) {
@@ -2080,6 +2088,12 @@ static void *s_net_load(void *a_arg)
         l_chain = l_chain->next;
     }
     dap_ledger_load_end(l_net->pub.ledger);
+    
+    // CRITICAL: Log final state before transitioning to OFFLINE
+    // Note: Detailed ledger_items count logging is done in dap_ledger_tx_load and dap_ledger_tx_add
+    // with [LEDGER_TX_LOAD] and [LEDGER_TX_ADD] prefixes
+    log_it(L_INFO, "[NET_LOAD] Chain file loading completed for net %s, transitioning from NET_STATE_LOADING to NET_STATE_OFFLINE",
+           l_net->pub.name);
 
     // Do specific role actions post-chain created
     l_net_pvt->state_target = NET_STATE_OFFLINE;
