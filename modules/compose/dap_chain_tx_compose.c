@@ -1762,7 +1762,7 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
         dap_chain_hash_fast_from_str(a_pkey_hash_str, &l_pkey_cond_hash);
     }
     if (dap_hash_fast_is_blank(&l_pkey_cond_hash)) {
-        log_it(L_ERROR, "can't calc pkey hash", a_cert_str);
+        log_it(L_ERROR, "can't calc pkey hash for cert '%s'", a_cert_str);
         s_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_CERT_KEY, "Cert '%s' doesn't contain a valid public key\n", a_cert_str);
         return s_compose_config_return_response_handler(l_config);
     }
@@ -3806,7 +3806,7 @@ static dap_chain_net_srv_order_t *s_get_remote_srv_order(const char* l_order_has
         return NULL;
     }
 
-    char *l_data_type = dap_json_rpc_get_text(l_response, "data_type");
+    const char *l_data_type = dap_json_rpc_get_text(l_response, "data_type");
     if (!l_data_type || strcmp("order", l_data_type)) {
         log_it(L_ERROR, "current type is '%s', not 'order'", l_data_type);
         s_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_BAD_DATA_TYPE, "Current type is '%s', not 'order'", l_data_type);

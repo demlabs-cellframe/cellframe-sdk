@@ -156,9 +156,9 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
     // Create global DB clusters for mempool groups (needed for datum pool operations)
     // This is normally done in dap_chain_net_init(), but we create network manually in tests
     if (dap_global_db_instance_get_default()) {
-        // Set gdb_groups_prefix if not set
-        if (!l_fixture->net->pub.gdb_groups_prefix[0]) {
-            snprintf(l_fixture->net->pub.gdb_groups_prefix, sizeof(l_fixture->net->pub.gdb_groups_prefix), "%s", a_net_name);
+        // Set gdb_groups_prefix if not set (it's a const char* pointer, so we set it to point to name)
+        if (!l_fixture->net->pub.gdb_groups_prefix) {
+            l_fixture->net->pub.gdb_groups_prefix = l_fixture->net->pub.name;
         }
         
         // Create mempool cluster for each chain
