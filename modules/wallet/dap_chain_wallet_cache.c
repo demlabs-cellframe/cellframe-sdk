@@ -123,6 +123,13 @@ static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_
                                     dap_chain_net_srv_uid_t a_uid);
 static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_datum_t *a_datum);
 static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg);
+static void *s_wallet_load(void *a_arg);
+
+typedef struct wallet_cache_load_args {
+    dap_chain_net_t *net;
+    dap_chain_addr_t addr;
+    dap_wallet_cache_t *wallet_item;
+} wallet_cache_load_args_t;
 
 static char * s_wallet_cache_type_to_str(dap_s_wallets_cache_type_t a_type)
 {
@@ -208,6 +215,89 @@ int dap_chain_wallet_cache_init()
 
 int dap_chain_wallet_cache_deinit()
 {
+
+    return 0;
+}
+
+int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
+{
+    dap_return_val_if_fail(a_net, -1);
+
+    if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED) {
+        debug_if(s_debug_more, L_DEBUG, "Wallet cache is disabled, skipping load for net %s", a_net->pub.name);
+        return 0;
+    }
+
+    // Only load cache when network is ONLINE (not during LOADING)
+    if (dap_chain_net_get_load_mode(a_net)) {
+        debug_if(s_debug_more, L_DEBUG, "Network %s is in LOADING mode, skipping wallet cache load", a_net->pub.name);
+        return 0;
+    }
+
+    debug_if(s_debug_more, L_DEBUG, "Loading wallet cache for net %s", a_net->pub.name);
+
+    dap_list_t *l_local_addr_list = dap_chain_wallet_get_local_addr();
+    if (!l_local_addr_list) {
+        debug_if(s_debug_more, L_DEBUG, "No local wallets found for net %s", a_net->pub.name);
+        return 0;
+    }
+
+    int l_loaded_count = 0;
+    for (dap_list_t *it = l_local_addr_list; it; it = it->next) {
+        dap_chain_addr_t *l_addr = (dap_chain_addr_t *)it->data;
+        
+        // Check if address belongs to this network
+        if (l_addr->net_id.uint64 != a_net->pub.id.uint64) {
+            continue;
+        }
+
+        pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+        dap_wallet_cache_t *l_wallet_item = NULL;
+        HASH_FIND(hh, s_wallets_cache, l_addr, sizeof(dap_chain_addr_t), l_wallet_item);
+        
+        // Load cache if item doesn't exist or is empty (no transactions cached)
+        bool l_need_load = false;
+        if (!l_wallet_item) {
+            l_need_load = true;
+            l_wallet_item = DAP_NEW_Z(dap_wallet_cache_t);
+            memcpy(&l_wallet_item->wallet_addr, l_addr, sizeof(dap_chain_addr_t));
+            l_wallet_item->is_loading = true;
+            HASH_ADD(hh, s_wallets_cache, wallet_addr, sizeof(dap_chain_addr_t), l_wallet_item);
+            debug_if(s_debug_more, L_DEBUG, "Creating wallet cache entry for %s in net %s",
+                     dap_chain_addr_to_str_static(l_addr), a_net->pub.name);
+        } else if (!l_wallet_item->is_loading && !l_wallet_item->wallet_txs) {
+            // Wallet item exists but has no transactions - reload cache
+            l_need_load = true;
+            l_wallet_item->is_loading = true;
+            debug_if(s_debug_more, L_DEBUG, "Reloading empty wallet cache for %s in net %s",
+                     dap_chain_addr_to_str_static(l_addr), a_net->pub.name);
+        }
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+
+        if (l_need_load) {
+            wallet_cache_load_args_t *l_args = DAP_NEW_Z(wallet_cache_load_args_t);
+            if (l_args) {
+                l_args->net = a_net;
+                l_args->addr = *l_addr;
+                l_args->wallet_item = l_wallet_item;
+
+                pthread_t l_tid;
+                pthread_attr_t attr;
+                pthread_attr_init(&attr);
+                pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+                pthread_create(&l_tid, &attr, s_wallet_load, l_args);
+                l_loaded_count++;
+            }
+        }
+    }
+
+    dap_list_free_full(l_local_addr_list, NULL);
+    
+    if (l_loaded_count > 0) {
+        log_it(L_INFO, "Started loading wallet cache for %d wallet(s) in net %s", l_loaded_count, a_net->pub.name);
+    } else {
+        debug_if(s_debug_more, L_DEBUG, "No wallets needed cache loading for net %s", a_net->pub.name);
+    }
 
     return 0;
 }
@@ -673,12 +763,6 @@ static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *
     s_save_tx_cache_for_addr(l_arg->chain, NULL, (dap_chain_datum_tx_t*)a_datum->data, a_datum_hash, NULL, 0,
                              NULL, (dap_chain_net_srv_uid_t){ }, DAP_CHAIN_TX_TAG_ACTION_UNKNOWN, 'd');
 }
-
-typedef struct wallet_cache_load_args {
-    dap_chain_net_t *net;
-    dap_chain_addr_t addr;
-    dap_wallet_cache_t *wallet_item;
-} wallet_cache_load_args_t;
 
 static void *s_wallet_load(void *a_arg)
 {

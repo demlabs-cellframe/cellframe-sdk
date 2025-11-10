@@ -90,6 +90,7 @@
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
 #include "dap_global_db.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_chain_ch.h"
@@ -3196,6 +3197,11 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     s_net_states_proc(a_net);
     if(l_prev_state == NET_STATE_SYNC_CHAINS)
         dap_ledger_load_end(a_net->pub.ledger);
+    
+    // Load wallet cache when network transitions to ONLINE
+    // This ensures wallet cache is populated even if wallets were opened during NET_STATE_LOADING
+    dap_chain_wallet_cache_load_for_net(a_net);
+    
     return NULL;
 }
 
