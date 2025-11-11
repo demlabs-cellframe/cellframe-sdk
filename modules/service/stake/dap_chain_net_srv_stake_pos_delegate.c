@@ -187,7 +187,7 @@ DAP_STATIC_INLINE char *s_get_approved_group(dap_chain_net_t *a_net)
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_out_check_callback, s_stake_updater_callback, NULL, s_stake_deleted_callback, NULL);
-    dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands", dap_chain_node_cli_cmd_id_from_str("srv_stake"),
+    dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, NULL, "Delegated stake service commands", dap_chain_node_cli_cmd_id_from_str("srv_stake"),
             "\t\t=== Commands for work with orders ===\n"
     "srv_stake order create [fee] -net <net_name> -value <value> -cert <priv_cert_name> [-H {hex(default) | base58}]\n"
         "\tCreates an order declaring the minimum fee that the validator agrees to for process a transaction.\n"
@@ -483,8 +483,8 @@ static void s_stake_add_tx(dap_chain_net_t *a_net, dap_chain_net_srv_stake_item_
     }
 }
 
-void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_chain_datum_decree_t *a_decree,
-                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey)
+void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_decree_hash,
+                                          dap_hash_fast_t *a_tx_hash, uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey)
 {
     dap_return_if_fail(a_net && a_signing_addr && a_node_addr);
 
@@ -509,10 +509,10 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->node_addr = *a_node_addr;
     l_stake->signing_addr = *a_signing_addr;
     l_stake->value = l_stake->locked_value = a_value;
-    if (a_decree) {
-        dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_stake->decree_hash.hash);
-        dap_chain_datum_decree_get_hash(a_decree, &l_stake->tx_hash.hash);
-    }
+    if (a_decree_hash)
+        l_stake->decree_hash.hash = *a_decree_hash;
+    if (a_tx_hash)
+        l_stake->tx_hash.hash = *a_tx_hash;
     l_stake->is_active = true;
     if (dap_pkey_get_size(a_pkey)) {
         DAP_DELETE(l_stake->pkey);
@@ -3102,7 +3102,7 @@ static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2
         return 0;
     }
     return l_datum1->header.ts_created == l_datum2->header.ts_created
-            ? 0 : l_datum1->header.ts_created > l_datum2->header.ts_created ? 1 : -1;
+            ? 0 : l_datum1->header.ts_created < l_datum2->header.ts_created ? 1 : -1;
 }
 
 int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_chain_ch_validator_test_t * out_data,
@@ -3954,7 +3954,6 @@ static dap_json_t *s_dap_chain_net_srv_stake_reward_all(dap_json_t *a_json_arr_r
         return NULL;
     }     
 
-    const char *l_native_ticker = a_net->pub.native_ticker;
     if (!a_chain->callback_datum_iter_create) {
         log_it(L_WARNING, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Not defined callback_datum_iter_create for chain \"%s\"", a_chain->name);
@@ -3989,18 +3988,12 @@ static dap_json_t *s_dap_chain_net_srv_stake_reward_all(dap_json_t *a_json_arr_r
                         : a_chain->callback_datum_iter_get_last;
     iter_direc = a_head ? a_chain->callback_datum_iter_get_next
                         : a_chain->callback_datum_iter_get_prev;
-    if (!a_head) {
-        dap_time_t temp = a_time_from;
-        a_time_from = a_time_to;
-        a_time_to = temp;
-    }
 
     for (dap_chain_datum_t *l_datum = iter_begin(l_datum_iter);
                             l_datum;
                             l_datum = iter_direc(l_datum_iter))
     {
         dap_hash_fast_t l_ttx_hash = {0};
-        dap_chain_hash_fast_t l_datum_hash;
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_hash_fast(l_tx, l_datum->header.data_size, &l_ttx_hash);
         const char *l_tx_token_ticker = NULL;        
@@ -4083,7 +4076,6 @@ static dap_json_t *s_dap_chain_net_srv_stake_reward_all(dap_json_t *a_json_arr_r
                 json_block_hash = dap_json_object_new();
                 dap_json_object_add_string(json_block_hash, a_version == 1 ? "block hash" : "block_hash", dap_chain_hash_fast_to_str_static(&l_in_reward->block_hash)); 
                 dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-                size_t l_sign_size = dap_sign_get_size(l_sign);
                 dap_chain_hash_fast_t l_pkey_hash;
                 dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
                 char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -4385,9 +4377,10 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
 
     dap_list_t *l_current_list = dap_tsd_find_all(l_decree->data_n_signs, l_decree->header.data_size,  DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, sizeof(dap_hash_fast_t));
     for (dap_list_t *l_iter = dap_list_first(l_current_list); l_iter; l_iter = l_iter->next) {
-        dap_chain_datum_decree_t *l_current_decree = dap_ledger_decree_get_by_hash(l_net, (dap_hash_fast_t *)((dap_tsd_t *)l_iter->data)->data, NULL);
-        if (!l_decree) {
-            log_it(L_ERROR, "Can't find delegate decree by hash %s", dap_hash_fast_to_str_static((dap_hash_fast_t *)((dap_tsd_t *)l_iter->data)->data));
+        dap_hash_fast_t *l_cur_decree_hash = (dap_hash_fast_t *)((dap_tsd_t *)l_iter->data)->data;
+        dap_chain_datum_decree_t *l_current_decree = dap_ledger_decree_get_by_hash(l_net, l_cur_decree_hash, NULL);
+        if (!l_current_decree) {
+            log_it(L_ERROR, "Can't find delegate decree by hash %s", dap_hash_fast_to_str_static(l_cur_decree_hash));
             dap_list_free_full(l_current_list, NULL);
             return -3;
         }
@@ -4406,7 +4399,7 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
             dap_list_free_full(l_current_list, NULL);
             return -4;
         }
-        dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, l_current_decree, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(l_current_decree));
+        dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, l_cur_decree_hash, &l_hash, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(l_current_decree));
         if (!l_srv_stake->hardfork.in_process && !dap_chain_net_get_load_mode(l_net))
             dap_chain_net_srv_stake_add_approving_decree_info(l_current_decree, l_net);
     }

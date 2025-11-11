@@ -202,7 +202,7 @@ int dap_chain_net_srv_stake_ext_init(void)
                                s_stake_ext_unlock_callback_updater, s_stake_ext_lock_callback_updater,
                                NULL, NULL);
     
-    dap_cli_server_cmd_add ("stake_ext", s_com_stake_ext, "Stake_ext commands", dap_chain_node_cli_cmd_id_from_str("stake_ext"),
+    dap_cli_server_cmd_add ("stake_ext", s_com_stake_ext, NULL, "Stake_ext commands", dap_chain_node_cli_cmd_id_from_str("stake_ext"),
                 "lock -net <network> -stake_ext <stake_ext_name|tx_hash> -amount <value> -lock_period <3..24> -position <position_id> -fee <value> -w <wallet>\n"
                 "\tPlace a lock on an stake_ext for a specific position\n"
                 "\t-position: position ID (uint32) for which the lock is made\n\n"
