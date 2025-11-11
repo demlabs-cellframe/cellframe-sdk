@@ -189,6 +189,73 @@ static bool s_debug_more = false;
 
 static dap_list_t *s_fork_resolved_notificators = NULL;
 
+static int s_print_for_block_list(dap_json_rpc_response_t *a_response, char **a_cmd_param, int a_cmd_cnt)
+{
+    
+    dap_return_val_if_pass(!a_response || !a_response->result_json_object, -1);
+
+    if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-h") == -1) {
+        dap_json_print_object(a_response->result_json_object, stdout, 0);
+        return 0;
+    }
+    if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "list") == -1)
+        return -2;
+    if (dap_json_get_type(a_response->result_json_object) != DAP_JSON_TYPE_ARRAY) {
+        printf("Response object is not an array!\n");
+        return -4;
+    }
+    int result_count = dap_json_array_length(a_response->result_json_object);
+    if (result_count <= 1) {
+        printf("Response array is empty\n");
+        return -3;
+    }
+    printf("_________________________________________________________________________________________________________________\n");
+    printf("  Block # | Block hash \t\t\t\t\t\t\t       | Time create \t\t\t | \n");
+    dap_json_t *json_obj_array = dap_json_array_get_idx(a_response->result_json_object, 0);
+    result_count = dap_json_array_length(json_obj_array);
+    char *l_limit = NULL;
+    char *l_offset = NULL;
+    for (int i = 0; i < result_count; i++) {
+        dap_json_t *json_obj_result = dap_json_array_get_idx(json_obj_array, i);
+        if (!json_obj_result) {
+            printf("Failed to get array element at index %d\n", i);
+            continue;
+        }
+
+        dap_json_t *j_obj_block_number, *j_obj_hash, *j_obj_create, *j_obj_lim, *j_obj_off;
+        if (dap_json_object_get_ex(json_obj_result, "block number", &j_obj_block_number) &&
+            dap_json_object_get_ex(json_obj_result, "hash", &j_obj_hash) &&
+            dap_json_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
+        {
+            if (j_obj_block_number && j_obj_hash && j_obj_create) {
+                printf("   %5s  | %s | %s |",
+                        dap_json_get_string(j_obj_block_number), dap_json_get_string(j_obj_hash), dap_json_get_string(j_obj_create));
+            } else {
+                printf("Missing required fields in array element at index %d\n", i);
+            }
+        } else if (dap_json_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
+            dap_json_object_get_ex(json_obj_result, "offset", &j_obj_off);
+            l_limit = dap_json_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,dap_json_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
+            if (j_obj_off)
+                l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,dap_json_get_int64(j_obj_off));
+            continue;
+        } else {
+            dap_json_print_object(json_obj_result, stdout, 0);
+        }
+        printf("\n");
+    }
+    printf("__________|____________________________________________________________________|_________________________________|\n\n");
+    if (l_limit) {            
+        printf("\tlimit: %s \n", l_limit);
+        DAP_DELETE(l_limit);
+    }
+    if (l_offset) {            
+        printf("\toffset: %s \n", l_offset);
+        DAP_DELETE(l_offset);
+    }
+    return 0;
+}
+
 /**
  * @brief dap_chain_type_blocks_init
  * @return
@@ -203,7 +270,7 @@ int dap_chain_type_blocks_init()
     dap_chain_block_init();
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
-    dap_cli_server_cmd_add ("block", s_cli_blocks, NULL, "Create and explore blockchains", dap_chain_node_cli_cmd_id_from_str("block"),
+    dap_cli_server_cmd_add("block", s_cli_blocks, s_print_for_block_list, "Create and explore blockchains", dap_chain_node_cli_cmd_id_from_str("block"),
         "New block create, fill and complete commands:\n"
             "block -net <net_name> [-chain <chain_name>] new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
@@ -2300,8 +2367,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     }
 
     if (ret == ATOM_ACCEPT || (!l_generation && ret == ATOM_FORK)) {
-        // 2nd level consensus (skip for genesis block - it establishes initial state)
-        if (!l_is_genesis && l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
+        // 2nd level consensus
+        if (l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
             // Hard accept list
             struct cs_blocks_hal_item *l_hash_found = NULL;
             HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);

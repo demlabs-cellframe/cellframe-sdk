@@ -141,6 +141,83 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 
 static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
 
+static int s_print_for_dag_list(dap_json_rpc_response_t *a_response, char **a_cmd_param, int a_cmd_cnt)
+{
+    dap_return_val_if_pass(!a_response, -1);
+    
+    // Raw JSON flag
+    if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-h") == -1) {
+        dap_json_print_object(a_response->result_json_object, stdout, 0);
+        return 0;
+    }
+    if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "list") == -1)
+        return -2;
+    printf("DEBUG: dap_json_get_type: %d\n", dap_json_get_type(a_response->result_json_object));
+    if (dap_json_get_type(a_response->result_json_object) == DAP_JSON_TYPE_ARRAY) {
+        dap_json_print_object(a_response->result_json_object, stdout, 0);
+        return -5;
+    }        
+    int l_result_count = dap_json_array_length(a_response->result_json_object);
+    if (l_result_count <= 0) {
+        printf("Response array is empty\n");
+        return -3;
+    }
+    printf("________________________________________________________________________________________________________________\n");
+    printf(" %7s | Hash \t\t\t\t\t\t\t      | Time create \t\t        |\n","#");
+    dap_json_t *l_json_obj_array = dap_json_array_get_idx(a_response->result_json_object, 0);
+    dap_json_t *l_object_events = NULL;
+    char *l_limit = NULL;
+    char *l_offset = NULL;
+    
+    if (dap_json_object_get_ex(l_json_obj_array, "events", &l_object_events) || dap_json_object_get_ex(l_json_obj_array, "EVENTS", &l_object_events)
+        || dap_json_object_get_ex(l_json_obj_array, "TRESHOLD", &l_object_events) || dap_json_object_get_ex(l_json_obj_array, "treshold", &l_object_events))
+    {
+        l_result_count = dap_json_array_length(l_object_events);
+        for (int i = 0; i < l_result_count; i++) {
+            dap_json_t *l_json_obj_result = dap_json_array_get_idx(l_object_events, i);
+            if (!l_json_obj_result) {
+                printf("Failed to get array element at index %d\n", i);
+                continue;
+            }
+
+            dap_json_t *l_obj_event_number, *l_obj_hash, *l_obj_create, *l_obj_lim, *l_obj_off;
+            if (dap_json_object_get_ex(l_json_obj_result, "event number", &l_obj_event_number) &&
+                dap_json_object_get_ex(l_json_obj_result, "hash", &l_obj_hash) &&
+                dap_json_object_get_ex(l_json_obj_result, "ts_create", &l_obj_create))
+            {
+                if (l_obj_event_number && l_obj_hash && l_obj_create) {
+                    printf(" %7s | %s | %s\t|",
+                            dap_json_get_string(l_obj_event_number), dap_json_get_string(l_obj_hash), dap_json_get_string(l_obj_create));
+                } else {
+                    printf("Missing required fields in array element at index %d\n", i);
+                }
+            } else if (dap_json_object_get_ex(l_json_obj_result, "limit", &l_obj_lim)) {
+                dap_json_object_get_ex(l_json_obj_result, "offset", &l_obj_off);
+                l_limit = dap_json_get_int64(l_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,dap_json_get_int64(l_obj_lim)) : dap_strdup_printf("unlimit");
+                if (l_obj_off)
+                    l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,dap_json_get_int64(l_obj_off));
+                continue;
+            } else {
+                dap_json_print_object(l_json_obj_result, stdout, 0);
+            }             
+            printf("\n");
+        }
+        printf("_________|____________________________________________________________________|_________________________________|\n\n");
+    } else {
+        printf("EVENTS is empty\n");
+        return -4;
+    }
+    if (l_limit) {            
+        printf("\tlimit: %s \n", l_limit);
+        DAP_DELETE(l_limit);
+    } 
+    if (l_offset) {            
+        printf("\toffset: %s \n", l_offset);
+        DAP_DELETE(l_offset);
+    }        
+    return 0;
+}
+
 /**
  * @brief dap_chain_type_dag_init
  * @return always 0
@@ -156,7 +233,7 @@ int dap_chain_type_dag_init()
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
-    dap_cli_server_cmd_add ("dag", s_cli_dag, NULL, "DAG commands", dap_chain_node_cli_cmd_id_from_str("dag"),
+    dap_cli_server_cmd_add("dag", s_cli_dag, s_print_for_dag_list, "DAG commands", dap_chain_node_cli_cmd_id_from_str("dag"),
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
@@ -1303,7 +1380,6 @@ static dap_chain_datum_t *s_chain_callback_atom_find_by_datum_hash(dap_chain_t *
     return NULL;
 }
 
-
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter)
 {
     dap_chain_type_dag_t *l_dag = DAP_CHAIN_TYPE_DAG(a_datum_iter->chain);
@@ -1352,38 +1428,38 @@ static void s_json_dag_pack_event(dap_json_t *a_json_out, dap_chain_type_dag_eve
     dap_json_array_add(a_json_out, json_obj_event_i);
 }
 
-static bool s_filter_event(dap_chain_type_dag_event_item_t * a_event_item, dap_chain_hash_fast_t * a_l_to_hash,
-    dap_chain_hash_fast_t * a_l_from_hash, size_t * a_i_tmp, size_t a_l_arr_end, size_t a_l_arr_start,  
-    char * a_l_to_hash_str, char * a_l_from_hash_str, dap_time_t a_l_from_time, dap_time_t a_l_to_time,
-    json_object * a_json_out, int a_version, bool a_l_head, bool * a_l_hash_flag)
+static bool s_filter_event(dap_chain_type_dag_event_item_t * a_event_item, dap_chain_hash_fast_t * a_to_hash,
+    dap_chain_hash_fast_t * a_from_hash, size_t * a_tmp, size_t a_arr_end, size_t a_arr_start,  
+    char * a_to_hash_str, char * a_from_hash_str, dap_time_t a_from_time, dap_time_t a_to_time,
+    dap_json_t *a_json_out, int a_version, bool a_head, bool * a_hash_flag)
 {
-    if (*a_i_tmp >a_l_arr_end){
+    if (*a_tmp >a_arr_end){
         return true; //break;
     }
     dap_time_t l_ts = a_event_item->event->header.ts_created;
-    if (a_l_head) {
-        if (a_l_from_time && l_ts < a_l_from_time)
+    if (a_head) {
+        if (a_from_time && l_ts < a_from_time)
             return false; //continue;
-        if (a_l_to_time && l_ts > a_l_to_time)
+        if (a_to_time && l_ts > a_to_time)
             return true;        
     } else {
-        if (a_l_from_time && l_ts > a_l_from_time)
+        if (a_from_time && l_ts > a_from_time)
             return false;
-        if (a_l_to_time && l_ts < a_l_to_time)
+        if (a_to_time && l_ts < a_to_time)
             return true;
     }
-    if (a_l_from_hash_str && !*a_l_hash_flag) {
-        if (!dap_hash_fast_compare(a_l_from_hash, &a_event_item->hash))
+    if (a_from_hash_str && !*a_hash_flag) {
+        if (!dap_hash_fast_compare(a_from_hash, &a_event_item->hash))
             return false;
-        *a_l_hash_flag = true;
+        *a_hash_flag = true;
     }
-    if (*a_i_tmp < a_l_arr_start ) {
-        (*a_i_tmp)++;
+    if (*a_tmp < a_arr_start ) {
+        (*a_tmp)++;
         return false;
     }
-    (*a_i_tmp)++;
-    s_json_dag_pack_event(a_json_out, a_event_item, *a_i_tmp, a_version);
-    if (a_l_to_hash_str && dap_hash_fast_compare(a_l_to_hash, &a_event_item->hash))
+    (*a_tmp)++;
+    s_json_dag_pack_event(a_json_out, a_event_item, *a_tmp, a_version);
+    if (a_to_hash_str && dap_hash_fast_compare(a_to_hash, &a_event_item->hash))
         return true;//break;
     return false;
 }
