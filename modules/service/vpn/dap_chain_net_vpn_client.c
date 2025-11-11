@@ -331,8 +331,8 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
         dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
         uint256_t l_value = dap_chain_uint256_from(a_value_datoshi);
         uint256_t l_zero = {};
-        char *l_tx_cond_hash_str = dap_chain_mempool_tx_create_cond(a_net, l_enc_key, l_client_key, a_token_ticker,
-                                                          l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0, "hex");
+        char *l_tx_cond_hash_str = NULL; //dap_chain_mempool_tx_create_cond(a_net, l_enc_key, l_client_key, a_token_ticker,
+                                         //                 l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0, "hex");
         DAP_DELETE(l_addr_from);
         if(!l_tx_cond_hash_str) {
             log_it(L_ERROR, "Can't create condition for user");
