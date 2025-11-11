@@ -6315,7 +6315,13 @@ dap_json_t *wallets_info_json_collect(int a_version) {
             tmp = *l_dot_pos;
             *l_dot_pos = '\0';
         }
-        dap_json_object_add_object(l_json_wallets, l_tmp, dap_chain_wallet_info_to_json(l_tmp, dap_chain_wallet_get_path(g_config)));
+        // Check if wallet info is valid before adding to JSON
+        dap_json_t *l_wallet_info = dap_chain_wallet_info_to_json(l_tmp, dap_chain_wallet_get_path(g_config));
+        if (l_wallet_info) {
+            dap_json_object_add_object(l_json_wallets, l_tmp, l_wallet_info);
+        } else {
+            log_it(L_WARNING, "Failed to get wallet info for '%s'", l_tmp);
+        }
         if (tmp)
             *l_dot_pos = tmp;
     }

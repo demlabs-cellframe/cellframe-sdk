@@ -272,13 +272,30 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     
 }
 
+static int datum_list_sort_by_date_back(const void *a, const void *b)
+{
+    struct json_object *obj_a = *(struct json_object **)a;
+    struct json_object *obj_b = *(struct json_object **)b;
+
+    struct json_object *timestamp_a = json_object_object_get(obj_a, "ts_created");
+    struct json_object *timestamp_b = json_object_object_get(obj_b, "ts_created");
+
+    const char* time_a_str = json_object_get_string(timestamp_a);
+    const char* time_b_str = json_object_get_string(timestamp_b);
+
+    dap_time_t time_a = dap_time_from_str_rfc822(time_a_str+5);
+    dap_time_t time_b = dap_time_from_str_rfc822(time_b_str+5);
+
+    return  time_b - time_a;
+}
+
 /**
  * @brief dap_chain_net_srv_xchange_init Init actions for xchanger stream channel
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands", dap_chain_node_cli_cmd_id_from_str("srv_xchange"),
+    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, NULL, "eXchange service commands", dap_chain_node_cli_cmd_id_from_str("srv_xchange"),
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"
@@ -289,18 +306,22 @@ int dap_chain_net_srv_xchange_init()
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>\n"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
-    "srv_xchange orders -net <net_name> [-status {opened|closed|all}] [-token_from <token_ticker>] [-token_to <token_ticker>] [-addr <wallet_addr>] [-limit <limit>] [-offset <offset>] [-head]\n"
-         "\tGet the exchange orders list within specified net name\n"
+    "srv_xchange orders -net <net_name> [-status {opened|closed|all} -token_from <token_ticker> -token_to <token_ticker> -limit <limit> -offset <offset> -head]\n"
+         "\t OR [-addr <wallet_addr>]\n"
+         "\t [-full] [-h]\n"
 
     "srv_xchange purchase -order <order hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>\n"
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
     "srv_xchange tx_list -net <net_name> [-time_from <From_time>] [-time_to <To_time>]"
-        "[-addr <wallet_addr>]  [-status {inactive|active|all}]\n"                /* @RRL:  #6294  */
-        "\tList of exchange transactions\n"
+        "{[-addr <wallet_addr>] | [-status {inactive|active|all}] [-limit <limit>] [-offset <offset>] [-head]} [-full] [-h]\n"                /* @RRL:  #6294  */
+        "\tList of exchange transactions with pagination support\n"
         "\tAll times are in RFC822. For example: \"7 Dec 2023 21:18:04\"\n"
+        "\t-limit <limit>: Maximum number of transactions to display (default: 1000)\n"
+        "\t-offset <offset>: Number of transactions to skip from the beginning (default: 0)\n"
+        "\t-head: Display transactions from newest to oldest (default: oldest to newest)\n"
 
-    "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>]\n"
+    "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>] [-h]\n"
         "\tList of all token pairs\n"
     "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>]\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"

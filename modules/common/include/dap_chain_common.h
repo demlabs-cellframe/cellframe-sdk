@@ -283,6 +283,11 @@ DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
 #define dap_chain_balance_coins_scan dap_uint256_scan_decimal
 #define dap_chain_uint256_to dap_uint256_to_uint64
 
+// Backward compatibility aliases
+#define dap_chain_balance_print dap_uint256_uninteger_to_char
+#define dap_chain_balance_to_coins dap_uint256_decimal_to_char
+#define dap_chain_coins_to_balance dap_uint256_scan_decimal
+
 DAP_STATIC_INLINE uint256_t dap_chain_balance_scan(const char *a_balance)
 {
     uint256_t l_ret = dap_chain_balance_datoshi_scan(a_balance);
