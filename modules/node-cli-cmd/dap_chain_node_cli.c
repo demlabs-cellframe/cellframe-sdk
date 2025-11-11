@@ -635,7 +635,7 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
         }
         dap_json_t *json_obj_array = dap_json_array_get_idx(response->result_json_object, 0);
         result_count = dap_json_array_length(json_obj_array);
-        struct dap_json_t * json_obj_total = NULL;
+        dap_json_t * json_obj_total = NULL;
         for (int i = 0; i < result_count; i++) {
             dap_json_t *json_obj_result = dap_json_array_get_idx(json_obj_array, i);
             if (!json_obj_result) {
@@ -718,7 +718,7 @@ static int s_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char
         }
         dap_json_t *json_obj_array = dap_json_array_get_idx(response->result_json_object, 0);
         result_count = dap_json_array_length(json_obj_array);
-        struct dap_json_t * json_obj_total = NULL;
+        dap_json_t * json_obj_total = NULL;
         char hash_buffer[16];
         for (int i = 0; i < result_count; i++) {
             dap_json_t *json_obj_result = dap_json_array_get_idx(json_obj_array, i);
@@ -1063,7 +1063,7 @@ static int s_print_for_srv_stake_list(dap_json_rpc_response_t* response, char **
         }
         dap_json_t *json_obj_array = dap_json_array_get_idx(response->result_json_object, 0);
         result_count = dap_json_array_length(json_obj_array);
-        struct dap_json_t * json_obj_total = NULL;
+        dap_json_t * json_obj_total = NULL;
         char hash_buffer[16];
         for (int i = 0; i < result_count; i++) {
             dap_json_t *json_obj_result = dap_json_array_get_idx(json_obj_array, i);
@@ -1725,8 +1725,8 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
             return -3;
         }
                 
-        struct dap_json_t *json_obj_main = dap_json_array_get_idx(response->result_json_object, 0);
-        struct dap_json_t *j_object_tokens = NULL;
+        dap_json_t *json_obj_main = dap_json_array_get_idx(response->result_json_object, 0);
+        dap_json_t *j_object_tokens = NULL;
         
         // Get TOKENS or tokens array
         if (!dap_json_object_get_ex(json_obj_main, "TOKENS", &j_object_tokens) &&
@@ -1770,7 +1770,7 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
         printf("\nTotal tokens: %d\n", total_tokens);
         
         // Show tokens_count if available
-        struct dap_json_t *tokens_count_obj = NULL;
+        dap_json_t *tokens_count_obj = NULL;
         if (dap_json_object_get_ex(json_obj_main, "tokens_count", &tokens_count_obj)) {
             printf("Tokens count: %s\n", dap_json_get_string(tokens_count_obj));
         }
@@ -1790,7 +1790,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
     bool l_full = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-full") != -1;
     
     if (!l_table_mode) { dap_json_print_object(response->result_json_object, stdout, 0); return 0; }
-    struct dap_json_t *j_obj_headr = NULL, *limit_obj = NULL, *l_arr_pages = NULL, *l_obj_pages = NULL,
+    dap_json_t *j_obj_headr = NULL, *limit_obj = NULL, *l_arr_pages = NULL, *l_obj_pages = NULL,
 			*offset_obj = NULL, *l_arr_orders = NULL;
 	char *l_limit = NULL;
 	char *l_offset = NULL;
@@ -1844,7 +1844,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 			    		"Token buy", "Token sell","Rate", "Owner addr");
             }
 			for (int i = 0; i < result_count; i++) {
-				struct dap_json_t *json_obj_result = dap_json_array_get_idx(l_arr_orders, i);
+				dap_json_t *json_obj_result = dap_json_array_get_idx(l_arr_orders, i);
 				dap_json_t *j_obj_status = NULL, *j_obj_hash = NULL, *j_obj_create = NULL, *j_obj_prop_coin = NULL,
 					*j_obj_amount_coin = NULL, *j_obj_filed_perc = NULL, *j_obj_token_buy = NULL, *j_obj_token_sell = NULL, *j_obj_rate = NULL, *j_obj_owner_addr = NULL;
 				if (dap_json_object_get_ex(json_obj_result, "order_hash", &j_obj_hash) &&
@@ -1882,7 +1882,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 					if (rate_print && strlen(rate_print) > 22) { strncpy(rate_buf, rate_print + strlen(rate_print) - 22, 22); rate_buf[22] = '\0'; rate_print = rate_buf; }
 					printf("   %s  | %s | %s | %-22s | %-22s | %3d | %-10s | %-10s | %-22s | %-s |\n",
 						hash_print, dap_json_get_string(j_obj_create), dap_json_get_string(j_obj_status),
-						prop_print, amount_print, (int)json_object_get_uint64(j_obj_filed_perc),
+						prop_print, amount_print, (int)dap_json_get_uint64(j_obj_filed_perc),
 						dap_json_get_string(j_obj_token_buy), dap_json_get_string(j_obj_token_sell), rate_print, owner_addr_print);
 					l_print_count++;
 				}
@@ -1901,10 +1901,10 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 	if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "token_pair") != -1) {
 		// list all
 		if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "list") != -1) {
-			struct dap_json_t *l_obj_pairs = NULL, *l_pairs_arr = NULL, *l_pair_cnt = NULL;
+			dap_json_t *l_obj_pairs = NULL, *l_pairs_arr = NULL, *l_pair_cnt = NULL;
 			int top_len = dap_json_array_length(response->result_json_object);
 			for (int i = 0; i < top_len; i++) {
-				struct dap_json_t *el = dap_json_array_get_idx(response->result_json_object, i);
+				dap_json_t *el = dap_json_array_get_idx(response->result_json_object, i);
 				if (el && dap_json_get_type(el) == DAP_JSON_TYPE_OBJECT) {
 					if (dap_json_object_get_ex(el, "tickers_pair", &l_pairs_arr) ||
 						dap_json_object_get_ex(el, "TICKERS PAIR", &l_pairs_arr)) { l_obj_pairs = el; break; }
@@ -1914,8 +1914,8 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 			printf("______________________________\n");
 			printf(" %-10s | %-10s |\n", "Ticker 1", "Ticker 2");
             for (size_t i = 0; i < (size_t)dap_json_array_length(l_pairs_arr); i++) {
-				struct dap_json_t *pair = dap_json_array_get_idx(l_pairs_arr, i);
-				struct dap_json_t *t1 = NULL, *t2 = NULL;
+				dap_json_t *pair = dap_json_array_get_idx(l_pairs_arr, i);
+				dap_json_t *t1 = NULL, *t2 = NULL;
 				dap_json_object_get_ex(pair, "ticker_1", &t1);
 				dap_json_object_get_ex(pair, "ticker_2", &t2);
 				if (t1 && t2) printf(" %-10s | %-10s |\n", dap_json_get_string(t1), dap_json_get_string(t2));
@@ -1928,9 +1928,9 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 		if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "average") != -1) {
 			int top_len = dap_json_array_length(response->result_json_object);
 			for (int i = 0; i < top_len; i++) {
-				struct dap_json_t *el = dap_json_array_get_idx(response->result_json_object, i);
+				dap_json_t *el = dap_json_array_get_idx(response->result_json_object, i);
 				if (el && dap_json_get_type(el) == DAP_JSON_TYPE_OBJECT) {
-					struct dap_json_t *avg = NULL, *last = NULL, *last_ts = NULL;
+					dap_json_t *avg = NULL, *last = NULL, *last_ts = NULL;
 					if (dap_json_object_get_ex(el, "average_rate", &avg) || dap_json_object_get_ex(el, "Average rate", &avg)) {
 						dap_json_object_get_ex(el, "last_rate", &last); dap_json_object_get_ex(el, "Last rate", &last);
 						dap_json_object_get_ex(el, "last_rate_time", &last_ts); dap_json_object_get_ex(el, "Last rate time", &last_ts);
@@ -1945,11 +1945,11 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 		}
 		// rate history
 		if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "history") != -1) {
-			struct dap_json_t *l_arr = NULL;
-			struct dap_json_t *l_summary = NULL;
+			dap_json_t *l_arr = NULL;
+			dap_json_t *l_summary = NULL;
 			int top_len = dap_json_array_length(response->result_json_object);
 			for (int i = 0; i < top_len; i++) {
-				struct dap_json_t *el = dap_json_array_get_idx(response->result_json_object, i);
+				dap_json_t *el = dap_json_array_get_idx(response->result_json_object, i);
 				if (el && dap_json_get_type(el) == DAP_JSON_TYPE_ARRAY && !l_arr) l_arr = el;
 				if (el && dap_json_get_type(el) == DAP_JSON_TYPE_OBJECT) l_summary = el;
 			}
@@ -1958,8 +1958,8 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 			printf(" Hash | Action | Token | Time create\n");
 			printf("__________________________________________________________________________________________________\n");
             for (size_t i = 0; i < (size_t)dap_json_array_length(l_arr); i++) {
-				struct dap_json_t *it = dap_json_array_get_idx(l_arr, i);
-				struct dap_json_t *hash = NULL, *action = NULL, *token = NULL, *ts = NULL;
+				dap_json_t *it = dap_json_array_get_idx(l_arr, i);
+				dap_json_t *hash = NULL, *action = NULL, *token = NULL, *ts = NULL;
 				dap_json_object_get_ex(it, "hash", &hash);
 				dap_json_object_get_ex(it, "action", &action);
 				dap_json_object_get_ex(it, "token ticker", &token);
@@ -1970,8 +1970,8 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 					dap_json_print_object(it, stdout, 1);
 			}
 			if (l_summary) {
-				struct dap_json_t *tx_cnt = NULL;
-				struct dap_json_t *v1_from = NULL, *v1_to = NULL, *v2_from = NULL, *v2_to = NULL;
+				dap_json_t *tx_cnt = NULL;
+				dap_json_t *v1_from = NULL, *v1_to = NULL, *v2_from = NULL, *v2_to = NULL;
 				dap_json_object_get_ex(l_summary, "tx_count", &tx_cnt);
                 if (tx_cnt) printf("\nTotal transactions: %"DAP_INT64_FORMAT"\n", dap_json_get_int64(tx_cnt));
 				if (dap_json_object_get_ex(l_summary, "trading_val_from_coins", &v1_from) || dap_json_object_get_ex(l_summary, "trading_val_from_datoshi", &v2_from) ||
@@ -1987,19 +1987,19 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 
 	// Branch: tx_list
 	if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "tx_list") != -1) {
-		struct dap_json_t *l_arr = NULL, *l_pages_info = NULL;
+		dap_json_t *l_arr = NULL, *l_pages_info = NULL;
 		//char *l_limit = NULL, *l_offset = NULL;
 		size_t l_print_count = 0;
 		
 		// Parse response structure - look for transactions array and pagination info
 		int top_len = dap_json_array_length(response->result_json_object);
 		for (int i = 0; i < top_len; i++) {
-			struct dap_json_t *el = dap_json_array_get_idx(response->result_json_object, i);            
+			dap_json_t *el = dap_json_array_get_idx(response->result_json_object, i);            
 			if (!el) continue;
 			if (dap_json_get_type(el) == DAP_JSON_TYPE_OBJECT) {
 
 				// Check if this is pagination info
-				struct dap_json_t *transactions = NULL;
+				dap_json_t *transactions = NULL;
 				if (dap_json_object_get_ex(el, "transactions", &transactions)) {
 					if (dap_json_get_type(transactions) == DAP_JSON_TYPE_ARRAY) {
 						l_arr = transactions;
@@ -2028,8 +2028,8 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 		}
 		// Print transactions
 		for (size_t i = 0; i < (size_t)dap_json_array_length(l_arr); i++) {
-			struct dap_json_t *it = dap_json_array_get_idx(l_arr, i);
-			struct dap_json_t *hash = NULL, *status = NULL, *token = NULL, *ts = NULL, 
+			dap_json_t *it = dap_json_array_get_idx(l_arr, i);
+			dap_json_t *hash = NULL, *status = NULL, *token = NULL, *ts = NULL, 
 							   *owner_addr = NULL, *buyer_addr = NULL;
 			
 			dap_json_object_get_ex(it, "hash", &hash);
@@ -2066,9 +2066,9 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 					dap_json_get_string(status),
 					dap_json_get_string(token),
 					dap_json_get_string(ts),
-					l_full ? 104 : strlen(owner_addr_str),
+					l_full ? 104 : (int)strlen(owner_addr_str),
 					owner_addr_str,
-					l_full ? 104 : strlen(buyer_addr_str),
+					l_full ? 104 : (int)strlen(buyer_addr_str),
 					buyer_addr_str);
 				l_print_count++;
 			} else {

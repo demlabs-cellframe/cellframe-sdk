@@ -483,8 +483,8 @@ static void s_stake_add_tx(dap_chain_net_t *a_net, dap_chain_net_srv_stake_item_
     }
 }
 
-void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_chain_datum_decree_t *a_decree,
-                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey)
+void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_decree_hash,
+                                          dap_hash_fast_t *a_tx_hash, uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey)
 {
     dap_return_if_fail(a_net && a_signing_addr && a_node_addr);
 
@@ -509,10 +509,10 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->node_addr = *a_node_addr;
     l_stake->signing_addr = *a_signing_addr;
     l_stake->value = l_stake->locked_value = a_value;
-    if (a_decree) {
-        dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_stake->decree_hash.hash);
-        dap_chain_datum_decree_get_hash(a_decree, &l_stake->tx_hash.hash);
-    }
+    if (a_decree_hash)
+        l_stake->decree_hash.hash = *a_decree_hash;
+    if (a_tx_hash)
+        l_stake->tx_hash.hash = *a_tx_hash;
     l_stake->is_active = true;
     if (dap_pkey_get_size(a_pkey)) {
         DAP_DELETE(l_stake->pkey);
@@ -4377,9 +4377,10 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
 
     dap_list_t *l_current_list = dap_tsd_find_all(l_decree->data_n_signs, l_decree->header.data_size,  DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, sizeof(dap_hash_fast_t));
     for (dap_list_t *l_iter = dap_list_first(l_current_list); l_iter; l_iter = l_iter->next) {
-        dap_chain_datum_decree_t *l_current_decree = dap_ledger_decree_get_by_hash(l_net, (dap_hash_fast_t *)((dap_tsd_t *)l_iter->data)->data, NULL);
-        if (!l_decree) {
-            log_it(L_ERROR, "Can't find delegate decree by hash %s", dap_hash_fast_to_str_static((dap_hash_fast_t *)((dap_tsd_t *)l_iter->data)->data));
+        dap_hash_fast_t *l_cur_decree_hash = (dap_hash_fast_t *)((dap_tsd_t *)l_iter->data)->data;
+        dap_chain_datum_decree_t *l_current_decree = dap_ledger_decree_get_by_hash(l_net, l_cur_decree_hash, NULL);
+        if (!l_current_decree) {
+            log_it(L_ERROR, "Can't find delegate decree by hash %s", dap_hash_fast_to_str_static(l_cur_decree_hash));
             dap_list_free_full(l_current_list, NULL);
             return -3;
         }
@@ -4398,7 +4399,7 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
             dap_list_free_full(l_current_list, NULL);
             return -4;
         }
-        dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, l_current_decree, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(l_current_decree));
+        dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, l_cur_decree_hash, &l_hash, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(l_current_decree));
         if (!l_srv_stake->hardfork.in_process && !dap_chain_net_get_load_mode(l_net))
             dap_chain_net_srv_stake_add_approving_decree_info(l_current_decree, l_net);
     }
