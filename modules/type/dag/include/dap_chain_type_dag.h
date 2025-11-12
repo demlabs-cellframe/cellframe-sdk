@@ -26,7 +26,6 @@
 #include "dap_chain.h"
 #include "dap_chain_type_dag_event.h"
 
-#define DAG_ROUND_CURRENT_KEY "round_current"
 #define DAP_CHAIN_CLUSTER_ID_DAG 0x10000
 
 typedef struct dap_chain_type_dag dap_chain_type_dag_t;

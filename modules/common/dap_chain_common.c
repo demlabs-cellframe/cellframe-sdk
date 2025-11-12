@@ -220,30 +220,31 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     return memcmp(a_addr->checksum.raw, l_checksum.raw, sizeof(l_checksum.raw));
 }
 
-void dap_chain_set_offset_limit_json(dap_json_t *a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count,
+void dap_chain_set_offset_limit_json(dap_json_t *a_json_obj_out, size_t *a_start, size_t *a_end, size_t a_limit, size_t a_offset, size_t a_end_count,
                                      bool a_last)
 {
     dap_json_t *json_obj_lim = dap_json_object_new();
-    *a_and = a_and_count;
+    *a_end = a_end_count;
     if (a_offset > 0) {
-        if ((a_last) && (a_and_count > a_offset)) {
-            *a_and = a_and_count - a_offset;
+        if ((a_last) && (a_end_count > a_offset)) {
+            *a_end = a_end_count - a_offset;
         } else {
             *a_start = a_offset;
         }
         dap_json_object_add_uint64(json_obj_lim, "offset", a_offset);
     }
     if (a_limit > 0) {
-        if (a_last && (a_and_count > a_limit)) {
-            *a_start = *a_and - a_limit;
-        }
-        else {
-            *a_and = *a_start + a_limit;
+        if (a_last && (a_end_count > a_limit)) {
+            *a_start = *a_end - a_limit;
+        } else {
+            *a_end = *a_start + a_limit;
         }
         dap_json_object_add_uint64(json_obj_lim, "limit", a_limit);
     }
     else
         dap_json_object_add_string(json_obj_lim, "limit", "unlimit");
+    if (*a_end > a_end_count)
+        *a_end = a_end_count;
     dap_json_array_add(a_json_obj_out, json_obj_lim);
 }
 

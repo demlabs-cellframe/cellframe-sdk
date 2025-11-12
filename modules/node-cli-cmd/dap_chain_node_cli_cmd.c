@@ -60,6 +60,9 @@
 #include "dap_chain_node_rpc.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
+#include "dap_global_db_cluster.h"
+#include "dap_stream_cluster.h"
+#include "dap_guuid.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_json.h"
@@ -398,7 +401,7 @@ int com_global_db(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int 
 
     enum {
         CMD_NONE, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
-        CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST, CMD_CLEAR
+        CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST, CMD_CLEAR, CMD_CLUSTERS
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -421,6 +424,8 @@ int com_global_db(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int 
             cmd_name = CMD_GROUP_LIST;
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "clear", NULL))
             cmd_name = CMD_CLEAR;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "clusters", NULL))
+            cmd_name = CMD_CLUSTERS;
 
     switch (cmd_name) {
     case CMD_FLUSH:
@@ -835,6 +840,65 @@ int com_global_db(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int 
         dap_json_object_add_object(l_json_obj_clear, "group_list_clear", l_json_arr_clear);
         dap_json_object_add_object(l_json_obj_clear, "total_count", dap_json_object_new_uint64(l_total_count));
         dap_json_array_add(a_json_arr_reply, l_json_obj_clear);
+        return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
+    }
+    
+    case CMD_CLUSTERS: {
+        bool l_verbose = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-verbose", NULL);
+        
+        dap_global_db_instance_t *l_dbi = dap_global_db_instance_get_default();
+        if (!l_dbi) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, 
+                                   "Can't get global_db instance");
+            return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
+        }
+        
+        dap_json_t *l_json_obj_result = dap_json_object_new();
+        dap_json_t *l_json_arr_clusters = dap_json_array_new();
+        
+        int l_cluster_count = 0;
+        dap_global_db_cluster_t *l_cluster, *l_tmp;
+        DL_FOREACH_SAFE(l_dbi->clusters, l_cluster, l_tmp) {
+            dap_json_t *l_json_obj_cluster = dap_json_object_new();
+            
+            // Add cluster basic information
+            dap_json_object_add_string(l_json_obj_cluster, "groups_mask", 
+                                      l_cluster->groups_mask ? l_cluster->groups_mask : "N/A");
+            
+            // Add cluster GUID (links_cluster)
+            if (l_cluster->links_cluster) {
+                const char *l_guuid_str = dap_guuid_to_hex_str(l_cluster->links_cluster->guuid);
+                dap_json_object_add_string(l_json_obj_cluster, "links_cluster_guuid", l_guuid_str);
+                dap_json_object_add_string(l_json_obj_cluster, "mnemonim", 
+                                          l_cluster->links_cluster->mnemonim ? l_cluster->links_cluster->mnemonim : "N/A");
+            }
+            
+            // Add TTL
+            dap_json_object_add_object(l_json_obj_cluster, "ttl", dap_json_object_new_uint64(l_cluster->ttl));
+            
+            // Add default role
+            dap_json_object_add_string(l_json_obj_cluster, "default_role", 
+                                      dap_global_db_cluster_role_str(l_cluster->default_role));
+            
+            // Add owner_root_access flag
+            dap_json_object_add_bool(l_json_obj_cluster, "owner_root_access", l_cluster->owner_root_access);
+            
+            // If verbose mode, add links information
+            if (l_verbose && l_cluster->links_cluster) {
+                dap_json_t *l_jobj_links = dap_cluster_get_links_info_json(l_cluster->links_cluster);
+                if (l_jobj_links) {
+                    dap_json_object_add_object(l_json_obj_cluster, "links", l_jobj_links);
+                }
+            }
+            
+            dap_json_array_add(l_json_arr_clusters, l_json_obj_cluster);
+            l_cluster_count++;
+        }
+        
+        dap_json_object_add_object(l_json_obj_result, "clusters", l_json_arr_clusters);
+        dap_json_object_add_object(l_json_obj_result, "total_count", dap_json_object_new_int(l_cluster_count));
+        dap_json_array_add(a_json_arr_reply, l_json_obj_result);
+        
         return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_JSON_OK;
     }
     

@@ -95,6 +95,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\t-mask <mask>: clear groups by mask\n"
                 "\t-all: clear all groups\n"
                 "\t-pinned: remove pinned records too\n\n"
+            "global_db clusters [-verbose] [-h]\n"
+                "\tDisplays list of all global_db clusters.\n"
+                "\t-verbose: show links information for each cluster (similar to 'node connections -cluster <guuid>')\n"
+                "\t-h: display in table format\n\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
@@ -1327,6 +1331,71 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
             }
         }
         dap_json_print_object(response->result_json_object, stdout, 0);
+        return 0;
+    }
+    
+    // clusters: display list of global_db clusters
+    if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "clusters") != -1) {
+        if (dap_json_get_type(response->result_json_object) != DAP_JSON_TYPE_ARRAY) {
+            dap_json_print_object(response->result_json_object, stdout, 0);
+            return 0;
+        }
+        
+        dap_json_t *obj = dap_json_array_get_idx(response->result_json_object, 0);
+        if (!obj || dap_json_get_type(obj) != DAP_JSON_TYPE_OBJECT) {
+            printf("Response format error\n");
+            return -2;
+        }
+        
+        dap_json_t *clusters_arr = NULL, *total = NULL;
+        dap_json_object_get_ex(obj, "clusters", &clusters_arr);
+        dap_json_object_get_ex(obj, "total_count", &total);
+        
+        if (!clusters_arr || dap_json_get_type(clusters_arr) != DAP_JSON_TYPE_ARRAY) {
+            printf("No clusters found\n");
+            return 0;
+        }
+        
+        bool l_verbose = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-verbose") != -1;
+        int clusters_count = dap_json_array_length(clusters_arr);
+        
+        printf("\n=== Global DB Clusters ===\n");
+        if (total)
+            printf("Total clusters: %"DAP_INT64_FORMAT"\n\n", dap_json_get_int64(total));
+        
+        for (int i = 0; i < clusters_count; i++) {
+            dap_json_t *cluster = dap_json_array_get_idx(clusters_arr, i);
+            if (!cluster || dap_json_get_type(cluster) != DAP_JSON_TYPE_OBJECT)
+                continue;
+            
+            dap_json_t *j_mask = NULL, *j_guuid = NULL, *j_mnem = NULL;
+            dap_json_t *j_ttl = NULL, *j_role = NULL, *j_root = NULL, *j_links = NULL;
+            
+            dap_json_object_get_ex(cluster, "groups_mask", &j_mask);
+            dap_json_object_get_ex(cluster, "links_cluster_guuid", &j_guuid);
+            dap_json_object_get_ex(cluster, "mnemonim", &j_mnem);
+            dap_json_object_get_ex(cluster, "ttl", &j_ttl);
+            dap_json_object_get_ex(cluster, "default_role", &j_role);
+            dap_json_object_get_ex(cluster, "owner_root_access", &j_root);
+            dap_json_object_get_ex(cluster, "links", &j_links);
+            
+            printf("--- Cluster #%d ---\n", i + 1);
+            printf("  Groups Mask:       %s\n", j_mask ? dap_json_get_string(j_mask) : "N/A");
+            printf("  Mnemonim:          %s\n", j_mnem ? dap_json_get_string(j_mnem) : "N/A");
+            printf("  Links Cluster GUUID: %s\n", j_guuid ? dap_json_get_string(j_guuid) : "N/A");
+            printf("  TTL:               %"DAP_UINT64_FORMAT_U" sec\n", j_ttl ? dap_json_get_uint64(j_ttl) : 0);
+            printf("  Default Role:      %s\n", j_role ? dap_json_get_string(j_role) : "N/A");
+            printf("  Owner Root Access: %s\n", j_root ? (dap_json_get_bool(j_root) ? "Yes" : "No") : "N/A");
+            
+            // Print links in verbose mode
+            if (l_verbose && j_links) {
+                printf("\n  Links Information:\n");
+                dap_json_print_object(j_links, stdout, 2);
+            }
+            
+            printf("\n");
+        }
+        
         return 0;
     }
     
