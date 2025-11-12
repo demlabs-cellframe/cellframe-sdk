@@ -1740,6 +1740,23 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
     dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t*)l_pkt->data;
+    
+    // DIAGNOSTIC: HEX dump VPN packet header AFTER decryption
+    log_it(L_CRITICAL, "[VPN PKT SERVER] ========================================");
+    log_it(L_CRITICAL, "[VPN PKT SERVER] VPN Packet Header (24 bytes) AFTER decryption:");
+    log_it(L_CRITICAL, "[VPN PKT SERVER]   sock_id: %d", l_vpn_pkt->header.sock_id);
+    log_it(L_CRITICAL, "[VPN PKT SERVER]   op_code: 0x%02x", l_vpn_pkt->header.op_code);
+    log_it(L_CRITICAL, "[VPN PKT SERVER]   usage_id: %u", l_vpn_pkt->header.usage_id);
+    log_it(L_CRITICAL, "[VPN PKT SERVER]   op_data.data_size: %u", l_vpn_pkt->header.op_data.data_size);
+    
+    // HEX dump first 24 bytes
+    char hex_buf[200] = {0};
+    for(size_t i = 0; i < 24 && i < l_pkt->hdr.data_size; i++) {
+        sprintf(hex_buf + strlen(hex_buf), "%02x", ((uint8_t*)l_vpn_pkt)[i]);
+    }
+    log_it(L_CRITICAL, "[VPN PKT SERVER] Full header HEX (first 24 bytes): %s", hex_buf);
+    log_it(L_CRITICAL, "[VPN PKT SERVER] ========================================");
+    
     if (l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
         log_it(L_WARNING, "Data size of stream channel packet %u is lesser than size of VPN packet header %zu",
                                                               l_pkt->hdr.data_size, sizeof(l_vpn_pkt->header));
