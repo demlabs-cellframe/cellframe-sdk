@@ -225,19 +225,31 @@ static char *s_get_ban_group(dap_chain_net_srv_usage_t *a_usage)
 static dap_time_t s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
 {
     char *l_ban_group = s_get_ban_group(a_usage);
+    log_it(L_CRITICAL, "[BAN DEBUG] s_check_client_is_banned:");
+    log_it(L_CRITICAL, "[BAN DEBUG]   ban_group: %s", l_ban_group);
     size_t l_data_size = 0;
     byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
+    log_it(L_CRITICAL, "[BAN DEBUG]   GlobalDB query result: %s (size=%zu)", l_ret ? "FOUND" : "NOT FOUND", l_data_size);
     if(!l_ret)
     {
+        log_it(L_CRITICAL, "[BAN DEBUG]   Client is NOT in ban list -> return 0");
         DAP_DELETE(l_ban_group);
         return 0;
     }
 
-    if(*(dap_time_t*)l_ret > dap_time_now()){
+    dap_time_t l_ban_time = *(dap_time_t*)l_ret;
+    dap_time_t l_now = dap_time_now();
+    log_it(L_CRITICAL, "[BAN DEBUG]   Ban timestamp: %ld", l_ban_time);
+    log_it(L_CRITICAL, "[BAN DEBUG]   Current time:  %ld", l_now);
+    log_it(L_CRITICAL, "[BAN DEBUG]   Ban still active: %s", (l_ban_time > l_now) ? "YES" : "NO (expired)");
+    
+    if(l_ban_time > l_now){
+        log_it(L_CRITICAL, "[BAN DEBUG]   Client IS BANNED -> return ban_time");
         DAP_DELETE(l_ban_group);
-        return *(dap_time_t*)l_ret;
+        return l_ban_time;
     }
-        
+    
+    log_it(L_CRITICAL, "[BAN DEBUG]   Ban expired, unbanning client...");
     s_unban_client(a_usage);
     DAP_DELETE(l_ban_group);
     return 0;
@@ -597,11 +609,19 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         l_usage->static_order_hash = a_request->hdr.order_hash;
 
         dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_usage->tx_cond_hash);
+        log_it(L_CRITICAL, "[BAN DEBUG] ========================================");
+        log_it(L_CRITICAL, "[BAN DEBUG] Checking tx_cond in ledger:");
+        log_it(L_CRITICAL, "[BAN DEBUG]   tx_cond_hash: %s", dap_chain_hash_fast_to_str_static(&l_usage->tx_cond_hash));
+        log_it(L_CRITICAL, "[BAN DEBUG]   l_tx: %s", l_tx ? "FOUND" : "NOT FOUND");
+        log_it(L_CRITICAL, "[BAN DEBUG] ========================================");
         // Check tx
         if (!l_tx){
             // Start grace
             log_it(L_INFO, "[CHANNEL R DEBUG] TX not found in ledger -> GRACE mode");
+            log_it(L_CRITICAL, "[BAN DEBUG] Checking if client is banned...");
+            log_it(L_CRITICAL, "[BAN DEBUG]   client_pkey_hash: %s", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash));
             dap_time_t l_end_of_ban = s_check_client_is_banned(l_usage);
+            log_it(L_CRITICAL, "[BAN DEBUG]   l_end_of_ban: %ld (0 = not banned)", l_end_of_ban);
 
             if (l_end_of_ban != 0) {   // client banned
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
