@@ -3395,7 +3395,7 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
  */
 static dap_store_obj_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
 {
-    dap_return_val_if_pass(a_datum_hash_str, NULL);
+    dap_return_val_if_fail(a_datum_hash_str, NULL);
     char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     return dap_global_db_get_raw_sync(l_gdb_group_mempool, a_datum_hash_str);
 }
