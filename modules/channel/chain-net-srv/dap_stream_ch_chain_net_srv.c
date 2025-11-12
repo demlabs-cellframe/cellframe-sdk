@@ -153,16 +153,20 @@ void dap_stream_ch_chain_net_srv_deinit(void)
 void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
 {
     (void ) arg;
+    log_it(L_INFO, "[CHANNEL R DEBUG] Channel 'R' created (stream_id=%"DAP_UINT64_FORMAT_U")", 
+           a_ch->stream ? a_ch->stream->id : 0);
+    
     a_ch->internal=DAP_NEW_Z(dap_stream_ch_chain_net_srv_t);
     dap_stream_ch_chain_net_srv_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
     l_ch_chain_net_srv->ch_uuid = a_ch->uuid;
     l_ch_chain_net_srv->ch = a_ch;
-    if (a_ch->stream->session && !a_ch->stream->session->_inheritor)
+    if (a_ch->stream->session && !a_ch->stream->session->_inheritor) {
         dap_chain_net_srv_stream_session_create( a_ch->stream->session );
-    else if ( a_ch->stream->session == NULL)
-        log_it( L_ERROR, "No session at all!");
-    else
-        log_it(L_ERROR, "Session inheritor is already present!");
+    } else if ( a_ch->stream->session == NULL) {
+        log_it(L_ERROR, "[CHANNEL R DEBUG] No session at all!");
+    } else {
+        log_it(L_ERROR, "[CHANNEL R DEBUG] Session inheritor is already present!");
+    }
 
     dap_chain_net_srv_call_opened_all( a_ch);
 }
@@ -452,16 +456,20 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
 
     dap_chain_net_srv_stream_session_t *l_srv_session = a_ch->stream && a_ch->stream->session ?
                                                         (dap_chain_net_srv_stream_session_t *)a_ch->stream->session->_inheritor : NULL;
+    
     l_srv = dap_chain_net_srv_get( a_request->hdr.srv_uid );
     dap_chain_net_t * l_net = dap_chain_net_by_id( a_request->hdr.net_id );
 
+    log_it(L_INFO, "[CHANNEL R DEBUG] s_service_start: srv=%p net=%p session=%p net_id=0x%"DAP_UINT64_FORMAT_X" srv_uid=0x%"DAP_UINT64_FORMAT_X,
+           l_srv, l_net, l_srv_session, a_request->hdr.net_id.uint64, a_request->hdr.srv_uid.uint64);
+    
     l_err.net_id.uint64 = a_request->hdr.net_id.uint64;
     l_err.srv_uid.uint64 = a_request->hdr.srv_uid.uint64;
 
     log_it(L_DEBUG, "Got service request from user %s", dap_chain_hash_fast_to_str_static(&a_request->hdr.client_pkey_hash));
 
     if (dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
-        log_it( L_ERROR, "No order hash in request.");
+        log_it( L_ERROR, "[CHANNEL R DEBUG] No order hash in request!");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -471,7 +479,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     }
 
     if (dap_hash_fast_is_blank(&a_request->hdr.tx_cond)){
-        log_it( L_ERROR, "No transaction hash in request.");
+        log_it( L_ERROR, "[CHANNEL R DEBUG] No transaction hash in request!");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_TX_HASH;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -482,7 +490,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
 
     char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
     dap_chain_hash_fast_to_str(&a_request->hdr.order_hash, l_order_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-    log_it(L_MSG, "Got order with hash %s.", l_order_hash_str);
+    log_it(L_MSG, "[CHANNEL R DEBUG] Got order with hash %s.", l_order_hash_str);
 
     if ( ! l_net ) {
         // Network not found
@@ -592,6 +600,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         // Check tx
         if (!l_tx){
             // Start grace
+            log_it(L_INFO, "[CHANNEL R DEBUG] TX not found in ledger -> GRACE mode");
             dap_time_t l_end_of_ban = s_check_client_is_banned(l_usage);
 
             if (l_end_of_ban != 0) {   // client banned
@@ -607,6 +616,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
             }
             s_service_state_go_to_grace(l_usage);
         } else {
+            log_it(L_INFO, "[CHANNEL R DEBUG] TX found in ledger -> NORMAL payment flow");
             s_unban_client(l_usage);
             l_usage->tx_cond = l_tx;
             s_service_substate_pay_service(l_usage);
@@ -630,13 +640,17 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         l_success->hdr.usage_id = l_usage->id;
         l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
         l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
+        
+        log_it(L_INFO, "[CHANNEL R DEBUG] Sending RESPONSE_SUCCESS (free mode, usage_id=%u)", l_success->hdr.usage_id);
+        
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
+        
         if (l_usage->service->callbacks.response_success)
             l_usage->service->callbacks.response_success(l_usage->service, l_usage->id,  l_usage->client, NULL, 0);
         DAP_DELETE(l_success);
     }else {
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_FREE_IS_NOT_ALLOWED;
-        log_it( L_INFO, "Free service sharing is not allowed. Service stop. If you want to share service for free switch on this function in configuration file.");
+        log_it( L_INFO, "[CHANNEL R DEBUG] Free service not allowed -> sending RESPONSE_ERROR (code=0x%08x)", l_err.code);
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
         if (l_srv && l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
@@ -747,14 +761,26 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
 {
     dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
-    if (!l_ch_pkt)
+    
+    if (!l_ch_pkt) {
+        log_it(L_WARNING, "[CHANNEL R DEBUG] Packet is NULL!");
         return false;
+    }
+    
+    // Log only important packets (REQUEST, SIGN_RESPONSE), skip keep-alive spam
+    if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST ||
+        l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE) {
+        log_it(L_INFO, "[CHANNEL R DEBUG] Incoming packet: ch='%c' type=0x%02x size=%u seq=%"DAP_UINT64_FORMAT_U,
+               a_ch ? (a_ch->proc ? a_ch->proc->id : '?') : '?',
+               l_ch_pkt->hdr.type, l_ch_pkt->hdr.data_size, l_ch_pkt->hdr.seq_id);
+    }
+    
     dap_chain_net_srv_stream_session_t *l_srv_session = NULL;
     if (a_ch) {
         l_srv_session = a_ch->stream && a_ch->stream->session ? a_ch->stream->session->_inheritor : NULL;
     }
     if (!l_srv_session) {
-        log_it( L_ERROR, "Not defined service session, switching off packet input process");
+        log_it( L_ERROR, "[CHANNEL R DEBUG] Not defined service session, switching off packet input process");
         dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
         return false;
     }
@@ -841,12 +867,17 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     } break; /* DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST */
 
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST: { //Service request
+        log_it(L_INFO, "[CHANNEL R DEBUG] REQUEST case entered: data_size=%u (expected: >=122)", l_ch_pkt->hdr.data_size);
         if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
-            log_it( L_WARNING, "Wrong request size %u, less than minimum %zu", l_ch_pkt->hdr.data_size, sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t));
+            log_it( L_WARNING, "[CHANNEL R DEBUG] Wrong request size %u, less than minimum %zu", l_ch_pkt->hdr.data_size, sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t));
             return false;
         }
         dap_stream_ch_chain_net_srv_pkt_request_t *l_request = (dap_stream_ch_chain_net_srv_pkt_request_t*)l_ch_pkt->data;
         l_ch_chain_net_srv->srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
+        
+        log_it(L_INFO, "[CHANNEL R DEBUG] REQUEST received: net=0x%"DAP_UINT64_FORMAT_X" srv=0x%"DAP_UINT64_FORMAT_X" seq=%"DAP_UINT64_FORMAT_U,
+               l_request->hdr.net_id.uint64, l_request->hdr.srv_uid.uint64, l_ch_pkt->hdr.seq_id);
+        
         s_service_start(a_ch, l_request, l_ch_pkt->hdr.data_size);
     } break; /* DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST */
 
@@ -1240,12 +1271,15 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
 
 static void s_service_state_go_to_grace(dap_chain_net_srv_usage_t *a_usage)
 {
-    if (!a_usage)
+    if (!a_usage) {
+        log_it(L_WARNING, "[CHANNEL R DEBUG] a_usage is NULL!");
         return;
+    }
 
     assert(a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE);
 
     a_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE;
+    
     if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE){
         char* l_hash_str = dap_chain_hash_fast_to_str_new(&a_usage->tx_cond_hash);
         char* l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
@@ -1255,6 +1289,7 @@ static void s_service_state_go_to_grace(dap_chain_net_srv_usage_t *a_usage)
         DAP_DELETE(l_user_key);
         s_service_substate_go_to_waiting_prev_tx(a_usage);
         if(a_usage->client->ch){
+            log_it(L_INFO, "[CHANNEL R DEBUG] Sending RESPONSE_SUCCESS (grace mode, usage_id=%u)", a_usage->id);
             size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
             dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                                 l_success_size);
@@ -1266,9 +1301,12 @@ static void s_service_state_go_to_grace(dap_chain_net_srv_usage_t *a_usage)
             l_success->hdr.usage_id = a_usage->id;
             l_success->hdr.net_id.uint64 = a_usage->net->pub.id.uint64;
             l_success->hdr.srv_uid.uint64 = a_usage->service->uid.uint64;
+            
             dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS,
                                    l_success, l_success_size);
             DAP_DEL_Z(l_success);
+        } else {
+            log_it(L_WARNING, "[CHANNEL R DEBUG] Client channel is NULL, cannot send RESPONSE_SUCCESS!");
         }
     } else if(a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
         char* l_hash_str = dap_chain_hash_fast_to_str_new(&a_usage->tx_cond_hash);
