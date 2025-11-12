@@ -1128,7 +1128,7 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
     // add 'out_cond' and 'out' items
     {
         uint256_t l_value_pack = {}; // how much coin add to 'out' items
-        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_pkey_cond_hash, a_srv_uid, a_value, a_value_per_unit_max, a_unit, a_cond,
+        if(dap_chain_datum_tx_add_out_cond_item_with_hash(&l_tx, a_pkey_cond_hash, a_srv_uid, a_value, a_value_per_unit_max, a_unit, a_cond,
                 a_cond_size) == 1) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
         } else {
