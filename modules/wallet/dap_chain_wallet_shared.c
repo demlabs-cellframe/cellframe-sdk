@@ -235,14 +235,16 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     }
 
     if (a_check_for_apply && l_sign_items_total > 1) {
+        log_it(L_MSG, "Checking if previous shared funds tx is in mempool");
         dap_hash_fast_t l_tx_core_hash = {};
         if (!s_wallet_shared_calc_core_hash(a_tx_in, &l_tx_core_hash, NULL)) {
             log_it(L_ERROR, "Can't calculate core hash for shared funds tx");
             return -12;
         }
         char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_ledger->net, CHAIN_TYPE_TX);
-
+        
         if (l_mempool_group) {
+            log_it(L_MSG, "Previous shared funds tx is in mempool, checking if it has matching core hash");
             size_t l_objs_count = 0;
             dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
             for (size_t i = 0; i < l_objs_count; i++) {
