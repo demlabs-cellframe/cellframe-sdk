@@ -209,7 +209,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS;
     }
     // Delete previous tx from mempool only after successful verification and only at mempool stage
-    if (!a_check_for_apply && l_prev_mempool_key_to_del) {
+    if (a_check_for_apply && l_prev_mempool_key_to_del) {
         char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_ledger->net, CHAIN_TYPE_TX);
         if (l_mempool_group) {
             int ret = dap_global_db_del_sync(l_mempool_group, l_prev_mempool_key_to_del);
