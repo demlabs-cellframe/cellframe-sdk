@@ -87,6 +87,42 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_wallet_shared"
 
+static bool s_wallet_shared_calc_core_hash(const dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_hash, size_t *a_signs_count)
+{
+    if (!a_tx || !a_hash)
+        return false;
+    size_t l_non_sig_size = 0;
+    size_t l_sign_items = 0;
+    byte_t *l_item; size_t l_item_size;
+    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+        if (*l_item == TX_ITEM_TYPE_SIG) {
+            l_sign_items++;
+            continue;
+        }
+        l_non_sig_size += l_item_size;
+    }
+    size_t l_core_size = sizeof(a_tx->header) + l_non_sig_size;
+    dap_chain_datum_tx_t *l_tx_core = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_core_size);
+    if (!l_tx_core) {
+        log_it(L_CRITICAL, "Can't allocate memory for shared funds core hash calculation");
+        return false;
+    }
+    l_tx_core->header.ts_created = a_tx->header.ts_created;
+    l_tx_core->header.tx_items_size = l_non_sig_size;
+    byte_t *l_dst = l_tx_core->tx_items;
+    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+        if (*l_item == TX_ITEM_TYPE_SIG)
+            continue;
+        memcpy(l_dst, l_item, l_item_size);
+        l_dst += l_item_size;
+    }
+    dap_hash_fast(l_tx_core, sizeof(l_tx_core->header) + l_non_sig_size, a_hash);
+    if (a_signs_count)
+        *a_signs_count = l_sign_items;
+    DAP_DELETE(l_tx_core);
+    return true;
+}
+
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner, bool a_check_for_apply)
 {
     size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
@@ -97,7 +133,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     dap_chain_addr_t l_net_fee_addr;
     uint16_t l_change_type = 0;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_net_fee_addr);
-    const char *l_prev_mempool_key_to_del = NULL;
+    size_t l_sign_items_total = 0;
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         switch (*l_item) {
@@ -113,12 +149,6 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
             break;
         case TX_ITEM_TYPE_TSD: {
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
-            if (l_tsd->type == DAP_CHAIN_WALLET_SHARED_TSD_PREV_TX_HASH) {
-                if (l_tsd->size) {
-                    l_prev_mempool_key_to_del = (const char *)l_tsd->data;
-                }
-                break;
-            }
             if (l_tsd->type != DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && l_tsd->type != DAP_CHAIN_WALLET_SHARED_TSD_REFILL)
                 break; // Skip it
             if (l_tsd->size != sizeof(uint256_t)) {
@@ -158,6 +188,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
                         !dap_chain_datum_tx_verify_sign(a_tx_in, l_signs_counter++))
                     l_signs_verified++;
             }
+            l_sign_items_total++;
         }
         default:
             break;
@@ -203,23 +234,50 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         }
     }
 
+    if (a_check_for_apply && l_sign_items_total > 1) {
+        dap_hash_fast_t l_tx_core_hash = {};
+        if (!s_wallet_shared_calc_core_hash(a_tx_in, &l_tx_core_hash, NULL)) {
+            log_it(L_ERROR, "Can't calculate core hash for shared funds tx");
+            return -12;
+        }
+        char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_ledger->net, CHAIN_TYPE_TX);
+
+        if (l_mempool_group) {
+            size_t l_objs_count = 0;
+            dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
+            for (size_t i = 0; i < l_objs_count; i++) {
+                dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+                if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+                    continue;
+                }
+                dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*)l_datum->data;
+                if (!l_datum_tx || l_datum_tx->header.tx_items_size == 0) {
+                    continue;
+                }
+                size_t l_candidate_signs = 0;
+                dap_hash_fast_t l_candidate_core_hash = {};
+                if (!s_wallet_shared_calc_core_hash(l_datum_tx, &l_candidate_core_hash, &l_candidate_signs)) {
+                    continue;
+                }
+                if (!dap_hash_fast_compare(&l_candidate_core_hash, &l_tx_core_hash) || l_candidate_signs >= l_sign_items_total) {
+                    continue;
+                }
+                int ret = dap_global_db_del_sync(l_mempool_group, l_objs[i].key);
+                if (ret != 0) {
+                    log_it(L_WARNING, "Can't delete previous shared funds tx from mempool: %s", l_objs[i].key);
+                } else {
+                    log_it(L_WARNING, "Previous shared funds tx with matching core hash found in mempool and removed");
+                }
+            }
+            dap_global_db_objs_delete(l_objs, l_objs_count);
+            DAP_DELETE(l_mempool_group);
+        }
+    }
+
     if (l_change_type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && l_signs_verified < a_cond->subtype.wallet_shared.signers_minimum) {
         log_it(L_WARNING, "Not enough valid signs (%u from %u) for shared funds tx",
                                     l_signs_verified, a_cond->subtype.wallet_shared.signers_minimum);
         return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS;
-    }
-    // Delete previous tx from mempool only after successful verification and only at mempool stage
-    if (a_check_for_apply && l_prev_mempool_key_to_del) {
-        char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_ledger->net, CHAIN_TYPE_TX);
-        if (l_mempool_group) {
-            int ret = dap_global_db_del_sync(l_mempool_group, l_prev_mempool_key_to_del);
-            if (ret != 0) {
-                log_it(L_WARNING, "Can't delete previous shared funds tx from mempool: %s", l_prev_mempool_key_to_del);
-            } else {
-                log_it(L_DEBUG, "Previous shared funds tx deleted from mempool: %s", l_prev_mempool_key_to_del);
-            }
-            DAP_DELETE(l_mempool_group);
-        }
     }
     return 0;
 }
@@ -716,7 +774,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_create(json_object *a_js
 
 #undef m_tx_fail
 
-dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key, dap_chain_datum_tx_t *a_tx_in, const char *a_prev_tx_hash_str)
+dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key, dap_chain_datum_tx_t *a_tx_in)
 {
     int l_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_cond_idx);
@@ -747,12 +805,6 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json
     dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in));
     if (!l_tx)
         m_sign_fail(ERROR_MEMORY, c_error_memory_alloc);
-    // add previous tx hash to remove from mempool
-    dap_chain_tx_tsd_t *l_prev_tx_hash_tsd = dap_chain_datum_tx_item_tsd_create((void *)a_prev_tx_hash_str, DAP_CHAIN_WALLET_SHARED_TSD_PREV_TX_HASH, strlen(a_prev_tx_hash_str) + 1);
-    if (!l_prev_tx_hash_tsd || dap_chain_datum_tx_add_item_without_check_sign(&l_tx, l_prev_tx_hash_tsd) != 1)
-        m_sign_fail(ERROR_COMPOSE, "Can't add previous tx hash to remove from mempool");
-    DAP_DELETE(l_prev_tx_hash_tsd);
-
     // add 'sign' item
     if (dap_chain_datum_tx_add_sign_item(&l_tx, a_enc_key) != 1)
         m_sign_fail(ERROR_COMPOSE, "Can't add sign output");
@@ -1152,7 +1204,7 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
 
      // Create emission from conditional transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_wallet_shared_taking_tx_sign(*a_json_arr_reply, a_net, l_enc_key, (dap_chain_datum_tx_t *)l_tx_in->data, l_tx_in_hash_str);
+    dap_chain_datum_tx_t *l_tx = dap_chain_wallet_shared_taking_tx_sign(*a_json_arr_reply, a_net, l_enc_key, (dap_chain_datum_tx_t *)l_tx_in->data);
     DAP_DELETE(l_enc_key);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for shared funds");
@@ -1509,7 +1561,7 @@ static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_h
 {
     size_t l_tx_hashes_count = 0;
     size_t l_shared_hashes_size = 0;
-    const char *l_pkey_hash_str = dap_hash_fast_to_str_new(a_pkey_hash);
+    char *l_pkey_hash_str = dap_hash_fast_to_str_new(a_pkey_hash);
     hold_tx_hashes_t *l_shared_hashes = (hold_tx_hashes_t *)dap_global_db_get_sync(a_group, l_pkey_hash_str, &l_shared_hashes_size, 0, false);
     if (!l_shared_hashes) {
         l_shared_hashes_size = sizeof(hold_tx_hashes_t) + sizeof(hold_tx_hash_item_t);
