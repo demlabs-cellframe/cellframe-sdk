@@ -234,7 +234,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         }
     }
 
-    if (a_check_for_apply && l_sign_items_total > 1) {
+    if (l_sign_items_total > 1) {
         log_it(L_MSG, "Checking if previous shared funds tx is in mempool");
         dap_hash_fast_t l_tx_core_hash = {};
         if (!s_wallet_shared_calc_core_hash(a_tx_in, &l_tx_core_hash, NULL)) {
