@@ -749,7 +749,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json
         m_sign_fail(ERROR_MEMORY, c_error_memory_alloc);
     // add previous tx hash to remove from mempool
     dap_chain_tx_tsd_t *l_prev_tx_hash_tsd = dap_chain_datum_tx_item_tsd_create((void *)a_prev_tx_hash_str, DAP_CHAIN_WALLET_SHARED_TSD_PREV_TX_HASH, strlen(a_prev_tx_hash_str) + 1);
-    if (!l_prev_tx_hash_tsd || dap_chain_datum_tx_add_item(&l_tx, l_prev_tx_hash_tsd) != 1)
+    if (!l_prev_tx_hash_tsd || dap_chain_datum_tx_add_item_without_check_sign(&l_tx, l_prev_tx_hash_tsd) != 1)
         m_sign_fail(ERROR_COMPOSE, "Can't add previous tx hash to remove from mempool");
     DAP_DELETE(l_prev_tx_hash_tsd);
 

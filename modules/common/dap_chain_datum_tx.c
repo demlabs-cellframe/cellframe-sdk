@@ -69,7 +69,15 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
+int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item) {
+    return dap_chain_datum_tx_add_item_check_sign(a_tx, a_item, true);
+}
+
+int dap_chain_datum_tx_add_item_without_check_sign(dap_chain_datum_tx_t **a_tx, const void *a_item) {
+    return dap_chain_datum_tx_add_item_check_sign(a_tx, a_item, false);
+}
+
+int dap_chain_datum_tx_add_item_check_sign(dap_chain_datum_tx_t **a_tx, const void *a_item, bool a_check_sign) 
 {
     size_t l_item_size = 0, l_new_size = 0;
     dap_return_val_if_pass(!a_tx || !*a_tx || !(l_item_size = dap_chain_datum_item_tx_get_size(a_item, 0)), -1 );

@@ -87,6 +87,10 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx);
  */
 int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item);
 
+int dap_chain_datum_tx_add_item_without_check_sign(dap_chain_datum_tx_t **a_tx, const void *a_item);
+
+int dap_chain_datum_tx_add_item_check_sign(dap_chain_datum_tx_t **a_tx, const void *a_item, bool a_check_sign);
+
 /**
  * Create 'in' items from list and insert to transaction
  *
