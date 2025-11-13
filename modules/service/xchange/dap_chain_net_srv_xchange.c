@@ -211,6 +211,12 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     
 }
 
+/**
+ * @brief Sort transactions by date in descending order (newest first)
+ * @param a First json object
+ * @param b Second json object
+ * @return Comparison result for qsort
+ */
 static int datum_list_sort_by_date_back(const void *a, const void *b)
 {
     struct json_object *obj_a = *(struct json_object **)a;
@@ -226,6 +232,29 @@ static int datum_list_sort_by_date_back(const void *a, const void *b)
     dap_time_t time_b = dap_time_from_str_rfc822(time_b_str+5);
 
     return  time_b - time_a;
+}
+
+/**
+ * @brief Sort transactions by date in ascending order (oldest first)
+ * @param a First json object
+ * @param b Second json object
+ * @return Comparison result for qsort
+ */
+static int datum_list_sort_by_date_forward(const void *a, const void *b)
+{
+    struct json_object *obj_a = *(struct json_object **)a;
+    struct json_object *obj_b = *(struct json_object **)b;
+
+    struct json_object *timestamp_a = json_object_object_get(obj_a, "ts_created");
+    struct json_object *timestamp_b = json_object_object_get(obj_b, "ts_created");
+
+    const char* time_a_str = json_object_get_string(timestamp_a);
+    const char* time_b_str = json_object_get_string(timestamp_b);
+
+    dap_time_t time_a = dap_time_from_str_rfc822(time_a_str+5);
+    dap_time_t time_b = dap_time_from_str_rfc822(time_b_str+5);
+
+    return  time_a - time_b;
 }
 
 /**
@@ -257,18 +286,20 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange tx_list -net <net_name> [-time_from <From_time>] [-time_to <To_time>]"
         "{[-addr <wallet_addr>] | [-status {inactive|active|all}] [-limit <limit>] [-offset <offset>] [-head]} [-full] [-h]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions with pagination support\n"
-        "\tAll times are in RFC822. For example: \"7 Dec 2023 21:18:04\"\n"
+        "\tTime can be specified in RFC822 format (e.g., \"7 Dec 2023 21:18:04\") or simplified format (e.g., \"2023-12-07\")\n"
         "\t-limit <limit>: Maximum number of transactions to display (default: 1000)\n"
         "\t-offset <offset>: Number of transactions to skip from the beginning (default: 0)\n"
         "\t-head: Display transactions from newest to oldest (default: oldest to newest)\n"
+        "\t       Note: When both -time_from and -time_to are specified, -head is set automatically\n"
+        "\t       based on time order (ignored if manually specified)\n"
 
     "srv_xchange token_pair -net <net_name> list all [-limit <limit>] [-offset <offset>] [-h]\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-h]\n"
+    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>]\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
     "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>] [-h]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
-        "\tAll times are in RFC822. For example: \"7 Dec 2023 21:18:04\"\n"
+        "\tTime can be specified in RFC822 format (e.g., \"7 Dec 2023 21:18:04\") or simplified format (e.g., \"2023-12-07\")\n"
 
     "srv_xchange enable\n"
          "\tEnable eXchange service\n"
@@ -2451,7 +2482,8 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
 
 
 static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_t a_after, dap_time_t a_before,
-                                          dap_chain_addr_t *a_addr, int a_opt_status, json_object* json_obj_out, int a_version)
+                                          dap_chain_addr_t *a_addr, int a_opt_status, json_object* json_obj_out, int a_version,
+                                          uint64_t a_limit, uint64_t a_offset, bool a_head)
 {
     dap_chain_hash_fast_t l_tx_first_hash = {0};    
     size_t l_tx_total;
@@ -2460,6 +2492,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
     json_object* json_arr_datum_out = json_object_new_array();
 
     size_t l_tx_count = 0;
+    size_t l_tx_found = 0;  /* Total transactions found (before pagination) */
     dap_hash_fast_t l_hash_curr = {};
     bool l_from_wallet_cache = dap_chain_wallet_cache_tx_find(a_addr, NULL, NULL, &l_hash_curr, NULL) == 0 ? true : false;
     l_hash_curr = (dap_hash_fast_t){0};
@@ -2479,8 +2512,24 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
 
             json_object* json_obj_tx = json_object_new_object();
             if (s_string_append_tx_cond_info_json(json_obj_tx, a_net, NULL, NULL, l_datum_tx, &l_hash_curr, a_opt_status, false, true, true, a_version)) {
+                /* Apply pagination: skip offset records and limit results */
+                if (a_offset > 0 && l_tx_found < a_offset) {
+                    /* Skip records before offset */
+                    json_object_put(json_obj_tx);  /* Free unused json object */
+                    l_tx_found++;
+                    continue;
+                }
+                
+                if (a_limit > 0 && l_tx_count >= a_limit) {
+                    /* Limit reached, stop adding to output */
+                    json_object_put(json_obj_tx);  /* Free unused json object */
+                    l_tx_found++;
+                    continue;
+                }
+                
                 json_object_array_add(json_arr_datum_out, json_obj_tx);
                 l_tx_count++;
+                l_tx_found++;
             }
         }
     } else {
@@ -2503,14 +2552,34 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
                 continue;
             json_object* json_obj_tx = json_object_new_object();
             if (s_string_append_tx_cond_info_json(json_obj_tx, a_net, NULL, NULL, l_datum_tx, l_iter->cur_hash, a_opt_status, false, true, true, a_version)) {
+                /* Apply pagination: skip offset records and limit results */
+                if (a_offset > 0 && l_tx_found < a_offset) {
+                    /* Skip records before offset */
+                    json_object_put(json_obj_tx);  /* Free unused json object */
+                    l_tx_found++;
+                    continue;
+                }
+                
+                if (a_limit > 0 && l_tx_count >= a_limit) {
+                    /* Limit reached, stop adding to output */
+                    json_object_put(json_obj_tx);  /* Free unused json object */
+                    l_tx_found++;
+                    continue;
+                }
+                
                 json_object_array_add(json_arr_datum_out, json_obj_tx);
                 l_tx_count++;
+                l_tx_found++;
             }
         }
         dap_chain_wallet_cache_iter_delete(l_iter);
     }
-    json_object_array_sort(json_arr_datum_out, datum_list_sort_by_date_back);
-
+    
+    /* Sort by date: head=true means forward (oldest first), head=false means back (newest first) */
+    if (a_head)
+        json_object_array_sort(json_arr_datum_out, datum_list_sort_by_date_forward);
+    else
+        json_object_array_sort(json_arr_datum_out, datum_list_sort_by_date_back);
 
     json_object_object_add(json_obj_out, "transactions", json_arr_datum_out);
     if (a_version == 1) {
@@ -2520,6 +2589,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
     } else {
         json_object_object_add(json_obj_out, "total_tx_count", json_object_new_uint64(l_tx_count)); 
     }
+
     return  0;
 }
 
@@ -3031,7 +3101,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                     return -EINVAL;
                 }
                 json_object* json_obj_order = json_object_new_object();
-                s_cli_srv_xchange_tx_list_addr_json(l_net, l_time[0], l_time[1], l_addr, l_opt_status, json_obj_order, a_version);
+                s_cli_srv_xchange_tx_list_addr_json(l_net, l_time[0], l_time[1], l_addr, l_opt_status, json_obj_order, a_version, l_limit, l_offset, l_head);
                 json_object_array_add(*json_arr_reply, json_obj_order);
                 return 0;
             }
