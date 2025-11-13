@@ -53,7 +53,52 @@ typedef struct dap_ledger_locked_out {
     struct dap_ledger_locked_out *next;
 } dap_ledger_locked_out_t;
 
-typedef struct dap_ledger_tx_item dap_ledger_tx_item_t;
+typedef enum dap_chain_tx_tag_action_type {    
+
+    //subtags, till 32
+    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
+    
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 5,
+
+    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
+    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
+    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
+    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
+    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
+
+    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
+    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
+
+    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD =    1 << 13,
+    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE =    1 << 14,
+    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL =  1 << 15,
+   
+    DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
+} dap_chain_tx_tag_action_type_t;
+
+// ledger cache item - one of unspent outputs
+typedef struct dap_ledger_tx_item {
+    dap_chain_hash_fast_t tx_hash_fast;
+    dap_chain_datum_tx_t *tx;
+    dap_nanotime_t ts_added;
+    UT_hash_handle hh;
+    struct {
+        dap_time_t ts_created;      // Transation datum timestamp mirrored & cached
+        uint32_t n_outs;
+        uint32_t n_outs_used;
+        char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+        byte_t padding[6];
+        byte_t multichannel;
+        dap_time_t ts_spent;
+        byte_t pad[7];
+        dap_chain_net_srv_uid_t tag; //tag (or service this tx is belong to)
+        dap_chain_tx_tag_action_type_t action;
+        dap_chain_hash_fast_t tx_hash_spent_fast[]; // spent outs list
+    } DAP_ALIGN_PACKED cache_data;
+} dap_ledger_tx_item_t;
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
@@ -123,31 +168,6 @@ typedef enum dap_chan_ledger_notify_opcodes{
     DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
     DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64 
 } dap_chan_ledger_notify_opcodes_t;
-typedef enum dap_chain_tx_tag_action_type {    
-
-    //subtags, till 32
-    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
-    
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 5,
-
-    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
-    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
-    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
-    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
-    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
-
-    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
-    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
-
-    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD =    1 << 13,
-    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE =    1 << 14,
-    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL =  1 << 15,
-   
-    DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
-} dap_chain_tx_tag_action_type_t;
 
 typedef struct dap_ledger_datum_iter {
     dap_chain_net_t *net;
