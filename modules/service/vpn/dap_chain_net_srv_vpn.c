@@ -250,8 +250,13 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
     dap_chain_net_srv_usage_t *l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session, l_ch_vpn->usage_id);
     size_t l_data_to_send = (l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
+    // Diagnostic: about to send to client from TUN path
+    log_it(L_CRITICAL, "[VPN SEND DEBUG] Preparing to send to client: usage_id=%u, data_size=%zu, total_pkt=%zu",
+           l_pkt_out->header.usage_id, l_pkt_out->header.op_data.data_size, l_data_to_send);
     debug_if(s_debug_more, L_DEBUG, "Sent stream pkt size %zu on worker #%u", l_data_to_send, l_ch_vpn->ch->stream_worker->worker->id);
     size_t l_data_sent = dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out, l_data_to_send);
+    // Diagnostic: result of sending
+    log_it(L_CRITICAL, "[VPN SEND DEBUG] dap_stream_ch_pkt_write_unsafe returned=%zu (expected=%zu)", l_data_sent, l_data_to_send);
     s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_data_sent);
     l_srv_session->stats.bytes_recv += l_data_sent;
     l_usage->client->bytes_received += l_data_sent;
@@ -1401,6 +1406,8 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if( a_srv_session->limits_ts <= 0 && a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL &&
             (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL  || a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR)){
+            // Diagnostic: time limits exhausted
+            log_it(L_CRITICAL, "[LIMITS DEBUG] Time limits exhausted, switching receipt or stopping channel");
             char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
             log_it(L_INFO, "Limits by timestamp are over for user %s. Switch to the next receipt", l_user_key);
             DAP_DELETE(l_user_key);
@@ -1425,6 +1432,8 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 } break;
                 default: {
                     log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_ts", a_usage->receipt->receipt_info.units_type.uint32 );
+                    // Diagnostic: stopping channel due to unsupported unit type
+                    log_it(L_CRITICAL, "[LIMITS DEBUG] Stopping channel due to unsupported unit type for time limits");
                     dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                     dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
@@ -1439,6 +1448,8 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 dap_stream_ch_pkt_write_unsafe(a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+                // Diagnostic: channel stopped due to missing receipt in error substate
+                log_it(L_CRITICAL, "[LIMITS DEBUG] Channel stopped (receipt missing, error substate)");
             }
         }
     }else if (a_usage->receipt && a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B){
@@ -1490,6 +1501,8 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 } break;
                 default: {
                     log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_bytes", a_usage->receipt->receipt_info.units_type.uint32 );
+                    // Diagnostic: stopping channel due to unsupported unit type
+                    log_it(L_CRITICAL, "[LIMITS DEBUG] Stopping channel due to unsupported unit type for byte limits");
                     dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                     dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
@@ -1504,6 +1517,8 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);              
+                // Diagnostic: channel stopped due to missing receipt in error substate (bytes)
+                log_it(L_CRITICAL, "[LIMITS DEBUG] Channel stopped (receipt missing, error substate, bytes)");
             }
         }
     }
@@ -1855,7 +1870,11 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 assert(l_tun);
                 if (!l_tun)
                     return log_it(L_ERROR, "Tun not found!"), false;
+                // Diagnostic: writing decrypted VPN payload to TUN
+                log_it(L_CRITICAL, "[VPN FLOW DEBUG] Writing to TUN, size=%u", l_vpn_pkt->header.op_data.data_size);
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
+                // Diagnostic: write result to TUN
+                log_it(L_CRITICAL, "[VPN FLOW DEBUG] Written to TUN: %zu bytes (expected %u)", l_ret, l_vpn_pkt->header.op_data.data_size);
                 l_srv_session->stats.bytes_sent += l_ret;
                 if (l_ret == l_vpn_pkt->header.op_data.data_size) {
                     l_srv_session->stats.packets_sent++;
@@ -1912,6 +1931,8 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        // Diagnostic: output disabled due to no active usage
+        log_it(L_CRITICAL, "[SEND CHECK DEBUG] BLOCKED: no active usage, disabling write/read");
         return false;
     }
 
@@ -1921,10 +1942,14 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        // Diagnostic: output disabled due to inactive usage
+        log_it(L_CRITICAL, "[SEND CHECK DEBUG] BLOCKED: usage inactive, disabling write/read");
         return false;
     } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        // Diagnostic: output disabled due to early service substate
+        log_it(L_CRITICAL, "[SEND CHECK DEBUG] BLOCKED: early service substate, disabling write/read");
         return false;
     }
     
@@ -1935,6 +1960,8 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        // Diagnostic: output disabled due to missing active receipt
+        log_it(L_CRITICAL, "[SEND CHECK DEBUG] BLOCKED: no active receipt, disabling write/read");
         return false;
     }
     return false;
@@ -2035,6 +2062,8 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
     assert(l_tun_socket);
     size_t l_buf_in_size = a_es->buf_in_size;
     dap_os_iphdr_t *iph = ( dap_os_iphdr_t*) a_es->buf_in;
+    // Diagnostic: attempting to read from TUN
+    log_it(L_CRITICAL, "[TUN READ DEBUG] Worker=%u, buf_in_size=%zu", l_tun_socket->worker_id, l_buf_in_size);
     if (s_debug_more){
         char l_str_daddr[INET_ADDRSTRLEN]={[0]='\0'};
         char l_str_saddr[INET_ADDRSTRLEN]={[0]='\0'};
@@ -2063,6 +2092,12 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
 #else
         l_in_daddr.s_addr = iph->ip_dst.s_addr;
 #endif
+        // Diagnostic: destination IP mapping attempt
+        {
+            char l_str_daddr[INET_ADDRSTRLEN]={[0]='\0'};
+            inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, INET_ADDRSTRLEN);
+            log_it(L_CRITICAL, "[TUN ROUTING DEBUG] dst_ip=%s, size=%zu", l_str_daddr, l_buf_in_size);
+        }
         dap_chain_net_srv_ch_vpn_info_t * l_vpn_info = NULL;
         // Try to find in worker's clients, without locks
         if ( l_tun_socket->clients){
@@ -2076,6 +2111,9 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
                     l_vpn_info->addr_ipv4);
                 dap_events_socket_reassign_between_workers_mt(l_vpn_info->worker, l_vpn_info->esocket, a_es->worker);
             }
+            // Diagnostic: client found for destination IP
+            log_it(L_CRITICAL, "[TUN ROUTING DEBUG] Found client for dst_ip, usage_id=%u, on_this_worker=%d",
+                   l_vpn_info->usage_id, l_vpn_info->is_on_this_worker ? 1 : 0);
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
         } else if(s_debug_more) {
             char l_str_daddr[INET_ADDRSTRLEN];
