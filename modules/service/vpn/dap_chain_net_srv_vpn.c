@@ -303,6 +303,8 @@ static bool s_tun_client_send_data_inter(dap_events_socket_t * a_es_input, dap_c
 static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_info, const void * a_data, size_t a_data_size)
 {
     assert(a_data_size > sizeof (dap_os_iphdr_t));
+    log_it(L_CRITICAL, "[TUN->CLIENT DEBUG] Build packet for usage_id=%u, size=%zu, worker=%u, on_this_worker=%d",
+           l_ch_vpn_info->usage_id, a_data_size, l_ch_vpn_info->worker->id, l_ch_vpn_info->is_on_this_worker ? 1 : 0);
     dap_stream_ch_vpn_pkt_t *l_pkt_out             = DAP_NEW_Z_SIZE(dap_stream_ch_vpn_pkt_t, sizeof(l_pkt_out->header) + a_data_size);
     if (!l_pkt_out) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -341,6 +343,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, sizeof(l_in_daddr));
             log_it(L_INFO, "Sent packet (%zd bytes) to desitnation %s in own context", a_data_size, l_str_daddr);
         }
+        log_it(L_CRITICAL, "[TUN->CLIENT DEBUG] Same-worker path, sending unsafe");
         s_tun_client_send_data_unsafe(l_ch_vpn_info->ch_vpn, l_pkt_out);
     } else {
         /* Shift it to other worker context */
@@ -355,6 +358,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
         l_msg->esocket          = l_ch_vpn_info->esocket;
         l_msg->esocket_uuid     = l_ch_vpn_info->esocket_uuid;
         l_msg->ch_vpn_send.pkt  = DAP_DUP_SIZE(l_pkt_out, sizeof(l_pkt_out->header) + a_data_size);
+        log_it(L_CRITICAL, "[TUN->CLIENT DEBUG] Cross-worker enqueue to worker=%u", l_ch_vpn_info->worker->id);
 
         if (dap_events_socket_queue_ptr_send(l_ch_vpn_info->queue_msg, l_msg) != 0) {
             log_it(L_WARNING, "Error on sending packet to foreign context queue, lost %zd bytes", a_data_size);
@@ -474,6 +478,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
         }break; /* l_msg->type == TUN_SOCKET_MSG_IP_UNASSIGNED */
 
         case TUN_SOCKET_MSG_CH_VPN_SEND: {
+            log_it(L_CRITICAL, "[TUN QUEUE DEBUG] CH_VPN_SEND on worker=%u", a_esocket_queue->worker->id);
             if (dap_context_find(a_esocket_queue->worker->context, l_msg->esocket_uuid) == l_msg->esocket) {
                 s_tun_client_send_data_unsafe(l_msg->ch_vpn, l_msg->ch_vpn_send.pkt);
                 if (s_debug_more) {
@@ -655,6 +660,7 @@ static dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, 
     l_es->type = DESCRIPTOR_TYPE_FILE;
     l_es->no_close = true;
     dap_events_socket_assign_on_worker_mt(l_es, a_worker);
+    log_it(L_CRITICAL, "[TUN INIT DEBUG] Registered TUN fd=%d on worker=%u", a_tun_fd, a_worker->id);
 
     return l_es;
 }
@@ -1994,13 +2000,16 @@ static bool s_es_tun_write(dap_events_socket_t *a_es, void *arg)
     assert(l_tun);
     assert(l_tun->es == a_es);
     size_t l_shift = 0;
+    log_it(L_CRITICAL, "[TUN WRITE DEBUG] Begin write, buf_out_size=%lu", l_tun->es->buf_out_size);
     debug_if(s_debug_more, L_DEBUG, "Write %lu bytes to tun", l_tun->es->buf_out_size);
     for (ssize_t l_pkt_size = 0, l_bytes_written = 0; l_tun->es->buf_out_size; ) {
         dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t *)(l_tun->es->buf_out + l_shift);
         l_pkt_size = l_vpn_pkt->header.op_data.data_size;
         debug_if(s_debug_more, L_DEBUG, "Packet: op_code 0x%02x, data size %ld",
                  l_vpn_pkt->header.op_code, l_pkt_size);
+        log_it(L_CRITICAL, "[TUN WRITE DEBUG] Packet op_code=0x%02x, data_size=%ld", l_vpn_pkt->header.op_code, l_pkt_size);
         l_bytes_written = write(l_tun->es->fd, l_vpn_pkt->data, l_pkt_size);
+        log_it(L_CRITICAL, "[TUN WRITE DEBUG] write(fd=%d) result=%zd expected=%zd", l_tun->es->fd, l_bytes_written, l_pkt_size);
         if (l_bytes_written == l_pkt_size) {
             l_pkt_size += sizeof(l_vpn_pkt->header);
             l_tun->es->buf_out_size -= l_pkt_size;
@@ -2012,10 +2021,12 @@ static bool s_es_tun_write(dap_events_socket_t *a_es, void *arg)
             switch (l_errno) {
             case EAGAIN:
                 /* Unwritten packets remain untouched in da buffa */
+                log_it(L_CRITICAL, "[TUN WRITE DEBUG] EAGAIN: will retry later");
                 break;
             case EINVAL:
                 /* Something wrong with this packet... Doomp eet */
                 debug_if(s_debug_more, L_ERROR, "Skip this packet...");
+                log_it(L_CRITICAL, "[TUN WRITE DEBUG] EINVAL: skip packet size=%zd", l_pkt_size);
                 l_pkt_size += sizeof(l_vpn_pkt->header);
                 l_tun->es->buf_out_size -= l_pkt_size;
                 l_shift += l_pkt_size;
@@ -2030,6 +2041,7 @@ static bool s_es_tun_write(dap_events_socket_t *a_es, void *arg)
     }
     if (l_tun->es->buf_out_size) {
         debug_if(s_debug_more, L_DEBUG, "Left %lu bytes unwritten", l_tun->es->buf_out_size);
+        log_it(L_CRITICAL, "[TUN WRITE DEBUG] Left %lu bytes unwritten", l_tun->es->buf_out_size);
         if (l_shift)
             memmove(l_tun->es->buf_out, &l_tun->es->buf_out[l_shift], l_tun->es->buf_out_size);
     }
@@ -2048,6 +2060,7 @@ static void s_es_tun_write_finished(dap_events_socket_t *a_es, void *a_arg)
     dap_events_socket_set_writable_unsafe(a_es, l_tun->buf_size_aux > 0);
     debug_if(s_debug_more && (l_tun->buf_size_aux > 0), L_INFO, "%zd bytes still in buf_out, poll again", l_tun->buf_size_aux);
     l_tun->buf_size_aux = 0;
+    log_it(L_CRITICAL, "[TUN WRITE DEBUG] write_finished: restored buf_out_size=%lu", l_tun->es->buf_out_size);
 }
 
 /**
