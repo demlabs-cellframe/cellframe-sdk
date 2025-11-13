@@ -97,7 +97,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\t-pinned: remove pinned records too\n\n"
             "global_db clusters [-verbose] [-h]\n"
                 "\tDisplays list of all global_db clusters.\n"
-                "\t-verbose: show links information for each cluster (similar to 'node connections -cluster <guuid>')\n"
+                "\t-verbose: show links information and role_cluster members for each cluster\n"
                 "\t-h: display in table format\n\n"
 
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
@@ -1359,7 +1359,7 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
         bool l_verbose = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-verbose") != -1;
         int clusters_count = dap_json_array_length(clusters_arr);
         
-        printf("\n=== Global DB Clusters ===\n");
+        printf("\n=== GlobalDB clusters ===\n");
         if (total)
             printf("Total clusters: %"DAP_INT64_FORMAT"\n\n", dap_json_get_int64(total));
         
@@ -1370,6 +1370,7 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
             
             dap_json_t *j_mask = NULL, *j_guuid = NULL, *j_mnem = NULL;
             dap_json_t *j_ttl = NULL, *j_role = NULL, *j_root = NULL, *j_links = NULL;
+            dap_json_t *j_role_members = NULL, *j_role_members_count = NULL;
             
             dap_json_object_get_ex(cluster, "groups_mask", &j_mask);
             dap_json_object_get_ex(cluster, "links_cluster_guuid", &j_guuid);
@@ -1378,18 +1379,48 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
             dap_json_object_get_ex(cluster, "default_role", &j_role);
             dap_json_object_get_ex(cluster, "owner_root_access", &j_root);
             dap_json_object_get_ex(cluster, "links", &j_links);
+            dap_json_object_get_ex(cluster, "role_members", &j_role_members);
+            dap_json_object_get_ex(cluster, "role_members_count", &j_role_members_count);
             
             printf("--- Cluster #%d ---\n", i + 1);
-            printf("  Groups Mask:       %s\n", j_mask ? dap_json_get_string(j_mask) : "N/A");
+            printf("  Groups mask:       %s\n", j_mask ? dap_json_get_string(j_mask) : "N/A");
             printf("  Mnemonim:          %s\n", j_mnem ? dap_json_get_string(j_mnem) : "N/A");
-            printf("  Links Cluster GUUID: %s\n", j_guuid ? dap_json_get_string(j_guuid) : "N/A");
+            printf("  Links cluster GUUID: %s\n", j_guuid ? dap_json_get_string(j_guuid) : "N/A");
             printf("  TTL:               %"DAP_UINT64_FORMAT_U" sec\n", j_ttl ? dap_json_get_uint64(j_ttl) : 0);
-            printf("  Default Role:      %s\n", j_role ? dap_json_get_string(j_role) : "N/A");
-            printf("  Owner Root Access: %s\n", j_root ? (dap_json_get_bool(j_root) ? "Yes" : "No") : "N/A");
+            printf("  Default role:      %s\n", j_role ? dap_json_get_string(j_role) : "N/A");
+            printf("  Owner root access: %s\n", j_root ? (dap_json_get_bool(j_root) ? "Yes" : "No") : "N/A");
             
+            // Print role members in verbose mode
+            if (l_verbose && j_role_members && dap_json_get_type(j_role_members) == DAP_JSON_TYPE_ARRAY) {
+                uint64_t l_members_count = j_role_members_count ? dap_json_get_uint64(j_role_members_count) : 
+                                   dap_json_array_length(j_role_members);
+                printf("\n  Role members (total: %" DAP_UINT64_FORMAT_U "):\n", l_members_count);
+                
+                if (l_members_count > 0) {
+                    printf("    %-22s | %-10s\n", "Node address", "Role");
+                    printf("    %s\n", "--------------------------------------");
+                    
+                    for (size_t j = 0; j < dap_json_array_length(j_role_members); j++) {
+                        dap_json_t *member = dap_json_array_get_idx(j_role_members, j);
+                        if (!member || dap_json_get_type(member) != DAP_JSON_TYPE_OBJECT)
+                            continue;
+                        
+                        dap_json_t *j_addr = NULL, *j_member_role = NULL;
+                        dap_json_object_get_ex(member, "node_addr", &j_addr);
+                        dap_json_object_get_ex(member, "role", &j_member_role);
+                        
+                        printf("    %-22s | %-10s\n", 
+                               j_addr ? dap_json_get_string(j_addr) : "N/A",
+                               j_member_role ? dap_json_get_string(j_member_role) : "N/A");
+                    }
+                } else {
+                    printf("    No members\n");
+                }
+            }
+
             // Print links in verbose mode
             if (l_verbose && j_links) {
-                printf("\n  Links Information:\n");
+                printf("\n  Links information:\n");
                 dap_json_print_object(j_links, stdout, 2);
             }
             

@@ -882,6 +882,37 @@ int com_global_db(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int 
             
             // Add owner_root_access flag
             dap_json_object_add_bool(l_json_obj_cluster, "owner_root_access", l_cluster->owner_root_access);
+                       
+            // If verbose mode, add role_cluster members information
+            if (l_verbose && l_cluster->role_cluster) {
+                dap_json_t *l_jobj_members = dap_json_array_new();
+                size_t l_members_count = dap_cluster_members_count(l_cluster->role_cluster);
+                
+                if (l_members_count > 0) {
+                    pthread_rwlock_rdlock(&l_cluster->role_cluster->members_lock);
+                    for (dap_cluster_member_t *l_member = l_cluster->role_cluster->members; 
+                         l_member; l_member = l_member->hh.next) {
+                        dap_json_t *l_jobj_member = dap_json_object_new();
+                        
+                        // Add member address
+                        char l_addr_str[64];
+                        snprintf(l_addr_str, sizeof(l_addr_str), NODE_ADDR_FP_STR, 
+                                NODE_ADDR_FP_ARGS_S(l_member->addr));
+                        dap_json_object_add_string(l_jobj_member, "node_addr", l_addr_str);
+                        
+                        // Add member role (cast to dap_global_db_role_t)
+                        dap_json_object_add_string(l_jobj_member, "role", 
+                                dap_global_db_cluster_role_str((dap_global_db_role_t)l_member->role));
+                        
+                        dap_json_array_add(l_jobj_members, l_jobj_member);
+                    }
+                    pthread_rwlock_unlock(&l_cluster->role_cluster->members_lock);
+                }
+                
+                dap_json_object_add_object(l_json_obj_cluster, "role_members", l_jobj_members);
+                dap_json_object_add_object(l_json_obj_cluster, "role_members_count", 
+                                          dap_json_object_new_uint64((uint64_t)l_members_count));
+            }
             
             // If verbose mode, add links information
             if (l_verbose && l_cluster->links_cluster) {
@@ -890,7 +921,7 @@ int com_global_db(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int 
                     dap_json_object_add_object(l_json_obj_cluster, "links", l_jobj_links);
                 }
             }
-            
+
             dap_json_array_add(l_json_arr_clusters, l_json_obj_cluster);
             l_cluster_count++;
         }
