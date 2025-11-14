@@ -374,30 +374,38 @@ int test_env_init(const char *a_config_dir, const char *a_global_db_path)
     if (!s_common_initialized) {
         // Initialize common (if not already done)
         if (dap_common_init("test", NULL) != 0) {
-            log_it(L_WARNING, "dap_common_init failed - some features may not work");
+            log_it(L_ERROR, "dap_common_init failed");
+            return -100;
         }
         // Initialize events (needed for proc threads)
         // Use reasonable defaults: 2 threads (for tests), 60 second timeout
-        if (dap_events_init(2, 60) != 0) {
-            log_it(L_WARNING, "dap_events_init failed - proc threads may fail");
-        } else {
-            log_it(L_DEBUG, "Events initialized");
-            // Start events (required for proc threads to work)
-            dap_events_start();
-            log_it(L_DEBUG, "Events started");
+        int l_events_res = dap_events_init(2, 60);
+        if (l_events_res != 0) {
+            log_it(L_ERROR, "dap_events_init failed with code %d - cannot continue", l_events_res);
+            log_it(L_ERROR, "Possible causes: setrlimit failed (Docker permissions), memory allocation failed");
+            return -101;
         }
+        log_it(L_DEBUG, "Events initialized");
+        
+        // Start events (required for proc threads to work)
+        int l_events_start_res = dap_events_start();
+        if (l_events_start_res != 0) {
+            log_it(L_ERROR, "dap_events_start failed with code %d - cannot continue", l_events_start_res);
+            return -102;
+        }
+        log_it(L_DEBUG, "Events started");
+        
         s_common_initialized = true;
     }
     
     // Step 0.5: Initialize proc threads (needed for cluster timers)
     // This must be done before any dap_proc_thread_timer_add calls
+    // NOTE: proc_threads are initialized in dap_events_start(), this is just a safety check
     if (dap_proc_thread_get_count() == 0) {
-        int l_proc_thread_res = dap_proc_thread_init(0); // 0 = autodetect
-        if (l_proc_thread_res != 0) {
-            log_it(L_WARNING, "Failed to initialize proc threads (code %d) - cluster timers may fail", l_proc_thread_res);
-        } else {
-            log_it(L_DEBUG, "Proc threads initialized");
-        }
+        log_it(L_ERROR, "Proc threads not initialized after dap_events_start - this is fatal");
+        return -103;
+    } else {
+        log_it(L_DEBUG, "Proc threads verified: %u threads", dap_proc_thread_get_count());
     }
     
     // Step 1: Initialize config if directory provided
