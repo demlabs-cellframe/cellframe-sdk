@@ -2735,14 +2735,23 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             continue;
         }
         if (l_blocks->block_new_size + l_datum_size > DAP_CHAIN_ATOM_MAX_SIZE) {
-            log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_ATOM_MAX_SIZE);
+            log_it(L_WARNING, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_ATOM_MAX_SIZE);
             break;
         }
         if (!l_blocks->block_new) {
             dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks ? l_blocks_pvt->blocks->hh.tbl->tail->prev : NULL;
             l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
-            l_blocks->block_new = dap_chain_block_new(&l_bcache_last->block_hash, &l_blocks->block_new_size);
-            l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+            l_blocks->block_new = dap_chain_block_new(l_bcache_last ? &l_bcache_last->block_hash : NULL, &l_blocks->block_new_size);
+            if (!l_blocks->block_new) {
+                log_it(L_ERROR, "Failed to create new block in s_callback_add_datums");
+                break;
+            }
+            if (a_chain->cells) {
+                l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+            } else {
+                log_it(L_WARNING, "Chain cells is NULL, using zero cell_id for block");
+                l_blocks->block_new->hdr.cell_id.uint64 = 0;
+            }
             l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
         }
         l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size, l_datum, l_datum_size);

@@ -66,6 +66,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_arbitrage.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -97,246 +98,7 @@ static  pthread_rwlock_t s_services_rwlock;
 
 static dap_chain_ledger_votings_callbacks_t s_voting_callbacks;
 
-typedef struct dap_ledger_stake_lock_item {
-    dap_chain_hash_fast_t	tx_for_stake_lock_hash;
-    dap_chain_hash_fast_t	tx_used_out;
-    UT_hash_handle hh;
-} dap_ledger_stake_lock_item_t;
-
-typedef struct dap_ledger_token_emission_item {
-    dap_chain_hash_fast_t datum_token_emission_hash;
-    dap_chain_datum_token_emission_t *datum_token_emission;
-    size_t datum_token_emission_size;
-    dap_chain_hash_fast_t tx_used_out;
-    dap_nanotime_t ts_added;
-    UT_hash_handle hh;
-} dap_ledger_token_emission_item_t;
-
-typedef struct dap_ledger_token_update_item {
-    dap_hash_fast_t			update_token_hash;
-    dap_chain_datum_token_t	*datum_token_update;
-    size_t					datum_token_update_size;
-    time_t					updated_time;
-    UT_hash_handle hh;
-} dap_ledger_token_update_item_t;
-
-struct spec_address {
-    dap_chain_addr_t addr;
-    dap_time_t becomes_effective;
-};
-
-/**
- * @brief UTXO blocklist key structure
- * @details Composite key for hash table lookup (tx_hash + out_idx identifies unique UTXO).
- *          Total size: 36 bytes (32B hash + 4B index)
- */
-typedef struct dap_ledger_utxo_block_key {
-    dap_chain_hash_fast_t tx_hash;  ///< Transaction hash (32 bytes)
-    uint32_t out_idx;                ///< Output index within transaction (4 bytes)
-} dap_ledger_utxo_block_key_t;
-
-/**
- * @brief UTXO blocking action types (for history tracking)
- * @details Each history entry records what action was performed:
- *          - BLOCK_ACTION_ADD: UTXO was blocked (added to blocklist)
- *          - BLOCK_ACTION_REMOVE: UTXO was unblocked (removed from blocklist)
- *          - BLOCK_ACTION_CLEAR: All UTXOs for token were cleared
- */
-typedef enum dap_ledger_utxo_block_action {
-    BLOCK_ACTION_ADD = 1,      ///< UTXO blocked
-    BLOCK_ACTION_REMOVE = 2,   ///< UTXO unblocked
-    BLOCK_ACTION_CLEAR = 3     ///< All UTXOs cleared
-} dap_ledger_utxo_block_action_t;
-
-/**
- * @brief UTXO blocking history item (for Zero/Main Chain sync)
- * @details Stores a single change event in UTXO blocking history.
- *          History is needed because token_update appears on Zero Chain earlier than
- *          Main Chain updates blockchain_time. Without history, sync order can cause
- *          inconsistencies.
- *          
- *          History forms a double-linked list sorted chronologically by bc_time.
- *          
- * @note Critical for Zero/Main Chain synchronization
- */
-typedef struct dap_ledger_utxo_block_history_item {
-    dap_ledger_utxo_block_action_t action;  ///< What happened (ADD/REMOVE/CLEAR)
-    dap_time_t bc_time;                      ///< Blockchain time when action occurred
-    dap_time_t becomes_effective;            ///< When blocking becomes active (for ADD)
-    dap_time_t becomes_unblocked;            ///< When blocking expires (for REMOVE)
-    dap_hash_fast_t token_update_hash;       ///< Which token_update caused this
-    
-    // Double-linked list for chronological ordering
-    struct dap_ledger_utxo_block_history_item *next;
-    struct dap_ledger_utxo_block_history_item *prev;
-} dap_ledger_utxo_block_history_item_t;
-
-/**
- * @brief UTXO blocklist item (hash table entry)
- * @details Each token has its own UTXO blocklist stored as in-memory hash table (uthash).
- *          This structure represents a single blocked UTXO with temporal semantics:
- *          - becomes_effective: when blocking activates (delayed activation support)
- *          - becomes_unblocked: when blocking deactivates (delayed unblocking support)
- *          
- *          Blocking state is determined by:
- *          blocked = (blockchain_time >= becomes_effective) && 
- *                    (becomes_unblocked == 0 || blockchain_time < becomes_unblocked)
- *          
- *          Full history tracking for Zero/Main Chain sync.
- *          History is stored as double-linked list, separate RW lock prevents blocking.
- *          
- * @note Thread-safety: Access protected by utxo_blocklist_rwlock in dap_ledger_token_item_t
- * @note History thread-safety: Access protected by history_rwlock (separate lock)
- */
-typedef struct dap_ledger_utxo_block_item {
-    dap_ledger_utxo_block_key_t key;  ///< Key for hash table lookup (tx_hash + out_idx)
-    
-    // Current state (for fast lookup without history replay)
-    dap_time_t blocked_time;           ///< When it was added to blocklist (for auditing)
-    dap_time_t becomes_effective;      ///< When blocking becomes active (blockchain time)
-    dap_time_t becomes_unblocked;      ///< When unblocking becomes active (0 = never/permanent)
-    
-    // Full history for Zero/Main Chain sync
-    dap_ledger_utxo_block_history_item_t *history_head;  ///< Start of history (oldest)
-    dap_ledger_utxo_block_history_item_t *history_tail;  ///< End of history (newest)
-    pthread_rwlock_t history_rwlock;                      ///< Separate lock for history access
-    
-    UT_hash_handle hh;                 ///< uthash handle (for hash table operations)
-} dap_ledger_utxo_block_item_t;
-
-typedef struct dap_ledger_token_item {
-    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint16_t subtype;
-    dap_chain_datum_token_t *datum_token;
-    uint64_t datum_token_size;
-
-    uint256_t total_supply;
-    uint256_t current_supply;
-
-    pthread_rwlock_t token_emissions_rwlock;
-    dap_ledger_token_emission_item_t * token_emissions;
-
-    pthread_rwlock_t token_ts_updated_rwlock;
-    dap_ledger_token_update_item_t * token_ts_updated;
-    time_t last_update_token_time;
-
-    // for auth operations
-
-    dap_pkey_t ** auth_pkeys;
-    dap_chain_hash_fast_t *auth_pkey_hashes;
-    size_t auth_signs_total;
-    size_t auth_signs_valid;
-    uint32_t             flags;
-    struct spec_address *tx_recv_allow;
-    size_t               tx_recv_allow_size;
-    struct spec_address *tx_recv_block;
-    size_t               tx_recv_block_size;
-    struct spec_address *tx_send_allow;
-    size_t               tx_send_allow_size;
-    struct spec_address *tx_send_block;
-    size_t               tx_send_block_size;
-    char *description;
-    // For delegated tokens
-    bool is_delegated;
-    char delegated_from[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t emission_rate;
-
-    /**
-     * @brief UTXO blocking mechanism (per-token blocklist)
-     * @details utxo_blocklist: Hash table (uthash) of blocked UTXOs for this token
-     *          utxo_blocklist_rwlock: Read-write lock for thread-safe access
-     *          utxo_blocklist_count: Number of blocked UTXOs (for monitoring/auditing)
-     *          
-     *          Controlled by flags:
-     *          - UTXO_BLOCKING_DISABLED (BIT 16): Disables UTXO blocking entirely
-     *          - STATIC_UTXO_BLOCKLIST (BIT 17): Makes blocklist immutable after token creation
-     *          
-     *          Access pattern:
-     *          - Read operations (lookup): pthread_rwlock_rdlock
-     *          - Write operations (add/remove): pthread_rwlock_wrlock
-     *          
-     * @see dap_ledger_utxo_block_item_t for blocklist entry structure
-     * @see s_ledger_utxo_is_blocked for blocking check logic
-     * @see s_ledger_utxo_block_add, s_ledger_utxo_block_remove for management
-     */
-    pthread_rwlock_t utxo_blocklist_rwlock;           ///< RW lock for thread-safe blocklist access
-    struct dap_ledger_utxo_block_item *utxo_blocklist; ///< Hash table (uthash) of blocked UTXOs
-    size_t utxo_blocklist_count;                       ///< Number of blocked UTXOs (for monitoring)
-
-    UT_hash_handle hh;
-} dap_ledger_token_item_t;
-
-// ledger cache item - one of unspent outputs
-typedef struct dap_ledger_tx_item {
-    dap_chain_hash_fast_t tx_hash_fast;
-    dap_chain_datum_tx_t *tx;
-    dap_nanotime_t ts_added;
-    UT_hash_handle hh;
-    struct {
-        dap_time_t ts_created;      // Transation datum timestamp mirrored & cached
-        uint32_t n_outs;
-        uint32_t n_outs_used;
-        char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        byte_t padding[6];
-        byte_t multichannel;
-        dap_time_t ts_spent;
-        byte_t pad[7];
-        dap_chain_net_srv_uid_t tag; //tag (or service this tx is belong to)
-        dap_chain_tx_tag_action_type_t action;
-        dap_chain_hash_fast_t tx_hash_spent_fast[]; // spent outs list
-    } DAP_ALIGN_PACKED cache_data;
-} dap_ledger_tx_item_t;
-
-typedef struct  dap_ledger_cache_gdb_record {
-    uint64_t cache_size;
-    uint64_t datum_size;
-    uint8_t data[];
-} DAP_ALIGN_PACKED dap_ledger_cache_gdb_record_t;
-
-typedef struct dap_ledger_tokenizer {
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t sum;
-    UT_hash_handle hh;
-} dap_ledger_tokenizer_t;
-
-typedef struct dap_ledger_reward_key {
-    dap_hash_fast_t block_hash;
-    dap_hash_fast_t sign_pkey_hash;
-} DAP_ALIGN_PACKED dap_ledger_reward_key_t;
-
-typedef struct dap_ledger_reward_item {
-    dap_ledger_reward_key_t key;
-    dap_hash_fast_t spender_tx;
-    UT_hash_handle hh;
-} dap_ledger_reward_item_t;
-
-typedef struct dap_ledger_tx_bound {
-    uint8_t type;
-    uint16_t prev_out_idx;
-    uint256_t value;
-    union {
-        dap_ledger_token_item_t *token_item;    // For current_supply update on emissions
-        dap_chain_tx_out_cond_t *cond;          // For conditional output
-        struct {
-            char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-            dap_chain_addr_t addr_from;
-        } in;
-    };
-    union {
-        dap_ledger_tx_item_t *prev_item;        // For not emission TX
-        dap_ledger_token_emission_item_t *emission_item;
-        dap_ledger_stake_lock_item_t *stake_lock_item;
-        dap_ledger_reward_key_t reward_key;
-    };
-} dap_ledger_tx_bound_t;
-
-// in-memory wallet balance
-typedef struct dap_ledger_wallet_balance {
-    char *key;
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t balance;
-    UT_hash_handle hh;
-} dap_ledger_wallet_balance_t;
+// All ledger item structures are now defined in dap_chain_ledger_item.h
 
 // ============================================================================
 // UTXO BLOCKLIST INTERNAL API DECLARATIONS
@@ -361,30 +123,7 @@ static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item,
                                        dap_hash_fast_t *a_token_update_hash,
                                        dap_ledger_t *a_ledger);
 
-typedef struct dap_ledger_cache_item {
-    dap_chain_hash_fast_t *hash;
-    bool found;
-} dap_ledger_cache_item_t;
-
-typedef struct dap_ledger_cache_str_item {
-    char *key;
-    bool found;
-} dap_ledger_cache_str_item_t;
-
-typedef struct dap_ledger_tx_notifier {
-    dap_ledger_tx_add_notify_t callback;
-    void *arg;
-} dap_ledger_tx_notifier_t;
-
-typedef struct dap_ledger_bridged_tx_notifier {
-    dap_ledger_bridged_tx_notify_t callback;
-    void *arg;
-} dap_ledger_bridged_tx_notifier_t;
-
-typedef struct dap_ledger_hal_item {
-    dap_chain_hash_fast_t hash;
-    UT_hash_handle hh;
-} dap_ledger_hal_item_t;
+// All ledger item structures are now defined in dap_chain_ledger_item.h
 
 // dap_ledger_t private section
 typedef struct dap_ledger_private {
@@ -435,10 +174,7 @@ static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_free(dap_ledger_t *a_ledger);
 static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* b);
 
-// Arbitrage transaction helpers 
-static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx);
-static int s_ledger_tx_check_arbitrage_outputs(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_token_item_t *a_token_item);
-static int s_ledger_tx_check_arbitrage_auth(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_token_item_t *a_token_item);
+// Arbitrage transaction helpers moved to dap_chain_arbitrage module
 
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
@@ -761,7 +497,7 @@ inline static dap_ledger_token_item_t *s_ledger_find_token(dap_ledger_t *a_ledge
  */
 static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain_datum_token_t *a_current_datum,
                              dap_ledger_t *a_ledger, byte_t *a_tsd, size_t a_tsd_total_size, bool a_apply,
-                             dap_hash_fast_t *a_token_update_hash)
+                             dap_hash_fast_t *a_token_update_hash, size_t a_signs_size)
 {
     if (!a_tsd_total_size) {
         debug_if(a_item_apply_to, L_NOTICE, "No TSD sections in datum token");
@@ -1465,7 +1201,10 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 log_it(L_WARNING, "Wrong SIGNS_VALID TSD size %"DAP_UINT64_FORMAT_U", exiting TSD parse", l_tsd_size);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
+            size_t l_old_valid = l_new_signs_valid;
             l_new_signs_valid = dap_tsd_get_scalar(l_tsd, uint16_t);
+            log_it(L_INFO, "Found TOTAL_SIGNS_VALID TSD: updating auth_signs_valid from %zu to %zu (a_apply=%d)",
+                   l_old_valid, l_new_signs_valid, a_apply);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD: {
@@ -1539,6 +1278,8 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_pkey_hashes = l_tmp_hashes;
             l_new_pkey_hashes[l_new_signs_total++] = l_new_auth_pkey_hash;
+            log_it(L_DEBUG, "Added new pkey to token update: l_new_signs_total=%zu (after increment), l_new_signs_valid=%zu",
+                   l_new_signs_total, l_new_signs_valid);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE: {
@@ -1642,8 +1383,62 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             return m_ret_cleanup(DAP_LEDGER_CHECK_PARSE_ERROR);
         }
     }
-    if (l_new_signs_total < l_new_signs_valid)
+    // If no pkeys were added via TSD and this is a token_update, try to extract pkeys from signatures
+    // Also extract if current datum has more signs than what we have in l_new_signs_total
+    // Extract pkeys even if a_item_apply_to is NULL (for validation checks with a_apply=false)
+    debug_if(s_debug_more, L_DEBUG, "Checking if pkeys should be extracted from signatures: l_new_signs_total=%zu, a_item_apply_to=%p, a_current_datum=%p, a_signs_size=%zu, a_apply=%d, a_current_datum->signs_total=%hu",
+           l_new_signs_total, a_item_apply_to, a_current_datum, a_signs_size, a_apply, a_current_datum ? a_current_datum->signs_total : 0);
+    if (a_current_datum && a_signs_size > 0 && 
+        (l_new_signs_total == 0 || (uint16_t)l_new_signs_total < a_current_datum->signs_total)) {
+        debug_if(s_debug_more, L_DEBUG, "Condition met for pkey extraction: l_new_signs_total=%zu < a_current_datum->signs_total=%hu",
+               l_new_signs_total, a_current_datum->signs_total);
+        size_t l_auth_signs_total = a_current_datum->signs_total;
+        debug_if(s_debug_more, L_DEBUG, "Attempting to extract pkeys from signatures: a_current_datum->signs_total=%hu, a_tsd_total_size=%zu, a_signs_size=%zu, l_new_signs_total=%zu",
+               a_current_datum->signs_total, a_tsd_total_size, a_signs_size, l_new_signs_total);
+        dap_sign_t **l_signs = dap_sign_get_unique_signs(a_current_datum->tsd_n_signs + a_tsd_total_size,
+                                                         a_signs_size,
+                                                         &l_auth_signs_total);
+        debug_if(s_debug_more, L_DEBUG, "dap_sign_get_unique_signs returned: l_signs=%p, l_auth_signs_total=%zu",
+               l_signs, l_signs ? l_auth_signs_total : 0);
+        if (l_signs && l_auth_signs_total > 0) {
+            debug_if(s_debug_more, L_DEBUG, "Extracting %zu pkeys from token_update signatures for token %s (replacing %zu existing)",
+                   l_auth_signs_total, a_item_apply_to ? a_item_apply_to->ticker : a_current_datum->ticker, l_new_signs_total);
+            // Free existing pkeys if any
+            if (l_was_pkeys_copied) {
+                DAP_DEL_ARRAY(l_new_pkeys, l_new_signs_total);
+                DAP_DELETE(l_new_pkey_hashes);
+            }
+            l_new_pkeys = DAP_NEW_SIZE(dap_pkey_t *, l_auth_signs_total * sizeof(dap_pkey_t *));
+            l_new_pkey_hashes = DAP_NEW_SIZE(dap_hash_fast_t, l_auth_signs_total * sizeof(dap_hash_fast_t));
+            if (l_new_pkeys && l_new_pkey_hashes) {
+                for (size_t k = 0; k < l_auth_signs_total; k++) {
+                    l_new_pkeys[k] = dap_pkey_get_from_sign(l_signs[k]);
+                    if (!l_new_pkeys[k]) {
+                        DAP_DEL_ARRAY(l_new_pkeys, k);
+                        DAP_DELETE(l_new_pkey_hashes);
+                        DAP_DELETE(l_signs);
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                        return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
+                    }
+                    dap_pkey_get_hash(l_new_pkeys[k], &l_new_pkey_hashes[k]);
+                }
+                l_new_signs_total = l_auth_signs_total;
+                l_was_pkeys_copied = true;
+            } else {
+                DAP_DELETE(l_new_pkeys);
+                DAP_DELETE(l_new_pkey_hashes);
+            }
+            DAP_DELETE(l_signs);
+        }
+    }
+    size_t l_old_signs_valid = a_item_apply_to ? a_item_apply_to->auth_signs_valid : 0;
+    debug_if(s_debug_more, L_DEBUG, "Token TSD parse completed: l_new_signs_total=%zu, l_new_signs_valid=%zu (old: %zu), a_apply=%d",
+           l_new_signs_total, l_new_signs_valid, l_old_signs_valid, a_apply);
+    if (l_new_signs_total < l_new_signs_valid) {
+        log_it(L_WARNING, "Token update requires %zu valid signatures but only %zu pkeys provided (a_apply=%d, a_item_apply_to=%p, a_current_datum=%p, a_current_datum->signs_total=%hu)",
+               l_new_signs_valid, l_new_signs_total, a_apply, a_item_apply_to, a_current_datum, a_current_datum ? a_current_datum->signs_total : 0);
         return m_ret_cleanup(DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS);
+    }
 
     if (!a_apply)
         return m_ret_cleanup(DAP_LEDGER_CHECK_OK);
@@ -1669,7 +1464,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
         DAP_DEL_Z(a_item_apply_to->tx_send_block);
         a_item_apply_to->tx_send_block = l_new_tx_send_block;
     }
-    a_item_apply_to->auth_signs_valid = l_new_signs_valid;
+    if (a_item_apply_to) {
+        log_it(L_INFO, "Updating token %s auth_signs_valid: %zu -> %zu (a_apply=%d)",
+               a_item_apply_to->ticker, l_old_signs_valid, l_new_signs_valid, a_apply);
+        a_item_apply_to->auth_signs_valid = l_new_signs_valid;
+    } else {
+        log_it(L_WARNING, "Cannot update auth_signs_valid: a_item_apply_to is NULL");
+    }
     if (l_was_pkeys_copied) {
         for (size_t i = 0; i < a_item_apply_to->auth_signs_total; i++)
             DAP_DELETE(a_item_apply_to->auth_pkeys[i]);
@@ -2001,7 +1802,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     }
     // Check content & size of enclosed TSD sections
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
-    int ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_size_tsd_section, false, NULL);
+    int ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_size_tsd_section, false, NULL, l_signs_size);
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     dap_ledger_hal_item_t *l_hash_found = NULL;
     if (ret != DAP_LEDGER_CHECK_OK) {
@@ -2175,9 +1976,13 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
             return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
         }
         size_t l_auth_signs_total = l_token->signs_total;
+        debug_if(s_debug_more, L_DEBUG, "Token %s: Extracting pkeys from signatures: l_tsd_total_size=%zu, l_signs_size=%zu, l_token->signs_total=%u",
+               l_token->ticker, l_tsd_total_size, l_signs_size, l_token->signs_total);
         dap_sign_t **l_signs = dap_sign_get_unique_signs(l_token->tsd_n_signs + l_tsd_total_size,
                                                          l_signs_size,
                                                          &l_auth_signs_total);
+        debug_if(s_debug_more, L_DEBUG, "Token %s: dap_sign_get_unique_signs returned: l_signs=%p, l_auth_signs_total=%zu", 
+               l_token->ticker, l_signs, l_auth_signs_total);
 #define CLEAN_UP DAP_DEL_MULTY(l_token, l_token_item->auth_pkeys, l_token_item->auth_pkey_hashes, l_token_item)
         if (!l_signs) {
             CLEAN_UP;
@@ -2185,15 +1990,38 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
             return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
         }
         dap_stpcpy((char *)l_token_item->ticker, l_token->ticker);
+        // Update auth_signs_total to actual number of unique signs found
+        debug_if(s_debug_more, L_DEBUG, "Token %s: l_token->signs_total=%u, l_auth_signs_total=%zu, l_signs_size=%zu",
+               l_token->ticker, l_token->signs_total, l_auth_signs_total, l_signs_size);
+        l_token_item->auth_signs_total = (uint16_t)l_auth_signs_total;
         for (uint16_t k = 0; k < l_token_item->auth_signs_total; k++) {
+            dap_chain_hash_fast_t l_sign_pkey_hash_before = {0};
+            if (!dap_sign_get_pkey_hash(l_signs[k], &l_sign_pkey_hash_before)) {
+                CLEAN_UP;
+                log_it(L_CRITICAL, "Failed to get pkey hash from signature %u", k);
+                return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
+            }
+            debug_if(s_debug_more, L_DEBUG, "Token %s: sign[%u] pkey hash from signature: %s (hash_type=0x%02x, pkey_hashing_flag=%s, sign_pkey_size=%u)", 
+                     l_token->ticker, k, dap_hash_fast_to_str_static(&l_sign_pkey_hash_before),
+                     l_signs[k]->header.hash_type,
+                     DAP_SIGN_GET_PKEY_HASHING_FLAG(l_signs[k]->header.hash_type) ? "true" : "false",
+                     l_signs[k]->header.sign_pkey_size);
+            
             l_token_item->auth_pkeys[k] = dap_pkey_get_from_sign(l_signs[k]);
             if (!l_token_item->auth_pkeys[k]) {
                 CLEAN_UP;
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
             }
-            dap_pkey_get_hash(l_token_item->auth_pkeys[k], &l_token_item->auth_pkey_hashes[k]);
+            // Use hash from signature (handles DAP_SIGN_PKEY_HASHING_FLAG correctly)
+            // instead of recalculating from extracted pkey
+            memcpy(&l_token_item->auth_pkey_hashes[k], &l_sign_pkey_hash_before, sizeof(dap_chain_hash_fast_t));
+            
+            debug_if(s_debug_more, L_DEBUG, "Token %s: auth_pkeys[%u] hash stored: %s", 
+                     l_token->ticker, k, 
+                     dap_hash_fast_to_str_static(&l_token_item->auth_pkey_hashes[k]));
         }
+        debug_if(s_debug_more, L_DEBUG, "Token %s: Added %hu pkeys to auth_pkeys", l_token->ticker, l_token_item->auth_signs_total);
 #undef CLEAN_UP
         DAP_DELETE(l_signs);
         l_token_item->datum_token_size = sizeof(dap_chain_datum_token_t) + l_tsd_total_size + l_signs_size;
@@ -2233,7 +2061,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
         l_token_item->last_update_token_time = l_token_update_item->updated_time;
     }
     if (ret != DAP_LEDGER_CHECK_WHITELISTED) {
-        ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_tsd_total_size, true, &l_token_update_hash);
+        ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_tsd_total_size, true, &l_token_update_hash, l_signs_size);
         assert(ret == DAP_LEDGER_CHECK_OK);
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
@@ -3363,16 +3191,69 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
             l_emission->data.type_auth.tsd_n_signs_size = 0;
         }
         size_t l_aproves = 0;
+        debug_if(s_debug_more, L_DEBUG, "Checking emission signatures for token %s: l_signs_unique=%zu, auth_signs_total=%hu, auth_signs_valid=%hu, l_sign_data_check_size=%zu",
+                 l_emission->hdr.ticker, l_signs_unique, l_token_item->auth_signs_total, l_token_item->auth_signs_valid, l_sign_data_check_size);
+        
+        // Debug: log pkey hashes from token
+        for (uint16_t k = 0; k < l_token_item->auth_signs_total; k++) {
+            dap_chain_hash_fast_t l_pkey_hash = {0};
+            if (l_token_item->auth_pkeys[k] && dap_pkey_get_hash(l_token_item->auth_pkeys[k], &l_pkey_hash)) {
+                debug_if(s_debug_more, L_DEBUG, "Token %s auth_pkeys[%u]: hash=%s", l_emission->hdr.ticker, k, dap_hash_fast_to_str_static(&l_pkey_hash));
+            }
+        }
+        
         for (uint16_t i = 0; i < l_signs_unique; i++) {
+            bool l_pkey_found = false;
+            dap_chain_hash_fast_t l_sign_pkey_hash = {0};
+            if (dap_sign_get_pkey_hash(l_signs[i], &l_sign_pkey_hash)) {
+                debug_if(s_debug_more, L_DEBUG, "Emission signature %u: pkey hash=%s", i, dap_hash_fast_to_str_static(&l_sign_pkey_hash));
+            }
+            
             for (uint16_t k = 0; k < l_token_item->auth_signs_total; k++) {
-                if (dap_pkey_compare_with_sign(l_token_item->auth_pkeys[k], l_signs[i])) {
+                dap_chain_hash_fast_t l_pkey_hash = {0};
+                bool l_hash_match = false;
+                if (l_token_item->auth_pkeys[k] && dap_pkey_get_hash(l_token_item->auth_pkeys[k], &l_pkey_hash)) {
+                    if (dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
+                        l_hash_match = true;
+                        debug_if(s_debug_more, L_DEBUG, "Emission signature %u: pkey hash matches token auth_pkeys[%u] by hash (hash=%s)", 
+                                 i, k, dap_hash_fast_to_str_static(&l_pkey_hash));
+                    } else {
+                        debug_if(s_debug_more, L_DEBUG, "Emission signature %u: pkey hash does NOT match token auth_pkeys[%u] (token_hash=%s, sign_hash=%s)", 
+                                 i, k, dap_hash_fast_to_str_static(&l_pkey_hash), dap_hash_fast_to_str_static(&l_sign_pkey_hash));
+                    }
+                }
+                
+                bool l_pkey_compare_result = dap_pkey_compare_with_sign(l_token_item->auth_pkeys[k], l_signs[i]);
+                debug_if(s_debug_more, L_DEBUG, "Emission signature %u vs token auth_pkeys[%u]: dap_pkey_compare_with_sign=%s, hash_match=%s (pkey_type=%u, sign_type=%u, pkey_size=%u, sign_pkey_size=%u)",
+                         i, k, l_pkey_compare_result ? "true" : "false", l_hash_match ? "true" : "false",
+                         l_token_item->auth_pkeys[k] ? l_token_item->auth_pkeys[k]->header.type.raw : 0,
+                         l_signs[i] ? l_signs[i]->header.type.type : 0,
+                         l_token_item->auth_pkeys[k] ? l_token_item->auth_pkeys[k]->header.size : 0,
+                         l_signs[i] ? l_signs[i]->header.sign_pkey_size : 0);
+                
+                // Use hash comparison as fallback if direct comparison fails (due to type mismatch)
+                // This handles cases where pkey types are different but the actual keys are the same
+                if (l_pkey_compare_result || l_hash_match) {
+                    l_pkey_found = true;
                     // Verify if token emission is signed
-                    if (!dap_sign_verify(l_signs[i], l_emission, l_sign_data_check_size))
+                    // dap_sign_verify returns 0 on success, non-zero on error
+                    int l_verify_result = dap_sign_verify(l_signs[i], l_emission, l_sign_data_check_size);
+                    debug_if(s_debug_more, L_DEBUG, "Emission signature %u: pkey match found (k=%u), verify_result=%d", i, k, l_verify_result);
+                    if (l_verify_result == 0) {
                         l_aproves++;
+                        debug_if(s_debug_more, L_DEBUG, "Emission signature %u verified successfully, l_aproves=%zu", i, l_aproves);
+                    } else {
+                        debug_if(s_debug_more, L_WARNING, "Emission signature %u verification failed: %d", i, l_verify_result);
+                    }
                     break;
                 }
             }
+            if (!l_pkey_found) {
+                debug_if(s_debug_more, L_WARNING, "Emission signature %u: no matching pkey found in token auth_pkeys (sign_pkey_hash=%s)", 
+                         i, dap_hash_fast_to_str_static(&l_sign_pkey_hash));
+            }
         }
+        debug_if(s_debug_more, L_DEBUG, "Emission signature check completed: l_aproves=%zu, required=%hu", l_aproves, l_token_item->auth_signs_valid);
         if (l_emission->hdr.version >= 3) {
             l_emission->data.type_auth.signs_count = l_sign_auth_count;
             l_emission->data.type_auth.tsd_n_signs_size = l_sign_auth_size;
@@ -4025,7 +3906,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     // - Conditional outputs
     // - Address ban-lists (sender/receiver)
     // This allows token owners to claim ANY output in emergency situations.
-    bool l_is_arbitrage = s_ledger_tx_is_arbitrage(a_tx);
+            bool l_is_arbitrage = dap_chain_arbitrage_tx_is_arbitrage(a_tx);
     
     if (l_is_arbitrage) {
         // For arbitrage TX, we need to:
@@ -4142,8 +4023,11 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             }
             if (l_err_num)
                 break;
-            if ((l_girdled_ems = dap_hash_fast_is_blank(l_emission_hash)) ||
-                    (l_stake_lock_emission = s_emissions_for_stake_lock_item_find(a_ledger, l_emission_hash))) {
+            l_girdled_ems = dap_hash_fast_is_blank(l_emission_hash);
+            l_stake_lock_emission = s_emissions_for_stake_lock_item_find(a_ledger, l_emission_hash);
+            debug_if(s_debug_more, L_DEBUG, "Checking IN_EMS for token %s: l_girdled_ems=%d, l_stake_lock_emission=%p, emission_hash=%s",
+                     l_token, l_girdled_ems, l_stake_lock_emission, dap_hash_fast_to_str_static(l_emission_hash));
+            if (l_girdled_ems || l_stake_lock_emission) {
                 if (l_stake_lock_emission && !a_check_for_apply) { // It's mempool process, so we don't accept f*cking legacy!
                     log_it(L_WARNING, "Legacy stakes are not accepted from mempool anymore! Dismiss stake emission tx %s", dap_get_data_hash_str(a_tx, dap_chain_datum_tx_get_size(a_tx)).s);
                     l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN;
@@ -4479,15 +4363,39 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     break;
                 }
             } else if (l_is_arbitrage && l_token_item_for_utxo_check) {
-                // Arbitrage TX - validate authorization and output addresses
-                if (s_ledger_tx_check_arbitrage_auth(a_ledger, a_tx, l_token_item_for_utxo_check) != 0) {
-                    l_err_num = DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
-                    log_it(L_WARNING, "Arbitrage TX %s not authorized for token '%s' or outputs not to fee address",
-                           dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
-                    break;
+                // CRITICAL: For multi-channel arbitrage TX (e.g. ARBMULTI + TestCoin for fee),
+                // arbitrage authorization should be checked ONLY for the main token (not native ticker),
+                // not for fee token (native ticker). Fee token inputs are checked as normal TX.
+                bool l_is_native_ticker = a_ledger->net->pub.native_ticker && 
+                                          !dap_strcmp(l_token, a_ledger->net->pub.native_ticker);
+                
+                if (!l_is_native_ticker) {
+                    // This is the main arbitrage token - validate authorization and output addresses
+                    int l_arbitrage_auth_result = dap_chain_arbitrage_tx_check_auth(a_ledger, a_tx, l_token_item_for_utxo_check);
+                    if (l_arbitrage_auth_result != 0) {
+                        // If it's NOT_ENOUGH_VALID_SIGNS, preserve that code so transaction stays in mempool
+                        // This allows additional signatures to be added via tx_sign command
+                        if (l_arbitrage_auth_result == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS) {
+                            l_err_num = DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+                            log_it(L_WARNING, "Arbitrage TX %s for token '%s' requires more owner signatures (need %zu)",
+                                   dap_chain_hash_fast_to_str_static(a_tx_hash), l_token,
+                                   l_token_item_for_utxo_check->auth_signs_valid);
+                        } else {
+                            l_err_num = DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
+                            log_it(L_WARNING, "Arbitrage TX %s not authorized for token '%s' or outputs not to fee address",
+                                   dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
+                        }
+                        break;
+                    }
+                    debug_if(s_debug_more, L_INFO, "Arbitrage TX %s authorized for token '%s' - bypassing all checks",
+                             dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
+                } else {
+                    // This is fee token (native ticker) in arbitrage TX - check as normal TX (not arbitrage)
+                    // Arbitrage marker is for the main token, not for fee payment
+                    debug_if(s_debug_more, L_DEBUG, "Arbitrage TX %s: token '%s' is native ticker (fee token) - checking as normal TX, not arbitrage",
+                             dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
+                    // Continue with normal TX checks below (no special arbitrage handling for fee token)
                 }
-                debug_if(s_debug_more, L_INFO, "Arbitrage TX %s authorized for token '%s' - bypassing all checks",
-                         dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
             }
 
             // Get one 'out' item in previous transaction bound with current 'in' item
@@ -6299,6 +6207,8 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
                          dap_chain_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx);
                 continue;
             }
+            // Note: UTXO blocking check is NOT performed here - it's done later in dap_ledger_tx_add_check
+            // This allows arbitrage transactions to find blocked UTXO and use them (blocking check is bypassed for arbitrage)
             dap_chain_tx_used_out_item_t *l_utxo = DAP_NEW(dap_chain_tx_used_out_item_t);
             *l_utxo = (dap_chain_tx_used_out_item_t) { l_cur->tx_hash_fast, (uint32_t)l_out_idx, l_value };
             const char *l_value_str = dap_uint256_to_char(l_value, NULL);
@@ -7057,262 +6967,5 @@ static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item,
 // ============================================================================
 // Arbitrage Transaction Support
 // ============================================================================
+// Arbitrage transaction functions moved to dap_chain_arbitrage module
 
-/**
- * @brief Check if transaction is marked as arbitrage
- * @details Arbitrage TX are marked with DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE TSD section.
- *          These transactions allow token owners to claim ANY output (blocked/conditional).
- * @param a_tx Transaction to check
- * @return true if transaction has arbitrage marker, false otherwise
- */
-static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
-{
-    if (!a_tx) {
-        return false;
-    }
-
-    // Iterate through TX items looking for TSD with arbitrage marker
-    byte_t *l_tx_item = a_tx->tx_items;
-    size_t l_tx_items_pos = 0;
-    size_t l_tx_items_size = a_tx->header.tx_items_size;
-
-    while (l_tx_items_pos < l_tx_items_size) {
-        uint8_t *l_item = l_tx_item + l_tx_items_pos;
-        size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item, l_tx_items_size - l_tx_items_pos);
-        
-        if (!l_item_size) {
-            log_it(L_ERROR, "Zero item size in TX");
-            return false;
-        }
-
-        dap_chain_tx_item_type_t l_type = *((uint8_t *)l_item);
-        
-        if (l_type == TX_ITEM_TYPE_TSD) {
-            dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)l_item;
-            
-            // Check if TSD contains arbitrage marker
-            dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_tsd->tsd;
-            size_t l_tsd_offset = 0;
-            size_t l_tsd_total_size = l_tsd->header.size;
-            
-            while (l_tsd_offset < l_tsd_total_size) {
-                if (l_tsd_data->type == DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE) {
-                    return true;  // Found arbitrage marker
-                }
-                l_tsd_offset += sizeof(dap_tsd_t) + l_tsd_data->size;
-                l_tsd_data = (dap_tsd_t *)(l_tsd->tsd + l_tsd_offset);
-            }
-        }
-        
-        l_tx_items_pos += l_item_size;
-    }
-
-    return false;  // No arbitrage marker found
-}
-
-/**
- * @brief Check if arbitrage TX outputs are directed to fee address ONLY
- * @details Arbitrage transactions can ONLY send funds to the network fee collection address.
- *          This prevents abuse where token owners could steal funds via arbitrage.
- *          Fee address is defined in network configuration (a_ledger->net->pub.fee_addr).
- * @param a_ledger Ledger containing network configuration with fee address
- * @param a_tx Transaction to validate
- * @param a_token_item Token item (for logging)
- * @return 0 if all outputs are to fee address, -1 if any output is not to fee address
- */
-static int s_ledger_tx_check_arbitrage_outputs(dap_ledger_t *a_ledger,
-                                                 dap_chain_datum_tx_t *a_tx,
-                                                 dap_ledger_token_item_t *a_token_item)
-{
-    if (!a_ledger || !a_tx || !a_token_item) {
-        log_it(L_ERROR, "Invalid arguments for arbitrage outputs check");
-        return -1;
-    }
-
-    // Check if network has fee address configured
-    if (dap_chain_addr_is_blank(&a_ledger->net->pub.fee_addr)) {
-        log_it(L_WARNING, "Arbitrage TX for token %s rejected: network has no fee address configured", 
-               a_token_item->ticker);
-        return -1;
-    }
-
-    const dap_chain_addr_t *l_fee_addr = &a_ledger->net->pub.fee_addr;
-    log_it(L_DEBUG, "Validating arbitrage TX outputs against fee address: %s", 
-           dap_chain_addr_to_str_static(l_fee_addr));
-
-    // Get all OUT items from transaction
-    int l_out_count = 0;
-    dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_out_count);
-    
-    if (!l_list_out || l_out_count == 0) {
-        // No outputs - shouldn't happen for valid TX, but not arbitrage-specific error
-        dap_list_free(l_list_out);
-        return 0;
-    }
-
-    // Check each output - ALL must go to fee address
-    bool l_all_outputs_to_fee = true;
-    for (dap_list_t *l_iter = l_list_out; l_iter; l_iter = l_iter->next) {
-        void *l_out_item = l_iter->data;
-        if (!l_out_item) {
-            continue;
-        }
-
-        // Extract address from different output types
-        dap_chain_addr_t *l_addr = NULL;
-        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_out_item;
-        
-        switch (l_type) {
-        case TX_ITEM_TYPE_OUT_OLD:
-            l_addr = &((dap_chain_tx_out_old_t *)l_out_item)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT:
-            l_addr = &((dap_chain_tx_out_t *)l_out_item)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_EXT:
-            l_addr = &((dap_chain_tx_out_ext_t *)l_out_item)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_STD:
-            l_addr = &((dap_chain_tx_out_std_t *)l_out_item)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_COND:
-            // Conditional outputs are not checked - they have their own validation
-            continue;
-        default:
-            log_it(L_WARNING, "Unknown output type 0x%02X in arbitrage TX", l_type);
-            continue;
-        }
-
-        if (!l_addr) {
-            continue;
-        }
-
-        // Check if this output goes to fee address
-        if (!dap_chain_addr_compare(l_fee_addr, l_addr)) {
-            log_it(L_WARNING, "Arbitrage TX for token %s rejected: output to %s (NOT fee address %s)",
-                   a_token_item->ticker, 
-                   dap_chain_addr_to_str_static(l_addr),
-                   dap_chain_addr_to_str_static(l_fee_addr));
-            l_all_outputs_to_fee = false;
-            break;
-        }
-    }
-
-    dap_list_free(l_list_out);
-
-    if (l_all_outputs_to_fee) {
-        log_it(L_INFO, "✓ Arbitrage TX for token %s: all outputs directed to fee address", 
-               a_token_item->ticker);
-    }
-
-    return l_all_outputs_to_fee ? 0 : -1;
-}
-
-/**
- * @brief Check arbitrage transaction authorization
- * @details Validates that TX is signed by required number of token owners.
- *          Token owners are determined from token datum (auth_pkeys).
- *          Also validates that all outputs go to network fee address ONLY.
- * @param a_ledger Ledger containing network configuration
- * @param a_tx Transaction to validate
- * @param a_token_item Token item with owner information
- * @return 0 if authorized, -1 if not authorized
- */
-static int s_ledger_tx_check_arbitrage_auth(dap_ledger_t *a_ledger,
-                                              dap_chain_datum_tx_t *a_tx, 
-                                              dap_ledger_token_item_t *a_token_item)
-{
-    if (!a_ledger || !a_tx || !a_token_item) {
-        log_it(L_ERROR, "Invalid arguments for arbitrage auth check");
-        return -1;
-    }
-
-    // Check if arbitrage is disabled for this token
-    // By default, arbitrage is ALLOWED (flag is NOT set)
-    // Only if UTXO_ARBITRAGE_TX_DISABLED flag is explicitly set, arbitrage is disabled
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED) {
-        log_it(L_WARNING, "Arbitrage transactions disabled for token %s (UTXO_ARBITRAGE_TX_DISABLED flag is set)", a_token_item->ticker);
-        return -1;
-    }
-    
-    // Arbitrage is allowed by default (flag is not set)
-    debug_if(s_debug_more, L_DEBUG, "Arbitrage transactions allowed for token %s (UTXO_ARBITRAGE_TX_DISABLED flag is not set, flags=0x%08X)", 
-             a_token_item->ticker, a_token_item->flags);
-
-    // Get TX signatures
-    int l_sign_count = 0;
-    dap_list_t *l_list_tx_sign = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_SIG, &l_sign_count);
-    
-    if (!l_list_tx_sign || l_sign_count == 0) {
-        log_it(L_WARNING, "Arbitrage TX has no signatures");
-        dap_list_free(l_list_tx_sign);
-        return -1;
-    }
-
-    // Check that at least one signature is from token owner
-    size_t l_valid_owner_signs = 0;
-    
-    for (dap_list_t *l_iter = l_list_tx_sign; l_iter; l_iter = l_iter->next) {
-        dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t *)l_iter->data;
-        if (!l_sig) {
-            continue;
-        }
-
-        // Get public key from signature
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_sig);
-        if (!l_sign) {
-            continue;
-        }
-
-        // Get pkey hash from signature
-        dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
-        if (!l_pkey) {
-            continue;
-        }
-
-        dap_chain_hash_fast_t l_pkey_hash;
-        if (!dap_pkey_get_hash(l_pkey, &l_pkey_hash)) {
-            continue;
-        }
-
-        // Check if this pkey is in token's auth_pkeys
-        bool l_is_owner = false;
-        for (uint16_t i = 0; i < a_token_item->auth_signs_total; i++) {
-            dap_chain_hash_fast_t l_owner_hash;
-            if (dap_pkey_get_hash(a_token_item->auth_pkeys[i], &l_owner_hash)) {
-                if (dap_hash_fast_compare(&l_pkey_hash, &l_owner_hash)) {
-                    l_is_owner = true;
-                    l_valid_owner_signs++;
-                    break;  // Found this owner, check next signature
-                }
-            }
-        }
-        
-        // Continue to next signature to count all owner signatures
-        // (needed for multi-sig requirements)
-    }
-
-    dap_list_free(l_list_tx_sign);
-
-    if (l_valid_owner_signs == 0) {
-        log_it(L_WARNING, "Arbitrage TX for token %s not signed by token owner", 
-               a_token_item->ticker);
-        return -1;
-    }
-
-    // Check if we need minimum number of signatures (auth_signs_valid)
-    if (l_valid_owner_signs < a_token_item->auth_signs_valid) {
-        log_it(L_WARNING, "Arbitrage TX for token %s requires %zu owner signatures, found %zu",
-               a_token_item->ticker, a_token_item->auth_signs_valid, l_valid_owner_signs);
-        return -1;
-    }
-
-    // CRITICAL: Check that all outputs go to fee address ONLY
-    if (s_ledger_tx_check_arbitrage_outputs(a_ledger, a_tx, a_token_item) != 0) {
-        log_it(L_WARNING, "Arbitrage TX for token %s has outputs to non-fee addresses",
-               a_token_item->ticker);
-        return -1;
-    }
-
-    return 0;  // Authorized
-}

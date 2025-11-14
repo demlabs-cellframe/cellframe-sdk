@@ -50,31 +50,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "dap_common.h"
-#include "dap_hash.h"
-#include "dap_time.h"
-#include "dap_tsd.h"
-#include "dap_chain_datum_token.h"
-#include "dap_chain_datum_tx.h"
-#include "dap_chain_datum_tx_tsd.h"
-#include "dap_chain_ledger.h"
-#include "dap_chain_net_tx.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_cs_esbocs.h"
-#include "dap_test.h"
-#include "test_ledger_fixtures.h"
-#include "test_token_fixtures.h"
-#include "test_emission_fixtures.h"
-#include "test_transaction_fixtures.h"
 
 #define LOG_TAG "utxo_blocking_integration"
 
 // Global test context
-
-#include "utxo_blocking_test_helpers.h"
-#include "utxo_blocking_basic_tests.h"
 /**
  * @brief Integration Test 1: Full UTXO blocking lifecycle with REAL emission
  * @details End-to-end: Token+Emission → TX → Block via token_update → Verify rejection

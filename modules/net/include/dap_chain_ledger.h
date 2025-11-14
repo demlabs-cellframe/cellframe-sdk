@@ -36,6 +36,8 @@
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net.h"
+#include "dap_chain_ledger_tx.h"
+#include "dap_chain_ledger_item.h"
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x09
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
@@ -53,7 +55,7 @@ typedef struct dap_ledger_locked_out {
     struct dap_ledger_locked_out *next;
 } dap_ledger_locked_out_t;
 
-typedef struct dap_ledger_tx_item dap_ledger_tx_item_t;
+// dap_ledger_tx_item_t and all other ledger item structures are now defined in dap_chain_ledger_item.h
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
@@ -119,35 +121,6 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET
 } dap_ledger_check_error_t;
 
-typedef enum dap_chan_ledger_notify_opcodes{
-    DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
-    DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64 
-} dap_chan_ledger_notify_opcodes_t;
-typedef enum dap_chain_tx_tag_action_type {    
-
-    //subtags, till 32
-    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
-    
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 5,
-
-    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
-    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
-    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
-    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
-    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
-
-    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
-    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
-
-    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD =    1 << 13,
-    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE =    1 << 14,
-    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL =  1 << 15,
-   
-    DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
-} dap_chain_tx_tag_action_type_t;
 
 typedef struct dap_ledger_datum_iter {
     dap_chain_net_t *net;
@@ -275,9 +248,9 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
 typedef int (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (*dap_ledger_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_chain_tx_out_cond_t *a_prev_cond);
-typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
-typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_chan_ledger_notify_opcodes_t a_opcode);
+// Types moved to dap_chain_ledger_tx.h to avoid circular dependencies
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+
 typedef struct dap_chain_net dap_chain_net_t;
 typedef int (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
 typedef bool (*dap_chain_ledger_voting_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx);

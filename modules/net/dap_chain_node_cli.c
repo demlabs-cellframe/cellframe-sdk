@@ -40,6 +40,7 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd_tx.h"
+#include "dap_chain_node_cli_cmd_tx_sign.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli.h"
 #include "dap_notify_srv.h"
@@ -355,10 +356,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, NULL, "Make transaction",
-            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822 or YYMMDD>] [-arbitrage]"
-            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n"
+            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> [-to_addr <addr>] [-arbitrage] [-lock_before <unlock_time>] "
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value> [-certs <certs>]\n"
             "OPTIONS:\n"
-            "  -arbitrage: Create arbitrage transaction (requires token owner signature, bypasses UTXO blocking)\n");
+            "  -arbitrage: Create arbitrage transaction (requires token owner signature, bypasses UTXO blocking)\n"
+            "              For arbitrage: -to_addr is optional and ignored, all outputs go to network fee address\n"
+            "  -certs: Comma-separated certificate names for arbitrage transactions\n"
+            "  -wallet_fee: Wallet for fee payment\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, NULL, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool",
@@ -374,6 +378,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, NULL, "Verifing transaction in mempool",
             "tx_verify -net <net_name> [-chain <chain_name>] -tx <tx_hash>\n" );
+    dap_cli_server_cmd_add ("tx_sign", com_tx_sign, NULL, "Add signatures to existing arbitrage transaction in mempool",
+            "tx_sign -net <net_name> [-chain <chain_name>] -tx <tx_hash> -certs <cert1,cert2,...>\n"
+            "OPTIONS:\n"
+            "  -tx: Transaction hash (hex or base58)\n"
+            "  -certs: Comma-separated list of certificate names belonging to token owners\n"
+            "  -H: Hash output format (hex or base58, default: hex)\n"
+            "NOTE: For now this command can only add signatures to arbitrage transactions. But in future it will be possible to add signatures to any transaction.\n"
+            "      For arbitrage transactions certificates must belong to token owners (auth_pkeys).\n");
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, NULL, "Transaction history (for address or by hash)",

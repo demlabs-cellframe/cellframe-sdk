@@ -136,15 +136,24 @@ void dap_chain_cs_add (const char * a_cs_str, dap_chain_callback_new_cfg_t a_cal
 int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_callback_new_cfg_item_t *l_item = NULL;
-#if defined(DAP_CHAIN_BLOCKS_TEST) || defined(DAP_LEDGER_TEST)
     const char *l_consensus = NULL;
-    if (a_chain->id.uint64 == 0)
-        l_consensus = dap_strdup("dag_poa");
-    else
-        l_consensus = dap_strdup("esbocs");
-#else
-    const char *l_consensus = dap_config_get_item_str( a_chain_cfg, "chain", "consensus");
+    
+    // Try to read consensus from config first (if provided)
+    if (a_chain_cfg) {
+        l_consensus = dap_config_get_item_str(a_chain_cfg, "chain", "consensus");
+    }
+    
+    // Fallback to default test consensus if not specified in config
+#if defined(DAP_CHAIN_BLOCKS_TEST) || defined(DAP_LEDGER_TEST)
+    if (!l_consensus) {
+        // Use default test consensus only if not specified in config
+        if (a_chain->id.uint64 == 0)
+            l_consensus = dap_strdup("dag_poa");
+        else
+            l_consensus = dap_strdup("esbocs");
+    }
 #endif
+    
     if(l_consensus)
         HASH_FIND_STR(s_cs_callbacks, l_consensus, l_item );
     if (l_item) {
@@ -155,7 +164,7 @@ int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         DAP_CHAIN_PVT(a_chain)->cs_name = l_item->name;
         return res;
     } else {
-        log_it(L_ERROR,"Can't find consensus \"%s\"",dap_config_get_item_str( a_chain_cfg, "chain", "consensus"));
+        log_it(L_ERROR,"Can't find consensus \"%s\"", l_consensus ? l_consensus : "(null)");
         return -1;
     }
 }

@@ -49,6 +49,10 @@
 #include "dap_chain_net_balancer.h"
 
 #define LOG_TAG "dap_chain_node"
+
+// Debug flag for node operations (read from config: node.debug_more)
+static bool s_debug_more = false;
+
 #define DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION 2
 typedef struct dap_chain_node_net_states_info_v1 {
     dap_chain_node_addr_t address;
@@ -315,6 +319,7 @@ int dap_chain_node_init()
     }
     s_node_list_auto_update = dap_config_get_item_bool_default(g_config, "global_db", "node_list_auto_update", s_node_list_auto_update);
     s_node_list_record_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_record_ttl", s_node_list_record_ttl);
+    s_debug_more = dap_config_get_item_bool_default(g_config, "node", "debug_more", false);
     return 0;
 }
 
@@ -407,15 +412,39 @@ dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chai
 }
 
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
-    for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++)
-        if (a_datum->header.type_id == a_chain->autoproc_datum_types[j])
+    if (!a_chain || !a_datum) {
+        return false;
+    }
+    // Log for debugging
+    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
+        dap_chain_datum_token_t *l_token_datum = (dap_chain_datum_token_t *)a_datum->data;
+        debug_if(s_debug_more, L_DEBUG, "Checking if token datum '%s' needs processing in chain '%s' (autoproc_count=%u)", 
+               l_token_datum->ticker, a_chain->name, a_chain->autoproc_datum_types_count);
+    }
+    for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
+        if (a_datum->header.type_id == a_chain->autoproc_datum_types[j]) {
+            if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
+                debug_if(s_debug_more, L_DEBUG, "Token datum matches autoproc type %u", a_chain->autoproc_datum_types[j]);
+            }
             return true;
+        }
+    }
+    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
+        debug_if(s_debug_more,L_DEBUG, "Token datum does NOT match any autoproc type");
+    }
     return false;
 }
 
 /* Return true if processed datum should be deleted from mempool */
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str, int * a_ret)
 {
+    // Log emission processing (type_id=61696=0xf100)
+    if (a_datum && a_datum->header.type_id == 0xf100) {
+        debug_if(s_debug_more,L_INFO, "Processing EMISSION datum, hash=%s", a_datum_hash_str);
+    }
+    debug_if(s_debug_more, L_DEBUG, "dap_chain_node_mempool_process: datum type_id=%u, hash=%s", 
+           a_datum ? a_datum->header.type_id : 0, a_datum_hash_str ? a_datum_hash_str : "NULL");
+    
     if (!a_chain->callback_add_datums) {
         log_it(L_ERROR, "Not found chain callback for datums processing");
         return false;
@@ -427,17 +456,65 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
     }
     dap_chain_datum_calc_hash(a_datum, &l_real_hash);
     if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
-        log_it(L_WARNING, "Datum hash from mempool key and real datum hash are different");
-        return false;
+        // For TX datums, hash mismatch is normal during multi-sig collection
+        // TX hash changes when new signatures are added via tx_sign
+        if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+            debug_if(s_debug_more, L_DEBUG, "TX datum hash changed (multi-sig update): key=%s, calculated=%s", 
+                   a_datum_hash_str, dap_hash_fast_to_str_static(&l_real_hash));
+            // Update hash to current value for verification
+            l_datum_hash = l_real_hash;
+        } else {
+            log_it(L_WARNING, "Datum hash from mempool key and real datum hash are different: key=%s, calculated=%s, type_id=%u", 
+                   a_datum_hash_str, dap_hash_fast_to_str_static(&l_real_hash), a_datum->header.type_id);
+            return false;
+        }
     }
     int l_verify_datum = dap_chain_net_verify_datum_for_add(a_chain, a_datum, &l_datum_hash);
+    // Log emission verification result
+    if (a_datum && a_datum->header.type_id == 0xf100) {
+        debug_if(s_debug_more, L_INFO, "EMISSION verify result: %d, hash=%s", l_verify_datum, a_datum_hash_str);
+    }
+    debug_if(s_debug_more, L_DEBUG, "dap_chain_net_verify_datum_for_add returned: %d for datum type_id=%u, hash=%s", 
+           l_verify_datum, a_datum->header.type_id, a_datum_hash_str);
+    
+    // For token datums, apply changes directly to ledger if verification passes
+    // This is needed because token datums update ledger state directly, not through consensus
+    // We call dap_ledger_token_add directly instead of dap_chain_datum_add to ensure updates are applied
+    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN && !l_verify_datum) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        if (l_net && l_net->pub.ledger) {
+            dap_chain_datum_token_t *l_token_datum = (dap_chain_datum_token_t *)a_datum->data;
+            log_it(L_INFO, "Processing token datum for ticker '%s' (type: %s) in chain '%s'", 
+                   l_token_datum->ticker,
+                   l_token_datum->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE ? "UPDATE" : "DECL",
+                   a_chain->name);
+            int l_token_add_res = dap_ledger_token_add(l_net->pub.ledger, a_datum->data, 
+                                                         a_datum->header.data_size, a_datum->header.ts_create);
+            if (l_token_add_res != DAP_LEDGER_CHECK_OK && 
+                l_token_add_res != DAP_LEDGER_CHECK_WHITELISTED &&
+                l_token_add_res != DAP_LEDGER_CHECK_ALREADY_CACHED) {
+                log_it(L_WARNING, "Failed to add token datum to ledger: %d (%s)", 
+                       l_token_add_res, dap_ledger_check_error_str(l_token_add_res));
+            } else {
+                debug_if(s_debug_more, L_INFO, "Token datum added to ledger successfully (result: %d)", l_token_add_res);
+            }
+        }
+    }
+    
     if (!l_verify_datum
 #ifdef DAP_TPS_TEST
             || l_verify_datum == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS
 #endif
             )
     {
+        // Log emission callback invocation
+        if (a_datum && a_datum->header.type_id == 0xf100) {
+            debug_if(s_debug_more, L_INFO, "EMISSION: calling callback_add_datums, hash=%s", a_datum_hash_str);
+        }
         a_chain->callback_add_datums(a_chain, &a_datum, 1);
+        if (a_datum && a_datum->header.type_id == 0xf100) {
+            debug_if(s_debug_more, L_INFO, "EMISSION: callback_add_datums completed, hash=%s", a_datum_hash_str);
+        }
     }
     if (l_verify_datum != 0 &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
@@ -448,6 +525,10 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
                     *a_ret = l_verify_datum;
                 return true;
         }
+    // Transactions with DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS are NOT deleted from mempool.
+    // This allows distributed signing: arbitrage transactions (and other multi-sig transactions)
+    // can be created with insufficient signatures, then additional signatures added via tx_sign command.
+    // Once sufficient signatures are collected, transaction can be processed normally.
     return false;
 }
 
@@ -484,6 +565,8 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
+    log_it(L_DEBUG, "dap_chain_node_mempool_process_all: Found %zu datums in mempool for chain '%s' (group: %s)", 
+           l_objs_size, a_chain->name, l_gdb_group_mempool ? l_gdb_group_mempool : "NULL");
     if (l_objs_size) {
 #ifdef DAP_TPS_TEST
         log_it(L_TPS, "Get %zu datums from mempool", l_objs_size);
@@ -617,7 +700,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
             l_ignored = a_ignored[j].uint64 == ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
         }
         if (l_ignored) {
-            log_it(L_DEBUG, "Link to "NODE_ADDR_FP_STR" ignored", NODE_ADDR_FP_ARGS_S(((dap_chain_node_info_t*)(l_objs + i)->value)->address));
+            debug_if(s_debug_more, L_DEBUG, "Link to "NODE_ADDR_FP_STR" ignored", NODE_ADDR_FP_ARGS_S(((dap_chain_node_info_t*)(l_objs + i)->value)->address));
             continue;
         }
         dap_chain_node_states_info_t *l_item = DAP_NEW_Z(dap_chain_node_states_info_t);
@@ -634,7 +717,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         dap_chain_node_net_states_info_t *l_node_info = NULL;
         byte_t *l_node_info_data = dap_global_db_get_sync(l_gdb_group, l_objs[i].key, &l_data_size, NULL, &l_state_timestamp);
         if (!l_node_info_data) {
-            log_it(L_DEBUG, "Can't find state about %s node, apply low priority", l_objs[i].key);
+            debug_if(s_debug_more, L_DEBUG, "Can't find state about %s node, apply low priority", l_objs[i].key);
             l_item->downlinks_count = (uint32_t)(-1);
         } else {
             if ( (l_data_size - sizeof(dap_chain_node_net_states_info_t)) % sizeof(dap_chain_node_addr_t) ) {

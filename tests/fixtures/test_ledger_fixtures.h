@@ -94,6 +94,49 @@ typedef struct test_json_rpc_error {
  */
 bool test_json_rpc_parse_error(json_object *a_json_response, test_json_rpc_error_t *a_error);
 
+/**
+ * @brief Wait for transaction to be processed from mempool to ledger
+ * @param a_fixture Network fixture
+ * @param a_tx_hash Transaction hash to wait for
+ * @param a_max_attempts Maximum number of search attempts (default: 5 if <= 0)
+ * @param a_delay_ms Delay between attempts in milliseconds (default: 200 if <= 0)
+ * @param a_process_mempool Whether to force mempool processing before each attempt
+ * @return Pointer to transaction if found in ledger, NULL if not found after all attempts
+ * @note This function waits for transaction to appear in ledger (not mempool)
+ * @note If a_process_mempool is true, mempool is processed before each search attempt
+ * @note The returned pointer points to ledger data (persistent, no need to free)
+ * @note Returns NULL if transaction not found in ledger after all attempts
+ * @note This function is useful for waiting for multi-signature transactions to be processed
+ */
+dap_chain_datum_tx_t *test_wait_tx_mempool_to_ledger(
+    test_net_fixture_t *a_fixture,
+    dap_chain_hash_fast_t *a_tx_hash,
+    int a_max_attempts,
+    int a_delay_ms,
+    bool a_process_mempool
+);
+
+/**
+ * @brief Wait for any datum to be processed from mempool to ledger
+ * @param a_fixture Network fixture
+ * @param a_datum_hash Datum hash to wait for
+ * @param a_max_attempts Maximum number of search attempts (default: 5 if <= 0)
+ * @param a_delay_ms Delay between attempts in milliseconds (default: 200 if <= 0)
+ * @param a_process_mempool Whether to force mempool processing before each attempt
+ * @return Pointer to datum if found in ledger, NULL if not found after all attempts
+ * @note This function waits for datum to appear in ledger (not mempool)
+ * @note If a_process_mempool is true, mempool is processed before each search attempt
+ * @note The returned pointer points to ledger data (persistent, no need to free)
+ * @note Returns NULL if datum not found in ledger after all attempts
+ * @note This function works with any datum type (TX, token, emission, etc.)
+ */
+dap_chain_datum_t *test_wait_datum_mempool_to_ledger(
+    test_net_fixture_t *a_fixture,
+    dap_chain_hash_fast_t *a_datum_hash,
+    int a_max_attempts,
+    int a_delay_ms,
+    bool a_process_mempool
+); 
 #ifdef __cplusplus
 }
 #endif

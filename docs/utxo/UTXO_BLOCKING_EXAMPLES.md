@@ -497,11 +497,16 @@ Arbitrage transactions are designed for emergency situations:
 ⚠️ **CRITICAL SECURITY RESTRICTIONS:**
 
 1. **Must be signed by token owner** - Requires valid signature from token's `auth_pkeys`
-2. **Minimum signature threshold** - Must meet `auth_signs_valid` requirement
+2. **Minimum signature threshold** - Must meet `auth_signs_valid` requirement:
+   - Wallet signature counts as 1
+   - Additional signatures from `-certs` parameter
+   - Total signatures must be >= `auth_signs_valid`
+   - If insufficient, transaction stays in mempool for additional signatures
 3. **Network fee address ONLY** - Can **ONLY** send funds to network fee address (`net->pub.fee_addr`), NOT to `tx_recv_allow` list
 4. **Can be disabled** - Token can set `UTXO_ARBITRAGE_TX_DISABLED` flag to permanently disable arbitrage
+5. **Distributed signing support** - Use `tx_sign` command to add signatures from different nodes
 
-🔒 **Why only network fee address?** This prevents token owners from adding their own addresses to `tx_recv_allow` and stealing funds via arbitrage. The network fee address is controlled by network operators, not token owners, providing additional security layer.
+🔒 **Why only network fee address?** This prevents token owners from adding their own addresses to `tx_recv_allow` and misusing arbitrage. The network fee address is controlled by network operators, not by individual token owners.
 
 ### Usage
 
@@ -509,14 +514,14 @@ Arbitrage transactions are designed for emergency situations:
 
 ```bash
 # Create arbitrage transaction with -arbitrage flag
-# NOTE: -to address MUST be the network fee address (net->pub.fee_addr)
+# NOTE: -to_addr parameter is NOT required for arbitrage transactions
+# CLI automatically sends ALL outputs to network fee address (net->pub.fee_addr)
 cellframe-node-cli tx_create \
     -net mynetwork \
-    -chain main \
     -token MYTOKEN \
     -from_wallet owner_wallet \
-    -to <network_fee_address> \  # MUST be net->pub.fee_addr
     -value 1000.0 \
+    -fee 0.01 \
     -arbitrage \
     -certs token_owner_cert
 ```
@@ -524,9 +529,12 @@ cellframe-node-cli tx_create \
 **Prerequisites:**
 1. Network must have `fee_addr` configured (network fee collection address)
 2. Arbitrage must not be disabled (`UTXO_ARBITRAGE_TX_DISABLED` flag not set)
-3. Transaction must be signed by token owner certificate
+3. Transaction must be signed by token owner certificate(s)
 
-⚠️ **IMPORTANT:** Arbitrage transactions send funds **ONLY** to the network fee address (`net->pub.fee_addr`). The fee address is configured at network level, not by token owners.
+⚠️ **AUTOMATIC ADDRESS HANDLING:** Arbitrage transactions automatically send all outputs to the network fee address (`net->pub.fee_addr`):
+- `-to_addr` parameter is optional and will be ignored if provided
+- All outputs (main, change, fee change) go to fee address only
+- Fee address is configured at network level, not by token owners
 
 #### Checking Network Fee Address
 
@@ -550,7 +558,7 @@ cellframe-node-cli token_update \
     -certs token_owner_cert
 ```
 
-⚠️ **Warning:** Once `UTXO_ARBITRAGE_TX_DISABLED` is set, it **cannot be unset** (irreversible flag). This provides strong guarantees to token holders that token owners cannot abuse arbitrage.
+⚠️ **Warning:** Once `UTXO_ARBITRAGE_TX_DISABLED` is set, it cannot be unset (irreversible flag).
 
 ### Validation Rules
 
@@ -560,13 +568,23 @@ When ledger processes arbitrage transaction, it performs these checks:
 2. **Flag Check** - Token must not have `UTXO_ARBITRAGE_TX_DISABLED` set
 3. **Signature Check** - TX must be signed by:
    - **Emission owner** (to authorize spending the UTXO)
-   - **Token owner** (to authorize arbitrage - must be in `auth_pkeys` and meet `auth_signs_valid` threshold)
+   - **Token owner(s)** (to authorize arbitrage - must be in `auth_pkeys` and meet `auth_signs_valid` threshold):
+     - Wallet signature counts as 1
+     - Additional signatures from `-certs` parameter
+     - Total valid owner signatures must be >= `auth_signs_valid`
+     - If insufficient (`auth_signs_valid` not met), transaction returns `DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS` and **stays in mempool**
 4. **Network Fee Address Check** - Network must have `fee_addr` configured
 5. **Output Address Check** - **ALL** TX outputs must go **ONLY** to network fee address (`net->pub.fee_addr`)
 
 ⚠️ **CRITICAL:** Arbitrage transactions can ONLY send funds to the network fee collection address.
 
-If any check fails, transaction is rejected with `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED`.
+**Mempool Behavior:**
+- Transactions with insufficient signatures (`DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS`) are **NOT deleted** from mempool
+- This allows distributed signing: transaction can be created on one node, then signatures added from other nodes using `tx_sign` command
+- Transaction remains in mempool until it has enough signatures or is manually removed
+- Once `auth_signs_valid` signatures are collected, transaction can be processed normally
+
+If any check fails (except insufficient signatures), transaction is rejected with `DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED`.
 
 ### Bypassed Checks
 
@@ -645,31 +663,248 @@ cellframe-node-cli tx_create \
     -net mynetwork \
     -token MYTOKEN \
     -from_wallet blocked_wallet \  # Address is blocked
-    -to <network_fee_address> \
     -value 1000.0 \
     -arbitrage \
     -certs token_owner_cert
+# NOTE: -to_addr not needed - outputs automatically go to network fee address
 # Success: Arbitrage bypasses address blocking
 ```
 
 #### Scenario 4: Multi-Signature Requirements
 
-If token requires multiple owner signatures (`auth_signs_valid > 1`), arbitrage transaction must be signed by at least that many token owners:
+If token requires multiple owner signatures (`auth_signs_valid > 1`), arbitrage transaction must be signed by at least that many token owners.
+
+**Important:** Signature counting rules depend on whether **fee token == arbitrage token**:
+
+##### Case 1: fee_token == arbitrage_token (same token for both)
+
+When the token being transferred is the same as the native ticker used for fees:
+
+- **Wallet signature COUNTS** for arbitrage authorization
+- Need `(auth_signs_valid - 1)` additional certificates via `-certs`
+- Example: If `auth_signs_valid = 3`, need wallet + 2 certs = 3 total
 
 ```bash
-# Token requires 2 owner signatures (auth_signs_valid = 2)
-# Create arbitrage transaction with 2 owner signatures
+# Token requires 3 owner signatures (auth_signs_valid = 3)
+# fee_token == arbitrage_token (e.g., both are native ticker)
 cellframe-node-cli tx_create \
     -net mynetwork \
     -token MYTOKEN \
-    -from_wallet owner_wallet \
-    -to <network_fee_address> \
+    -from_wallet owner_wallet \  # Signature counts for arbitrage (1)
     -value 1000.0 \
+    -fee 0.01 \
     -arbitrage \
-    -certs token_owner_cert1,token_owner_cert2  # Both owners must sign
+    -certs token_owner_cert1,token_owner_cert2  # 2 certs (total = 3)
+# NOTE: -to_addr not needed - automatically sends to fee address
 ```
 
-**Note:** The transaction must also be signed by the emission owner (who owns the UTXO being spent).
+##### Case 2: fee_token != arbitrage_token (different tokens)
+
+When the token being transferred differs from the native ticker used for fees:
+
+- **Wallet signature DOES NOT count** for arbitrage authorization (used ONLY for fee payment)
+- Need **ALL** `auth_signs_valid` certificates via `-certs`
+- Example: If `auth_signs_valid = 3`, need 3 certs (wallet signature is for fee only)
+
+```bash
+# Token requires 3 owner signatures (auth_signs_valid = 3)
+# NOTE: For arbitrage with -from_wallet, wallet must have BOTH tokens:
+#       - Arbitrage token (ARBMULTI) for transfer
+#       - Native token (for fee payment)
+cellframe-node-cli tx_create \
+    -net mynetwork \
+    -token ARBMULTI \
+    -from_wallet arbitrage_wallet \
+    -value 1000.0 \
+    -fee 0.000000000000000001 \
+    -arbitrage \
+    -certs owner_cert1  # Only 1 cert provided (need 3 for auth_signs_valid=3)
+# WARNING: Transaction created with INSUFFICIENT signatures (1 of 3)
+# Will remain in mempool until remaining signatures are added via tx_sign
+```
+
+##### Creating Multi-Signature Arbitrage Transaction (Distributed Signing)
+
+When token owners are on different nodes or you cannot provide all signatures at once, create the transaction with partial signatures first:
+
+**Step 1:** Create arbitrage transaction with initial signature(s):
+
+```bash
+# Node 1: Create arbitrage TX with insufficient signatures
+# Token requires 3 owner signatures (auth_signs_valid = 3)
+# NOTE: Wallet must have both arbitrage token and native token (for fee)
+cellframe-node-cli tx_create \
+    -net mynetwork \
+    -token ARBMULTI \
+    -from_wallet arbitrage_wallet \
+    -value 10000.0 \
+    -fee 0.000000000000000001 \
+    -arbitrage \
+    -certs owner_cert1  # Only 1 owner cert (2 more needed for auth_signs_valid=3)
+# CLI Notice: "Transaction will be created and placed in mempool. 
+#             Add remaining 2 signatures via 'tx_sign' command."
+# Returns transaction hash: 0xABC123...
+```
+
+**Step 2:** Add second signature from another node:
+
+```bash
+# Node 2: Add signature from second owner
+cellframe-node-cli tx_sign \
+    -net mynetwork \
+    -chain main \
+    -tx 0xABC123... \
+    -certs owner_cert2
+# Returns NEW transaction hash: 0xDEF456... (hash changes after adding signature)
+# Now has 2 owner signatures (1 more needed)
+```
+
+**Step 3:** Add third signature to complete authorization:
+
+```bash
+# Node 3: Add signature from third owner
+cellframe-node-cli tx_sign \
+    -net mynetwork \
+    -chain main \
+    -tx 0xDEF456... \  # Use NEW hash from Step 2
+    -certs owner_cert3
+# Returns FINAL transaction hash: 0x789ABC...
+# Now has 3 owner signatures - sufficient for processing
+# Transaction will be automatically processed from mempool to ledger
+```
+
+**Important Notes:**
+- **`tx_sign` command restrictions:**
+  - Can **only** add signatures to **arbitrage transactions** (must have TSD marker)
+  - Certificates must belong to token owners (verified against `auth_pkeys`)
+  - Cannot sign regular (non-arbitrage) transactions
+- **Transaction hash changes** after each `tx_sign` operation:
+  - Old hash becomes invalid
+  - New hash must be used for subsequent operations
+  - Use the hash returned in `tx_sign` response for next signature
+- **Mempool behavior:**
+  - Transaction stays in mempool until sufficient signatures collected
+  - Returns `DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS` (not an error - expected behavior)
+  - Automatically processed once `auth_signs_valid` threshold is met
+- **Certificate files:**
+  - Certificates must be saved to files in the certificates directory
+  - CLI searches for `<cert_name>.dcert` files, not just in-memory certificates
+  - Default path: `/opt/cellframe-node/etc/certs/` (or as configured)
+
+**Mempool Behavior:**
+- Transactions with insufficient signatures (`DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS`) are **NOT** deleted from mempool
+- This allows distributed signing across multiple nodes
+- Transaction stays in mempool until it has enough signatures or is manually removed
+
+#### The `tx_sign` Command
+
+The `tx_sign` command allows adding signatures to existing arbitrage transactions in the mempool for distributed signing workflows.
+
+**Syntax:**
+```bash
+cellframe-node-cli tx_sign \
+    -net <network_name> \
+    -chain <chain_name> \
+    -tx <transaction_hash> \
+    -certs <cert1>[,<cert2>,...]
+```
+
+**Parameters:**
+- `-net`: Network name
+- `-chain`: Chain name  
+- `-tx`: Transaction hash (must be in mempool)
+- `-certs`: Comma-separated list of certificate names
+
+**Important Restrictions:**
+1. Can **ONLY** sign arbitrage transactions (must have `DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE` TSD marker)
+2. Certificates must belong to token owners (verified against token's `auth_pkeys`)
+3. Transaction must exist in mempool (not yet processed to ledger)
+4. Cannot sign regular (non-arbitrage) transactions
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "old_hash": "0xABC123...",
+  "new_hash": "0xDEF456...",
+  "signatures_added": 1,
+  "total_signatures": 3
+}
+```
+
+**Hash Change Behavior:**
+- Each `tx_sign` operation creates a **NEW** transaction with additional signature(s)
+- Old transaction hash becomes **INVALID**
+- New hash MUST be used for subsequent `tx_sign` operations
+- This is expected behavior for multi-signature transactions
+
+**Example Workflow:**
+
+```bash
+# Initial transaction (2 signatures: wallet + cert1)
+TX_HASH_1="0xABC123..."
+
+# Add second signature (now 3 signatures total)
+RESULT=$(cellframe-node-cli tx_sign -net Backbone -tx $TX_HASH_1 -certs owner_cert2)
+TX_HASH_2=$(echo $RESULT | jq -r '.new_hash')  # Extract new hash
+
+# Add third signature (now 4 signatures total)
+RESULT=$(cellframe-node-cli tx_sign -net Backbone -tx $TX_HASH_2 -certs owner_cert3)
+TX_HASH_FINAL=$(echo $RESULT | jq -r '.new_hash')
+
+# Transaction automatically processes to ledger once auth_signs_valid threshold is met
+```
+
+**Error Messages:**
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Transaction not found in mempool` | TX already processed or invalid hash | Verify hash is correct and TX is still in mempool |
+| `Transaction is not an arbitrage transaction` | Missing TSD marker | Can only sign arbitrage TX - use `-arbitrage` flag in `tx_create` |
+| `None of the provided certificates belong to token owners` | Certs not in `auth_pkeys` | Use certificates that were used to create the token |
+| `Arbitrage marker lost after adding signatures` | Internal error | Report bug - TSD marker should be preserved |
+
+**Testing Arbitrage with Multiple Signatures:**
+
+```bash
+# Step 1: Create token with multi-sig requirement
+cellframe-node-cli token_decl \
+    -net testnet \
+    -token MULTISIG \
+    -total_supply 100000.0 \
+    -signs_valid 3 \  # Require 3 signatures
+    -signs_total 3 \
+    -certs owner1,owner2,owner3
+
+# Step 2: Create arbitrage TX with insufficient signatures (distributed signing)
+# NOTE: Wallet must have both MULTISIG token and native token for fee
+cellframe-node-cli tx_create \
+    -net testnet \
+    -token MULTISIG \
+    -from_wallet arb_wallet \
+    -value 5000.0 \
+    -fee 0.000000000000000001 \
+    -arbitrage \
+    -certs owner1  # Only 1 owner cert (need 3 total)
+# Notice: "Add remaining 2 signatures via 'tx_sign' command"
+# Returns: hash1 (TX in mempool with 2 signatures: wallet + owner1)
+
+# Step 3: Add second owner signature
+cellframe-node-cli tx_sign \
+    -net testnet \
+    -chain main \
+    -tx <hash1> \
+    -certs owner2
+# Returns: hash2 (now 3 signatures: wallet + owner1 + owner2, still need 1 more)
+
+# Step 4: Add third owner signature
+cellframe-node-cli tx_sign \
+    -net testnet \
+    -chain main \
+    -tx <hash2> \
+    -certs owner3
+# Returns: hash3 (now 4 signatures: wallet + 3 owners)
+# TX automatically processes to ledger (auth_signs_valid=3 threshold met)
+```
 
 ### Example: Emergency UTXO Recovery
 
@@ -680,16 +915,16 @@ cellframe-node-cli tx_create \
 cellframe-node-cli net get -net Backbone fee_addr
 # Output: mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789  (network fee address)
 
-# Step 2: Create arbitrage transaction to network fee address
-# IMPORTANT: Arbitrage can ONLY send to net->pub.fee_addr
+# Step 2: Create arbitrage transaction
+# NOTE: Outputs automatically go to network fee address (net->pub.fee_addr)
 cellframe-node-cli tx_create \
     -net Backbone \
     -token LOCKED \
     -from_wallet owner_wallet \
-    -to mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789 \  # MUST be network fee address
     -value 10000.0 \
     -arbitrage \
     -certs token_owner
+# No -to_addr needed - CLI automatically uses mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789
 
 # Step 3: Verify transaction was created
 cellframe-node-cli tx_history -net Backbone -addr mAbCdEfGhIjKlMnOpQrStUvWxYz0123456789
@@ -705,58 +940,31 @@ cellframe-node-cli tx_create \
 
 ### Best Practices
 
-1. **Network Fee Address** - Ensure network fee address (`net->pub.fee_addr`) is properly configured and secured
-2. **Use Multi-Sig** - Set `auth_signs_valid` > 1 to require multiple owner signatures
-3. **Document Usage** - Maintain audit trail of all arbitrage transactions
-4. **Consider Disabling** - For fully decentralized tokens, set `UTXO_ARBITRAGE_TX_DISABLED`
-5. **Test Before Production** - Test arbitrage on testnet before using on mainnet
+1. **Network Fee Address** - Ensure network fee address is configured before using arbitrage
+2. **Multi-Signature** - Set `auth_signs_valid` > 1 to require multiple owner signatures
+3. **Documentation** - Maintain audit trail of all arbitrage transactions
+4. **Testing** - Test arbitrage on testnet before using on mainnet
 
 ### Security Considerations
 
 **For Token Owners:**
-- Arbitrage is a powerful tool - use responsibly
-- Consider setting up multi-signature requirement
-- Document all arbitrage usage for transparency
-- Consider disabling if not needed
-- **CRITICAL:** All arbitrage funds go to network fee address - coordinate with network operators
+- Use multi-signature requirements when possible
+- Document all arbitrage transactions
+- All arbitrage funds go to network fee address - coordinate with network operators
 
 **For Token Holders:**
 - Check if token has `UTXO_ARBITRAGE_TX_DISABLED` set
-- Verify network fee address (`net->pub.fee_addr`) is legitimate and properly managed
-- Monitor `auth_signs_valid` - higher is more secure
-- **Note:** Arbitrage does NOT use `tx_recv_allow` - funds go to network fee address only
-- Understand that token owners can recover funds via arbitrage
+- Verify network fee address is configured correctly
+- Arbitrage does not use `tx_recv_allow` - funds go to network fee address only
 
-### Technical Implementation
-
-Arbitrage transactions are identified by `TX_ITEM_TYPE_TSD` with type `0x00A1`:
-
-```c
-// C API example (from dap_chain_node_cli_cmd.c)
-dap_chain_tx_tsd_t *l_tsd_arbitrage = dap_chain_datum_tx_item_tsd_create(
-    NULL, 
-    DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE,  // 0x00A1
-    0  // No payload needed
-);
-```
-
-Validation is performed in `s_ledger_tx_check_arbitrage_auth()` (dap_chain_ledger.c:7049).
-
----
-
-## Related Documentation
-
-- [DAP SDK Coding Standards](../.context/modules/standards/dap_sdk_coding_standards.json)
-- [Cellframe SDK Project Structure](../.context/modules/projects/cellframe_sdk.json)
-- [dap_chain_datum_token.h](modules/common/include/dap_chain_datum_token.h) - Token flags and TSD types
-- [dap_chain_ledger.c](modules/net/dap_chain_ledger.c) - UTXO blocking and arbitrage implementation
-- [dap_chain_datum_tx_tsd.h](modules/common/include/dap_chain_datum_tx_tsd.h) - TX TSD types including arbitrage
-
----
 
 ## Conclusion
 
-The UTXO blocking mechanism, combined with arbitrage transactions, provides powerful, fine-grained control over token transactions. By combining UTXO blocking with address-based restrictions, temporal semantics (delayed activation/unblocking), and emergency recovery via arbitrage, token issuers can implement complex compliance, security, and business logic requirements.
+The UTXO blocking mechanism, combined with arbitrage transactions, provides fine-grained control over token transactions. Token issuers can implement compliance, security, and business logic requirements by combining:
+- UTXO blocking
+- Address-based restrictions
+- Temporal semantics (delayed activation/unblocking)
+- Emergency recovery via arbitrage
 
-For additional support, consult the inline doxygen documentation or contact the Cellframe development team.
+For additional support, contact the Cellframe development team.
 

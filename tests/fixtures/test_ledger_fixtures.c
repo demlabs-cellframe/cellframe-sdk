@@ -9,6 +9,11 @@
 #include "dap_chain.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_tx.h"
+#include "dap_chain_node.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_arbitrage.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_global_db_cluster.h"
@@ -135,9 +140,42 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
         l_fixture->chain_main_datum_types = NULL; // Array already exists, not ours
     }
     
-    // Create consensus for master chain (ESBOCS auto-selected by DAP_LEDGER_TEST for chain_id!=0)
-    if (dap_chain_cs_create(l_fixture->chain_main, NULL) != 0) {
-        log_it(L_ERROR, "Failed to create consensus for master chain");
+    // Set autoproc_datum_types to enable automatic mempool processing
+    // This is normally set from config file "mempool_auto_types", but we set it manually for tests
+    // Include token, emission, and transaction types for automatic processing
+    static uint16_t s_chain_main_autoproc_datum_types[3] = {
+        DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX
+    };
+    if (!l_fixture->chain_main->autoproc_datum_types) {
+        l_fixture->chain_main->autoproc_datum_types = s_chain_main_autoproc_datum_types;
+        l_fixture->chain_main->autoproc_datum_types_count = 3;
+        log_it(L_DEBUG, "Set autoproc_datum_types for chain_main to enable automatic mempool processing");
+    }
+    
+    // Create 'none' consensus for master chain
+    // Use 'none' consensus for tests - datums are added directly to ledger without block accumulation
+    // This allows immediate emission processing without waiting for block publication
+    log_it(L_NOTICE, "Creating 'none' consensus for test chain (datums processed immediately)");
+    
+    // Create temporary config with consensus="none"
+    // This will override DAP_LEDGER_TEST logic that defaults to "esbocs"
+    char l_temp_cfg_path[256];
+    snprintf(l_temp_cfg_path, sizeof(l_temp_cfg_path), "/tmp/test_none_consensus_%s.cfg", a_net_name);
+    FILE *l_temp_cfg_file = fopen(l_temp_cfg_path, "w");
+    if (l_temp_cfg_file) {
+        fprintf(l_temp_cfg_file, "[chain]\nconsensus=none\n");
+        fclose(l_temp_cfg_file);
+    }
+    
+    dap_config_t *l_temp_cfg = dap_config_open(l_temp_cfg_path);
+    int l_none_create_res = dap_chain_cs_create(l_fixture->chain_main, l_temp_cfg);
+    
+    if (l_temp_cfg) {
+        dap_config_close(l_temp_cfg);
+    }
+    unlink(l_temp_cfg_path);
+    if (l_none_create_res != 0) {
+        log_it(L_ERROR, "Failed to create 'none' consensus for master chain (result: %d)", l_none_create_res);
         // Clear datum_types pointer (it points to static storage, shouldn't be freed)
         l_fixture->chain_main->datum_types = NULL;
         l_fixture->chain_main->datum_types_count = 0;
@@ -149,6 +187,7 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
         DAP_DELETE(l_fixture);
         return NULL;
     }
+    log_it(L_INFO, "'none' consensus created successfully, callback_add_datums: %p", (void*)l_fixture->chain_main->callback_add_datums);
     
     // Add master chain to network
     DL_APPEND(l_fixture->net->pub.chains, l_fixture->chain_main);
@@ -199,10 +238,13 @@ void test_net_fixture_destroy(test_net_fixture_t *a_fixture)
     // Remove chains from network and delete them
     if (a_fixture->chain_main) {
         DL_DELETE(a_fixture->net->pub.chains, a_fixture->chain_main);
-        // Clear datum_types pointer before deletion - it points to static storage
-        // dap_chain_delete will try to free it via DAP_DEL_MULTY, but static storage shouldn't be freed
+        // Clear datum_types and autoproc_datum_types pointers before deletion
+        // They point to static storage, and dap_chain_delete will try to free them via DAP_DEL_MULTY
+        // but static storage shouldn't be freed
         a_fixture->chain_main->datum_types = NULL;
         a_fixture->chain_main->datum_types_count = 0;
+        a_fixture->chain_main->autoproc_datum_types = NULL;
+        a_fixture->chain_main->autoproc_datum_types_count = 0;
         dap_chain_delete(a_fixture->chain_main);
         a_fixture->chain_main = NULL;
         a_fixture->chain_main_datum_types = NULL; // Clear reference
@@ -270,10 +312,14 @@ bool test_json_rpc_parse_error(json_object *a_json_response, test_json_rpc_error
                             json_object *l_code = NULL, *l_message = NULL;
                             if (json_object_object_get_ex(l_error_obj, "code", &l_code) &&
                                 json_object_object_get_ex(l_error_obj, "message", &l_message)) {
-                                a_error->has_error = true;
-                                a_error->error_code = json_object_get_int(l_code);
-                                a_error->error_msg = json_object_get_string(l_message);
-                                return true;
+                                int l_error_code = json_object_get_int(l_code);
+                                // Code 0 means success (informational message), not an error
+                                if (l_error_code != 0) {
+                                    a_error->has_error = true;
+                                    a_error->error_code = l_error_code;
+                                    a_error->error_msg = json_object_get_string(l_message);
+                                    return true;
+                                }
                             }
                         }
                     }
@@ -288,10 +334,14 @@ bool test_json_rpc_parse_error(json_object *a_json_response, test_json_rpc_error
         json_object *l_code = NULL, *l_message = NULL;
         if (json_object_object_get_ex(l_error_top, "code", &l_code) &&
             json_object_object_get_ex(l_error_top, "message", &l_message)) {
-            a_error->has_error = true;
-            a_error->error_code = json_object_get_int(l_code);
-            a_error->error_msg = json_object_get_string(l_message);
-            return true;
+            int l_error_code = json_object_get_int(l_code);
+            // Code 0 means success (informational message), not an error
+            if (l_error_code != 0) {
+                a_error->has_error = true;
+                a_error->error_code = l_error_code;
+                a_error->error_msg = json_object_get_string(l_message);
+                return true;
+            }
         }
     }
     
@@ -311,6 +361,10 @@ int test_env_init(const char *a_config_dir, const char *a_global_db_path)
         log_it(L_DEBUG, "Test environment already initialized, skipping");
         return 0;
     }
+    
+    // Initialize logging output to stderr for fixtures (tests redirect stdout)
+    // Note: Tests already set LOGGER_OUTPUT_STDERR in main(), but we ensure it's set here too
+    dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
     
     log_it(L_NOTICE, "Initializing test environment...");
     
@@ -442,18 +496,64 @@ int test_env_init(const char *a_config_dir, const char *a_global_db_path)
     
     // Step 3: Initialize global DB (needed for mempool/datum pool)
     if (!s_global_db_initialized && g_config) {
-        // Ensure global_db section exists in config with path
-        // If a_global_db_path is provided, we need to add it to config
-        // For now, we rely on config file having [global_db] section with path option
-        // The config should be set up by the caller before calling test_env_init()
+        // Ensure global_db section exists in config with path and driver
+        // Config should have [global_db] section with driver and path options
+        // If driver is not specified in config, dap_global_db_init() will use default "mdbx"
+        
+        // Get path from config or use parameter
+        const char *l_gdb_path = dap_config_get_item_path(g_config, "global_db", "path");
+        const char *l_final_path = l_gdb_path ? l_gdb_path : a_global_db_path;
+        
+        if (l_final_path) {
+            // Create directory for GlobalDB if it doesn't exist
+            dap_mkdir_with_parents(l_final_path);
+            log_it(L_DEBUG, "Ensured GlobalDB directory exists: %s", l_final_path);
+        }
+        
+        // Verify driver is specified (should be in config file)
+        const char *l_driver_name = dap_config_get_item_str(g_config, "global_db", "driver");
+        if (l_driver_name) {
+            log_it(L_DEBUG, "GlobalDB driver from config: %s", l_driver_name);
+        } else {
+            log_it(L_DEBUG, "GlobalDB driver not specified in config, will use default 'mdbx'");
+        }
         
         int l_gdb_init_res = dap_global_db_init();
         if (l_gdb_init_res != 0) {
-            log_it(L_WARNING, "Global DB initialization failed (code %d) - mempool operations may fail", l_gdb_init_res);
-            // Don't fail - some tests may work without global DB
+            log_it(L_ERROR, "Global DB initialization failed (code %d)", l_gdb_init_res);
+            log_it(L_ERROR, "Available GlobalDB drivers:");
+#ifdef DAP_CHAIN_GDB_ENGINE_SQLITE
+            log_it(L_ERROR, "  - sqlite (available)");
+#else
+            log_it(L_ERROR, "  - sqlite (NOT compiled)");
+#endif
+#ifdef DAP_CHAIN_GDB_ENGINE_MDBX
+            log_it(L_ERROR, "  - mdbx (available)");
+#else
+            log_it(L_ERROR, "  - mdbx (NOT compiled)");
+#endif
+#ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
+            log_it(L_ERROR, "  - pgsql (available)");
+#else
+            log_it(L_ERROR, "  - pgsql (NOT compiled)");
+#endif
+            log_it(L_ERROR, "To enable a driver, rebuild with: -DBUILD_WITH_GDB_DRIVER_SQLITE=ON (or MDBX/PGSQL)");
+            log_it(L_ERROR, "Mempool operations require GlobalDB - test initialization failed");
+            // This is critical for mempool operations - fail initialization
+            return -6;
         } else {
             s_global_db_initialized = true;
-            log_it(L_DEBUG, "Global DB initialized successfully");
+            log_it(L_INFO, "Global DB initialized successfully");
+            
+            // Verify instance is available
+            dap_global_db_instance_t *l_dbi = dap_global_db_instance_get_default();
+            if (!l_dbi) {
+                log_it(L_ERROR, "GlobalDB instance not available after initialization");
+                return -7;
+            }
+            log_it(L_DEBUG, "GlobalDB instance verified: driver=%s, path=%s", 
+                   l_dbi->driver_name ? l_dbi->driver_name : "NULL",
+                   l_dbi->storage_path ? l_dbi->storage_path : "NULL");
         }
     }
     
@@ -486,4 +586,230 @@ void test_env_deinit(void)
     
     s_test_env_initialized = false;
     log_it(L_DEBUG, "Test environment deinitialized");
+}
+
+/**
+ * @brief Wait for transaction to be processed from mempool to ledger
+ * @note This function always processes mempool and waits for transaction to appear in ledger
+ * @note Returns transaction from ledger only (persistent pointer, no need to free)
+ */
+dap_chain_datum_tx_t *test_wait_tx_mempool_to_ledger(
+    test_net_fixture_t *a_fixture,
+    dap_chain_hash_fast_t *a_tx_hash,
+    int a_max_attempts,
+    int a_delay_ms,
+    bool a_process_mempool)
+{
+    if (!a_fixture || !a_tx_hash) {
+        log_it(L_ERROR, "Invalid parameters");
+        return NULL;
+    }
+    
+    // Default values
+    if (a_max_attempts <= 0) {
+        a_max_attempts = 5;
+    }
+    if (a_delay_ms <= 0) {
+        a_delay_ms = 200;
+    }
+    
+    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(a_tx_hash, l_hash_str, sizeof(l_hash_str));
+    
+    log_it(L_DEBUG, "Waiting for TX %s to be processed from mempool to ledger (max_attempts=%d, delay_ms=%d)",
+           l_hash_str, a_max_attempts, a_delay_ms);
+    
+    dap_chain_datum_tx_t *l_tx = NULL;
+    
+    for (int l_attempt = 0; l_attempt < a_max_attempts; l_attempt++) {
+        // Force mempool processing if requested
+        if (a_process_mempool && a_fixture->chain_main) {
+            dap_chain_node_mempool_process_all(a_fixture->chain_main, true);
+        }
+        
+        // First try to find in ledger (if already processed)
+        l_tx = dap_ledger_tx_find_by_hash(a_fixture->ledger, a_tx_hash);
+        if (l_tx) {
+            log_it(L_INFO, "✓ TX %s found in ledger after %d attempt(s)", l_hash_str, l_attempt + 1);
+            return l_tx;
+        }
+        
+        // Try network search (searches both ledger and mempool)
+        // This might return mempool transaction, but we want ledger transaction
+        l_tx = dap_chain_net_get_tx_by_hash(a_fixture->net, a_tx_hash, TX_SEARCH_TYPE_NET);
+        if (l_tx) {
+            // Double-check it's actually in ledger (not just mempool)
+            dap_chain_datum_tx_t *l_tx_ledger = dap_ledger_tx_find_by_hash(a_fixture->ledger, a_tx_hash);
+            if (l_tx_ledger) {
+                log_it(L_INFO, "✓ TX %s found in ledger via network search after %d attempt(s)", 
+                       l_hash_str, l_attempt + 1);
+                return l_tx_ledger;
+            }
+            // Transaction found in mempool but not yet in ledger - continue waiting
+            log_it(L_DEBUG, "TX %s found in mempool but not yet in ledger, continuing wait...", l_hash_str);
+        }
+        
+        // Check mempool directly to see if transaction exists there
+        // For TX datums, recalculate hash to handle multi-sig updates
+        bool l_in_mempool = false;
+        dap_chain_hash_fast_t l_actual_tx_hash = *a_tx_hash;
+        
+        if (a_fixture->chain_main) {
+            char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_fixture->chain_main);
+            if (l_gdb_group_mempool) {
+                size_t l_datum_size = 0;
+                dap_chain_datum_t *l_tx_datum_mempool = (dap_chain_datum_t *)dap_global_db_get_sync(
+                    l_gdb_group_mempool, l_hash_str, &l_datum_size, NULL, NULL);
+                
+                // If TX found in mempool, recalculate hash (multi-sig may have changed it)
+                if (l_tx_datum_mempool && l_datum_size >= sizeof(dap_chain_datum_t) && 
+                    l_tx_datum_mempool->header.type_id == DAP_CHAIN_DATUM_TX) {
+                    dap_chain_datum_calc_hash(l_tx_datum_mempool, &l_actual_tx_hash);
+                    char l_actual_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_chain_hash_fast_to_str(&l_actual_tx_hash, l_actual_hash_str, sizeof(l_actual_hash_str));
+                    
+                    if (!dap_hash_fast_compare(a_tx_hash, &l_actual_tx_hash)) {
+                        log_it(L_DEBUG, "TX hash updated: old=%s, new=%s (multi-sig collection)", 
+                               l_hash_str, l_actual_hash_str);
+                        
+                        // Try finding with new hash
+                        dap_chain_datum_tx_t *l_tx_new = dap_ledger_tx_find_by_hash(a_fixture->ledger, &l_actual_tx_hash);
+                        if (l_tx_new) {
+                            log_it(L_INFO, "✓ TX found in ledger by recalculated hash after %d attempt(s)", l_attempt + 1);
+                            DAP_DELETE(l_tx_datum_mempool);
+                            DAP_DELETE(l_gdb_group_mempool);
+                            return l_tx_new;
+                        }
+                    }
+                }
+                
+                if (l_tx_datum_mempool && l_datum_size >= sizeof(dap_chain_datum_t) && 
+                    l_tx_datum_mempool->header.type_id == DAP_CHAIN_DATUM_TX) {
+                    l_in_mempool = true;
+                    dap_chain_datum_tx_t *l_tx_mempool = (dap_chain_datum_tx_t *)l_tx_datum_mempool->data;
+                    bool l_is_arbitrage = dap_chain_arbitrage_tx_is_arbitrage(l_tx_mempool);
+                    log_it(L_DEBUG, "TX %s found in mempool (attempt %d/%d), is_arbitrage=%d, waiting for processing...", 
+                           l_hash_str, l_attempt + 1, a_max_attempts, l_is_arbitrage);
+                    if (!l_is_arbitrage) {
+                        log_it(L_WARNING, "TX %s in mempool but NOT recognized as arbitrage - TSD marker may be missing!", l_hash_str);
+                    }
+                }
+                
+                if (l_tx_datum_mempool) {
+                    DAP_DELETE(l_tx_datum_mempool);
+                }
+                DAP_DELETE(l_gdb_group_mempool);
+            }
+        }
+        
+        // If transaction is not in mempool and not in ledger, it might not exist
+        if (!l_in_mempool && !l_tx) {
+            log_it(L_DEBUG, "TX %s not found in mempool or ledger (attempt %d/%d)", 
+                   l_hash_str, l_attempt + 1, a_max_attempts);
+        }
+        
+        // Wait before next attempt (except on last attempt)
+        if (l_attempt < a_max_attempts - 1) {
+            dap_usleep(a_delay_ms * 1000); // Convert ms to microseconds
+        }
+    }
+    
+    log_it(L_WARNING, "✗ TX %s not found in ledger after %d attempt(s)", l_hash_str, a_max_attempts);
+    return NULL;
+}
+
+/**
+ * @brief Wait for any datum to be processed from mempool to ledger
+ * @note This function processes mempool and waits for datum to appear in ledger
+ * @note Returns datum from ledger only (persistent pointer, no need to free)
+ */
+dap_chain_datum_t *test_wait_datum_mempool_to_ledger(
+    test_net_fixture_t *a_fixture,
+    dap_chain_hash_fast_t *a_datum_hash,
+    int a_max_attempts,
+    int a_delay_ms,
+    bool a_process_mempool)
+{
+    if (!a_fixture || !a_datum_hash) {
+        log_it(L_ERROR, "Invalid parameters");
+        return NULL;
+    }
+    
+    // Default values
+    if (a_max_attempts <= 0) {
+        a_max_attempts = 5;
+    }
+    if (a_delay_ms <= 0) {
+        a_delay_ms = 200;
+    }
+    
+    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(a_datum_hash, l_hash_str, sizeof(l_hash_str));
+    
+    log_it(L_DEBUG, "Waiting for datum %s to be processed from mempool to ledger (max_attempts=%d, delay_ms=%d)",
+           l_hash_str, a_max_attempts, a_delay_ms);
+    
+    dap_chain_datum_t *l_datum = NULL;
+    
+    for (int l_attempt = 0; l_attempt < a_max_attempts; l_attempt++) {
+        // Force mempool processing if requested
+        if (a_process_mempool && a_fixture->chain_main) {
+            dap_chain_node_mempool_process_all(a_fixture->chain_main, true);
+        }
+        
+        // Try to find in ledger using chain callback (works for any datum type)
+        if (a_fixture->chain_main && a_fixture->chain_main->callback_datum_find_by_hash) {
+            dap_hash_fast_t l_atom_hash = {0};
+            int l_ret_code = 0;
+            l_datum = a_fixture->chain_main->callback_datum_find_by_hash(
+                a_fixture->chain_main, a_datum_hash, &l_atom_hash, &l_ret_code);
+            
+            if (l_datum) {
+                log_it(L_INFO, "✓ Datum %s found in ledger after %d attempt(s)", l_hash_str, l_attempt + 1);
+                return l_datum;
+            } else {
+                log_it(L_DEBUG, "Datum %s not found via callback_datum_find_by_hash (attempt %d/%d), ret_code=%d", 
+                       l_hash_str, l_attempt + 1, a_max_attempts, l_ret_code);
+            }
+        } else {
+            log_it(L_DEBUG, "callback_datum_find_by_hash not available for chain %s", 
+                   a_fixture->chain_main ? a_fixture->chain_main->name : "NULL");
+        }
+        
+        // Check mempool directly to see if datum exists there
+        bool l_in_mempool = false;
+        if (a_fixture->chain_main) {
+            char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_fixture->chain_main);
+            if (l_gdb_group_mempool) {
+                size_t l_datum_size = 0;
+                dap_chain_datum_t *l_datum_mempool = (dap_chain_datum_t *)dap_global_db_get_sync(
+                    l_gdb_group_mempool, l_hash_str, &l_datum_size, NULL, NULL);
+                
+                if (l_datum_mempool && l_datum_size >= sizeof(dap_chain_datum_t)) {
+                    l_in_mempool = true;
+                    log_it(L_DEBUG, "Datum %s found in mempool (attempt %d/%d), type_id=%u, waiting for processing...", 
+                           l_hash_str, l_attempt + 1, a_max_attempts, l_datum_mempool->header.type_id);
+                }
+                
+                if (l_datum_mempool) {
+                    DAP_DELETE(l_datum_mempool);
+                }
+                DAP_DELETE(l_gdb_group_mempool);
+            }
+        }
+        
+        // If datum is not in mempool and not in ledger, it might not exist
+        if (!l_in_mempool && !l_datum) {
+            log_it(L_DEBUG, "Datum %s not found in mempool or ledger (attempt %d/%d)", 
+                   l_hash_str, l_attempt + 1, a_max_attempts);
+        }
+        
+        // Wait before next attempt (except on last attempt)
+        if (l_attempt < a_max_attempts - 1) {
+            dap_usleep(a_delay_ms * 1000); // Convert ms to microseconds
+        }
+    }
+    
+    log_it(L_WARNING, "✗ Datum %s not found in ledger after %d attempt(s)", l_hash_str, a_max_attempts);
+    return NULL;
 }

@@ -1483,7 +1483,9 @@ static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_h
 {
     size_t l_tx_hashes_count = 0;
     size_t l_shared_hashes_size = 0;
-    const char *l_pkey_hash_str = dap_hash_fast_to_str_new(a_pkey_hash);
+    const char *l_pkey_hash_str_const = dap_hash_fast_to_str_new(a_pkey_hash);
+    char *l_pkey_hash_str = dap_strdup(l_pkey_hash_str_const);
+    DAP_DEL_Z(l_pkey_hash_str_const);
     hold_tx_hashes_t *l_shared_hashes = (hold_tx_hashes_t *)dap_global_db_get_sync(a_group, l_pkey_hash_str, &l_shared_hashes_size, 0, false);
     if (!l_shared_hashes) {
         l_shared_hashes_size = sizeof(hold_tx_hashes_t) + sizeof(hold_tx_hash_item_t);

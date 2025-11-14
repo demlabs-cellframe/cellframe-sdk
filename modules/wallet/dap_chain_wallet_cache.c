@@ -581,12 +581,22 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
             SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
         } 
     }
-    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
 
     *a_outs_list = l_list_used_out;
     if (a_value_transfer)
         *a_value_transfer = l_value_transfer;
-   
+
+    // CRITICAL FIX: Check if cache was actually loaded
+    // If wallet_txs is NULL, cache was never populated - trigger fallback to ledger
+    // If wallet_txs exists but unspent_outputs is empty, wallet is genuinely empty - return success
+    if (!l_list_used_out && !l_wallet_item->wallet_txs) {
+        debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] Cache not loaded for %s (wallet_txs=NULL), falling back to ledger",
+                 dap_chain_addr_to_str_static(a_addr));
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        return -101;  // Return error to trigger fallback to ledger
+    }
+
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
     return 0;
 }
 
@@ -698,6 +708,17 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
             break;
         }
     }
+
+    // CRITICAL FIX: Check if cache was actually loaded
+    // If wallet_txs is NULL, cache was never populated - trigger fallback to ledger
+    // If wallet_txs exists but unspent_outputs is empty, wallet is genuinely empty - return success
+    if (!l_list_used_out && !l_wallet_item->wallet_txs) {
+        debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] Cache not loaded for %s (wallet_txs=NULL), falling back to ledger",
+                 dap_chain_addr_to_str_static(a_addr));
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        return -101;  // Return error to trigger fallback to ledger
+    }
+
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
 
     if (compare256(l_value_transfer, a_value_need) >= 0 && l_list_used_out){

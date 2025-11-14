@@ -15,7 +15,7 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_poa.h"
-#include "dap_chain_cs_esbocs.h"
+#include "dap_chain_cs_none.h"
 #include "dap_chain_ledger.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
@@ -40,9 +40,12 @@ static void s_setup(void)
     mkdir(l_config_dir, 0755);
     
     const char *l_config_content = 
+        "[general]\n"
+        "debug=true\n"
         "[ledger]\n"
         "debug_more=true\n"
         "[global_db]\n"
+        "driver=mdbx\n"
         "path=/tmp/intg_test_gdb\n"
         "debug_more=false\n"
         "[resources]\n"
@@ -66,10 +69,10 @@ static void s_setup(void)
     // Step 3: Initialize ledger (reads debug_more from config)
     dap_ledger_init();
     
-    // Step 4: Initialize consensus modules
+    // Step 4: Initialize consensus modules (using 'none' consensus in fixtures)
     dap_chain_cs_dag_init();
     dap_chain_cs_dag_poa_init();
-    dap_chain_cs_esbocs_init();
+    dap_nonconsensus_init(); // Required for 'none' consensus
     
     // Step 5: Create test network
     s_net_fixture = test_net_fixture_create("intg_test_net");
