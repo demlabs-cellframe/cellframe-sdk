@@ -27,7 +27,7 @@ tests:amd64.gcc:
     before_script: /opt/buildtools/prepare_environment.sh amd64-linux
     script:
       - mkdir build
-      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --output-on-failure --verbose
+      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && (ctest --output-on-failure --verbose || (echo "=== RUNNING FAILED UTXO TESTS DIRECTLY ===" && ./tests/integration/utxo_blocking_integration_test 2>&1 | head -200 && echo "=== SECOND TEST ===" && ./tests/integration/utxo_blocking_cli_integration_test 2>&1 | head -200 && exit 1))
 
 
 tests:amd64.clang:
