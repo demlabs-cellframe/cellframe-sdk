@@ -286,7 +286,7 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange tx_list -net <net_name> [-time_from <From_time>] [-time_to <To_time>]"
         "{[-addr <wallet_addr>] | [-status {inactive|active|all}] [-limit <limit>] [-offset <offset>] [-head]} [-full] [-h]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions with pagination support\n"
-        "\tTime can be specified in RFC822 format (e.g., \"7 Dec 2023 21:18:04\") or simplified format (e.g., \"2023-12-07\")\n"
+        "\tTime can be specified in RFC822 format (e.g., \"15 Mar 2023 14:43:18 +0700\") or simplified format YYMMDD (e.g., \"231207\")\n"
         "\t-limit <limit>: Maximum number of transactions to display (default: 1000)\n"
         "\t-offset <offset>: Number of transactions to skip from the beginning (default: 0)\n"
         "\t-head: Display transactions from newest to oldest (default: oldest to newest)\n"
@@ -299,7 +299,7 @@ int dap_chain_net_srv_xchange_init()
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
     "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] [-limit <limit>] [-offset <offset>] [-h]\n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
-        "\tTime can be specified in RFC822 format (e.g., \"7 Dec 2023 21:18:04\") or simplified format (e.g., \"2023-12-07\")\n"
+        "\tTime can be specified in RFC822 format (e.g., \"15 Mar 2023 14:43:18 +0700\") or simplified format YYMMDD (e.g., \"231207\")\n"
 
     "srv_xchange enable\n"
          "\tEnable eXchange service\n"
@@ -2500,7 +2500,7 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
     if(!l_from_wallet_cache){  
         dap_chain_datum_tx_t *l_datum_tx = NULL;
         for (l_tx_total = 0;
-                (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_hash_curr, false));
+                (l_datum_tx = dap_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_hash_curr, false, !a_head));
                     l_tx_total++)
         {
             /* Check time range (if need ) */
