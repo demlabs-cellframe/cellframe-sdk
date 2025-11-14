@@ -100,6 +100,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_net_fee_addr);
     size_t l_sign_items_total = 0;
     dap_hash_fast_t l_in_cond_hash = {};
+    bool l_in_cond_hash_found = false;
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         switch (*l_item) {
@@ -158,9 +159,10 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         }
 
         case TX_ITEM_TYPE_IN_COND: {
-            if (dap_chain_datum_tx_item_get_tsd_by_type(a_tx_in, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF)) {
+            if (!l_in_cond_hash_found && dap_chain_datum_tx_item_get_tsd_by_type(a_tx_in, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF)) {
                 dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
                 l_in_cond_hash = l_in_cond->header.tx_prev_hash;
+                l_in_cond_hash_found = true;
             }
             break;
         }
@@ -210,13 +212,23 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
 
     log_it(L_MSG, "l_in_cond_hash: %s", dap_hash_fast_to_str_static(&l_in_cond_hash));
     log_it(L_MSG, "l_sign_items_total: %zu", l_sign_items_total);
-    if (l_sign_items_total > 1 && !dap_hash_fast_is_blank(&l_in_cond_hash)) {
-        char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_ledger->net, CHAIN_TYPE_TX);
-        log_it(L_MSG, "Delete previous shared funds tx from mempool group %s with hash %s", l_mempool_group, dap_hash_fast_to_str_static(&l_in_cond_hash));
-        int ret = dap_global_db_del_sync(l_mempool_group, dap_hash_fast_to_str_static(&l_in_cond_hash));
-        if (ret != 0) {
-            log_it(L_WARNING, "Can't delete previous shared funds tx from mempool: %s", dap_hash_fast_to_str_static(&l_in_cond_hash));
+    if (a_check_for_apply &&l_sign_items_total > 1 && l_in_cond_hash_found) {
+        log_it(L_MSG, "Remove previous shared funds tx from mempool");
+        char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_ledger->net);
+        json_object *l_jarray_remove_txs = json_object_new_array();
+        int l_tx_count = dap_chain_shared_tx_find_in_mempool(a_ledger->net, &l_in_cond_hash, l_jarray_remove_txs);
+        for (int i = 0; i < l_tx_count; i++) {
+            json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
+            char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
+            log_it(L_MSG, "Remove previous shared funds tx from mempool: %s", l_tx_hash_str);
+            if (!dap_global_db_del_sync(l_mempool_group, l_tx_hash_str)) {
+                log_it(L_ERROR, "Can't remove previous shared funds tx from mempool: %s", l_tx_hash_str);
+                DAP_DELETE(l_tx_hash_str);
+                return -12;
+            }
+            DAP_DELETE(l_tx_hash_str);
         }
+        json_object_put(l_jarray_remove_txs);
         DAP_DELETE(l_mempool_group);
     }
 
@@ -1175,6 +1187,50 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, json_object **
     return DAP_NO_ERROR;
 }
 
+int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a_final_tx_hash, json_object *a_jobj_waiting_operations_hashes) {
+    int l_waiting_operations_count = 0;
+    char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    size_t l_objs_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
+    DAP_DELETE(l_mempool_group);
+
+    for (size_t i = 0; i < l_objs_count; ++i) {
+        if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
+            continue;
+            
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+            continue;
+            
+        dap_chain_datum_tx_t *l_tx_mempool = (dap_chain_datum_tx_t *)l_datum->data;
+        bool l_found_matching_input = false;
+        
+        // Check if transaction has conditional input referencing our output
+        byte_t *l_item; 
+        size_t l_item_size;
+        TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
+            if (*l_item == TX_ITEM_TYPE_IN_COND) {
+                dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
+                if (
+                    dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, a_final_tx_hash) &&
+                    dap_chain_datum_tx_item_get_tsd_by_type(l_tx_mempool, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF)
+                ) {
+                    l_found_matching_input = true;
+                    break;
+                }
+            }
+        }
+        
+        if (l_found_matching_input) {
+            dap_hash_fast_t l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx_mempool);
+            json_object_array_add(a_jobj_waiting_operations_hashes, json_object_new_string(dap_hash_fast_to_str_static(&l_tx_hash)));
+            ++l_waiting_operations_count;
+        }
+    }
+    dap_global_db_objs_delete(l_objs, l_objs_count);
+    return l_waiting_operations_count;
+}
+
 static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
     const char *l_tx_hash_str = NULL, *l_wallet_str = NULL;
@@ -1205,46 +1261,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     
     // Search for mempool transactions with conditional inputs referencing this output
     json_object *l_jobj_waiting_operations_hashes = json_object_new_array();
-    int l_waiting_operations_count = 0;
-    char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    size_t l_objs_count = 0;
-    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
-    DAP_DELETE(l_mempool_group);
-
-    for (size_t i = 0; i < l_objs_count; ++i) {
-        if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
-            continue;
-            
-        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
-            continue;
-            
-        dap_chain_datum_tx_t *l_tx_mempool = (dap_chain_datum_tx_t *)l_datum->data;
-        bool l_found_matching_input = false;
-        
-        // Check if transaction has conditional input referencing our output
-        byte_t *l_item; 
-        size_t l_item_size;
-        TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
-            if (*l_item == TX_ITEM_TYPE_IN_COND) {
-                dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
-                if (
-                    dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_final_tx_hash) &&
-                    dap_chain_datum_tx_item_get_tsd_by_type(l_tx_mempool, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF)
-                ) {
-                    l_found_matching_input = true;
-                    break;
-                }
-            }
-        }
-        
-        if (l_found_matching_input) {
-            dap_hash_fast_t l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx_mempool);
-            json_object_array_add(l_jobj_waiting_operations_hashes, json_object_new_string(dap_hash_fast_to_str_static(&l_tx_hash)));
-            ++l_waiting_operations_count;
-        }
-    }
-    dap_global_db_objs_delete(l_objs, l_objs_count);
+    int l_waiting_operations_count = dap_chain_shared_tx_find_in_mempool(a_chain, &l_final_tx_hash, l_jobj_waiting_operations_hashes);
     
     json_object *l_jobj_balance = json_object_new_object();
     json_object *l_jobj_token = json_object_new_object();
