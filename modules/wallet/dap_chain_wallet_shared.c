@@ -210,7 +210,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
 
     log_it(L_MSG, "l_in_cond_hash: %s", dap_hash_fast_to_str_static(&l_in_cond_hash));
     log_it(L_MSG, "l_sign_items_total: %zu", l_sign_items_total);
-    if (l_sign_items_total > 1 && dap_hash_fast_is_blank(&l_in_cond_hash)) {
+    if (l_sign_items_total > 1 && !dap_hash_fast_is_blank(&l_in_cond_hash)) {
         log_it(L_MSG, "Delete previous shared funds tx from mempool");
         char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_ledger->net, CHAIN_TYPE_TX);
         int ret = dap_global_db_del_sync(l_mempool_group, dap_hash_fast_to_str_static(&l_in_cond_hash));
