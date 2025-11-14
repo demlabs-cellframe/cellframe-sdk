@@ -214,19 +214,17 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     log_it(L_MSG, "l_sign_items_total: %zu", l_sign_items_total);
     if (a_check_for_apply &&l_sign_items_total > 1 && l_in_cond_hash_found) {
         log_it(L_MSG, "Remove previous shared funds tx from mempool");
-        char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_ledger->net);
+        char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_ledger->net->pub.chains);
         json_object *l_jarray_remove_txs = json_object_new_array();
-        int l_tx_count = dap_chain_shared_tx_find_in_mempool(a_ledger->net, &l_in_cond_hash, l_jarray_remove_txs);
+        int l_tx_count = dap_chain_shared_tx_find_in_mempool(a_ledger->net->pub.chains, &l_in_cond_hash, l_jarray_remove_txs);
         for (int i = 0; i < l_tx_count; i++) {
             json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
-            char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
+            const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
             log_it(L_MSG, "Remove previous shared funds tx from mempool: %s", l_tx_hash_str);
             if (!dap_global_db_del_sync(l_mempool_group, l_tx_hash_str)) {
                 log_it(L_ERROR, "Can't remove previous shared funds tx from mempool: %s", l_tx_hash_str);
-                DAP_DELETE(l_tx_hash_str);
                 return -12;
             }
-            DAP_DELETE(l_tx_hash_str);
         }
         json_object_put(l_jarray_remove_txs);
         DAP_DELETE(l_mempool_group);
