@@ -1436,8 +1436,10 @@ static int s_pos_delegate_purge(dap_chain_net_id_t a_net_id, void *a_service_int
         return -1;
     dap_ledger_t *l_ledger = l_net->pub.ledger;
     char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
-    dap_global_db_erase_table(l_gdb_group, NULL, NULL);
-    DAP_DELETE(l_gdb_group);
+    if (l_gdb_group) {
+        dap_global_db_erase_table(l_gdb_group, NULL, NULL);
+        DAP_DELETE(l_gdb_group);
+    }
     char *l_approved_group = s_get_approved_group(l_net);
     dap_global_db_erase_table_sync(l_approved_group);
     DAP_DELETE(l_approved_group);
@@ -2264,8 +2266,10 @@ void dap_chain_net_srv_stake_remove_approving_decree_info(dap_chain_net_t *a_net
 // func work
     char *l_delegated_group = s_get_approved_group(a_net); 
     const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_stake->tx_hash.hash);
-    dap_global_db_del(l_delegated_group, l_tx_hash_str, NULL, NULL);
-    DAP_DEL_Z(l_delegated_group);
+    if (l_delegated_group) {
+        dap_global_db_del(l_delegated_group, l_tx_hash_str, NULL, NULL);
+        DAP_DELETE(l_delegated_group);
+    }
 }
 
 char *s_validator_order_create(dap_chain_net_t *a_net, uint256_t a_value_min, uint256_t a_value_max, uint256_t a_tax,
