@@ -35,6 +35,11 @@ static void s_setup(void)
 {
     log_it(L_NOTICE, "=== UTXO Blocking Integration Tests Setup ===");
     
+    // Step 0: Clean up from previous runs (critical for CI where tests may not cleanup properly)
+    system("rm -rf /tmp/intg_test_gdb");
+    system("rm -rf /tmp/intg_test_certs");
+    system("rm -rf /tmp/intg_test_config");
+    
     // Step 1: Create minimal config for ledger debug
     const char *l_config_dir = "/tmp/intg_test_config";
     mkdir(l_config_dir, 0755);
