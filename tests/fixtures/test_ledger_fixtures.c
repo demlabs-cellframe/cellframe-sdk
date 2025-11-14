@@ -31,6 +31,7 @@
 static bool s_test_env_initialized = false;
 static bool s_global_db_initialized = false;
 static bool s_cert_system_initialized = false;
+static bool s_common_initialized = false; // Track common/events/proc_threads initialization
 
 test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
 {
@@ -370,7 +371,6 @@ int test_env_init(const char *a_config_dir, const char *a_global_db_path)
     
     // Step 0: Initialize common and events (needed for proc threads)
     // This must be done before dap_proc_thread_init
-    static bool s_common_initialized = false;
     if (!s_common_initialized) {
         // Initialize common (if not already done)
         if (dap_common_init("test", NULL) != 0) {
@@ -579,6 +579,19 @@ void test_env_deinit(void)
         dap_global_db_deinit();
         dap_global_db_driver_deinit();
         s_global_db_initialized = false;
+    }
+    
+    // Clean up events and proc threads (in reverse order of initialization)
+    // This is critical for CI environments where resource cleanup is strictly enforced
+    if (s_common_initialized) {
+        // Stop events first (if started)
+        dap_events_stop_all();
+        // Deinit events (this also deinits proc threads internally)
+        dap_events_deinit();
+        // Deinit common
+        dap_common_deinit();
+        s_common_initialized = false;
+        log_it(L_DEBUG, "Events and common deinitialized");
     }
     
     // Note: Cert system cleanup is handled by global infrastructure
