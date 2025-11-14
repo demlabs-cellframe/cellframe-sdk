@@ -34,13 +34,16 @@ test_net_fixture_t *s_net_fixture = NULL;
 static void s_setup(void)
 {
     log_it(L_NOTICE, "=== UTXO Blocking Integration Tests Setup ===");
+    log_it(L_NOTICE, "Step 0: Cleaning up from previous runs...");
     
     // Step 0: Clean up from previous runs (critical for CI where tests may not cleanup properly)
     system("rm -rf /tmp/intg_test_gdb");
     system("rm -rf /tmp/intg_test_certs");
     system("rm -rf /tmp/intg_test_config");
+    log_it(L_NOTICE, "Step 0: Complete");
     
     // Step 1: Create minimal config for ledger debug
+    log_it(L_NOTICE, "Step 1: Creating config...");
     const char *l_config_dir = "/tmp/intg_test_config";
     mkdir(l_config_dir, 0755);
     
@@ -66,23 +69,35 @@ static void s_setup(void)
     
     // Create certificate folder
     mkdir("/tmp/intg_test_certs", 0755);
+    log_it(L_NOTICE, "Step 1: Complete");
     
     // Step 2: Initialize test environment (config, certs, global DB, events, proc threads)
+    log_it(L_NOTICE, "Step 2: Initializing test environment...");
     int l_env_res = test_env_init(l_config_dir, "/tmp/intg_test_gdb");
+    if (l_env_res != 0) {
+        log_it(L_CRITICAL, "test_env_init failed with code %d - aborting", l_env_res);
+    }
     dap_assert(l_env_res == 0, "Test environment initialization");
+    log_it(L_NOTICE, "Step 2: Complete");
     
     // Step 3: Initialize ledger (reads debug_more from config)
+    log_it(L_NOTICE, "Step 3: Initializing ledger...");
     dap_ledger_init();
+    log_it(L_NOTICE, "Step 3: Complete");
     
     // Step 4: Initialize consensus modules (using 'none' consensus in fixtures)
+    log_it(L_NOTICE, "Step 4: Initializing consensus modules...");
     dap_chain_cs_dag_init();
     dap_chain_cs_dag_poa_init();
     dap_nonconsensus_init(); // Required for 'none' consensus
+    log_it(L_NOTICE, "Step 4: Complete");
     
     // Step 5: Create test network
+    log_it(L_NOTICE, "Step 5: Creating test network...");
     s_net_fixture = test_net_fixture_create("intg_test_net");
     dap_assert(s_net_fixture != NULL, "Network fixture initialization");
     dap_assert(s_net_fixture->ledger != NULL, "Ledger initialization");
+    log_it(L_NOTICE, "Step 5: Complete");
     
     log_it(L_NOTICE, "✓ Test environment initialized");
 }
