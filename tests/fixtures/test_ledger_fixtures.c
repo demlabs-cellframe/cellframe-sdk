@@ -574,18 +574,28 @@ void test_env_deinit(void)
     
     log_it(L_DEBUG, "Deinitializing test environment...");
     
-    // Clean up in reverse order of initialization
-    // NOTE: dap_global_db_deinit() already calls dap_global_db_driver_deinit() internally,
-    // so we must NOT call driver_deinit separately (would be double-free)
+    // CRITICAL FIX: GlobalDB uses proc_thread timers (dap_proc_thread_timer_add)
+    // We MUST stop events before cleaning GlobalDB, otherwise active timers
+    // will try to access GlobalDB structures during/after cleanup
+    
+    if (s_common_initialized) {
+        // Step 1: Stop all events (sends exit signal to all event loops)
+        // This stops processing new events and timers
+        dap_events_stop_all();
+        log_it(L_DEBUG, "Events stopped");
+    }
+    
+    // Step 2: Clean up GlobalDB while events are stopped but threads still alive
+    // This ensures no new callbacks are scheduled, but threads can still finish
+    // NOTE: dap_global_db_deinit() already calls dap_global_db_driver_deinit() internally
     if (s_global_db_initialized) {
         dap_global_db_deinit();
         s_global_db_initialized = false;
         log_it(L_DEBUG, "GlobalDB deinitialized");
     }
     
-    // Clean up events and proc threads
-    // NOTE: dap_events_deinit() internally calls dap_proc_thread_deinit() and dap_events_wait(),
-    // so we must NOT call dap_events_wait() separately (would be double pthread_join)
+    // Step 3: Deinit events (calls dap_proc_thread_deinit and dap_events_wait internally)
+    // Now safe to join threads as GlobalDB is cleaned up
     if (s_common_initialized) {
         dap_events_deinit();
         log_it(L_DEBUG, "Events deinitialized");
