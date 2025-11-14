@@ -1581,7 +1581,7 @@ dap_chain_net_voting_info_t *s_voting_extract_info(struct voting *a_voting)
         l_info->params->question = dap_strdup(a_voting->params->question);
     }
     l_info->params->options = dap_list_copy(a_voting->params->options);
-    strncpy(l_info->params->token_ticker, a_voting->params->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    dap_strncpy(l_info->params->token_ticker, a_voting->params->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     
     // Set info-specific fields
     l_info->hash = a_voting->hash;
