@@ -574,24 +574,46 @@ void test_env_deinit(void)
     
     log_it(L_DEBUG, "Deinitializing test environment...");
     
-    // Clean up global DB
-    if (s_global_db_initialized) {
-        dap_global_db_deinit();
-        dap_global_db_driver_deinit();
-        s_global_db_initialized = false;
-    }
-    
-    // Clean up events and proc threads (in reverse order of initialization)
-    // This is critical for CI environments where resource cleanup is strictly enforced
+    // CRITICAL: Clean up events and proc threads BEFORE GlobalDB
+    // GlobalDB uses proc_thread timers and callbacks, so we must stop events
+    // and wait for threads to finish BEFORE cleaning up GlobalDB structures
+    // This prevents use-after-free errors when proc_thread callbacks try to
+    // access GlobalDB structures that have already been freed
     if (s_common_initialized) {
-        // Stop events first (if started)
+        // Step 1: Stop events (sends stop signal to all event threads)
         dap_events_stop_all();
-        // Deinit events (this also deinits proc threads internally)
+        log_it(L_DEBUG, "Events stop signal sent");
+        
+        // Step 2: Wait for all event threads to finish
+        // This ensures all proc_thread callbacks and timers have completed
+        // before we clean up GlobalDB structures they might reference
+        dap_events_wait();
+        log_it(L_DEBUG, "All event threads finished");
+        
+        // Step 3: Now it's safe to clean up GlobalDB (proc_threads are stopped)
+        if (s_global_db_initialized) {
+            dap_global_db_deinit();
+            dap_global_db_driver_deinit();
+            s_global_db_initialized = false;
+            log_it(L_DEBUG, "GlobalDB deinitialized");
+        }
+        
+        // Step 4: Deinit events (this also deinits proc threads internally)
         dap_events_deinit();
-        // Deinit common
+        log_it(L_DEBUG, "Events deinitialized");
+        
+        // Step 5: Deinit common
         dap_common_deinit();
         s_common_initialized = false;
-        log_it(L_DEBUG, "Events and common deinitialized");
+        log_it(L_DEBUG, "Common deinitialized");
+    } else {
+        // If events weren't initialized, just clean up GlobalDB
+        if (s_global_db_initialized) {
+            dap_global_db_deinit();
+            dap_global_db_driver_deinit();
+            s_global_db_initialized = false;
+            log_it(L_DEBUG, "GlobalDB deinitialized (events not initialized)");
+        }
     }
     
     // Note: Cert system cleanup is handled by global infrastructure
