@@ -211,8 +211,8 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     }
 
     log_it(L_MSG, "l_in_cond_hash: %s", dap_hash_fast_to_str_static(&l_in_cond_hash));
-    log_it(L_MSG, "l_sign_items_total: %zu", l_sign_items_total);
-    if (a_check_for_apply &&l_sign_items_total > 1 && l_in_cond_hash_found) {
+    log_it(L_MSG, "l_sign_items_total: %zu , a_check_for_apply: %d, l_in_cond_hash_found: %d", l_sign_items_total, a_check_for_apply, l_in_cond_hash_found);
+    if (l_sign_items_total > 1 && l_in_cond_hash_found) {
         log_it(L_MSG, "Remove previous shared funds tx from mempool");
         char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_ledger->net->pub.chains);
         json_object *l_jarray_remove_txs = json_object_new_array();
