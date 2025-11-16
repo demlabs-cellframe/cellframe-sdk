@@ -1191,8 +1191,10 @@ int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
     DAP_DELETE(l_mempool_group);
+    log_it(L_MSG, "dap_chain_shared_tx_find_in_mempool: l_objs_count: %zu in mempool group %s", l_objs_count, l_mempool_group);
 
     for (size_t i = 0; i < l_objs_count; ++i) {
+        log_it(L_MSG, "dap_chain_shared_tx_find_in_mempool: l_objs[%zu].value: %p", i, l_objs[i].value);
         if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
             continue;
             
@@ -1213,6 +1215,7 @@ int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a
                     dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, a_final_tx_hash) &&
                     dap_chain_datum_tx_item_get_tsd_by_type(l_tx_mempool, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF)
                 ) {
+                    log_it(L_MSG, "dap_chain_shared_tx_find_in_mempool: found matching input %s", dap_hash_fast_to_str_static(&l_in_cond->header.tx_prev_hash));
                     l_found_matching_input = true;
                     break;
                 }
