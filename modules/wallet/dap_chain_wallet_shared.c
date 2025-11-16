@@ -217,6 +217,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
         char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_ledger->net->pub.chains);
         json_object *l_jarray_remove_txs = json_object_new_array();
         int l_tx_count = dap_chain_shared_tx_find_in_mempool(a_ledger->net->pub.chains, &l_in_cond_hash, l_jarray_remove_txs);
+        log_it(L_MSG, "l_tx_count: %d", l_tx_count);
         for (int i = 0; i < l_tx_count; i++) {
             json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
             const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
@@ -1194,7 +1195,6 @@ int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a
     log_it(L_MSG, "dap_chain_shared_tx_find_in_mempool: l_objs_count: %zu in mempool group %s", l_objs_count, l_mempool_group);
 
     for (size_t i = 0; i < l_objs_count; ++i) {
-        log_it(L_MSG, "dap_chain_shared_tx_find_in_mempool: l_objs[%zu].value: %p", i, l_objs[i].value);
         if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
             continue;
             
@@ -1205,11 +1205,14 @@ int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a
         dap_chain_datum_tx_t *l_tx_mempool = (dap_chain_datum_tx_t *)l_datum->data;
         bool l_found_matching_input = false;
         
+        log_it(L_MSG, "dap_chain_shared_tx_find_in_mempool: l_tx_mempool: %p", l_tx_mempool);
         // Check if transaction has conditional input referencing our output
         byte_t *l_item; 
         size_t l_item_size;
         TX_ITEM_ITER_TX(l_item, l_item_size, l_tx_mempool) {
+            log_it(L_MSG, "dap_chain_shared_tx_find_in_mempool: l_item: %d", *l_item);
             if (*l_item == TX_ITEM_TYPE_IN_COND) {
+                log_it(L_MSG, "dap_chain_shared_tx_find_in_mempool: l_item is IN_COND");
                 dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
                 if (
                     dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, a_final_tx_hash) &&
