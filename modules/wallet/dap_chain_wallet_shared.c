@@ -156,6 +156,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
                     l_signs_verified++;
             }
             l_sign_items_total++;
+            break;
         }
 
         case TX_ITEM_TYPE_IN_COND: {
@@ -214,9 +215,10 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     log_it(L_MSG, "l_sign_items_total: %zu , a_check_for_apply: %d, l_in_cond_hash_found: %d", l_sign_items_total, a_check_for_apply, l_in_cond_hash_found);
     if (l_sign_items_total > 1 && l_in_cond_hash_found) {
         log_it(L_MSG, "Remove previous shared funds tx from mempool");
-        char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_ledger->net->pub.chains);
         json_object *l_jarray_remove_txs = json_object_new_array();
-        int l_tx_count = dap_chain_shared_tx_find_in_mempool(a_ledger->net->pub.chains, &l_in_cond_hash, l_jarray_remove_txs);
+        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_ledger->net, CHAIN_TYPE_TX);
+        char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        int l_tx_count = dap_chain_shared_tx_find_in_mempool(l_chain, &l_in_cond_hash, l_jarray_remove_txs);
         log_it(L_MSG, "l_tx_count: %d", l_tx_count);
         for (int i = 0; i < l_tx_count; i++) {
             json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
@@ -1191,8 +1193,8 @@ int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a
     char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
-    DAP_DELETE(l_mempool_group);
     log_it(L_MSG, "dap_chain_shared_tx_find_in_mempool: l_objs_count: %zu in mempool group %s", l_objs_count, l_mempool_group);
+    DAP_DELETE(l_mempool_group);
 
     for (size_t i = 0; i < l_objs_count; ++i) {
         if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
