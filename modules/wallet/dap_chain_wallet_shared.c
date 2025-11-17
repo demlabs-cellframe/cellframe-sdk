@@ -35,6 +35,7 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_global_db.h"
+#include "dap_tsd.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx_items.h"
 #include <dirent.h>
@@ -88,46 +89,6 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_wallet_shared"
 
-static uint32_t s_wallet_shared_get_valid_signs(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx)
-{
-    if (!a_cond || !a_tx || !a_cond->tsd_size)
-        return 0;
-    size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
-    if (!l_tsd_hashes_count)
-        return 0;
-    dap_sign_t *l_signs[l_tsd_hashes_count * 2];
-    uint32_t l_signs_counter = 0, l_signs_verified = 0;
-    byte_t *l_item; size_t l_tx_item_size;
-    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
-        if (*l_item != TX_ITEM_TYPE_SIG)
-            continue;
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
-        bool l_dup = false;
-        for (uint32_t i = 0; i < l_signs_counter; i++)
-            if (dap_sign_compare_pkeys(l_sign, l_signs[i])) {
-                l_dup = true;
-                break;
-            }
-        if (l_dup)
-            continue;
-        if (l_signs_counter >= l_tsd_hashes_count * 2) {
-            log_it(L_WARNING, "Too many signs in tx, can't process more than %zu", l_tsd_hashes_count);
-            break;
-        }
-        l_signs[l_signs_counter] = l_sign;
-        dap_hash_fast_t l_pkey_hash;
-        dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-        dap_tsd_t *l_tsd; size_t l_tsd_size;
-        dap_tsd_iter(l_tsd, l_tsd_size, a_cond->tsd, a_cond->tsd_size) {
-            if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t) &&
-                    dap_hash_fast_compare(&l_pkey_hash, (dap_hash_fast_t *)l_tsd->data) &&
-                    !dap_chain_datum_tx_verify_sign(a_tx, l_signs_counter++))
-                l_signs_verified++;
-        }
-    }
-    return l_signs_verified;
-}
-
 
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner, bool a_check_for_apply)
 {
@@ -139,9 +100,6 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     dap_chain_addr_t l_net_fee_addr;
     uint16_t l_change_type = 0;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_net_fee_addr);
-    size_t l_sign_items_total = 0;
-    dap_hash_fast_t l_in_cond_hash = {};
-    bool l_in_cond_hash_found = false;
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         switch (*l_item) {
@@ -196,16 +154,6 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
                         !dap_chain_datum_tx_verify_sign(a_tx_in, l_signs_counter++))
                     l_signs_verified++;
             }
-            l_sign_items_total++;
-            break;
-        }
-
-        case TX_ITEM_TYPE_IN_COND: {
-            if (!l_in_cond_hash_found && dap_chain_datum_tx_item_get_tsd_by_type(a_tx_in, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF)) {
-                dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
-                l_in_cond_hash = l_in_cond->header.tx_prev_hash;
-                l_in_cond_hash_found = true;
-            }
             break;
         }
         default:
@@ -251,84 +199,6 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
             return -11;
         }
     }
-
-    if (l_change_type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && l_in_cond_hash_found) {
-        json_object *l_jarray_remove_txs = json_object_new_array();
-        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_ledger->net, CHAIN_TYPE_TX);
-        char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-        dap_hash_fast_t l_current_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx_in);
-        char *l_current_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_current_tx_hash);
-        if (!l_current_tx_hash_str) {
-            log_it(L_ERROR, "Can't allocate string for current shared funds tx hash");
-            json_object_put(l_jarray_remove_txs);
-            DAP_DELETE(l_mempool_group);
-            return -12;
-        }
-        uint32_t l_best_signs = l_signs_verified;
-        dap_time_t l_best_ts = a_tx_in->header.ts_created;
-        const char *l_best_hash_str = l_current_tx_hash_str;
-        bool l_best_is_current = true;
-        int l_tx_count = dap_chain_shared_tx_find_in_mempool(l_chain, &l_in_cond_hash, l_jarray_remove_txs);
-        for (int i = 0; i < l_tx_count; i++) {
-            json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
-            const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
-            size_t l_datum_size = 0;
-            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_mempool_group, l_tx_hash_str, &l_datum_size, NULL, NULL);
-            if (!l_datum || l_datum_size < sizeof(dap_chain_datum_t)) {
-                DAP_DELETE(l_datum);
-                continue;
-            }
-            if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
-                DAP_DELETE(l_datum);
-                continue;
-            }
-            dap_chain_datum_tx_t *l_tx_mempool = (dap_chain_datum_tx_t *)l_datum->data;
-            uint32_t l_candidate_signs = s_wallet_shared_get_valid_signs(a_cond, l_tx_mempool);
-            dap_time_t l_candidate_ts = l_tx_mempool->header.ts_created;
-            DAP_DELETE(l_datum);
-            bool l_is_better = false;
-            if (l_candidate_signs > l_best_signs)
-                l_is_better = true;
-            else if (l_candidate_signs == l_best_signs) {
-                if (l_candidate_ts > l_best_ts)
-                    l_is_better = true;
-                else if (l_candidate_ts == l_best_ts && l_best_hash_str && dap_strcmp(l_tx_hash_str, l_best_hash_str) > 0)
-                    l_is_better = true;
-            }
-            if (l_is_better) {
-                l_best_signs = l_candidate_signs;
-                l_best_ts = l_candidate_ts;
-                l_best_hash_str = l_tx_hash_str;
-                l_best_is_current = false;
-            }
-        }
-        for (int i = 0; i < l_tx_count; i++) {
-            json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
-            const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
-            if (l_best_hash_str && !dap_strcmp(l_tx_hash_str, l_best_hash_str))
-                continue;
-
-            if (dap_global_db_del_sync(l_mempool_group, l_tx_hash_str)) {
-                log_it(L_ERROR, "Can't remove previous shared funds tx from mempool: %s", l_tx_hash_str);
-                DAP_DELETE(l_current_tx_hash_str);
-                json_object_put(l_jarray_remove_txs);
-                DAP_DELETE(l_mempool_group);
-                return -12;
-            }
-        }
-        if (!l_best_is_current) {
-            log_it(L_DEBUG, "Shared funds tx %s rejected, better candidate %s already in mempool with %u signs",
-                    l_current_tx_hash_str, l_best_hash_str ? l_best_hash_str : "unknown", l_best_signs);
-            DAP_DELETE(l_current_tx_hash_str);
-            json_object_put(l_jarray_remove_txs);
-            DAP_DELETE(l_mempool_group);
-            return DAP_CHAIN_CS_VERIFY_CODE_SHARED_FUNDS_TX_IN_MEMPOOL;
-        }
-        DAP_DELETE(l_current_tx_hash_str);
-        json_object_put(l_jarray_remove_txs);
-        DAP_DELETE(l_mempool_group);
-    }
-
     if (l_change_type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && l_signs_verified < a_cond->subtype.wallet_shared.signers_minimum) {
         log_it(L_WARNING, "Not enough valid signs (%u from %u) for shared funds tx",
                                     l_signs_verified, a_cond->subtype.wallet_shared.signers_minimum);
@@ -1680,6 +1550,168 @@ json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_
     return l_json_ret;
 }
 
+static uint32_t s_wallet_shared_get_valid_signs(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx)
+{
+    if (!a_cond || !a_tx || !a_cond->tsd_size)
+        return 0;
+    size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
+    if (!l_tsd_hashes_count)
+        return 0;
+    dap_sign_t *l_signs[l_tsd_hashes_count * 2];
+    uint32_t l_signs_counter = 0, l_signs_verified = 0;
+    byte_t *l_item; size_t l_tx_item_size;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
+        if (*l_item != TX_ITEM_TYPE_SIG)
+            continue;
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_item);
+        bool l_dup = false;
+        for (uint32_t i = 0; i < l_signs_counter; i++)
+            if (dap_sign_compare_pkeys(l_sign, l_signs[i])) {
+                l_dup = true;
+                break;
+            }
+        if (l_dup)
+            continue;
+        if (l_signs_counter >= l_tsd_hashes_count * 2) {
+            log_it(L_WARNING, "Too many signs in tx, can't process more than %zu", l_tsd_hashes_count);
+            break;
+        }
+        l_signs[l_signs_counter] = l_sign;
+        dap_hash_fast_t l_pkey_hash;
+        dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+        dap_tsd_t *l_tsd; size_t l_tsd_size;
+        dap_tsd_iter(l_tsd, l_tsd_size, a_cond->tsd, a_cond->tsd_size) {
+            if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t) &&
+                    dap_hash_fast_compare(&l_pkey_hash, (dap_hash_fast_t *)l_tsd->data) &&
+                    !dap_chain_datum_tx_verify_sign(a_tx, l_signs_counter++))
+                l_signs_verified++;
+        }
+    }
+    return l_signs_verified;
+}
+
+static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
+{
+    dap_return_if_fail(a_obj && a_arg);
+    if (dap_store_obj_get_type(a_obj) != DAP_GLOBAL_DB_OPTYPE_ADD || !a_obj->value)
+        return;
+
+    dap_chain_t *l_chain = (dap_chain_t *)a_arg;
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_obj->value;
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
+    if (!l_cond) {
+        return;
+    }
+    dap_hash_fast_t l_in_cond_hash = {0};
+    byte_t *l_item; size_t l_tx_item_size;
+    uint16_t l_change_type = 0;
+    TX_ITEM_ITER_TX(l_item, l_tx_item_size, l_tx) {
+        switch (*l_item) {
+        case TX_ITEM_TYPE_TSD: {
+            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;
+            l_change_type = l_tsd->type;
+            break;
+        }
+        case TX_ITEM_TYPE_IN_COND: {
+            dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
+            l_in_cond_hash = l_in_cond->header.tx_prev_hash;
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    if (l_change_type != DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF) {
+        return;
+    }
+
+    uint32_t l_valid_signs = s_wallet_shared_get_valid_signs(l_cond, l_tx);
+    if (l_valid_signs < l_cond->subtype.wallet_shared.signers_minimum) {
+        return;
+    }
+
+    json_object *l_jarray_remove_txs = json_object_new_array();
+    if (!l_jarray_remove_txs)
+        return;
+
+    char *l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+    if (!l_mempool_group) {
+        json_object_put(l_jarray_remove_txs);
+        return;
+    }
+
+    char *l_current_tx_hash_str = a_obj->key ? dap_strdup(a_obj->key) : NULL;
+    if (!l_current_tx_hash_str) {
+        DAP_DELETE(l_mempool_group);
+        json_object_put(l_jarray_remove_txs);
+        return;
+    }
+
+    dap_time_t l_best_ts = l_tx->header.ts_created;
+    const char *l_best_hash_str = l_current_tx_hash_str;
+    bool l_best_is_current = true;
+    uint32_t l_best_signs = l_valid_signs;
+
+    int l_tx_count = dap_chain_shared_tx_find_in_mempool(l_chain, &l_in_cond_hash, l_jarray_remove_txs);
+    for (int i = 0; i < l_tx_count; i++) {
+        json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
+        const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
+        if (!l_tx_hash_str)
+            continue;
+        size_t l_datum_size = 0;
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_mempool_group, l_tx_hash_str, &l_datum_size, NULL, NULL);
+        if (!l_datum || l_datum_size < sizeof(dap_chain_datum_t)) {
+            DAP_DELETE(l_datum);
+            continue;
+        }
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+            DAP_DELETE(l_datum);
+            continue;
+        }
+        dap_chain_datum_tx_t *l_tx_mempool = (dap_chain_datum_tx_t *)l_datum->data;
+        uint32_t l_candidate_signs = s_wallet_shared_get_valid_signs(l_cond, l_tx_mempool);
+        dap_time_t l_candidate_ts = l_tx_mempool->header.ts_created;
+        DAP_DELETE(l_datum);
+        bool l_is_better = false;
+        if (l_candidate_signs > l_best_signs)
+            l_is_better = true;
+        else if (l_candidate_signs == l_best_signs) {
+            if (l_candidate_ts > l_best_ts)
+                l_is_better = true;
+            else if (l_candidate_ts == l_best_ts && l_best_hash_str && dap_strcmp(l_tx_hash_str, l_best_hash_str) > 0)
+                l_is_better = true;
+        }
+        if (l_is_better) {
+            l_best_signs = l_candidate_signs;
+            l_best_ts = l_candidate_ts;
+            l_best_hash_str = l_tx_hash_str;
+            l_best_is_current = false;
+        }
+    }
+    for (int i = 0; i < l_tx_count; i++) {
+        json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
+        const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
+        if (l_best_hash_str && l_tx_hash_str && !dap_strcmp(l_tx_hash_str, l_best_hash_str))
+            continue;
+
+        if (l_tx_hash_str && dap_global_db_del_sync(l_mempool_group, l_tx_hash_str)) {
+            log_it(L_ERROR, "Can't remove previous shared funds tx from mempool: %s", l_tx_hash_str);
+            goto cleanup;
+        }
+    }
+    if (!l_best_is_current) {
+        log_it(L_DEBUG, "Shared funds tx %s rejected, better candidate %s already in mempool with %u signs",
+                l_current_tx_hash_str, l_best_hash_str ? l_best_hash_str : "unknown", l_best_signs);
+        goto cleanup;
+    }
+
+cleanup:
+    DAP_DELETE(l_current_tx_hash_str);
+    json_object_put(l_jarray_remove_txs);
+    DAP_DELETE(l_mempool_group);
+}
+
 int dap_chain_wallet_shared_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL);
@@ -1689,6 +1721,12 @@ int dap_chain_wallet_shared_init()
     dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
     for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
         dap_global_db_erase_table_sync(l_item->data);
+    }
+    dap_chain_net_t *l_net = dap_chain_net_iter_start();
+    for (; l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+            dap_chain_add_mempool_notify_callback(l_chain, s_shared_tx_mempool_notify, l_chain);
+        }
     }
     dap_list_free(l_groups_list);
     s_collect_wallet_pkey_hashes();
