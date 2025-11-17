@@ -49,6 +49,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_node.h"
 #include "dap_global_db.h"
+#include "dap_global_db_cluster.h"
 #include "dap_enc.h"
 #include <dap_enc_http.h>
 #include <dap_enc_key.h>
@@ -69,13 +70,128 @@
 
 #define LOG_TAG "dap_chain_mempool"
 
+extern int g_dap_global_db_debug_more;
+
 static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_dbi,
                                                   int a_rc, const char *a_group,
                                                   const size_t a_values_total, const size_t a_values_count,
                                                   dap_global_db_obj_t *a_values, void *a_arg);
 
+/**
+ * @brief Callback function for handling mempool record deletion by TTL
+ * @details This callback is triggered when a mempool record expires due to TTL.
+ *          It notifies all cluster subscribers about the deletion and then removes the record.
+ * @param a_obj Store object being deleted (contains datum from mempool)
+ * @param a_arg Custom argument (chain pointer)
+ */
+static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
+{
+    if (!a_obj) {
+        log_it(L_WARNING, "Received NULL object in mempool TTL delete callback");
+        return;
+    }
+
+    dap_chain_t *l_chain = (dap_chain_t *)a_arg;
+    if (!l_chain) {
+        log_it(L_WARNING, "Chain context is NULL in mempool TTL delete callback for group %s key %s", 
+               a_obj->group, a_obj->key);
+        dap_global_db_driver_delete(a_obj, 1);
+        return;
+    }
+
+    // Get the mempool cluster to access notifiers
+    dap_global_db_cluster_t *l_cluster = dap_chain_net_get_mempool_cluster(l_chain);
+    if (!l_cluster) {
+        log_it(L_WARNING, "Can't find mempool cluster for chain %s", l_chain->name);
+        dap_global_db_driver_delete(a_obj, 1);
+        return;
+    }
+
+    // Log the deletion event
+    const char *l_datum_type_str = "unknown";
+    if (a_obj->value && a_obj->value_len >= sizeof(dap_chain_datum_t)) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_obj->value;
+        switch (l_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TOKEN:
+            l_datum_type_str = "token";
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+            l_datum_type_str = "emission";
+            break;
+        case DAP_CHAIN_DATUM_TX:
+            l_datum_type_str = "transaction";
+            break;
+        default:
+            DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
+        }
+    }
+
+    log_it(L_NOTICE, "Mempool TTL cleanup: removing %s datum with key %s from chain %s mempool group %s", 
+           l_datum_type_str, a_obj->key, l_chain->name, a_obj->group);
+
+    // Mark object as being deleted by TTL (set DEL flag for notifiers to recognize)
+    // This allows notifiers to distinguish between normal operations and TTL deletions
+    a_obj->flags |= DAP_GLOBAL_DB_RECORD_DEL;
+
+    // IMPORTANT: Notify all cluster subscribers BEFORE actual deletion
+    // This allows them to react to the deletion event (e.g., update caches, logs, etc.)
+    if (l_cluster->notifiers) {
+        debug_if(g_dap_global_db_debug_more, L_DEBUG, 
+                 "Notifying cluster subscribers about TTL deletion of %s:%s", 
+                 a_obj->group, a_obj->key);
+        dap_global_db_cluster_notify(l_cluster, a_obj);
+    }
+
+    // Actually delete the record from GlobalDB
+    dap_global_db_driver_delete(a_obj, 1);
+}
+
+/**
+ * @brief Initialize mempool TTL delete callbacks for all chains
+ * @details Registers del_callback for each chain's mempool cluster to handle TTL-based deletions
+ * @return 0 if successful, negative error code otherwise
+ */
+int dap_chain_mempool_delete_callback_init()
+{
+    int l_registered_count = 0;
+    
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        dap_chain_t *l_chain = NULL;
+        
+        // Iterate through all chains in the network
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            // Get the mempool cluster for this chain
+            dap_global_db_cluster_t *l_cluster = dap_chain_net_get_mempool_cluster(l_chain);
+            
+            if (!l_cluster) {
+                log_it(L_WARNING, "Can't find mempool cluster for chain %s in network %s", 
+                       l_chain->name, l_net->pub.name);
+                continue;
+            }
+            
+            // Register the delete callback
+            l_cluster->del_callback = s_mempool_ttl_delete_callback;
+            l_cluster->del_arg = l_chain;
+            
+            log_it(L_INFO, "Registered mempool TTL delete callback for chain %s (network %s, group mask %s)", 
+                   l_chain->name, l_net->pub.name, l_cluster->groups_mask);
+            
+            l_registered_count++;
+        }
+    }
+    
+    if (l_registered_count > 0) {
+        log_it(L_NOTICE, "Mempool TTL delete callbacks initialized for %d chain(s)", l_registered_count);
+        return 0;
+    } else {
+        log_it(L_WARNING, "No mempool TTL delete callbacks were registered");
+        return -1;
+    }
+}
+
 int dap_datum_mempool_init(void)
 {
+    dap_chain_mempool_delete_callback_init();
     return 0;
 }
 

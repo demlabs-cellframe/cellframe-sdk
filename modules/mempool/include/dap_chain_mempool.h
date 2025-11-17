@@ -48,6 +48,7 @@ typedef struct dap_datum_mempool {
 }DAP_ALIGN_PACKED dap_datum_mempool_t;
 
 int dap_datum_mempool_init(void);
+int dap_chain_mempool_delete_callback_init(void);
 
 extern const char* c_dap_datum_mempool_gdb_group;
 
