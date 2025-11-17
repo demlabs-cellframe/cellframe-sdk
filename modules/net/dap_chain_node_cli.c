@@ -1937,17 +1937,16 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 			struct json_object *v1_from = NULL, *v1_to = NULL, *v2_from = NULL, *v2_to = NULL;
 			json_object_object_get_ex(l_summary, "tx_count", &tx_cnt);
 			if (tx_cnt) printf("\nTotal transactions: %"DAP_INT64_FORMAT"\n", json_object_get_int64(tx_cnt));
-			if (json_object_object_get_ex(l_summary, "trading_val_from_coins", &v1_from) || 
-			    json_object_object_get_ex(l_summary, "trading_val_from_datoshi", &v2_from) ||
-				json_object_object_get_ex(l_summary, "trading_val_to_coins", &v1_to) || 
-				json_object_object_get_ex(l_summary, "trading_val_to_datoshi", &v2_to)) {
-				printf("Trading from: %s (%s)\n", 
-					v1_from ? json_object_get_string(v1_from) : "-", 
-					v2_from ? json_object_get_string(v2_from) : "-");
-				printf("Trading to:   %s (%s)\n", 
-					v1_to ? json_object_get_string(v1_to) : "-", 
-					v2_to ? json_object_get_string(v2_to) : "-");
-			}
+            json_object_object_get_ex(l_summary, "trading_val_from_coins", &v1_from);
+            json_object_object_get_ex(l_summary, "trading_val_from_datoshi", &v2_from);
+            json_object_object_get_ex(l_summary, "trading_val_to_coins", &v1_to);
+            json_object_object_get_ex(l_summary, "trading_val_to_datoshi", &v2_to);
+            printf("Trading from: %s (%s)\n",
+                v1_from ? json_object_get_string(v1_from) : "-",
+                v2_from ? json_object_get_string(v2_from) : "-");
+            printf("Trading to:   %s (%s)\n",
+                v1_to ? json_object_get_string(v1_to) : "-",
+                v2_to ? json_object_get_string(v2_to) : "-");
 		}
 		return 0;
 	}
