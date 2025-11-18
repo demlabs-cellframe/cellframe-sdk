@@ -2689,7 +2689,8 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
             }break;
             case TX_ITEM_TYPE_SIG: {
                 l_item = s_dap_chain_net_tx_create_sig_item(l_json_item_obj, a_jobj_arr_errors, l_tx, &l_sign_list);
-                if(l_sign_list)continue;       
+                if(!l_item && l_sign_list)
+                    continue;       
             }break;
             case TX_ITEM_TYPE_RECEIPT: {
                 l_item = s_dap_chain_net_tx_create_receipt_item(l_json_item_obj, a_jobj_arr_errors, l_tx, l_sign_list, i);
