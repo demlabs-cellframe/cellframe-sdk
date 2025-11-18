@@ -2013,11 +2013,13 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
             }
-            // Use hash from signature (handles DAP_SIGN_PKEY_HASHING_FLAG correctly)
-            // instead of recalculating from extracted pkey
-            memcpy(&l_token_item->auth_pkey_hashes[k], &l_sign_pkey_hash_before, sizeof(dap_chain_hash_fast_t));
+            // CRITICAL: Always recalculate hash from pkey (not from signature)
+            // This ensures consistency across token_decl and token_decl_sign commands
+            // If we use hash from signature, DAP_SIGN_PKEY_HASHING_FLAG signatures will have
+            // different hashes and subsequent signature verification will fail
+            dap_pkey_get_hash(l_token_item->auth_pkeys[k], &l_token_item->auth_pkey_hashes[k]);
             
-            debug_if(s_debug_more, L_DEBUG, "Token %s: auth_pkeys[%u] hash stored: %s", 
+            debug_if(s_debug_more, L_DEBUG, "Token %s: auth_pkeys[%u] hash stored: %s (recalculated from pkey for consistency)", 
                      l_token->ticker, k, 
                      dap_hash_fast_to_str_static(&l_token_item->auth_pkey_hashes[k]));
         }
