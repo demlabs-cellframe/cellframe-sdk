@@ -898,8 +898,8 @@ static int s_vpn_service_create(dap_config_t * g_config)
  * @param g_config
  * @return 0 if everything is okay, lesser then zero if errors
  */
-int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
-    
+int dap_chain_net_srv_vpn_init(dap_config_t * g_config)
+{
     if(s_vpn_tun_init()){
         log_it(L_CRITICAL, "Error initializing TUN device driver!");
         dap_chain_net_srv_vpn_deinit();
@@ -914,13 +914,16 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     }
 
     log_it(L_INFO,"TUN driver configured successfuly");
-    if (s_vpn_service_create(g_config)){
+    if(s_vpn_service_create(g_config)){
         log_it(L_CRITICAL, "VPN service creating failed");
         dap_chain_net_srv_vpn_deinit();
         return -3;
     }
     dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
+    log_it(L_INFO,
+           "[VPN CH REG] Registering stream channel 'S' for VPN, handler=%p",
+           s_ch_packet_in);
 
     // add console command to display vpn statistics
     dap_cli_server_cmd_add ("vpn_stat", com_vpn_statistics, NULL, "VPN statistics",
@@ -1790,21 +1793,29 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
 static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
+
+    log_it(L_INFO,
+           "[VPN PKT DEBUG] s_ch_packet_in: session_id=%u raw_size=%u",
+           a_ch->stream ? a_ch->stream->id : 0,
+           l_pkt ? l_pkt->hdr.data_size : 0);
+
     dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t*)l_pkt->data;
     if(l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
         log_it(L_WARNING, "Data size of stream channel packet %u is lesser than size of VPN packet header %zu",
                                                               l_pkt->hdr.data_size, sizeof(l_vpn_pkt->header));
+        log_it(L_WARNING,
+               "[VPN PKT DEBUG] drop: size %u < vpn_header %zu (session_id=%u)",
+               l_pkt->hdr.data_size,
+               sizeof(l_vpn_pkt->header),
+               a_ch->stream ? a_ch->stream->id : 0);
         return false;
     }
     size_t l_vpn_pkt_data_size = l_pkt->hdr.data_size - sizeof(l_vpn_pkt->header);
 
-    /* Diagnostic: basic info about incoming VPN packet on channel 'S' */
     log_it(L_INFO,
-           "[VPN PKT DEBUG] ch='S', session_id=%u, pkt_size=%u, header_size=%zu, "
-           "op_code=0x%08x, usage_id_hdr=%u, data_size_hdr=%u, real_data_size=%zu",
-           a_ch->stream->session->id,
-           l_pkt->hdr.data_size,
-           sizeof(l_vpn_pkt->header),
+           "[VPN PKT DEBUG] header: session_id=%u sock_id=%d op_code=0x%02X usage_id=%u data_size=%u real_data_size=%zu",
+           a_ch->stream ? a_ch->stream->id : 0,
+           l_vpn_pkt->header.sock_id,
            l_vpn_pkt->header.op_code,
            l_vpn_pkt->header.usage_id,
            l_vpn_pkt->header.op_data.data_size,
@@ -1814,7 +1825,11 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     // dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
-    if(!l_usage){
+    if(!l_usage || !l_usage->is_active){
+        log_it(L_INFO,
+               "[VPN PKT DEBUG] drop: usage inactive or NULL (session_id=%u usage_id_hdr=%u)",
+               a_ch->stream ? a_ch->stream->id : 0,
+               l_vpn_pkt->header.usage_id);
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
