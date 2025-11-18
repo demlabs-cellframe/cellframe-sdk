@@ -1010,6 +1010,13 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     }
 
     // set start limits
+    log_it(L_INFO, "[VPN USAGE DEBUG] s_callback_response_success: usage_id=%u, service_state=%d, service_substate=%d, is_active=%d, has_receipt=%d",
+           a_usage_id,
+           (int)l_usage_active->service_state,
+           (int)l_usage_active->service_substate,
+           l_usage_active->is_active ? 1 : 0,
+           l_usage_active->receipt ? 1 : 0);
+
     if(l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL && l_usage_active->receipt){
         remain_limits_save_arg_t *l_args = DAP_NEW_Z(remain_limits_save_arg_t);
         l_args->srv = a_srv;
@@ -1047,8 +1054,15 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         }
     } else if (l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE){
         l_srv_session->last_update_ts = time(NULL);
+    } else if (l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
+        // Free service mode: no receipt needed, no limits
+        log_it(L_INFO, "[VPN USAGE DEBUG] Free service mode activated for usage_id=%u", a_usage_id);
+        l_srv_session->last_update_ts = time(NULL);
     } else {
-        log_it(L_ERROR, "WRONG state");
+        log_it(L_ERROR, "WRONG state: usage_id=%u, service_state=%d, service_substate=%d",
+               a_usage_id,
+               (int)l_usage_active->service_state,
+               (int)l_usage_active->service_substate);
     }
 
     return l_ret;
