@@ -4727,6 +4727,7 @@ int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
         dap_json_t *json_obj_status = dap_json_object_new();
         if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
         dap_json_object_add_bool(json_obj_status, "status_placed", false);
+        dap_json_array_add(a_json_arr_reply, json_obj_status);
         if(!l_certs_count) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_LEAST_VALID_CERT_ERR,
                                 "decree create command requres at least one valid certificate to sign the decree");
