@@ -5203,6 +5203,7 @@ int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
                     dap_json_object_add_bool(json_obj_status, "status_placed", true);
                     dap_json_object_add_string(json_obj_status, "old_hash", l_datum_hash_str);
                     dap_json_object_add_string(json_obj_status, "new_hash", l_decree_hash_str);
+                    DAP_DELETE(l_decree_hash_str);
                 } else {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_WRONG_DATUM_TYPE_ERR,
                                             "Error! Wrong datum type. decree sign only decree datum");

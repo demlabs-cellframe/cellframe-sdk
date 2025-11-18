@@ -1346,7 +1346,6 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         l_str_reply_tmp = dap_strdup_printf("Datum %s with 256bit emission is placed in datum pool", l_emission_hash_str);
     else
         l_str_reply_tmp = dap_strdup("Can't place emission datum in mempool, examine log files");
-    DAP_DEL_Z(l_emission_hash_str);
     DAP_DEL_Z(l_datum_emission);
 
     //remove previous emission datum from mempool if have new signed emission datum
@@ -1356,7 +1355,14 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
     dap_json_t *json_obj_out = dap_json_object_new();
-    dap_json_object_add_string(json_obj_out, "result", l_str_reply_tmp);
+    dap_json_object_add_bool(json_obj_out, "status_placed", true);
+    if (!l_add_sign)
+        dap_json_object_add_string(json_obj_out, "emission_hash", l_emission_hash_str);
+    else {
+        dap_json_object_add_string(json_obj_out, "old_hash", l_emission_hash_str_remove);
+        dap_json_object_add_string(json_obj_out, "new_hash", l_emission_hash_str);
+    }
+    DAP_DEL_Z(l_emission_hash_str);
     dap_json_array_add(a_json_arr_reply, json_obj_out);
     return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
 }
