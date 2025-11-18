@@ -1592,6 +1592,7 @@ static uint32_t s_wallet_shared_get_valid_signs(dap_chain_tx_out_cond_t *a_cond,
 
 static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
+    log_it(L_MSG, "callback mempool notify s_shared_tx_mempool_notify: %s", a_obj->key);
     dap_return_if_fail(a_obj && a_arg);
     if (dap_store_obj_get_type(a_obj) != DAP_GLOBAL_DB_OPTYPE_ADD || !a_obj->value)
         return;
@@ -1602,6 +1603,7 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
     if (!l_cond) {
         return;
     }
+    log_it(L_MSG, "it's shared funds tx");
     dap_hash_fast_t l_in_cond_hash = {0};
     byte_t *l_item; size_t l_tx_item_size;
     uint16_t l_change_type = 0;
@@ -1654,6 +1656,7 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
     uint32_t l_best_signs = l_valid_signs;
 
     int l_tx_count = dap_chain_shared_tx_find_in_mempool(l_chain, &l_in_cond_hash, l_jarray_remove_txs);
+    log_it(L_MSG, "l_tx_count: %d", l_tx_count);
     for (int i = 0; i < l_tx_count; i++) {
         json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
         const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
@@ -1694,12 +1697,13 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
         const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
         if (l_best_hash_str && l_tx_hash_str && !dap_strcmp(l_tx_hash_str, l_best_hash_str))
             continue;
-
+        log_it(L_DEBUG, "Removing previous shared funds tx from mempool: %s", l_tx_hash_str);
         if (l_tx_hash_str && dap_global_db_del_sync(l_mempool_group, l_tx_hash_str)) {
             log_it(L_ERROR, "Can't remove previous shared funds tx from mempool: %s", l_tx_hash_str);
             goto cleanup;
         }
     }
+    log_it(L_MSG, "l_best_is_current: %d", l_best_is_current);
     if (!l_best_is_current) {
         log_it(L_DEBUG, "Shared funds tx %s rejected, better candidate %s already in mempool with %u signs",
                 l_current_tx_hash_str, l_best_hash_str ? l_best_hash_str : "unknown", l_best_signs);
@@ -1726,6 +1730,7 @@ int dap_chain_wallet_shared_init()
     for (; l_net; l_net = dap_chain_net_iter_next(l_net)) {
         for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
             dap_chain_add_mempool_notify_callback(l_chain, s_shared_tx_mempool_notify, l_chain);
+            log_it(L_MSG, "added mempool notify callback for chain: %s", l_chain->name);
         }
     }
     dap_list_free(l_groups_list);
