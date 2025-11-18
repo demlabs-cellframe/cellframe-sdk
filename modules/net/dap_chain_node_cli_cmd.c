@@ -2552,6 +2552,8 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
              ||(l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)))
         l_tsd_size = l_datum_token->header_native_update.tsd_total_size;
     uint16_t l_tmp_cert_sign_count = l_datum_token->signs_total;
+    debug_if(s_debug_more, L_DEBUG, "[SIGN_CERT_CYCLE] Starting: saved signs_total=%u, certs_count=%zu, tsd_size=%zu", 
+             l_tmp_cert_sign_count, l_certs_count, l_tsd_size);
     l_datum_token->signs_total = 0;
 
     for(size_t i = 0; i < l_certs_count; i++)
@@ -2595,7 +2597,10 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
             (*l_sign_counter)++;
         }
     }
+    debug_if(s_debug_more, L_DEBUG, "[SIGN_CERT_CYCLE] Finished: added %u signatures, restoring signs_total from %u to %u", 
+             *l_sign_counter, l_datum_token->signs_total, l_tmp_cert_sign_count);
     l_datum_token->signs_total = l_tmp_cert_sign_count;
+    debug_if(s_debug_more, L_DEBUG, "[SIGN_CERT_CYCLE] Final signs_total=%u", l_datum_token->signs_total);
 
     return l_datum_token;
 }
@@ -2695,45 +2700,72 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 if ((l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
                     ||  (l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE))
                     l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
-                // Check for signatures, are they all in set and are good enought?
+                // Check EXISTING signatures (only those currently present, not the required total)
+                // signs_total now reflects actual count of signatures, not required count
                 size_t l_signs_size = 0, i = 1;
-                uint16_t l_tmp_signs_total = l_datum_token->signs_total;
+                uint16_t l_current_signs_count = l_datum_token->signs_total;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Reading datum from mempool: signs_total=%u, tsd_size=%zu", 
+                         l_current_signs_count, l_tsd_size);
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Datum size=%zu, token struct size=%zu", 
+                         l_datum_size, sizeof(*l_datum_token));
+                if (l_current_signs_count > 10) {
+                    log_it(L_WARNING, "token_decl_sign: Reading datum from mempool, signs_total=%u seems too high (should be actual count, not required)", 
+                           l_current_signs_count);
+                }
                 l_datum_token->signs_total = 0;
-                for (i = 1; i <= l_tmp_signs_total; i++){
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Verifying %u existing signature(s) before adding new ones", l_current_signs_count);
+                for (i = 1; i <= l_current_signs_count; i++){
                     dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->tsd_n_signs + l_tsd_size + l_signs_size);
+                    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Checking signature %zu/%u at offset %zu (tsd_size=%zu, signs_size=%zu)", 
+                             i, l_current_signs_count, l_tsd_size + l_signs_size, l_tsd_size, l_signs_size);
                     if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size) ) {
-                        log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
+                        log_it(L_WARNING, "Wrong existing signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
+                        debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Signature %zu verification failed: sign at %p, datum_token at %p, size=%zu", 
+                                 i, l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size);
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_HAS_WRONG_SIGNATURE_ERR,
-                                       "Datum %s with datum token has wrong signature %zu, break process and exit",
+                                       "Datum %s with datum token has wrong existing signature %zu, break process and exit",
                                         l_datum_hash_out_str, i);
                         DAP_DELETE(l_datum_token);
                         DAP_DELETE(l_gdb_group_mempool);
                         return -6;
                     }else{
-                        log_it(L_DEBUG,"Sign %zu passed", i);
+                        debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Existing sign %zu passed verification", i);
                     }
                     l_signs_size += dap_sign_get_size(l_sign);
                 }
-                l_datum_token->signs_total = l_tmp_signs_total;
-                log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
+                l_datum_token->signs_total = l_current_signs_count;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Restored signs_total=%u after verification (total sign size=%zu)", 
+                         l_datum_token->signs_total, l_signs_size);
+                log_it(L_DEBUG, "Datum %s with token declaration: %hu existing signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
 
-                // Sign header with all certificates in the list and add signs to the end of token update
+                // Add new signatures from certificates
                 uint16_t l_sign_counter = 0;
                 size_t l_data_size = l_tsd_size + l_signs_size;
                 l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
                                                             &l_sign_counter);
-                log_it(L_DEBUG, "Apply %u signs to datum %s", l_sign_counter, l_datum_hash_hex_str);
+                log_it(L_INFO, "Added %u new signature(s) to datum %s (total now: %u)", 
+                       l_sign_counter, l_datum_hash_hex_str, l_current_signs_count + l_sign_counter);
                 if (!l_sign_counter) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_SERT_NOT_VALID_ERR,
                                        "Error! Used certs not valid");
                     DAP_DEL_MULTY(l_datum_token, l_datum_hash_hex_str, l_datum_hash_base58_str, l_gdb_group_mempool);
                     return -9;
                 }
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Before adding new signatures: current signs_total=%u, new signs=%u", 
+                         l_datum_token->signs_total, l_sign_counter);
                 l_datum_token->signs_total += l_sign_counter;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] After adding new signatures: signs_total=%u", 
+                         l_datum_token->signs_total);
                 size_t l_token_size = sizeof(*l_datum_token) + l_data_size;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Creating new datum: token_size=%zu, data_size=%zu", 
+                         l_token_size, l_data_size);
                 l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                                      l_datum_token, l_token_size);
+                // Verify signs_total in new datum
+                dap_chain_datum_token_t *l_new_check_token = (dap_chain_datum_token_t *)l_datum->data;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] New datum created: signs_total in datum data=%u (expected %u)", 
+                         l_new_check_token->signs_total, l_current_signs_count + l_sign_counter);
                 DAP_DELETE(l_datum_token);
                 // Calc datum's hash
                 l_datum_size = dap_chain_datum_size(l_datum);
@@ -4994,6 +5026,57 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
             log_it(L_DEBUG, "Added TSD for total_signs_valid=%u", l_signs_valid);
         }
     }
+    
+    // Process -pub_certs parameter for multi-signature tokens (stage-env extension)
+    const char *l_pub_certs_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-pub_certs", &l_pub_certs_str);
+    if (l_pub_certs_str && !a_update_token) {
+        log_it(L_INFO, "Processing -pub_certs: %s", l_pub_certs_str);
+        
+        // Parse comma-separated list of certificate names
+        char *l_pub_certs_dup = dap_strdup(l_pub_certs_str);
+        char *l_saveptr = NULL;
+        char *l_cert_name = strtok_r(l_pub_certs_dup, ",", &l_saveptr);
+        size_t l_added_pkeys = 0;
+        
+        while (l_cert_name) {
+            // Trim whitespace
+            while (*l_cert_name == ' ' || *l_cert_name == '\t') l_cert_name++;
+            char *end = l_cert_name + strlen(l_cert_name) - 1;
+            while (end > l_cert_name && (*end == ' ' || *end == '\t')) *end-- = '\0';
+            
+            // Try to load certificate (public or private, we only need public key)
+            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+            if (l_cert && l_cert->enc_key) {
+                // Extract public key
+                dap_pkey_t *l_pkey = dap_cert_to_pkey(l_cert);
+                if (l_pkey) {
+                    size_t l_pkey_size = sizeof(dap_pkey_t) + l_pkey->header.size;
+                    dap_tsd_t *l_pkey_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, 
+                                                            l_pkey, l_pkey_size);
+                    l_tsd_list = dap_list_append(l_tsd_list, l_pkey_tsd);
+                    l_tsd_total_size += dap_tsd_size(l_pkey_tsd);
+                    l_added_pkeys++;
+                    
+                    dap_chain_hash_fast_t l_pkey_hash = {0};
+                    if (dap_pkey_get_hash(l_pkey, &l_pkey_hash) == 0) {
+                        log_it(L_INFO, "Added public key from cert '%s': %s", 
+                               l_cert_name, dap_chain_hash_fast_to_str_static(&l_pkey_hash));
+                    }
+                    DAP_DELETE(l_pkey);
+                } else {
+                    log_it(L_WARNING, "Failed to extract public key from cert '%s'", l_cert_name);
+                }
+            } else {
+                log_it(L_WARNING, "Certificate '%s' not found or has no key", l_cert_name);
+            }
+            
+            l_cert_name = strtok_r(NULL, ",", &l_saveptr);
+        }
+        DAP_DELETE(l_pub_certs_dup);
+        log_it(L_INFO, "Added %zu public keys from certificates", l_added_pkeys);
+    }
+    
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
     if(l_tsd_total_size && !a_params->ext.parsed_tsd) {
@@ -5281,6 +5364,9 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
                 l_signs_total = (uint16_t)atoi(l_params->ext.total_signs_valid);
             }
 
+            // NOTE: REQUIRED_SIGNS_COUNT TSD (0x002E) is deprecated and removed
+            // It was causing "Unexpected TSD type" errors in ledger processing
+            // The actual signs requirement is determined by signs_valid parameter only
 
             size_t l_tsd_total_size = l_tsd_local_list_size + l_params->ext.tsd_total_size;
 
@@ -5412,10 +5498,13 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
     // Sign header with all certificates in the list and add signs to the end of TSD cetions
     uint16_t l_sign_counter = 0;
     l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
-    // For token_decl, signs_total should be set to the parameter value, not the actual number of signatures added
-    // This is because signs_total represents the total number of signatures required for validation,
-    // and all required signatures should be present in the datum
-    l_datum_token->signs_total = l_signs_total;
+    // For multi-sig tokens: signs_total = actual count of signatures added (can be incremented by token_decl_sign)
+    // For single-sig tokens: signs_total = l_signs_total (1 or the value from -signs_total parameter)
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Before setting signs_total: l_sign_counter=%u, l_signs_total=%u, current signs_total=%u", 
+             l_sign_counter, l_signs_total, l_datum_token->signs_total);
+    l_datum_token->signs_total = l_sign_counter;
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] After setting signs_total: signs_total=%u (actual signatures)", l_datum_token->signs_total);
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Token created with %u signature(s), required: %u", l_sign_counter, l_signs_total);
 
     // We skip datum creation opeartion, if count of signed certificates in s_sign_cert_in_cycle is 0.
     // Usually it happen, when certificate in token_decl or token_update command doesn't contain private data or broken
@@ -5426,9 +5515,15 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
             return -9;
     }
 
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Before datum create: signs_total=%u, datum_data_offset=%zu", 
+             l_datum_token->signs_total, l_datum_data_offset);
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                          l_datum_token,
                                                          sizeof(*l_datum_token) + l_datum_data_offset);
+    // Verify signs_total in datum data after creation
+    dap_chain_datum_token_t *l_check_token = (dap_chain_datum_token_t *)l_datum->data;
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] After datum create: signs_total in datum data=%u (expected %u)", 
+             l_check_token->signs_total, l_sign_counter);
     DAP_DELETE(l_datum_token);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
 
@@ -5450,7 +5545,12 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         DAP_DEL_Z(l_params);
         return -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_NO_SUITABLE_CHAIN;
     }
+    // Verify signs_total before saving to mempool
+    dap_chain_datum_token_t *l_save_check_token = (dap_chain_datum_token_t *)l_datum->data;
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Before saving to mempool: signs_total in datum=%u (expected %u), datum_size=%zu", 
+             l_save_check_token->signs_total, l_sign_counter, l_datum_size);
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, false) == 0;
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Saved to mempool: placed=%d, key=%s", l_placed, l_key_str);
     DAP_DELETE(l_gdb_group_mempool);
     if (a_version == 1) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK,

@@ -411,6 +411,15 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
  */
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS                           0x002D
 
+/**
+ * @brief Required signatures count for multi-sig tokens
+ * @details Stores the target number of signatures required for token operations.
+ * The actual current count of signatures is stored in datum_token->signs_total.
+ * This TSD allows gradual signature collection via token_decl_sign.
+ * @note Value type: uint16_t
+ */
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_REQUIRED_SIGNS_COUNT                 0x002E
+
 struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
     uint8_t version;
     uint8_t type; // Emission Type
