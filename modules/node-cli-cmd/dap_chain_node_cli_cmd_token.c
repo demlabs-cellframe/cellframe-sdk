@@ -27,6 +27,7 @@
 #include "dap_cli_server.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
+#include "dap_json.h"
 #include "dap_strfuncs.h"
 #include "dap_hash.h"
 #include "dap_time.h"
@@ -111,6 +112,9 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
 int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUSED_ARG int a_version)
 {
     int arg_index = 1;
+    dap_json_t *l_jobj_reply = dap_json_object_new();
+    dap_json_object_add_bool(l_jobj_reply, "status_placed", true);
+    dap_json_array_add(a_json_arr_reply, l_jobj_reply);
 
     const char *l_datum_hash_str = NULL;
     // Chain name
@@ -252,12 +256,10 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
         DAP_DELETE(l_gdb_group_mempool);
         return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR;
     }
-    dap_json_t *l_jobj_reply = dap_json_object_new();
-    dap_json_object_add_bool(l_jobj_reply, "token_sign", true);
+
+    dap_json_object_add_bool(l_jobj_reply, "status_placed", true);
     dap_json_object_add_string(l_jobj_reply, "old_hash", l_datum_hash_str);
     dap_json_object_add_string(l_jobj_reply, "new_hash", l_out_hash_str);
-    dap_json_array_add(a_json_arr_reply, l_jobj_reply);
-    dap_json_array_add(a_json_arr_reply, l_jobj_reply);    
     log_it(L_NOTICE, "Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s", l_datum_hash_str, l_out_hash_str);   
 
     return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_OK;

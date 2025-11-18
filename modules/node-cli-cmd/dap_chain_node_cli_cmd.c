@@ -4724,6 +4724,9 @@ int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
     switch (l_cmd)
     {
     case CMD_CREATE:{
+        dap_json_t *json_obj_status = dap_json_object_new();
+        if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
+        dap_json_object_add_bool(json_obj_status, "status_placed", false);
         if(!l_certs_count) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_LEAST_VALID_CERT_ERR,
                                 "decree create command requres at least one valid certificate to sign the decree");
@@ -5096,16 +5099,22 @@ int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
                                                              sizeof(*l_datum_decree) + l_datum_decree->header.data_size +
                                                              l_datum_decree->header.signs_size);
         DAP_DELETE(l_datum_decree);
-        char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+        char *l_decree_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
+        if (!l_decree_hash_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_PLACE_ERR,
+                                    "Decree creation failed. Can't place datum to mempool. Check access rights to chain %s mempool", l_chain->name);
+            return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_PLACE_ERR;
+        }
+        dap_json_object_add_bool(json_obj_status, "status_placed", true);
+        dap_json_object_add_string(json_obj_status, "decree_hash", l_decree_hash_str);
+    } break;
+
+    case CMD_SIGN:{
         dap_json_t *json_obj_status = dap_json_object_new();
         if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
-        dap_json_object_add_object(json_obj_status, "datum_status", l_key_str_out ? dap_json_object_new_string(l_key_str_out) :
-                                                                                dap_json_object_new_string("not_placed"));
+        dap_json_object_add_bool(json_obj_status, "status_placed", false);
         dap_json_array_add(a_json_arr_reply, json_obj_status);
-        break;
-    }
-    case CMD_SIGN:{
         if(!l_certs_count) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_NO_VALID_CERT_ERR,
                                             "decree sign command requres at least one valid certificate to sign");
@@ -5184,14 +5193,16 @@ int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
                                                                          l_datum_decree, l_decree_size);
                     DAP_DELETE(l_datum_decree);
 
-                    char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+                    char *l_decree_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
                     DAP_DELETE(l_datum);
-
-                    dap_json_t *json_obj_status = dap_json_object_new();
-                    if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
-                    dap_json_object_add_object(json_obj_status, "datum_status", l_key_str_out ? dap_json_object_new_string(l_key_str_out) :
-                                                                                            dap_json_object_new_string("not_placed"));
-                    dap_json_array_add(a_json_arr_reply, json_obj_status);
+                    if (!l_decree_hash_str) {
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_PLACE_ERR,
+                                                "Decree creation failed. Can't place datum to mempool. Check access rights to chain %s mempool", l_chain->name);
+                        return -DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_PLACE_ERR;
+                    }
+                    dap_json_object_add_bool(json_obj_status, "status_placed", true);
+                    dap_json_object_add_string(json_obj_status, "old_hash", l_datum_hash_str);
+                    dap_json_object_add_string(json_obj_status, "new_hash", l_decree_hash_str);
                 } else {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_WRONG_DATUM_TYPE_ERR,
                                             "Error! Wrong datum type. decree sign only decree datum");
@@ -5213,7 +5224,11 @@ int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
         }
         break;
     }
-    case CMD_ANCHOR:{
+    case CMD_ANCHOR: {
+        dap_json_t *json_obj_status = dap_json_object_new();
+        if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
+        dap_json_object_add_bool(json_obj_status, "status_placed", false);
+        dap_json_array_add(a_json_arr_reply, json_obj_status);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
 
         // Search chain
@@ -5283,15 +5298,17 @@ int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
                                                              sizeof(*l_datum_anchor) + l_datum_anchor->header.data_size +
                                                              l_datum_anchor->header.signs_size);
         DAP_DELETE(l_datum_anchor);
-        char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+        char *l_anchor_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
-        dap_json_t *json_obj_status = dap_json_object_new();
-        if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
-        dap_json_object_add_object(json_obj_status, "datum_status", l_key_str_out ? dap_json_object_new_string(l_key_str_out) :
-                                                                                dap_json_object_new_string("not_placed"));
-        dap_json_array_add(a_json_arr_reply, json_obj_status);
-        break;
-    }
+        if (!l_anchor_hash_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_PLACE_ERR,
+                                    "Anchor creation failed. Can't place datum to mempool. Check access rights to chain %s mempool", l_chain->name);
+            return -DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_PLACE_ERR;
+        }
+        dap_json_object_add_bool(json_obj_status, "status_placed", true);
+        dap_json_object_add_string(json_obj_status, "anchor_hash", l_anchor_hash_str);
+    } break;
+
     case CMD_FIND: {
         const char *l_hash_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
