@@ -1933,9 +1933,17 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                 .group      = l_ledger_cache_group,
                 .timestamp  = dap_nanotime_now()
         };
-        // Apply it with single DB transaction
-        if (dap_global_db_set_raw(l_cache_used_outs, l_outs_used + 1, NULL, NULL))
-            debug_if(g_debug_ledger, L_WARNING, "Ledger cache mismatch");
+        // Apply each record with proper signing via set_sync (avoids role/ACL rejection)
+        for (size_t i = 0; i < (size_t)l_outs_used + 1; i++) {
+            if (!l_cache_used_outs[i].key || !l_cache_used_outs[i].group)
+                continue;
+            if (dap_global_db_set_sync(l_cache_used_outs[i].group,
+                                       l_cache_used_outs[i].key,
+                                       l_cache_used_outs[i].value,
+                                       l_cache_used_outs[i].value_len,
+                                       false))
+                debug_if(g_debug_ledger, L_WARNING, "Ledger cache mismatch");
+        }
     }
     if (!a_from_threshold && is_ledger_threshld(l_ledger_pvt))
         dap_ledger_pvt_threshold_txs_proc(a_ledger);
@@ -2224,9 +2232,17 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     if ( is_ledger_cached(l_ledger_pvt) ) {
         // Add it to cache
         dap_global_db_del_sync(l_ledger_cache_group, l_tx_hash_str);
-        // Apply it with single DB transaction
-        if (dap_global_db_set_raw(l_cache_used_outs, l_outs_used, NULL, NULL))
-            debug_if(g_debug_ledger, L_WARNING, "Ledger cache mismatch");
+        // Apply each record with proper signing via set_sync (avoids role/ACL rejection)
+        for (size_t i = 0; i < (size_t)l_outs_used; i++) {
+            if (!l_cache_used_outs[i].key || !l_cache_used_outs[i].group)
+                continue;
+            if (dap_global_db_set_sync(l_cache_used_outs[i].group,
+                                       l_cache_used_outs[i].key,
+                                       l_cache_used_outs[i].value,
+                                       l_cache_used_outs[i].value_len,
+                                       false))
+                debug_if(g_debug_ledger, L_WARNING, "Ledger cache mismatch");
+        }
     }
 FIN:
     if (l_list_bound_items)

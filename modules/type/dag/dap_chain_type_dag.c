@@ -653,6 +653,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         .cell_id    = l_event->header.cell_id,
         .file_offset = 0  // Will be calculated by helper function when needed
     };
+    /* If chain is memory-mapped, the event pointer refers to mapped memory and must not be freed. */
+    if (a_chain->is_mapped)
+        l_event_item->mapped_region = (char*)l_event_item->event;
 
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD: {
@@ -675,6 +678,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
                 ret = ATOM_REJECT;
                 break;
             }
+            /* After saving on mapped chains, the event pointer points into the mapped region. Mark it as such. */
+            if (a_chain->is_mapped)
+                l_event_item->mapped_region = (char*)l_event_item->event;
         }
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, l_event_item);
         
@@ -683,7 +689,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             l_consensus_check == -6 || l_consensus_check == -7) {
             debug_if(s_debug_more, L_WARNING, "... skipped: invalid/corrupted event (code %d), continuing sync", l_consensus_check);
             /* Free the event item but return ATOM_ACCEPT to continue synchronization */
-            if (l_event_item->mapped_region == NULL) {
+            if (!a_chain->is_mapped && l_event_item->mapped_region == NULL) {
                 DAP_DELETE(l_event_item->event);
             }
             DAP_DELETE(l_event_item);
@@ -725,7 +731,7 @@ cleanup:
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     if (ret == ATOM_REJECT) { // Neither added, nor freed
         /* Free the event only if it's not from mmap (mapped_region == NULL means it's a copy) */
-        if (l_event_item->mapped_region == NULL) {
+        if (!a_chain->is_mapped && l_event_item->mapped_region == NULL) {
             DAP_DELETE(l_event_item->event);
         }
         DAP_DELETE(l_event_item);

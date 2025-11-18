@@ -1422,8 +1422,6 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
             // Now attach the completed net object into networks (ownership is transferred here)
             dap_json_object_add_object(l_jobj_network, l_net->pub.name, l_jobj_net);
             DAP_DEL_MULTY(l_addr_tokens, l_wallet_addr_in_net);
-            // Now it's safe to add l_jobj_net to parent (this invalidates l_jobj_net)
-            dap_json_object_add_object(l_jobj_network, l_net->pub.name, l_jobj_net);
             // add shared wallet tx hashes
             dap_json_t *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_pkey_hash, l_net->pub.name);
             if (l_tx_hashes) {
