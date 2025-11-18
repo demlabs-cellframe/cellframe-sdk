@@ -34,6 +34,7 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
+#include "dap_chain_datum.h"
 #include "dap_global_db.h"
 #include "dap_tsd.h"
 #include "dap_sign.h"
@@ -1598,8 +1599,17 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
         return;
 
     dap_chain_t *l_chain = (dap_chain_t *)a_arg;
-    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_obj->value;
-    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
+    // Value in mempool is a dap_chain_datum_t, need to unwrap TX data
+    if (a_obj->value_len < sizeof(dap_chain_datum_t))
+        return;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_obj->value;
+    if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+        return;
+    if (a_obj->value_len < sizeof(dap_chain_datum_t) + l_datum->header.data_size)
+        return;
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+    int l_count_num = 0;
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_count_num);
     if (!l_cond) {
         return;
     }
@@ -1718,6 +1728,7 @@ cleanup:
 
 int dap_chain_wallet_shared_init()
 {
+    log_it(L_MSG, "dap_chain_wallet_shared_init");
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL);
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
     dap_ledger_service_add(l_uid, "wallet_shared", s_tag_check);
@@ -1728,11 +1739,15 @@ int dap_chain_wallet_shared_init()
     }
     dap_chain_net_t *l_net = dap_chain_net_iter_start();
     for (; l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        log_it(L_MSG, "iterating over networks: %s", l_net->pub.name);
         for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+            log_it(L_MSG, "adding mempool notify callback for chain: %s", l_chain->name);
             dap_chain_add_mempool_notify_callback(l_chain, s_shared_tx_mempool_notify, l_chain);
-            log_it(L_MSG, "added mempool notify callback for chain: %s", l_chain->name);
+            log_it(L_MSG, "added mempool notify callback for chain: %s", l_chain->name);   
         }
+        log_it(L_MSG, "finished iterating over networks: %s", l_net->pub.name);
     }
+    log_it(L_MSG, "finished iterating over networks");
     dap_list_free(l_groups_list);
     s_collect_wallet_pkey_hashes();
     s_collect_cert_pkey_hashes();
