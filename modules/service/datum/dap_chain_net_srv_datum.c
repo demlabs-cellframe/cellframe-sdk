@@ -52,7 +52,7 @@ static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
 int dap_chain_net_srv_datum_init()
 {
-    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", dap_chain_node_cli_cmd_id_from_str("srv_datum"),
+    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, NULL, "Service Datum commands", dap_chain_node_cli_cmd_id_from_str("srv_datum"),
         "srv_datum -net <net_name> -chain <chain_name> datum save -datum <datum_hash>\n"
             "\tSaving datum from mempool to file.\n\n"
         "srv_datum -net <net_name> -chain <chain_name> datum load -datum <datum_hash>\n"
@@ -189,7 +189,7 @@ static int s_srv_datum_cli(int argc, char ** argv, dap_json_t *a_json_arr_reply,
                                                 "Can't place datum custom \"%s\" to mempool", l_datum_hash_str);
             }
             else {
-                dap_json_t* json_obj_out = dap_json_object_new();
+                dap_json_t *json_obj_out = dap_json_object_new();
                 char *l_status = dap_strdup_printf("Datum custom %s was successfully placed to mempool", l_datum_hash_str);
                 dap_json_object_add_string(json_obj_out, "status", l_status);
                 DAP_DELETE(l_status); 

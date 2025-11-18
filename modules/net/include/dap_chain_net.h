@@ -44,6 +44,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
+typedef struct dap_chain_net_decree dap_chain_net_decree_t;
+typedef struct decree_table decree_table_t;
 
 typedef enum dap_chain_net_state {
     NET_STATE_LOADING = 0,
@@ -154,6 +156,11 @@ dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
 dap_ledger_t * dap_ledger_by_net_name( const char * a_net_name);
 dap_string_t* dap_cli_list_net();
 
+// Decree management functions
+dap_chain_net_decree_t *dap_chain_net_get_net_decree(dap_chain_net_t *a_net);
+void dap_chain_net_set_net_decree(dap_chain_net_t *a_net, dap_chain_net_decree_t *a_decree);
+decree_table_t **dap_chain_net_get_decrees(dap_chain_net_t *a_net);
+
 dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);
 dap_chain_t *dap_chain_net_get_chain_by_id(dap_chain_net_t *l_net, dap_chain_id_t a_chain_id);
 
@@ -213,13 +220,13 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addr(dap_chain_net_t *a_net);
-void dap_chain_net_announce_addr_all();
+void dap_chain_net_announce_addr_all(void *arg);
 char *dap_chain_net_links_dump(dap_chain_net_t*);
 dap_json_t *dap_chain_net_states_json_collect(dap_chain_net_t * l_net, int a_version);
 dap_json_t *dap_chain_net_list_json_collect(int a_version);
 dap_json_t *dap_chain_nets_info_json_collect(int a_version);
-
-
+bool dap_chain_net_is_bridged(dap_chain_net_t *a_net, dap_chain_net_id_t a_net_id);
+void dap_chain_net_set_load_skip();
 #ifdef __cplusplus
 }
 #endif

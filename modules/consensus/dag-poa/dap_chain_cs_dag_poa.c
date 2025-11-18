@@ -109,7 +109,7 @@ int dap_chain_type_dag_poa_init()
     dap_chain_cs_add("dag_poa", l_cs_callbacks);
     
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands", dap_chain_node_cli_cmd_id_from_str("dag_poa"),
+    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands", dap_chain_node_cli_cmd_id_from_str("dag_poa"),
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
     s_debug_more = dap_config_get_item_bool_default(g_config, "dag", "debug_more", s_debug_more);
@@ -544,8 +544,6 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     size_t i, e, k;
     const char *l_complete_keys[a_values_count], *l_expired_keys[a_values_count];
     for (i = 0, e = 0, k = 0; i < a_values_count; i++) {
-        if (!strcmp(DAG_ROUND_CURRENT_KEY, a_values[i].key))
-            continue;
         if (a_values[i].value_len <= sizeof(dap_chain_type_dag_event_round_item_t) + sizeof(dap_chain_type_dag_event_t)) {
             log_it(L_WARNING, "Incorrect round item size, dump it");
             dap_global_db_del_sync(a_group, a_values[i].key);
@@ -652,8 +650,6 @@ static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
     dap_global_db_optype_t l_type = dap_store_obj_get_type(a_obj);
     log_it(L_DEBUG, "%s.%s: op_code '%c', group \"%s\", key \"%s\", value_size %zu",
         l_net->pub.name, l_dag->chain->name, l_type, a_obj->group, a_obj->key, a_obj->value_len);
-    if ( !dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY) )
-        return;
     switch ( l_type ) {
     case DAP_GLOBAL_DB_OPTYPE_ADD:
         s_callback_event_round_sync(l_dag, l_type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len,
@@ -790,8 +786,7 @@ static dap_chain_type_dag_event_t * s_callback_event_create(dap_chain_type_dag_t
 static int s_callback_event_round_sync(dap_chain_type_dag_t * a_dag, const char a_op_code, const char *a_group,
                                        const char *a_key, const void *a_value, const size_t a_value_size, bool a_by_us)
 {
-    dap_return_val_if_pass(a_op_code != DAP_GLOBAL_DB_OPTYPE_ADD || !a_key || !a_value
-                           || !a_value_size || !strcmp(DAG_ROUND_CURRENT_KEY, a_key), 0);
+    dap_return_val_if_fail(a_op_code == DAP_GLOBAL_DB_OPTYPE_ADD && a_key && a_value && a_value_size, 0);
 
     dap_chain_type_dag_poa_t * l_poa = DAP_CHAIN_TYPE_DAG_POA(a_dag);
     dap_chain_type_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);

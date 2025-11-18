@@ -214,7 +214,7 @@ int dap_chain_cs_esbocs_init()
                            NULL,
                            s_stream_ch_packet_in,
                            NULL);
-    dap_cli_server_cmd_add (DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_cli_esbocs, "ESBOCS commands", dap_chain_node_cli_cmd_id_from_str(DAP_CHAIN_ESBOCS_CS_TYPE_STR),
+    dap_cli_server_cmd_add (DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_cli_esbocs, NULL, "ESBOCS commands", dap_chain_node_cli_cmd_id_from_str(DAP_CHAIN_ESBOCS_CS_TYPE_STR),
         "esbocs min_validators_count set -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> -val_count <value>\n"
             "\tSets minimum validators count for ESBOCS consensus\n"
         "esbocs min_validators_count show -net <net_name> [-chain <chain_name>]\n"
@@ -382,7 +382,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
             dap_pkey_t *l_pkey = dap_pkey_from_enc_key(l_cert_cur->enc_key);
-            dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, NULL,
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, NULL, NULL,
                                                  l_weight, &l_signer_node_addr, l_pkey);
             DAP_DELETE(l_pkey);
         }
@@ -930,7 +930,7 @@ static int s_callback_purge(dap_chain_t *a_chain)
     uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
     for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
-        dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, NULL,
+        dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, NULL, NULL,
                                              l_weight, &l_validator->node_addr, NULL);
     }
     l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
@@ -1009,7 +1009,7 @@ static void s_callback_delete(dap_chain_type_blocks_t *a_blocks)
         HASH_DEL(l_session->penalty, l_pen_item);
         DAP_DELETE(l_pen_item);
     }
-    DAP_DEL_MULTY(l_session, a_blocks->_inheritor); // a_blocks->_inheritor - l_esbocs
+    DAP_DEL_MULTY(l_session, a_blocks->_inheritor, a_blocks->_pvt); // a_blocks->_inheritor - l_esbocs
 }
 
 static void *s_callback_list_copy(const void *a_validator, UNUSED_ARG void *a_data)

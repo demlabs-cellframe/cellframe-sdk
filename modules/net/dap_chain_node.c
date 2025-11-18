@@ -19,9 +19,10 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+ #include "dap_common.h"
 #include "dap_chain_block.h"
 #include "dap_chain_common.h"
-#include "dap_common.h"
+#include "dap_chain_mempool.h"
 #include "dap_hash.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net.h"
@@ -503,8 +504,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
         fclose(l_file);
     }
 #endif
-    dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
-    char *l_gdb_group_mempool = (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(a_chain) : NULL;
+    char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     if (l_objs_count) {
@@ -567,7 +567,7 @@ static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_
     return ret;
 }
 
-int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t * a_changed_addrs)
+int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs)
 {
     if (dap_strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR))
         return log_it(L_ERROR, "Can't prepare harfork for chain type %s is not supported", dap_chain_get_cs_type(a_chain)), -2;
@@ -840,8 +840,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         }
         l_states->main_iterator = NULL;
     case STATE_MEMPOOL: {
-        dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
-        char *l_gdb_group_mempool = (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(a_chain) : NULL;
+        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
         size_t l_objs_count = 0;
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
         for (size_t i = 0; i < l_objs_count; i++) {
@@ -856,7 +855,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                     l_datum->header.type_id != DAP_CHAIN_DATUM_ANCHOR)
                 continue;
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
-                log_it(L_WARNING, "Trying to process hardfork %s datum with incorrect size %zu (expect %zu)",
+                log_it(L_WARNING, "Trying to process hardfork %s datum with incorrect size %"DAP_UINT64_FORMAT_U" (expect %zu)",
                                             l_datum->header.type_id == DAP_CHAIN_DATUM_SERVICE_STATE ? "service state" : "anchor",
                                                 dap_chain_datum_size(l_datum), l_objs[i].value_len);
                 continue;
@@ -1023,7 +1022,7 @@ static int s_compare_events(dap_ledger_hardfork_events_t *a_list1, dap_ledger_ha
 int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, bool a_remove)
 {
     if (a_datum_size <= sizeof(dap_chain_datum_t) || dap_chain_datum_size(a_datum) != a_datum_size) {
-        log_it(L_WARNING, "Incorrect harfork datum size %zu", a_datum_size <= sizeof(dap_chain_datum_t) ? a_datum_size : dap_chain_datum_size(a_datum));
+        log_it(L_WARNING, "Incorrect harfork datum size %"DAP_UINT64_FORMAT_U, a_datum_size <= sizeof(dap_chain_datum_t) ? a_datum_size : dap_chain_datum_size(a_datum));
         return -1;
     }
     switch (a_datum->header.type_id) {
@@ -1251,8 +1250,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             break;
         }
         dap_hash_str_t l_key = dap_get_data_hash_str(a_datum->data, a_datum->header.data_size);
-        dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(a_chain);
-        char *l_gdb_group_mempool = (l_mp_cbs && l_mp_cbs->mempool_group_new) ? l_mp_cbs->mempool_group_new(a_chain) : NULL;
+        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
         size_t l_objs_count = 0;
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_gdb_group_mempool, &l_objs_count);
         for (size_t i = 0; i < l_objs_count; i++) {
@@ -1282,7 +1280,7 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
             }
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
-                log_it(L_WARNING, "Harfork datum service state with incorrect size %zu", dap_chain_datum_size(l_datum));
+                log_it(L_WARNING, "Harfork datum service state with incorrect size %"DAP_UINT64_FORMAT_U, dap_chain_datum_size(l_datum));
                 m_ret(-13);
             }
             dap_hash_str_t l_key = dap_get_data_hash_str(a_datum->data, a_datum->header.data_size);

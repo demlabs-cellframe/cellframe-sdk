@@ -203,7 +203,8 @@ typedef enum s_com_token_update_err{
 
 typedef enum s_com_token_decl_sign_err{
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_OK = 0,
-    DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_H_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NET_PARAM_ERR,
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_UPDATE_UNKNOWN_TOKEN_TYPE,
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NOT_VALID_CERT_ERR,
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_HAS_WRONG_SIGNATURE_ERR,
@@ -411,7 +412,6 @@ int com_token_emit (int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, in
 int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-void json_rpc_tx_create(json_object *a_param, json_object *a_reply, int a_version);
 int com_tx_create_json(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 int com_tx_cond_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 

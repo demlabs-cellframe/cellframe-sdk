@@ -23,8 +23,10 @@
 
 #include <memory.h>
 #include <assert.h>
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_common.h"
+#include "dap_hash.h"
 #include "dap_sign.h"
 #include "dap_pkey.h"
 #include "dap_chain_common.h"
@@ -418,8 +420,9 @@ const char *l_ban_addr;
             }
             if (!a_apply)
                 break;
-            
-            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, a_decree, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(a_decree));
+            dap_hash_fast_t l_decree_hash = {};
+            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_decree_hash, &l_hash, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(a_decree));
             if (!dap_chain_net_get_load_mode(a_net))
                 dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);
             break;
@@ -737,7 +740,7 @@ const char *l_ban_addr;
             }
             if (!a_anchored)
                 break;
-            if (dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
+            if (!dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
                 log_it(L_WARNING, "Event pkey already exists in ledger");
                 return -116;
             }
@@ -762,7 +765,7 @@ const char *l_ban_addr;
             }
             if (!a_anchored)
                 break;
-            if (!dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
+            if (dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
                 log_it(L_WARNING, "Event pkey not found in ledger");
                 return -116;
             }

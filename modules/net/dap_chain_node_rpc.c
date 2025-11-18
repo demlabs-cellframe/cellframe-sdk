@@ -209,11 +209,11 @@ dap_json_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
 {
     dap_nanotime_t l_timestamp = 0;
     size_t l_data_size = 0;
-    dap_json_t* json_node_obj = dap_json_object_new();
+    dap_json_t *json_node_obj = dap_json_object_new();
     if (!json_node_obj) {
         return NULL;
     }
-    dap_json_t* json_node_loads_arr = dap_json_array_new();
+    dap_json_t *json_node_loads_arr = dap_json_array_new();
     if (!json_node_loads_arr) {
         dap_json_object_free(json_node_obj);
         return NULL;
@@ -289,7 +289,7 @@ int dap_chain_node_rpc_info_del(dap_chain_node_addr_t a_addr)
 
 /**
  * @brief Return string by rpc node list
- * @return pointer to json_object if Ok, NULL if error
+ * @return pointer to dap_json_t if Ok, NULL if error
  */
 dap_json_t *dap_chain_node_rpc_list()
 {
@@ -299,7 +299,7 @@ dap_json_t *dap_chain_node_rpc_list()
     if(!l_nodes_count || !l_objs)
         return NULL;
 
-    dap_json_t* json_node_list_arr = dap_json_array_new();
+    dap_json_t *json_node_list_arr = dap_json_array_new();
     if (!json_node_list_arr)
         return NULL;
 
@@ -309,7 +309,7 @@ dap_json_t *dap_chain_node_rpc_list()
             log_it(L_ERROR, "Node address is empty");
             continue;
         }
-        dap_json_t* json_node_obj = dap_json_object_new();
+        dap_json_t *json_node_obj = dap_json_object_new();
         if (!json_node_obj) {
             dap_json_object_free(json_node_list_arr);
             return NULL;
@@ -326,7 +326,7 @@ dap_json_t *dap_chain_node_rpc_list()
         DAP_DELETE(l_addr);
     }
     dap_global_db_objs_delete(l_objs, l_nodes_count);
-    dap_json_t* json_node_list_obj = dap_json_object_new();
+    dap_json_t *json_node_list_obj = dap_json_object_new();
     if (!json_node_list_obj) {
         dap_json_object_free(json_node_list_arr);
         return NULL;

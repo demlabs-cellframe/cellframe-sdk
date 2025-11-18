@@ -25,9 +25,11 @@
 #pragma once
 
 #include "dap_chain_ledger.h"
+#include "dap_hash.h"
 #include "dap_math_ops.h"
 #include "dap_chain_net_ch.h"
 #include "dap_chain_datum_decree.h"
+#include "dap_chain_net_srv_order.h"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
@@ -56,8 +58,8 @@ typedef struct dap_chain_net_srv_stake_item { // TODO move it to private section
 int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();
 
-void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_chain_datum_decree_t *a_decree,
-                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey);
+void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_decree_hash,
+                                          dap_hash_fast_t *a_tx_hash, uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey);
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr);
 void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint256_t a_new_value, dap_hash_fast_t *a_new_tx_hash);
 void dap_chain_net_srv_stake_pkey_update(dap_chain_net_t *a_net, dap_pkey_t *a_pkey);
@@ -92,3 +94,4 @@ int dap_chain_net_srv_stake_hardfork_data_verify(dap_chain_net_t *a_net, dap_has
 int dap_chain_net_srv_stake_switch_table(dap_chain_net_id_t a_net_id, bool a_to_sandbox);
 dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hash);
 void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net);
+int dap_chain_net_srv_stake_get_validator_ext(dap_chain_net_srv_order_t *a_order, uint256_t *a_tax, uint256_t *a_value_max);

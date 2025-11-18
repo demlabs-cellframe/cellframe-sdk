@@ -379,5 +379,6 @@ int dap_chain_srv_decree(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_
     struct network_service *l_service = s_net_service_find(l_service_item, a_net_id);
     if (!l_service)
         return -1;
-    return l_service_item->callbacks.decree(a_net_id, a_apply, a_params, a_params_size);
+    l_service_item->callbacks.decree(a_net_id, a_apply, a_params, a_params_size);
+    return 0;
 }

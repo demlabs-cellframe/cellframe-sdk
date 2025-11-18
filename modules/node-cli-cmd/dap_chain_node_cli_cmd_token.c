@@ -112,166 +112,155 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
 {
     int arg_index = 1;
 
-    const char * l_hash_out_type = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
-    if(!l_hash_out_type)
-        l_hash_out_type = "hex";
-    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_H_PARAM_ERR,
-                                       "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
-    }
-
-    const char * l_datum_hash_str = NULL;
+    const char *l_datum_hash_str = NULL;
     // Chain name
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
-    if(l_datum_hash_str) {
-        char *l_datum_hash_hex_str = NULL, *l_datum_hash_base58_str = NULL;
-        const char * l_certs_str = NULL;
-        dap_cert_t ** l_certs = NULL;
-        size_t l_certs_count = 0;
-        dap_chain_t * l_chain = NULL;
-        dap_chain_net_t * l_net = NULL;
-
-        dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &arg_index, a_argc, a_argv,&l_chain, &l_net,
-                                                      CHAIN_TYPE_TOKEN);
-        if(!l_net)
-            return -1;
-
-        // Certificates thats will be used to sign currend datum token
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
-
-        // Load certs lists
-        if (l_certs_str)
-            dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
-
-        if(!l_certs_count) {
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NOT_VALID_CERT_ERR,
-                                       "token_sign command requres at least one valid certificate to sign the basic transaction of emission");
-            return -7;
-        }
-
-        char * l_gdb_group_mempool = dap_chain_mempool_group_new(l_chain);
-        if(!l_gdb_group_mempool) {
-            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
-        }
-        // datum hash may be in hex or base58 format
-        if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
-            l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
-            l_datum_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_datum_hash_str);
-        } else {
-            l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
-            l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
-        }
-        const char *l_datum_hash_out_str = dap_strcmp(l_hash_out_type,"hex")
-            ? l_datum_hash_base58_str
-            : l_datum_hash_hex_str;
-
-        log_it(L_DEBUG, "Requested to sign token declaration %s in gdb://%s with certs %s",
-                l_gdb_group_mempool, l_datum_hash_hex_str, l_certs_str);
-
-        dap_chain_datum_t * l_datum = NULL;
-        size_t l_datum_size = 0;
-        size_t l_tsd_size = 0;
-        if((l_datum = (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool,
-                l_datum_hash_hex_str, &l_datum_size, NULL, NULL )) != NULL) {
-
-            // Check if its token declaration
-            if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
-                dap_chain_datum_token_t *l_datum_token = DAP_DUP_SIZE((dap_chain_datum_token_t*)l_datum->data, l_datum->header.data_size);
-                DAP_DELETE(l_datum);
-                if ((l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
-                    ||  (l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE))
-                    l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
-                // Check for signatures, are they all in set and are good enought?
-                size_t l_signs_size = 0, i = 1;
-                uint16_t l_tmp_signs_total = l_datum_token->signs_total;
-                l_datum_token->signs_total = 0;
-                for (i = 1; i <= l_tmp_signs_total; i++){
-                    dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->tsd_n_signs + l_tsd_size + l_signs_size);
-                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size) ) {
-                        log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
-                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_HAS_WRONG_SIGNATURE_ERR,
-                                       "Datum %s with datum token has wrong signature %zu, break process and exit",
-                                        l_datum_hash_out_str, i);
-                        DAP_DELETE(l_datum_token);
-                        DAP_DELETE(l_gdb_group_mempool);
-                        return -6;
-                    }else{
-                        log_it(L_DEBUG,"Sign %zu passed", i);
-                    }
-                    l_signs_size += dap_sign_get_size(l_sign);
-                }
-                l_datum_token->signs_total = l_tmp_signs_total;
-                log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
-                                 l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
-
-                // Sign header with all certificates in the list and add signs to the end of token update
-                uint16_t l_sign_counter = 0;
-                size_t l_data_size = l_tsd_size + l_signs_size;
-                l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
-                                                            &l_sign_counter);
-                log_it(L_DEBUG, "Apply %hu signs to datum %s", l_sign_counter, l_datum_hash_hex_str);
-                if (!l_sign_counter) {
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_SERT_NOT_VALID_ERR,
-                                       "Error! Used certs not valid");
-                    DAP_DEL_MULTY(l_datum_token, l_datum_hash_hex_str, l_datum_hash_base58_str, l_gdb_group_mempool);
-                    return -9;
-                }
-                l_datum_token->signs_total += l_sign_counter;
-                size_t l_token_size = sizeof(*l_datum_token) + l_data_size;
-                l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
-                                                                     l_datum_token, l_token_size);
-                DAP_DELETE(l_datum_token);
-                // Calc datum's hash
-                l_datum_size = dap_chain_datum_size(l_datum);
-                dap_chain_hash_fast_t l_key_hash = { };
-                dap_hash_fast(l_datum->data, l_token_size, &l_key_hash);
-                const char  *l_key_str = dap_chain_hash_fast_to_str_static(&l_key_hash),
-                            *l_key_str_base58 = dap_enc_base58_encode_hash_to_str_static(&l_key_hash),
-                            *l_key_out_str = dap_strcmp(l_hash_out_type, "hex") ? l_key_str_base58 : l_key_str;
-
-                int rc = 0;
-                // Add datum to mempool with datum_token hash as a key
-                if( dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, dap_chain_datum_size(l_datum), false) == 0) {
-                    char* l_hash_str = l_datum_hash_hex_str;
-                    // Remove old datum from pool
-                    if( dap_global_db_del_sync(l_gdb_group_mempool, l_hash_str ) == 0) {
-                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_OK,
-                                       "Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s",
-                                l_datum_hash_out_str, l_key_out_str);
-                    } else {
-                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR,
-                                       "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
-                                l_datum_hash_out_str, l_key_out_str);
-                        rc = -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR;
-                    }
-                } else {
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_CANT_BE_PL_MEMPOOL_ERR,
-                                       "Error! datum %s produced from %s can't be placed in mempool",
-                            l_key_out_str, l_datum_hash_out_str);
-                    rc = -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_CANT_BE_PL_MEMPOOL_ERR;
-                }
-                DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str, l_datum, l_gdb_group_mempool);
-                return rc;
-            } else {
-                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_WRONG_DATUM_TYPE_ERR,
-                                       "Error! Wrong datum type. token_decl_sign sign only token declarations datum");
-                return -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_WRONG_DATUM_TYPE_ERR;
-            }
-        } else {
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_FIND_DATUM_ERR,
-                                       "token_decl_sign can't find datum with %s hash in the mempool of %s:%s",l_datum_hash_out_str,l_net? l_net->pub.name: "<undefined>",
-                                        l_chain?l_chain->name:"<undefined>");
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_FIND_DATUM_ERR;
-        }
-        DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str);
-    } else {
+    if (!l_datum_hash_str) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NEED_DATUM_ARG_ERR,
-                                       "token_decl_sign need -datum <datum hash> argument");
+            "token_decl_sign need -datum <datum hash> argument");
         return -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NEED_DATUM_ARG_ERR;
     }
-    return 0;
+    dap_hash_fast_t l_datum_hash = {};
+    bool l_hash_out_base58 = false;
+    // datum hash may be in hex or base58 format
+    if (!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
+        if (dap_chain_hash_fast_from_hex_str(l_datum_hash_str, &l_datum_hash)) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR,
+                "token_decl_sign <datum hash> argument is incorrect");
+            return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR;
+        }
+    } else {
+        if (dap_chain_hash_fast_from_base58_str(l_datum_hash_str, &l_datum_hash)) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR,
+                "token_decl_sign <datum hash> argument is incorrect");
+            return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR;
+        }
+        l_hash_out_base58 = true;
+    }
+
+    dap_chain_t *l_chain = NULL;
+    dap_chain_net_t *l_net = NULL;
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TOKEN);
+    if (!l_net)
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NET_PARAM_ERR;
+
+    const char *l_certs_str = NULL;
+    dap_cert_t **l_certs = NULL;
+    size_t l_certs_count = 0;
+    // Certificates thats will be used to sign currend datum token
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+
+    // Load certs lists
+    if (l_certs_str)
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+
+    if (!l_certs_count) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NOT_VALID_CERT_ERR,
+                                    "token_sign command requres at least one valid certificate to sign the basic transaction of emission");
+        DAP_DELETE(l_certs);
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NOT_VALID_CERT_ERR;
+    }
+
+    char *l_gdb_group_mempool = dap_chain_mempool_group_new(l_chain);
+    if (!l_gdb_group_mempool)
+        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
+
+    log_it(L_DEBUG, "Requested to sign token declaration %s in gdb://%s with certs %s", l_gdb_group_mempool, l_datum_hash_str, l_certs_str);
+    
+    size_t l_datum_size = 0;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group_mempool,
+                                                                             dap_chain_hash_fast_to_str_static(&l_datum_hash),
+                                                                             &l_datum_size, NULL, NULL);
+    if (!l_datum) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_FIND_DATUM_ERR,
+                                                    "token_decl_sign can't find datum with %s hash in the mempool of %s:%s", 
+                                                                                    l_datum_hash_str,
+                                                                                    l_net ? l_net->pub.name: "<undefined>",
+                                                                                    l_chain ? l_chain->name : "<undefined>");
+        DAP_DEL_MULTY(l_certs, l_gdb_group_mempool);
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_FIND_DATUM_ERR;
+    }
+    // Check if its token declaration
+    if (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_WRONG_DATUM_TYPE_ERR,
+            "Error! Wrong datum type. token_decl_sign sign only token declarations datum");
+        DAP_DEL_MULTY(l_certs, l_gdb_group_mempool);
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_WRONG_DATUM_TYPE_ERR;
+    }
+    size_t l_token_size = l_datum->header.data_size;
+    dap_chain_datum_token_t *l_datum_token = dap_chain_datum_token_read(l_datum->data, &l_token_size);
+    DAP_DELETE(l_datum);
+
+    size_t l_tsd_size = 0;
+    if (l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)
+        l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
+    // Check for signatures, are they all in set and are good enough?
+    size_t l_signs_size = 0, i = 1;
+    uint16_t l_tmp_signs_total = l_datum_token->signs_total;
+    l_datum_token->signs_total = 0;
+    for (i = 1; i <= l_tmp_signs_total; i++) {
+        dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->tsd_n_signs + l_tsd_size + l_signs_size);
+        if ( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size) == 0 ) {
+            log_it(L_DEBUG,"Sign %zu passed", i);
+            l_signs_size += dap_sign_get_size(l_sign);
+        }
+        log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_str);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_HAS_WRONG_SIGNATURE_ERR,
+                                        "Datum %s with datum token has wrong signature %zu, break process and exit", l_datum_hash_str, i);
+        DAP_DEL_MULTY(l_certs, l_gdb_group_mempool, l_datum_token);
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_HAS_WRONG_SIGNATURE_ERR;
+    }
+    l_datum_token->signs_total = l_tmp_signs_total;
+    log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
+                        l_datum_hash_str, l_datum_token->signs_total, l_signs_size);
+
+    // Sign header with all certificates in the list and add signs to the end of token update
+    uint16_t l_sign_counter = 0;
+    size_t l_data_size = l_tsd_size + l_signs_size;
+    l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size, &l_sign_counter);
+    DAP_DELETE(l_certs);
+    log_it(L_DEBUG, "Apply %hu signs to datum %s", l_sign_counter, l_datum_hash_str);
+    if (!l_sign_counter) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_SERT_NOT_VALID_ERR,
+                            "Error! Used certs not valid");
+        DAP_DEL_MULTY(l_gdb_group_mempool, l_datum_token);
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_SERT_NOT_VALID_ERR;
+    }
+    l_datum_token->signs_total += l_sign_counter;
+    size_t l_new_token_size = sizeof(*l_datum_token) + l_data_size;
+    l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN, l_datum_token, l_new_token_size);
+    DAP_DELETE(l_datum_token);
+    // Calc datum's hash
+    l_datum_size = dap_chain_datum_size(l_datum);
+    dap_chain_hash_fast_t l_new_datum_hash = { };
+    dap_hash_fast(l_datum->data, l_new_token_size, &l_new_datum_hash);
+    const char *l_out_hash_str = l_hash_out_base58 ? dap_enc_base58_encode_hash_to_str_static(&l_new_datum_hash)
+                                                   : dap_chain_hash_fast_to_str_static(&l_new_datum_hash);
+    // Add datum to mempool with datum_token hash as a key
+    if( dap_global_db_set_sync(l_gdb_group_mempool, dap_chain_hash_fast_to_str_static(&l_new_datum_hash),
+                               l_datum, dap_chain_datum_size(l_datum), false) != 0) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_CANT_BE_PL_MEMPOOL_ERR,
+                                                "Error! datum %s produced from %s can't be placed in mempool", l_out_hash_str, l_datum_hash_str);
+        DAP_DEL_MULTY(l_gdb_group_mempool, l_datum);
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_CANT_BE_PL_MEMPOOL_ERR;
+    }
+    DAP_DELETE(l_datum);
+    // Remove old datum from pool
+    if( dap_global_db_del_sync(l_gdb_group_mempool, dap_chain_hash_fast_to_str_static(&l_datum_hash) ) == 0) {                                   
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR,
+                                    "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)", l_datum_hash_str, l_out_hash_str);
+        DAP_DELETE(l_gdb_group_mempool);
+        return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR;
+    }
+    dap_json_t *l_jobj_reply = dap_json_object_new();
+    dap_json_object_add_bool(l_jobj_reply, "token_sign", true);
+    dap_json_object_add_string(l_jobj_reply, "old_hash", l_datum_hash_str);
+    dap_json_object_add_string(l_jobj_reply, "new_hash", l_out_hash_str);
+    dap_json_array_add(a_json_arr_reply, l_jobj_reply);
+    dap_json_array_add(a_json_arr_reply, l_jobj_reply);    
+    log_it(L_NOTICE, "Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s", l_datum_hash_str, l_out_hash_str);   
+
+    return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_OK;
 }
 
 typedef struct _dap_cli_token_additional_params {
@@ -308,7 +297,7 @@ typedef struct _dap_sdk_cli_params {
     dap_cli_token_additional_params ext;
 } dap_sdk_cli_params, *pdap_sdk_cli_params;
 
-static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, dap_json_t* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
+static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
     a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-H", &a_params->hash_out_type);
@@ -445,7 +434,7 @@ dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd
     return l_tsd_list;
 }
 
-static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, dap_json_t* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
+static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &a_params->ext.flags);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &a_params->ext.total_signs_valid);
@@ -640,7 +629,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, dap_jso
     return 0;
 }
 
-static int s_token_decl_check_params_json(int a_argc, char **a_argv, dap_json_t* a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
+static int s_token_decl_check_params_json(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
     int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv, a_json_arr_reply, a_params, a_update_token);
     if (l_parse_params)
@@ -1364,7 +1353,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
-    dap_json_t* json_obj_out = dap_json_object_new();
+    dap_json_t *json_obj_out = dap_json_object_new();
     dap_json_object_add_string(json_obj_out, "result", l_str_reply_tmp);
     dap_json_array_add(a_json_arr_reply, json_obj_out);
     return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;

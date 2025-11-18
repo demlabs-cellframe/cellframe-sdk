@@ -128,7 +128,7 @@ int dap_chain_net_srv_voting_init()
     dap_ledger_voting_verificator_add(s_voting_verificator, s_vote_verificator,
                                       s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
      dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
-                            "poll", s_cli_voting, "Voting/poll commands", dap_chain_node_cli_cmd_id_from_str("poll"),
+                           "poll", s_cli_voting, NULL, "Voting/poll commands", dap_chain_node_cli_cmd_id_from_str("poll"),
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>] [-max_votes_count <votes_count>]"
                                         " [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll cancel -net <net_name> -hash <poll_hash> -fee <value_datoshi> -w <fee_wallet_name>\n"
@@ -726,7 +726,7 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
 
         switch (res) {
         case DAP_CHAIN_NET_VOTE_CREATE_OK: {
-                dap_json_t* json_obj_inf = dap_json_object_new();
+                dap_json_t *json_obj_inf = dap_json_object_new();
                 if (a_version == 1) {
                     dap_json_object_add_string(json_obj_inf, "Datum add successfully", l_hash_ret);
                 } else {
@@ -938,7 +938,7 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
 
         switch (res) {
             case DAP_CHAIN_NET_VOTE_VOTING_OK: {
-                dap_json_t* json_obj_inf = dap_json_object_new();
+                dap_json_t *json_obj_inf = dap_json_object_new();
                 if (a_version == 1) {
                     dap_json_object_add_string(json_obj_inf, "Datum add successfully to mempool", l_hash_tx);
                 } else {
@@ -1019,16 +1019,16 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
     } break;
 
     case CMD_LIST: {
-        dap_json_t* json_vote_out = dap_json_object_new();
+        dap_json_t *json_vote_out = dap_json_object_new();
         dap_json_object_add_string(json_vote_out, "list_of_polls", l_net->pub.name);
-        dap_json_t* json_arr_voting_out = dap_json_array_new();
+        dap_json_t *json_arr_voting_out = dap_json_array_new();
         const char *l_token_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_str);
         struct voting *votings_ht = s_votings_ht_get(l_net->pub.id);
         for (struct voting *it = votings_ht; it; it = it->hh.next) {
             if (l_token_str && strcmp(l_token_str, it->params->token_ticker) != 0)
                 continue;
-            dap_json_t* json_obj_vote = dap_json_object_new();
+            dap_json_t *json_obj_vote = dap_json_object_new();
             dap_json_object_add_object( json_obj_vote, "poll_tx",
                                     dap_json_object_new_string_len(dap_chain_hash_fast_to_str_static(&it->hash), sizeof(dap_hash_str_t)) );            
             dap_json_object_add_object( json_obj_vote, "question", 
@@ -1092,7 +1092,7 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
             SUM_256_256(l_total_weight, l_vote->weight, &l_total_weight);
         }
 
-        dap_json_t* json_vote_out = dap_json_object_new();
+        dap_json_t *json_vote_out = dap_json_object_new();
         dap_json_object_add_object(json_vote_out, "poll_tx", dap_json_object_new_string_len(l_hash_str, sizeof(dap_hash_str_t)));
 
         // get creator address from voting tx
@@ -1581,7 +1581,7 @@ dap_chain_net_voting_info_t *s_voting_extract_info(struct voting *a_voting)
         l_info->params->question = dap_strdup(a_voting->params->question);
     }
     l_info->params->options = dap_list_copy(a_voting->params->options);
-    strncpy(l_info->params->token_ticker, a_voting->params->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    dap_strncpy(l_info->params->token_ticker, a_voting->params->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     
     // Set info-specific fields
     l_info->hash = a_voting->hash;

@@ -49,7 +49,6 @@
 #include "dap_chain_wallet.h"
 #include "dap_config.h"
 #include "json-c/json.h"
-#include "json_object.h"
 #include "uthash.h"
 #include "dap_chain_srv.h"
 
@@ -110,7 +109,7 @@ static int s_stake_ext_event_verify(dap_chain_net_id_t a_net_id, const char *a_e
 static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_item);
 static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
 static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,
-                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_check_for_apply);
+                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_from_mempool);
 // Event fixation callback (for ledger event notifications)
 static void s_stake_ext_cache_event_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode);
 // Forward declaration for optimization function
@@ -203,7 +202,7 @@ int dap_chain_net_srv_stake_ext_init(void)
                                s_stake_ext_unlock_callback_updater, s_stake_ext_lock_callback_updater,
                                NULL, NULL);
     
-    dap_cli_server_cmd_add ("stake_ext", s_com_stake_ext, "Stake_ext commands", dap_chain_node_cli_cmd_id_from_str("stake_ext"),
+    dap_cli_server_cmd_add ("stake_ext", s_com_stake_ext, NULL, "Stake_ext commands", dap_chain_node_cli_cmd_id_from_str("stake_ext"),
                 "lock -net <network> -stake_ext <stake_ext_name|tx_hash> -amount <value> -lock_period <3..24> -position <position_id> -fee <value> -w <wallet>\n"
                 "\tPlace a lock on an stake_ext for a specific position\n"
                 "\t-position: position ID (uint32) for which the lock is made\n\n"
@@ -1159,7 +1158,7 @@ static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chai
  * @return Returns 0 on success, negative error code otherwise
  */
 static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,
-                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_check_for_apply)
+                                              dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_from_mempool)
 {
     struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
     if (!l_stake_ext_service) {

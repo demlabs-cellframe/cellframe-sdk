@@ -153,7 +153,7 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
  */
 int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
                                         uint32_t a_tx_out_prev_idx,
-                                        uint32_t a_receipt_idx);
+                                        int32_t a_receipt_idx);
 
 /**
  * Create 'in_cond' items from list  and insert to transaction
@@ -204,7 +204,7 @@ int dap_chain_datum_tx_add_out_std_item(dap_chain_datum_tx_t **a_tx, const dap_c
  * return 1 Ok, -1 Error
  */
 
-int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_pkey_t *a_key, dap_chain_srv_uid_t a_srv_uid,
+int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
         uint256_t a_value, uint256_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit, const void *a_cond, size_t a_cond_size);
 
 /**

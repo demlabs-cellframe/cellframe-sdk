@@ -113,7 +113,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);
 bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
 
-int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t * a_changed_addrs);
+int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs);
 int dap_chain_node_hardfork_process(dap_chain_t *a_chain);
 int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 int dap_chain_node_hardfork_confirm(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);

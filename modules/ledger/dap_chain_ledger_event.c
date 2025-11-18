@@ -157,7 +157,7 @@ int dap_ledger_pvt_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
     return 0;
  }
  
-int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply, bool a_check_for_apply)
+int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply, bool a_from_mempool)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     if (a_apply)
@@ -280,7 +280,7 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         if (ret)
             log_it(L_WARNING, "Decree event %s rejected by service verificator with code %d", dap_hash_fast_to_str_static(a_tx_hash), ret);
-        return a_check_for_apply ? 0 : ret;
+        return a_from_mempool ? ret : 0;
     }
     int l_ret = dap_chain_srv_event_verify(a_ledger->net->pub.id, l_event_item->srv_uid, l_event_group_name,
                                            l_event_item->event_type, l_event_tsd ? (dap_tsd_t *)l_event_tsd->data : NULL,
@@ -290,7 +290,7 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
         DAP_DELETE(l_event_group_name);
         if (l_ret)
             log_it(L_WARNING, "Event %s rejected by service verificator with code %d", dap_hash_fast_to_str_static(a_tx_hash), l_ret);
-        return a_check_for_apply ? 0 : l_ret;
+        return a_from_mempool ? l_ret : 0;
     }
 
     l_event = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_event_t, -8);
@@ -469,6 +469,6 @@ dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(dap_ledger_t *a_ledger
         }
         DL_APPEND(ret, l_add);
     }
-    pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
+    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
     return ret;
 }

@@ -13,6 +13,14 @@ target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)
 
+# Add tests subdirectory if testing is enabled
+if(BUILD_CELLFRAME_SDK_TESTS)
+    message("[+] Adding ledger tests subdirectory")
+    add_subdirectory(tests)
+else()
+    message("[-] Ledger tests disabled (BUILD_CELLFRAME_SDK_TESTS=${BUILD_CELLFRAME_SDK_TESTS})")
+endif()
+
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_LEDGER_HEADERS}")
 INSTALL(TARGETS ${PROJECT_NAME} 

@@ -105,6 +105,7 @@ static pfn_NtExtendSection pfnNtExtendSection;
 #endif
 
 static bool s_debug_more = false;
+static atomic_bool s_load_skip = false;
 
 /**
  * @brief dap_chain_cell_init
@@ -614,7 +615,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             }
         }
     }
-    if ( l_pos < l_full_size && l_ret > 0 ) {
+    if ( !s_load_skip && l_pos < l_full_size && l_ret > 0 ) {
         log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %zu bytes",
                         a_cell->file_storage_path, l_full_size - l_pos );
 #ifdef DAP_OS_WINDOWS
@@ -1088,4 +1089,9 @@ int dap_chain_cell_file_append(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_
     //pthread_rwlock_unlock(&l_cell->storage_rwlock);
     dap_chain_cell_remit(a_chain);
     return 0;
+}
+
+DAP_INLINE void dap_chain_cell_set_load_skip()
+{
+    s_load_skip = true;
 }
