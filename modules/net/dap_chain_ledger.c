@@ -1378,13 +1378,6 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             a_item_apply_to->emission_rate = l_delegate->emission_rate;
         } break;
 
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_REQUIRED_SIGNS_COUNT: {
-            // This TSD type is informational only (for compatibility with older code)
-            // The actual signs_valid is set via TOTAL_SIGNS_VALID TSD (0x0027)
-            // We can safely ignore this TSD
-            log_it(L_DEBUG, "Ignoring REQUIRED_SIGNS_COUNT TSD (informational only, use TOTAL_SIGNS_VALID instead)");
-        } break;
-
         default:
             log_it(L_ERROR, "Unexpected TSD type %hu (0x%04X)", l_tsd->type, l_tsd->type);
             return m_ret_cleanup(DAP_LEDGER_CHECK_PARSE_ERROR);
