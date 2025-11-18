@@ -1545,11 +1545,23 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
     dap_chain_net_srv_vpn_t            *l_srv_vpn = (dap_chain_net_srv_vpn_t*)a_usage->service->_internal;
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
 
+    log_it(L_INFO,
+           "[VPN ADDR DEBUG] addr_request_in: session_id=%u, usage_id=%u, client_pkey=0x%s, "
+           "current_addr=%u, has_unleased=%s",
+           l_srv_session->parent->id,
+           a_usage->id,
+           dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash),
+           l_ch_vpn ? l_ch_vpn->addr_ipv4.s_addr : 0,
+           (l_srv_vpn && l_srv_vpn->ipv4_unleased) ? "yes" : "no");
+
     if (! s_raw_server)
         return;
 
     if ( l_ch_vpn->addr_ipv4.s_addr ) {
         log_it(L_WARNING, "IP address is already leased");
+        log_it(L_WARNING,
+               "[VPN ADDR DEBUG] IP address is already leased for this channel, addr=%u, usage_id=%u",
+               l_ch_vpn->addr_ipv4.s_addr, a_usage->id);
         dap_stream_ch_vpn_pkt_t* pkt_out           = DAP_NEW_STACK_SIZE(dap_stream_ch_vpn_pkt_t, sizeof(pkt_out->header));
         if (!pkt_out) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1577,6 +1589,11 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
     dap_chain_net_srv_vpn_item_ipv4_t* l_item_ipv4 = l_srv_vpn->ipv4_unleased;
     if (l_item_ipv4) {
         log_it(L_WARNING, "Found a recently unleased IP address");
+        log_it(L_INFO,
+               "[VPN ADDR DEBUG] assigning IPv4=%u, gw=%u to usage_id=%u",
+               l_item_ipv4->addr.s_addr,
+               s_raw_server->ipv4_gw.s_addr,
+               a_usage->id);
         l_ch_vpn->addr_ipv4.s_addr = l_item_ipv4->addr.s_addr;
         pthread_rwlock_wrlock( &s_clients_rwlock );
         HASH_ADD(hh, s_ch_vpn_addrs, addr_ipv4, sizeof (l_ch_vpn->addr_ipv4), l_ch_vpn);
@@ -1740,24 +1757,43 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
     dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t*)l_pkt->data;
-    if (l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
+    if(l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
         log_it(L_WARNING, "Data size of stream channel packet %u is lesser than size of VPN packet header %zu",
                                                               l_pkt->hdr.data_size, sizeof(l_vpn_pkt->header));
         return false;
     }
     size_t l_vpn_pkt_data_size = l_pkt->hdr.data_size - sizeof(l_vpn_pkt->header);
+
+    /* Diagnostic: basic info about incoming VPN packet on channel 'S' */
+    log_it(L_INFO,
+           "[VPN PKT DEBUG] ch='S', session_id=%u, pkt_size=%u, header_size=%zu, "
+           "op_code=0x%08x, usage_id_hdr=%u, data_size_hdr=%u, real_data_size=%zu",
+           a_ch->stream->session->id,
+           l_pkt->hdr.data_size,
+           sizeof(l_vpn_pkt->header),
+           l_vpn_pkt->header.op_code,
+           l_vpn_pkt->header.usage_id,
+           l_vpn_pkt->header.op_data.data_size,
+           l_vpn_pkt_data_size);
+
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (a_ch->stream->session );
     // dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
-    if ( ! l_usage){
+    if(!l_usage){
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
     }
 
-    if ( !l_usage->is_active && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+    if(!l_usage->is_active && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+        log_it(L_INFO,
+               "[VPN PKT DEBUG] drop pkt op=0x%08x: usage inactive, state=%d, substate=%d, usage_id_active=%u",
+               l_vpn_pkt->header.op_code,
+               l_usage->service_state,
+               l_usage->service_substate,
+               l_usage->id);
         log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
@@ -1765,6 +1801,13 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
     } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+        log_it(L_INFO,
+               "[VPN PKT DEBUG] drop pkt op=0x%08x: usage not ready, state=%d, substate=%d, is_active=%d, usage_id_active=%u",
+               l_vpn_pkt->header.op_code,
+               l_usage->service_state,
+               l_usage->service_substate,
+               l_usage->is_active ? 1 : 0,
+               l_usage->id);
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
@@ -1811,7 +1854,25 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             } break;
             // for server
             case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: { // Client request after L3 connection the new IP address
-                log_it(L_INFO, "Received address request  ");
+                dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
+                int l_state = l_usage ? (int)l_usage->service_state : -1;
+                int l_substate = l_usage ? (int)l_usage->service_substate : -1;
+                int l_is_active = l_usage ? (l_usage->is_active ? 1 : 0) : 0;
+                uint32_t l_usage_id_active = l_usage ? l_usage->id : 0;
+                uint32_t l_addr_leased = l_ch_vpn ? l_ch_vpn->addr_ipv4.s_addr : 0;
+
+                log_it(L_INFO,
+                       "[VPN ADDR DEBUG] VPN_ADDR_REQUEST: session_id=%u, usage_id_hdr=%u, usage_id_active=%u, "
+                       "is_active=%d, state=%d, substate=%d, addr_leased=%u, s_raw_server=%p",
+                       a_ch->stream->session->id,
+                       l_vpn_pkt->header.usage_id,
+                       l_usage_id_active,
+                       l_is_active,
+                       l_state,
+                       l_substate,
+                       l_addr_leased,
+                       (void*)s_raw_server);
+                log_it(L_INFO, "Received address request");
                 if(s_raw_server){
                     s_ch_packet_in_vpn_address_request(a_ch, l_usage);
                 }else{
