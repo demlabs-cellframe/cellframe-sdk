@@ -1000,12 +1000,21 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         log_it(L_NOTICE,"Enable VPN service");
 
         if ( l_srv_ch_vpn ){ // If channel is already opened
+            log_it(L_INFO, "[VPN USAGE DEBUG] Channel 'S' already open, enabling read/write for usage_id=%u", a_usage_id);
             dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
             dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
             l_srv_ch_vpn->usage_id = a_usage_id;
         } else{
-            log_it(L_WARNING, "VPN channel is not open, will be no data transmission");
-            return -2;
+            log_it(L_INFO, "[VPN USAGE DEBUG] Channel 'S' not yet open for usage_id=%u, will be enabled when channel opens", a_usage_id);
+            // Don't return error - channel may open later
+        }
+    } else {
+        // Usage already active, but channel might have opened later - enable it now
+        if ( l_srv_ch_vpn ) {
+            log_it(L_INFO, "[VPN USAGE DEBUG] Channel 'S' opened after activation, enabling read/write for usage_id=%u", a_usage_id);
+            dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
+            dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
+            l_srv_ch_vpn->usage_id = a_usage_id;
         }
     }
 
@@ -1300,7 +1309,18 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
     l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
-    dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+    
+    // If usage is already active, enable channel immediately
+    if (l_srv_session->usage_active && l_srv_session->usage_active->is_active) {
+        log_it(L_INFO, "[VPN CHANNEL DEBUG] Channel 'S' opened for active usage_id=%u, enabling read/write",
+               l_srv_vpn->usage_id);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch, true);
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+    } else {
+        log_it(L_INFO, "[VPN CHANNEL DEBUG] Channel 'S' opened for inactive usage_id=%u, read/write disabled",
+               l_srv_vpn->usage_id);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+    }
 }
 
 
