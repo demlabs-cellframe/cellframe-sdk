@@ -251,7 +251,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
     }
     DAP_DELETE(l_datum);
     // Remove old datum from pool
-    if( dap_global_db_del_sync(l_gdb_group_mempool, dap_chain_hash_fast_to_str_static(&l_datum_hash) ) == 0) {                                   
+    if( dap_global_db_del_sync(l_gdb_group_mempool, dap_chain_hash_fast_to_str_static(&l_datum_hash) ) != 0) {                                   
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR,
                                     "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)", l_datum_hash_str, l_out_hash_str);
         DAP_DELETE(l_gdb_group_mempool);
@@ -1356,7 +1356,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
-    
+
     dap_json_object_add_bool(json_obj_out, "status_placed", true);
     if (!l_add_sign)
         dap_json_object_add_string(json_obj_out, "emission_hash", l_emission_hash_str);
