@@ -39,6 +39,7 @@
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x09
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
+#define DAP_CHAIN_NET_SRV_EVENT_ID 0xA0
 
 typedef struct dap_ledger {
     dap_chain_net_t *net;
@@ -145,6 +146,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
     DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX,
     DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL,
+    DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE,
     DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN,
     DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED,
     DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED,
@@ -271,6 +273,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX: return "Can't find tx in ledger for removing.";
     case DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET: return "The transaction was rejected because it contains multiple outputs to other networks.";
     case DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL: return "Usage of timed locked out is forbidden for this tx";
+    case DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE: return "Event verification failure";
     case DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN: return "Legacy stakes are not accepted from mempool anymore!";
     case DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED: return "Transaction output is blocked in UTXO blocklist for this token";
     case DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED: return "Arbitrage transaction not authorized: invalid owner signature or arbitrage disabled for token";
@@ -297,7 +300,15 @@ typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_
 typedef void (*dap_ledger_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_chan_ledger_notify_opcodes_t a_opcode);
+// TODO remove this callback
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+typedef void (* dap_ledger_event_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
+// Process service decree
+typedef int (*dap_ledger_srv_callback_decree_t)(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
+// Event verify service callback
+typedef int (*dap_ledger_srv_callback_event_verify_t)(dap_ledger_t *a_ledger, const char *a_event_group_name, int a_event_type,
+                                                      void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_event_tx_hash);
+
 typedef struct dap_chain_net dap_chain_net_t;
 typedef int (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
 typedef bool (*dap_chain_ledger_voting_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx);
@@ -525,6 +536,15 @@ dap_chain_datum_tx_t *dap_ledger_datum_iter_get_last(dap_ledger_datum_iter_t *a_
 
 void dap_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_ledger_tx_add_notify_t a_callback, void *a_arg);
 void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged_tx_notify_t a_callback, void *a_arg);
+/**
+ * @brief Add notification callback for event transactions
+ * @param a_ledger Ledger instance
+ * @param a_callback Callback function to be called when a new event is added
+ * @param a_arg User data to be passed to the callback
+ */
+void dap_ledger_event_notify_add(dap_ledger_t *a_ledger, dap_ledger_event_notify_t a_callback, void *a_arg);
+int dap_ledger_srv_callback_decree_add(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid, dap_ledger_srv_callback_decree_t a_callback);
+int dap_ledger_srv_callback_event_verify_add(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid, dap_ledger_srv_callback_event_verify_t a_callback);
 
 bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash);
 
@@ -534,6 +554,45 @@ dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(d
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger);
 
+dap_chain_tx_event_t *dap_ledger_event_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+dap_list_t *dap_ledger_event_get_list_ex(dap_ledger_t *a_ledger, const char *a_group_name, bool a_need_lock);
+DAP_STATIC_INLINE dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_group_name)
+{
+    return dap_ledger_event_get_list_ex(a_ledger, a_group_name, true);
+}
+
+
+/**
+ * @brief Check if a public key is allowed for creating events
+ * @param a_ledger The ledger instance
+ * @param a_pkey_hash Hash of the public key to check
+ * @return 0 if allowed, -1 if not allowed
+ */
+ int dap_ledger_event_pkey_check(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
+
+ /**
+  * @brief Add a public key to the allowed list for creating events
+  * @param a_ledger The ledger instance
+  * @param a_pkey_hash Hash of the public key to add
+  * @return 0 on success, -1 on error
+  */
+ int dap_ledger_event_pkey_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
+ 
+ /**
+  * @brief Remove a public key from the allowed list for creating events
+  * @param a_ledger The ledger instance
+  * @param a_pkey_hash Hash of the public key to remove
+  * @return 0 on success, -1 on error or if not found
+  */
+ int dap_ledger_event_pkey_rm(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
+ 
+ /**
+  * @brief Get a list of all allowed public keys for creating events
+  * @param a_ledger The ledger instance
+  * @return dap_list_t* List of dap_hash_fast_t* pointers to allowed public key hashes, NULL if empty or on error
+  */
+ dap_list_t *dap_ledger_event_pkey_list(dap_ledger_t *a_ledger);
+ 
 #ifdef __cplusplus
 }
 #endif
