@@ -94,7 +94,7 @@ build:android:
     image: demlabs/android/any:qt6
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
-      - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1
+      - ANDROID_NDK_ROOT=/opt/android/ndk/26.1.10909125/ ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1
 
 
 # Performs an in-depth static code analysis with cppcheck, producing a detailed HTML report for manual inspection.
