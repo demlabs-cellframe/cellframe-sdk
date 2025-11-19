@@ -898,8 +898,8 @@ static int s_vpn_service_create(dap_config_t * g_config)
  * @param g_config
  * @return 0 if everything is okay, lesser then zero if errors
  */
-int dap_chain_net_srv_vpn_init(dap_config_t * g_config)
-{
+int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
+    
     if(s_vpn_tun_init()){
         log_it(L_CRITICAL, "Error initializing TUN device driver!");
         dap_chain_net_srv_vpn_deinit();
@@ -914,16 +914,13 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config)
     }
 
     log_it(L_INFO,"TUN driver configured successfuly");
-    if(s_vpn_service_create(g_config)){
+    if (s_vpn_service_create(g_config)){
         log_it(L_CRITICAL, "VPN service creating failed");
         dap_chain_net_srv_vpn_deinit();
         return -3;
     }
     dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
-    log_it(L_INFO,
-           "[VPN CH REG] Registering stream channel 'S' for VPN, handler=%p",
-           s_ch_packet_in);
 
     // add console command to display vpn statistics
     dap_cli_server_cmd_add ("vpn_stat", com_vpn_statistics, NULL, "VPN statistics",
@@ -1007,6 +1004,9 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
             dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
             l_srv_ch_vpn->usage_id = a_usage_id;
         } else{
+
+            log_it(L_WARNING, "VPN channel is not open, will be no data transmission");
+            return -2;
             // Don't return error - channel may open later
         }
     } else {
@@ -2119,13 +2119,6 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
 #endif
                 inet_ntop(AF_INET, &l_saddr, l_str_saddr, sizeof(l_str_saddr));
                 inet_ntop(AF_INET, &l_daddr, l_str_daddr, sizeof(l_str_daddr));
-                log_it(L_INFO,
-                       "[VPN FREE FLOW IN] tun_worker=%u usage_id=%u bytes=%zu %s->%s",
-                       l_tun_socket->worker_id,
-                       l_usage->id,
-                       l_buf_in_size,
-                       l_str_saddr,
-                       l_str_daddr);
             }
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
         } else if(s_debug_more) {

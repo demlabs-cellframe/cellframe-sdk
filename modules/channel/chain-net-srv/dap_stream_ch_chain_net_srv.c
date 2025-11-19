@@ -571,7 +571,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
 
     l_usage->price = l_price;
 
-    if(!l_specific_order_free){
+    if (!l_specific_order_free){
         // not free service
         log_it( L_INFO, "Valid pricelist is founded. Start service in pay mode.");
 
@@ -611,9 +611,9 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
             l_usage->tx_cond = l_tx;
             s_service_substate_pay_service(l_usage);
         }
-    } else if(l_specific_order_free && l_srv->allow_free_srv){
+    } else if (l_specific_order_free && l_srv->allow_free_srv){
         // Start service for free
-        log_it(L_INFO, "Can't find a valid pricelist. Service provide for free");
+        log_it( L_INFO, "Can't find a valid pricelist. Service provide for free");
         l_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE;
         // In free mode usage is considered fully ready to serve
         l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL;
