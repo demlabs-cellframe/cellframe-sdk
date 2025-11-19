@@ -1836,30 +1836,32 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         return false;
     }
 
-    if(!l_usage->is_active && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-        log_it(L_INFO,
-               "[VPN PKT DEBUG] drop pkt op=0x%08x: usage inactive, state=%d, substate=%d, usage_id_active=%u",
-               l_vpn_pkt->header.op_code,
-               l_usage->service_state,
-               l_usage->service_substate,
-               l_usage->id);
-        log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
-        if (l_usage->client)
-            dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return false;
-    } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-        log_it(L_INFO,
-               "[VPN PKT DEBUG] drop pkt op=0x%08x: usage not ready, state=%d, substate=%d, is_active=%d, usage_id_active=%u",
-               l_vpn_pkt->header.op_code,
-               l_usage->service_state,
-               l_usage->service_substate,
-               l_usage->is_active ? 1 : 0,
-               l_usage->id);
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return false;
+    if(l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
+        if(!l_usage->is_active && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            log_it(L_INFO,
+                   "[VPN PKT DEBUG] drop pkt op=0x%08x: usage inactive, state=%d, substate=%d, usage_id_active=%u",
+                   l_vpn_pkt->header.op_code,
+                   l_usage->service_state,
+                   l_usage->service_substate,
+                   l_usage->id);
+            log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
+            if(l_usage->client)
+                dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+            dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+            return false;
+        } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            log_it(L_INFO,
+                   "[VPN PKT DEBUG] drop pkt op=0x%08x: usage not ready, state=%d, substate=%d, is_active=%d, usage_id_active=%u",
+                   l_vpn_pkt->header.op_code,
+                   l_usage->service_state,
+                   l_usage->service_substate,
+                   l_usage->is_active ? 1 : 0,
+                   l_usage->id);
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+            dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+            return false;
+        }
     }
 
     // check role
@@ -2008,20 +2010,22 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         return false;
     }
 
-    if (!l_usage->is_active  && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-        log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
-        if (l_usage->client)
-            dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return false;
-    } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return false;
+    if(l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
+        if(!l_usage->is_active  && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
+            if(l_usage->client)
+                dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+            dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+            return false;
+        } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+            dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+            return false;
+        }
     }
     
-    if ((l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (!l_usage->receipt && l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) ){
+    if((l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (!l_usage->receipt && l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE)){
         log_it(L_WARNING, "No active receipt, switching off");
         l_usage->is_active = false;
         if (l_usage->client)
