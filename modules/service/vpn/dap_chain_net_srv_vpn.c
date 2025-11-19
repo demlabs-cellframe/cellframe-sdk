@@ -1967,6 +1967,14 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                     l_vpn_pkt_data_size, l_vpn_pkt->header.op_data.data_size);
                     return false;
                 }
+                if(l_usage && l_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
+                    log_it(L_INFO,
+                           "[VPN FREE FLOW OUT] vpn_send: session_id=%u usage_id=%u bytes=%u sock_id=%d",
+                           a_ch->stream ? a_ch->stream->id : 0,
+                           l_usage->id,
+                           l_vpn_pkt->header.op_data.data_size,
+                           l_vpn_pkt->header.sock_id);
+                }
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
@@ -2172,6 +2180,30 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
                 s_tun_send_msg_esocket_reassigned_all_inter(a_es->worker->id, l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->esocket_uuid,
                     l_vpn_info->addr_ipv4);
                 dap_events_socket_reassign_between_workers_mt(l_vpn_info->worker, l_vpn_info->esocket, a_es->worker);
+            }
+            dap_chain_net_srv_stream_session_t *l_srv_session =
+                    l_vpn_info->ch_vpn && l_vpn_info->ch_vpn->ch && l_vpn_info->ch_vpn->ch->stream ?
+                    DAP_CHAIN_NET_SRV_STREAM_SESSION(l_vpn_info->ch_vpn->ch->stream->session) : NULL;
+            dap_chain_net_srv_usage_t *l_usage = l_srv_session ? l_srv_session->usage_active : NULL;
+            if(l_usage && l_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
+                char l_str_daddr[INET_ADDRSTRLEN] = {0};
+                char l_str_saddr[INET_ADDRSTRLEN] = {0};
+#ifdef DAP_OS_LINUX
+                struct in_addr l_daddr = { .s_addr = iph->daddr };
+                struct in_addr l_saddr = { .s_addr = iph->saddr };
+#else
+                struct in_addr l_daddr = { .s_addr = iph->ip_dst.s_addr };
+                struct in_addr l_saddr = { .s_addr = iph->ip_src.s_addr };
+#endif
+                inet_ntop(AF_INET, &l_saddr, l_str_saddr, sizeof(l_str_saddr));
+                inet_ntop(AF_INET, &l_daddr, l_str_daddr, sizeof(l_str_daddr));
+                log_it(L_INFO,
+                       "[VPN FREE FLOW IN] tun_worker=%u usage_id=%u bytes=%zu %s->%s",
+                       l_tun_socket->worker_id,
+                       l_usage->id,
+                       l_buf_in_size,
+                       l_str_saddr,
+                       l_str_daddr);
             }
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
         } else if(s_debug_more) {
