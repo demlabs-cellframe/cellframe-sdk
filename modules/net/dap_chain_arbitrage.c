@@ -112,6 +112,86 @@ bool dap_chain_arbitrage_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
 }
 
 /**
+ * @brief Get arbitrage token ticker from transaction outputs
+ * @details For arbitrage TX, determine which token is being arbitraged by finding
+ *          the first non-fee output token. Fee outputs are typically OUT_EXT or OUT_COND,
+ *          while arbitrage outputs are OUT_STD. This is SECURITY CRITICAL - we must
+ *          check authorization for the correct token, not just any token from inputs.
+ *          Note: Arbitrage token can be ANY token including native token.
+ * @param a_ledger Ledger containing network configuration
+ * @param a_tx Transaction to analyze
+ * @return Token ticker string (static buffer) or NULL if not found
+ * @note Returns pointer to static buffer - not thread-safe, but safe for single-threaded validation
+ */
+const char *dap_chain_arbitrage_tx_get_token_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+{
+    if (!a_ledger || !a_tx) {
+        return NULL;
+    }
+    
+    static char s_arbitrage_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    const dap_chain_addr_t *l_fee_addr = &a_ledger->net->pub.fee_addr;
+    
+    // Iterate through TX outputs to find first non-fee output
+    // Fee outputs go to fee_addr, arbitrage outputs also go to fee_addr but are OUT_STD type
+    byte_t *l_tx_item = a_tx->tx_items;
+    size_t l_tx_items_pos = 0;
+    size_t l_tx_items_size = a_tx->header.tx_items_size;
+    
+    while (l_tx_items_pos < l_tx_items_size) {
+        uint8_t *l_item = l_tx_item + l_tx_items_pos;
+        size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item, l_tx_items_size - l_tx_items_pos);
+        
+        if (!l_item_size) {
+            break;
+        }
+        
+        dap_chain_tx_item_type_t l_type = *((uint8_t *)l_item);
+        const char *l_token = NULL;
+        dap_chain_addr_t l_out_addr = {};
+        
+        switch (l_type) {
+            case TX_ITEM_TYPE_OUT_STD: {
+                // OUT_STD outputs are typically arbitrage outputs (not fee outputs)
+                dap_chain_tx_out_std_t *l_out = (dap_chain_tx_out_std_t *)l_item;
+                l_token = l_out->token;
+                l_out_addr = l_out->addr;
+                break;
+            }
+            case TX_ITEM_TYPE_OUT_EXT: {
+                // OUT_EXT can be fee output or arbitrage output - check address
+                dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_item;
+                l_token = l_out->token;
+                l_out_addr = l_out->addr;
+                // Skip if this is fee output (fee outputs use native ticker and go to fee_addr)
+                if (dap_chain_addr_compare(&l_out_addr, l_fee_addr) == 0) {
+                    // This might be fee output - skip if native ticker
+                    const char *l_native_ticker = a_ledger->net->pub.native_ticker;
+                    if (l_native_ticker && l_token && strcmp(l_token, l_native_ticker) == 0) {
+                        // This is fee output - skip
+                        l_token = NULL;
+                    }
+                }
+                break;
+            }
+            default:
+                break;
+        }
+        
+        if (l_token && l_token[0] != '\0') {
+            // Found arbitrage token (can be native or non-native)
+            dap_strncpy(s_arbitrage_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+            s_arbitrage_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+            return s_arbitrage_ticker;
+        }
+        
+        l_tx_items_pos += l_item_size;
+    }
+    
+    return NULL;  // No arbitrage token found in outputs
+}
+
+/**
  * @brief Check if arbitrage TX outputs are directed to fee address ONLY
  * @details Arbitrage transactions can ONLY send funds to the network fee collection address.
  *          This prevents abuse where token owners could steal funds via arbitrage.

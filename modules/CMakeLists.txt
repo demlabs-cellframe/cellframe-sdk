@@ -24,11 +24,6 @@ if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(channel/chain-net)
 endif()
 
-# Mining
-if (CELLFRAME_MODULES MATCHES "mining")
-    add_subdirectory(mining)
-endif()
-
 # Network services
 if (CELLFRAME_MODULES MATCHES "srv")
     add_subdirectory(channel/chain-net-srv)

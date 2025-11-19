@@ -71,6 +71,8 @@
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_common.h"
 #include "dap_math_convert.h"
+#include "dap_chain_arbitrage.h"
+#include "dap_chain_ledger_utxo.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -125,25 +127,7 @@ typedef struct dap_ledger_event_notifier {
 // ============================================================================
 // UTXO BLOCKLIST INTERNAL API DECLARATIONS
 // ============================================================================
-static bool s_ledger_utxo_is_blocked(dap_ledger_token_item_t *a_token_item,
-                                      dap_chain_hash_fast_t *a_tx_hash,
-                                      uint32_t a_out_idx,
-                                      dap_ledger_t *a_ledger);
-static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
-                                     dap_chain_hash_fast_t *a_tx_hash,
-                                     uint32_t a_out_idx,
-                                     dap_time_t a_becomes_effective,
-                                     dap_hash_fast_t *a_token_update_hash,
-                                     dap_ledger_t *a_ledger);
-static int s_ledger_utxo_block_remove(dap_ledger_token_item_t *a_token_item,
-                                        dap_chain_hash_fast_t *a_tx_hash,
-                                        uint32_t a_out_idx,
-                                        dap_time_t a_becomes_unblocked,
-                                        dap_hash_fast_t *a_token_update_hash,
-                                        dap_ledger_t *a_ledger);
-static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item,
-                                       dap_hash_fast_t *a_token_update_hash,
-                                       dap_ledger_t *a_ledger);
+// UTXO blocklist functions moved to dap_chain_ledger_utxo.c module
 
 typedef struct dap_ledger_event_pkey_item {
     dap_hash_fast_t pkey_hash;
@@ -221,10 +205,7 @@ static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_free(dap_ledger_t *a_ledger);
 static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* b);
 
-// Arbitrage transaction helpers 
-static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx);
-static int s_ledger_tx_check_arbitrage_outputs(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_token_item_t *a_token_item);
-static int s_ledger_tx_check_arbitrage_auth(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ledger_token_item_t *a_token_item);
+// Arbitrage transaction helpers are now in dap_chain_arbitrage.c module
 
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
@@ -1139,7 +1120,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 break;
 
             // Add UTXO to blocklist with specified activation time
-            if (s_ledger_utxo_block_add(a_item_apply_to, l_tx_hash, l_out_idx, l_becomes_effective, 
+            if (dap_ledger_utxo_block_add(a_item_apply_to, l_tx_hash, l_out_idx, l_becomes_effective, 
                                          a_token_update_hash, a_ledger) != 0) {
                 char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(l_tx_hash, l_hash_str, sizeof(l_hash_str));
@@ -1190,7 +1171,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 break;
 
             // Remove UTXO from blocklist (or schedule delayed unblocking)
-            if (s_ledger_utxo_block_remove(a_item_apply_to, l_tx_hash, l_out_idx, l_becomes_unblocked,
+            if (dap_ledger_utxo_block_remove(a_item_apply_to, l_tx_hash, l_out_idx, l_becomes_unblocked,
                                              a_token_update_hash, a_ledger) != 0) {
                 char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(l_tx_hash, l_hash_str, sizeof(l_hash_str));
@@ -1230,7 +1211,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 break;
 
             // Clear entire UTXO blocklist with history tracking
-            if (s_ledger_utxo_block_clear(a_item_apply_to, a_token_update_hash, a_ledger) != 0) {
+            if (dap_ledger_utxo_block_clear(a_item_apply_to, a_token_update_hash, a_ledger) != 0) {
                 log_it(L_ERROR, "Failed to clear UTXO blocklist for token %s", a_item_apply_to->ticker);
                 return m_ret_cleanup(DAP_LEDGER_CHECK_APPLY_ERROR);
             }
@@ -1530,21 +1511,11 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             DAP_DELETE(l_token);
             return DAP_LEDGER_TOKEN_ADD_CHECK_NOT_ENOUGH_UNIQUE_SIGNS;
         }
-        dap_hash_fast(l_token, l_token_size, &l_token_update_hash);
-        dap_ledger_token_update_item_t *l_token_update_item = NULL;
-        pthread_rwlock_rdlock(&l_token_item->token_ts_updated_rwlock);
-        HASH_FIND(hh, l_token_item->token_ts_updated, &l_token_update_hash, sizeof(dap_hash_fast_t), l_token_update_item);
-        pthread_rwlock_unlock(&l_token_item->token_ts_updated_rwlock);
-        if (l_token_update_item) {
-            log_it(L_WARNING, "This update for token '%s' was already applied", l_token->ticker);
-            DAP_DELETE(l_token);
-            return DAP_LEDGER_CHECK_ALREADY_CACHED;
-        }
-        if (a_token_update_hash)
-            *a_token_update_hash = l_token_update_hash;
         
-        // Check irreversible flags - they can only be SET, never UNSET
-        // This applies to: UTXO_BLOCKING_DISABLED, ARBITRAGE_TX_DISABLED
+        // Check irreversible flags FIRST - they can only be SET, never UNSET
+        // This check must happen BEFORE duplicate check to ensure violations are caught
+        // even if the update was already applied (security critical)
+        // This applies to: UTXO_BLOCKING_DISABLED, ARBITRAGE_TX_DISABLED, etc.
         uint32_t l_old_irreversible = l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
         uint32_t l_new_flags = 0;
         
@@ -1605,12 +1576,30 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         
         // Validate: new irreversible flags must be >= old irreversible flags
         // This means: once a bit is set, it stays set forever
-        if (l_new_irreversible < l_old_irreversible) {
-            log_it(L_WARNING, "Attempt to unset irreversible flags for token '%s': old=0x%08X new=0x%08X",
-                   l_token->ticker, l_old_irreversible, l_new_irreversible);
+        // CRITICAL: Use bitwise check - all old bits must be present in new flags
+        // This prevents unsetting individual bits while keeping others
+        if ((l_new_irreversible & l_old_irreversible) != l_old_irreversible) {
+            log_it(L_WARNING, "Attempt to unset irreversible flags for token '%s': old=0x%08X new=0x%08X (bitwise check failed: 0x%08X & 0x%08X = 0x%08X != 0x%08X)",
+                   l_token->ticker, l_old_irreversible, l_new_irreversible,
+                   l_new_irreversible, l_old_irreversible, (l_new_irreversible & l_old_irreversible), l_old_irreversible);
             DAP_DELETE(l_token);
             return DAP_LEDGER_TOKEN_UPDATE_CHECK_IRREVERSIBLE_FLAGS_VIOLATION;
         }
+        
+        // Check for duplicate update AFTER irreversible flags check
+        // (security: violations must be caught even if update was already applied)
+        dap_hash_fast(l_token, l_token_size, &l_token_update_hash);
+        dap_ledger_token_update_item_t *l_token_update_item = NULL;
+        pthread_rwlock_rdlock(&l_token_item->token_ts_updated_rwlock);
+        HASH_FIND(hh, l_token_item->token_ts_updated, &l_token_update_hash, sizeof(dap_hash_fast_t), l_token_update_item);
+        pthread_rwlock_unlock(&l_token_item->token_ts_updated_rwlock);
+        if (l_token_update_item) {
+            log_it(L_WARNING, "This update for token '%s' was already applied", l_token->ticker);
+            DAP_DELETE(l_token);
+            return DAP_LEDGER_CHECK_ALREADY_CACHED;
+        }
+        if (a_token_update_hash)
+            *a_token_update_hash = l_token_update_hash;
         
     } else if (l_update_token) {
         log_it(L_WARNING, "Can't update token that doesn't exist for ticker '%s'", l_token->ticker);
@@ -3715,18 +3704,51 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     // - Conditional outputs
     // - Address ban-lists (sender/receiver)
     // This allows token owners to claim ANY output in emergency situations.
-    bool l_is_arbitrage = s_ledger_tx_is_arbitrage(a_tx);
+    bool l_is_arbitrage = dap_chain_arbitrage_tx_is_arbitrage(a_tx);
+    bool l_arbitrage_auth_valid = false;  // Track if arbitrage authorization passed
     
+    // SECURITY CRITICAL: For arbitrage TX, validate authorization BEFORE processing inputs
+    // We must determine the arbitrage token from OUTPUTS (not inputs) to prevent:
+    // 1. Order-dependent vulnerabilities (if fee token comes first in inputs)
+    // 2. Token confusion attacks (multiple non-native tokens in inputs)
+    // 3. Missing validation (if all inputs are fee token)
     if (l_is_arbitrage) {
-        // For arbitrage TX, we need to:
-        // 1. Determine which token this TX is for
-        // 2. Check if arbitrage is disabled for that token
-        // 3. Validate token owner signatures
-        // 4. Check rate limiting
-        // We'll do full validation later when we know the token
-        // For now, just mark that this is arbitrage TX
         debug_if(s_debug_more, L_INFO, "Arbitrage TX detected: %s", 
                  dap_chain_hash_fast_to_str_static(a_tx_hash));
+        
+        // Determine arbitrage token from outputs (SECURITY CRITICAL)
+        const char *l_arbitrage_token_ticker = dap_chain_arbitrage_tx_get_token_ticker(a_ledger, a_tx);
+        if (!l_arbitrage_token_ticker) {
+            log_it(L_WARNING, "Arbitrage TX %s has no non-native token in outputs - rejecting",
+                   dap_chain_hash_fast_to_str_static(a_tx_hash));
+            return DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
+        }
+        
+        // Get token item for authorization check
+        dap_ledger_token_item_t *l_arbitrage_token_item = s_ledger_find_token(a_ledger, l_arbitrage_token_ticker);
+        if (!l_arbitrage_token_item) {
+            log_it(L_WARNING, "Arbitrage TX %s references unknown token '%s' - rejecting",
+                   dap_chain_hash_fast_to_str_static(a_tx_hash), l_arbitrage_token_ticker);
+            return DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
+        }
+        
+        // Validate arbitrage authorization (signatures + outputs to fee address)
+        int l_arb_check = dap_chain_arbitrage_tx_check_auth(a_ledger, a_tx, l_arbitrage_token_item);
+        if (l_arb_check == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS) {
+            // Not enough signatures yet - keep in mempool for additional signatures
+            debug_if(s_debug_more, L_INFO, "Arbitrage TX %s needs more owner signatures for token '%s' - keeping in mempool",
+                     dap_chain_hash_fast_to_str_static(a_tx_hash), l_arbitrage_token_ticker);
+            return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+        } else if (l_arb_check != 0) {
+            log_it(L_WARNING, "Arbitrage TX %s not authorized for token '%s' or outputs not to fee address",
+                   dap_chain_hash_fast_to_str_static(a_tx_hash), l_arbitrage_token_ticker);
+            return DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
+        }
+        
+        // Authorization passed - mark as valid
+        l_arbitrage_auth_valid = true;
+        debug_if(s_debug_more, L_INFO, "Arbitrage TX %s authorized for token '%s' - bypassing all blocking checks",
+                 dap_chain_hash_fast_to_str_static(a_tx_hash), l_arbitrage_token_ticker);
     }
     
     if (!a_from_threshold) {
@@ -4177,30 +4199,23 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             // 3. Check if UTXO is blocked in token-specific blocklist (UTXO blocking mechanism)
             // This check is skipped if:
             // - UTXO_BLOCKING_DISABLED flag is set for this token
-            // - Transaction is an arbitrage TX (bypasses all checks)
+            // - Transaction is an authorized arbitrage TX (bypasses all checks)
             dap_ledger_token_item_t *l_token_item_for_utxo_check = s_ledger_find_token(a_ledger, l_token);
-            if (!l_is_arbitrage &&  // Arbitrage TX bypasses UTXO blocking
+            if (!l_arbitrage_auth_valid &&  // Authorized arbitrage TX bypasses UTXO blocking
                 l_token_item_for_utxo_check && 
                 !(l_token_item_for_utxo_check->datum_token->header_private_decl.flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
                 !a_check_for_removing) {
                 // UTXO blocking is enabled (default behavior) - check if this UTXO is in blocklist
-                if (s_ledger_utxo_is_blocked(l_token_item_for_utxo_check, l_tx_prev_hash, l_tx_prev_out_idx, a_ledger)) {
+                if (dap_ledger_utxo_is_blocked(l_token_item_for_utxo_check, l_tx_prev_hash, l_tx_prev_out_idx, a_ledger)) {
                     l_err_num = DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED;
                     debug_if(s_debug_more, L_WARNING, "UTXO %s:%u is blocked for token '%s'", 
                              l_tx_prev_hash_str, l_tx_prev_out_idx, l_token);
                     break;
                 }
-            } else if (l_is_arbitrage && l_token_item_for_utxo_check) {
-                // Arbitrage TX - validate authorization and output addresses
-                if (s_ledger_tx_check_arbitrage_auth(a_ledger, a_tx, l_token_item_for_utxo_check) != 0) {
-                    l_err_num = DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
-                    log_it(L_WARNING, "Arbitrage TX %s not authorized for token '%s' or outputs not to fee address",
-                           dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
-                    break;
-                }
-                debug_if(s_debug_more, L_INFO, "Arbitrage TX %s authorized for token '%s' - bypassing all checks",
-                         dap_chain_hash_fast_to_str_static(a_tx_hash), l_token);
             }
+            // Note: Arbitrage authorization is checked ONCE at the beginning of the function
+            // (before processing inputs) to prevent order-dependent vulnerabilities and token confusion attacks.
+            // If l_arbitrage_auth_valid is true, we bypass all blocking checks for this input.
 
             // Get one 'out' item in previous transaction bound with current 'in' item
             l_tx_prev_out = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
@@ -4417,7 +4432,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
     // find 'out' items
     bool l_cross_network = false;
-    uint256_t l_value = {}, l_fee_sum = {}, l_tax_sum = {};
+    uint256_t l_out_value = {}, l_fee_sum = {}, l_tax_sum = {};
     bool l_fee_check = !IS_ZERO_256(a_ledger->net->pub.fee_value) && !dap_chain_addr_is_blank(&a_ledger->net->pub.fee_addr);
     int l_item_idx = 0;
     byte_t *it; size_t l_size;
@@ -4431,7 +4446,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
                 break;
             }
-            l_value = dap_chain_uint256_from(l_tx_out->header.value);
+            l_out_value = dap_chain_uint256_from(l_tx_out->header.value);
             l_tx_out_to = l_tx_out->addr;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
         } break;
@@ -4442,20 +4457,20 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
                 break;
             }
-            l_value = l_tx_out->header.value;
+            l_out_value = l_tx_out->header.value;
             l_tx_out_to = l_tx_out->addr;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
         } break;
         case TX_ITEM_TYPE_OUT_EXT: { // 256
             dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)it;
-            l_value = l_tx_out->header.value;
+            l_out_value = l_tx_out->header.value;
             l_token = l_tx_out->token;
             l_tx_out_to = l_tx_out->addr;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
         } break;
         case TX_ITEM_TYPE_OUT_STD: {
             dap_chain_tx_out_std_t *l_tx_out = (dap_chain_tx_out_std_t *)it;
-            l_value = l_tx_out->value;
+            l_out_value = l_tx_out->value;
             l_token = l_tx_out->token;
             l_tx_out_to = l_tx_out->addr;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
@@ -4467,10 +4482,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
                 break;
             }
-            l_value = l_tx_out->header.value;
+            l_out_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
             if (l_tax_check && l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
-                    SUBTRACT_256_256(l_taxed_value, l_value, &l_taxed_value)) {
+                    SUBTRACT_256_256(l_taxed_value, l_out_value, &l_taxed_value)) {
                 log_it(L_WARNING, "[%s] Fee is greater than sum of inputs", dap_chain_hash_fast_to_str_static(a_tx_hash));
                 l_err_num = DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
                 break;
@@ -4504,7 +4519,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             dap_strncpy(l_value_cur->token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
             HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
         }
-        if (SUM_256_256(l_value_cur->sum, l_value, &l_value_cur->sum)) {
+        if (SUM_256_256(l_value_cur->sum, l_out_value, &l_value_cur->sum)) {
             debug_if(s_debug_more, L_WARNING, "Sum result overflow for tx_add_check with ticker %s",
                                     l_value_cur->token_ticker);
             l_err_num = DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
@@ -4526,11 +4541,11 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         }
         if (l_fee_check && dap_chain_addr_compare(&l_tx_out_to, &a_ledger->net->pub.fee_addr) &&
                 !dap_strcmp(l_value_cur->token_ticker, a_ledger->net->pub.native_ticker))
-            SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
+            SUM_256_256(l_fee_sum, l_out_value, &l_fee_sum);
 
         if (l_tax_check && dap_chain_addr_compare(&l_tx_out_to, &l_key_item->sovereign_addr) &&
                 !dap_strcmp(l_value_cur->token_ticker, a_ledger->net->pub.native_ticker))
-            SUM_256_256(l_tax_sum, l_value, &l_tax_sum);
+            SUM_256_256(l_tax_sum, l_out_value, &l_tax_sum);
     }
 
     // Check for transaction consistency (sum(ins) == sum(outs))
@@ -4636,7 +4651,6 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 break;
         }
     }
-                    
 
     if (a_main_ticker && !l_err_num)
         dap_strncpy(a_main_ticker, l_main_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);     
@@ -6760,691 +6774,5 @@ int dap_ledger_srv_callback_event_verify_add(dap_ledger_t *a_ledger, dap_chain_n
     return 0;
 }
 
-// ============================================================================
-// UTXO BLOCKLIST INTERNAL API IMPLEMENTATIONS
-// ============================================================================
-
-/**
- * @brief Get UTXO blocking state at specific blockchain time 
- * @details Reconstructs UTXO blocking state by replaying history up to specified time.
- *          Critical for Zero/Main Chain synchronization where token_update arrives
- *          on Zero Chain before Main Chain updates blockchain_time.
- *          
- *          Algorithm:
- *          1. Find UTXO in hash table
- *          2. If no history → return current state (backward compatibility!)
- *          3. Walk history chronologically
- *          4. For each event with bc_time <= query_time:
- *             - BLOCK_ACTION_ADD → mark as blocked
- *             - BLOCK_ACTION_REMOVE → mark as unblocked
- *             - BLOCK_ACTION_CLEAR → mark as unblocked
- *          5. Return final reconstructed state
- * 
- * @param a_token_item Token containing UTXO blocklist
- * @param a_tx_hash Transaction hash
- * @param a_out_idx Output index
- * @param a_blockchain_time Blockchain time to query state at
- * @return true if UTXO was blocked at that time, false otherwise
- */
-static bool s_ledger_utxo_block_get_state_at_time(dap_ledger_token_item_t *a_token_item,
-                                                    dap_chain_hash_fast_t *a_tx_hash,
-                                                    uint32_t a_out_idx,
-                                                    dap_time_t a_blockchain_time)
-{
-    if (!a_token_item || !a_tx_hash) {
-        return false;
-    }
-    
-    // Check if UTXO blocking is disabled for this token
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
-        return false;
-    }
-    
-    // Read lock for checking
-    pthread_rwlock_rdlock(&a_token_item->utxo_blocklist_rwlock);
-    
-    // Create lookup key
-    dap_ledger_utxo_block_key_t lookup_key = {
-        .tx_hash = *a_tx_hash,
-        .out_idx = a_out_idx
-    };
-    
-    // Search in hash table
-    dap_ledger_utxo_block_item_t *l_found = NULL;
-    HASH_FIND(hh, a_token_item->utxo_blocklist, &lookup_key, sizeof(dap_ledger_utxo_block_key_t), l_found);
-    
-    if (!l_found) {
-        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-        return false;  // UTXO not in blocklist
-    }
-    
-    // Replay history if available
-    pthread_rwlock_rdlock(&l_found->history_rwlock);
-    
-    if (!l_found->history_head) {
-        // No history → fallback to current state (backward compatibility)
-        pthread_rwlock_unlock(&l_found->history_rwlock);
-        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-        
-        // Use current state logic
-        bool l_is_blocked = (l_found->becomes_effective <= a_blockchain_time) &&
-                           (l_found->becomes_unblocked == 0 || l_found->becomes_unblocked > a_blockchain_time);
-        return l_is_blocked;
-    }
-    
-    // Replay history chronologically
-    bool l_current_state_blocked = false;
-    dap_ledger_utxo_block_history_item_t *l_history_item = l_found->history_head;
-    
-    while (l_history_item) {
-        // Only process events that occurred before or at query time
-        if (l_history_item->bc_time <= a_blockchain_time) {
-            switch (l_history_item->action) {
-                case BLOCK_ACTION_ADD:
-                    // Check if blocking is effective at query time
-                    if (l_history_item->becomes_effective <= a_blockchain_time) {
-                        l_current_state_blocked = true;
-                    }
-                    break;
-                case BLOCK_ACTION_REMOVE:
-                    // Check if unblocking is effective at query time
-                    if (l_history_item->becomes_unblocked == 0 || 
-                        l_history_item->becomes_unblocked <= a_blockchain_time) {
-                        l_current_state_blocked = false;
-                    }
-                    break;
-                case BLOCK_ACTION_CLEAR:
-                    l_current_state_blocked = false;
-                    break;
-                default:
-                    log_it(L_WARNING, "Unknown UTXO block history action: %d", l_history_item->action);
-                    break;
-            }
-        } else {
-            // Future events don't affect state at query time
-            break;
-        }
-        
-        l_history_item = l_history_item->next;
-    }
-    
-    pthread_rwlock_unlock(&l_found->history_rwlock);
-    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-    
-    return l_current_state_blocked;
-}
-
-/**
- * @brief Check if UTXO is blocked for given token (current time)
- * @param a_token_item Token item to check
- * @param a_tx_hash Transaction hash
- * @param a_out_idx Output index
- * @param a_ledger Ledger instance (for blockchain_time)
- * @return true if blocked, false otherwise
- */
-static bool s_ledger_utxo_is_blocked(dap_ledger_token_item_t *a_token_item,
-                                      dap_chain_hash_fast_t *a_tx_hash,
-                                      uint32_t a_out_idx,
-                                      dap_ledger_t *a_ledger)
-{
-    if (!a_token_item || !a_tx_hash || !a_ledger) {
-        return false;
-    }
-    
-    //  Use history-aware function for accurate state reconstruction
-    dap_time_t l_blockchain_time = dap_ledger_get_blockchain_time(a_ledger);
-    return s_ledger_utxo_block_get_state_at_time(a_token_item, a_tx_hash, a_out_idx, l_blockchain_time);
-}
-
-/**
- * @brief Add entry to UTXO blocking history
- * @details Records all changes to UTXO blocking state for Zero/Main Chain sync.
- *          History is stored as chronologically sorted double-linked list.
- * @param a_utxo_item UTXO block item to add history to
- * @param a_action Action type (ADD/REMOVE/CLEAR)
- * @param a_bc_time Blockchain time when action occurred
- * @param a_token_update_hash Hash of token_update that caused this change
- * @return 0 on success, -1 on error
- */
-static int s_ledger_utxo_block_history_add(dap_ledger_utxo_block_item_t *a_utxo_item,
-                                             dap_ledger_utxo_block_action_t a_action,
-                                             dap_time_t a_bc_time,
-                                             dap_time_t a_becomes_effective,
-                                             dap_time_t a_becomes_unblocked,
-                                             dap_hash_fast_t *a_token_update_hash)
-{
-    if (!a_utxo_item || !a_token_update_hash) {
-        log_it(L_ERROR, "Invalid arguments for s_ledger_utxo_block_history_add");
-        return -1;
-    }
-    
-    // Allocate new history item
-    dap_ledger_utxo_block_history_item_t *l_history_item = DAP_NEW_Z(dap_ledger_utxo_block_history_item_t);
-    if (!l_history_item) {
-        log_it(L_ERROR, "Memory allocation failed for UTXO block history item");
-        return -1;
-    }
-    
-    l_history_item->action = a_action;
-    l_history_item->bc_time = a_bc_time;
-    l_history_item->becomes_effective = a_becomes_effective;
-    l_history_item->becomes_unblocked = a_becomes_unblocked;
-    l_history_item->token_update_hash = *a_token_update_hash;
-    l_history_item->next = NULL;
-    l_history_item->prev = NULL;
-    
-    // Write lock for history modification
-    pthread_rwlock_wrlock(&a_utxo_item->history_rwlock);
-    
-    // Add to tail (newest)
-    if (!a_utxo_item->history_head) {
-        // First history entry
-        a_utxo_item->history_head = l_history_item;
-        a_utxo_item->history_tail = l_history_item;
-    } else {
-        // Append to tail
-        l_history_item->prev = a_utxo_item->history_tail;
-        a_utxo_item->history_tail->next = l_history_item;
-        a_utxo_item->history_tail = l_history_item;
-    }
-    
-    pthread_rwlock_unlock(&a_utxo_item->history_rwlock);
-    
-    log_it(L_DEBUG, "Added UTXO block history entry: action=%d, bc_time=%"DAP_UINT64_FORMAT_U,
-           a_action, a_bc_time);
-    
-    return 0;
-}
-
-/**
- * @brief Add UTXO to blocklist
- * @param a_token_item Token item
- * @param a_tx_hash Transaction hash
- * @param a_out_idx Output index
- * @param a_becomes_effective Time when blocking becomes active (blockchain time)
- * @param a_token_update_hash Hash of token_update datum (for history)
- * @param a_ledger Ledger instance (for blockchain time)
- * @return 0 if success, -1 on error
- */
-static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
-                                     dap_chain_hash_fast_t *a_tx_hash,
-                                     uint32_t a_out_idx,
-                                     dap_time_t a_becomes_effective,
-                                     dap_hash_fast_t *a_token_update_hash,
-                                     dap_ledger_t *a_ledger)
-{
-    if (!a_token_item || !a_tx_hash) {
-        log_it(L_ERROR, "Invalid arguments for s_ledger_utxo_block_add");
-        return -1;
-    }
-
-    // Check if UTXO blocking is disabled
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
-        log_it(L_WARNING, "UTXO blocking is disabled for token %s", a_token_item->ticker);
-        return -1;
-    }
-
-    // Check if blocklist is static
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST) {
-        log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", a_token_item->ticker);
-        return -1;
-    }
-
-    // Write lock for modification
-    pthread_rwlock_wrlock(&a_token_item->utxo_blocklist_rwlock);
-
-    // Check if already exists
-    dap_ledger_utxo_block_key_t lookup_key = {
-        .tx_hash = *a_tx_hash,
-        .out_idx = a_out_idx
-    };
-
-    dap_ledger_utxo_block_item_t *l_found = NULL;
-    HASH_FIND(hh, a_token_item->utxo_blocklist, &lookup_key, sizeof(dap_ledger_utxo_block_key_t), l_found);
-
-    if (l_found) {
-        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-        log_it(L_DEBUG, "UTXO already blocked");
-        return 0;  // Already blocked
-    }
-
-    // Create new block item
-    dap_ledger_utxo_block_item_t *l_item = DAP_NEW_Z(dap_ledger_utxo_block_item_t);
-    if (!l_item) {
-        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-        log_it(L_ERROR, "Memory allocation failed for UTXO block item");
-        return -1;
-    }
-
-    l_item->key.tx_hash = *a_tx_hash;
-    l_item->key.out_idx = a_out_idx;
-    l_item->blocked_time = dap_time_now();
-    l_item->becomes_effective = a_becomes_effective;
-    l_item->becomes_unblocked = 0;  // 0 = permanent block (no scheduled unblock)
-    
-    // Initialize history
-    l_item->history_head = NULL;
-    l_item->history_tail = NULL;
-    if (pthread_rwlock_init(&l_item->history_rwlock, NULL) != 0) {
-        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-        DAP_DELETE(l_item);
-        log_it(L_ERROR, "Failed to initialize history rwlock for UTXO block item");
-        return -1;
-    }
-
-    // Add to hash table
-    HASH_ADD(hh, a_token_item->utxo_blocklist, key, sizeof(dap_ledger_utxo_block_key_t), l_item);
-    a_token_item->utxo_blocklist_count++;
-
-    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-
-    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(a_tx_hash, l_hash_str, sizeof(l_hash_str));
-    log_it(L_INFO, "Added UTXO to blocklist: token=%s, tx=%s, out_idx=%u, becomes_effective=%"DAP_UINT64_FORMAT_U,
-           a_token_item->ticker, l_hash_str, a_out_idx, a_becomes_effective);
-    
-    // Add to history if token_update_hash is provided
-    if (a_token_update_hash && a_ledger) {
-        dap_time_t l_bc_time = dap_ledger_get_blockchain_time(a_ledger);
-        if (s_ledger_utxo_block_history_add(l_item, BLOCK_ACTION_ADD, l_bc_time, 
-                                              a_becomes_effective, 0, a_token_update_hash) != 0) {
-            log_it(L_WARNING, "Failed to add UTXO block history entry for token %s", a_token_item->ticker);
-            // Continue anyway - history is for audit, not critical for blocking functionality
-        }
-    }
-
-    return 0;
-}
-
-/**
- * @brief Remove UTXO from blocklist (with optional delayed unblocking)
- * @details With history tracking: records REMOVE action in history, keeps item in hash table.
- *          Item cleanup happens during periodic history cleanup, not immediately.
- * @param a_token_item Token item
- * @param a_tx_hash Transaction hash
- * @param a_out_idx Output index
- * @param a_becomes_unblocked Time when unblocking becomes active (0 = immediate removal)
- * @param a_token_update_hash Hash of token_update datum (for history tracking)
- * @param a_ledger Ledger instance (for blockchain time)
- * @return 0 if success, -1 on error
- */
-static int s_ledger_utxo_block_remove(dap_ledger_token_item_t *a_token_item,
-                                        dap_chain_hash_fast_t *a_tx_hash,
-                                        uint32_t a_out_idx,
-                                        dap_time_t a_becomes_unblocked,
-                                        dap_hash_fast_t *a_token_update_hash,
-                                        dap_ledger_t *a_ledger)
-{
-    if (!a_token_item || !a_tx_hash) {
-        log_it(L_ERROR, "Invalid arguments for s_ledger_utxo_block_remove");
-        return -1;
-    }
-
-    // Check if blocklist is static
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST) {
-        log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot modify", a_token_item->ticker);
-        return -1;
-    }
-
-    // Write lock for modification
-    pthread_rwlock_wrlock(&a_token_item->utxo_blocklist_rwlock);
-
-    // Find item
-    dap_ledger_utxo_block_key_t lookup_key = {
-        .tx_hash = *a_tx_hash,
-        .out_idx = a_out_idx
-    };
-
-    dap_ledger_utxo_block_item_t *l_found = NULL;
-    HASH_FIND(hh, a_token_item->utxo_blocklist, &lookup_key, sizeof(dap_ledger_utxo_block_key_t), l_found);
-
-    if (!l_found) {
-        pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-        log_it(L_WARNING, "UTXO not found in blocklist");
-        return -1;
-    }
-
-    // Update becomes_unblocked time (0 = immediate, >0 = delayed)
-    // Note: We keep item in hash table for history tracking.
-    // Cleanup happens during periodic history maintenance.
-    l_found->becomes_unblocked = a_becomes_unblocked;
-
-    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-
-    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(a_tx_hash, l_hash_str, sizeof(l_hash_str));
-    if (a_becomes_unblocked == 0) {
-        log_it(L_INFO, "Scheduled UTXO immediate unblocking: token=%s, tx=%s, out_idx=%u",
-               a_token_item->ticker, l_hash_str, a_out_idx);
-    } else {
-        log_it(L_INFO, "Scheduled UTXO delayed unblocking: token=%s, tx=%s, out_idx=%u, unblock_time=%"DAP_UINT64_FORMAT_U,
-               a_token_item->ticker, l_hash_str, a_out_idx, (uint64_t)a_becomes_unblocked);
-    }
-    
-    // Add to history if token_update_hash is provided
-    if (a_token_update_hash && a_ledger) {
-        dap_time_t l_bc_time = dap_ledger_get_blockchain_time(a_ledger);
-        if (s_ledger_utxo_block_history_add(l_found, BLOCK_ACTION_REMOVE, l_bc_time, 
-                                              0, a_becomes_unblocked, a_token_update_hash) != 0) {
-            log_it(L_WARNING, "Failed to add UTXO unblock history entry for token %s", a_token_item->ticker);
-            // Continue anyway - history is for audit, not critical for unblocking functionality
-        }
-    }
-
-    return 0;
-}
-
-/**
- * @brief Clear entire UTXO blocklist for token
- * @details CRITICAL: Records CLEAR action in history but DOES NOT delete items from hash table!
- *          This is essential for Zero/Main Chain sync - CLEAR may arrive on Zero Chain
- *          before Main Chain catches up, so we need full history for state reconstruction.
- *          Items remain in hash table with CLEAR action in history for accurate replay.
- * @param a_token_item Token item
- * @param a_token_update_hash Hash of token_update datum (for history tracking)
- * @param a_ledger Ledger instance (for blockchain time)
- * @return 0 if success, -1 on error
- */
-static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item,
-                                       dap_hash_fast_t *a_token_update_hash,
-                                       dap_ledger_t *a_ledger)
-{
-    if (!a_token_item) {
-        log_it(L_ERROR, "Invalid arguments for s_ledger_utxo_block_clear");
-        return -1;
-    }
-
-    // Check if blocklist is static
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST) {
-        log_it(L_WARNING, "UTXO blocklist is static for token %s, cannot clear", a_token_item->ticker);
-        return -1;
-    }
-
-    // Get blockchain time before acquiring lock
-    dap_time_t l_bc_time = a_ledger ? dap_ledger_get_blockchain_time(a_ledger) : 0;
-
-    // Read lock is sufficient - we only add to history, not modify hash table
-    pthread_rwlock_rdlock(&a_token_item->utxo_blocklist_rwlock);
-
-    size_t l_cleared_count = 0;
-    dap_ledger_utxo_block_item_t *l_item, *l_tmp;
-    
-    // Add CLEAR action to history for each UTXO
-    // CRITICAL: DO NOT delete items from hash table!
-    // Items must remain for accurate history replay during sync.
-    if (a_token_update_hash && a_ledger) {
-        HASH_ITER(hh, a_token_item->utxo_blocklist, l_item, l_tmp) {
-            if (s_ledger_utxo_block_history_add(l_item, BLOCK_ACTION_CLEAR, l_bc_time, 
-                                                  0, 0, a_token_update_hash) != 0) {
-                log_it(L_WARNING, "Failed to add CLEAR history entry for UTXO in token %s", a_token_item->ticker);
-            } else {
-                l_cleared_count++;
-            }
-        }
-    }
-
-    pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-
-    log_it(L_INFO, "Added CLEAR action to UTXO blocklist history for token %s (%zu items marked)", 
-           a_token_item->ticker, l_cleared_count);
-
-    return 0;
-}
-
-// ============================================================================
-// Arbitrage Transaction Support
-// ============================================================================
-
-/**
- * @brief Check if transaction is marked as arbitrage
- * @details Arbitrage TX are marked with DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE TSD section.
- *          These transactions allow token owners to claim ANY output (blocked/conditional).
- * @param a_tx Transaction to check
- * @return true if transaction has arbitrage marker, false otherwise
- */
-static bool s_ledger_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
-{
-    if (!a_tx) {
-        return false;
-    }
-
-    // Iterate through TX items looking for TSD with arbitrage marker
-    byte_t *l_tx_item = a_tx->tx_items;
-    size_t l_tx_items_pos = 0;
-    size_t l_tx_items_size = a_tx->header.tx_items_size;
-
-    while (l_tx_items_pos < l_tx_items_size) {
-        uint8_t *l_item = l_tx_item + l_tx_items_pos;
-        size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item, l_tx_items_size - l_tx_items_pos);
-        
-        if (!l_item_size) {
-            log_it(L_ERROR, "Zero item size in TX");
-            return false;
-        }
-
-        dap_chain_tx_item_type_t l_type = *((uint8_t *)l_item);
-        
-        if (l_type == TX_ITEM_TYPE_TSD) {
-            dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)l_item;
-            
-            // Check if TSD contains arbitrage marker
-            dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_tsd->tsd;
-            size_t l_tsd_offset = 0;
-            size_t l_tsd_total_size = l_tsd->header.size;
-            
-            while (l_tsd_offset < l_tsd_total_size) {
-                if (l_tsd_data->type == DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE) {
-                    return true;  // Found arbitrage marker
-                }
-                l_tsd_offset += sizeof(dap_tsd_t) + l_tsd_data->size;
-                l_tsd_data = (dap_tsd_t *)(l_tsd->tsd + l_tsd_offset);
-            }
-        }
-        
-        l_tx_items_pos += l_item_size;
-    }
-
-    return false;  // No arbitrage marker found
-}
-
-/**
- * @brief Check if arbitrage TX outputs are directed to fee address ONLY
- * @details Arbitrage transactions can ONLY send funds to the network fee collection address.
- *          This prevents abuse where token owners could steal funds via arbitrage.
- *          Fee address is defined in network configuration (a_ledger->net->pub.fee_addr).
- * @param a_ledger Ledger containing network configuration with fee address
- * @param a_tx Transaction to validate
- * @param a_token_item Token item (for logging)
- * @return 0 if all outputs are to fee address, -1 if any output is not to fee address
- */
-static int s_ledger_tx_check_arbitrage_outputs(dap_ledger_t *a_ledger,
-                                                 dap_chain_datum_tx_t *a_tx,
-                                                 dap_ledger_token_item_t *a_token_item)
-{
-    if (!a_ledger || !a_tx || !a_token_item) {
-        log_it(L_ERROR, "Invalid arguments for arbitrage outputs check");
-        return -1;
-    }
-
-    // Check if network has fee address configured
-    if (dap_chain_addr_is_blank(&a_ledger->net->pub.fee_addr)) {
-        log_it(L_WARNING, "Arbitrage TX for token %s rejected: network has no fee address configured", 
-               a_token_item->ticker);
-        return -1;
-    }
-
-    const dap_chain_addr_t *l_fee_addr = &a_ledger->net->pub.fee_addr;
-    log_it(L_DEBUG, "Validating arbitrage TX outputs against fee address: %s", 
-           dap_chain_addr_to_str_static(l_fee_addr));
-
-    // Get all OUT items from transaction
-    int l_out_count = 0;
-    dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_out_count);
-    
-    if (!l_list_out || l_out_count == 0) {
-        // No outputs - shouldn't happen for valid TX, but not arbitrage-specific error
-        dap_list_free(l_list_out);
-        return 0;
-    }
-
-    // Check each output - ALL must go to fee address
-    bool l_all_outputs_to_fee = true;
-    for (dap_list_t *l_iter = l_list_out; l_iter; l_iter = l_iter->next) {
-        void *l_out_item = l_iter->data;
-        if (!l_out_item) {
-            continue;
-        }
-
-        // Extract address from different output types
-        dap_chain_addr_t *l_addr = NULL;
-        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_out_item;
-        
-        switch (l_type) {
-        case TX_ITEM_TYPE_OUT_OLD:
-            l_addr = &((dap_chain_tx_out_old_t *)l_out_item)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT:
-            l_addr = &((dap_chain_tx_out_t *)l_out_item)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_EXT:
-            l_addr = &((dap_chain_tx_out_ext_t *)l_out_item)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_STD:
-            l_addr = &((dap_chain_tx_out_std_t *)l_out_item)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_COND:
-            // Conditional outputs are not checked - they have their own validation
-            continue;
-        default:
-            log_it(L_WARNING, "Unknown output type 0x%02X in arbitrage TX", l_type);
-            continue;
-        }
-
-        if (!l_addr) {
-            continue;
-        }
-
-        // Check if this output goes to fee address
-        if (!dap_chain_addr_compare(l_fee_addr, l_addr)) {
-            log_it(L_WARNING, "Arbitrage TX for token %s rejected: output to %s (NOT fee address %s)",
-                   a_token_item->ticker, 
-                   dap_chain_addr_to_str_static(l_addr),
-                   dap_chain_addr_to_str_static(l_fee_addr));
-            l_all_outputs_to_fee = false;
-            break;
-        }
-    }
-
-    dap_list_free(l_list_out);
-
-    if (l_all_outputs_to_fee) {
-        log_it(L_INFO, "✓ Arbitrage TX for token %s: all outputs directed to fee address", 
-               a_token_item->ticker);
-    }
-
-    return l_all_outputs_to_fee ? 0 : -1;
-}
-
-/**
- * @brief Check arbitrage transaction authorization
- * @details Validates that TX is signed by required number of token owners.
- *          Token owners are determined from token datum (auth_pkeys).
- *          Also validates that all outputs go to network fee address ONLY.
- * @param a_ledger Ledger containing network configuration
- * @param a_tx Transaction to validate
- * @param a_token_item Token item with owner information
- * @return 0 if authorized, -1 if not authorized
- */
-static int s_ledger_tx_check_arbitrage_auth(dap_ledger_t *a_ledger,
-                                              dap_chain_datum_tx_t *a_tx, 
-                                              dap_ledger_token_item_t *a_token_item)
-{
-    if (!a_ledger || !a_tx || !a_token_item) {
-        log_it(L_ERROR, "Invalid arguments for arbitrage auth check");
-        return -1;
-    }
-
-    // Check if arbitrage is disabled for this token
-    if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED) {
-        log_it(L_WARNING, "Arbitrage transactions disabled for token %s", a_token_item->ticker);
-        return -1;
-    }
-
-    // Get TX signatures
-    int l_sign_count = 0;
-    dap_list_t *l_list_tx_sign = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_SIG, &l_sign_count);
-    
-    if (!l_list_tx_sign || l_sign_count == 0) {
-        log_it(L_WARNING, "Arbitrage TX has no signatures");
-        dap_list_free(l_list_tx_sign);
-        return -1;
-    }
-
-    // Check that at least one signature is from token owner
-    size_t l_valid_owner_signs = 0;
-    
-    for (dap_list_t *l_iter = l_list_tx_sign; l_iter; l_iter = l_iter->next) {
-        dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t *)l_iter->data;
-        if (!l_sig) {
-            continue;
-        }
-
-        // Get public key from signature
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_sig);
-        if (!l_sign) {
-            continue;
-        }
-
-        // Get pkey hash from signature
-        dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
-        if (!l_pkey) {
-            continue;
-        }
-
-        dap_chain_hash_fast_t l_pkey_hash;
-        if (!dap_pkey_get_hash(l_pkey, &l_pkey_hash)) {
-            continue;
-        }
-
-        // Check if this pkey is in token's auth_pkeys
-        bool l_is_owner = false;
-        for (uint16_t i = 0; i < a_token_item->auth_signs_total; i++) {
-            dap_chain_hash_fast_t l_owner_hash;
-            if (dap_pkey_get_hash(a_token_item->auth_pkeys[i], &l_owner_hash)) {
-                if (dap_hash_fast_compare(&l_pkey_hash, &l_owner_hash)) {
-                    l_is_owner = true;
-                    l_valid_owner_signs++;
-                    break;
-                }
-            }
-        }
-        
-        if (l_is_owner) {
-            break;  // Found at least one owner signature - sufficient for arbitrage
-        }
-    }
-
-    dap_list_free(l_list_tx_sign);
-
-    if (l_valid_owner_signs == 0) {
-        log_it(L_WARNING, "Arbitrage TX for token %s not signed by token owner", 
-               a_token_item->ticker);
-        return -1;
-    }
-
-    // Check if we need minimum number of signatures (auth_signs_valid)
-    if (l_valid_owner_signs < a_token_item->auth_signs_valid) {
-        log_it(L_WARNING, "Arbitrage TX for token %s requires %zu owner signatures, found %zu",
-               a_token_item->ticker, a_token_item->auth_signs_valid, l_valid_owner_signs);
-        return -1;
-    }
-
-    // CRITICAL: Check that all outputs go to fee address ONLY
-    if (s_ledger_tx_check_arbitrage_outputs(a_ledger, a_tx, a_token_item) != 0) {
-        log_it(L_WARNING, "Arbitrage TX for token %s has outputs to non-fee addresses",
-               a_token_item->ticker);
-        return -1;
-    }
-
-    return 0;  // Authorized
-}
+// UTXO blocklist functions moved to dap_chain_ledger_utxo.c module
+// Arbitrage transaction support functions moved to dap_chain_arbitrage.c module

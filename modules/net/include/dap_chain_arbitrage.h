@@ -41,6 +41,20 @@ typedef struct dap_ledger_token_item dap_ledger_token_item_t;
 bool dap_chain_arbitrage_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx);
 
 /**
+ * @brief Get arbitrage token ticker from transaction outputs
+ * @details For arbitrage TX, determine which token is being arbitraged by finding
+ *          the first non-fee output token. Fee outputs are typically OUT_EXT or OUT_COND,
+ *          while arbitrage outputs are OUT_STD. This is SECURITY CRITICAL - we must
+ *          check authorization for the correct token, not just any token from inputs.
+ *          Note: Arbitrage token can be ANY token including native token.
+ * @param a_ledger Ledger containing network configuration
+ * @param a_tx Transaction to analyze
+ * @return Token ticker string (static buffer) or NULL if not found
+ * @note Returns pointer to static buffer - not thread-safe, but safe for single-threaded validation
+ */
+const char *dap_chain_arbitrage_tx_get_token_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+
+/**
  * @brief Check if arbitrage TX outputs are directed to fee address ONLY
  * @details Arbitrage transactions can ONLY send funds to the network fee collection address.
  *          This prevents abuse where token owners could steal funds via arbitrage.
