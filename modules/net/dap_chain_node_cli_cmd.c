@@ -338,17 +338,57 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
                     continue;
                 }
                 json_object* json_node_obj = json_object_new_object();
-                if (!json_node_obj) return dap_json_rpc_allocation_put(json_node_list_obj),DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+                if (!json_node_obj) {
+                    log_it(L_ERROR, "Failed to allocate json_node_obj");
+                    json_object_put(json_node_list_arr);
+                    dap_json_rpc_allocation_put(json_node_list_obj);
+                    dap_global_db_objs_delete(l_objs, l_nodes_count);
+                    return DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+                }
+                
                 char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
                 dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
                 char *l_addr = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_info->address));
-                json_object_object_add(json_node_obj, "address", json_object_new_string(l_addr));
-                json_object_object_add(json_node_obj, "IPv4", json_object_new_string(l_node_info->ext_host));
-                json_object_object_add(json_node_obj, "port", json_object_new_uint64(l_node_info->ext_port));
-                json_object_object_add(json_node_obj, "timestamp", json_object_new_string(l_ts));
+                
+                // Make safe copies of strings from DB to avoid use-after-free
+                // ext_host might point to memory that gets freed or corrupted
+                char *l_ipv4_safe = l_node_info->ext_host ? dap_strdup(l_node_info->ext_host) : dap_strdup("N/A");
+                
+                // Create JSON values with NULL checks
+                json_object *j_addr = l_addr ? json_object_new_string(l_addr) : NULL;
+                json_object *j_ipv4 = l_ipv4_safe ? json_object_new_string(l_ipv4_safe) : NULL;
+                json_object *j_port = json_object_new_uint64(l_node_info->ext_port);
+                json_object *j_timestamp = json_object_new_string(l_ts);
+                
+                // Check if all allocations succeeded
+                if (!j_addr || !j_ipv4 || !j_port || !j_timestamp) {
+                    log_it(L_ERROR, "Failed to allocate JSON values for node");
+                    if (j_addr) json_object_put(j_addr);
+                    if (j_ipv4) json_object_put(j_ipv4);
+                    if (j_port) json_object_put(j_port);
+                    if (j_timestamp) json_object_put(j_timestamp);
+                    json_object_put(json_node_obj);
+                    json_object_put(json_node_list_arr);
+                    dap_json_rpc_allocation_put(json_node_list_obj);
+                    DAP_DELETE(l_addr);
+                    DAP_DELETE(l_ipv4_safe);
+                    dap_global_db_objs_delete(l_objs, l_nodes_count);
+                    return DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+                }
+                
+                // Add values to object (json-c takes ownership)
+                json_object_object_add(json_node_obj, "address", j_addr);
+                json_object_object_add(json_node_obj, "IPv4", j_ipv4);
+                json_object_object_add(json_node_obj, "port", j_port);
+                json_object_object_add(json_node_obj, "timestamp", j_timestamp);
+                
+                // Add node object to array (json-c takes ownership)
                 json_object_array_add(json_node_list_arr, json_node_obj);
+                
+                // Free temporary strings
                 DAP_DELETE(l_addr);
+                DAP_DELETE(l_ipv4_safe);
 
                 // TODO make correct work with aliases
                 /*dap_string_t *aliases_string = dap_string_new(NULL);
@@ -400,8 +440,20 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
                 dap_string_free(aliases_string, true);
                 dap_string_free(links_string, true);*/
             }
-            json_object_object_add(json_node_list_obj, "NODES", json_node_list_arr);
-            json_object_array_add(a_json_arr_reply, json_node_list_obj);
+            // Add array to object and object to reply
+            // Note: json-c takes ownership, so pointers become invalid after these calls
+            if (json_node_list_arr && json_node_list_obj) {
+                json_object_object_add(json_node_list_obj, "NODES", json_node_list_arr);
+                json_object_array_add(a_json_arr_reply, json_node_list_obj);
+            } else {
+                log_it(L_ERROR, "Failed to create node list JSON: arr=%p obj=%p", 
+                       json_node_list_arr, json_node_list_obj);
+                if (json_node_list_arr)
+                    json_object_put(json_node_list_arr);
+                if (json_node_list_obj)
+                    json_object_put(json_node_list_obj);
+                return -DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+            }
         }
         dap_global_db_objs_delete(l_objs, l_nodes_count);
     }    
@@ -953,7 +1005,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_ve
         return -DAP_CHAIN_NODE_CLI_COM_NODE_COMMAND_NOT_RECOGNIZED_ERR;
     }
     const char *l_addr_str = NULL, *l_port_str = NULL, *alias_str = NULL;
-    const char *l_cell_str = NULL, *l_link_str = NULL, *l_hostname = NULL;
+    const char *l_cell_str = NULL, *l_hostname = NULL;
 
     // find net
     dap_chain_net_t *l_net = NULL;
@@ -973,10 +1025,9 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_ve
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-host", &l_hostname);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-link", &l_link_str);
 
     // struct to write to the global db
-    dap_chain_node_addr_t l_node_addr = {}, l_link;
+    dap_chain_node_addr_t l_node_addr = {};
     uint32_t l_info_size = l_hostname 
         ? sizeof(dap_chain_node_info_t) + dap_strlen(l_hostname) + 1
         : sizeof(dap_chain_node_info_t);
@@ -1002,11 +1053,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_ve
     if (l_cell_str) {
         dap_digit_from_string(l_cell_str, l_node_info->cell_id.raw, sizeof(l_node_info->cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
     }
-    if (l_link_str) {   // TODO
-        if(dap_chain_node_addr_from_str(&l_link, l_link_str) != 0) {
-            dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
-        }
-    }
+
     switch (cmd_num) {
 
     case CMD_ADD: {
