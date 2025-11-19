@@ -1003,18 +1003,15 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         log_it(L_NOTICE,"Enable VPN service");
 
         if ( l_srv_ch_vpn ){ // If channel is already opened
-            log_it(L_INFO, "[VPN USAGE DEBUG] Channel 'S' already open, enabling read/write for usage_id=%u", a_usage_id);
             dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
             dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
             l_srv_ch_vpn->usage_id = a_usage_id;
         } else{
-            log_it(L_INFO, "[VPN USAGE DEBUG] Channel 'S' not yet open for usage_id=%u, will be enabled when channel opens", a_usage_id);
             // Don't return error - channel may open later
         }
     } else {
         // Usage already active, but channel might have opened later - enable it now
         if ( l_srv_ch_vpn ) {
-            log_it(L_INFO, "[VPN USAGE DEBUG] Channel 'S' opened after activation, enabling read/write for usage_id=%u", a_usage_id);
             dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
             dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
             l_srv_ch_vpn->usage_id = a_usage_id;
@@ -1022,12 +1019,6 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     }
 
     // set start limits
-    log_it(L_INFO, "[VPN USAGE DEBUG] s_callback_response_success: usage_id=%u, service_state=%d, service_substate=%d, is_active=%d, has_receipt=%d",
-           a_usage_id,
-           (int)l_usage_active->service_state,
-           (int)l_usage_active->service_substate,
-           l_usage_active->is_active ? 1 : 0,
-           l_usage_active->receipt ? 1 : 0);
 
     if(l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL && l_usage_active->receipt){
         remain_limits_save_arg_t *l_args = DAP_NEW_Z(remain_limits_save_arg_t);
@@ -1068,7 +1059,6 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         l_srv_session->last_update_ts = time(NULL);
     } else if (l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
         // Free service mode: no receipt needed, no limits
-        log_it(L_INFO, "[VPN USAGE DEBUG] Free service mode activated for usage_id=%u", a_usage_id);
         l_srv_session->last_update_ts = time(NULL);
     } else {
         log_it(L_ERROR, "WRONG state: usage_id=%u, service_state=%d, service_substate=%d",
@@ -1315,13 +1305,9 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
     
     // If usage is already active, enable channel immediately
     if (l_srv_session->usage_active && l_srv_session->usage_active->is_active) {
-        log_it(L_INFO, "[VPN CHANNEL DEBUG] Channel 'S' opened for active usage_id=%u, enabling read/write",
-               l_srv_vpn->usage_id);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch, true);
         dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
     } else {
-        log_it(L_INFO, "[VPN CHANNEL DEBUG] Channel 'S' opened for inactive usage_id=%u, read/write disabled",
-               l_srv_vpn->usage_id);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
     }
 }
@@ -1582,23 +1568,11 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
     dap_chain_net_srv_vpn_t            *l_srv_vpn = (dap_chain_net_srv_vpn_t*)a_usage->service->_internal;
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
 
-    log_it(L_INFO,
-           "[VPN ADDR DEBUG] addr_request_in: session_id=%u, usage_id=%u, client_pkey=0x%s, "
-           "current_addr=%u, has_unleased=%s",
-           l_srv_session->parent->id,
-           a_usage->id,
-           dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash),
-           l_ch_vpn ? l_ch_vpn->addr_ipv4.s_addr : 0,
-           (l_srv_vpn && l_srv_vpn->ipv4_unleased) ? "yes" : "no");
-
     if (! s_raw_server)
         return;
 
     if ( l_ch_vpn->addr_ipv4.s_addr ) {
         log_it(L_WARNING, "IP address is already leased");
-        log_it(L_WARNING,
-               "[VPN ADDR DEBUG] IP address is already leased for this channel, addr=%u, usage_id=%u",
-               l_ch_vpn->addr_ipv4.s_addr, a_usage->id);
         dap_stream_ch_vpn_pkt_t* pkt_out           = DAP_NEW_STACK_SIZE(dap_stream_ch_vpn_pkt_t, sizeof(pkt_out->header));
         if (!pkt_out) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1626,11 +1600,6 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
     dap_chain_net_srv_vpn_item_ipv4_t* l_item_ipv4 = l_srv_vpn->ipv4_unleased;
     if (l_item_ipv4) {
         log_it(L_WARNING, "Found a recently unleased IP address");
-        log_it(L_INFO,
-               "[VPN ADDR DEBUG] assigning IPv4=%u, gw=%u to usage_id=%u",
-               l_item_ipv4->addr.s_addr,
-               s_raw_server->ipv4_gw.s_addr,
-               a_usage->id);
         l_ch_vpn->addr_ipv4.s_addr = l_item_ipv4->addr.s_addr;
         pthread_rwlock_wrlock( &s_clients_rwlock );
         HASH_ADD(hh, s_ch_vpn_addrs, addr_ipv4, sizeof (l_ch_vpn->addr_ipv4), l_ch_vpn);
@@ -1794,42 +1763,19 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
 
-    log_it(L_INFO,
-           "[VPN PKT DEBUG] s_ch_packet_in: session_id=%u raw_size=%u",
-           a_ch->stream ? a_ch->stream->id : 0,
-           l_pkt ? l_pkt->hdr.data_size : 0);
-
     dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t*)l_pkt->data;
     if(l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
         log_it(L_WARNING, "Data size of stream channel packet %u is lesser than size of VPN packet header %zu",
                                                               l_pkt->hdr.data_size, sizeof(l_vpn_pkt->header));
-        log_it(L_WARNING,
-               "[VPN PKT DEBUG] drop: size %u < vpn_header %zu (session_id=%u)",
-               l_pkt->hdr.data_size,
-               sizeof(l_vpn_pkt->header),
-               a_ch->stream ? a_ch->stream->id : 0);
         return false;
     }
     size_t l_vpn_pkt_data_size = l_pkt->hdr.data_size - sizeof(l_vpn_pkt->header);
-
-    log_it(L_INFO,
-           "[VPN PKT DEBUG] header: session_id=%u sock_id=%d op_code=0x%02X usage_id=%u data_size=%u real_data_size=%zu",
-           a_ch->stream ? a_ch->stream->id : 0,
-           l_vpn_pkt->header.sock_id,
-           l_vpn_pkt->header.op_code,
-           l_vpn_pkt->header.usage_id,
-           l_vpn_pkt->header.op_data.data_size,
-           l_vpn_pkt_data_size);
 
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (a_ch->stream->session );
     // dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     if(!l_usage || !l_usage->is_active){
-        log_it(L_INFO,
-               "[VPN PKT DEBUG] drop: usage inactive or NULL (session_id=%u usage_id_hdr=%u)",
-               a_ch->stream ? a_ch->stream->id : 0,
-               l_vpn_pkt->header.usage_id);
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
@@ -1838,12 +1784,6 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     if(l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
         if(!l_usage->is_active && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-            log_it(L_INFO,
-                   "[VPN PKT DEBUG] drop pkt op=0x%08x: usage inactive, state=%d, substate=%d, usage_id_active=%u",
-                   l_vpn_pkt->header.op_code,
-                   l_usage->service_state,
-                   l_usage->service_substate,
-                   l_usage->id);
             log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
             if(l_usage->client)
                 dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
@@ -1851,13 +1791,6 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;
         } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-            log_it(L_INFO,
-                   "[VPN PKT DEBUG] drop pkt op=0x%08x: usage not ready, state=%d, substate=%d, is_active=%d, usage_id_active=%u",
-                   l_vpn_pkt->header.op_code,
-                   l_usage->service_state,
-                   l_usage->service_substate,
-                   l_usage->is_active ? 1 : 0,
-                   l_usage->id);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;
@@ -1912,17 +1845,6 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 uint32_t l_usage_id_active = l_usage ? l_usage->id : 0;
                 uint32_t l_addr_leased = l_ch_vpn ? l_ch_vpn->addr_ipv4.s_addr : 0;
 
-                log_it(L_INFO,
-                       "[VPN ADDR DEBUG] VPN_ADDR_REQUEST: session_id=%u, usage_id_hdr=%u, usage_id_active=%u, "
-                       "is_active=%d, state=%d, substate=%d, addr_leased=%u, s_raw_server=%p",
-                       a_ch->stream->session->id,
-                       l_vpn_pkt->header.usage_id,
-                       l_usage_id_active,
-                       l_is_active,
-                       l_state,
-                       l_substate,
-                       l_addr_leased,
-                       (void*)s_raw_server);
                 log_it(L_INFO, "Received address request");
                 if(s_raw_server){
                     s_ch_packet_in_vpn_address_request(a_ch, l_usage);
