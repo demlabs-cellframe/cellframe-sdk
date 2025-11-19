@@ -40,6 +40,7 @@ enum {
     DAP_DATUM_MEMPOOL_NONE = 0, DAP_DATUM_MEMPOOL_ADD, DAP_DATUM_MEMPOOL_CHECK, DAP_DATUM_MEMPOOL_DEL
 };
 
+
 // datum mempool structure
 typedef struct dap_datum_mempool {
     uint16_t version;        // structure version
@@ -119,5 +120,27 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
                                            uint256_t a_value_fee, const char *a_hash_out_type);
 char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_sign_key, dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                          uint256_t a_value_fee, const char *a_hash_out_type);
-
 bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);
+/**
+ * @brief Compose event transaction following cellframe mempool style
+ * @param[in] a_chain Chain to create transaction for
+ * @param[in] a_key_from Private key for signing transaction
+ * @param[in] a_service_key Service key for signing transaction
+ * @param[in] a_group_name Event group name
+ * @param[in] a_event_type Event type
+ * @param[in] a_event_data Event data
+ * @param[in] a_event_data_size Size of event data
+ * @param[in] a_fee_value Fee value
+ * @param[in] a_hash_out_type Hash output format
+ * @return Transaction hash string on success, NULL on error
+ */
+char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
+                                      dap_enc_key_t *a_key_from,
+                                      dap_enc_key_t *a_service_key,
+                                      dap_chain_net_srv_uid_t a_srv_uid,
+                                      const char *a_group_name,
+                                      uint16_t a_event_type,
+                                      const void *a_event_data,
+                                      size_t a_event_data_size,
+                                      uint256_t a_fee_value,
+                                      const char *a_hash_out_type);

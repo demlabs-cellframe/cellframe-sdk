@@ -36,11 +36,10 @@
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net.h"
-#include "dap_chain_ledger_tx.h"
-#include "dap_chain_ledger_item.h"
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x09
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
+#define DAP_CHAIN_NET_SRV_EVENT_ID 0xA0
 
 typedef struct dap_ledger {
     dap_chain_net_t *net;
@@ -55,6 +54,53 @@ typedef struct dap_ledger_locked_out {
     struct dap_ledger_locked_out *next;
 } dap_ledger_locked_out_t;
 
+typedef enum dap_chain_tx_tag_action_type {    
+
+    //subtags, till 32
+    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
+    
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
+    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 5,
+
+    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
+    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
+    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
+    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
+    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
+
+    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
+    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
+
+    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD =    1 << 13,
+    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE =    1 << 14,
+    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL =  1 << 15,
+    DAP_CHAIN_TX_TAG_ACTION_EVENT =                 1 << 16,
+   
+    DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
+} dap_chain_tx_tag_action_type_t;
+
+// ledger cache item - one of unspent outputs
+typedef struct dap_ledger_tx_item {
+    dap_chain_hash_fast_t tx_hash_fast;
+    dap_chain_datum_tx_t *tx;
+    dap_nanotime_t ts_added;
+    UT_hash_handle hh;
+    struct {
+        dap_time_t ts_created;      // Transation datum timestamp mirrored & cached
+        uint32_t n_outs;
+        uint32_t n_outs_used;
+        char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+        byte_t padding[6];
+        byte_t multichannel;
+        dap_time_t ts_spent;
+        byte_t pad[7];
+        dap_chain_net_srv_uid_t tag; //tag (or service this tx is belong to)
+        dap_chain_tx_tag_action_type_t action;
+        dap_chain_hash_fast_t tx_hash_spent_fast[]; // spent outs list
+    } DAP_ALIGN_PACKED cache_data;
+} dap_ledger_tx_item_t;
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
@@ -101,6 +147,7 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX,
     DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX,
     DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL,
+    DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE,
     DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN,
     DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED,
     DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED,
@@ -119,6 +166,11 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_OTHER_TICKER_EXPECTED,
     DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET
 } dap_ledger_check_error_t;
+
+typedef enum dap_chan_ledger_notify_opcodes{
+    DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
+    DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64 
+} dap_chan_ledger_notify_opcodes_t;
 
 typedef struct dap_ledger_datum_iter {
     dap_chain_net_t *net;
@@ -222,6 +274,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_FOR_REMOVING_CANT_FIND_TX: return "Can't find tx in ledger for removing.";
     case DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET: return "The transaction was rejected because it contains multiple outputs to other networks.";
     case DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL: return "Usage of timed locked out is forbidden for this tx";
+    case DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE: return "Event verification failure";
     case DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN: return "Legacy stakes are not accepted from mempool anymore!";
     case DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED: return "Transaction output is blocked in UTXO blocklist for this token";
     case DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED: return "Arbitrage transaction not authorized: invalid owner signature or arbitrage disabled for token";
@@ -246,8 +299,16 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
 typedef int (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (*dap_ledger_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_chain_tx_out_cond_t *a_prev_cond);
-// Types moved to dap_chain_ledger_tx.h to avoid circular dependencies
+typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
+typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_chan_ledger_notify_opcodes_t a_opcode);
+// TODO remove this callback
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+typedef void (* dap_ledger_event_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
+// Process service decree
+typedef int (*dap_ledger_srv_callback_decree_t)(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
+// Event verify service callback
+typedef int (*dap_ledger_srv_callback_event_verify_t)(dap_ledger_t *a_ledger, const char *a_event_group_name, int a_event_type,
+                                                      void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_event_tx_hash);
 
 typedef struct dap_chain_net dap_chain_net_t;
 typedef int (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
@@ -315,15 +376,6 @@ size_t dap_ledger_token_get_auth_signs_valid(dap_ledger_t *a_ledger, const char 
 size_t dap_ledger_token_get_auth_signs_total(dap_ledger_t *a_ledger, const char *a_token_ticker);
 dap_list_t *dap_ledger_token_get_auth_pkeys_hashes(dap_ledger_t *a_ledger, const char *a_token_ticker);
 uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char *a_token_ticker);
-
-/**
- * @brief Get current flags for a token 
- * @param a_ledger Ledger instance
- * @param a_token_ticker Token ticker
- * @param a_flags Output parameter for all flags 
- * @return 0 on success, -1 if token not found
- */
-int dap_ledger_token_get_flags(dap_ledger_t *a_ledger, const char *a_token_ticker, uint32_t *a_flags);
 
 /**
  * Add token emission datum
@@ -485,6 +537,15 @@ dap_chain_datum_tx_t *dap_ledger_datum_iter_get_last(dap_ledger_datum_iter_t *a_
 
 void dap_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_ledger_tx_add_notify_t a_callback, void *a_arg);
 void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged_tx_notify_t a_callback, void *a_arg);
+/**
+ * @brief Add notification callback for event transactions
+ * @param a_ledger Ledger instance
+ * @param a_callback Callback function to be called when a new event is added
+ * @param a_arg User data to be passed to the callback
+ */
+void dap_ledger_event_notify_add(dap_ledger_t *a_ledger, dap_ledger_event_notify_t a_callback, void *a_arg);
+int dap_ledger_srv_callback_decree_add(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid, dap_ledger_srv_callback_decree_t a_callback);
+int dap_ledger_srv_callback_event_verify_add(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid, dap_ledger_srv_callback_event_verify_t a_callback);
 
 bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash);
 
@@ -494,6 +555,45 @@ dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(d
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger);
 
+dap_chain_tx_event_t *dap_ledger_event_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+dap_list_t *dap_ledger_event_get_list_ex(dap_ledger_t *a_ledger, const char *a_group_name, bool a_need_lock);
+DAP_STATIC_INLINE dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_group_name)
+{
+    return dap_ledger_event_get_list_ex(a_ledger, a_group_name, true);
+}
+
+
+/**
+ * @brief Check if a public key is allowed for creating events
+ * @param a_ledger The ledger instance
+ * @param a_pkey_hash Hash of the public key to check
+ * @return 0 if allowed, -1 if not allowed
+ */
+ int dap_ledger_event_pkey_check(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
+
+ /**
+  * @brief Add a public key to the allowed list for creating events
+  * @param a_ledger The ledger instance
+  * @param a_pkey_hash Hash of the public key to add
+  * @return 0 on success, -1 on error
+  */
+ int dap_ledger_event_pkey_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
+ 
+ /**
+  * @brief Remove a public key from the allowed list for creating events
+  * @param a_ledger The ledger instance
+  * @param a_pkey_hash Hash of the public key to remove
+  * @return 0 on success, -1 on error or if not found
+  */
+ int dap_ledger_event_pkey_rm(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash);
+ 
+ /**
+  * @brief Get a list of all allowed public keys for creating events
+  * @param a_ledger The ledger instance
+  * @return dap_list_t* List of dap_hash_fast_t* pointers to allowed public key hashes, NULL if empty or on error
+  */
+ dap_list_t *dap_ledger_event_pkey_list(dap_ledger_t *a_ledger);
+ 
 #ifdef __cplusplus
 }
 #endif
