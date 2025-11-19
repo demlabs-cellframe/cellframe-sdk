@@ -1731,14 +1731,19 @@ int dap_chain_wallet_shared_init()
     for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
         dap_global_db_erase_table_sync(l_item->data);
     }
+    
+    dap_list_free(l_groups_list);
+    s_collect_wallet_pkey_hashes();
+    s_collect_cert_pkey_hashes();
+    return 0;
+}
+
+int dap_chain_wallet_shared_notify_init() {
     dap_chain_net_t *l_net = dap_chain_net_iter_start();
     for (; l_net; l_net = dap_chain_net_iter_next(l_net)) {
         for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
             dap_chain_add_mempool_notify_callback(l_chain, s_shared_tx_mempool_notify, l_chain);
         }
     }
-    dap_list_free(l_groups_list);
-    s_collect_wallet_pkey_hashes();
-    s_collect_cert_pkey_hashes();
     return 0;
 }

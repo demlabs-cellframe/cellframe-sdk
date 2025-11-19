@@ -20,3 +20,4 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json
 int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_net_name);
 json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name);
 int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a_final_tx_hash, json_object *a_jobj_waiting_operations_hashes);
+int dap_chain_wallet_shared_notify_init();
