@@ -1838,13 +1838,6 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             } break;
             // for server
             case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: { // Client request after L3 connection the new IP address
-                dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
-                int l_state = l_usage ? (int)l_usage->service_state : -1;
-                int l_substate = l_usage ? (int)l_usage->service_substate : -1;
-                int l_is_active = l_usage ? (l_usage->is_active ? 1 : 0) : 0;
-                uint32_t l_usage_id_active = l_usage ? l_usage->id : 0;
-                uint32_t l_addr_leased = l_ch_vpn ? l_ch_vpn->addr_ipv4.s_addr : 0;
-
                 log_it(L_INFO, "Received address request");
                 if(s_raw_server){
                     s_ch_packet_in_vpn_address_request(a_ch, l_usage);
@@ -1888,14 +1881,6 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     log_it(L_WARNING, "Size of VPN packet data %zu is not equal to estimated size %u",
                                                     l_vpn_pkt_data_size, l_vpn_pkt->header.op_data.data_size);
                     return false;
-                }
-                if(l_usage && l_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
-                    log_it(L_INFO,
-                           "[VPN FREE FLOW OUT] vpn_send: session_id=%u usage_id=%u bytes=%u sock_id=%d",
-                           a_ch->stream ? a_ch->stream->id : 0,
-                           l_usage->id,
-                           l_vpn_pkt->header.op_data.data_size,
-                           l_vpn_pkt->header.sock_id);
                 }
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
