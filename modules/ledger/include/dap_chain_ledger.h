@@ -219,6 +219,11 @@ typedef struct dap_ledger_datum_iter_data {
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint32_t action;
     dap_chain_srv_uid_t uid;
+    // Lightweight file location info for lazy loading (optional)
+    dap_chain_id_t chain_id;
+    dap_chain_cell_id_t cell_id;
+    off_t file_offset;
+    size_t datum_offset_in_block;
 } dap_ledger_datum_iter_data_t;
 
 //Change this UUID to automatically reload ledger cache on next node startup

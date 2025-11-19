@@ -706,9 +706,13 @@ int main(int argc, char **argv)
     dap_print_module_name("Ledger Event Thread Safety");
     test_ledger_event_pkey_thread_safety();
     
+    // Ledger light cache structure/layout checks
+    extern void test_ledger_light_cache_structs(void);
+    test_ledger_light_cache_structs();
+
     log_it(L_INFO, "\n=== All Ledger Event Tests PASSED! ===");
-    log_it(L_INFO, "Total: 14 test functions");
-    log_it(L_INFO, "Coverage: All public API functions tested");
+    log_it(L_INFO, "Total: 15+ test functions (including light cache layout)");
+    log_it(L_INFO, "Coverage: Ledger events + light cache structures");
     
     // Cleanup
     // dap_mock_deinit();

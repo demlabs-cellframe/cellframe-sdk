@@ -104,12 +104,28 @@ typedef struct dap_ledger_tx_out_metadata {
     dap_list_t *trackers;
 } dap_ledger_tx_out_metadata_t;
 
+/**
+ * @brief Lightweight on-disk reference to a transaction datum location.
+ * @details Used by ledger cache to avoid storing full datum bytes.
+ *          If fields are zeroed, resolver should fallback to chain RAM cache lookup by hash.
+ */
+typedef struct dap_ledger_tx_ref {
+    dap_chain_id_t        chain_id;               // Chain ID where datum is stored
+    dap_chain_cell_id_t   cell_id;                // Cell/file identifier (0 for RAM-only chains)
+    off_t                 file_offset;            // Offset of BLOCK in cell file (points to SIZE field)
+    size_t                datum_offset_in_block;  // Offset of THIS datum within the block (0 for DAG)
+    uint32_t              tx_size;                // Optional: cached tx size (0 if unknown)
+    dap_hash_fast_t       atom_hash;              // Optional: block/atom hash for cross-check
+} dap_ledger_tx_ref_t;
+
 // ledger cache item - one of unspent outputs
 typedef struct dap_ledger_tx_item {
     dap_chain_hash_fast_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
     dap_nanotime_t ts_added;
     UT_hash_handle hh;
+    // Lightweight reference to datum location (for lazy loading from chains/files)
+    dap_ledger_tx_ref_t ref;
     struct {
         dap_time_t ts_created;      // Transation datum timestamp mirrored & cached
         uint32_t n_outs;

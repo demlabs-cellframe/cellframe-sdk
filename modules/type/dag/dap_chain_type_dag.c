@@ -502,7 +502,17 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_type_dag_t *a_dag, dap
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
     
     PVT(a_dag)->perf_ledger_updates++;
-    int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
+    // Provide lightweight location info for ledger lazy loading (DAG: datum is the atom)
+    dap_ledger_datum_iter_data_t l_iter_info = {
+        .token_ticker = "UNKNOWN",
+        .action = 0,
+        .uid.uint64 = 0,
+        .chain_id = a_dag->chain->id,
+        .cell_id = a_event_item->cell_id,
+        .file_offset = a_event_item->file_offset,
+        .datum_offset_in_block = 0
+    };
+    int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, &l_iter_info);
     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
         PVT(a_dag)->tx_count++;
     a_event_item->datum_hash = l_datum_hash;

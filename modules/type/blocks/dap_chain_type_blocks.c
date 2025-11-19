@@ -1782,7 +1782,15 @@ static int s_add_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_block_
             break;
         }
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
-        dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "UNKNOWN", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
+        dap_ledger_datum_iter_data_t l_datum_index_data = {
+            .token_ticker = "UNKNOWN",
+            .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN,
+            .uid.uint64 = 0,
+            .chain_id = a_blocks->chain->id,
+            .cell_id = a_block_cache->block->hdr.cell_id,
+            .file_offset = 0, // Blocks chain stores data in RAM; no file offset
+            .datum_offset_in_block = l_block_offset
+        };
         bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->chain->generation;
         dap_hash_fast_t l_zero_hash = {0};
         if (!memcmp(l_datum_hash, &l_zero_hash, sizeof(dap_hash_fast_t)))
