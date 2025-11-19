@@ -102,226 +102,9 @@ static  pthread_rwlock_t s_services_rwlock;
 
 static dap_chain_ledger_votings_callbacks_t s_voting_callbacks;
 
-typedef struct dap_ledger_stake_lock_item {
-    dap_chain_hash_fast_t	tx_for_stake_lock_hash;
-    dap_chain_hash_fast_t	tx_used_out;
-    UT_hash_handle hh;
-} dap_ledger_stake_lock_item_t;
+// Structures now defined in dap_chain_ledger_item.h
 
-typedef struct dap_ledger_token_emission_item {
-    dap_chain_hash_fast_t datum_token_emission_hash;
-    dap_chain_datum_token_emission_t *datum_token_emission;
-    size_t datum_token_emission_size;
-    dap_chain_hash_fast_t tx_used_out;
-    dap_nanotime_t ts_added;
-    UT_hash_handle hh;
-} dap_ledger_token_emission_item_t;
-
-typedef struct dap_ledger_token_update_item {
-    dap_hash_fast_t			update_token_hash;
-    dap_chain_datum_token_t	*datum_token_update;
-    size_t					datum_token_update_size;
-    time_t					updated_time;
-    UT_hash_handle hh;
-} dap_ledger_token_update_item_t;
-
-struct spec_address {
-    dap_chain_addr_t addr;
-    dap_time_t becomes_effective;
-};
-
-/**
- * @brief UTXO blocklist key structure
- * @details Composite key for hash table lookup (tx_hash + out_idx identifies unique UTXO).
- *          Total size: 36 bytes (32B hash + 4B index)
- */
-typedef struct dap_ledger_utxo_block_key {
-    dap_chain_hash_fast_t tx_hash;  ///< Transaction hash (32 bytes)
-    uint32_t out_idx;                ///< Output index within transaction (4 bytes)
-} dap_ledger_utxo_block_key_t;
-
-/**
- * @brief UTXO blocking action types (for history tracking)
- * @details Each history entry records what action was performed:
- *          - BLOCK_ACTION_ADD: UTXO was blocked (added to blocklist)
- *          - BLOCK_ACTION_REMOVE: UTXO was unblocked (removed from blocklist)
- *          - BLOCK_ACTION_CLEAR: All UTXOs for token were cleared
- */
-typedef enum dap_ledger_utxo_block_action {
-    BLOCK_ACTION_ADD = 1,      ///< UTXO blocked
-    BLOCK_ACTION_REMOVE = 2,   ///< UTXO unblocked
-    BLOCK_ACTION_CLEAR = 3     ///< All UTXOs cleared
-} dap_ledger_utxo_block_action_t;
-
-/**
- * @brief UTXO blocking history item (for Zero/Main Chain sync)
- * @details Stores a single change event in UTXO blocking history.
- *          History is needed because token_update appears on Zero Chain earlier than
- *          Main Chain updates blockchain_time. Without history, sync order can cause
- *          inconsistencies.
- *          
- *          History forms a double-linked list sorted chronologically by bc_time.
- *          
- * @note Critical for Zero/Main Chain synchronization
- */
-typedef struct dap_ledger_utxo_block_history_item {
-    dap_ledger_utxo_block_action_t action;  ///< What happened (ADD/REMOVE/CLEAR)
-    dap_time_t bc_time;                      ///< Blockchain time when action occurred
-    dap_time_t becomes_effective;            ///< When blocking becomes active (for ADD)
-    dap_time_t becomes_unblocked;            ///< When blocking expires (for REMOVE)
-    dap_hash_fast_t token_update_hash;       ///< Which token_update caused this
-    
-    // Double-linked list for chronological ordering
-    struct dap_ledger_utxo_block_history_item *next;
-    struct dap_ledger_utxo_block_history_item *prev;
-} dap_ledger_utxo_block_history_item_t;
-
-/**
- * @brief UTXO blocklist item (hash table entry)
- * @details Each token has its own UTXO blocklist stored as in-memory hash table (uthash).
- *          This structure represents a single blocked UTXO with temporal semantics:
- *          - becomes_effective: when blocking activates (delayed activation support)
- *          - becomes_unblocked: when blocking deactivates (delayed unblocking support)
- *          
- *          Blocking state is determined by:
- *          blocked = (blockchain_time >= becomes_effective) && 
- *                    (becomes_unblocked == 0 || blockchain_time < becomes_unblocked)
- *          
- *          Full history tracking for Zero/Main Chain sync.
- *          History is stored as double-linked list, separate RW lock prevents blocking.
- *          
- * @note Thread-safety: Access protected by utxo_blocklist_rwlock in dap_ledger_token_item_t
- * @note History thread-safety: Access protected by history_rwlock (separate lock)
- */
-typedef struct dap_ledger_utxo_block_item {
-    dap_ledger_utxo_block_key_t key;  ///< Key for hash table lookup (tx_hash + out_idx)
-    
-    // Current state (for fast lookup without history replay)
-    dap_time_t blocked_time;           ///< When it was added to blocklist (for auditing)
-    dap_time_t becomes_effective;      ///< When blocking becomes active (blockchain time)
-    dap_time_t becomes_unblocked;      ///< When unblocking becomes active (0 = never/permanent)
-    
-    // Full history for Zero/Main Chain sync
-    dap_ledger_utxo_block_history_item_t *history_head;  ///< Start of history (oldest)
-    dap_ledger_utxo_block_history_item_t *history_tail;  ///< End of history (newest)
-    pthread_rwlock_t history_rwlock;                      ///< Separate lock for history access
-    
-    UT_hash_handle hh;                 ///< uthash handle (for hash table operations)
-} dap_ledger_utxo_block_item_t;
-
-typedef struct dap_ledger_token_item {
-    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint16_t subtype;
-    dap_chain_datum_token_t *datum_token;
-    uint64_t datum_token_size;
-
-    uint256_t total_supply;
-    uint256_t current_supply;
-
-    pthread_rwlock_t token_emissions_rwlock;
-    dap_ledger_token_emission_item_t * token_emissions;
-
-    pthread_rwlock_t token_ts_updated_rwlock;
-    dap_ledger_token_update_item_t * token_ts_updated;
-    time_t last_update_token_time;
-
-    // for auth operations
-
-    dap_pkey_t ** auth_pkeys;
-    dap_chain_hash_fast_t *auth_pkey_hashes;
-    size_t auth_signs_total;
-    size_t auth_signs_valid;
-    uint32_t             flags;
-    struct spec_address *tx_recv_allow;
-    size_t               tx_recv_allow_size;
-    struct spec_address *tx_recv_block;
-    size_t               tx_recv_block_size;
-    struct spec_address *tx_send_allow;
-    size_t               tx_send_allow_size;
-    struct spec_address *tx_send_block;
-    size_t               tx_send_block_size;
-    char *description;
-    // For delegated tokens
-    bool is_delegated;
-    char delegated_from[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t emission_rate;
-
-    /**
-     * @brief UTXO blocking mechanism (per-token blocklist)
-     * @details utxo_blocklist: Hash table (uthash) of blocked UTXOs for this token
-     *          utxo_blocklist_rwlock: Read-write lock for thread-safe access
-     *          utxo_blocklist_count: Number of blocked UTXOs (for monitoring/auditing)
-     *          
-     *          Controlled by flags:
-     *          - UTXO_BLOCKING_DISABLED (BIT 16): Disables UTXO blocking entirely
-     *          - STATIC_UTXO_BLOCKLIST (BIT 17): Makes blocklist immutable after token creation
-     *          
-     *          Access pattern:
-     *          - Read operations (lookup): pthread_rwlock_rdlock
-     *          - Write operations (add/remove): pthread_rwlock_wrlock
-     *          
-     * @see dap_ledger_utxo_block_item_t for blocklist entry structure
-     * @see s_ledger_utxo_is_blocked for blocking check logic
-     * @see s_ledger_utxo_block_add, s_ledger_utxo_block_remove for management
-     */
-    pthread_rwlock_t utxo_blocklist_rwlock;           ///< RW lock for thread-safe blocklist access
-    struct dap_ledger_utxo_block_item *utxo_blocklist; ///< Hash table (uthash) of blocked UTXOs
-    size_t utxo_blocklist_count;                       ///< Number of blocked UTXOs (for monitoring)
-
-    UT_hash_handle hh;
-} dap_ledger_token_item_t;
-
-typedef struct  dap_ledger_cache_gdb_record {
-    uint64_t cache_size;
-    uint64_t datum_size;
-    uint8_t data[];
-} DAP_ALIGN_PACKED dap_ledger_cache_gdb_record_t;
-
-typedef struct dap_ledger_tokenizer {
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t sum;
-    UT_hash_handle hh;
-} dap_ledger_tokenizer_t;
-
-typedef struct dap_ledger_reward_key {
-    dap_hash_fast_t block_hash;
-    dap_hash_fast_t sign_pkey_hash;
-} DAP_ALIGN_PACKED dap_ledger_reward_key_t;
-
-typedef struct dap_ledger_reward_item {
-    dap_ledger_reward_key_t key;
-    dap_hash_fast_t spender_tx;
-    UT_hash_handle hh;
-} dap_ledger_reward_item_t;
-
-typedef struct dap_ledger_tx_bound {
-    uint8_t type;
-    uint16_t prev_out_idx;
-    uint256_t value;
-    union {
-        dap_ledger_token_item_t *token_item;    // For current_supply update on emissions
-        dap_chain_tx_out_cond_t *cond;          // For conditional output
-        struct {
-            char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-            dap_chain_addr_t addr_from;
-        } in;
-    };
-    union {
-        dap_ledger_tx_item_t *prev_item;        // For not emission TX
-        dap_ledger_token_emission_item_t *emission_item;
-        dap_ledger_stake_lock_item_t *stake_lock_item;
-        dap_ledger_reward_key_t reward_key;
-    };
-} dap_ledger_tx_bound_t;
-
-// in-memory wallet balance
-typedef struct dap_ledger_wallet_balance {
-    char *key;
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t balance;
-    UT_hash_handle hh;
-} dap_ledger_wallet_balance_t;
-
+// Local structures for internal implementation only
 typedef struct dap_ledger_event {
     dap_chain_net_srv_uid_t srv_uid;
     dap_time_t timestamp;
@@ -333,6 +116,12 @@ typedef struct dap_ledger_event {
     size_t event_data_size;
     UT_hash_handle hh;
 } dap_ledger_event_t;
+
+typedef struct dap_ledger_event_notifier {
+    dap_ledger_event_notify_t callback;
+    void *arg;
+} dap_ledger_event_notifier_t;
+
 // ============================================================================
 // UTXO BLOCKLIST INTERNAL API DECLARATIONS
 // ============================================================================
@@ -355,36 +144,6 @@ static int s_ledger_utxo_block_remove(dap_ledger_token_item_t *a_token_item,
 static int s_ledger_utxo_block_clear(dap_ledger_token_item_t *a_token_item,
                                        dap_hash_fast_t *a_token_update_hash,
                                        dap_ledger_t *a_ledger);
-
-typedef struct dap_ledger_cache_item {
-    dap_chain_hash_fast_t *hash;
-    bool found;
-} dap_ledger_cache_item_t;
-
-typedef struct dap_ledger_cache_str_item {
-    char *key;
-    bool found;
-} dap_ledger_cache_str_item_t;
-
-typedef struct dap_ledger_tx_notifier {
-    dap_ledger_tx_add_notify_t callback;
-    void *arg;
-} dap_ledger_tx_notifier_t;
-
-typedef struct dap_ledger_bridged_tx_notifier {
-    dap_ledger_bridged_tx_notify_t callback;
-    void *arg;
-} dap_ledger_bridged_tx_notifier_t;
-
-typedef struct dap_ledger_event_notifier {
-    dap_ledger_event_notify_t callback;
-    void *arg;
-} dap_ledger_event_notifier_t;
-
-typedef struct dap_ledger_hal_item {
-    dap_chain_hash_fast_t hash;
-    UT_hash_handle hh;
-} dap_ledger_hal_item_t;
 
 typedef struct dap_ledger_event_pkey_item {
     dap_hash_fast_t pkey_hash;

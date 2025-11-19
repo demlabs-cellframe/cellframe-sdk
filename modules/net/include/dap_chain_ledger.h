@@ -36,6 +36,8 @@
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net.h"
+#include "dap_chain_ledger_tx.h"
+#include "dap_chain_ledger_item.h"
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x09
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
@@ -54,53 +56,6 @@ typedef struct dap_ledger_locked_out {
     struct dap_ledger_locked_out *next;
 } dap_ledger_locked_out_t;
 
-typedef enum dap_chain_tx_tag_action_type {    
-
-    //subtags, till 32
-    DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
-    
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
-    DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REWARD =       1 << 5,
-
-    DAP_CHAIN_TX_TAG_ACTION_OPEN =                  1 << 6,
-    DAP_CHAIN_TX_TAG_ACTION_USE =                   1 << 7,
-    DAP_CHAIN_TX_TAG_ACTION_EXTEND =                1 << 8,
-    DAP_CHAIN_TX_TAG_ACTION_CHANGE =                1 << 9,
-    DAP_CHAIN_TX_TAG_ACTION_CLOSE =                 1 << 10,
-
-    DAP_CHAIN_TX_TAG_ACTION_VOTING =                1 << 11,
-    DAP_CHAIN_TX_TAG_ACTION_VOTE =                  1 << 12,
-
-    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_HOLD =    1 << 13,
-    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE =    1 << 14,
-    DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL =  1 << 15,
-    DAP_CHAIN_TX_TAG_ACTION_EVENT =                 1 << 16,
-   
-    DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
-} dap_chain_tx_tag_action_type_t;
-
-// ledger cache item - one of unspent outputs
-typedef struct dap_ledger_tx_item {
-    dap_chain_hash_fast_t tx_hash_fast;
-    dap_chain_datum_tx_t *tx;
-    dap_nanotime_t ts_added;
-    UT_hash_handle hh;
-    struct {
-        dap_time_t ts_created;      // Transation datum timestamp mirrored & cached
-        uint32_t n_outs;
-        uint32_t n_outs_used;
-        char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        byte_t padding[6];
-        byte_t multichannel;
-        dap_time_t ts_spent;
-        byte_t pad[7];
-        dap_chain_net_srv_uid_t tag; //tag (or service this tx is belong to)
-        dap_chain_tx_tag_action_type_t action;
-        dap_chain_hash_fast_t tx_hash_spent_fast[]; // spent outs list
-    } DAP_ALIGN_PACKED cache_data;
-} dap_ledger_tx_item_t;
 /**
  * @brief Error codes for accepting a transaction to the ledger.
  */
@@ -166,11 +121,6 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_OTHER_TICKER_EXPECTED,
     DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET
 } dap_ledger_check_error_t;
-
-typedef enum dap_chan_ledger_notify_opcodes{
-    DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
-    DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64 
-} dap_chan_ledger_notify_opcodes_t;
 
 typedef struct dap_ledger_datum_iter {
     dap_chain_net_t *net;
@@ -299,16 +249,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
 typedef int (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (*dap_ledger_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_chain_tx_out_cond_t *a_prev_cond);
-typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
-typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, dap_chan_ledger_notify_opcodes_t a_opcode);
-// TODO remove this callback
-typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
-typedef void (* dap_ledger_event_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
-// Process service decree
-typedef int (*dap_ledger_srv_callback_decree_t)(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
-// Event verify service callback
-typedef int (*dap_ledger_srv_callback_event_verify_t)(dap_ledger_t *a_ledger, const char *a_event_group_name, int a_event_type,
-                                                      void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_event_tx_hash);
+// Callback types moved to dap_chain_ledger_tx.h to avoid circular dependencies
 
 typedef struct dap_chain_net dap_chain_net_t;
 typedef int (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
