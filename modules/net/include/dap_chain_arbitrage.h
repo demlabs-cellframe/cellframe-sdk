@@ -28,7 +28,8 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_tx.h"
 
-// dap_ledger_token_item_t is now defined in dap_chain_ledger.h
+// Forward declaration (dap_ledger_token_item_t is opaque type defined in dap_chain_ledger.c)
+typedef struct dap_ledger_token_item dap_ledger_token_item_t;
 
 /**
  * @brief Check if transaction is marked as arbitrage

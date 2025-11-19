@@ -23,6 +23,7 @@
 
 #include "dap_chain_arbitrage.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_item.h"  // For dap_ledger_token_item_t definition
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_tsd.h"

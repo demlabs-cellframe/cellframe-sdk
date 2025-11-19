@@ -4893,9 +4893,10 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
             if (l_utxo_flags != 0) {
                 // Get current flags using public API
                 uint32_t l_current_flags = 0;
-                int l_res = dap_ledger_token_get_flags(a_params->net->pub.ledger, a_params->ticker, &l_current_flags);
+                // Check if token exists using dap_ledger_token_ticker_check
+                dap_chain_datum_token_t *l_token_check = dap_ledger_token_ticker_check(a_params->net->pub.ledger, a_params->ticker);
                 
-                if (l_res != 0) {
+                if (!l_token_check) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_LEDGER_TOKEN_TICKER,
                                "Token '%s' not found in ledger", a_params->ticker);
                     return -7;
