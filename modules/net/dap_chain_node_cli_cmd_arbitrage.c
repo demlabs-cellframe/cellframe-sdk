@@ -427,6 +427,9 @@ char *dap_chain_arbitrage_cli_create_tx(
                    l_arbitrage_certs_count + 1, l_arbitrage_certs_count, l_tx_hash_str);
         } else {
             log_it(L_ERROR, "Failed to create arbitrage transaction with multiple signatures");
+            // Add error to JSON-RPC response (same as single signature case)
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                  "Failed to create arbitrage transaction. Possible reasons: insufficient funds, invalid parameters, or mempool error. Check logs for details.");
         }
     } else {
         // Single signature (from wallet) is sufficient - use standard extended API
