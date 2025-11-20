@@ -108,10 +108,10 @@ typedef struct dap_ledger_bridged_tx_notifier {
 } dap_ledger_bridged_tx_notifier_t;
 
 // Lightweight ledger cache record stored in GlobalDB: header + meta + optional datum ref
-#define DAP_LEDGER_GDB_MAGIC 0x4C444743u /* 'LDGC' */
+#define DAP_LEDGER_CACHE_GDB_FORMAT_ID 0x4C444743u /* 'LDGC' */
 #define DAP_LEDGER_GDB_VERSION 2
 typedef struct dap_ledger_cache_gdb_record {
-    uint32_t magic;
+    uint32_t format_id;
     uint16_t version;
     uint16_t flags;
     uint64_t cache_size;
@@ -214,9 +214,9 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
             continue;
         }
         dap_ledger_cache_gdb_record_t *l_current_record = (dap_ledger_cache_gdb_record_t *)a_values[i].value;
-        if (l_current_record->magic != DAP_LEDGER_GDB_MAGIC || l_current_record->version != DAP_LEDGER_GDB_VERSION) {
-            log_it(L_WARNING, "Unexpected ledger cache record header (magic=0x%08X version=%u), skip",
-                   l_current_record->magic, l_current_record->version);
+        if (l_current_record->format_id != DAP_LEDGER_CACHE_GDB_FORMAT_ID || l_current_record->version != DAP_LEDGER_GDB_VERSION) {
+            log_it(L_WARNING, "Unexpected ledger cache record header (format_id=0x%08X version=%u), skip",
+                   l_current_record->format_id, l_current_record->version);
             continue;
         }
         size_t l_expected = sizeof(dap_ledger_cache_gdb_record_t) + (size_t)l_current_record->cache_size + (size_t)l_current_record->ref_size;
@@ -296,7 +296,7 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
                 size_t l_rec_sz = sizeof(dap_ledger_cache_gdb_record_t) + l_cache_size + l_ref_size;
                 dap_ledger_cache_gdb_record_t *l_rec = DAP_NEW_Z_SIZE(dap_ledger_cache_gdb_record_t, l_rec_sz);
                 if (!l_rec) continue;
-                l_rec->magic = DAP_LEDGER_GDB_MAGIC;
+                l_rec->format_id = DAP_LEDGER_CACHE_GDB_FORMAT_ID;
                 l_rec->version = DAP_LEDGER_GDB_VERSION;
                 l_rec->flags = 0;
                 l_rec->cache_size = l_cache_size;
@@ -1836,7 +1836,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             size_t l_ref_size = sizeof(dap_ledger_tx_ref_t);
             size_t l_tx_cache_sz = sizeof(dap_ledger_cache_gdb_record_t) + l_cache_size + l_ref_size;
             dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_Z_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
-            l_tx_cache->magic = DAP_LEDGER_GDB_MAGIC;
+            l_tx_cache->format_id = DAP_LEDGER_CACHE_GDB_FORMAT_ID;
             l_tx_cache->version = DAP_LEDGER_GDB_VERSION;
             l_tx_cache->flags = 0;
             l_tx_cache->cache_size = l_cache_size;
@@ -2069,7 +2069,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         size_t l_ref_size = sizeof(dap_ledger_tx_ref_t);
         size_t l_tx_cache_sz = sizeof(dap_ledger_cache_gdb_record_t) + l_cache_size + l_ref_size;
         dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_STACK_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
-        l_tx_cache->magic = DAP_LEDGER_GDB_MAGIC;
+        l_tx_cache->format_id = DAP_LEDGER_CACHE_GDB_FORMAT_ID;
         l_tx_cache->version = DAP_LEDGER_GDB_VERSION;
         l_tx_cache->flags = 0;
         l_tx_cache->cache_size = l_cache_size;
@@ -2261,7 +2261,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             size_t l_ref_size = sizeof(dap_ledger_tx_ref_t);
             size_t l_tx_cache_sz = sizeof(dap_ledger_cache_gdb_record_t) + l_cache_size + l_ref_size;
             dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_Z_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
-            l_tx_cache->magic = DAP_LEDGER_GDB_MAGIC;
+            l_tx_cache->format_id = DAP_LEDGER_CACHE_GDB_FORMAT_ID;
             l_tx_cache->version = DAP_LEDGER_GDB_VERSION;
             l_tx_cache->flags = 0;
             l_tx_cache->cache_size = l_cache_size;
@@ -2796,7 +2796,7 @@ void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
         dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_Z_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
         if (!l_tx_cache)
             return;
-        l_tx_cache->magic = DAP_LEDGER_GDB_MAGIC;
+        l_tx_cache->format_id = DAP_LEDGER_CACHE_GDB_FORMAT_ID;
         l_tx_cache->version = DAP_LEDGER_GDB_VERSION;
         l_tx_cache->flags = 0;
         l_tx_cache->cache_size = l_cache_size;

@@ -10,10 +10,10 @@
 #include "dap_chain_ledger_pvt.h"
 
 // Local copy of light-cache record header for layout verification
-#define TEST_DAP_LEDGER_GDB_MAGIC   0x4C444743u /* 'LDGC' */
+#define TEST_DAP_LEDGER_CACHE_GDB_FORMAT_ID   0x4C444743u /* 'LDGC' */
 #define TEST_DAP_LEDGER_GDB_VERSION 2
 typedef struct test_dap_ledger_cache_gdb_record {
-    uint32_t magic;
+    uint32_t format_id;
     uint16_t version;
     uint16_t flags;
     uint64_t cache_size;
@@ -69,7 +69,7 @@ void test_ledger_light_cache_structs(void)
     // Allocate and pack record
     test_dap_ledger_cache_gdb_record_t *rec = (test_dap_ledger_cache_gdb_record_t *)DAP_NEW_Z_SIZE(test_dap_ledger_cache_gdb_record_t, rec_size);
     dap_test(rec != NULL, "Allocated record buffer");
-    rec->magic = TEST_DAP_LEDGER_GDB_MAGIC;
+    rec->format_id = TEST_DAP_LEDGER_CACHE_GDB_FORMAT_ID;
     rec->version = TEST_DAP_LEDGER_GDB_VERSION;
     rec->flags = 0;
     rec->cache_size = cache_size;
@@ -78,7 +78,7 @@ void test_ledger_light_cache_structs(void)
     memcpy(rec->data + cache_size, &ref, ref_size);
 
     // Check header fields
-    dap_assert(rec->magic == TEST_DAP_LEDGER_GDB_MAGIC, "Magic matches");
+    dap_assert(rec->format_id == TEST_DAP_LEDGER_CACHE_GDB_FORMAT_ID, "Format ID matches");
     dap_assert(rec->version == TEST_DAP_LEDGER_GDB_VERSION, "Version matches");
     dap_assert(rec->cache_size == cache_size, "Cache size matches");
     dap_assert(rec->ref_size == ref_size, "Ref size matches");
