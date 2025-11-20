@@ -27,6 +27,7 @@
 #include "dap_cli_server.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
+#include "dap_json.h"
 #include "dap_strfuncs.h"
 #include "dap_hash.h"
 #include "dap_time.h"
@@ -111,6 +112,9 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
 int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUSED_ARG int a_version)
 {
     int arg_index = 1;
+    dap_json_t *l_jobj_reply = dap_json_object_new();
+    dap_json_object_add_bool(l_jobj_reply, "status_placed", false);
+    dap_json_array_add(a_json_arr_reply, l_jobj_reply);
 
     const char *l_datum_hash_str = NULL;
     // Chain name
@@ -203,6 +207,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
         if ( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size) == 0 ) {
             log_it(L_DEBUG,"Sign %zu passed", i);
             l_signs_size += dap_sign_get_size(l_sign);
+            continue;
         }
         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_str);
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_HAS_WRONG_SIGNATURE_ERR,
@@ -246,18 +251,16 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
     }
     DAP_DELETE(l_datum);
     // Remove old datum from pool
-    if( dap_global_db_del_sync(l_gdb_group_mempool, dap_chain_hash_fast_to_str_static(&l_datum_hash) ) == 0) {                                   
+    if( dap_global_db_del_sync(l_gdb_group_mempool, dap_chain_hash_fast_to_str_static(&l_datum_hash) ) != 0) {                                   
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR,
                                     "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)", l_datum_hash_str, l_out_hash_str);
         DAP_DELETE(l_gdb_group_mempool);
         return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR;
     }
-    dap_json_t *l_jobj_reply = dap_json_object_new();
-    dap_json_object_add_bool(l_jobj_reply, "token_sign", true);
+
+    dap_json_object_add_bool(l_jobj_reply, "status_placed", true);
     dap_json_object_add_string(l_jobj_reply, "old_hash", l_datum_hash_str);
     dap_json_object_add_string(l_jobj_reply, "new_hash", l_out_hash_str);
-    dap_json_array_add(a_json_arr_reply, l_jobj_reply);
-    dap_json_array_add(a_json_arr_reply, l_jobj_reply);    
     log_it(L_NOTICE, "Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s", l_datum_hash_str, l_out_hash_str);   
 
     return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_OK;
@@ -1164,10 +1167,8 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
 {
     int arg_index = 1;
     const char *str_tmp = NULL;
-    //const char *str_fee = NULL;
     char *l_str_reply_tmp = NULL;
     uint256_t l_emission_value = {};
-    //uint256_t l_fee_value = {};
     const char * l_ticker = NULL;
 
     const char * l_addr_str = NULL;
@@ -1185,8 +1186,11 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
 
     const char * l_chain_emission_str = NULL;
     dap_chain_t * l_chain_emission = NULL;
-
     dap_chain_net_t * l_net = NULL;
+    
+    dap_json_t *json_obj_out = dap_json_object_new();
+    dap_json_object_add_bool(json_obj_out, "status_placed", false);
+    dap_json_array_add(a_json_arr_reply, json_obj_out);
 
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -1344,7 +1348,6 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         l_str_reply_tmp = dap_strdup_printf("Datum %s with 256bit emission is placed in datum pool", l_emission_hash_str);
     else
         l_str_reply_tmp = dap_strdup("Can't place emission datum in mempool, examine log files");
-    DAP_DEL_Z(l_emission_hash_str);
     DAP_DEL_Z(l_datum_emission);
 
     //remove previous emission datum from mempool if have new signed emission datum
@@ -1353,8 +1356,14 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
-    dap_json_t *json_obj_out = dap_json_object_new();
-    dap_json_object_add_string(json_obj_out, "result", l_str_reply_tmp);
-    dap_json_array_add(a_json_arr_reply, json_obj_out);
+
+    dap_json_object_add_bool(json_obj_out, "status_placed", true);
+    if (!l_add_sign)
+        dap_json_object_add_string(json_obj_out, "emission_hash", l_emission_hash_str);
+    else {
+        dap_json_object_add_string(json_obj_out, "old_hash", l_emission_hash_str_remove);
+        dap_json_object_add_string(json_obj_out, "new_hash", l_emission_hash_str);
+    }
+    DAP_DEL_Z(l_emission_hash_str);
     return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
 }
