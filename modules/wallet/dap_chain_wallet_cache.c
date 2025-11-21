@@ -1592,6 +1592,11 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             break;
         }
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        if (s_wallet_cache_storage_mode == DAP_WALLET_CACHE_STORAGE_GLOBALDB) {
+            int l_ret = s_save_wallet_cache_to_gdb(l_wallet_item, a_chain);
+            if (l_ret != 0) 
+                log_it(L_ERROR, "Failed to save wallet cache to GlobalDB: %d", l_ret);
+        }
     }
     return l_ret_val;
 }
