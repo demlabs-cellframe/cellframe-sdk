@@ -104,9 +104,17 @@ if (CELLFRAME_MODULES MATCHES "srv-bridge")
     add_subdirectory(service/bridge)
 endif()
 
-# Service for emission rights delegate to wallets consensus
+# Service for stake-ext
+if (CELLFRAME_MODULES MATCHES "srv-stake-ext")
+    add_subdirectory(service/stake-ext)
+endif()
 
-# compose service
+# Compose service
 if (CELLFRAME_MODULES MATCHES "compose")
     add_subdirectory(compose)
+endif()
+
+# Service for emission rights delegate to wallets consensus
+if (CELLFRAME_MODULES MATCHES "srv-emission")
+    add_subdirectory(service/emission)
 endif()

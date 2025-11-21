@@ -49,6 +49,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_node.h"
 #include "dap_global_db.h"
+#include "dap_global_db_cluster.h"
 #include "dap_enc.h"
 #include <dap_enc_http.h>
 #include <dap_enc_key.h>
@@ -66,16 +67,132 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_mempool"
+
+extern int g_dap_global_db_debug_more;
 
 static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_dbi,
                                                   int a_rc, const char *a_group,
                                                   const size_t a_values_total, const size_t a_values_count,
                                                   dap_global_db_obj_t *a_values, void *a_arg);
 
+/**
+ * @brief Callback function for handling mempool record deletion by TTL
+ * @details This callback is triggered when a mempool record expires due to TTL.
+ *          It notifies all cluster subscribers about the deletion and then removes the record.
+ * @param a_obj Store object being deleted (contains datum from mempool)
+ * @param a_arg Custom argument (chain pointer)
+ */
+static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
+{
+    if (!a_obj) {
+        log_it(L_WARNING, "Received NULL object in mempool TTL delete callback");
+        return;
+    }
+
+    dap_chain_t *l_chain = (dap_chain_t *)a_arg;
+    if (!l_chain) {
+        log_it(L_WARNING, "Chain context is NULL in mempool TTL delete callback for group %s key %s", 
+               a_obj->group, a_obj->key);
+        dap_global_db_driver_delete(a_obj, 1);
+        return;
+    }
+
+    // Get the mempool cluster to access notifiers
+    dap_global_db_cluster_t *l_cluster = dap_chain_net_get_mempool_cluster(l_chain);
+    if (!l_cluster) {
+        log_it(L_WARNING, "Can't find mempool cluster for chain %s", l_chain->name);
+        dap_global_db_driver_delete(a_obj, 1);
+        return;
+    }
+
+    // Log the deletion event
+    const char *l_datum_type_str = "unknown";
+    if (a_obj->value && a_obj->value_len >= sizeof(dap_chain_datum_t)) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_obj->value;
+        switch (l_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TOKEN:
+            l_datum_type_str = "token";
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+            l_datum_type_str = "emission";
+            break;
+        case DAP_CHAIN_DATUM_TX:
+            l_datum_type_str = "transaction";
+            break;
+        default:
+            DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
+        }
+    }
+
+    log_it(L_NOTICE, "Mempool TTL cleanup: removing %s datum with key %s from chain %s mempool group %s", 
+           l_datum_type_str, a_obj->key, l_chain->name, a_obj->group);
+
+    // Mark object as being deleted by TTL (set DEL flag for notifiers to recognize)
+    // This allows notifiers to distinguish between normal operations and TTL deletions
+    a_obj->flags |= DAP_GLOBAL_DB_RECORD_DEL;
+
+    // IMPORTANT: Notify all cluster subscribers BEFORE actual deletion
+    // This allows them to react to the deletion event (e.g., update caches, logs, etc.)
+    if (l_cluster->notifiers) {
+        debug_if(g_dap_global_db_debug_more, L_DEBUG, 
+                 "Notifying cluster subscribers about TTL deletion of %s:%s", 
+                 a_obj->group, a_obj->key);
+        dap_global_db_cluster_notify(l_cluster, a_obj);
+    }
+
+    // Actually delete the record from GlobalDB
+    dap_global_db_driver_delete(a_obj, 1);
+}
+
+/**
+ * @brief Initialize mempool TTL delete callbacks for all chains
+ * @details Registers del_callback for each chain's mempool cluster to handle TTL-based deletions
+ * @return 0 if successful, negative error code otherwise
+ */
+int dap_chain_mempool_delete_callback_init()
+{
+    int l_registered_count = 0;
+    
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        dap_chain_t *l_chain = NULL;
+        
+        // Iterate through all chains in the network
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            // Get the mempool cluster for this chain
+            dap_global_db_cluster_t *l_cluster = dap_chain_net_get_mempool_cluster(l_chain);
+            
+            if (!l_cluster) {
+                log_it(L_WARNING, "Can't find mempool cluster for chain %s in network %s", 
+                       l_chain->name, l_net->pub.name);
+                continue;
+            }
+            
+            // Register the delete callback
+            l_cluster->del_callback = s_mempool_ttl_delete_callback;
+            l_cluster->del_arg = l_chain;
+            
+            log_it(L_INFO, "Registered mempool TTL delete callback for chain %s (network %s, group mask %s)", 
+                   l_chain->name, l_net->pub.name, l_cluster->groups_mask);
+            
+            l_registered_count++;
+        }
+    }
+    
+    if (l_registered_count > 0) {
+        log_it(L_NOTICE, "Mempool TTL delete callbacks initialized for %d chain(s)", l_registered_count);
+        return 0;
+    } else {
+        log_it(L_WARNING, "No mempool TTL delete callbacks were registered");
+        return -1;
+    }
+}
+
 int dap_datum_mempool_init(void)
 {
+    dap_chain_mempool_delete_callback_init();
     return 0;
 }
 
@@ -1727,3 +1844,221 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
     dap_global_db_objs_delete(l_objs, l_objs_count);
     return false;
 }
+
+/**
+  * @brief Compose a transaction with event item for ledger event system
+  * @param[in] a_chain Chain to create transaction for
+  * @param[in] a_key_from Private key for signing
+  * @param[in] a_service_key Service key for signing
+  * @param[in] a_group_name Event group name
+  * @param[in] a_event_type Event type
+  * @param[in] a_event_data Event data
+  * @param[in] a_event_data_size Size of event data
+  * @param[in] a_fee_value Fee value
+  * @param[in] a_hash_out_type Hash output format
+  * @return Transaction hash string on success, NULL on error
+  */
+ char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
+                               dap_enc_key_t *a_key_from,
+                               dap_enc_key_t *a_service_key,
+                               dap_chain_net_srv_uid_t a_srv_uid,
+                               const char *a_group_name,
+                               uint16_t a_event_type,
+                               const void *a_event_data,
+                               size_t a_event_data_size,
+                               uint256_t a_fee_value,
+                               const char *a_hash_out_type)
+ {
+    // Validate input parameters using standard cellframe pattern
+    dap_return_val_if_fail(a_chain && a_key_from && a_service_key && a_hash_out_type, NULL);
+    dap_return_val_if_fail(a_group_name && strlen(a_group_name), NULL);
+    dap_return_val_if_fail((a_event_data != NULL) == (a_event_data_size > 0), NULL);
+    dap_return_val_if_fail(a_key_from->priv_key_data && a_key_from->priv_key_data_size, NULL);
+    dap_return_val_if_fail(a_service_key->priv_key_data && a_service_key->priv_key_data_size, NULL);
+
+    const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
+
+    // Calculate total fees needed
+    uint256_t l_net_fee = {}, l_total_fee = a_fee_value, l_fee_transfer = {};
+    dap_chain_addr_t l_addr_fee = {};
+    dap_list_t *l_list_fee_out = NULL;
+
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
+    if (l_net_fee_used)
+        SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
+    if (IS_ZERO_256(l_total_fee)) {
+        log_it(L_ERROR, "Total fee is zero");
+        return NULL;
+    }
+     
+    // Get ledger for wallet operations
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+
+    dap_chain_addr_t l_addr_from = {};
+    dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_chain->net_id);
+
+    // Find outputs to cover fees (following mempool style)
+
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, 
+                                                    &l_addr_from, &l_list_fee_out, 
+                                                    l_total_fee, &l_fee_transfer) == -101) {
+        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                            &l_addr_from, l_total_fee, 
+                                                            &l_fee_transfer);
+    }
+    if (!l_list_fee_out) {
+        log_it(L_WARNING, "Not enough funds to pay fee");
+        return NULL;
+    }
+ 
+    // Create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to create transaction");
+        dap_list_free_full(l_list_fee_out, NULL);
+        return NULL;
+    }
+
+    // Add 'in' items
+    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+    assert(EQUAL_256(l_value_fee_items, l_fee_transfer));
+    dap_list_free_full(l_list_fee_out, NULL);
+
+    // Create and add event item using standard cellframe function
+    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(a_srv_uid, a_group_name, a_event_type);
+    if (!l_event_item) {
+        log_it(L_ERROR, "Failed to create event item");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (dap_chain_datum_tx_add_item(&l_tx, l_event_item) != 1) {
+        log_it(L_ERROR, "Failed to add event item to transaction");
+        DAP_DELETE(l_event_item);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Add TSD section with event data if provided
+    if (a_event_data && a_event_data_size > 0) {
+        // Create TSD section with event data using standard cellframe function
+        dap_chain_tx_tsd_t *l_tsd_item = dap_chain_datum_tx_item_tsd_create(
+            (void *)a_event_data, DAP_CHAIN_TX_TSD_TYPE_EVENT_DATA, a_event_data_size);
+        
+        if (!l_tsd_item) {
+            log_it(L_ERROR, "Failed to create TSD item with event data");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        
+        int l_result = dap_chain_datum_tx_add_item(&l_tx, (const void *)l_tsd_item);
+        DAP_DELETE(l_tsd_item);
+        
+        if (l_result != 1) {
+            log_it(L_ERROR, "Failed to add TSD item to transaction: %d", l_result);
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Add network fee output if used
+    if (l_net_fee_used) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
+            log_it(L_ERROR, "Failed to add network fee output");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Add validator's fee
+    if (!IS_ZERO_256(a_fee_value)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee_value) != 1) {
+            log_it(L_ERROR, "Failed to add validator fee");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Calculate and add change output
+    uint256_t l_value_back = {};   
+    SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_value_back);
+
+    // Add change output if needed
+    if (!IS_ZERO_256(l_value_back)) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_from, l_value_back, l_native_ticker) != 1) {
+            log_it(L_ERROR, "Failed to add change output");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Add signature
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
+        log_it(L_ERROR, "Failed to sign transaction");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Add second signature from service key
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_service_key) != 1) {
+        log_it(L_ERROR, "Failed to add service signature to transaction");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Pre-validate transaction against ledger rules (e.g., duplicate AUCTION_STARTED)
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_hash_fast_t l_tx_hash = {};
+    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
+    int l_check_rc = dap_ledger_tx_add_check(l_ledger, l_tx, l_tx_size, &l_tx_hash);
+    if (l_check_rc) {
+        log_it(L_WARNING, "Reject event tx before mempool: ledger check failed (%d)", l_check_rc);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Create datum and add to mempool (following mempool pattern)
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    dap_chain_datum_tx_delete(l_tx);
+    
+    if (!l_datum) {
+        log_it(L_ERROR, "Failed to create transaction datum");
+        return NULL;
+    }
+
+    // Add to mempool
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, a_chain, a_hash_out_type);
+    DAP_DELETE(l_datum);
+    
+    if (!l_ret) {
+        log_it(L_ERROR, "Failed to add event transaction to mempool");
+        return NULL;
+    }
+    
+    log_it(L_INFO, "Successfully composed and added event transaction to mempool: %s", l_ret);
+    return l_ret;
+ }
+ 
+/**
+* @brief Compose a transaction with event item for ledger event system
+* @param[in] a_chain Chain to create transaction for
+* @param[in] a_key_from Private key for signing
+* @param[in] a_service_key Service key for signing
+* @param[in] a_group_name Event group name
+* @param[in] a_event_type Event type
+* @param[in] a_event_data Event data
+* @param[in] a_event_data_size Size of event data
+* @param[in] a_fee_value Fee value
+* @param[in] a_hash_out_type Hash output format
+* @return Transaction hash string on success, NULL on error
+*/
+char *dap_chain_mempool_tx_create_service_decree(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+                                                 dap_enc_key_t *a_service_key, dap_chain_net_srv_uid_t a_srv_uid,
+                                                 const void *a_service_decree_data,
+                                                 size_t a_service_decree_data_size,
+                                                 uint256_t a_fee_value,
+                                                 const char *a_hash_out_type)
+{
+    return dap_chain_mempool_tx_create_event(a_chain, a_key_from, a_service_key, a_srv_uid, "SERVICE_DECREE", DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE,
+                                             a_service_decree_data, a_service_decree_data_size, a_fee_value, a_hash_out_type);
+}
+
