@@ -816,7 +816,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
         DAP_DELETE(l_enc_key);
         return ERROR_MEMORY;
     }
-    char l_hash_str_buf[DAP_HASH_FAST_STR_SIZE];
+    char l_hash_str_buf[DAP_HASH_FAST_STR_SIZE+1];
     const char *l_token_ptr = l_pkeys_str;
     for (size_t i = 0; i < l_hashes_count_max; i++) {
         const char *l_cur_ptr = strchr(l_token_ptr, ',');
@@ -1637,9 +1637,6 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
     }
 
     uint32_t l_valid_signs = s_wallet_shared_get_valid_signs(l_cond, l_tx);
-    if (l_valid_signs < l_cond->subtype.wallet_shared.signers_minimum) {
-        return;
-    }
 
     json_object *l_jarray_remove_txs = json_object_new_array();
     if (!l_jarray_remove_txs)
