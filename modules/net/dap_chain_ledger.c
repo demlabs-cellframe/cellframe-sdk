@@ -1276,15 +1276,84 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                     return m_ret_cleanup(DAP_LEDGER_CHECK_PARSE_ERROR);
                 }
             }
-            // Check if its already present
+            // Check if its already present in new list OR in existing token keys OR in current datum signatures
             dap_hash_t l_new_auth_pkey_hash;
             dap_pkey_get_hash(l_new_auth_pkey, &l_new_auth_pkey_hash);
-            for (size_t i = 0; i < l_new_signs_total; i++) {
-                if (dap_pkey_compare(l_new_auth_pkey, l_new_pkeys[i])) {
-                    log_it(L_WARNING, "TSD param TOTAL_PKEYS_ADD has pkey %s thats already present in list",
-                                                                    dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
-                    return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH);
+            bool l_key_already_present = false;
+            
+            // First check in new keys list (if already copied)
+            if (l_new_pkeys) {
+                for (size_t i = 0; i < l_new_signs_total; i++) {
+                    if (dap_pkey_compare(l_new_auth_pkey, l_new_pkeys[i])) {
+                        log_it(L_WARNING, "TSD param TOTAL_PKEYS_ADD has pkey %s thats already present in new list, skipping duplicate",
+                                                                        dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
+                        l_key_already_present = true;
+                        break;
+                    }
                 }
+            }
+            
+            // Also check in existing token keys (if not yet copied to new list)
+            if (!l_key_already_present && a_item_apply_to && a_item_apply_to->auth_pkeys) {
+                for (size_t i = 0; i < a_item_apply_to->auth_signs_total; i++) {
+                    if (dap_pkey_compare(l_new_auth_pkey, a_item_apply_to->auth_pkeys[i])) {
+                        log_it(L_WARNING, "TSD param TOTAL_PKEYS_ADD has pkey %s thats already present in existing token keys, skipping duplicate",
+                                                                        dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
+                        l_key_already_present = true;
+                        break;
+                    }
+                }
+            }
+            
+            // CRITICAL: Also check if this key is already present in current datum signatures
+            // This prevents duplicates when keys from signatures are also added via TSD TOTAL_PKEYS_ADD
+            // This happens when token_decl uses -certs (adds keys via signatures) and -pub_certs (adds same keys via TSD)
+            // OR when token_decl_sign copies TSD from old datum that already has keys from signatures
+            if (!l_key_already_present && a_current_datum && a_current_datum->signs_total > 0) {
+                // Get TSD size from datum header to find where signatures start
+                size_t l_current_tsd_size = 0;
+                switch (a_current_datum->subtype) {
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+                    l_current_tsd_size = a_current_datum->header_private_decl.tsd_total_size;
+                    break;
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+                    l_current_tsd_size = a_current_datum->header_native_decl.tsd_total_size;
+                    break;
+                default:
+                    break;
+                }
+                
+                // Check signatures in current datum (they come after TSD)
+                // Signatures contain public keys that are automatically added to auth_pkeys
+                if (l_current_tsd_size > 0 && l_current_tsd_size <= a_tsd_total_size) {
+                    byte_t *l_signs_ptr = a_current_datum->tsd_n_signs + l_current_tsd_size;
+                    // Estimate max signs size: signs_total * reasonable max signature size
+                    size_t l_estimated_signs_size = a_current_datum->signs_total * 1024;  // Conservative estimate
+                    size_t l_signs_unique = a_current_datum->signs_total;
+                    
+                    dap_sign_t **l_signs = dap_sign_get_unique_signs(l_signs_ptr, l_estimated_signs_size, &l_signs_unique);
+                    if (l_signs && l_signs_unique > 0) {
+                        for (size_t i = 0; i < l_signs_unique; i++) {
+                            dap_pkey_t *l_sign_pkey = dap_pkey_get_from_sign(l_signs[i]);
+                            if (l_sign_pkey) {
+                                if (dap_pkey_compare(l_new_auth_pkey, l_sign_pkey)) {
+                                    log_it(L_WARNING, "TSD param TOTAL_PKEYS_ADD has pkey %s thats already present in current datum signatures (will be added via signature), skipping duplicate",
+                                                                           dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
+                                    l_key_already_present = true;
+                                    DAP_DELETE(l_sign_pkey);
+                                    break;
+                                }
+                                DAP_DELETE(l_sign_pkey);
+                            }
+                        }
+                        DAP_DELETE(l_signs);
+                    }
+                }
+            }
+            
+            // Skip adding duplicate key - it's already in the list
+            if (l_key_already_present) {
+                continue; // Continue to next TSD entry
             }
             dap_pkey_t **l_tmp = DAP_REALLOC_COUNT(l_new_pkeys, l_new_signs_total + 1);
             if (!l_tmp) {
@@ -1346,9 +1415,9 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 if (dap_hash_fast_compare(l_new_pkey_hashes + i, &l_new_auth_pkey_hash))
                     break;
             if (i == l_new_signs_total) {
-                log_it(L_WARNING, "TSD param TOTAL_PKEYS_REMOVE has public key hash %s thats not present in list",
+                log_it(L_WARNING, "TSD param TOTAL_PKEYS_REMOVE has public key hash %s thats not present in list, skipping removal",
                                                     dap_hash_fast_to_str_static(&l_new_auth_pkey_hash));
-                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH);
+                continue; // Skip removal of non-existent key - continue to next TSD entry
             }
             // Pkey removing: swap with last to avoid O(n) shifts
             {

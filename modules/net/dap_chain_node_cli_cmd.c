@@ -2715,10 +2715,40 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 }
                 l_datum_token->signs_total = 0;
                 debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Verifying %u existing signature(s) before adding new ones", l_current_signs_count);
+                
+                // Calculate available memory for signatures
+                // Total datum size minus token struct size minus TSD size
+                size_t l_available_memory = l_datum_size - sizeof(*l_datum_token) - l_tsd_size;
+                uint16_t l_actual_signs_count = 0;
+                
                 for (i = 1; i <= l_current_signs_count; i++){
+                    // Check if we have enough memory for another signature
+                    if (l_signs_size + sizeof(dap_sign_t) > l_available_memory) {
+                        log_it(L_WARNING, "token_decl_sign: Not enough memory for signature %zu (signs_size=%zu, available=%zu, datum_hash=%s)", 
+                               i, l_signs_size, l_available_memory, l_datum_hash_out_str);
+                        break; // Stop checking signatures if we're out of memory
+                    }
+                    
                     dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->tsd_n_signs + l_tsd_size + l_signs_size);
                     debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Checking signature %zu/%u at offset %zu (tsd_size=%zu, signs_size=%zu)", 
                              i, l_current_signs_count, l_tsd_size + l_signs_size, l_tsd_size, l_signs_size);
+                    
+                    // Validate signature structure before using it
+                    size_t l_remaining_memory = l_available_memory - l_signs_size;
+                    if (dap_sign_verify_size(l_sign, l_remaining_memory)) {
+                        log_it(L_WARNING, "token_decl_sign: Invalid signature structure at position %zu (datum_hash=%s, remaining_memory=%zu)", 
+                               i, l_datum_hash_out_str, l_remaining_memory);
+                        break; // Stop checking signatures if structure is invalid
+                    }
+                    
+                    // Get signature size before verification to ensure we don't read beyond bounds
+                    uint64_t l_sign_size = dap_sign_get_size(l_sign);
+                    if (l_sign_size == 0 || l_sign_size > l_remaining_memory) {
+                        log_it(L_WARNING, "token_decl_sign: Invalid signature size %llu at position %zu (datum_hash=%s, remaining_memory=%zu)", 
+                               (unsigned long long)l_sign_size, i, l_datum_hash_out_str, l_remaining_memory);
+                        break; // Stop checking signatures if size is invalid
+                    }
+                    
                     if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size) ) {
                         log_it(L_WARNING, "Wrong existing signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Signature %zu verification failed: sign at %p, datum_token at %p, size=%zu", 
@@ -2732,21 +2762,110 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                     }else{
                         debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Existing sign %zu passed verification", i);
                     }
-                    l_signs_size += dap_sign_get_size(l_sign);
+                    l_signs_size += l_sign_size;
+                    l_actual_signs_count++;
                 }
-                l_datum_token->signs_total = l_current_signs_count;
+                
+                // Use actual count of verified signatures instead of signs_total from datum
+                if (l_actual_signs_count != l_current_signs_count) {
+                    log_it(L_WARNING, "token_decl_sign: Actual signature count (%u) differs from signs_total (%u) in datum %s", 
+                           l_actual_signs_count, l_current_signs_count, l_datum_hash_out_str);
+                }
+                l_datum_token->signs_total = l_actual_signs_count;
                 debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Restored signs_total=%u after verification (total sign size=%zu)", 
                          l_datum_token->signs_total, l_signs_size);
                 log_it(L_DEBUG, "Datum %s with token declaration: %hu existing signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
 
+                // CRITICAL: Remove TOTAL_PKEYS_ADD sections from TSD before adding new signatures
+                // These sections were created by token_decl via -pub_certs, but keys will be added via signatures
+                // Keeping them would cause duplicate key errors in ledger processing
+                // Filter TSD: remove TOTAL_PKEYS_ADD sections, keep all other sections
+                // Initialize l_data_size before filtering (will be updated if TSD size changes)
+                size_t l_data_size = l_tsd_size + l_signs_size;
+                size_t l_filtered_tsd_size = 0;
+                byte_t *l_filtered_tsd = NULL;
+                if (l_tsd_size > 0) {
+                    // First pass: calculate size of filtered TSD (without TOTAL_PKEYS_ADD sections)
+                    uint64_t l_offset = 0;
+                    dap_tsd_t *l_tsd_iter = (dap_tsd_t *)l_datum_token->tsd_n_signs;
+                    while (l_offset < l_tsd_size) {
+                        if (l_offset + sizeof(dap_tsd_t) > l_tsd_size) break;
+                        size_t l_tsd_section_size = dap_tsd_size(l_tsd_iter);
+                        if (l_offset + l_tsd_section_size > l_tsd_size) break;
+                        
+                        // Skip TOTAL_PKEYS_ADD sections (they will be replaced by signatures)
+                        if (l_tsd_iter->type != DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD) {
+                            l_filtered_tsd_size += l_tsd_section_size;
+                        } else {
+                            log_it(L_DEBUG, "token_decl_sign: Removing TOTAL_PKEYS_ADD section from TSD (key will be added via signature)");
+                        }
+                        
+                        l_offset += l_tsd_section_size;
+                        l_tsd_iter = (dap_tsd_t *)((byte_t *)l_tsd_iter + l_tsd_section_size);
+                    }
+                    
+                    // Second pass: copy filtered TSD (without TOTAL_PKEYS_ADD sections)
+                    if (l_filtered_tsd_size > 0 && l_filtered_tsd_size < l_tsd_size) {
+                        l_filtered_tsd = DAP_NEW_SIZE(byte_t, l_filtered_tsd_size);
+                        if (l_filtered_tsd) {
+                            l_offset = 0;
+                            size_t l_filtered_offset = 0;
+                            l_tsd_iter = (dap_tsd_t *)l_datum_token->tsd_n_signs;
+                            while (l_offset < l_tsd_size && l_filtered_offset < l_filtered_tsd_size) {
+                                if (l_offset + sizeof(dap_tsd_t) > l_tsd_size) break;
+                                size_t l_tsd_section_size = dap_tsd_size(l_tsd_iter);
+                                if (l_offset + l_tsd_section_size > l_tsd_size) break;
+                                
+                                // Copy all sections except TOTAL_PKEYS_ADD
+                                if (l_tsd_iter->type != DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD) {
+                                    memcpy(l_filtered_tsd + l_filtered_offset, l_tsd_iter, l_tsd_section_size);
+                                    l_filtered_offset += l_tsd_section_size;
+                                }
+                                
+                                l_offset += l_tsd_section_size;
+                                l_tsd_iter = (dap_tsd_t *)((byte_t *)l_tsd_iter + l_tsd_section_size);
+                            }
+                            
+                            // Replace TSD in datum_token with filtered version
+                            // Need to shift signatures if TSD size changed
+                            if (l_filtered_tsd_size != l_tsd_size) {
+                                size_t l_tsd_diff = l_tsd_size - l_filtered_tsd_size;
+                                // Move signatures to new position
+                                memmove(l_datum_token->tsd_n_signs + l_filtered_tsd_size, 
+                                       l_datum_token->tsd_n_signs + l_tsd_size, 
+                                       l_signs_size);
+                                // Copy filtered TSD
+                                memcpy(l_datum_token->tsd_n_signs, l_filtered_tsd, l_filtered_tsd_size);
+                                // Update TSD size in header
+                                if ((l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
+                                    || (l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE))
+                                    l_datum_token->header_native_decl.tsd_total_size = l_filtered_tsd_size;
+                                // Update data_size (TSD + signatures)
+                                l_data_size = l_filtered_tsd_size + l_signs_size;
+                                l_tsd_size = l_filtered_tsd_size;
+                                log_it(L_INFO, "token_decl_sign: Filtered TSD: removed %zu bytes of TOTAL_PKEYS_ADD sections", l_tsd_diff);
+                            } else {
+                                // No change needed, just copy filtered TSD
+                                memcpy(l_datum_token->tsd_n_signs, l_filtered_tsd, l_filtered_tsd_size);
+                            }
+                            DAP_DELETE(l_filtered_tsd);
+                        } else {
+                            log_it(L_WARNING, "token_decl_sign: Failed to allocate memory for filtered TSD, keeping original");
+                        }
+                    } else if (l_filtered_tsd_size == l_tsd_size) {
+                        // No TOTAL_PKEYS_ADD sections found, no filtering needed
+                        log_it(L_DEBUG, "token_decl_sign: No TOTAL_PKEYS_ADD sections found in TSD, no filtering needed");
+                    }
+                }
+
                 // Add new signatures from certificates
                 uint16_t l_sign_counter = 0;
-                size_t l_data_size = l_tsd_size + l_signs_size;
+                // l_data_size already initialized above (updated if TSD was filtered)
                 l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
                                                             &l_sign_counter);
                 log_it(L_INFO, "Added %u new signature(s) to datum %s (total now: %u)", 
-                       l_sign_counter, l_datum_hash_hex_str, l_current_signs_count + l_sign_counter);
+                       l_sign_counter, l_datum_hash_hex_str, l_actual_signs_count + l_sign_counter);
                 if (!l_sign_counter) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_SERT_NOT_VALID_ERR,
                                        "Error! Used certs not valid");
@@ -2766,7 +2885,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 // Verify signs_total in new datum
                 dap_chain_datum_token_t *l_new_check_token = (dap_chain_datum_token_t *)l_datum->data;
                 debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] New datum created: signs_total in datum data=%u (expected %u)", 
-                         l_new_check_token->signs_total, l_current_signs_count + l_sign_counter);
+                         l_new_check_token->signs_total, l_actual_signs_count + l_sign_counter);
                 DAP_DELETE(l_datum_token);
                 // Calc datum's hash
                 l_datum_size = dap_chain_datum_size(l_datum);
@@ -5164,11 +5283,44 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
     if (l_pub_certs_str && !a_update_token) {
         log_it(L_INFO, "Processing -pub_certs: %s", l_pub_certs_str);
         
+        // Get signing certificates from -certs parameter to check for duplicates
+        const char *l_certs_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-certs", &l_certs_str);
+        dap_cert_t **l_certs = NULL;
+        size_t l_certs_count = 0;
+        if (l_certs_str) {
+            dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        }
+        
+        // Build set of public key hashes from signing certificates (-certs) to avoid duplicates
+        // Public keys from signing certificates are automatically added to auth_pkeys from signatures
+        dap_hash_fast_t *l_signing_pkey_hashes = NULL;
+        size_t l_signing_pkey_count = 0;
+        if (l_certs && l_certs_count > 0) {
+            l_signing_pkey_hashes = DAP_NEW_SIZE(dap_hash_fast_t, l_certs_count);
+            if (l_signing_pkey_hashes) {
+                for (size_t i = 0; i < l_certs_count; i++) {
+                    dap_pkey_t *l_signing_pkey = dap_cert_to_pkey(l_certs[i]);
+                    if (l_signing_pkey) {
+                        dap_pkey_get_hash(l_signing_pkey, &l_signing_pkey_hashes[l_signing_pkey_count]);
+                        l_signing_pkey_count++;
+                        DAP_DELETE(l_signing_pkey);
+                    }
+                }
+                log_it(L_DEBUG, "Collected %zu public key hash(es) from signing certificates to avoid duplicates", l_signing_pkey_count);
+            }
+        }
+        
         // Parse comma-separated list of certificate names
         char *l_pub_certs_dup = dap_strdup(l_pub_certs_str);
         char *l_saveptr = NULL;
         char *l_cert_name = strtok_r(l_pub_certs_dup, ",", &l_saveptr);
         size_t l_added_pkeys = 0;
+        size_t l_skipped_duplicates = 0;
+        
+        // Track public key hashes already added from -pub_certs to avoid duplicates within the list
+        dap_hash_fast_t *l_added_pub_pkey_hashes = NULL;
+        size_t l_added_pub_pkey_count = 0;
         
         while (l_cert_name) {
             // Trim whitespace
@@ -5182,6 +5334,66 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                 // Extract public key
                 dap_pkey_t *l_pkey = dap_cert_to_pkey(l_cert);
                 if (l_pkey) {
+                    dap_chain_hash_fast_t l_pkey_hash = {0};
+                    dap_pkey_get_hash(l_pkey, &l_pkey_hash);
+                    
+                    // Check if this public key is already from a signing certificate (-certs)
+                    // This prevents duplicates when pvt.stagenet.root.0 and stagenet.root.0 are the same key
+                    bool l_is_duplicate = false;
+                    if (l_signing_pkey_hashes) {
+                        for (size_t i = 0; i < l_signing_pkey_count; i++) {
+                            if (dap_hash_fast_compare(&l_pkey_hash, &l_signing_pkey_hashes[i])) {
+                                log_it(L_WARNING, "Skipping duplicate public key from cert '%s': %s (already present from signing certificate -certs, will be added via signature)",
+                                       l_cert_name, dap_chain_hash_fast_to_str_static(&l_pkey_hash));
+                                l_is_duplicate = true;
+                                l_skipped_duplicates++;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Also check by certificate name: if cert name matches a signing cert (without pvt. prefix)
+                    // This handles the case where pvt.stagenet.root.0 and stagenet.root.0 are the same key
+                    if (!l_is_duplicate && l_certs && l_certs_count > 0) {
+                        // Extract base name (remove pvt. prefix if present)
+                        const char *l_base_name = l_cert_name;
+                        if (dap_strncmp(l_cert_name, "pvt.", 4) == 0) {
+                            l_base_name = l_cert_name + 4;  // Skip "pvt." prefix
+                        }
+                        
+                        for (size_t i = 0; i < l_certs_count; i++) {
+                            if (!l_certs[i] || !l_certs[i]->name) continue;
+                            
+                            const char *l_signing_base_name = l_certs[i]->name;
+                            if (dap_strncmp(l_certs[i]->name, "pvt.", 4) == 0) {
+                                l_signing_base_name = l_certs[i]->name + 4;  // Skip "pvt." prefix
+                            }
+                            
+                            // Compare base names (without pvt. prefix)
+                            if (dap_strcmp(l_base_name, l_signing_base_name) == 0) {
+                                log_it(L_WARNING, "Skipping duplicate public key from cert '%s': %s (certificate name matches signing certificate '%s' - same key)",
+                                       l_cert_name, dap_chain_hash_fast_to_str_static(&l_pkey_hash), l_certs[i]->name);
+                                l_is_duplicate = true;
+                                l_skipped_duplicates++;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Check if this public key was already added from -pub_certs list (within the same list)
+                    if (!l_is_duplicate && l_added_pub_pkey_hashes) {
+                        for (size_t i = 0; i < l_added_pub_pkey_count; i++) {
+                            if (dap_hash_fast_compare(&l_pkey_hash, &l_added_pub_pkey_hashes[i])) {
+                                log_it(L_WARNING, "Skipping duplicate public key from cert '%s': %s (already added from -pub_certs list)",
+                                       l_cert_name, dap_chain_hash_fast_to_str_static(&l_pkey_hash));
+                                l_is_duplicate = true;
+                                l_skipped_duplicates++;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!l_is_duplicate) {
                     size_t l_pkey_size = sizeof(dap_pkey_t) + l_pkey->header.size;
                     dap_tsd_t *l_pkey_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, 
                                                             l_pkey, l_pkey_size);
@@ -5189,8 +5401,14 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                     l_tsd_total_size += dap_tsd_size(l_pkey_tsd);
                     l_added_pkeys++;
                     
-                    dap_chain_hash_fast_t l_pkey_hash = {0};
-                    if (dap_pkey_get_hash(l_pkey, &l_pkey_hash) == 0) {
+                        // Add to tracking list
+                        dap_hash_fast_t *l_tmp = DAP_REALLOC_COUNT(l_added_pub_pkey_hashes, l_added_pub_pkey_count + 1);
+                        if (l_tmp) {
+                            l_added_pub_pkey_hashes = l_tmp;
+                            l_added_pub_pkey_hashes[l_added_pub_pkey_count] = l_pkey_hash;
+                            l_added_pub_pkey_count++;
+                        }
+                        
                         log_it(L_INFO, "Added public key from cert '%s': %s", 
                                l_cert_name, dap_chain_hash_fast_to_str_static(&l_pkey_hash));
                     }
@@ -5204,8 +5422,20 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
             
             l_cert_name = strtok_r(NULL, ",", &l_saveptr);
         }
+        DAP_DELETE(l_added_pub_pkey_hashes);
         DAP_DELETE(l_pub_certs_dup);
-        log_it(L_INFO, "Added %zu public keys from certificates", l_added_pkeys);
+        DAP_DELETE(l_signing_pkey_hashes);
+        // Free certificates if they were loaded
+        if (l_certs) {
+            for (size_t i = 0; i < l_certs_count; i++) {
+                if (l_certs[i]) {
+                    dap_cert_delete(l_certs[i]);
+                }
+            }
+            DAP_DELETE(l_certs);
+        }
+        log_it(L_INFO, "Added %zu public keys from certificates (skipped %zu duplicates)", 
+               l_added_pkeys, l_skipped_duplicates);
     }
     
     size_t l_tsd_offset = 0;
