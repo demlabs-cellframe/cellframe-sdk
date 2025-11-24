@@ -1717,9 +1717,7 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     PVT(l_blocks)->blocks_count = 0;
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
-        /* Remove from BOTH hash tables before freeing to prevent use-after-free */
         HASH_DELETE(hh, PVT(l_blocks)->blocks, l_block);
-        HASH_DELETE(hh2, PVT(l_blocks)->blocks_num, l_block);
         if (!a_chain->is_mapped)
             DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);

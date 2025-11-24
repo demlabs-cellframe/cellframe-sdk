@@ -627,29 +627,14 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     }
     bool l_load_mode = dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id));
     dap_chain_type_dag_event_item_t *l_event_item;
-    l_event_item = DAP_NEW_Z(dap_chain_type_dag_event_item_t);
+    l_event_item = DAP_NEW(dap_chain_type_dag_event_item_t);
     *l_event_item = (dap_chain_type_dag_event_item_t) {
         .hash       = *a_atom_hash,
         .ts_added   = dap_time_now(),
         .event      = a_chain->is_mapped ? l_event : DAP_DUP_SIZE(l_event, a_atom_size),
         .event_size = a_atom_size,
-        .ts_created = l_event->header.ts_created,
-        .mapped_region = a_chain->is_mapped ? (char*)l_event : NULL  /* Mark mmap pointer */
-    };
-
-    /* If event is unaligned, copy it to aligned buffer to avoid SIGBUS */
-    if (((uintptr_t)l_event_item->event & 0x7) != 0) {
-        log_it(L_WARNING, "Unaligned event pointer %p (size %zu), copying to aligned buffer", 
-               l_event_item->event, a_atom_size);
-        dap_chain_type_dag_event_t *l_event_copy = DAP_DUP_SIZE(l_event_item->event, a_atom_size);
-        if (!l_event_copy) {
-            log_it(L_CRITICAL, "Memory allocation failed for event copy");
-            ret = ATOM_REJECT;
-            goto cleanup;
-        }
-        l_event_item->event = l_event_copy;
-        l_event_item->mapped_region = NULL;  /* Not mapped anymore, it's a copy */
-    }
+        .ts_created = l_event->header.ts_created
+    };    
 
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD: {
@@ -675,26 +660,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         }
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, l_event_item);
         
-        /* Distinguish between early errors (not added to hash) and later errors (added to datums hash) */
-        if (l_consensus_check == -1 || l_consensus_check == -2 || l_consensus_check == -4 ||
-            l_consensus_check == -6 || l_consensus_check == -7) {
-            debug_if(s_debug_more, L_WARNING, "... skipped: invalid/corrupted event (code %d), continuing sync", l_consensus_check);
-            /* Free the event item but return ATOM_ACCEPT to continue synchronization */
-            if (l_event_item->mapped_region == NULL) {
-                DAP_DELETE(l_event_item->event);
-            }
-            DAP_DELETE(l_event_item);
-            /* Return ATOM_ACCEPT to continue sync, don't break the sync process */
-            ret = ATOM_ACCEPT;
-            break;
-        }
-        
-        /* If l_consensus_check < 0 but not in the list above, event was added to datums hash table */
-        if (l_consensus_check < 0) {
-            debug_if(s_debug_more, L_WARNING, "... added with error code %d (event in datums hash)", l_consensus_check);
-            /* Don't set ATOM_REJECT here, event is in hash table */
-        }
-        
         switch (l_consensus_check) {
         case 0:
             debug_if(s_debug_more, L_DEBUG, "... added");
@@ -718,13 +683,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         ret = ATOM_REJECT;
         break;
     }
-cleanup:
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     if (ret == ATOM_REJECT) { // Neither added, nor freed
-        /* Free the event only if it's not from mmap (mapped_region == NULL means it's a copy) */
-        if (l_event_item->mapped_region == NULL) {
+        if (!a_chain->is_mapped)
             DAP_DELETE(l_event_item->event);
-        }
         DAP_DELETE(l_event_item);
     }
     return ret;
