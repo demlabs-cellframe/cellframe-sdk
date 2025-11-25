@@ -72,8 +72,7 @@ tests:macos.arm64:
 
 build:android:
     extends: .tests
-    image: demlabs/android/any:qt5
-    before_script: /opt/buildtools/prepare_environment.sh amd64-windows
+    image: demlabs/android/any:qt6
     script:
       - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1
 
