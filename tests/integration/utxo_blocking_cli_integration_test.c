@@ -36,9 +36,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifndef DAP_OS_WINDOWS
 #include <unistd.h>
+#endif
 
 #include "dap_common.h"
+#include "dap_file_utils.h"
 #include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_config.h"
@@ -72,7 +75,7 @@ static void s_setup(void)
     
     // Step 1: Create minimal config for CLI server
     const char *l_config_dir = "/tmp/cli_test_config";
-    mkdir(l_config_dir, 0755);
+    dap_mkdir_with_parents(l_config_dir);
     
     const char *l_config_content = 
         "[cli-server]\n"
@@ -149,9 +152,8 @@ static void s_teardown(void)
     
     // 4. Remove test config files
     log_it(L_DEBUG, "Removing test files...");
-    unlink("/tmp/cli_test_config/test.cfg");
-    rmdir("/tmp/cli_test_config");
-    unlink("/tmp/cli_test.sock");
+    dap_rm_rf("/tmp/cli_test_config");
+    remove("/tmp/cli_test.sock");
     
     log_it(L_NOTICE, "✓ Test environment cleaned up");
 }
