@@ -1083,7 +1083,7 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(!compare256(l_balance, l_balance_example), "Checking the availability of the necessary balance "
                                                              "on the wallet after the first transaction.");
     char *l_pass_msg = dap_strdup_printf("Starting balance is %s. Validation of the declaration of the token, "
-                                         "creation of an emission and a basic transaction using it in the ledger", dap_chain_balance_print(l_balance));
+                                         "creation of an emission and a basic transaction using it in the ledger", dap_uint256_to_char(l_balance, NULL));
     dap_pass_msg(l_pass_msg);
     DAP_DELETE(l_pass_msg);
 

@@ -59,6 +59,9 @@ static int s_print_for_tx_history_all(dap_json_rpc_response_t* response, char **
 static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 static int s_print_for_decree_sign(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+static int s_print_for_node_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+static int s_print_for_node_dump(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+static int s_print_for_node(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 
 
 /**
@@ -110,7 +113,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("node", com_node, NULL, "Work with node",
                     "node add -net <net_name> [-port <port>]\n\n"
                     "node del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
-                    "node link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
                     "node connect -net <net_name> {-addr <node_address> | -alias <node_alias> | auto}\n\n"
                     "node handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
@@ -362,7 +364,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "mempool_add  -net <net_name> [-chain <chain_name>] -json <json_file_path> | -tx_obj <tx_json_object>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, NULL, "Make cond transaction",
                                         "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
-                                        " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n" );
+                                        " { -cert <pub_cert_name> | -pkey <pkey_hash> } -value <value_datoshi> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n" );
         dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, NULL, "Remove cond transactions and return funds from condition outputs to wallet",
                                         "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
                                         " -fee <value> -srv_uid <numeric_uid>\n" );
@@ -384,7 +386,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list coins -net <net_name> [-limit] [-offset] [-h]\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
-            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n");
+            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
+            "ledger event list -net <net_name> [-group <group_name>]\n"
+            "ledger event dump -net <net_name> -hash <tx_hash>\n"
+            "ledger event create -net <net_name> [-chain <chain_name>] -w <wallet_name> -service_key <cert_name> -srv_uid <service_uid> "
+            "-group <group_name> -event_type <event_type> [-event_data <event_data>] [-fee <fee_value>] [-H <hex|base58>]\n"
+            "ledger event key add -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key remove -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key list -net <net_name> [-H <hex|base58>]\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, NULL, "Token info",
@@ -485,6 +494,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\t-num <policy_num>\n"
                 "policy list - show all policies from table in net\n"
                 "\t-net <net_name>\n");
+
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
@@ -503,6 +513,7 @@ int dap_chain_node_cli_parser_init(void) {
     dap_cli_server_cmd_add("mempool", NULL, s_print_for_mempool_list, NULL, NULL);
     dap_cli_server_cmd_add("srv_xchange", NULL, s_print_for_srv_xchange_list, NULL, NULL);
     dap_cli_server_cmd_add("decree", NULL, s_print_for_decree_sign, NULL, NULL);
+    dap_cli_server_cmd_add("node", NULL, s_print_for_node, NULL, NULL);
     
     return 0;
 }
@@ -2157,4 +2168,223 @@ static int s_print_for_decree_sign(dap_json_rpc_response_t* response, char ** cm
 	// If not an array, print raw JSON
 	json_print_object(response->result_json_object, 0);
 	return 0;
+ * @brief s_print_for_node_list
+ * @details Formats and prints node list command response in table format
+ *
+ * Expected JSON structure:
+ * [
+ *   {
+ *     "got_nodes": <count>,
+ *     "NODES": [
+ *       {
+ *         "address": "<node_address>",
+ *         "IPv4": "<ip_address>",
+ *         "port": <port_number>,
+ *         "timestamp": "<timestamp>"
+ *       },
+ *       ...
+ *     ]
+ *   }
+ * ]
+ *
+ * @param response JSON RPC response object
+ * @param cmd_param Command parameters array
+ * @param cmd_cnt Count of command parameters
+ * @return int 0 on success, negative on error
+ */
+static int s_print_for_node_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt)
+{
+    // This function is now only called for "node list" command
+    // Check is done in s_print_for_node router function
+
+    // Validate input
+    if (!response || !response->result_json_object) {
+        log_it(L_ERROR, "Invalid response object");
+        return -1;
+    }
+
+    // Check if -h flag is present (raw JSON output)
+    if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-h") == -1) {
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    // Response should be an array
+    if (json_object_get_type(response->result_json_object) != json_type_array) {
+        // Fallback to raw JSON if format is unexpected
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    int array_len = json_object_array_length(response->result_json_object);
+    if (array_len <= 0) {
+        printf("No nodes found\n");
+        return 0;
+    }
+
+    // Get first element (should contain node list data)
+    json_object *result_obj = json_object_array_get_idx(response->result_json_object, 0);
+    if (!result_obj || json_object_get_type(result_obj) != json_type_object) {
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    // Extract got_nodes count and NODES array
+    json_object *got_nodes_obj = NULL;
+    json_object *nodes_array = NULL;
+
+    json_object_object_get_ex(result_obj, "got_nodes", &got_nodes_obj);
+    json_object_object_get_ex(result_obj, "NODES", &nodes_array);
+
+    if (!nodes_array || json_object_get_type(nodes_array) != json_type_array) {
+        // No nodes array found, fallback to raw JSON
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    int nodes_count = json_object_array_length(nodes_array);
+    int64_t total_nodes = got_nodes_obj ? json_object_get_int64(got_nodes_obj) : nodes_count;
+
+    // Print table header
+    printf("\nNode list:\n");
+    printf("Got %" DAP_INT64_FORMAT " nodes:\n", total_nodes);
+    printf("%-25s %-19s %-7s %-40s\n",
+           "Address", "IPv4", "Port", "Timestamp");
+
+    // Print each node
+    for (int i = 0; i < nodes_count; i++) {
+        json_object *node_obj = json_object_array_get_idx(nodes_array, i);
+        if (!node_obj || json_object_get_type(node_obj) != json_type_object) {
+            continue;
+        }
+
+        // Extract node fields
+        json_object *addr_obj = NULL, *ipv4_obj = NULL;
+        json_object *port_obj = NULL, *timestamp_obj = NULL;
+
+        json_object_object_get_ex(node_obj, "address", &addr_obj);
+        json_object_object_get_ex(node_obj, "IPv4", &ipv4_obj);
+        json_object_object_get_ex(node_obj, "port", &port_obj);
+        json_object_object_get_ex(node_obj, "timestamp", &timestamp_obj);
+
+        // Get string values with fallback to "N/A"
+        const char *address = addr_obj ? json_object_get_string(addr_obj) : "N/A";
+        const char *ipv4 = ipv4_obj ? json_object_get_string(ipv4_obj) : "N/A";
+        const char *timestamp = timestamp_obj ? json_object_get_string(timestamp_obj) : "N/A";
+        uint64_t port = port_obj ? json_object_get_uint64(port_obj) : 0;
+
+        // Print node row
+        printf("%-25s %-19s %-7"DAP_UINT64_FORMAT_U" %-40s\n",
+               address, ipv4, port, timestamp);
+    }
+
+    printf("\n");
+    return 0;
+}
+
+/**
+ * @brief s_print_for_node_dump
+ * @details Formats and prints node dump command response
+ *
+ * Expected JSON structure:
+ * [
+ *   {
+ *     "status_dump": "<dump_information>"
+ *   }
+ * ]
+ *
+ * @param response JSON RPC response object
+ * @param cmd_param Command parameters array
+ * @param cmd_cnt Count of command parameters
+ * @return int 0 on success, negative on error
+ */
+static int s_print_for_node_dump(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt)
+{
+    UNUSED(cmd_param);
+    UNUSED(cmd_cnt);
+
+    // Validate input
+    if (!response || !response->result_json_object) {
+        log_it(L_ERROR, "Invalid response object");
+        return -1;
+    }
+
+    // Check if -h flag is present (raw JSON output)
+    if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-h") == -1) {
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    // Response should be an array
+    if (json_object_get_type(response->result_json_object) != json_type_array) {
+        // Fallback to raw JSON if format is unexpected
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    int array_len = json_object_array_length(response->result_json_object);
+    if (array_len <= 0) {
+        printf("No dump data available\n");
+        return 0;
+    }
+
+    // Get first element (should contain dump data)
+    json_object *result_obj = json_object_array_get_idx(response->result_json_object, 0);
+    if (!result_obj || json_object_get_type(result_obj) != json_type_object) {
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    // Extract status_dump field
+    json_object *status_dump_obj = NULL;
+    json_object_object_get_ex(result_obj, "status_dump", &status_dump_obj);
+
+    if (!status_dump_obj) {
+        // No status_dump field found, fallback to raw JSON
+        json_print_object(response->result_json_object, 0);
+        return 0;
+    }
+
+    // Print the dump information
+    const char *dump_info = json_object_get_string(status_dump_obj);
+    if (dump_info) {
+        printf("\nNode Dump:\n");
+        printf("%s\n", dump_info);
+    } else {
+        printf("No dump information available\n");
+    }
+
+    return 0;
+}
+
+/**
+ * @brief s_print_for_node
+ * @details Router function that dispatches to appropriate formatter based on subcommand
+ *
+ * @param response JSON RPC response object
+ * @param cmd_param Command parameters array (e.g., ["node", "list", "-net", "mynet"])
+ * @param cmd_cnt Count of command parameters
+ * @return int 0 on success, negative on error
+ */
+static int s_print_for_node(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt)
+{
+    // Validate input
+    if (!response) {
+        log_it(L_ERROR, "Invalid response object");
+        return -1;
+    }
+
+    // Check for different node subcommands
+    if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "list") != -1) {
+        return s_print_for_node_list(response, cmd_param, cmd_cnt);
+    } else if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "dump") != -1) {
+        return s_print_for_node_dump(response, cmd_param, cmd_cnt);
+    } else {
+        // For other subcommands (add, del, alias, connect, handshake, connections, balancer, ban, unban, banlist), 
+        // just print raw JSON as they typically have simple responses
+        if (response->result_json_object) {
+            json_print_object(response->result_json_object, 0);
+        }
+        return 0;
+    }
 }
