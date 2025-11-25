@@ -81,7 +81,7 @@ build:android:
 cppcheck_full_analysis:
   extends: .ci-polygon
   stage: cppchecks
-  image: demlabs/debian/amd64:cpp_check
+  image: demlabs/debian/amd64:qt6
   timeout: 12h
   script:
     - mkdir -p cpp_report && cd cpp_report
@@ -100,7 +100,7 @@ cppcheck_full_analysis:
 
 # Generates a code quality report in JSON format for merge requests, identifying potential issues in the codebase.
 cppcheck_code_quality:
-  image: demlabs/debian/amd64:cpp_check
+  image: demlabs/debian/amd64:qt6
   extends: .ci-polygon
   stage: cppchecks
   timeout: 1h
