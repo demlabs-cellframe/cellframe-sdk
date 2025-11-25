@@ -116,18 +116,28 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
                                         &a_block_cache->nonce,
                                         &a_block_cache->nonce2,
                                         &a_block_cache->generation,
-                                        &a_block_cache->is_blockgen))
+                                        &a_block_cache->is_blockgen)) {
+        DAP_DEL_Z(a_block_cache->links_hash);
         return -1;
+    }
 
     DAP_DEL_Z(a_block_cache->datum);
     a_block_cache->datum = dap_chain_block_get_datums(a_block_cache->block, a_block_cache->block_size, &a_block_cache->datum_count);
 
     if (a_block_cache->datum_count != a_block_cache->block->hdr.datum_count) {
-        DAP_DELETE(a_block_cache->datum);
+        DAP_DEL_Z(a_block_cache->datum);
+        DAP_DEL_Z(a_block_cache->links_hash);
         return -2;
     }
 
+    DAP_DEL_Z(a_block_cache->datum_hash);
     a_block_cache->datum_hash = DAP_NEW_Z_SIZE(dap_hash_fast_t, a_block_cache->datum_count * sizeof(dap_hash_fast_t));
+    if (!a_block_cache->datum_hash && a_block_cache->datum_count) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        DAP_DEL_Z(a_block_cache->datum);
+        DAP_DEL_Z(a_block_cache->links_hash);
+        return -3;
+    }
     for (size_t i = 0; i < a_block_cache->datum_count; i++)
         dap_chain_datum_calc_hash(a_block_cache->datum[i], a_block_cache->datum_hash + i);
     return 0;

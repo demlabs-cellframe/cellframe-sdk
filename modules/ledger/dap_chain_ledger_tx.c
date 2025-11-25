@@ -2524,8 +2524,12 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const c
                 dap_strcmp(l_iter_current->cache_data.token_ticker, a_token) &&
                 !(l_iter_current->cache_data.flags & LEDGER_PVT_TX_META_FLAG_MULTICHANNEL))
             continue;
-        // Now work with it
+        // Now work with it - lazy resolve transaction if needed
         dap_chain_datum_tx_t *l_tx = l_iter_current->tx;
+        if (!l_tx)
+            l_tx = s_ledger_resolve_tx(a_ledger, l_iter_current);
+        if (!l_tx)
+            continue;  // Skip if unable to resolve transaction
         dap_chain_hash_fast_t *l_tx_hash = &l_iter_current->tx_hash_fast;
         // Get 'out' items from transaction
         int num = -1;
