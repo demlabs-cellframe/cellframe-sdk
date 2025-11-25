@@ -42,6 +42,7 @@
 
 #include "dap_common.h"
 #include "dap_file_utils.h"
+#include "dap_events.h"
 #include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_config.h"
@@ -106,19 +107,23 @@ static void s_setup(void)
     g_config = dap_config_open("test");
     dap_assert(g_config != NULL, "Config initialization");
     
-    // Step 3: Initialize CLI server
+    // Step 3: Initialize events subsystem (required for CLI server)
+    dap_events_init(0, 0);
+    dap_events_start();
+    
+    // Step 4: Initialize CLI server
     int l_cli_init_res = dap_cli_server_init(false, "cli-server");
     dap_assert(l_cli_init_res == 0, "CLI server initialization");
     
-    // Step 4: Initialize consensus modules
+    // Step 5: Initialize consensus modules
     dap_chain_cs_dag_init();
     dap_chain_cs_dag_poa_init();
     dap_chain_cs_esbocs_init();
     
-    // Step 5: Register CLI commands (we need token_update command)
+    // Step 6: Register CLI commands (we need token_update command)
     dap_chain_node_cli_init(g_config);
     
-    // Step 6: Create test network
+    // Step 7: Create test network
     s_net_fixture = test_net_fixture_create("cli_test_net");
     dap_assert(s_net_fixture != NULL, "Network fixture initialization");
     dap_assert(s_net_fixture->ledger != NULL, "Ledger initialization");
@@ -159,7 +164,12 @@ static void s_teardown(void)
     dap_config_deinit();
     log_it(L_DEBUG, "Config cleaned up");
     
-    // 4. Remove test config files
+    // 4. Clean up events subsystem
+    log_it(L_DEBUG, "Cleaning up events...");
+    dap_events_deinit();
+    log_it(L_DEBUG, "Events cleaned up");
+    
+    // 5. Remove test config files
     log_it(L_DEBUG, "Removing test files...");
 #ifdef DAP_OS_WINDOWS
     dap_rm_rf("C:\\Temp\\cli_test_config");
