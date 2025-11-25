@@ -66,7 +66,7 @@ tests:macos.arm64:
       - macos-native
     script:
       - mkdir build
-      - cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON .. && make -j$(nproc)
+      - cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && make -j$(nproc)
       - ctest --verbose
 
 
@@ -74,7 +74,7 @@ build:android:
     extends: .tests
     image: demlabs/android/any:qt6
     script:
-      - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1  -DANDROID_PLATFORM=29
+      - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1 
 
 
 # Performs an in-depth static code analysis with cppcheck, producing a detailed HTML report for manual inspection.
