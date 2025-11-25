@@ -58,6 +58,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 static int s_print_for_tx_history_all(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
+static int s_print_for_decree_sign(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 
 
 /**
@@ -501,6 +502,7 @@ int dap_chain_node_cli_parser_init(void) {
     dap_cli_server_cmd_add("ledger", NULL, s_print_for_ledger_list, NULL, NULL);    
     dap_cli_server_cmd_add("mempool", NULL, s_print_for_mempool_list, NULL, NULL);
     dap_cli_server_cmd_add("srv_xchange", NULL, s_print_for_srv_xchange_list, NULL, NULL);
+    dap_cli_server_cmd_add("decree", NULL, s_print_for_decree_sign, NULL, NULL);
     
     return 0;
 }
@@ -2097,4 +2099,62 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
     }
     
     return 0;
+}
+
+/**
+ * @brief s_print_for_decree_sign
+ * Parse and print JSON response for decree sign command
+ * @param response JSON RPC response object
+ * @param cmd_param Command parameters array
+ * @param cmd_cnt Command parameters count
+ * @return 0 if success, negative error code otherwise
+ */
+static int s_print_for_decree_sign(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt)
+{
+	dap_return_val_if_pass(!response || !response->result_json_object, -1);	
+	
+	
+	// Check if this is a decree sign command
+	if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "sign") == -1)
+		return -2;
+	
+	// Parse response array
+	if (json_object_get_type(response->result_json_object) == json_type_array) {
+		int result_count = json_object_array_length(response->result_json_object);
+		if (result_count <= 0) {
+			printf("Response array is empty\n");
+			return -3;
+		}
+		
+		// Get first element from array
+		json_object *json_obj_result = json_object_array_get_idx(response->result_json_object, 0);
+		if (!json_obj_result) {
+			printf("Failed to get response object\n");
+			return -4;
+		}
+		
+		// Extract datum_status field
+		json_object *j_obj_datum_status = NULL;
+		if (json_object_object_get_ex(json_obj_result, "datum_status", &j_obj_datum_status)) {
+			const char *l_status = json_object_get_string(j_obj_datum_status);
+			if (l_status) {
+				if (dap_strcmp(l_status, "not_placed") == 0) {
+					printf("Decree signing failed: datum was not placed in mempool\n");
+					return -5;
+				} else {
+					printf("Datum %s is placed in datum pool\n", l_status);
+					return 0;
+				}
+			}
+		}
+		
+		// If datum_status field not found, print raw JSON
+		printf("Unexpected response format:\n");
+		json_print_object(json_obj_result, 0);
+		return -6;
+	}
+	
+	// If not an array, print raw JSON
+	json_print_object(response->result_json_object, 0);
+	return 0;
 }

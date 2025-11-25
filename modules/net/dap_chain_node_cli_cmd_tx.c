@@ -1916,8 +1916,8 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_v
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_CANT_FIND_DATUM_ERR,
                     "decree sign can't find datum with %s hash in the mempool of %s:%s",
-                    l_datum_hash_out_str,l_net? l_net->pub.name: "<undefined>",
-                    l_chain?l_chain->name:"<undefined>");
+                    l_datum_hash_out_str, l_net ? l_net->pub.name: "<undefined>",
+                    l_chain ? l_chain->name : "<undefined>");
                 return -DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_CANT_FIND_DATUM_ERR;
             }
             DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str);
