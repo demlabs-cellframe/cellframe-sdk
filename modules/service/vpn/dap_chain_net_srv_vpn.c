@@ -256,11 +256,15 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
     l_srv_session->stats.bytes_recv += l_data_sent;
     l_usage->client->bytes_received += l_data_sent;
     if ( l_data_sent < l_data_to_send){
-        log_it(L_WARNING, "Wasn't sent all the data in tunnel (%zd was sent from %zd): probably buffer overflow", l_data_sent, l_data_to_send);
+        log_it(L_WARNING, "[VPN DIAG] send_data_unsafe: buffer overflow, sent %zd/%zd bytes", l_data_sent, l_data_to_send);
         l_srv_session->stats.bytes_recv_lost += l_data_to_send - l_data_sent;
         l_srv_session->stats.packets_recv_lost++;
         return false;
     } else {
+        // Log successful send for FREE mode
+        if(l_usage && l_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) {
+            log_it(L_DEBUG, "[VPN FREE SEND] sent %zu bytes to client, usage_id=%u", l_data_sent, l_usage->id);
+        }
         l_srv_session->stats.packets_recv++;
         return true;
     }
@@ -993,6 +997,14 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         log_it( L_ERROR, "No active service usage, can't success");
         return -1;
     }
+    
+    // Diagnostic log for usage state
+    log_it(L_INFO, "[VPN DIAG] response_success: usage_id=%u, service_state=%d, service_substate=%d, is_active=%d, ch_vpn=%p",
+           a_usage_id,
+           (int)l_usage_active->service_state,
+           (int)l_usage_active->service_substate,
+           l_usage_active->is_active,
+           l_srv_ch_vpn);
 
     if (!l_srv_session->usage_active->is_active){
         l_srv_session->usage_active = l_usage_active;
@@ -1060,6 +1072,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     } else if (l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
         // Free service mode: no receipt needed, no limits
         l_srv_session->last_update_ts = time(NULL);
+        log_it(L_INFO, "[VPN DIAG] FREE mode activated for usage_id=%u", a_usage_id);
     } else {
         log_it(L_ERROR, "WRONG state: usage_id=%u, service_state=%d, service_substate=%d",
                a_usage_id,
@@ -1776,7 +1789,8 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     if(!l_usage || !l_usage->is_active){
-        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
+        log_it(L_NOTICE, "[VPN DIAG] s_ch_packet_in: No active usage (usage=%p, is_active=%d), dropping packet",
+               l_usage, l_usage ? l_usage->is_active : -1);
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
@@ -1884,6 +1898,23 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
+                // Log for FREE mode traffic: client -> TUN
+                if(l_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) {
+                    dap_os_iphdr_t *l_iph = (dap_os_iphdr_t *)l_vpn_pkt->data;
+                    char l_str_saddr[INET_ADDRSTRLEN] = {0};
+                    char l_str_daddr[INET_ADDRSTRLEN] = {0};
+#ifdef DAP_OS_LINUX
+                    struct in_addr l_saddr = { .s_addr = l_iph->saddr };
+                    struct in_addr l_daddr = { .s_addr = l_iph->daddr };
+#else
+                    struct in_addr l_saddr = { .s_addr = l_iph->ip_src.s_addr };
+                    struct in_addr l_daddr = { .s_addr = l_iph->ip_dst.s_addr };
+#endif
+                    inet_ntop(AF_INET, &l_saddr, l_str_saddr, sizeof(l_str_saddr));
+                    inet_ntop(AF_INET, &l_daddr, l_str_daddr, sizeof(l_str_daddr));
+                    log_it(L_INFO, "[VPN FREE OUT] stream->tun: %s->%s bytes=%u usage_id=%u",
+                           l_str_saddr, l_str_daddr, l_vpn_pkt->header.op_data.data_size, l_usage->id);
+                }
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
                     sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size) - sizeof(l_vpn_pkt->header);
                 l_srv_session->stats.bytes_sent += l_ret;
@@ -2104,12 +2135,14 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
 #endif
                 inet_ntop(AF_INET, &l_saddr, l_str_saddr, sizeof(l_str_saddr));
                 inet_ntop(AF_INET, &l_daddr, l_str_daddr, sizeof(l_str_daddr));
+                log_it(L_INFO, "[VPN FREE IN] tun->stream: %s->%s bytes=%zu usage_id=%u",
+                       l_str_saddr, l_str_daddr, l_buf_in_size, l_usage->id);
             }
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
-        } else if(s_debug_more) {
+        } else {
             char l_str_daddr[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, sizeof(l_in_daddr));
-            log_it(L_WARNING, "Can't find route for desitnation %s", l_str_daddr);
+            log_it(L_WARNING, "[VPN DIAG] Can't find route for destination %s (no client registered)", l_str_daddr);
         }
         a_es->buf_in_size = 0;
     }
