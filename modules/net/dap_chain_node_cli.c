@@ -2168,25 +2168,9 @@ static int s_print_for_decree_sign(dap_json_rpc_response_t* response, char ** cm
 	// If not an array, print raw JSON
 	json_print_object(response->result_json_object, 0);
 	return 0;
- * @brief s_print_for_node_list
- * @details Formats and prints node list command response in table format
- *
- * Expected JSON structure:
- * [
- *   {
- *     "got_nodes": <count>,
- *     "NODES": [
- *       {
- *         "address": "<node_address>",
- *         "IPv4": "<ip_address>",
- *         "port": <port_number>,
- *         "timestamp": "<timestamp>"
- *       },
- *       ...
- *     ]
- *   }
- * ]
- *
+}
+
+/**
  * @param response JSON RPC response object
  * @param cmd_param Command parameters array
  * @param cmd_cnt Count of command parameters
