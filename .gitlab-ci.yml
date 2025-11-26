@@ -23,121 +23,56 @@ stages:
   
 tests:amd64.gcc:
     extends: .tests
-    image: demlabs/debian/amd64:qt5
-    before_script: /opt/buildtools/prepare_environment.sh amd64-linux
+    image: demlabs/debian/amd64:qt6
     script:
       - mkdir build
-      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
+      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
 
 
 tests:amd64.clang:
     extends: .tests
-    image: demlabs/debian/amd64:qt5
-    before_script: /opt/buildtools/prepare_environment.sh amd64-linux
+    image: demlabs/debian/amd64:qt6
     script:
       - mkdir build
-      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
+      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
 
 
-tests:arm64.gcc:
+tests:arm64.cross:
     extends: .tests
-    image: demlabs/debian/arm64:qt5
-    before_script: /opt/buildtools/prepare_environment.sh arm64-linux
+    image: demlabs/debian/amd64:cross
     script:
       - mkdir build
-      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
+      - cd build && cmake-arm64 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc) && ctest --verbose
 
-tests:arm64.clang:
-    extends: .tests
-    image: demlabs/debian/arm64:qt5
-    before_script: /opt/buildtools/prepare_environment.sh arm64-linux
-    script:
-      - mkdir build
-      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
 
-tests:arm32.gcc:
+tests:arm32.cross:
     extends: .tests
-    image: demlabs/debian/arm32:qt5
-    before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
+    image: demlabs/debian/amd64:cross
     script:
       - mkdir build
-      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
+      - cd build && cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
 
-tests:arm32.clang:
+tests:windows.amd64:
     extends: .tests
-    image: demlabs/debian/arm32:qt5
-    before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
+    image: demlabs/windows/amd64:qt6
     script:
       - mkdir build
-      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
+      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/wine -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc)
+      - ctest --verbose
 
-build:windows:
+tests:macos.arm64:
     extends: .tests
-    image: demlabs/windows/amd64:qt5
-    before_script: /opt/buildtools/prepare_environment.sh amd64-windows
+    tags:
+      - macos-native
     script:
       - mkdir build
-      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(nproc)
-    
-
-build:macos:
-    extends: .tests
-    image: demlabs/macos/amd64:qt5
-    before_script: /opt/buildtools/prepare_environment.sh amd64-windows
-    script:
-      - mkdir build
-      - cd build && $(${OSXCROSS_ROOT}/bin/osxcross-conf) && export OSXCROSS_NO_INCLUDE_PATH_WARNINGS=1 && export OSXCROSS_HOST=x86_64-apple-darwin20.4 && cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${OSXCROSS_ROOT}/toolchain.cmake -DBoost_INCLUDE_DIR=$BOOST_INCLUDE_DIR .. && make -j$(nproc)
+      - cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && make -j$(nproc)
+      - ctest --verbose
 
 
 build:android:
     extends: .tests
-    image: demlabs/android/any:qt5
-    before_script: /opt/buildtools/prepare_environment.sh amd64-windows
+    image: demlabs/android/any:qt6
     script:
-      - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1
-
-
-# Performs an in-depth static code analysis with cppcheck, producing a detailed HTML report for manual inspection.
-cppcheck_full_analysis:
-  extends: .ci-polygon
-  stage: cppchecks
-  image: demlabs/debian/amd64:cpp_check
-  timeout: 12h
-  script:
-    - mkdir -p cpp_report && cd cpp_report
-    - cmake -DENABLE_CPPCHECK_ANALYSIS=ON ..
-    - make cppcheck_analysis
-    - echo "HTML report generated at cpp_report/cppcheck_html_report/index.html"
-  artifacts:
-    paths:
-      - cpp_report/cppcheck_html_report/
-    expire_in: 1 day
-  rules:
-    - when: manual
-      allow_failure: true
-  tags:
-    - ci-polygon
-
-# Generates a code quality report in JSON format for merge requests, identifying potential issues in the codebase.
-cppcheck_code_quality:
-  image: demlabs/debian/amd64:cpp_check
-  extends: .ci-polygon
-  stage: cppchecks
-  timeout: 1h
-  script:
-    - /usr/bin/cppcheck --xml --library=std --suppress=missingIncludeSystem --suppress=preprocessorErrorDirective --suppress=*:dap-sdk/3rdparty/* --suppress=*:dap-sdk/crypto/src/Kyber/* --suppress=*:dap-sdk/crypto/XKCP/* --suppress=*:3rdparty/* --force  -j$(nproc) -q . 2> cppcheck-report.xml
-    - cppcheck-codequality --input-file cppcheck-report.xml --output-file gl-code-quality-report.json
-    - cat gl-code-quality-report.json
-  artifacts:
-    reports:
-      codequality: gl-code-quality-report.json
-    paths:
-      - gl-code-quality-report.json
-    expire_in: 4 week
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: always
-      allow_failure: true
-  tags:
-    - ci-polygon
+      - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1 -DANDROID_PLATFORM=29
 
