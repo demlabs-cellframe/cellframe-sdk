@@ -349,6 +349,11 @@ int com_token_update_sign(int argc, char ** argv, void **a_str_reply, int a_vers
 int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 
 /**
+ * Token emission add sign
+ */
+int com_token_emit_sign (int a_argc,  char **a_argv, void **a_str_reply, int a_version);
+
+/**
  * com_tx_create command
  *
  * Wallet info

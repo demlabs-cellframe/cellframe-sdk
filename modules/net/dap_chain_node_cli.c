@@ -324,6 +324,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
                             "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n");
 
+    dap_cli_server_cmd_add ("token_emit_sign", com_token_emit_sign, NULL, "Token emission add sign",
+            "token_emit_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
+            "\t Sign existent emission <datum_hash> in mempool with <certs_list>\n"
+            );
+
     dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_add("mempool", com_mempool, NULL, "Command for working with mempool",
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset] [-h]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
