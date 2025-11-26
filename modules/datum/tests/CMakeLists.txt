@@ -20,6 +20,7 @@ target_link_libraries(${PROJECT_NAME}
     dap_stream_ch
     dap_session
     dap_http_server
+    dap_client
     dap_sdk
     -Wl,--end-group
 )
