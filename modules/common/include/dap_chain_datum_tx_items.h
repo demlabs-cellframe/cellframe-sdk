@@ -39,6 +39,7 @@
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_tx_in_reward.h"
+#include "dap_chain_datum_tx_event.h"
 
 typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_in_all;
@@ -58,6 +59,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_out_cond_srv_xchange;
     dap_list_t *items_out_cond_srv_stake_pos_delegate;
     dap_list_t *items_out_cond_srv_stake_lock;
+    dap_list_t *items_out_cond_srv_stake_ext_lock;
     dap_list_t *items_out_cond_wallet_shared;
     dap_list_t *items_out_cond_unknonwn;
     dap_list_t *items_out_cond_undefined;
@@ -69,7 +71,7 @@ typedef struct dap_chain_datum_tx_item_groups {
     dap_list_t *items_tsd;
     dap_list_t *items_pkey;
     dap_list_t *items_receipt;
-
+    dap_list_t *items_event;
     dap_list_t *items_unknown;
 
 } dap_chain_datum_tx_item_groups_t;
@@ -77,6 +79,19 @@ typedef struct dap_chain_datum_tx_item_groups {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Check whether transaction refers to address via outputs or signature.
+ *
+ * Transaction is considered related to address if it contains an OUT/OUT_EXT item
+ * targeting the address, or if one of its signatures resolves to the address.
+ *
+ * @param a_tx   Transaction datum to inspect
+ * @param a_addr Address to test
+ * @return true when transaction belongs to address, false otherwise
+ */
+bool dap_chain_tx_belongs_to_addr(const dap_chain_datum_tx_t *a_tx, const dap_chain_addr_t *a_addr);
+
 /**
  * Get item name by item type
  *
@@ -103,6 +118,7 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
         case TX_ITEM_TYPE_VOTING: return "TX_ITEM_TYPE_VOTING";
         case TX_ITEM_TYPE_VOTE: return "TX_ITEM_TYPE_VOTE";
+        case TX_ITEM_TYPE_EVENT: return "TX_ITEM_TYPE_EVENT";
         default: return "UNDEFINED";
     }
 }
@@ -129,6 +145,7 @@ DAP_STATIC_INLINE const char *dap_chain_datum_tx_item_type_to_str_short(dap_chai
         case TX_ITEM_TYPE_TSD: return "data";
         case TX_ITEM_TYPE_VOTING: return "voting";
         case TX_ITEM_TYPE_VOTE: return "vote";
+        case TX_ITEM_TYPE_EVENT: return "event";
         default: return "UNDEFINED";
     }
 }
@@ -251,6 +268,13 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
                                                                                   uint256_t a_value, uint64_t a_time_unlock,
                                                                                   uint256_t a_reinvest_percent);
 
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_lock(dap_chain_net_srv_uid_t a_srv_uid,
+                                                                                  uint256_t a_value,
+                                                                                  const dap_hash_fast_t *a_stake_ext_hash,
+                                                                                  dap_time_t a_lock_time,
+                                                                                  uint32_t a_position_id,
+                                                                                  const void *a_params, size_t a_params_size);
+
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
                                                                                size_t a_pkey_hashes_count, const char *a_tag_str);
@@ -296,6 +320,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 // Get output by output index
 #define dap_chain_datum_tx_out_get_by_out_idx(a_tx, a_out_num) \
     dap_chain_datum_tx_item_get_nth(a_tx, TX_ITEM_TYPE_OUT_ALL, a_out_num);
+
+dap_chain_tx_item_event_t *dap_chain_datum_tx_event_create(dap_chain_net_srv_uid_t a_srv_uid, const char *a_group_name, uint16_t a_type);
+void dap_chain_datum_tx_event_delete(void *a_event);
 
 #ifdef __cplusplus
 }

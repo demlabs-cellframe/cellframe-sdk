@@ -56,6 +56,7 @@ if (BUILD_CELLFRAME_SDK_TESTS)
     add_definitions("-DDAP_LEDGER_TEST")
     add_definitions("-DDAP_CHAIN_BLOCKS_TEST")
     add_definitions("-DDAP_CHAIN_TX_COMPOSE_TEST")
+    add_subdirectory(tests)
 endif()
 
 if (BUILD_WITH_ZIP)
@@ -192,6 +193,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-voting")
     message("[+] Module 'srv-voting'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
+endif()
+
+# Enable service stake-ext
+if (CELLFRAME_MODULES MATCHES "srv-stake-ext")
+    message("[+] Module 'srv-stake-ext'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_ext)
 endif()
 
 # Enable service TX multisign with consensus

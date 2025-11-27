@@ -150,7 +150,7 @@ DAP_STATIC_INLINE void dap_chain_datum_calc_hash(const dap_chain_datum_t *a_datu
 {
     if (!a_datum || !a_out_hash)
         return;
-    dap_hash_fast(a_datum->data, a_datum->header.data_size, a_out_hash);
+    dap_hash_fast(a_datum->header.data_size ? a_datum->data : (byte_t*)a_datum, a_datum->header.data_size ? a_datum->header.data_size : dap_chain_datum_size(a_datum), a_out_hash);
 }
 
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
@@ -164,6 +164,23 @@ DAP_STATIC_INLINE const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
 }
 
 void dap_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
+
+/**
+ * @brief Unified function to dump transaction items to JSON
+ * @param[in] a_json_arr_items JSON array to add items to
+ * @param[in] a_datum Transaction datum
+ * @param[in] a_hash_out_type Hash output format ("hex" or "base58")
+ * @param[in] a_net_id Network ID for address generation
+ * @param[in] a_version JSON format version (1 for old format, 2 for new format)
+ * @param[in] a_json_arr_reply JSON array for additional information (can be NULL)
+ */
+void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
+                                  dap_chain_datum_tx_t *a_datum,
+                                  const char *a_hash_out_type,
+                                  dap_chain_net_id_t a_net_id,
+                                  int a_version,
+                                  json_object* a_json_arr_reply);
+
 bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
                              dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
