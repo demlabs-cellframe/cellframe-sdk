@@ -2329,7 +2329,7 @@ static int time_compare_orders(const void *a, const void *b) {
     return 0;
 }
 
-static int s_json_compare_by_timestamp(dap_json_t *a, dap_json_t *b)
+static int s_json_compare_by_timestamp(const dap_json_t *a, const dap_json_t *b)
 {
     dap_json_t *timestamp_a = NULL, *timestamp_b = NULL;
     dap_json_object_get_ex(a, "timestamp", &timestamp_a);
