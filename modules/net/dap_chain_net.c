@@ -2980,11 +2980,21 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         l_net_pvt->state = NET_STATE_SYNC_CHAINS;
 
     switch (a_type) {
+    case DAP_CHAIN_CH_PKT_TYPE_ERROR:
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY:
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS:
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN:
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
-        // TODO sync state & address checking
+        // Ignore packets from non-current link (stale responses from previous sync sessions)
+        if (a_ch->stream->node.uint64 != l_net_pvt->sync_context.current_link.uint64) {
+            debug_if(s_debug_more, L_DEBUG, "Ignoring sync packet type %hhu from non-current link " NODE_ADDR_FP_STR
+                                            ", current link is " NODE_ADDR_FP_STR ". Net %s",
+                                            a_type,
+                                            NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
+                                            NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
+                                            l_net->pub.name);
+            return;
+        }
         break;
     default:
         break;
@@ -3017,10 +3027,12 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         if (!dap_hash_fast_compare(&l_miss_info->missed_hash, &l_net_pvt->sync_context.requested_atom_hash)) {
             char l_missed_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_miss_info->missed_hash, l_missed_hash_str, DAP_HASH_FAST_STR_SIZE);
-            log_it(L_WARNING, "Get irrelevant chain sync MISSED packet with missed hash %s, but requested hash is %s. Net %s chain %s",
-                                                                        l_missed_hash_str,
-                                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash),
-                                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
+            log_it(L_WARNING, "Get irrelevant chain sync MISSED packet from " NODE_ADDR_FP_STR
+                                                        " with missed hash %s, but requested hash is %s. Net %s chain %s",
+                                                        NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
+                                                        l_missed_hash_str,
+                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash),
+                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
             dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
                                              l_net_pvt->sync_context.cur_chain->id,
                                              l_net_pvt->sync_context.cur_cell
@@ -3198,7 +3210,7 @@ static void s_sync_timer_callback(void *a_arg)
     switch (l_state_forming) {
     case CHAIN_SYNC_STATE_ERROR:
         if (s_restart_sync_chains(l_net)) {
-            log_it(L_WARNING, "Can't start sync chains in net %s, wait second attempt", l_net->pub.name);
+            log_it(L_WARNING, "Can't start sync chains in net %s, wait next attempt", l_net->pub.name);
             return;
         }
         break;
