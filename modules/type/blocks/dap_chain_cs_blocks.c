@@ -194,21 +194,6 @@ int dap_chain_cs_blocks_init()
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add ("block", s_cli_blocks, NULL, "Create and explore blockchains",
-        "New block create, fill and complete commands:\n"
-            "block -net <net_name> [-chain <chain_name>] new\n"
-                "\t\tCreate new block and flush memory if was smth formed before\n\n"
-
-            "block -net <net_name> [-chain <chain_name>] new_datum_add <datum_hash>\n"
-                "\t\tAdd block section from datum <datum hash> taken from the mempool\n\n"
-
-            "block -net <net_name> [-chain <chain_name>] new_datum_del <datum_hash>\n"
-                "\t\tDel block section with datum <datum hash>\n\n"
-
-            "block -net <net_name> [-chain <chain_name>] new_datum_list\n"
-                "\t\tList block sections and show their datums hashes\n\n"
-
-            "block -net <net_name> [-chain <chain_name>] new_datum\n\n"
-                "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:\n"
             "block -net <net_name> [-chain <chain_name>] [-brief] dump {-hash <block_hash> | -num <block_number>}\n"
@@ -645,15 +630,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
     //char ** a_str_reply = (char **) reply;    
     enum {
         SUBCMD_UNDEFINED =0,
-        SUBCMD_NEW_FLUSH,
-        SUBCMD_NEW_DATUM_ADD,
-        SUBCMD_NEW_DATUM_DEL,
-        SUBCMD_NEW_DATUM_LIST,
-        SUBCMD_NEW_COMPLETE,
         SUBCMD_DUMP,
         SUBCMD_LIST,
         SUBCMD_FEE,
-        SUBCMD_DROP,
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
         SUBCMD_COUNT,
@@ -662,15 +641,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
-        [SUBCMD_NEW_FLUSH]="new",
-        [SUBCMD_NEW_DATUM_ADD]="new_datum_add",
-        [SUBCMD_NEW_DATUM_DEL]="new_datum_del",
-        [SUBCMD_NEW_DATUM_LIST]="new_datum_list",
-        [SUBCMD_NEW_COMPLETE]="new_complete",
         [SUBCMD_DUMP]="dump",
         [SUBCMD_LIST]="list",
         [SUBCMD_FEE]="fee",
-        [SUBCMD_DROP]="drop",
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
         [SUBCMD_COUNT] = "count",
@@ -717,73 +690,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
     int ret = 0;
     // Do subcommand action
     switch ( l_subcmd ){
-        // Flush memory for the new block
-        case SUBCMD_NEW_FLUSH:{
-            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
-            if ( l_blocks->block_new )
-                DAP_DELETE( l_blocks->block_new );
-            dap_chain_block_cache_t *l_bcache_last = PVT(l_blocks)->blocks ? PVT(l_blocks)->blocks->hh.tbl->tail->prev : NULL;
-            l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : PVT(l_blocks)->blocks;
-            l_blocks->block_new = dap_chain_block_new(l_bcache_last ? &l_bcache_last->block_hash : NULL,
-                                                      &l_blocks->block_new_size);
-            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
-        } break;
-
-        // Add datum to the forming new block
-        case SUBCMD_NEW_DATUM_LIST:{
-            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
-            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
-        }break;
-        case SUBCMD_NEW_DATUM_DEL:{
-            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
-            if ( l_blocks->block_new ){
-                dap_chain_hash_fast_t l_datum_hash;
-                s_cli_parse_cmd_hash(a_argv,arg_index,a_argc,a_str_reply,"-datum", &l_datum_hash );
-                l_blocks->block_new_size=dap_chain_block_datum_del_by_hash( &l_blocks->block_new, l_blocks->block_new_size, &l_datum_hash );
-            }else {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_DEL_ERR, "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
-                ret = DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_DEL_ERR;
-            }
-            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
-        }break;
-        case SUBCMD_NEW_DATUM_ADD:{
-            size_t l_datums_count=1;
-            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-            dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
-                                                           sizeof(dap_chain_datum_t*)*l_datums_count);
-            if (!l_datums) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_MEMORY_ERR, "Out of memory in s_cli_blocks");
-                return DAP_CHAIN_NODE_CLI_COM_BLOCK_MEMORY_ERR;
-            }
-            size_t l_datum_size = 0;
-
-            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_subcmd_str_arg ,
-                                                                                              &l_datum_size, NULL, NULL);
-            l_datums[0] = l_datum;
-            for (size_t i = 0; i < l_datums_count; i++) {
-                if ( dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg, NULL) ) {
-                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR, "Error! Datum %s doesn't pass verifications, examine node log files",
-                                                      l_subcmd_str_arg);
-                    DAP_DEL_MULTY(l_datum, l_datums, l_gdb_group_mempool);
-                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_VERIF_ERR;
-                }
-                log_it(L_INFO, "Pass datum %s from mempool to block in the new forming round ",
-                               l_subcmd_str_arg);
-            }
-            json_object* json_obj_out = json_object_new_string("All datums processed");
-            json_object_array_add(*a_json_arr_reply, json_obj_out);
-            ret = DAP_CHAIN_NODE_CLI_COM_BLOCK_OK;
-            DAP_DEL_MULTY(l_datum, l_datums, l_gdb_group_mempool);
-        } break;
-
-        case SUBCMD_NEW_COMPLETE:{
-            // TODO
-        } break;
-
-        case SUBCMD_DROP:{
-            // TODO
-        }break;
 
         case SUBCMD_DUMP:{
             const char *l_hash_out_type = NULL;
