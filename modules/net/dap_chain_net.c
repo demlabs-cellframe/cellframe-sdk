@@ -3164,7 +3164,8 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net)
                                 DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback, a_net);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain) {
-        l_chain->state = CHAIN_SYNC_STATE_IDLE;
+        if (l_chain->state != CHAIN_SYNC_STATE_ERROR)
+            l_chain->state = CHAIN_SYNC_STATE_IDLE;
     }
     l_net_pvt->sync_context.stage_last_activity = dap_time_now();
     return 0;
@@ -3202,6 +3203,7 @@ static void s_sync_timer_callback(void *a_arg)
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) // if offline no need sync
         return;
+    dap_chain_sync_state_t l_state_forming = CHAIN_SYNC_STATE_IDLE;
     dap_chain_t *l_chain = l_net_pvt->sync_context.cur_chain;
     if (!l_chain) {
         // if sync more than 3 mins after online state, change state to SYNC
@@ -3216,12 +3218,13 @@ static void s_sync_timer_callback(void *a_arg)
             return;
         }
         l_chain = l_net_pvt->sync_context.cur_chain;
-    }
-    dap_chain_sync_state_t l_state_forming = l_chain->state;
-    if (dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time) {
-        // check if need restart sync chains (emergency mode)
-        log_it(L_WARNING, "Chain %s of net %s sync activity timeout", l_chain->name, l_net->pub.name);
-        l_state_forming = CHAIN_SYNC_STATE_ERROR;
+    } else {
+        l_state_forming = l_chain->state;
+        if (dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time) {
+            // check if need restart sync chains (emergency mode)
+            log_it(L_WARNING, "Chain %s of net %s sync activity timeout", l_chain->name, l_net->pub.name);
+            l_state_forming = CHAIN_SYNC_STATE_ERROR;
+        }
     }
 
     switch (l_state_forming) {
