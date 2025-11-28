@@ -213,6 +213,9 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> -chain <chain_name> find -datum <datum_hash>\n\n"
                 "\t\tSearches and shows blocks that contains specify datum\n\n"
 
+            "block -net <net_name> [-chain <chain_name>] new_datum_list\n"
+                "\t\tList block sections and show their datums hashes\n\n"
+
         "Commission collect:\n"
             "block -net <net_name> [-chain <chain_name>] fee collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
@@ -630,6 +633,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
     //char ** a_str_reply = (char **) reply;    
     enum {
         SUBCMD_UNDEFINED =0,
+        SUBCMD_NEW_DATUM_LIST,
         SUBCMD_DUMP,
         SUBCMD_LIST,
         SUBCMD_FEE,
@@ -641,6 +645,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
+        [SUBCMD_NEW_DATUM_LIST]="new_datum_list",
         [SUBCMD_DUMP]="dump",
         [SUBCMD_LIST]="list",
         [SUBCMD_FEE]="fee",
@@ -690,6 +695,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
     int ret = 0;
     // Do subcommand action
     switch ( l_subcmd ){
+
+        // Add datum to the forming new block
+        case SUBCMD_NEW_DATUM_LIST:{
+            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
+            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
+        }break;
 
         case SUBCMD_DUMP:{
             const char *l_hash_out_type = NULL;
