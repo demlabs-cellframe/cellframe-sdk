@@ -214,6 +214,8 @@ typedef struct dap_ledger_datum_iter_data {
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION     DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND
 // Error code for not enough valid emission signs (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS   DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS
+// Error code for shared funds tx already in mempool (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_SHARED_FUNDS_TX_IN_MEMPOOL -1200
 // Error code for no decree for anchor (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE          -1113
 
