@@ -219,6 +219,31 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_sign(const char *a_tx_in_hash_str, dap_enc_key_t *a_enc_key, compose_config_t *a_config);
 
+// Stake ext lock/unlock functions
+json_object *dap_chain_tx_compose_stake_ext_lock(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker,
+                                                 const char *a_url_str, uint16_t a_port, const char *a_enc_cert_path,
+                                                 dap_chain_addr_t *a_wallet_addr, const char *a_stake_ext_hash_str,
+                                                 const char *a_amount_str, const char *a_lock_period_str,
+                                                 const char *a_position_id_str, const char *a_fee_str);
+
+json_object *dap_chain_tx_compose_stake_ext_unlock(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker,
+                                                   const char *a_url_str, uint16_t a_port, const char *a_enc_cert_path,
+                                                   dap_chain_addr_t *a_wallet_addr, const char *a_lock_tx_hash_str,
+                                                   const char *a_fee_str);
+
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_ext_lock(dap_chain_addr_t *a_wallet_addr,
+                                                               const dap_hash_fast_t *a_stake_ext_hash,
+                                                               uint256_t a_value, uint256_t a_value_fee,
+                                                               dap_time_t a_lock_time, uint32_t a_position_id,
+                                                               const char *a_delegated_ticker_str, uint256_t a_delegated_value,
+                                                               dap_chain_id_t a_chain_id, compose_config_t *a_config);
+
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_ext_unlock(dap_chain_addr_t *a_wallet_addr,
+                                                                 dap_hash_fast_t *a_lock_tx_hash, uint32_t a_prev_cond_idx,
+                                                                 const char *a_main_ticker, uint256_t a_value,
+                                                                 uint256_t a_value_fee,
+                                                                 const char *a_delegated_ticker_str, uint256_t a_delegated_value,
+                                                                 compose_config_t *a_config);
 
 #ifdef __cplusplus
 }

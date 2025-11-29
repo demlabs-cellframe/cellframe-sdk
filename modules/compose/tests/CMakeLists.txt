@@ -19,6 +19,7 @@ target_link_libraries(${PROJECT_NAME}
         dap_core
         dap_crypto
         dap_compose
+        dap_chain_net_srv_stake_ext
 )
 
 if(DARWIN)
