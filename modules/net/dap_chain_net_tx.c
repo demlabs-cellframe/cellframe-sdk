@@ -731,6 +731,15 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
                                             res = DAP_CHAIN_NET_TX_STAKE_UNLOCK;
                                         }                                    
                                     }
+                                    // Check for stake_ext unlock
+                                    if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK) {
+                                        const char *l_ticker_str = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
+                                        dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_ticker_str);
+                                        if (NULL != (l_delegated_token = dap_ledger_token_ticker_check(a_net->pub.ledger, l_delegated_ticker_str))){                                            
+                                            check++;
+                                            res = DAP_CHAIN_NET_TX_STAKE_EXT_UNLOCK;
+                                        }                                    
+                                    }
                                     /*
                                     if (l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
                                         SUM_256_256(l_value_order_back, l_tx_out_cond->header.value, &l_value_order_back);
@@ -750,6 +759,19 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, json_object *a_js
                             check++;
                             res = DAP_CHAIN_NET_TX_STAKE_LOCK;
                         }                                 
+                    }
+                }
+            }break;
+            case TX_ITEM_TYPE_OUT_COND: {
+                // Check out_cond subtype to distinguish stake_lock from stake_ext_lock
+                const char *l_subtype_str = dap_json_rpc_get_text(l_json_item_obj, "subtype");
+                if (l_subtype_str) {
+                    dap_chain_tx_out_cond_subtype_t l_subtype = dap_chain_tx_out_cond_subtype_from_str_short(l_subtype_str);
+                    if (l_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK) {
+                        // Override stake_lock with stake_ext_lock if we detected in_ems earlier
+                        if (res == DAP_CHAIN_NET_TX_STAKE_LOCK) {
+                            res = DAP_CHAIN_NET_TX_STAKE_EXT_LOCK;
+                        }
                     }
                 }
             }break;            
@@ -1392,6 +1414,76 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 return (uint8_t *)l_out_cond_item;
             } else {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -10, "Unable to create conditional out for transaction "
+                                                    "of type %s described in item %zu.", l_subtype_str, i);
+            }
+        } break;
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: {
+            dap_chain_net_srv_uid_t l_srv_uid;
+            if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+                // Default service DAP_CHAIN_NET_SRV_STAKE_EXT_ID
+                l_srv_uid.uint64 = 0x07;
+            }
+            uint256_t l_value = { };
+            if(!s_json_get_uint256(a_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                return NULL;
+            }
+
+            const char *l_stake_ext_hash_str = dap_json_rpc_get_text(a_json_item_obj, "stake_ext_hash");
+            if (!l_stake_ext_hash_str) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: missing stake_ext_hash in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                log_it(L_ERROR, "Json TX: missing stake_ext_hash in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                return NULL;
+            }
+            dap_hash_fast_t l_stake_ext_hash = {};
+            if (dap_chain_hash_fast_from_str(l_stake_ext_hash_str, &l_stake_ext_hash)) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: invalid stake_ext_hash format in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                log_it(L_ERROR, "Json TX: invalid stake_ext_hash format in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                return NULL;
+            }
+
+            uint64_t l_lock_time = 0;
+            if (!dap_json_rpc_get_uint64(a_json_item_obj, "lock_time", &l_lock_time) || l_lock_time == 0) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad lock_time in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                log_it(L_ERROR, "Json TX: bad lock_time in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                return NULL;
+            }
+
+            uint64_t l_position_id = 0;
+            if (!dap_json_rpc_get_uint64(a_json_item_obj, "position_id", &l_position_id) || l_position_id == 0) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad position_id in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                log_it(L_ERROR, "Json TX: bad position_id in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
+                return NULL;
+            }
+
+            // Optional range_end field (1-8), defaults to 1
+            uint64_t l_range_end = 1;
+            dap_json_rpc_get_uint64(a_json_item_obj, "range_end", &l_range_end);
+            if (l_range_end < 1 || l_range_end > 8) {
+                l_range_end = 1;
+            }
+
+            const char *l_params_str = dap_json_rpc_get_text(a_json_item_obj, "params");
+            uint8_t *l_params = NULL;
+            size_t l_params_size = 0;
+            if (l_params_str) {
+                l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
+                l_params = DAP_NEW_Z_SIZE(uint8_t, l_params_size);
+                l_params_size = dap_enc_base58_decode(l_params_str, l_params);
+            }
+
+            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_lock(
+                l_srv_uid, l_value, &l_stake_ext_hash, (dap_time_t)l_lock_time, (uint32_t)l_position_id, l_params, l_params_size);
+            DAP_DEL_Z(l_params);
+
+            if (l_out_cond_item) {
+                // Set optional range_end
+                l_out_cond_item->subtype.srv_stake_ext_lock.range_end = (uint8_t)l_range_end;
+                SUM_256_256(*a_value_need, l_value, a_value_need);
+                return (uint8_t *)l_out_cond_item;
+            } else {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Unable to create conditional out for transaction "
                                                     "of type %s described in item %zu.", l_subtype_str, i);
             }
         } break;
@@ -2638,7 +2730,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
     if (l_type_tx == DAP_CHAIN_NET_TX_TYPE_ERR){
         return DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR;
     }
-    if (l_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK)
+    if (l_type_tx == DAP_CHAIN_NET_TX_STAKE_UNLOCK || l_type_tx == DAP_CHAIN_NET_TX_STAKE_EXT_UNLOCK)
         l_items_ready++;
         
     // Creating and adding items to the transaction
@@ -2936,6 +3028,14 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
                     json_object_object_add(json_obj_item, "reinvest_percent", json_object_new_string(l_reinvest_percent));
                     DAP_DELETE(l_reinvest_percent);
                     json_object_object_add(json_obj_item, "flags", json_object_new_int(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.flags));
+                } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: {
+                    l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.stake_ext_hash;
+                    l_hash_str = dap_hash_fast_to_str_static(&l_hash_tmp);
+                    json_object_object_add(json_obj_item, "stake_ext_hash", json_object_new_string(l_hash_str));
+                    json_object_object_add(json_obj_item, "position_id", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.position_id));
+                    json_object_object_add(json_obj_item, "lock_time", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.lock_time));
+                    json_object_object_add(json_obj_item, "range_end", json_object_new_int(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.range_end));
                 } break;
                  case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
                     json_object_object_add(json_obj_item,"subtype", json_object_new_string("wallet_shared"));
