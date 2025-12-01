@@ -271,21 +271,6 @@ int dap_chain_type_blocks_init()
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add("block", s_cli_blocks, s_print_for_block_list, "Create and explore blockchains", dap_chain_node_cli_cmd_id_from_str("block"),
-        "New block create, fill and complete commands:\n"
-            "block -net <net_name> [-chain <chain_name>] new\n"
-                "\t\tCreate new block and flush memory if was smth formed before\n\n"
-
-            "block -net <net_name> [-chain <chain_name>] new_datum_add <datum_hash>\n"
-                "\t\tAdd block section from datum <datum hash> taken from the mempool\n\n"
-
-            "block -net <net_name> [-chain <chain_name>] new_datum_del <datum_hash>\n"
-                "\t\tDel block section with datum <datum hash>\n\n"
-
-            "block -net <net_name> [-chain <chain_name>] new_datum_list\n"
-                "\t\tList block sections and show their datums hashes\n\n"
-
-            "block -net <net_name> [-chain <chain_name>] new_datum\n\n"
-                "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:\n"
             "block -net <net_name> [-chain <chain_name>] [-brief] dump {-hash <block_hash> | -num <block_number>}\n"
@@ -712,11 +697,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
 {
     enum {
         SUBCMD_UNDEFINED =0,
-        SUBCMD_NEW_DATUM_LIST,
         SUBCMD_DUMP,
         SUBCMD_LIST,
         SUBCMD_FEE,
-        SUBCMD_DROP,
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
         SUBCMD_COUNT,
@@ -725,11 +708,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
-        [SUBCMD_NEW_DATUM_LIST]="new_datum_list",
         [SUBCMD_DUMP]="dump",
         [SUBCMD_LIST]="list",
         [SUBCMD_FEE]="fee",
-        [SUBCMD_DROP]="drop",
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
         [SUBCMD_COUNT] = "count",
@@ -776,16 +757,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
     int ret = 0;
     // Do subcommand action
     switch ( l_subcmd ){        
-
-        // Add datum to the forming new block
-        case SUBCMD_NEW_DATUM_LIST:{
-            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
-            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
-        }break;       
-
-        case SUBCMD_DROP:{
-            // TODO
-        }break;
 
         case SUBCMD_DUMP:{
             const char *l_hash_out_type = NULL;
