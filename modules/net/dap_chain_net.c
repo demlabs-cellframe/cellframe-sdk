@@ -3044,6 +3044,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         log_it(L_DEBUG, "Got SYNCED_CHAIN paket to %s chain net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
         l_net_pvt->sync_context.cur_chain->atom_num_last = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
+        l_net_pvt->sync_context.stage_last_activity = dap_time_now();
         break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS: {
@@ -3059,12 +3060,6 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                                         l_missed_hash_str,
                                                         dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash),
                                                         l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
-            dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
-                                             l_net_pvt->sync_context.cur_chain->id,
-                                             l_net_pvt->sync_context.cur_cell
-                                             ? l_net_pvt->sync_context.cur_cell->id
-                                             : c_dap_chain_cell_id_null,
-                                             DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
             break;
         }
         dap_chain_atom_iter_t *l_iter = l_net_pvt->sync_context.cur_chain->callback_atom_iter_create(
