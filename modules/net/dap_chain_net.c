@@ -143,7 +143,11 @@ struct chain_sync_context {
     dap_chain_cell_t        *cur_cell;
     dap_hash_fast_t         requested_atom_hash;
     uint64_t                requested_atom_num;
+    uint32_t                miss_count;             // Counter for consecutive MISS packets
+    bool                    sync_from_zero;         // Flag to start sync from zero (blank hash, num 0)
 };
+
+#define DAP_CHAIN_NET_SYNC_MISS_COUNT_MAX 200        // Max MISS packets before sync from zero
 
 /**
   * @struct dap_chain_net_pvt
@@ -3012,6 +3016,11 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                             l_net->pub.name);
             return;
         }
+        // Track consecutive MISS packets count
+        if (a_type == DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS)
+            l_net_pvt->sync_context.miss_count++;
+        else
+            l_net_pvt->sync_context.miss_count = 0;
         break;
     default:
         break;
@@ -3220,10 +3229,18 @@ static void s_sync_timer_callback(void *a_arg)
         l_chain = l_net_pvt->sync_context.cur_chain;
     } else {
         l_state_forming = l_chain->state;
-        if (dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time) {
+        if (dap_time_now() - l_net_pvt->sync_context.stage_last_activity > DAP_CHAIN_NET_SYNC_ACTIVITY_TIMEOUT) {
             // check if need restart sync chains (emergency mode)
             log_it(L_WARNING, "Chain %s of net %s sync activity timeout", l_chain->name, l_net->pub.name);
             l_state_forming = CHAIN_SYNC_STATE_ERROR;
+        }
+        // Check if too many MISS packets - need to sync from zero
+        if (l_net_pvt->sync_context.miss_count >= DAP_CHAIN_NET_SYNC_MISS_COUNT_MAX) {
+            log_it(L_WARNING, "Chain %s of net %s reached MISS count limit (%u), will sync from zero",
+                              l_chain->name, l_net->pub.name, l_net_pvt->sync_context.miss_count);
+            l_net_pvt->sync_context.miss_count = 0;
+            l_net_pvt->sync_context.sync_from_zero = true;
+            l_state_forming = CHAIN_SYNC_STATE_IDLE;  // Force new sync request
         }
     }
 
@@ -3256,17 +3273,25 @@ static void s_sync_timer_callback(void *a_arg)
     l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_WAITING;
     dap_chain_ch_sync_request_t l_request = {};
     uint64_t l_last_num = 0;
-    if (!dap_chain_get_atom_last_hash_num(l_net_pvt->sync_context.cur_chain,
-                                            l_net_pvt->sync_context.cur_cell
-                                            ? l_net_pvt->sync_context.cur_cell->id
-                                            : c_dap_chain_cell_id_null,
-                                            &l_request.hash_from,
-                                            &l_last_num)) {
-        log_it(L_ERROR, "Can't get last atom hash and number for chain %s with net %s", l_net_pvt->sync_context.cur_chain->name,
-                                                                                        l_net->pub.name);
-        return;
+    // Check if we need to sync from zero (after too many MISS packets)
+    if (l_net_pvt->sync_context.sync_from_zero) {
+        l_net_pvt->sync_context.sync_from_zero = false;
+        log_it(L_INFO, "Sync from zero requested for chain %s net %s", 
+                       l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
+        // l_request is already zeroed, hash_from is blank, num_from is 0
+    } else {
+        if (!dap_chain_get_atom_last_hash_num(l_net_pvt->sync_context.cur_chain,
+                                                l_net_pvt->sync_context.cur_cell
+                                                ? l_net_pvt->sync_context.cur_cell->id
+                                                : c_dap_chain_cell_id_null,
+                                                &l_request.hash_from,
+                                                &l_last_num)) {
+            log_it(L_ERROR, "Can't get last atom hash and number for chain %s with net %s", l_net_pvt->sync_context.cur_chain->name,
+                                                                                            l_net->pub.name);
+            return;
+        }
+        l_request.num_from = l_last_num;
     }
-    l_request.num_from = l_last_num;
 
     dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_net->pub.id, l_net_pvt->sync_context.cur_chain->id,
                                                             l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id : c_dap_chain_cell_id_null,
