@@ -404,14 +404,15 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     if (!l_atom_count)
         log_it(L_WARNING, "Can't get atom count from global DB, will use file size to calculate progress");
     
-    /* Batch-load cache entries for this cell into memory (for performance) */
-    void *l_cell_cache = NULL;
+    /* Load sequential cache (no hash table, no hash computation on hit!) */
+    dap_chain_cache_sequential_t *l_seq_cache = NULL;
     if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
-        l_cell_cache = dap_chain_cache_load_cell(a_cell->chain->cache, a_cell->id.uint64);
-        if (l_cell_cache) {
-            log_it(L_INFO, "Using batch-loaded cache for fast cell loading (chain %s)", a_cell->chain->name);
+        l_seq_cache = dap_chain_cache_load_cell_sequential(a_cell->chain->cache, a_cell->id.uint64);
+        if (l_seq_cache) {
+            log_it(L_INFO, "Using sequential cache for ultra-fast loading (chain %s, %u entries, NO hash verification!)", 
+                   a_cell->chain->name, l_seq_cache->count);
         } else {
-            log_it(L_DEBUG, "No cache entries found for cell 0x%016"DAP_UINT64_FORMAT_X, a_cell->id.uint64);
+            log_it(L_DEBUG, "No sequential cache for cell 0x%016"DAP_UINT64_FORMAT_X" (first load)", a_cell->id.uint64);
         }
     }
     
@@ -429,62 +430,58 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             if ( l_el_size == 0 || l_el_size > (uint64_t)(l_full_size - l_pos) )
                 break;
             l_atom = (dap_chain_atom_ptr_t)(a_cell->mapping->cursor + sizeof(uint64_t));
-            dap_hash_fast(l_atom, (size_t)l_el_size, &l_atom_hash);
             
             l_stats.total_blocks++;
-
-            // Append block entry to compact cell index
-            if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
-                if (l_index_count == l_index_capacity) {
-                    uint32_t l_new_cap = l_index_capacity ? l_index_capacity * 2 : 1024;
-                    dap_chain_block_index_entry_t *l_new = DAP_REALLOC(l_index, l_new_cap * sizeof(*l_index));
-                    if (!l_new) {
-                        log_it(L_CRITICAL, "Memory allocation error for cell index");
-                        l_ret = -12;
-                        break;
-                    }
-                    l_index = l_new;
-                    l_index_capacity = l_new_cap;
-                }
-                l_index[l_index_count].block_hash = l_atom_hash;
-                l_index[l_index_count].file_offset = (uint64_t)l_pos;
-                l_index[l_index_count].block_size = (uint32_t)l_el_size;
-                l_index[l_index_count].tx_count = 0;
-                l_index_count++;
-            }
             
-            // Check cache for fast loading (mapped mode)
+            // OPTIMIZATION: Check sequential cache BEFORE computing hash!
+            // If cache hit - use hash from cache, skip signature verification
             bool l_cache_hit = false;
             dap_chain_atom_verify_res_t l_verif = ATOM_REJECT;
             
-            if (l_cell_cache) {
-                dap_chain_cache_entry_t l_cache_entry;
-                // Fast O(1) lookup in in-memory hash table (no GlobalDB query!)
-                int l_get_result = dap_chain_cache_lookup_in_cell(l_cell_cache, &l_atom_hash, &l_cache_entry);
-                
-                if (l_get_result == 0 &&
-                    l_cache_entry.file_offset == (uint64_t)l_pos &&
-                    l_cache_entry.block_size == (uint32_t)l_el_size) {
-                    // CACHE HIT!
-                    l_cache_hit = true;
-                    l_verif = ATOM_ACCEPT;
-                    l_stats.cache_hits++;
+            if (l_seq_cache && dap_chain_cache_sequential_check(l_seq_cache, (uint64_t)l_pos, (uint32_t)l_el_size, &l_atom_hash)) {
+                // CACHE HIT! Hash from cache, skip full validation but still add to in-memory structures
+                l_cache_hit = true;
+                l_stats.cache_hits++;
+                if (a_cell->chain->cache)
                     atomic_fetch_add(&a_cell->chain->cache->cache_hits, 1);
-                }
+                
+                // IMPORTANT: Must call callback_atom_add to populate block_cache and datum_index!
+                // Use a_atom_new=false to indicate this is a cached/trusted atom
+                l_verif = a_cell->chain->callback_atom_add
+                    ? a_cell->chain->callback_atom_add(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash, false)
+                    : ATOM_ACCEPT;
             }
             
             if (!l_cache_hit) {
-                // CACHE MISS - full validation
+                // CACHE MISS - compute hash and do full validation
+                dap_hash_fast(l_atom, (size_t)l_el_size, &l_atom_hash);
+                
                 l_stats.cache_misses++;
                 if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
                     atomic_fetch_add(&a_cell->chain->cache->cache_misses, 1);
+                    
+                    // Build index for new blocks only
+                    if (l_index_count == l_index_capacity) {
+                        uint32_t l_new_cap = l_index_capacity ? l_index_capacity * 2 : 1024;
+                        dap_chain_block_index_entry_t *l_new = DAP_REALLOC(l_index, l_new_cap * sizeof(*l_index));
+                        if (!l_new) {
+                            log_it(L_CRITICAL, "Memory allocation error for cell index");
+                            l_ret = -12;
+                            break;
+                        }
+                        l_index = l_new;
+                        l_index_capacity = l_new_cap;
+                    }
+                    l_index[l_index_count].block_hash = l_atom_hash;
+                    l_index[l_index_count].file_offset = (uint64_t)l_pos;
+                    l_index[l_index_count].block_size = (uint32_t)l_el_size;
+                    l_index[l_index_count].tx_count = 0;
+                    l_index_count++;
                 }
                 
                 l_verif = a_cell->chain->callback_atom_prefetch
                     ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash)
                     : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash, false);
-                
-                // Plan C: no per-block DB writes here; compact cell index is saved after cell load
             }
             
             if ( l_verif == ATOM_CORRUPTED ) {
@@ -532,54 +529,56 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 l_ret = 10;
                 break;
             }
-            dap_hash_fast(l_atom, (size_t)l_el_size, &l_atom_hash);
             
             l_stats.total_blocks++;
-
-            // Append block entry to compact cell index
-            if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
-                if (l_index_count == l_index_capacity) {
-                    uint32_t l_new_cap = l_index_capacity ? l_index_capacity * 2 : 1024;
-                    dap_chain_block_index_entry_t *l_new = DAP_REALLOC(l_index, l_new_cap * sizeof(*l_index));
-                    if (!l_new) {
-                        log_it(L_CRITICAL, "Memory allocation error for cell index");
-                        l_ret = -12;
-                        DAP_DELETE(l_atom);
-                        break;
-                    }
-                    l_index = l_new;
-                    l_index_capacity = l_new_cap;
-                }
-                l_index[l_index_count].block_hash = l_atom_hash;
-                l_index[l_index_count].file_offset = (uint64_t)l_pos;
-                l_index[l_index_count].block_size = (uint32_t)l_el_size;
-                l_index[l_index_count].tx_count = 0;
-                l_index_count++;
-            }
             
-            // Check cache for fast loading
+            // OPTIMIZATION: Check sequential cache BEFORE computing hash!
+            // If cache hit - use hash from cache, skip signature verification
             bool l_cache_hit = false;
-            dap_chain_atom_verify_res_t l_verif = ATOM_REJECT; // Default if no callbacks
+            dap_chain_atom_verify_res_t l_verif = ATOM_REJECT;
             
-            if (l_cell_cache) {
-                dap_chain_cache_entry_t l_cache_entry;
-                // Fast O(1) lookup in in-memory hash table (no GlobalDB query!)
-                if (dap_chain_cache_lookup_in_cell(l_cell_cache, &l_atom_hash, &l_cache_entry) == 0 &&
-                    l_cache_entry.file_offset == (uint64_t)l_pos &&
-                    l_cache_entry.block_size == (uint32_t)l_el_size) {
-                    // CACHE HIT! Skip validation, block already verified
-                    l_cache_hit = true;
-                    l_verif = ATOM_ACCEPT; // Assume accepted (was validated before)
-                    l_stats.cache_hits++;
+            if (l_seq_cache && dap_chain_cache_sequential_check(l_seq_cache, (uint64_t)l_pos, (uint32_t)l_el_size, &l_atom_hash)) {
+                // CACHE HIT! Hash from cache, skip full validation but still add to in-memory structures
+                l_cache_hit = true;
+                l_stats.cache_hits++;
+                if (a_cell->chain->cache)
                     atomic_fetch_add(&a_cell->chain->cache->cache_hits, 1);
+                
+                // IMPORTANT: Must call callback_atom_add to populate block_cache and datum_index!
+                // Use a_atom_new=false to indicate this is a cached/trusted atom
+                if (a_cell->chain->callback_atom_add) {
+                    l_verif = a_cell->chain->callback_atom_add(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash, false);
+                } else {
+                    l_verif = ATOM_ACCEPT;
                 }
             }
             
             if (!l_cache_hit) {
-                // CACHE MISS or cache disabled - full validation
+                // CACHE MISS - compute hash and do full validation
+                dap_hash_fast(l_atom, (size_t)l_el_size, &l_atom_hash);
+                
                 l_stats.cache_misses++;
                 if (a_cell->chain->cache && dap_chain_cache_enabled(a_cell->chain->cache)) {
                     atomic_fetch_add(&a_cell->chain->cache->cache_misses, 1);
+                    
+                    // Build index for new blocks only
+                    if (l_index_count == l_index_capacity) {
+                        uint32_t l_new_cap = l_index_capacity ? l_index_capacity * 2 : 1024;
+                        dap_chain_block_index_entry_t *l_new = DAP_REALLOC(l_index, l_new_cap * sizeof(*l_index));
+                        if (!l_new) {
+                            log_it(L_CRITICAL, "Memory allocation error for cell index");
+                            l_ret = -12;
+                            DAP_DELETE(l_atom);
+                            break;
+                        }
+                        l_index = l_new;
+                        l_index_capacity = l_new_cap;
+                    }
+                    l_index[l_index_count].block_hash = l_atom_hash;
+                    l_index[l_index_count].file_offset = (uint64_t)l_pos;
+                    l_index[l_index_count].block_size = (uint32_t)l_el_size;
+                    l_index[l_index_count].tx_count = 0;
+                    l_index_count++;
                 }
                 
                 if (a_cell->chain->callback_atom_prefetch) {
@@ -591,10 +590,8 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                     log_it(L_WARNING, "No atom processing callbacks available for chain \"%s : %s\", cell loading incomplete",
                            a_cell->chain->net_name, a_cell->chain->name);
                     DAP_DELETE(l_atom);
-                    break; // Stop loading, but not an error
+                    break;
                 }
-                
-                // Plan C: no per-block DB writes here; compact cell index is saved after cell load
             }
             
             DAP_DELETE(l_atom);
@@ -662,9 +659,9 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
     }
     
-    // Free batch-loaded cache memory
-    if (l_cell_cache) {
-        dap_chain_cache_unload_cell(l_cell_cache);
+    // Free sequential cache memory
+    if (l_seq_cache) {
+        dap_chain_cache_sequential_free(l_seq_cache);
     }
 
     // Free temporary index memory

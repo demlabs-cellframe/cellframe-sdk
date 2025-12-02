@@ -52,6 +52,23 @@
     } while(0)
 
 /**
+ * @brief Compact cell index structures
+ * Must be defined BEFORE dap_chain_cache_sequential_t
+ */
+typedef struct DAP_ALIGN_PACKED dap_chain_block_index_entry {
+    dap_hash_fast_t block_hash;    // 32 bytes
+    uint64_t        file_offset;   // 8 bytes
+    uint32_t        block_size;    // 4 bytes
+    uint32_t        tx_count;      // 4 bytes
+} dap_chain_block_index_entry_t;
+
+typedef struct DAP_ALIGN_PACKED dap_chain_cell_compact_header {
+    uint64_t cell_id;              // 8 bytes
+    uint32_t block_count;          // 4 bytes
+    uint32_t reserved;             // 4 bytes (alignment)
+} dap_chain_cell_compact_header_t;
+
+/**
  * @brief Batch entry for bulk cache writes
  */
 typedef struct dap_chain_cache_batch_entry {
@@ -60,8 +77,28 @@ typedef struct dap_chain_cache_batch_entry {
 } dap_chain_cache_batch_entry_t;
 
 /**
- * @brief In-memory cell cache for batch loading
+ * @brief Sequential cell cache for fast loading (no hash table!)
+ * 
+ * Optimized for sequential file reading:
+ * - No hash table overhead
+ * - No hash_fast() computation on cache hit
+ * - Simple array with current index pointer
+ * - O(1) check per block (just compare offset)
+ * 
+ * Trust model: If ready marker exists, we trust the cache completely.
+ * No hash verification on repeated loads - maximum speed.
+ */
+typedef struct dap_chain_cache_sequential {
+    dap_chain_block_index_entry_t *entries; // Sorted array from GlobalDB
+    uint32_t count;                          // Total entries
+    uint32_t current_idx;                    // Current position for sequential access
+    uint64_t cell_id;                        // Cell ID for validation
+} dap_chain_cache_sequential_t;
+
+/**
+ * @brief Legacy: In-memory cell cache for batch loading (DEPRECATED)
  * Hash table for fast O(1) lookups during cell file loading
+ * Kept for backward compatibility, will be removed
  */
 typedef struct dap_chain_cache_cell_entry {
     dap_hash_fast_t block_hash;           // Key
@@ -161,23 +198,6 @@ static inline char *s_cache_build_block_key(const dap_hash_fast_t *a_hash)
     return dap_hash_fast_to_str_new(a_hash);
 }
 
-/**
- * @brief Compact cell index structures (Plan C)
- */
-
-typedef struct DAP_ALIGN_PACKED dap_chain_block_index_entry {
-    dap_hash_fast_t block_hash;    // 32 bytes
-    uint64_t        file_offset;   // 8 bytes
-    uint32_t        block_size;    // 4 bytes
-    uint32_t        tx_count;      // 4 bytes
-} dap_chain_block_index_entry_t;
-
-typedef struct DAP_ALIGN_PACKED dap_chain_cell_compact_header {
-    uint64_t cell_id;              // 8 bytes
-    uint32_t block_count;          // 4 bytes
-    uint32_t reserved;             // 4 bytes (alignment)
-} dap_chain_cell_compact_header_t;
-
 // Build cell key: "{subgroup}.cell_<id>"
 static inline char *s_cache_build_cell_key(const char *a_subgroup, uint64_t a_cell_id)
 {
@@ -195,6 +215,46 @@ int dap_chain_cache_save_cell_index(struct dap_chain_cache *a_cache,
                                     uint64_t a_cell_id,
                                     const dap_chain_block_index_entry_t *a_entries,
                                     uint32_t a_count);
+
+/**
+ * @brief Load cell cache as sequential array (no hash table)
+ * 
+ * Returns a simple array structure for O(1) sequential access.
+ * No UTHash overhead, no memory fragmentation.
+ * 
+ * @param a_cache Cache handle
+ * @param a_cell_id Cell ID to load
+ * @return Sequential cache structure or NULL if not available
+ */
+dap_chain_cache_sequential_t *dap_chain_cache_load_cell_sequential(
+    struct dap_chain_cache *a_cache, 
+    uint64_t a_cell_id);
+
+/**
+ * @brief Check if current file position matches cache entry
+ * 
+ * Ultra-fast O(1) check without hash computation.
+ * Trusts cache completely if ready marker was set.
+ * On hit, returns the cached block hash (needed for callback_atom_add).
+ * 
+ * @param a_seq Sequential cache structure
+ * @param a_file_offset Current file offset
+ * @param a_block_size Block size at this offset
+ * @param a_out_hash OUT: Block hash from cache (only set on hit, can be NULL)
+ * @return true if cache hit (skip validation), false if cache miss
+ */
+bool dap_chain_cache_sequential_check(
+    dap_chain_cache_sequential_t *a_seq,
+    uint64_t a_file_offset,
+    uint32_t a_block_size,
+    dap_hash_fast_t *a_out_hash);
+
+/**
+ * @brief Free sequential cache structure
+ * 
+ * @param a_seq Sequential cache to free
+ */
+void dap_chain_cache_sequential_free(dap_chain_cache_sequential_t *a_seq);
 
 // Append single block index entry into compact cell record (read-modify-write)
 int dap_chain_cache_append_cell_entry(struct dap_chain_cache *a_cache,

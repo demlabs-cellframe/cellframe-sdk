@@ -285,18 +285,67 @@ dap_chain_cache_mode_t dap_chain_cache_get_mode(dap_chain_cache_t *a_cache);
 void dap_chain_cache_set_mode(dap_chain_cache_t *a_cache, dap_chain_cache_mode_t a_mode);
 
 /**
- * @brief Batch operations - load all cache entries for a cell into memory
+ * @brief Sequential cache structure for fast cell loading
+ * 
+ * Optimized array-based cache without hash table overhead.
+ * Forward declaration - full definition in internal header.
+ */
+typedef struct dap_chain_cache_sequential dap_chain_cache_sequential_t;
+
+/**
+ * @brief Load cell cache as sequential array (RECOMMENDED)
+ * 
+ * Ultra-fast cell loading without hash tables or hash computations.
+ * 
+ * Performance:
+ * - No hash_fast() on cache hit (saves ~50ms per 8000 blocks)
+ * - No UTHash memory overhead (~70KB saved)
+ * - Sequential O(1) check per block
+ * 
+ * Trust model: Ready marker in GlobalDB means cache is valid.
+ * We trust offset/size without hash verification for maximum speed.
+ * 
+ * @param a_cache Cache handle
+ * @param a_cell_id Cell ID to load cache for
+ * @return Sequential cache structure, NULL if cache not available
+ */
+dap_chain_cache_sequential_t *dap_chain_cache_load_cell_sequential(
+    dap_chain_cache_t *a_cache, 
+    uint64_t a_cell_id);
+
+/**
+ * @brief Check if current file position matches cache (no hash needed!)
+ * 
+ * Ultra-fast validation: just compare offset and size.
+ * Advances internal pointer on match for next sequential check.
+ * On hit, returns the cached block hash (needed for callback_atom_add).
+ * 
+ * @param a_seq Sequential cache from dap_chain_cache_load_cell_sequential()
+ * @param a_file_offset Current file offset
+ * @param a_block_size Block size read from file
+ * @param a_out_hash OUT: Block hash from cache (only set on hit, can be NULL)
+ * @return true = cache hit (skip validation!), false = cache miss (full validation)
+ */
+bool dap_chain_cache_sequential_check(
+    dap_chain_cache_sequential_t *a_seq,
+    uint64_t a_file_offset,
+    uint32_t a_block_size,
+    dap_hash_fast_t *a_out_hash);
+
+/**
+ * @brief Free sequential cache structure
+ * 
+ * @param a_seq Sequential cache to free
+ */
+void dap_chain_cache_sequential_free(dap_chain_cache_sequential_t *a_seq);
+
+/**
+ * @brief LEGACY: Load cell cache as hash table
+ * 
+ * @deprecated Use dap_chain_cache_load_cell_sequential() for better performance
  * 
  * This function loads all cache entries for a specific cell from GlobalDB into
  * an in-memory hash table for fast lookups during cell loading.
- * 
- * Use case: Load cell file with thousands of blocks without slow per-block GlobalDB queries
- * 
- * Performance:
- * - Without batch: 8000 blocks × 27ms = 216 seconds (per-block GlobalDB queries)
- * - With batch: 500ms batch load + 8000 × 0.001ms = 0.5 seconds (400x faster!)
- * 
- * Memory usage: ~56 bytes per block (temporary, freed after cell load)
  * 
  * @param a_cache Cache handle
  * @param a_cell_id Cell ID to load cache for
@@ -305,9 +354,9 @@ void dap_chain_cache_set_mode(dap_chain_cache_t *a_cache, dap_chain_cache_mode_t
 void* dap_chain_cache_load_cell(dap_chain_cache_t *a_cache, uint64_t a_cell_id);
 
 /**
- * @brief Lookup block in batch-loaded cache
+ * @brief LEGACY: Lookup block in batch-loaded cache
  * 
- * Fast in-memory lookup in batch-loaded cache table.
+ * @deprecated Use dap_chain_cache_sequential_check() for better performance
  * 
  * @param a_cell_cache Handle returned by dap_chain_cache_load_cell()
  * @param a_block_hash Block hash to lookup
@@ -319,10 +368,9 @@ int dap_chain_cache_lookup_in_cell(void *a_cell_cache,
                                      dap_chain_cache_entry_t *a_out_entry);
 
 /**
- * @brief Free batch-loaded cache
+ * @brief LEGACY: Free batch-loaded cache
  * 
- * Releases memory used by batch-loaded cache table.
- * Must be called after cell loading is complete.
+ * @deprecated Use dap_chain_cache_sequential_free() for better performance
  * 
  * @param a_cell_cache Handle returned by dap_chain_cache_load_cell()
  */

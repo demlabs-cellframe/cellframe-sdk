@@ -1434,7 +1434,143 @@ int dap_chain_cache_append_cell_entry(dap_chain_cache_t *a_cache,
 }
 
 /**
- * @brief Fast O(1) lookup in batch-loaded cell cache
+ * @brief Load cell cache as sequential array (no hash table!)
+ * 
+ * Optimized for sequential file reading - no UTHash overhead.
+ * Returns simple array structure for O(1) sequential checks.
+ */
+dap_chain_cache_sequential_t *dap_chain_cache_load_cell_sequential(
+    dap_chain_cache_t *a_cache, 
+    uint64_t a_cell_id)
+{
+    dap_return_val_if_fail(a_cache, NULL);
+    
+    CACHE_TIMING_START();
+    
+    // Check ready marker - if not present, cache not trusted
+    char *l_ready_key = s_cache_build_cell_ready_key(a_cache->gdb_subgroup, a_cell_id);
+    size_t l_ready_size = 0;
+    void *l_ready_val = dap_global_db_get_sync(a_cache->gdb_group, l_ready_key, &l_ready_size, NULL, NULL);
+    if (!l_ready_val) {
+        log_it(L_INFO, "Sequential cache disabled for cell 0x%016"DAP_UINT64_FORMAT_X" (first load)", a_cell_id);
+        DAP_DELETE(l_ready_key);
+        return NULL;
+    }
+    DAP_DELETE(l_ready_val);
+    DAP_DELETE(l_ready_key);
+    
+    // Load compact cell index from GlobalDB
+    char *l_cell_key = s_cache_build_cell_key(a_cache->gdb_subgroup, a_cell_id);
+    size_t l_blob_size = 0;
+    void *l_blob = dap_global_db_get_sync(a_cache->gdb_group, l_cell_key, &l_blob_size, NULL, NULL);
+    DAP_DELETE(l_cell_key);
+    
+    if (!l_blob || l_blob_size < sizeof(dap_chain_cell_compact_header_t)) {
+        DAP_DEL_Z(l_blob);
+        return NULL;
+    }
+    
+    // Parse header
+    const dap_chain_cell_compact_header_t *l_hdr = (const dap_chain_cell_compact_header_t *)l_blob;
+    if (l_hdr->cell_id != a_cell_id) {
+        log_it(L_WARNING, "Cell ID mismatch in cache: expected 0x%016"DAP_UINT64_FORMAT_X", got 0x%016"DAP_UINT64_FORMAT_X,
+               a_cell_id, l_hdr->cell_id);
+        DAP_DELETE(l_blob);
+        return NULL;
+    }
+    
+    uint32_t l_count = l_hdr->block_count;
+    size_t l_expected = sizeof(dap_chain_cell_compact_header_t) + (size_t)l_count * sizeof(dap_chain_block_index_entry_t);
+    if (l_blob_size < l_expected) {
+        log_it(L_WARNING, "Truncated cache blob: expected %zu, got %zu", l_expected, l_blob_size);
+        DAP_DELETE(l_blob);
+        return NULL;
+    }
+    
+    // Allocate sequential cache structure
+    dap_chain_cache_sequential_t *l_seq = DAP_NEW_Z(dap_chain_cache_sequential_t);
+    if (!l_seq) {
+        DAP_DELETE(l_blob);
+        return NULL;
+    }
+    
+    // Copy entries array (single allocation!)
+    l_seq->entries = DAP_NEW_SIZE(dap_chain_block_index_entry_t, l_count * sizeof(dap_chain_block_index_entry_t));
+    if (!l_seq->entries) {
+        DAP_DELETE(l_seq);
+        DAP_DELETE(l_blob);
+        return NULL;
+    }
+    
+    memcpy(l_seq->entries, (const byte_t *)l_blob + sizeof(dap_chain_cell_compact_header_t),
+           l_count * sizeof(dap_chain_block_index_entry_t));
+    l_seq->count = l_count;
+    l_seq->current_idx = 0;
+    l_seq->cell_id = a_cell_id;
+    
+    DAP_DELETE(l_blob);
+    
+    uint64_t l_elapsed_us = CACHE_TIMING_END_US();
+    log_it(L_NOTICE, "Loaded sequential cache: %u entries for cell 0x%016"DAP_UINT64_FORMAT_X" (%.1f ms, no hash table!)",
+           l_count, a_cell_id, l_elapsed_us / 1000.0);
+    
+    return l_seq;
+}
+
+/**
+ * @brief Ultra-fast sequential cache check (no hash computation!)
+ * 
+ * Simply compares file offset and block size with current cache entry.
+ * Advances internal pointer on match for next check.
+ * On hit, returns the cached block hash (needed for callback_atom_add).
+ * 
+ * Trust model: Ready marker exists = we trust cache completely.
+ * 
+ * @param a_seq Sequential cache structure
+ * @param a_file_offset Current file offset
+ * @param a_block_size Block size at this offset
+ * @param a_out_hash OUT: Block hash from cache (only set on hit, can be NULL)
+ * @return true if cache hit, false if miss
+ */
+bool dap_chain_cache_sequential_check(
+    dap_chain_cache_sequential_t *a_seq,
+    uint64_t a_file_offset,
+    uint32_t a_block_size,
+    dap_hash_fast_t *a_out_hash)
+{
+    if (!a_seq || a_seq->current_idx >= a_seq->count) {
+        return false; // No cache or exhausted
+    }
+    
+    const dap_chain_block_index_entry_t *l_entry = &a_seq->entries[a_seq->current_idx];
+    
+    // Simple comparison - no hash_fast() needed!
+    if (l_entry->file_offset == a_file_offset && l_entry->block_size == a_block_size) {
+        // Return cached hash for callback_atom_add
+        if (a_out_hash) {
+            *a_out_hash = l_entry->block_hash;
+        }
+        a_seq->current_idx++; // Advance to next entry
+        return true; // CACHE HIT - skip validation!
+    }
+    
+    // Cache miss - might be insertion/corruption, continue with full validation
+    return false;
+}
+
+/**
+ * @brief Free sequential cache structure
+ */
+void dap_chain_cache_sequential_free(dap_chain_cache_sequential_t *a_seq)
+{
+    if (!a_seq) return;
+    DAP_DEL_Z(a_seq->entries);
+    DAP_DELETE(a_seq);
+}
+
+/**
+ * @brief LEGACY: Fast O(1) lookup in batch-loaded cell cache (hash table based)
+ * @deprecated Use dap_chain_cache_sequential_check() for better performance
  */
 int dap_chain_cache_lookup_in_cell(void *a_cell_cache, 
                                      const dap_hash_fast_t *a_block_hash,
@@ -1457,7 +1593,8 @@ int dap_chain_cache_lookup_in_cell(void *a_cell_cache,
 }
 
 /**
- * @brief Free batch-loaded cell cache
+ * @brief LEGACY: Free batch-loaded cell cache (hash table based)
+ * @deprecated Use dap_chain_cache_sequential_free() for better performance
  */
 void dap_chain_cache_unload_cell(void *a_cell_cache)
 {
