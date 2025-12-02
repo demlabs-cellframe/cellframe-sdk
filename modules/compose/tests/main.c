@@ -122,8 +122,10 @@ void s_chain_datum_cond_create_test()
     randombytes(pkey->pkey, l_pkey_size);
     dap_chain_net_srv_price_unit_uid_t price_unit;
     price_unit.enm = SERV_UNIT_B;
+    dap_hash_fast_t l_pkey_hash = {};
+    dap_assert(dap_pkey_get_hash(pkey, &l_pkey_hash), "get pkey hash");
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_cond_create(
-        &s_data->addr_from, pkey, s_ticker_native, s_data->value,
+        &s_data->addr_from, &l_pkey_hash, s_ticker_native, s_data->value,
         s_data->value_per_unit_max, price_unit,
         s_data->srv_uid, s_data->value_fee, l_rand_data, l_rand_data_size, &s_data->config
     );

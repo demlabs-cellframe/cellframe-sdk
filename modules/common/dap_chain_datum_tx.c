@@ -69,8 +69,7 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
-{
+int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item) {
     size_t l_item_size = 0, l_new_size = 0;
     dap_return_val_if_pass(!a_tx || !*a_tx || !(l_item_size = dap_chain_datum_item_tx_get_size(a_item, 0)), -1 );
     if (*(byte_t*)(a_item) != TX_ITEM_TYPE_SIG && dap_chain_datum_tx_item_get(*a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL)) {
@@ -243,11 +242,11 @@ int dap_chain_datum_tx_add_out_std_item(dap_chain_datum_tx_t **a_tx, const dap_c
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
+int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_hash_fast_t *a_key_hash, dap_chain_net_srv_uid_t a_srv_uid,
         uint256_t a_value, uint256_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit, const void *a_cond, size_t a_cond_size)
 {
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_cond_t,
-        dap_chain_datum_tx_item_out_cond_create_srv_pay( a_key, a_srv_uid,a_value, a_value_max_per_unit, a_unit, a_cond, a_cond_size ));
+        dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash( a_key_hash, a_srv_uid,a_value, a_value_max_per_unit, a_unit, a_cond, a_cond_size ));
 }
 
 

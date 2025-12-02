@@ -2255,6 +2255,10 @@ dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
         return NULL;
     }
     dap_global_db_cluster_t *l_mempool = PVT(l_net)->mempool_clusters;
+    if (!l_mempool) {
+        log_it(L_ERROR, "No mempool cluster found for network %s", l_net->pub.name);
+        return NULL;
+    }
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain == a_chain)

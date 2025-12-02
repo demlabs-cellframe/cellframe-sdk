@@ -211,7 +211,6 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
         l_ret = s_common_decree_handler(a_decree, a_net, false, a_anchored);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
-        l_ret = s_service_decree_handler(a_decree, a_net, false);
     break;
     default:
         log_it(L_WARNING, "Decree type is undefined!");
@@ -288,7 +287,6 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, a_anchored);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
-        ret_val = s_service_decree_handler(l_new_decree->decree, l_net, true);
         break;
     default:
         log_it(L_WARNING,"Decree type is undefined!");
@@ -676,10 +674,9 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING, "Specified chain not found");
                 return -106;
             }
-            
             if (!a_anchored)
                 break;
-            if (dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
+            if (!dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
                 log_it(L_WARNING, "Event pkey already exists in ledger");
                 return -116;
             }
@@ -704,7 +701,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_anchored)
                 break;
-            if (!dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
+            if (dap_ledger_event_pkey_check(a_net->pub.ledger, &l_pkey_hash)) {
                 log_it(L_WARNING, "Event pkey not found in ledger");
                 return -116;
             }
@@ -719,23 +716,6 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
         default:
             return -1;
     }
-
-    return 0;
-}
-
-static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, bool a_apply)
-{
-   // size_t l_datum_data_size = ;
-   //            dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_decree->header.srv_id);
-   //            if(l_srv){
-   //                if(l_srv->callbacks.decree){
-   //                    dap_chain_net_t * l_net = dap_chain_net_by_id(a_chain->net_id);
-   //                    l_srv->callbacks.decree(l_srv,l_net,a_chain,l_decree,l_datum_data_size);
-   //                 }
-   //            }else{
-   //                log_it(L_WARNING,"Decree for unknown srv uid 0x%016"DAP_UINT64_FORMAT_X , l_decree->header.srv_id.uint64);
-   //                return -103;
-   //            }
 
     return 0;
 }
