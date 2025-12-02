@@ -627,7 +627,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     }
     bool l_load_mode = dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id));
     dap_chain_type_dag_event_item_t *l_event_item;
-    l_event_item = DAP_NEW(dap_chain_type_dag_event_item_t);
+    l_event_item = DAP_NEW_Z(dap_chain_type_dag_event_item_t);
     *l_event_item = (dap_chain_type_dag_event_item_t) {
         .hash       = *a_atom_hash,
         .ts_added   = dap_time_now(),

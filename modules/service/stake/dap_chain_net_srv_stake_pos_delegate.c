@@ -2329,13 +2329,11 @@ static int time_compare_orders(const void *a, const void *b) {
     return 0;
 }
 
-int json_object_compare_by_timestamp(const void *a, const void *b) {
-    dap_json_t *obj_a = *(dap_json_t **)a;
-    dap_json_t *obj_b = *(dap_json_t **)b;
-
+static int s_json_compare_by_timestamp(const dap_json_t *a, const dap_json_t *b)
+{
     dap_json_t *timestamp_a = NULL, *timestamp_b = NULL;
-    dap_json_object_get_ex(obj_a, "timestamp", &timestamp_a);
-    dap_json_object_get_ex(obj_b, "timestamp", &timestamp_b);
+    dap_json_object_get_ex(a, "timestamp", &timestamp_a);
+    dap_json_object_get_ex(b, "timestamp", &timestamp_b);
 
     int64_t time_a = timestamp_a ? dap_json_get_int64(timestamp_a) : 0;
     int64_t time_b = timestamp_b ? dap_json_get_int64(timestamp_b) : 0;
@@ -2831,7 +2829,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, dap
             dap_json_array_add(l_json_arr_reply, dap_json_object_new_string( "No orders found"));
         else {
             //sort by time
-            dap_json_array_sort(l_json_arr_reply, json_object_compare_by_timestamp);
+            dap_json_array_sort(l_json_arr_reply, s_json_compare_by_timestamp);
             // Remove the timestamp
             for (size_t i = 0; i < json_array_lenght; i++) {
                 dap_json_t *obj = dap_json_array_get_idx(l_json_arr_reply, i);
