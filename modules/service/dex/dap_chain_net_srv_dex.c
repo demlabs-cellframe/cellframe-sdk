@@ -49,6 +49,7 @@
 #include "dap_config.h"
 #include "dap_cli_server.h"
 #include "dap_chain_mempool.h"
+#include "dap_cert.h"
 #include "dap_strfuncs.h"
 #include "dap_tsd.h"
 #include "uthash.h"
@@ -4774,7 +4775,7 @@ int dap_chain_net_srv_dex_init()
         "srv_dex purchase_auto -net <net_name> -token_sell <ticker> -token_buy <ticker> -w <wallet> -value <value> [-unit sell|buy] [-min_rate <r>] [-fee <value>] [-create_leftover_order] [-leftover_rate <rate>] [-dry-run]\n"
         "srv_dex cancel_all_by_seller -net <net_name> -seller <addr> -w <wallet> -fee <fee> [-limit <N>] [-dry-run]\n"
         "srv_dex pairs -net <net_name>\n"
-        "srv_dex decree -net <net_name> -w <wallet> -method <fee_set|pair_add|pair_remove|pair_fee_set|pair_fee_set_all> <params>\n"
+        "srv_dex decree -net <net_name> -w <wallet> -service_key <cert_name> -method <fee_set|pair_add|pair_remove|pair_fee_set|pair_fee_set_all> <params>\n"
         "  All methods support optional: -fee_amount <amount> -fee_addr <addr> (to set global native fee)\n"
         "  fee_set: (requires -fee_amount and -fee_addr)\n"
         "  pair_add: -token_base <ticker> -token_quote <ticker> [-net_base <net>] [-net_quote <net>] [-fee_config <byte>]\n"
@@ -7228,6 +7229,16 @@ tvl_output:
         if (!l_wallet_str)
             return dap_json_rpc_error_add(*json_arr_reply, -2, "decree requires -w wallet"), -2;
         
+        // Service key is required for decree signing
+        const char *l_service_key_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-service_key", &l_service_key_str);
+        if (!l_service_key_str)
+            return dap_json_rpc_error_add(*json_arr_reply, -2, "decree requires -service_key"), -2;
+        
+        dap_cert_t *l_service_cert = dap_cert_find_by_name(l_service_key_str);
+        if (!l_service_cert)
+            return dap_json_rpc_error_add(*json_arr_reply, -2, "service cert '%s' not found", l_service_key_str), -2;
+        
         // Parse and validate decree method
         const char *l_method_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-method", &l_method_str);
@@ -7352,7 +7363,7 @@ tvl_output:
                 l_hash_str = dap_chain_mempool_tx_create_service_decree(
                     l_chain,
                     l_key_from,
-                    NULL,                                                        // a_service_key (NULL for DEX)
+                    l_service_cert->enc_key,
                     (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_DEX_ID },  // a_srv_uid
                     l_tsd_buf,                                                   // a_service_decree_data
                     l_tsd_size,                                                  // a_service_decree_data_size
