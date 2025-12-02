@@ -124,12 +124,12 @@ bool dap_ledger_pvt_cache_gdb_load_tokens_callback(dap_global_db_instance_t *a_d
         dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t *)(a_values[i].value + sizeof(uint256_t));
         size_t l_token_size = a_values[i].value_len - sizeof(uint256_t);
         
-        if (strcmp(l_token_aligned->ticker, a_values[i].key)) {
+        if (strcmp(l_token->ticker, a_values[i].key)) {
             log_it(L_WARNING, "Corrupted token with ticker [%s], need to 'ledger reload' to update cache", a_values[i].key);            
             continue;
         }
-        dap_ledger_token_add(l_ledger, (byte_t *)l_token_aligned, l_token_size, dap_time_now());
-        dap_ledger_token_item_t *l_token_item = dap_ledger_pvt_find_token(l_ledger, l_token_aligned->ticker);
+        dap_ledger_token_add(l_ledger, (byte_t *)l_token, l_token_size, dap_time_now());
+        dap_ledger_token_item_t *l_token_item = dap_ledger_pvt_find_token(l_ledger, l_token->ticker);
         if (l_token_item)
             l_token_item->current_supply = *(uint256_t*)a_values[i].value;
     }
