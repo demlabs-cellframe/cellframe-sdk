@@ -6882,7 +6882,8 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     }
     dap_hash_t l_event_pkey_hash = {};
     dap_sign_get_pkey_hash(l_event_sign, &l_event_pkey_hash);
-    if (dap_ledger_event_pkey_check(a_ledger, &l_event_pkey_hash)) {
+    // If no keys are in the allowed list, all keys are allowed by default, change comparision to != 0 to block keys with empty list
+    if (dap_ledger_event_pkey_check(a_ledger, &l_event_pkey_hash) == -1) {
         log_it(L_WARNING, "Event pkey %s is not allowed in tx %s", dap_hash_fast_to_str_static(&l_event_pkey_hash),
                                                                    dap_hash_fast_to_str_static(a_tx_hash));
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
@@ -6969,22 +6970,19 @@ static int s_ledger_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
  * @brief dap_ledger_check_event_pkey
  * @param a_ledger The ledger instance
  * @param a_pkey_hash Hash of the public key to check
- * @return 0 if the key is allowed, -1 if not allowed
+ * @return 1 if no keys set, 0 if the key is allowed, -1 if not allowed
  */
  int dap_ledger_event_pkey_check(dap_ledger_t *a_ledger, dap_hash_fast_t *a_pkey_hash)
  {
-     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-     pthread_rwlock_rdlock(&l_ledger_pvt->event_pkeys_rwlock);
-     dap_ledger_event_pkey_item_t *l_item = NULL;
-     
-     // If no keys are in the allowed list, all keys are allowed by default
-     if (!l_ledger_pvt->event_pkeys_allowed) {
-         pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
-         return 0;
-     }
-     
-     HASH_FIND(hh, l_ledger_pvt->event_pkeys_allowed, a_pkey_hash, sizeof(dap_hash_fast_t), l_item);
-     pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->event_pkeys_rwlock);
+    dap_ledger_event_pkey_item_t *l_item = NULL;
+    if (!l_ledger_pvt->event_pkeys_allowed) {
+        pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
+        return 1;
+    }    
+    HASH_FIND(hh, l_ledger_pvt->event_pkeys_allowed, a_pkey_hash, sizeof(dap_hash_fast_t), l_item);
+    pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
      
      // If key found in allowed list - it's allowed
      return l_item ? 0 : -1;

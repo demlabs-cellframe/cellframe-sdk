@@ -40,6 +40,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_NET_NAME_MAX 32
 #define DAP_CHAIN_NET_MEMPOOL_TTL 4 * 3600  // 4 hours
 #define DAP_CHAIN_NET_NODES_TTL 14 * 24 * 3600   // 2 weeks
+#define DAP_CHAIN_NET_SYNC_ACTIVITY_TIMEOUT 300 // 5 min
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
