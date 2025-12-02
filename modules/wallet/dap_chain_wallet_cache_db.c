@@ -101,7 +101,7 @@ char* dap_wallet_cache_db_get_group(dap_chain_net_id_t a_net_id, const char *a_c
     dap_return_val_if_fail(a_chain_name, NULL);
     
     // Format: "wallet.cache.{net_id_hex}.{chain_name}"
-    return dap_strdup_printf("wallet.cache.0x%016"DAP_UINT64_FORMAT_X".%s", 
+    return dap_strdup_printf("local.wallet.cache.0x%016"DAP_UINT64_FORMAT_X".%s", 
                             a_net_id.uint64, a_chain_name);
 }
 
@@ -160,7 +160,7 @@ int dap_wallet_cache_db_save(dap_wallet_cache_db_t *a_cache, size_t a_cache_size
     DAP_DELETE(l_group);
     DAP_DELETE(l_key);
     
-    if (!l_result) {
+    if (l_result != DAP_GLOBAL_DB_RC_SUCCESS) {
         log_it(L_ERROR, "Failed to save wallet cache to GlobalDB");
         return -4;
     }

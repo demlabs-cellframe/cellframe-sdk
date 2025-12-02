@@ -274,10 +274,10 @@ static dap_ledger_t *dap_ledger_handle_new(void)
     pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->stake_lock_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->rewards_rwlock, NULL);
-    pthread_rwlock_init(&l_ledger_pvt->rewards_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->events_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->locked_outs_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->event_pkeys_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->decrees_rwlock, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
 
@@ -303,6 +303,7 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     pthread_rwlock_destroy(&PVT(a_ledger)->events_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->locked_outs_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->event_pkeys_rwlock);
+    pthread_rwlock_destroy(&PVT(a_ledger)->decrees_rwlock);
     pthread_mutex_destroy(&PVT(a_ledger)->load_mutex);
     pthread_cond_destroy(&PVT(a_ledger)->load_cond);
 
