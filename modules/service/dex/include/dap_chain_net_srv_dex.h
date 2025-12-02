@@ -1,4 +1,27 @@
 /*
+ * Authors:
+ * Constantin Papizh <pa3.14zh@gmail.com>
+ * Cellframe       https://cellframe.net
+ * DeM Labs Inc.   https://demlabs.net
+ * Copyright  (c) 2024-2025
+ * All rights reserved.
+
+ This file is part of DAP (Distributed Applications Platform) the open source project
+
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ DAP is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+
+ *
  * DEX v2 service (SRV_DEX) API
  */
 
@@ -78,7 +101,6 @@ typedef enum dap_chain_net_srv_dex_update_error_list{
 
 dap_chain_net_srv_dex_update_error_t dap_chain_net_srv_dex_update(
         dap_chain_net_t *a_net, dap_hash_fast_t *a_order_root,
-        bool a_has_new_rate, uint256_t a_new_rate,
         bool a_has_new_value, uint256_t a_new_value,
         uint256_t a_fee, dap_chain_wallet_t *a_wallet,
         dap_chain_datum_tx_t **a_tx);
@@ -88,7 +110,12 @@ typedef enum dap_chain_net_srv_dex_purchase_error_list{
     DEX_PURCHASE_ERROR_OK = 0,
     DEX_PURCHASE_ERROR_INVALID_ARGUMENT,
     DEX_PURCHASE_ERROR_ORDER_NOT_FOUND,
+    DEX_PURCHASE_MULTI_ERROR_ORDERS_EMPTY,
+    DEX_PURCHASE_MULTI_ERROR_PAIR_MISMATCH,
+    DEX_PURCHASE_MULTI_ERROR_SIDE_MISMATCH,
+    DEX_PURCHASE_AUTO_ERROR_NO_MATCHES,
     DEX_PURCHASE_ERROR_COMPOSE_TX
+    // TODO: Add more informative codes
 } dap_chain_net_srv_dex_purchase_error_t;
 
 dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
@@ -98,31 +125,15 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
     dap_chain_datum_tx_t **a_tx);
 
 // Multi-purchase against list of orders (M:1). Orders must belong to one pair (sell/buy).
-typedef enum dap_chain_net_srv_dex_purchase_multi_error_list{
-    DEX_PURCHASE_MULTI_ERROR_OK = 0,
-    DEX_PURCHASE_MULTI_ERROR_INVALID_ARGUMENT,
-    DEX_PURCHASE_MULTI_ERROR_ORDERS_EMPTY,
-    DEX_PURCHASE_MULTI_ERROR_PAIR_MISMATCH,
-    DEX_PURCHASE_MULTI_ERROR_SIDE_MISMATCH,
-    DEX_PURCHASE_MULTI_ERROR_COMPOSE_TX
-} dap_chain_net_srv_dex_purchase_multi_error_t;
-
-dap_chain_net_srv_dex_purchase_multi_error_t dap_chain_net_srv_dex_purchase_multi(
+dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(
     dap_chain_net_t *a_net,
     dap_hash_fast_t *a_order_hashes, size_t a_orders_count, uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee,
     dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
     dap_chain_datum_tx_t **a_tx);
 
-typedef enum dap_chain_net_srv_dex_purchase_auto_error_list{
-    DEX_PURCHASE_AUTO_ERROR_OK = 0,
-    DEX_PURCHASE_AUTO_ERROR_INVALID_ARGUMENT,
-    DEX_PURCHASE_AUTO_ERROR_NO_MATCHES,
-    DEX_PURCHASE_AUTO_ERROR_COMPOSE_TX
-} dap_chain_net_srv_dex_purchase_auto_error_t;
-
 typedef struct dex_match_table_entry dex_match_table_entry_t;
 
-dap_chain_net_srv_dex_purchase_auto_error_t dap_chain_net_srv_dex_purchase_auto(
+dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
         dap_chain_net_t *a_net,
         const char *a_sell_token, const char *a_buy_token,
         uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee, uint256_t a_min_rate,
@@ -165,3 +176,21 @@ dap_chain_net_srv_dex_cancel_all_error_t dap_chain_net_srv_dex_cancel_all_by_sel
         dap_chain_datum_tx_t **a_tx);
 
 int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
+
+// Dump DEX memcache to log
+void dap_chain_net_srv_dex_dump_orders_cache();
+
+/**
+ * @brief Adjust min_fill field in cached order
+ * @param a_net Network
+ * @param a_order_tail Order tail hash
+ * @param a_new_minfill New min_fill value to set
+ * @param a_out_old_minfill [out] Returns old value for later restore (can be NULL)
+ * @return 0 on success, -1 invalid args, -2 order not found
+ */
+int dap_chain_net_srv_dex_cache_adjust_minfill(
+    dap_chain_net_t *a_net,
+    const dap_hash_fast_t *a_order_tail,
+    uint8_t a_new_minfill,
+    uint8_t *a_out_old_minfill
+);

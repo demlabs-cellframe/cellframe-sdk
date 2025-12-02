@@ -317,7 +317,8 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
         else
             a_tx->header.tx_items_size = l_tx_items_size;
     }
-    return debug_if(l_ret, L_ERROR, "Sign verification error %d", l_ret), l_ret;
+    debug_if(l_ret, L_ERROR, "Sign verification error %d", l_ret);
+    return l_ret;
 }
 
 int dap_chain_datum_tx_verify_sign_all(dap_chain_datum_tx_t *a_tx)
