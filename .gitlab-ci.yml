@@ -75,4 +75,3 @@ build:android:
     image: demlabs/android/any:qt6
     script:
       - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1 -DANDROID_PLATFORM=29
-
