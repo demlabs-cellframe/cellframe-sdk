@@ -1030,8 +1030,8 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 return NULL;
             }
             dap_chain_net_srv_price_unit_uid_t l_price_unit;
-            if(!s_json_get_unit(a_json_item_obj, "price_unit", &l_price_unit)) {
-                log_it(L_ERROR, "Json TX: bad price_unit in OUT_COND_SUBTYPE_SRV_PAY");
+            if(!s_json_get_unit(a_json_item_obj, "unit", &l_price_unit)) {
+                log_it(L_ERROR, "Json TX: bad unit in OUT_COND_SUBTYPE_SRV_PAY");
                 return NULL;
             }
             uint64_t l_srv_uid = 0;

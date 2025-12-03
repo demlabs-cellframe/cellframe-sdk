@@ -184,12 +184,20 @@ DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chai
 DAP_STATIC_INLINE dap_chain_net_srv_price_unit_uid_t dap_chain_net_srv_price_unit_uid_from_str( const char  *a_unit_str )
 {
     dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_UNDEFINED };
+    if (!a_unit_str)
+        return l_price_unit;
     if(!dap_strcmp(a_unit_str, "sec"))
         l_price_unit.enm = SERV_UNIT_SEC;
     else if(!dap_strcmp(a_unit_str, "b") || !dap_strcmp(a_unit_str, "bytes"))
         l_price_unit.enm = SERV_UNIT_B;
     else if(!dap_strcmp(a_unit_str, "pcs") || !dap_strcmp(a_unit_str, "pieces"))
         l_price_unit.enm = SERV_UNIT_PCS;
+    else if (a_unit_str[0] == '0' && a_unit_str[1] == 'x') {
+        // Parse hex format like "0x00000002"
+        uint32_t l_val = 0;
+        if (sscanf(a_unit_str, "0x%08x", &l_val) == 1)
+            l_price_unit.uint32 = l_val;
+    }
     return l_price_unit;
 }
 
