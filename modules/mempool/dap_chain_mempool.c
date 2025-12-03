@@ -66,7 +66,6 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_net_srv.h"
 
 #define LOG_TAG "dap_chain_mempool"
 
