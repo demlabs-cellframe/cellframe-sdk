@@ -33,6 +33,8 @@
 #define DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_ADD_TX_OUT            -106
 #define DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_ADD_SIGN              -107
 
+// TSD type for SRV_PAY refill transaction marker
+#define DAP_CHAIN_SRV_PAY_TSD_REFILL 0x16
 
 
 // action
@@ -88,6 +90,10 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
 
 char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
         const dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_tx_sign, dap_chain_datum_tx_receipt_t *a_receipt, const char *a_hash_out_type, int *a_ret_status);
+
+// Refill conditional SRV_PAY transaction
+char *dap_chain_mempool_tx_cond_refill(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
+        dap_hash_fast_t *a_tx_cond_hash, uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type);
 
 int dap_chain_mempool_tx_create_massive(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,

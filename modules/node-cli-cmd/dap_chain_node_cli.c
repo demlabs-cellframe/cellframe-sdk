@@ -349,6 +349,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "Hint:\n"
                 "\texample coins amount syntax (only natural) 1.0 123.4567\n"
                 "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
+    dap_cli_server_cmd_add ("tx_cond_refill", com_tx_cond_refill, NULL, "Refill conditional SRV_PAY transaction", dap_chain_node_cli_cmd_id_from_str("tx_cond_refill"),
+                "tx_cond_refill -net <net_name> -w <wallet_name> -tx <tx_cond_hash> -value <value> -fee <value> [-H {hex|base58}]\n"
+                "\t-net <net_name> - network name\n"
+                "\t-w <wallet_name> - wallet to pay and sign\n"
+                "\t-tx <tx_cond_hash> - hash of conditional transaction to refill\n"
+                "\t-value <value> - refill amount\n"
+                "\t-fee <value> - validator fee\n"
+                "\t-H {hex|base58} - output hash format (default: hex)\n\n");
     dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, NULL, "Remove cond transactions and return funds from condition outputs to wallet",  dap_chain_node_cli_cmd_id_from_str("tx_cond_remove"),
                 "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
                 " -fee <value> -srv_uid <numeric_uid>\n" 
