@@ -7316,8 +7316,8 @@ tvl_output:
                 l_net_quote = l_net_tmp->pub.id;
             }
             
-            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_BASE, l_token_base, dap_strlen(l_token_base));
-            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_QUOTE, l_token_quote, dap_strlen(l_token_quote));
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_BASE, l_token_base, dap_strlen(l_token_base) + 1);
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_TOKEN_QUOTE, l_token_quote, dap_strlen(l_token_quote) + 1);
             l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_NET_BASE, &l_net_base, sizeof(uint64_t));
             l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_NET_QUOTE, &l_net_quote, sizeof(uint64_t));
             
@@ -7391,11 +7391,11 @@ tvl_output:
             json_object_object_add(l_json_reply, "method", json_object_new_string(l_method_str));
             json_object_object_add(l_json_reply, "tsd_size", json_object_new_int64(l_tsd_size));
             DAP_DELETE(l_hash_str);
-            return 0; // dap_chain_mempool_tx_create_service_decree() alredy placed datum into pool, so skip "put" routines
+            l_ret = 0;
         } else {
             json_object_object_add(l_json_reply, "status", json_object_new_string("decree_submission_failed"));
             json_object_object_add(l_json_reply, "error", json_object_new_string("mempool tx creation failed"));
-            return -4;
+            l_ret = -4;
         };
     } break; // DECREE
 
