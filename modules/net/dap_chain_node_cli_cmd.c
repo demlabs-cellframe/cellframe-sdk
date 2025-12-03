@@ -6147,8 +6147,11 @@ int com_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_OK;
     }
 
-    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX,
-                           "Can't create refill transaction");
+    json_object *l_jobj_ret = json_object_new_object();
+    json_object *l_jobj_status = json_object_new_boolean(false);
+    json_object_object_add(l_jobj_ret, "refill_tx_cond", l_jobj_status);
+    if (*a_json_arr_reply && json_object_is_type(*a_json_arr_reply, json_type_array))
+        json_object_array_add(*a_json_arr_reply, l_jobj_ret);
     return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX;
 }
 
