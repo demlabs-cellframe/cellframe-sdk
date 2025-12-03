@@ -157,6 +157,11 @@ json_object *dap_chain_tx_compose_wallet_shared_without_sign(dap_chain_net_id_t 
 json_object *dap_chain_tx_compose_wallet_shared_sign(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                                   uint16_t a_port, const char *a_enc_cert_path, const char *a_tx_in_hash_str, const char *a_wallet_str, const char *a_wallets_path, const char *a_pass_str, const char *a_cert_str);
 
+json_object *dap_chain_tx_compose_tx_cond_refill(dap_chain_net_id_t a_net_id, const char *a_net_name,
+                                                    const char *a_native_ticker, const char *a_url_str,
+                                                    uint16_t a_port, const char *a_enc_cert_path,
+                                                    dap_chain_addr_t *a_owner_addr, const char *a_value_str,
+                                                    const char *a_fee_str, const char *a_tx_cond_hash_str);
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_addr_from, dap_chain_addr_t** a_addr_to,
                                                        const char* a_token_ticker, uint256_t *a_value, dap_time_t *a_time_unlock, uint256_t a_value_fee, 
@@ -219,6 +224,9 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_sign(const char *a_tx_in_hash_str, dap_enc_key_t *a_enc_key, compose_config_t *a_config);
 
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t *a_owner_addr, uint256_t a_value,
+                                                                uint256_t a_fee, dap_hash_fast_t *a_tx_cond_hash,
+                                                                compose_config_t *a_config);
 
 #ifdef __cplusplus
 }

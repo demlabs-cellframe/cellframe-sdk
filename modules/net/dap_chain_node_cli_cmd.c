@@ -6004,6 +6004,154 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
     return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_CONDITIONAL_TX_CREATE;
 }
 
+/**
+ * @brief Refill conditional SRV_PAY transaction
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @param a_version
+ * @return
+ */
+int com_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+{
+    (void)a_argc;
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    int arg_index = 1;
+    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+    const char *l_wallet_str = NULL;
+    const char *l_value_datoshi_str = NULL;
+    const char *l_value_fee_str = NULL;
+    const char *l_net_name = NULL;
+    const char *l_tx_cond_hash_str = NULL;
+    uint256_t l_value_datoshi = {};
+    uint256_t l_value_fee = {};
+    const char *l_hash_out_type = NULL;
+
+    // Parse -H parameter
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if (!l_hash_out_type)
+        l_hash_out_type = "hex";
+    if (dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58"))
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_INVALID_PARAMETER_H,
+                               "Invalid parameter -H, valid values: -H <hex | base58>");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_INVALID_PARAMETER_H;
+    }
+
+    // Parse parameters
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_datoshi_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_value_fee_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx", &l_tx_cond_hash_str);
+
+    // Validate required parameters
+    if (!l_net_name)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_NET,
+                               "tx_cond_refill requires parameter '-net'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_NET;
+    }
+    if (!l_wallet_str)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_W,
+                               "tx_cond_refill requires parameter '-w'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_W;
+    }
+    if (!l_tx_cond_hash_str)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_TX,
+                               "tx_cond_refill requires parameter '-tx'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_TX;
+    }
+    if (!l_value_datoshi_str)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_VALUE,
+                               "tx_cond_refill requires parameter '-value'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_VALUE;
+    }
+    if (!l_value_fee_str)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_FEE,
+                               "tx_cond_refill requires parameter '-fee'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_FEE;
+    }
+
+    // Parse values
+    l_value_datoshi = dap_chain_balance_scan(l_value_datoshi_str);
+    if (IS_ZERO_256(l_value_datoshi))
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_VALUE,
+                               "Can't recognize value '%s' as a number", l_value_datoshi_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_VALUE;
+    }
+
+    l_value_fee = dap_chain_balance_scan(l_value_fee_str);
+    if (IS_ZERO_256(l_value_fee))
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_FEE,
+                               "Can't recognize fee '%s' as a number", l_value_fee_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_FEE;
+    }
+
+    // Get network
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if (!l_net)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_NET,
+                               "Can't find net '%s'", l_net_name);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_NET;
+    }
+
+    // Parse conditional TX hash
+    dap_hash_fast_t l_tx_cond_hash = {};
+    if (dap_chain_hash_fast_from_str(l_tx_cond_hash_str, &l_tx_cond_hash))
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+                               "Can't parse TX hash '%s'", l_tx_cond_hash_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX;
+    }
+
+    // Open wallet
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
+    if (!l_wallet)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_OPEN_WALLET,
+                               "Can't open wallet '%s'", l_wallet_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_OPEN_WALLET;
+    }
+
+    // Get wallet key
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet, 0);
+    dap_chain_wallet_close(l_wallet);
+
+    // Create refill TX
+    char *l_hash_str = dap_chain_mempool_tx_cond_refill(l_net, l_key, &l_tx_cond_hash,
+                                                        l_value_datoshi, l_value_fee, l_hash_out_type);
+    dap_enc_key_delete(l_key);
+
+    if (l_hash_str)
+    {
+        json_object *l_jobj_ret = json_object_new_object();
+        if (!l_jobj_ret)
+        {
+            DAP_DELETE(l_hash_str);
+            dap_json_rpc_allocation_error(*a_json_arr_reply);
+            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+        }
+        json_object_object_add(l_jobj_ret, "status", json_object_new_string("success"));
+        json_object_object_add(l_jobj_ret, "tx_hash", json_object_new_string(l_hash_str));
+        if (*a_json_arr_reply && json_object_is_type(*a_json_arr_reply, json_type_array))
+            json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+        DAP_DELETE(l_hash_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_OK;
+    }
+
+    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX,
+                           "Can't create refill transaction");
+    return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX;
+}
+
 static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
 {
     dap_list_t *l_ret_list = NULL;

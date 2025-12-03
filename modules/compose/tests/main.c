@@ -335,6 +335,16 @@ void s_chain_datum_shared_funds_refill_test()
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
+void s_chain_datum_tx_cond_refill_test()
+{
+    dap_print_module_name("tx_cond_refill_compose");
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_cond_refill(
+        &s_data->addr_from, s_data->value, s_data->value_fee,
+        &s_data->hash_1, &s_data->config);
+    dap_assert(l_datum_1, "tx_cond_refill_compose");
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+}
 
 void s_chain_datum_tx_ser_deser_test()
 {
@@ -377,6 +387,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_shared_funds_hold_test();
     s_chain_datum_shared_funds_take_test();
     s_chain_datum_shared_funds_refill_test();
+    s_chain_datum_tx_cond_refill_test();
     // s_chain_datum_shared_funds_sign_test();  no need for now
     if (s_data->config.response_handler) {
         json_object_put(s_data->config.response_handler);
