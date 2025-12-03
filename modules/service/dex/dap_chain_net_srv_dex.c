@@ -4748,11 +4748,10 @@ int dap_chain_net_srv_dex_init()
     log_it(L_INFO, "History cache: %s, bucket %uus", s_dex_history_enabled ? "on" : "off", (unsigned)s_dex_history_bucket_sec);
 
     // Subscribe cache to ledger notifications for all nets
-    if (s_dex_cache_enabled || s_dex_history_enabled) {
-        for (dap_chain_net_t *net = dap_chain_net_iter_start(); net; net = dap_chain_net_iter_next(net)) {
-            dap_ledger_srv_callback_decree_add(net->pub.ledger, (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_DEX_ID }, dap_chain_net_srv_dex_decree_callback);
+    for (dap_chain_net_t *net = dap_chain_net_iter_start(); net; net = dap_chain_net_iter_next(net)) {
+        dap_ledger_srv_callback_decree_add(net->pub.ledger, (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_DEX_ID }, dap_chain_net_srv_dex_decree_callback);
+        if (s_dex_cache_enabled || s_dex_history_enabled)
             dap_ledger_tx_add_notify(net->pub.ledger, s_ledger_tx_add_notify_dex, NULL);
-        }
     }
 
     // CLI: register handler
@@ -5332,6 +5331,8 @@ static inline void s_consume_sell_quote(uint256_t *a_budget, uint256_t a_rate, u
 static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **json_arr_reply = (json_object **)a_str_reply; int l_arg_index = 1;
+    if (!*json_arr_reply || !json_object_is_type(*json_arr_reply, json_type_array))
+        *json_arr_reply = json_object_new_array();
     if (a_argc < 3)
         return dap_json_rpc_error_add(*json_arr_reply, -1, "too few arguments"), -1;
     enum { CMD_ORDER, CMD_ORDERS, CMD_ORDERBOOK,
@@ -5351,29 +5352,29 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         [CMD_MIGRATE] = "migrate", [CMD_PAIRS] = "pairs", [CMD_DECREE] = "decree"
     };
     
-    if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "order")) >= 0 ) l_cmd = CMD_ORDER;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "orders")) >= 0) l_cmd = CMD_ORDERS;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "status")) >= 0) l_cmd = CMD_STATUS;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "history")) >= 0) l_cmd = CMD_HISTORY;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "purchase_multi")) >= 0) l_cmd = CMD_PURCHASE_MULTI;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "purchase")) >= 0) l_cmd = CMD_PURCHASE;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "purchase_auto")) >= 0) l_cmd = CMD_PURCHASE_AUTO;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "orderbook")) >= 0) l_cmd = CMD_ORDERBOOK;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "market_rate")) >= 0) l_cmd = CMD_MARKET_RATE;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "tvl")) >= 0) l_cmd = CMD_TVL;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "spread")) >= 0) l_cmd = CMD_SPREAD;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "volume")) >= 0) l_cmd = CMD_VOLUME;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "slippage")) >= 0) l_cmd = CMD_SLIPPAGE;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "migrate")) >= 0) l_cmd = CMD_MIGRATE;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "cancel_all_by_seller")) >= 0) l_cmd = CMD_CANCEL_ALL_BY_SELLER;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "pairs")) >= 0) l_cmd = CMD_PAIRS;
-    else if (( l_arg_index = dap_cli_server_cmd_check_option(a_argv, l_arg_index, 2, "decree")) >= 0) l_cmd = CMD_DECREE;
+    if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "order") >= 0 ) l_cmd = CMD_ORDER;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "orders") >= 0 ) l_cmd = CMD_ORDERS;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "status") >= 0 ) l_cmd = CMD_STATUS;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "history") >= 0 ) l_cmd = CMD_HISTORY;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "purchase_multi") >= 0 ) l_cmd = CMD_PURCHASE_MULTI;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "purchase") >= 0 ) l_cmd = CMD_PURCHASE;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "purchase_auto") >= 0 ) l_cmd = CMD_PURCHASE_AUTO;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "orderbook") >= 0 ) l_cmd = CMD_ORDERBOOK;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "market_rate") >= 0 ) l_cmd = CMD_MARKET_RATE;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "tvl") >= 0 ) l_cmd = CMD_TVL;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "spread") >= 0 ) l_cmd = CMD_SPREAD;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "volume") >= 0 ) l_cmd = CMD_VOLUME;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "slippage") >= 0 ) l_cmd = CMD_SLIPPAGE;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "migrate") >= 0 ) l_cmd = CMD_MIGRATE;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "cancel_all_by_seller") >= 0 ) l_cmd = CMD_CANCEL_ALL_BY_SELLER;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "pairs") >= 0 ) l_cmd = CMD_PAIRS;
+    else if ( dap_cli_server_cmd_check_option(a_argv, 1, 2, "decree") >= 0 ) l_cmd = CMD_DECREE;
 
     if (l_cmd == CMD_MAX_NUM)
         return dap_json_rpc_error_add(*json_arr_reply, -2, "unknown command %s", a_argv[l_arg_index]), -2;
 
     const char *l_net_str = NULL, *l_wallet_str = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+    dap_cli_server_cmd_find_option_val(a_argv, ++l_arg_index, a_argc, "-net", &l_net_str);
     if ( !l_net_str )
         return dap_json_rpc_error_add(*json_arr_reply, -2, "-net required"), -2;
 
@@ -6673,10 +6674,11 @@ tvl_output:
     case CMD_CANCEL_ALL_BY_SELLER: {
         if (!l_pair_str)
             return dap_json_rpc_error_add(*json_arr_reply, -2, "missing -pair"), -2;
+        if (!l_fee_str)
+            return dap_json_rpc_error_add(*json_arr_reply, -2, "missing -fee"), -2;
         const char *l_base = l_pair_base, *l_quote = l_pair_quote;
-        const char *l_seller_str = NULL, *l_fee_str = NULL, *l_limit_str = NULL;
+        const char *l_seller_str = NULL, *l_limit_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-seller", &l_seller_str);
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
         bool l_dry_run = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-dry-run") >= l_arg_index;
         if (!l_seller_str || !l_fee_str)
@@ -6686,7 +6688,6 @@ tvl_output:
         dap_chain_addr_t l_seller = *l_seller_tmp; DAP_DELETE(l_seller_tmp);
         int l_limit = l_limit_str ? atoi(l_limit_str) : INT_MAX, l_cnt = 0;
         if (l_limit < 0) l_limit *= -1;
-        uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
         // Require wallet even for dry-run; verify ownership matches seller
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
         if (!l_wallet) {
@@ -7367,7 +7368,7 @@ tvl_output:
                     (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_DEX_ID },  // a_srv_uid
                     l_tsd_buf,                                                   // a_service_decree_data
                     l_tsd_size,                                                  // a_service_decree_data_size
-                    uint256_0,                                                   // a_fee_value (no additional fee)
+                    l_fee,                                                   // a_fee_value (no additional fee)
                     "hex"                                                        // a_hash_out_type
                 );
                 dap_enc_key_delete(l_key_from);
