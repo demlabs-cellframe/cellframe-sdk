@@ -80,7 +80,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_datum_service_state.h"
-#include "dap_chain_node_client.h"
+#include "dap_chain_node_sync_client.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_net.h"
 #include "dap_chain_cs_type.h"  // For dap_chain_cs_load/start/stop
@@ -244,7 +244,7 @@ int dap_chain_net_init()
     dap_ledger_init();
     dap_chain_ch_init();
     dap_chain_net_ch_init();
-    dap_chain_node_client_init();
+    dap_chain_node_sync_client_init();
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();

@@ -63,7 +63,7 @@
 #include "dap_global_db_cluster.h"
 #include "dap_stream_cluster.h"
 #include "dap_guuid.h"
-#include "dap_chain_node_client.h"
+#include "dap_chain_node_sync_client.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_json.h"
 #include "dap_net.h"
@@ -1537,51 +1537,41 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
         // make handshake
     case CMD_HANDSHAKE: {
         // get address from alias if addr not defined
-        if(alias_str && !l_node_addr.uint64) {
+        if (alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_alias_find(l_net, alias_str);
-            if(address_tmp) {
+            if (address_tmp) {
                 l_node_addr = *address_tmp;
                 DAP_DELETE(address_tmp);
-            }
-            else {
+            } else {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR,
-                                            "No address found by alias");
+                                       "No address found by alias");
                 return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR;
             }
         }
         l_node_addr = l_node_info->address;
-        if(!l_node_addr.uint64) {
+        if (!l_node_addr.uint64) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR,
-                                            "Addr not found");
+                                   "Addr not found");
             return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR;
         }
 
         dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, a_json_arr_reply);
-        if(!node_info)
+        if (!node_info)
             return -6;
-        int timeout_ms = 5000; //5 sec = 5000 ms
-        // start handshake
-        dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net,node_info);
-        if(!l_client) {
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_CANT_CONNECT_ERR,
-                "Can't connect");
-            DAP_DELETE(node_info);
-            return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_CANT_CONNECT_ERR;
-        }
-        // wait handshake
-        int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
-        if (res) {
+        
+        int timeout_ms = 5000;
+        int res = dap_chain_node_sync_handshake(l_net, node_info, "CN", timeout_ms);
+        DAP_DELETE(node_info);
+        
+        if (res != DAP_SYNC_ERROR_NONE) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_RESPONSE_ERR,
-                                        "No response from node");
-            // clean client struct
-            // dap_chain_node_client_close_unsafe(l_client); del in s_go_stage_on_client_worker_unsafe
-            DAP_DELETE(node_info);
+                                   "No response from node: %s", dap_chain_node_sync_error_str(res));
             return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_RESPONSE_ERR;
         }
-        DAP_DELETE(node_info);
-        dap_chain_node_client_close_unsafe(l_client);
+        
         dap_json_t *json_obj_out = dap_json_object_new();
-        if (!json_obj_out) return dap_json_object_free(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
+        if (!json_obj_out) 
+            return dap_json_object_free(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
         dap_json_object_add_string(json_obj_out, "status_handshake", "Connection established");
         dap_json_array_add(a_json_arr_reply, json_obj_out);
     } break;
@@ -6477,28 +6467,6 @@ static void s_new_wallet_info_notify(const char *a_wallet_name)
     dap_notify_server_send(l_json_str);
     DAP_DELETE(l_json_str);
     dap_json_object_free(l_json);
-}
-
-static void s_stage_connected_callback(dap_client_t* a_client, void * a_arg) {
-    dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
-    UNUSED(a_arg);
-    if(l_node_client) {
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
-        pthread_cond_signal(&l_node_client->wait_cond);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
-    }
-}
-
-static void s_stage_connected_error_callback(dap_client_t* a_client, void * a_arg) {
-    dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
-    UNUSED(a_arg);
-    if(l_node_client) {
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_ERROR;
-        pthread_cond_signal(&l_node_client->wait_cond);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
-    }
 }
 
 int com_exec_cmd(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version) {

@@ -4,7 +4,7 @@
 * Roman Khlopkov <roman.khlopkov@demlabs.net>
 * Cellframe       https://cellframe.net
 * DeM Labs Inc.   https://demlabs.net
-* Copyright  (c) 2017-2022
+* Copyright  (c) 2017-2024
 * All rights reserved.
 
 This file is part of CellFrame SDK the open source project
@@ -27,169 +27,284 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_client.h"
 #include "dap_common.h"
+#include "dap_hash.h"
 #include "dap_time.h"
 
 #define LOG_TAG "dap_chain_net_srv_client"
 
-static void s_srv_client_pkt_in(dap_chain_net_srv_ch_t *a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void *a_arg);
-static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_client, void *a_arg);
-static void s_srv_client_callback_disconnected(dap_chain_node_client_t *a_node_client, void *a_arg);
-static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client, void *a_arg);
-
-dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_net_t *a_net, char *a_addr, uint16_t a_port,
-                                                                      dap_chain_net_srv_client_callbacks_t *a_callbacks,
-                                                                      void *a_callbacks_arg)
+/**
+ * @brief Get error description
+ */
+const char *dap_chain_net_srv_client_error_str(dap_chain_net_srv_client_error_t a_error)
 {
-    dap_chain_net_srv_client_t *l_ret = DAP_NEW_Z(dap_chain_net_srv_client_t);
-    if (!l_ret) {
+    switch (a_error) {
+        case DAP_SRV_CLIENT_ERROR_NONE:           return "No error";
+        case DAP_SRV_CLIENT_ERROR_MEMORY:         return "Memory allocation failed";
+        case DAP_SRV_CLIENT_ERROR_INVALID_ARGS:   return "Invalid arguments";
+        case DAP_SRV_CLIENT_ERROR_CONNECT:        return "Connection failed";
+        case DAP_SRV_CLIENT_ERROR_TIMEOUT:        return "Request timeout";
+        case DAP_SRV_CLIENT_ERROR_DISCONNECTED:   return "Disconnected";
+        case DAP_SRV_CLIENT_ERROR_SEND:           return "Send failed";
+        case DAP_SRV_CLIENT_ERROR_WRONG_RESPONSE: return "Wrong response format";
+        case DAP_SRV_CLIENT_ERROR_REMOTE:         return "Remote error";
+        default:                                   return "Unknown error";
+    }
+}
+
+/**
+ * @brief Connect to service provider
+ */
+dap_chain_net_srv_client_t *dap_chain_net_srv_client_connect(
+    dap_chain_net_t *a_net,
+    const char *a_addr,
+    uint16_t a_port,
+    int a_timeout_ms)
+{
+    if (!a_net || !a_addr || !a_port) {
+        log_it(L_ERROR, "Invalid arguments for service client connect");
+        return NULL;
+    }
+    
+    dap_chain_net_srv_client_t *l_client = DAP_NEW_Z(dap_chain_net_srv_client_t);
+    if (!l_client) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
-    if (a_callbacks)
-        l_ret->callbacks = *a_callbacks;
-    l_ret->callbacks_arg = a_callbacks_arg;
     
-    dap_chain_node_client_callbacks_t l_callbacks = {
-        .connected = s_srv_client_callback_connected,
-        .disconnected = s_srv_client_callback_disconnected,
-        .delete = s_srv_client_callback_deleted
-    };
+    l_client->net = a_net;
     
-    dap_chain_node_info_t *l_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + dap_strlen(a_addr) + 1);
-    *l_info = (dap_chain_node_info_t) {
-        .ext_port = a_port
-    };
-    l_info->ext_host_len = dap_strncpy(l_info->ext_host, a_addr, INET6_ADDRSTRLEN) - (char*)l_info->ext_host;
-    const char l_channels[] = {DAP_CHAIN_NET_SRV_CH_ID, '\0'};
-    l_ret->node_client = dap_chain_node_client_create_n_connect(a_net, l_info, l_channels, &l_callbacks, l_ret);
-    l_ret->node_client->notify_callbacks.srv_pkt_in = (dap_stream_ch_callback_packet_t)s_srv_client_pkt_in;
-    return l_ret;
-}
-void dap_chain_net_srv_client_close(dap_chain_net_srv_client_t *a_client){
-    if (a_client->node_client)
-        dap_chain_node_client_close( a_client->node_client );
-}
-
-ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uint8_t a_type, void *a_pkt_data, size_t a_pkt_data_size)
-{
-    if (!a_client || !a_client->net_client || dap_client_get_stage(a_client->net_client) != STAGE_STREAM_STREAMING)
-        return -1;
-    if (a_type == DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST) {
-        dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client->net_client, DAP_CHAIN_NET_SRV_CH_ID);
-        dap_chain_net_srv_ch_t *a_ch_chain = DAP_CHAIN_NET_SRV_CH(l_ch);
-        dap_chain_net_srv_ch_pkt_request_t *l_request = (dap_chain_net_srv_ch_pkt_request_t *)a_pkt_data;
-        a_ch_chain->srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
+    // Prepare node info
+    size_t l_addr_len = dap_strlen(a_addr);
+    dap_chain_node_info_t *l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t,
+                                                         sizeof(dap_chain_node_info_t) + l_addr_len + 1);
+    if (!l_node_info) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        DAP_DELETE(l_client);
+        return NULL;
     }
-    dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(a_client->net_client);
-    return dap_stream_ch_pkt_write(l_stream_worker, a_client->ch_uuid, a_type, a_pkt_data, a_pkt_data_size);
-}
-
-static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_client, void *a_arg)
-{
-    log_it(L_INFO, "Service client connected well");
-    dap_chain_net_srv_client_t *l_srv_client = (dap_chain_net_srv_client_t *)a_arg;
-    l_srv_client->ch_uuid = a_node_client->ch_chain_net_srv_uuid;
-    l_srv_client->net_client = a_node_client->client;
-    if (l_srv_client->callbacks.connected)
-        l_srv_client->callbacks.connected(l_srv_client, l_srv_client->callbacks_arg);
-}
-
-static void s_srv_client_callback_disconnected(dap_chain_node_client_t *a_node_client, void *a_arg)
-{
-    UNUSED(a_node_client);
-    log_it(L_INFO, "Service client disconnected");
-    dap_chain_net_srv_client_t *l_srv_client = (dap_chain_net_srv_client_t *)a_arg;
-    if (l_srv_client->callbacks.disconnected)
-        l_srv_client->callbacks.disconnected(l_srv_client, l_srv_client->callbacks_arg);
-}
-
-static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client, void *a_arg)
-{
-    UNUSED(a_node_client);
-    log_it(L_INFO, "Service client deleted");
-    dap_chain_net_srv_client_t *l_srv_client = (dap_chain_net_srv_client_t *)a_arg;
-    DAP_DELETE(l_srv_client);
-}
-
-static void s_srv_client_pkt_in(dap_chain_net_srv_ch_t *a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void *a_arg)
-{
-    dap_chain_net_srv_client_t *l_srv_client = (dap_chain_net_srv_client_t *)a_arg;
-    switch (a_pkt_type) {
-    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
-        dap_chain_net_srv_ch_pkt_test_t *l_response = (dap_chain_net_srv_ch_pkt_test_t *)a_pkt->data;
-        size_t l_response_size = l_response->data_size + sizeof(dap_chain_net_srv_ch_pkt_test_t);
-        if (a_pkt->hdr.data_size != l_response_size) {
-            log_it(L_WARNING, "Wrong response size %u, required %zu", a_pkt->hdr.data_size, l_response_size);
-            if (l_srv_client->callbacks.error)
-                l_srv_client->callbacks.error(l_srv_client,
-                                              DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE,
-                                              l_srv_client->callbacks_arg);
-            break;
-        }
-        l_response->recv_time1 = dap_nanotime_now();
-        dap_chain_hash_fast_t l_data_hash;
-        dap_hash_fast(l_response->data, l_response->data_size, &l_data_hash);
-        if (!dap_hash_fast_compare(&l_data_hash, &l_response->data_hash)) {
-            if (l_srv_client->callbacks.error)
-                l_srv_client->callbacks.error(l_srv_client,
-                                              DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH,
-                                              l_srv_client->callbacks_arg);
-            break;
-        }
-        if (l_srv_client->callbacks.check)
-            l_srv_client->callbacks.check(l_srv_client, l_response, l_srv_client->callbacks_arg);
-    } break;
-    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST: {
-        log_it(L_NOTICE, "Requested receipt to sign");
-        dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)a_pkt->data;
-        if (a_pkt->hdr.data_size != l_receipt->size) {
-            log_it(L_WARNING, "Wrong response size %u, required %"DAP_UINT64_FORMAT_U, a_pkt->hdr.data_size, l_receipt->size);
-            if (l_srv_client->callbacks.error)
-                l_srv_client->callbacks.error(l_srv_client,
-                                              DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE,
-                                              l_srv_client->callbacks_arg);
-            break;
-        }
-        if (l_srv_client->callbacks.sign) {
-            // Duplicate receipt for realloc can be applied
-            dap_chain_datum_tx_receipt_t *l_rec_cpy = DAP_DUP_SIZE(l_receipt, l_receipt->size);
-            // Sign receipt
-            l_rec_cpy = l_srv_client->callbacks.sign(l_srv_client, l_rec_cpy, l_srv_client->callbacks_arg);
-            if (l_rec_cpy) {
-                dap_stream_ch_pkt_write_unsafe(a_ch_chain->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE,
-                                               l_rec_cpy, l_rec_cpy->size);
-                DAP_DELETE(l_rec_cpy);
-            } else {
-                log_it(L_ERROR, "Problem with receipt signing, callback.sign returned NULL");
-            }
-        }
-    } break;
-    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS: {
-        log_it( L_NOTICE, "Responsed with success");
-        dap_chain_net_srv_ch_pkt_success_t *l_success = (dap_chain_net_srv_ch_pkt_success_t *)a_pkt->data;
-        size_t l_success_size = a_pkt->hdr.data_size;
-        if (l_srv_client->callbacks.success) {
-            l_srv_client->callbacks.success(l_srv_client, l_success, l_success_size, l_srv_client->callbacks_arg);
-        }
-    } break;
-    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR: {
-       if (a_pkt->hdr.data_size == sizeof (dap_chain_net_srv_ch_pkt_error_t)) {
-            dap_chain_net_srv_ch_pkt_error_t *l_err = (dap_chain_net_srv_ch_pkt_error_t *)a_pkt->data;
-            log_it(L_WARNING, "Remote responsed with error code 0x%08X", l_err->code);
-            if (l_srv_client->callbacks.error)
-                l_srv_client->callbacks.error(l_srv_client, l_err->code, l_srv_client->callbacks_arg);
-        } else {
-            log_it(L_ERROR, "Wrong error response size, %u when expected %zu", a_pkt->hdr.data_size,
-                   sizeof ( dap_chain_net_srv_ch_pkt_error_t) );
-        }
-    } break;
-    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_DATA: {
-        dap_chain_net_srv_ch_pkt_data_t *l_response = (dap_chain_net_srv_ch_pkt_data_t *)a_pkt->data;
-        log_it(L_DEBUG, "Service client got custom data response");
-        if (l_srv_client->callbacks.data)
-            l_srv_client->callbacks.data(l_srv_client, l_response->data, l_response->hdr.data_size, l_srv_client->callbacks_arg);
+    
+    l_node_info->ext_port = a_port;
+    l_node_info->ext_host_len = dap_strncpy(l_node_info->ext_host, a_addr, l_addr_len) - l_node_info->ext_host;
+    
+    // Connect using sync client with 'R' channel for services
+    const char l_channels[] = { DAP_CHAIN_NET_SRV_CH_ID, '\0' };
+    l_client->sync_client = dap_chain_node_sync_client_connect(a_net, l_node_info, l_channels, a_timeout_ms);
+    
+    DAP_DELETE(l_node_info);
+    
+    if (!l_client->sync_client) {
+        log_it(L_ERROR, "Failed to connect to service at %s:%u", a_addr, a_port);
+        DAP_DELETE(l_client);
+        return NULL;
     }
-    default:
-        break;
+    
+    log_it(L_INFO, "Service client connected to %s:%u", a_addr, a_port);
+    return l_client;
+}
+
+/**
+ * @brief Check service (synchronous)
+ */
+int dap_chain_net_srv_client_check(
+    dap_chain_net_srv_client_t *a_client,
+    dap_chain_net_id_t a_net_id,
+    dap_chain_srv_uid_t a_srv_uid,
+    const void *a_data,
+    size_t a_data_size,
+    dap_chain_net_srv_ch_pkt_test_t **a_out_response,
+    int a_timeout_ms)
+{
+    if (!a_client || !a_client->sync_client) {
+        log_it(L_ERROR, "Service client check: invalid client");
+        return DAP_SRV_CLIENT_ERROR_INVALID_ARGS;
     }
+    
+    if (!dap_chain_node_sync_client_is_connected(a_client->sync_client)) {
+        log_it(L_ERROR, "Service client check: not connected");
+        return DAP_SRV_CLIENT_ERROR_DISCONNECTED;
+    }
+    
+    // Build check request
+    size_t l_request_size = sizeof(dap_chain_net_srv_ch_pkt_test_t) + a_data_size;
+    dap_chain_net_srv_ch_pkt_test_t *l_request = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_test_t, l_request_size);
+    if (!l_request) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return DAP_SRV_CLIENT_ERROR_MEMORY;
+    }
+    
+    l_request->net_id = a_net_id;
+    l_request->srv_uid = a_srv_uid;
+    l_request->data_size_send = a_data_size;
+    l_request->data_size_recv = a_data_size;
+    l_request->data_size = a_data_size;
+    l_request->send_time1 = dap_nanotime_now();
+    
+    if (a_data && a_data_size > 0) {
+        memcpy(l_request->data, a_data, a_data_size);
+        dap_hash_fast(l_request->data, l_request->data_size, &l_request->data_hash);
+    }
+    
+    // Send request and wait for response
+    void *l_response_data = NULL;
+    size_t l_response_size = 0;
+    
+    int l_ret = dap_chain_node_sync_request(
+        a_client->sync_client,
+        DAP_CHAIN_NET_SRV_CH_ID,
+        DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST,
+        l_request, l_request_size,
+        DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE,
+        &l_response_data, &l_response_size,
+        a_timeout_ms
+    );
+    
+    DAP_DELETE(l_request);
+    
+    if (l_ret != DAP_SYNC_ERROR_NONE) {
+        log_it(L_WARNING, "Service check request failed: %s", dap_chain_node_sync_error_str(l_ret));
+        return l_ret == DAP_SYNC_ERROR_REQUEST_TIMEOUT ? DAP_SRV_CLIENT_ERROR_TIMEOUT : DAP_SRV_CLIENT_ERROR_SEND;
+    }
+    
+    // Validate response
+    if (!l_response_data || l_response_size < sizeof(dap_chain_net_srv_ch_pkt_test_t)) {
+        log_it(L_WARNING, "Service check: wrong response size");
+        DAP_DEL_Z(l_response_data);
+        return DAP_SRV_CLIENT_ERROR_WRONG_RESPONSE;
+    }
+    
+    dap_chain_net_srv_ch_pkt_test_t *l_response = (dap_chain_net_srv_ch_pkt_test_t *)l_response_data;
+    
+    // Verify hash
+    dap_chain_hash_fast_t l_data_hash;
+    dap_hash_fast(l_response->data, l_response->data_size, &l_data_hash);
+    if (!dap_hash_fast_compare(&l_data_hash, &l_response->data_hash)) {
+        log_it(L_WARNING, "Service check: response hash mismatch");
+        DAP_DELETE(l_response_data);
+        return DAP_SRV_CLIENT_ERROR_WRONG_RESPONSE;
+    }
+    
+    l_response->recv_time1 = dap_nanotime_now();
+    
+    if (a_out_response)
+        *a_out_response = l_response;
+    else
+        DAP_DELETE(l_response_data);
+    
+    return DAP_SRV_CLIENT_ERROR_NONE;
+}
+
+/**
+ * @brief Request service (synchronous)
+ */
+int dap_chain_net_srv_client_request(
+    dap_chain_net_srv_client_t *a_client,
+    dap_chain_net_id_t a_net_id,
+    dap_chain_srv_uid_t a_srv_uid,
+    dap_chain_hash_fast_t *a_tx_cond,
+    dap_chain_net_srv_ch_pkt_success_t **a_out_success,
+    size_t *a_out_size,
+    int a_timeout_ms)
+{
+    if (!a_client || !a_client->sync_client) {
+        log_it(L_ERROR, "Service client request: invalid client");
+        return DAP_SRV_CLIENT_ERROR_INVALID_ARGS;
+    }
+    
+    if (!dap_chain_node_sync_client_is_connected(a_client->sync_client)) {
+        log_it(L_ERROR, "Service client request: not connected");
+        return DAP_SRV_CLIENT_ERROR_DISCONNECTED;
+    }
+    
+    // Build request
+    dap_chain_net_srv_ch_pkt_request_hdr_t l_request = {0};
+    l_request.net_id = a_net_id;
+    l_request.srv_uid = a_srv_uid;
+    if (a_tx_cond)
+        l_request.tx_cond = *a_tx_cond;
+    
+    // Send request and wait for response
+    void *l_response_data = NULL;
+    size_t l_response_size = 0;
+    
+    int l_ret = dap_chain_node_sync_request(
+        a_client->sync_client,
+        DAP_CHAIN_NET_SRV_CH_ID,
+        DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST,
+        &l_request, sizeof(l_request),
+        DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS,
+        &l_response_data, &l_response_size,
+        a_timeout_ms
+    );
+    
+    if (l_ret != DAP_SYNC_ERROR_NONE) {
+        log_it(L_WARNING, "Service request failed: %s", dap_chain_node_sync_error_str(l_ret));
+        return l_ret == DAP_SYNC_ERROR_REQUEST_TIMEOUT ? DAP_SRV_CLIENT_ERROR_TIMEOUT : DAP_SRV_CLIENT_ERROR_SEND;
+    }
+    
+    if (a_out_success)
+        *a_out_success = (dap_chain_net_srv_ch_pkt_success_t *)l_response_data;
+    else
+        DAP_DEL_Z(l_response_data);
+    
+    if (a_out_size)
+        *a_out_size = l_response_size;
+    
+    return DAP_SRV_CLIENT_ERROR_NONE;
+}
+
+/**
+ * @brief Write raw packet to service channel
+ */
+int dap_chain_net_srv_client_write(
+    dap_chain_net_srv_client_t *a_client,
+    uint8_t a_type,
+    const void *a_data,
+    size_t a_data_size,
+    uint8_t a_expected_response,
+    void **a_out_data,
+    size_t *a_out_size,
+    int a_timeout_ms)
+{
+    if (!a_client || !a_client->sync_client) {
+        log_it(L_ERROR, "Service client write: invalid client");
+        return DAP_SRV_CLIENT_ERROR_INVALID_ARGS;
+    }
+    
+    if (!dap_chain_node_sync_client_is_connected(a_client->sync_client)) {
+        log_it(L_ERROR, "Service client write: not connected");
+        return DAP_SRV_CLIENT_ERROR_DISCONNECTED;
+    }
+    
+    int l_ret = dap_chain_node_sync_request(
+        a_client->sync_client,
+        DAP_CHAIN_NET_SRV_CH_ID,
+        a_type,
+        a_data, a_data_size,
+        a_expected_response,
+        a_out_data, a_out_size,
+        a_timeout_ms
+    );
+    
+    if (l_ret != DAP_SYNC_ERROR_NONE) {
+        log_it(L_WARNING, "Service client write failed: %s", dap_chain_node_sync_error_str(l_ret));
+        return l_ret == DAP_SYNC_ERROR_REQUEST_TIMEOUT ? DAP_SRV_CLIENT_ERROR_TIMEOUT : DAP_SRV_CLIENT_ERROR_SEND;
+    }
+    
+    return DAP_SRV_CLIENT_ERROR_NONE;
+}
+
+/**
+ * @brief Close service client
+ */
+void dap_chain_net_srv_client_close(dap_chain_net_srv_client_t *a_client)
+{
+    if (!a_client)
+        return;
+    
+    log_it(L_INFO, "Closing service client");
+    
+    if (a_client->sync_client)
+        dap_chain_node_sync_client_close(a_client->sync_client);
+    
+    DAP_DELETE(a_client);
 }
