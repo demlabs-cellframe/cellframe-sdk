@@ -3105,7 +3105,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
     l_cond_prev->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_cond_prev->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY;
     randombytes(&l_cond_prev->header.value, sizeof(uint256_t));
-    randombytes(&l_cond_prev->header.srv_uid, sizeof(dap_chain_net_srv_uid_t));
+    randombytes(&l_cond_prev->header.srv_uid, sizeof(dap_chain_srv_uid_t));
     randombytes(&l_cond_prev->subtype.srv_pay.pkey_hash, sizeof(dap_hash_fast_t));
 #endif
 
