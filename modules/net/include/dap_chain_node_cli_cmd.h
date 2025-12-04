@@ -348,8 +348,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
 
 int com_tx_create_json(int a_argc, char **a_argv, void **reply, int a_version);
-int com_tx_cond_create(int a_argc, char **a_argv, void **reply, int a_version);
-int com_tx_cond_refill(int a_argc, char **a_argv, void **reply, int a_version);
+int com_tx_cond(int a_argc, char **a_argv, void **reply, int a_version);
 
 typedef enum s_com_token_decl_err{
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK = 0,
@@ -438,9 +437,6 @@ typedef enum s_com_print_log_err{
     DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_LIMIT,
     DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS
 }s_com_print_log_err_t;
-
-int com_tx_cond_remove(int a_argc, char **a_argv, void **reply, int a_version);
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply, int a_version);
 
 /**
  * tx_verify command
