@@ -6155,6 +6155,40 @@ int com_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG
     return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX;
 }
 
+int com_tx_cond(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+{
+    enum { SUBCMD_NONE, SUBCMD_CREATE, SUBCMD_REFILL, SUBCMD_REMOVE, SUBCMD_UNSPENT_FIND };
+    int l_subcmd = SUBCMD_NONE;
+
+    if (a_argc > 1 && a_argv[1]) {
+        if (!dap_strcmp(a_argv[1], "create"))
+            l_subcmd = SUBCMD_CREATE;
+        else if (!dap_strcmp(a_argv[1], "refill"))
+            l_subcmd = SUBCMD_REFILL;
+        else if (!dap_strcmp(a_argv[1], "remove"))
+            l_subcmd = SUBCMD_REMOVE;
+        else if (!dap_strcmp(a_argv[1], "unspent_find"))
+            l_subcmd = SUBCMD_UNSPENT_FIND;
+    }
+
+    switch (l_subcmd) {
+        case SUBCMD_CREATE:
+            return com_tx_cond_create(a_argc, a_argv, a_str_reply, a_version);
+        case SUBCMD_REFILL:
+            return com_tx_cond_refill(a_argc, a_argv, a_str_reply, a_version);
+        case SUBCMD_REMOVE:
+            return com_tx_cond_remove(a_argc, a_argv, a_str_reply, a_version);
+        case SUBCMD_UNSPENT_FIND:
+            return com_tx_cond_unspent_find(a_argc, a_argv, a_str_reply, a_version);
+        default: {
+            json_object **a_json_arr_reply = (json_object **)a_str_reply;
+            dap_json_rpc_error_add(*a_json_arr_reply, -1,
+                "Subcommand required. Use: tx_cond create | refill | remove | unspent_find");
+            return -1;
+        }
+    }
+}
+
 static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
 {
     dap_list_t *l_ret_list = NULL;

@@ -359,17 +359,18 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool",
                 "mempool_add  -net <net_name> [-chain <chain_name>] -json <json_file_path> | -tx_obj <tx_json_object>\n" );
-    dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, NULL, "Make cond transaction",
-                                        "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
-                                        " { -cert <pub_cert_name> | -pkey <pkey_hash> } -value <value_datoshi> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n" );
-    dap_cli_server_cmd_add ("tx_cond_refill", com_tx_cond_refill, NULL, "Refill conditional SRV_PAY transaction",
-                                        "tx_cond_refill -net <net_name> -w <wallet_name> -tx <tx_cond_hash> "
-                                        "-value <value> -fee <value> [-H {hex|base58}]\n" );
-    dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, NULL, "Remove cond transactions and return funds from condition outputs to wallet",
-                                        "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
-                                        " -fee <value> -srv_uid <numeric_uid>\n" );
-        dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, NULL, "Find cond transactions by wallet",
-                                        "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
+    dap_cli_cmd_t *l_cmd_tx_cond = dap_cli_server_cmd_add ("tx_cond", com_tx_cond, NULL, "Conditional transaction commands",
+                                        "tx_cond create -net <net_name> -token <token_ticker> -w <wallet_name>"
+                                        " { -cert <pub_cert_name> | -pkey <pkey_hash> } -value <value_datoshi> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n"
+                                        "tx_cond refill -net <net_name> -w <wallet_name> -tx <tx_cond_hash> "
+                                        "-value <value> -fee <value> [-H {hex|base58}]\n"
+                                        "tx_cond remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
+                                        " -fee <value> -srv_uid <numeric_uid>\n"
+                                        "tx_cond unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name>\n" );
+    dap_cli_server_alias_add(l_cmd_tx_cond, "create", "tx_cond_create");
+    dap_cli_server_alias_add(l_cmd_tx_cond, "refill", "tx_cond_refill");
+    dap_cli_server_alias_add(l_cmd_tx_cond, "remove", "tx_cond_remove");
+    dap_cli_server_alias_add(l_cmd_tx_cond, "unspent_find", "tx_cond_unspent_find");
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, NULL, "Verifing transaction in mempool",
             "tx_verify -net <net_name> [-chain <chain_name>] -tx <tx_hash>\n" );

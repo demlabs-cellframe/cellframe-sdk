@@ -350,6 +350,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_v
 int com_tx_create_json(int a_argc, char **a_argv, void **reply, int a_version);
 int com_tx_cond_create(int a_argc, char **a_argv, void **reply, int a_version);
 int com_tx_cond_refill(int a_argc, char **a_argv, void **reply, int a_version);
+int com_tx_cond(int a_argc, char **a_argv, void **reply, int a_version);
 
 typedef enum s_com_token_decl_err{
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK = 0,
