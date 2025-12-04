@@ -118,6 +118,10 @@
 #define LOG_TAG "chain_node_cli_cmd"
 
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
+static int _cmd_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+static int _cmd_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+static int _cmd_tx_cond_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static void s_new_wallet_info_notify(const char *a_wallet_name); 
 struct json_object *wallet_list_json_collect(int a_version);
 
@@ -5831,16 +5835,7 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int
 }
 
 
-/**
- * @brief com_tx_cond_create
- * Create transaction
- * com_tx_cond_create command
- * @param a_argc
- * @param a_argv
- * @param a_str_reply
- * @return int
- */
-int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+static int _cmd_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     (void) a_argc;
     json_object** a_json_arr_reply = (json_object**)a_str_reply;
@@ -5993,14 +5988,16 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
         json_object *l_jobj_hash = json_object_new_string(l_hash_str);
         json_object_object_add(l_jobj_ret, "create_tx_cond", l_jobj_tx_cond_transfer);
         json_object_object_add(l_jobj_ret, "hash", l_jobj_hash);
-        json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+        if (*a_json_arr_reply && json_object_is_type(*a_json_arr_reply, json_type_array))
+            json_object_array_add(*a_json_arr_reply, l_jobj_ret);
         DAP_DELETE(l_hash_str);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_OK;
     }
     json_object *l_jobj_ret = json_object_new_object();
     json_object *l_jobj_tx_cond_transfer = json_object_new_boolean(false);
     json_object_object_add(l_jobj_ret, "create_tx_cond", l_jobj_tx_cond_transfer);
-    json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+    if (*a_json_arr_reply && json_object_is_type(*a_json_arr_reply, json_type_array))
+        json_object_array_add(*a_json_arr_reply, l_jobj_ret);
     return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_CONDITIONAL_TX_CREATE;
 }
 
@@ -6012,7 +6009,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
  * @param a_version
  * @return
  */
-int com_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+static int _cmd_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     (void)a_argc;
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
@@ -6157,36 +6154,41 @@ int com_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG
 
 int com_tx_cond(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
-    enum { SUBCMD_NONE, SUBCMD_CREATE, SUBCMD_REFILL, SUBCMD_REMOVE, SUBCMD_UNSPENT_FIND };
-    int l_subcmd = SUBCMD_NONE;
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    enum _subcmd { SUBCMD_CREATE, SUBCMD_REFILL, SUBCMD_REMOVE, SUBCMD_UNSPENT_FIND };
+    enum _subcmd l_cmd = 0;
 
-    if (a_argc > 1 && a_argv[1]) {
-        if (!dap_strcmp(a_argv[1], "create"))
-            l_subcmd = SUBCMD_CREATE;
-        else if (!dap_strcmp(a_argv[1], "refill"))
-            l_subcmd = SUBCMD_REFILL;
-        else if (!dap_strcmp(a_argv[1], "remove"))
-            l_subcmd = SUBCMD_REMOVE;
-        else if (!dap_strcmp(a_argv[1], "unspent_find"))
-            l_subcmd = SUBCMD_UNSPENT_FIND;
-    }
-
-    switch (l_subcmd) {
-        case SUBCMD_CREATE:
-            return com_tx_cond_create(a_argc, a_argv, a_str_reply, a_version);
-        case SUBCMD_REFILL:
-            return com_tx_cond_refill(a_argc, a_argv, a_str_reply, a_version);
-        case SUBCMD_REMOVE:
-            return com_tx_cond_remove(a_argc, a_argv, a_str_reply, a_version);
-        case SUBCMD_UNSPENT_FIND:
-            return com_tx_cond_unspent_find(a_argc, a_argv, a_str_reply, a_version);
-        default: {
-            json_object **a_json_arr_reply = (json_object **)a_str_reply;
-            dap_json_rpc_error_add(*a_json_arr_reply, -1,
-                "Subcommand required. Use: tx_cond create | refill | remove | unspent_find");
-            return -1;
+    if (a_argv[1]) {
+        if (!dap_strcmp(a_argv[1], "create")) {
+            l_cmd = SUBCMD_CREATE;
+        } else if (!dap_strcmp(a_argv[1], "refill")) {
+            l_cmd = SUBCMD_REFILL;
+        } else if (!dap_strcmp(a_argv[1], "remove")) {
+            l_cmd = SUBCMD_REMOVE;
+        } else if (!dap_strcmp(a_argv[1], "unspent_find")) {
+            l_cmd = SUBCMD_UNSPENT_FIND;
+        } else {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,
+                "Invalid subcommand '%s'. Use: tx_cond create | refill | remove | unspent_find", a_argv[1]);
+            return DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD;
         }
+    } else {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,
+            "Subcommand required. Use: tx_cond create | refill | remove | unspent_find");
+        return DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD;
     }
+
+    switch (l_cmd) {
+        case SUBCMD_CREATE:
+            return _cmd_tx_cond_create(a_argc, a_argv, a_str_reply, a_version);
+        case SUBCMD_REFILL:
+            return _cmd_tx_cond_refill(a_argc, a_argv, a_str_reply, a_version);
+        case SUBCMD_REMOVE:
+            return _cmd_tx_cond_remove(a_argc, a_argv, a_str_reply, a_version);
+        case SUBCMD_UNSPENT_FIND:
+            return _cmd_tx_cond_unspent_find(a_argc, a_argv, a_str_reply, a_version);
+    }
+    return -1;
 }
 
 static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
@@ -6215,7 +6217,7 @@ static dap_list_t* s_hashes_parse_str_list(const char * a_hashes_str)
     return DAP_DELETE(l_hash_str_dup), l_ret_list;
 }
 
-int com_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
+static int _cmd_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     (void) a_argc;
     int arg_index = 1;
@@ -6522,7 +6524,7 @@ void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, 
        
 }
 
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
+static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG int a_version)
 {
     (void) a_argc;
     int arg_index = 1;
