@@ -5,26 +5,27 @@
  * Kelvin Project https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2018
  * All rights reserved.
-
- This file is part of DAP (Distributed Applications Platform) the open source project
-
-    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    DAP is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * This file is part of DAP (Distributed Applications Platform) the open source project
+ *
+ *    DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation, either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    DAP is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #pragma once
 #include <stdint.h>
 #include <stdio.h>
+
 
 #include "dap_common.h"
 #include "dap_enc_base58.h"
@@ -336,6 +337,11 @@ static inline dap_chain_hash_slow_kind_t dap_chain_hash_slow_kind_check(dap_chai
         return HASH_GOLD;
     else
         return HASH_SILVER;
+}
+
+DAP_STATIC_INLINE char *dap_chain_mempool_group_name(const char *a_gdb_groups_prefix, const char *a_chain_name)
+{
+    return dap_strdup_printf("%s.chain-%s.mempool", a_gdb_groups_prefix, a_chain_name);
 }
 
 

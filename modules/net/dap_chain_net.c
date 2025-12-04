@@ -109,7 +109,6 @@
 #include "dap_chain_policy.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_srv.h"
-#include "dap_chain_mempool.h"
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -153,7 +152,6 @@ struct chain_sync_context {
   */
 typedef struct dap_chain_net_pvt {
     pthread_t proc_tid;
-    dap_chain_node_role_t node_role;
     uint32_t  flags;
 
     dap_chain_node_info_t *node_info;  // Current node's info
@@ -743,7 +741,7 @@ static bool s_net_states_notify_timer_callback(UNUSED_ARG void *a_arg)
  */
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 {
-    return PVT(a_net)->node_role;
+    return a_net->pub.node_role;
 }
 
 /**
@@ -806,7 +804,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     PVT(l_ret)->node_info = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1, NULL, l_ret);
 
     l_ret->pub.id = l_net_id;
-    PVT(l_ret)->node_role.enums = l_role;
+    l_ret->pub.node_role.enums = l_role;
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
     dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
     l_ret->pub.native_ticker = a_native_ticker;
@@ -1871,7 +1869,7 @@ int dap_chain_net_test_init()
     strcpy(l_net->pub.name, "Snet");
     l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
     l_net->pub.native_ticker = "TestCoin";
-    PVT(l_net)->node_role.enums = NODE_ROLE_ROOT;
+    l_net->pub.node_role.enums = NODE_ROLE_ROOT;
     HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_net);
     HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
     return 0;
@@ -1982,10 +1980,10 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
     dap_chain_srv_start(a_net->pub.id, DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL, NULL);     // Harcoded core service starting for delegated keys storage
 
     uint16_t l_ledger_flags = 0;
-    switch ( PVT( a_net )->node_role.enums ) {
+    switch ( a_net->pub.node_role.enums ) {
     case NODE_ROLE_LIGHT:
         //break;
-        PVT( a_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
+        a_net->pub.node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
     case NODE_ROLE_FULL:
         l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
         if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
@@ -1997,8 +1995,11 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
         l_ledger_flags |= DAP_LEDGER_MAPPED;
 
     int l_res = s_chains_init_all(a_net, a_net->pub.config->path, &l_ledger_flags);
-    if (!l_res)
+    if (!l_res) {
         a_net->pub.ledger = dap_ledger_create(a_net, l_ledger_flags);
+        dap_ledger_set_load_mode(a_net->pub.ledger, true);
+        dap_ledger_set_fee_callback(a_net->pub.ledger, dap_chain_net_tx_set_fee);
+    }
     
     return l_res;
     
@@ -2107,7 +2108,7 @@ static void *s_net_load(void *a_arg)
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         int l_ret = dap_chain_load_all(l_chain);
         l_chain->atom_num_last = 0;
-        switch ( l_net_pvt->node_role.enums ) {
+        switch ( l_net->pub.node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:
         /* Processes everything in mempool*/
             l_chain->is_datum_pool_proc = true;
@@ -2142,7 +2143,7 @@ static void *s_net_load(void *a_arg)
             l_net_pvt->mempool_clusters = l_cluster;
     }
     dap_ledger_load_end(l_net->pub.ledger);
-    log_it(L_INFO, "Node role \"%s\" established in net %s", dap_chain_node_role_to_str(l_net_pvt->node_role), l_net->pub.name);
+    log_it(L_INFO, "Node role \"%s\" established in net %s", dap_chain_node_role_to_str(l_net->pub.node_role), l_net->pub.name);
     l_net_pvt->state_target = NET_STATE_OFFLINE;
 
     // Init GlobalDB clusters for service and nodes (with aliases)
@@ -2432,28 +2433,6 @@ dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_c
 }
 
 /**
- * @brief dap_chain_net_get_default_chain_by_chain_type
- * @param a_datum_type
- * @return
- */
-dap_chain_t * dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type)
-{
-    dap_chain_t * l_chain;
-
-    if (!a_net)
-        return NULL;
-
-    DL_FOREACH(a_net->pub.chains, l_chain)
-    {
-        for(int i = 0; i < l_chain->default_datum_types_count; i++) {
-            if(l_chain->default_datum_types[i] == a_datum_type)
-                return l_chain;
-        }
-    }
-    return NULL;
-}
-
-/**
  * @brief dap_chain_net_get_gdb_group_mempool_by_chain_type
  * @param a_datum_type
  * @return
@@ -2468,7 +2447,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type) {
                 dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(l_chain);
-                return dap_chain_mempool_group_new(l_chain);
+                return dap_chain_mempool_group_name(a_net->pub.gdb_groups_prefix, l_chain->name);
             }
         }
     }
@@ -2925,7 +2904,7 @@ void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
 {
     dap_return_if_fail(a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    if ( l_net_pvt->node_info->ext_port && l_net_pvt->node_role.enums >= NODE_ROLE_MASTER ) {
+    if ( l_net_pvt->node_info->ext_port && a_net->pub.node_role.enums >= NODE_ROLE_MASTER ) {
         log_it(L_INFO, "Announce our node address "NODE_ADDR_FP_STR" [ %s : %u ] in net %s",
                NODE_ADDR_FP_ARGS_S(g_node_addr),
                l_net_pvt->node_info->ext_host,
@@ -3317,6 +3296,16 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
     dap_chain_t *l_chain;
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
     PVT(a_net)->state_target = a_new_state;
+    if (a_new_state == NET_STATE_SYNC_CHAINS) {
+        dap_ledger_set_syncing_state(a_net->pub.ledger, true);
+    } else {
+        dap_ledger_set_syncing_state(a_net->pub.ledger, false);
+    }
+    if (a_new_state == NET_STATE_LOADING) {
+        dap_ledger_set_load_mode(a_net->pub.ledger, true);
+    } else {
+        dap_ledger_set_load_mode(a_net->pub.ledger, false);
+    }
     if (a_new_state == NET_STATE_OFFLINE) {
         char l_err_str[] = "ERROR_NET_IS_OFFLINE";
         size_t l_error_size = sizeof(dap_chain_net_ch_pkt_t) + sizeof(l_err_str);

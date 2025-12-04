@@ -12,7 +12,6 @@ add_executable(${PROJECT_NAME} ${DAP_LEDGER_EVENT_TESTS_SRC})
 target_include_directories(${PROJECT_NAME} 
     PUBLIC 
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src
 )
 
 # Link libraries
@@ -21,7 +20,6 @@ target_link_libraries(${PROJECT_NAME}
         dap_test
         dap_sdk 
         cellframe_sdk
-        dap_chain_ledger
 )
 
 # Note: Mock framework linker options not needed for this test

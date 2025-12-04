@@ -25,6 +25,7 @@
 #include <memory.h>
 #include <assert.h>
 #include "dap_common.h"
+#include "dap_config.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_voting.h"

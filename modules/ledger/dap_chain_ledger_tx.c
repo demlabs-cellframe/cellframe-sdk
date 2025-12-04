@@ -25,11 +25,9 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "dap_chain_ledger.h"
-#include "dap_chain_policy.h"  // For policy functions from common module
+#include "dap_chain_policy.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_notify_srv.h"
-#include "dap_chain_wallet.h"
-#include "dap_chain_wallet_shared.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_json.h"
 
@@ -1242,7 +1240,7 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
         DAP_DELETE(l_gdb_group);
     }
     /* Notify the world*/
-    if ( !dap_chain_net_get_load_mode(a_ledger->net) ) {
+    if ( !a_ledger->load_mode ) {
         dap_json_t *l_json = s_wallet_info_json_collect(a_ledger, a_balance);
         if (l_json) {
             char *l_json_str = dap_json_to_string(l_json);
@@ -1524,7 +1522,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                                         &l_tag, &l_action, false, false))) {
         if ((l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS ||
                 l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION) &&
-                is_ledger_threshld(l_ledger_pvt) && !dap_chain_net_get_load_mode(a_ledger->net)) {
+                is_ledger_threshld(l_ledger_pvt) && !a_ledger->load_mode) {
             if (!l_from_threshold)
                 dap_ledger_pvt_threshold_txs_add(a_ledger, a_tx, &l_tx_hash);
         } else {
@@ -1543,7 +1541,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         !dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL)
         )
     {
-        dap_chain_wallet_shared_hold_tx_add(a_tx, a_ledger->net->pub.name);
     }
 
     debug_if(g_debug_ledger, L_DEBUG, "dap_ledger_tx_add() check passed for tx %s", l_tx_hash_str);
@@ -1899,7 +1896,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         l_tx_item->cache_data.flags |= LEDGER_PVT_TX_META_FLAG_MULTICHANNEL;
     l_tx_item->ts_added = dap_nanotime_now();
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
-    if (dap_chain_net_get_load_mode(a_ledger->net) || dap_chain_net_get_state(a_ledger->net) == NET_STATE_SYNC_CHAINS)
+    if (a_ledger->load_mode || a_ledger->is_syncing)
         HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
     else
         HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
@@ -2249,7 +2246,7 @@ FIN:
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
 #ifndef DAP_LEDGER_TEST
-    if (dap_chain_net_get_load_mode(a_ledger->net)) {
+    if (a_ledger->load_mode) {
         if (PVT(a_ledger)->cache_tx_check_callback)
             PVT(a_ledger)->cache_tx_check_callback(a_ledger, a_tx_hash);
         dap_ledger_tx_item_t *l_tx_item = NULL;

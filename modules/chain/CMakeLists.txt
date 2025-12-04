@@ -2,11 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project (dap_chain)
   
 # Exclude files moved to common and consensus modules
-set(DAP_CHAIN_SRCS 
-    dap_chain.c
-    dap_chain_cell.c
-    dap_chain_srv.c
-)
+file(GLOB DAP_CHAIN_SRCS *.c)
 file(GLOB DAP_CHAIN_HEADERS include/*.h)
 
 # Use universal Cellframe library macro
@@ -16,12 +12,9 @@ if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
 endif()
 
-#find_package(PkgConfig REQUIRED)
-#pkg_search_module(GLIB REQUIRED glib-2.0)
-
-target_link_libraries(${PROJECT_NAME} dap_common dap_chain_datum dap_global_db dap_notify_srv dap_stream dap_chain_cs ${GLIB_LDFLAGS})
-target_include_directories(${PROJECT_NAME} INTERFACE . include/ ${GLIB_INCLUDE_DIRS})
-target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_link_libraries(${PROJECT_NAME} dap_common dap_global_db dap_notify_srv dap_stream dap_chain_cs dap_chain_datum)
+target_include_directories(${PROJECT_NAME} INTERFACE . include/)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_HEADERS}")

@@ -24,6 +24,7 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "dap_chain_ledger_pvt.h"
+#include "dap_chain_net_utils.h"
 #include "dap_json.h"
 
 #define LOG_TAG "dap_ledger_token"

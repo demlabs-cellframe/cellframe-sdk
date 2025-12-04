@@ -41,6 +41,10 @@ typedef struct dap_chain_cs_callbacks {
     int (*set_hardfork_state)(dap_chain_t *a_chain, bool a_state);
     // Check if hardfork is engaged
     bool (*hardfork_engaged)(dap_chain_t *a_chain);
+    // Prepare hardfork
+    int (*set_hardfork_prepare)(dap_chain_t *a_chain, uint16_t a_generation, uint64_t a_start_atom, dap_list_t *a_addrs, dap_json_t *a_params);
+    // Complete hardfork
+    void (*set_hardfork_complete)(dap_chain_t *a_chain);
     
     // ===== Stake service callbacks (blocks → stake communication) =====
     

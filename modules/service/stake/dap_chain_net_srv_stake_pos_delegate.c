@@ -35,6 +35,7 @@
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_net_utils.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_net_ch_pkt.h"
@@ -5155,4 +5156,156 @@ int dap_chain_net_srv_stake_get_validator_ext(dap_chain_net_srv_order_t *a_order
         *a_value_max = l_ext->value_max;
     }
     return 0;
+}
+
+#include "dap_chain_datum_decree.h"
+
+static int s_stake_decree_callback(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_decree, bool a_apply, bool a_anchored)
+{
+    dap_chain_net_t *a_net = a_ledger->net;
+    dap_hash_fast_t l_hash = {};
+    uint256_t l_value = {};
+    dap_chain_addr_t l_addr = {};
+    dap_chain_node_addr_t l_node_addr = {};
+
+    switch (a_decree->header.sub_type) {
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
+        if (dap_chain_datum_decree_get_hash(a_decree, &l_hash)){
+            log_it(L_WARNING,"Can't get tx hash from decree.");
+            return -105;
+        }
+        if (dap_chain_datum_decree_get_stake_value(a_decree, &l_value)){
+            log_it(L_WARNING,"Can't get stake value from decree.");
+            return -106;
+        }
+        if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
+            log_it(L_WARNING,"Can't get signing address from decree.");
+            return -107;
+        }
+        if (dap_chain_datum_decree_get_node_addr(a_decree, &l_node_addr)){
+            log_it(L_WARNING,"Can't get signer node address from decree.");
+            return -108;
+        }
+        if (!a_anchored)
+            break;
+        if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
+            log_it(L_WARNING, "Key and node verification error");
+            return -109;
+        }
+        if (!a_apply)
+            break;
+        dap_hash_fast_t l_decree_hash = {};
+        dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+        dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_decree_hash, &l_hash, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(a_decree));
+        if (!a_ledger->load_mode)
+            dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);
+        break;
+
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE:
+        if (!a_anchored)
+            break;
+        if (!a_apply)
+            break;
+        dap_pkey_t *l_pkey = NULL;
+        if (! (l_pkey = dap_chain_datum_decree_get_pkey(a_decree)) ){
+            log_it(L_WARNING,"Can't get pkey from decree.");
+            return -105;
+        }
+        dap_chain_net_srv_stake_pkey_update(a_net, l_pkey);
+        break;
+
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE: {
+        if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
+            log_it(L_WARNING,"Can't get signing address from decree.");
+            return -105;
+        }
+        if (!a_anchored)
+            break;
+        uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
+        if ( dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL) == l_min_count ) {
+            log_it(L_WARNING, "Can't invalidate stake in net %s: results in minimum validators count %hu underflow",
+                               a_net->pub.name, l_min_count);
+            return -116;
+        }
+        if (!a_apply)
+            break;
+        dap_chain_net_srv_stake_remove_approving_decree_info(a_net, &l_addr);
+        dap_chain_net_srv_stake_key_invalidate(&l_addr);
+    } break;
+
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
+        if (dap_chain_datum_decree_get_stake_min_value(a_decree, &l_value)){
+            log_it(L_WARNING,"Can't get min stake value from decree.");
+            return -105;
+        }
+        if (!a_apply)
+            break;
+        dap_chain_net_srv_stake_set_allowed_min_value(a_net->pub.id, l_value);
+        break;
+
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT: {
+        if (dap_chain_datum_decree_get_stake_min_signers_count(a_decree, &l_value)){
+            log_it(L_WARNING,"Can't get min stake value from decree.");
+            return -105;
+        }
+        dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+        if (!l_chain) {
+            log_it(L_WARNING, "Specified chain not found");
+            return -106;
+        }
+        if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+            log_it(L_WARNING, "Can't apply this decree to specified chain");
+            return -115;
+        }
+        if (!a_anchored)
+            break;
+        uint16_t l_decree_count = (uint16_t)dap_chain_uint256_to(l_value);
+        uint16_t l_current_count = dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL);
+        if (l_decree_count > l_current_count) {
+            log_it(L_WARNING, "Minimum validators count by decree %hu is greater than total validators count %hu in network %s",
+                                                                        l_decree_count, l_current_count, a_net->pub.name);
+            return -116;
+        }
+        if (!a_apply)
+            break;
+        dap_chain_esbocs_set_min_validators_count(l_chain, l_decree_count);
+    } break;
+    
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT: {
+        if (dap_chain_datum_decree_get_value(a_decree, &l_value)) {
+            log_it(L_WARNING,"Can't get value from decree.");
+            return -103;
+        }
+        dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+        if (!l_chain) {
+            log_it(L_WARNING, "Specified chain not found");
+            return -106;
+        }
+        if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
+            log_it(L_WARNING, "Can't apply this decree to specified chain");
+            return -115;
+        }
+        if (compare256(l_value, dap_chain_balance_coins_scan("1.0")) >= 0) {
+            log_it(L_WARNING, "Percent must be lower than 100%%");
+            return -116;
+        }
+        if (!a_apply)
+            break;
+        dap_chain_net_srv_stake_set_percent_max(a_net->pub.id, l_value);
+        return 0;
+    }
+
+    default:
+        return -1;
+    }
+    return 0;
+}
+
+void dap_chain_net_srv_stake_pos_delegate_init() {
+    dap_ledger_decree_set_callback(DAP_CHAIN_DATUM_DECREE_TYPE_COMMON, DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE, s_stake_decree_callback);
+    dap_ledger_decree_set_callback(DAP_CHAIN_DATUM_DECREE_TYPE_COMMON, DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE, s_stake_decree_callback);
+    dap_ledger_decree_set_callback(DAP_CHAIN_DATUM_DECREE_TYPE_COMMON, DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE, s_stake_decree_callback);
+    dap_ledger_decree_set_callback(DAP_CHAIN_DATUM_DECREE_TYPE_COMMON, DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE, s_stake_decree_callback);
+    dap_ledger_decree_set_callback(DAP_CHAIN_DATUM_DECREE_TYPE_COMMON, DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT, s_stake_decree_callback);
+    dap_ledger_decree_set_callback(DAP_CHAIN_DATUM_DECREE_TYPE_COMMON, DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT, s_stake_decree_callback);
 }

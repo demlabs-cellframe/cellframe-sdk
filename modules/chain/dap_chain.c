@@ -28,7 +28,9 @@
 #endif
 #include "dap_json.h"
 #include "dap_chain_common.h"
+#include "dap_chain_types.h"
 #include "dap_chain_datum.h"
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_srv.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
@@ -95,6 +97,10 @@ int dap_chain_init(void)
     dap_chain_cs_init();
     // Services init
     dap_chain_srv_init();
+    
+    // Register decree dump callback
+    dap_chain_datum_register_dump_decree_callback(dap_chain_datum_decree_dump_json);
+
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
     return 0;
@@ -305,103 +311,6 @@ dap_chain_t *dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id, dap_chain_i
     return l_ret_item ? l_ret_item->chain : NULL;
 }
 
-/**
- * @brief s_chain_type_from_str
- * get dap_chain_type_t value by str value a_type_str
- * @param a_type_str str values:token,emission,transaction,ca
- * @return dap_chain_type_t 
- */
-static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
-{
-    if(!dap_strcmp(a_type_str, "token")) {
-        return CHAIN_TYPE_TOKEN;
-    }
-    if(!dap_strcmp(a_type_str, "emission")) {
-        return CHAIN_TYPE_EMISSION;
-    }
-    if(!dap_strcmp(a_type_str, "transaction")) {
-        return CHAIN_TYPE_TX;
-    }
-    if(!dap_strcmp(a_type_str, "ca")) {
-        return CHAIN_TYPE_CA;
-    }
-    if(!dap_strcmp(a_type_str, "signer")) {
-	    return CHAIN_TYPE_SIGNER;
-    }
-    if (!dap_strcmp(a_type_str, "decree"))
-        return CHAIN_TYPE_DECREE;
-    if (!dap_strcmp(a_type_str, "anchor"))
-        return CHAIN_TYPE_ANCHOR;
-    return CHAIN_TYPE_INVALID;
-}
-
-
-/**
- * @brief s_chain_type_convert
- * convert dap_chain_type_t to  DAP_CNAIN* constants
- * @param a_type - dap_chain_type_t a_type [CHAIN_TYPE_TOKEN, CHAIN_TYPE_EMISSION, CHAIN_TYPE_TX]
- * @return uint16_t 
- */
-static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
-{
-    switch (a_type) {
-    case CHAIN_TYPE_TOKEN: 
-        return DAP_CHAIN_DATUM_TOKEN;
-    case CHAIN_TYPE_EMISSION:
-        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
-    case CHAIN_TYPE_TX:
-        return DAP_CHAIN_DATUM_TX;
-    case CHAIN_TYPE_CA:
-        return DAP_CHAIN_DATUM_CA;
-	case CHAIN_TYPE_SIGNER:
-		return DAP_CHAIN_DATUM_SIGNER;
-    case CHAIN_TYPE_DECREE:
-        return DAP_CHAIN_DATUM_DECREE;
-    case CHAIN_TYPE_ANCHOR:
-        return DAP_CHAIN_DATUM_ANCHOR;
-    default:
-        return DAP_CHAIN_DATUM_CUSTOM;
-    }
-}
-
-/**
- * @brief s_datum_type_from_str
- * get datum type (DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX) by str value
- * @param a_type_str datum type in string value (token,emission,transaction)
- * @return uint16_t 
- */
-static uint16_t s_datum_type_from_str(const char *a_type_str)
-{
-    return s_chain_type_convert(s_chain_type_from_str(a_type_str));
-}
-/**
- * @brief s_datum_type_convert
- * convert uint16_t to  dap_chain_type_t
- * @param a_type - uint16_t a_type [DAP_CHAIN_DATUM_TOKEN, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX]
- * @return dap_chain_type_t 
- */
-
-static dap_chain_type_t s_datum_type_convert(uint16_t a_type)
-{
-    switch (a_type) {
-    case DAP_CHAIN_DATUM_TOKEN: 
-        return CHAIN_TYPE_TOKEN;
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-        return CHAIN_TYPE_EMISSION;
-    case DAP_CHAIN_DATUM_TX:
-        return CHAIN_TYPE_TX;
-    case DAP_CHAIN_DATUM_CA:
-        return CHAIN_TYPE_CA;
-	case DAP_CHAIN_DATUM_SIGNER:
-		return CHAIN_TYPE_SIGNER;
-    case DAP_CHAIN_DATUM_DECREE:
-        return CHAIN_TYPE_DECREE;
-    case DAP_CHAIN_DATUM_ANCHOR:
-        return CHAIN_TYPE_ANCHOR;
-    default:
-        return CHAIN_TYPE_INVALID;
-    }
-}
 
 /**
  * @brief s_chain_in_chain_types
@@ -430,7 +339,7 @@ static bool s_chain_in_chain_types(dap_chain_type_t chain_type, dap_chain_type_t
 static bool s_datum_in_chain_types(uint16_t datum_type, dap_chain_type_t *chain_types, uint16_t chain_types_count)
 {
 	for (uint16_t i = 0; i < chain_types_count; i++)
-		if (s_chain_type_convert(chain_types[i]) == datum_type)
+		if (dap_chain_type_to_datum_type(chain_types[i]) == datum_type)
 			return (true);
 	return (false);
 }
@@ -439,7 +348,7 @@ bool dap_chain_datum_type_supported_by_chain(dap_chain_t *a_chain, uint16_t a_da
 {
     dap_return_val_if_fail(a_chain, false);
     for (uint16_t i = 0; i < a_chain->datum_types_count; i++)
-        if (s_chain_type_convert(a_chain->datum_types[i]) == a_datum_type)
+        if (dap_chain_type_to_datum_type(a_chain->datum_types[i]) == a_datum_type)
             return true;
     return false;
 }
@@ -502,7 +411,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 
         for (i = 0; i < l_datum_types_count; i++)
         {
-            dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
+            dap_chain_type_t l_chain_type = dap_chain_type_from_str(l_datum_types[i]);
             if (l_chain_type != CHAIN_TYPE_INVALID)
                 l_chain->datum_types[l_chain->datum_types_count++] = l_chain_type;
         }
@@ -518,7 +427,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
         }
         for (i = 0; i < l_default_datum_types_count; i++)
         {
-            dap_chain_type_t l_chain_type = s_chain_type_from_str(l_default_datum_types[i]);
+            dap_chain_type_t l_chain_type = dap_chain_type_from_str(l_default_datum_types[i]);
             if (l_chain_type != CHAIN_TYPE_INVALID
             && s_chain_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_type in readed datum_types
                 l_chain->default_datum_types[l_chain->default_datum_types_count++] = l_chain_type;
@@ -539,11 +448,11 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
             if (!dap_strcmp(l_datum_types[i], "all") && l_chain->datum_types_count)
             {
                 for (j = 0; j < l_chain->datum_types_count; j++)
-                    l_chain->autoproc_datum_types[j] = s_chain_type_convert(l_chain->datum_types[j]);
+                    l_chain->autoproc_datum_types[j] = dap_chain_type_to_datum_type(l_chain->datum_types[j]);
                 l_chain->autoproc_datum_types_count = l_chain->datum_types_count;
                 break;
             }
-            uint16_t l_chain_type = s_datum_type_from_str(l_datum_types[i]);
+            uint16_t l_chain_type = dap_chain_type_to_datum_type(dap_chain_type_from_str(l_datum_types[i]));
             if (l_chain_type != DAP_CHAIN_DATUM_CUSTOM
             &&	s_datum_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_datum_type in readed datum_types
                 l_chain->autoproc_datum_types[l_chain->autoproc_datum_types_count++] = l_chain_type;
@@ -1095,32 +1004,3 @@ void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain) {
     } while(l_atom_treshold);
 }
 
-const char *dap_chain_type_to_str(const dap_chain_type_t a_default_chain_type)
-{
-    switch (a_default_chain_type)
-    {
-        case CHAIN_TYPE_INVALID:
-            return "invalid";
-        case CHAIN_TYPE_TOKEN:
-            return "token";
-        case CHAIN_TYPE_EMISSION:
-            return "emission";
-        case CHAIN_TYPE_TX:
-            return "transaction";
-        case CHAIN_TYPE_CA:
-            return "ca";
-        case CHAIN_TYPE_SIGNER:
-            return "signer";
-        case CHAIN_TYPE_DECREE:
-            return "decree";
-        case CHAIN_TYPE_ANCHOR:
-            return "anchor";
-        default:
-            return "custom";
-    }
-}
-
-const char *dap_datum_type_to_str(uint16_t a_datum_type)
-{
-    return dap_chain_type_to_str(s_datum_type_convert(a_datum_type));
-}

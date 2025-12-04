@@ -26,6 +26,7 @@
 #include "dap_chain_net_srv_voting.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_utils.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
 #include "uthash.h"

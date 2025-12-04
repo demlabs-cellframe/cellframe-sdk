@@ -33,7 +33,6 @@ target_link_libraries(${PROJECT_NAME}
     dap_chain_type_blocks
     dap_chain_cs_esbocs
     dap_chain_net_srv_stake
-    dap_chain_net_srv_voting
     dap_chain_net_srv_xchange
 )
 

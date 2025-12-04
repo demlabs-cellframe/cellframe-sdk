@@ -22,6 +22,7 @@
 #pragma once
 
 #include "dap_chain_ledger.h"
+#include "dap_global_db.h"
 
 #define LEDGER_PVT_TX_META_FLAG_MULTICHANNEL    BIT(1)
 #define LEDGER_PVT_TX_META_FLAG_IMMUTABLE       BIT(2)

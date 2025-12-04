@@ -16,6 +16,7 @@
 #include "dap_mock.h"
 #include "dap_common.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_net.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_hash.h"

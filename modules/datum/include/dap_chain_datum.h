@@ -157,6 +157,11 @@ DAP_STATIC_INLINE void dap_chain_datum_calc_hash(const dap_chain_datum_t *a_datu
                   a_out_hash);
 }
 
+
+typedef void (*dap_chain_datum_callback_dump_json_t)(dap_json_t *a_json_out, const void *a_data, size_t a_size, const char *a_hash_out_type, int a_version);
+void dap_chain_datum_register_dump_decree_callback(dap_chain_datum_callback_dump_json_t a_callback);
+void dap_chain_datum_register_dump_anchor_callback(dap_chain_datum_callback_dump_json_t a_callback); // anchor тоже может зависеть от политик
+
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
 
 

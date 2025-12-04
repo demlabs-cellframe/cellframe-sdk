@@ -26,6 +26,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include "dap_chain_net.h"
+#include "dap_chain_net_utils.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_sig.h"

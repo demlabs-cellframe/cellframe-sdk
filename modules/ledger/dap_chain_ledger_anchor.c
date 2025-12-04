@@ -30,12 +30,10 @@
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_decree.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_net.h"
-#include "dap_chain_net_tx.h"
+#include "dap_chain_net_utils.h"
+#include "dap_chain_net_types.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_datum_anchor.h"
-#include "dap_chain_cs_esbocs.h"
 
 #define LOG_TAG "dap_ledger_anchor"
 

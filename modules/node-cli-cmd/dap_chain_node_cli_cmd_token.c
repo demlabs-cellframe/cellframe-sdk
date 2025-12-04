@@ -37,6 +37,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_net_utils.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"

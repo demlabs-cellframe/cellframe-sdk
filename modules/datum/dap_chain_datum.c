@@ -25,7 +25,9 @@
 #include "dap_json.h"
 
 #include "dap_common.h"
+#include "dap_chain_types.h"
 #include "dap_time.h"
+#include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_token.h"
@@ -40,9 +42,21 @@
 #include "dap_sign.h"
 #include "dap_tsd.h"
 #include "dap_json_rpc_errors.h"
-#include "dap_chain_cs.h"
 
 #define LOG_TAG "dap_chain_datum"
+
+static dap_chain_datum_callback_dump_json_t s_dump_decree_callback = NULL;
+static dap_chain_datum_callback_dump_json_t s_dump_anchor_callback = NULL;
+
+void dap_chain_datum_register_dump_decree_callback(dap_chain_datum_callback_dump_json_t a_callback)
+{
+    s_dump_decree_callback = a_callback;
+}
+
+void dap_chain_datum_register_dump_anchor_callback(dap_chain_datum_callback_dump_json_t a_callback)
+{
+    s_dump_anchor_callback = a_callback;
+}
 
 /**
  * @brief dap_chain_datum_create
@@ -794,7 +808,8 @@ void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_o
                 dap_json_object_add_object(json_obj_datum, "=== Datum decree ===", dap_json_object_new_string(""));
             dap_json_object_add_object(json_obj_datum, a_version == 1 ? "hash" : "datum_hash", dap_json_object_new_string(l_hash_str));
             dap_json_object_add_object(json_obj_datum,"size",dap_json_object_new_uint64(l_decree_size));
-            dap_chain_datum_decree_dump_json(json_obj_datum, l_decree, l_decree_size, a_hash_out_type, a_version);
+            if (DAP_UNLIKELY(s_dump_decree_callback))
+                s_dump_decree_callback(json_obj_datum, l_decree, l_decree_size, a_hash_out_type, a_version);
         } break;
         case DAP_CHAIN_DATUM_ANCHOR:{
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
@@ -803,11 +818,15 @@ void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_o
                 dap_json_object_add_object(json_obj_datum, "=== Datum anchor ===", dap_json_object_new_string(""));
             dap_json_object_add_object(json_obj_datum, a_version == 1 ? "hash" : "datum_hash", dap_json_object_new_string(l_hash_str));
             dap_json_object_add_object(json_obj_datum,"size",dap_json_object_new_uint64(l_anchor_size));
-            dap_hash_fast_t l_decree_hash = { };
-            dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash);
-            l_hash_str = dap_chain_hash_fast_to_str_static(&l_decree_hash);
-            dap_json_object_add_object(json_obj_datum, a_version == 1 ? "decree hash" : "decree_hash", dap_json_object_new_string(l_hash_str));
-            dap_chain_datum_anchor_certs_dump_json(json_obj_datum,l_anchor->data_n_sign + l_anchor->header.data_size, l_anchor->header.signs_size, a_hash_out_type, a_version);
+            if (DAP_UNLIKELY(s_dump_anchor_callback)) {
+                s_dump_anchor_callback(json_obj_datum, l_anchor, l_anchor_size, a_hash_out_type, a_version);
+            } else {
+                dap_hash_fast_t l_decree_hash = { };
+                dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash);
+                l_hash_str = dap_chain_hash_fast_to_str_static(&l_decree_hash);
+                dap_json_object_add_object(json_obj_datum, a_version == 1 ? "decree hash" : "decree_hash", dap_json_object_new_string(l_hash_str));
+                dap_chain_datum_anchor_certs_dump_json(json_obj_datum,l_anchor->data_n_sign + l_anchor->header.data_size, l_anchor->header.signs_size, a_hash_out_type, a_version);
+            }
         } break;
         case DAP_CHAIN_DATUM_CUSTOM: {
             dap_json_object_add_object(json_obj_datum, a_version == 1 ? "hash" : "datum_hash", dap_json_object_new_string(l_hash_str));

@@ -4,7 +4,7 @@
  * Frolov Daniil <daniil.frolov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Copyright  (c) 2020, All rights reserved.
-
+ *
  This file is part of CellFrame SDK the open source project
 
     CellFrame SDK is free software: you can redistribute it and/or modify
@@ -29,14 +29,13 @@
 #include "dap_hash.h"
 #include "dap_sign.h"
 #include "dap_pkey.h"
+#include "dap_chain.h"
 #include "dap_chain_common.h"
-#include "dap_chain_net.h"
+#include "dap_chain_net_types.h"
+#include "dap_chain_net_utils.h"
 #include "dap_chain_ledger_pvt.h"
-#include "dap_chain_cs_esbocs.h"
-#include "dap_chain_net_tx.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_http_ban_list_client.h"
 #include "dap_chain_policy.h"
+#include "dap_chain.h"
 #include "dap_json.h"
 #include "dap_chain_srv.h"
 
@@ -46,6 +45,25 @@
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
 static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored);
 static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
+
+typedef struct dap_ledger_decree_callback_item {
+    uint16_t type;
+    uint16_t subtype;
+    dap_ledger_decree_callback_t callback;
+    struct dap_ledger_decree_callback_item *next;
+} dap_ledger_decree_callback_item_t;
+
+static dap_ledger_decree_callback_item_t *s_decree_callbacks = NULL;
+
+void dap_ledger_decree_set_callback(uint16_t a_type, uint16_t a_subtype, dap_ledger_decree_callback_t a_callback)
+{
+    dap_ledger_decree_callback_item_t *l_item = DAP_NEW_Z(dap_ledger_decree_callback_item_t);
+    l_item->type = a_type;
+    l_item->subtype = a_subtype;
+    l_item->callback = a_callback;
+    l_item->next = s_decree_callbacks;
+    s_decree_callbacks = l_item;
+}
 
 // Public functions
 
@@ -331,18 +349,18 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
 
 static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored)
 {
-uint256_t l_value;
-uint64_t l_block_num;
-uint32_t l_sign_type;
-uint16_t l_owners_num;
-uint8_t l_action;
-dap_chain_addr_t l_addr = {};
-dap_hash_fast_t l_hash = {};
-dap_chain_node_addr_t l_node_addr = {};
-dap_list_t *l_owners_list = NULL;
-const char *l_ban_addr;
+    uint256_t l_value;
+    uint64_t l_block_num;
+    dap_chain_addr_t l_addr = {};
+    dap_list_t *l_owners_list = NULL;
 
     dap_return_val_if_fail(a_decree && a_net, -112);
+
+    for (dap_ledger_decree_callback_item_t *it = s_decree_callbacks; it; it = it->next) {
+        if (it->type == a_decree->header.type && it->subtype == a_decree->header.sub_type) {
+            return it->callback(a_net->pub.ledger, a_decree, a_apply, a_anchored);
+        }
+    }
 
     switch (a_decree->header.sub_type)
     {
@@ -370,7 +388,7 @@ const char *l_ban_addr;
                 log_it(L_ERROR, "Can't set fee value for network %s", a_net->pub.name);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
-            l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_owners_num);
+            l_owners_list = dap_chain_datum_decree_get_owners(a_decree, NULL);
             if (!l_owners_list){
                 log_it(L_WARNING,"Can't get ownners from decree.");
                 return -104;
@@ -378,7 +396,7 @@ const char *l_ban_addr;
             if (!a_apply)
                 break;
             dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
-            l_ledger_pvt->decree_num_of_owners = l_owners_num;
+            l_ledger_pvt->decree_num_of_owners = dap_list_length(l_owners_list);
             dap_list_free_full(l_ledger_pvt->decree_owners_pkeys, NULL);
             l_ledger_pvt->decree_owners_pkeys = l_owners_list;
             break;
@@ -395,217 +413,6 @@ const char *l_ban_addr;
                 break;
             PVT(a_net->pub.ledger)->decree_min_num_of_signers = dap_uint256_to_uint64(l_value);
             break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
-            if (dap_chain_datum_decree_get_hash(a_decree, &l_hash)){
-                log_it(L_WARNING,"Can't get tx hash from decree.");
-                return -105;
-            }
-            if (dap_chain_datum_decree_get_stake_value(a_decree, &l_value)){
-                log_it(L_WARNING,"Can't get stake value from decree.");
-                return -106;
-            }
-            if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
-                log_it(L_WARNING,"Can't get signing address from decree.");
-                return -107;
-            }
-            if (dap_chain_datum_decree_get_node_addr(a_decree, &l_node_addr)){
-                log_it(L_WARNING,"Can't get signer node address from decree.");
-                return -108;
-            }
-            if (!a_anchored)
-                break;
-            if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
-                debug_if(g_debug_ledger, L_WARNING, "Key and node verification error");
-                return -109;
-            }
-            if (!a_apply)
-                break;
-            dap_hash_fast_t l_decree_hash = {};
-            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
-            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_decree_hash, &l_hash, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(a_decree));
-            if (!dap_chain_net_get_load_mode(a_net))
-                dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);
-            break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE:
-            if (!a_anchored)
-                break;
-            if (!a_apply)
-                break;
-            dap_pkey_t *l_pkey = NULL;
-            if (! (l_pkey = dap_chain_datum_decree_get_pkey(a_decree)) ){
-                log_it(L_WARNING,"Can't get pkey from decree.");
-                return -105;
-            }
-            dap_chain_net_srv_stake_pkey_update(a_net, l_pkey);
-            break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE: {
-            if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
-                log_it(L_WARNING,"Can't get signing address from decree.");
-                return -105;
-            }
-            if (!a_anchored)
-                break;
-            uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
-            if ( dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL) == l_min_count ) {
-                log_it(L_WARNING, "Can't invalidate stake in net %s: results in minimum validators count %hu underflow",
-                                   a_net->pub.name, l_min_count);
-                return -116;
-            }
-            if (!a_apply)
-                break;
-            dap_chain_net_srv_stake_remove_approving_decree_info(a_net, &l_addr);
-            dap_chain_net_srv_stake_key_invalidate(&l_addr);
-        } break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
-            if (dap_chain_datum_decree_get_stake_min_value(a_decree, &l_value)){
-                log_it(L_WARNING,"Can't get min stake value from decree.");
-                return -105;
-            }
-            if (!a_apply)
-                break;
-            dap_chain_net_srv_stake_set_allowed_min_value(a_net->pub.id, l_value);
-            break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT: {
-            if (dap_chain_datum_decree_get_stake_min_signers_count(a_decree, &l_value)){
-                log_it(L_WARNING,"Can't get min stake value from decree.");
-                return -105;
-            }
-            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
-            if (!l_chain) {
-                log_it(L_WARNING, "Specified chain not found");
-                return -106;
-            }
-            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-                log_it(L_WARNING, "Can't apply this decree to specified chain");
-                return -115;
-            }
-            if (!a_anchored)
-                break;
-            uint16_t l_decree_count = (uint16_t)dap_chain_uint256_to(l_value);
-            uint16_t l_current_count = dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL);
-            if (l_decree_count > l_current_count) {
-                log_it(L_WARNING, "Minimum validators count by decree %hu is greater than total validators count %hu in network %s",
-                                                                            l_decree_count, l_current_count, a_net->pub.name);
-                return -116;
-            }
-            if (!a_apply)
-                break;
-            dap_chain_esbocs_set_min_validators_count(l_chain, l_decree_count);
-        } break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN: {
-            if (dap_chain_datum_decree_get_ban_addr(a_decree, &l_ban_addr)) {
-                log_it(L_WARNING, "Can't get ban address from decree.");
-                return -114;
-            }
-            if (dap_http_ban_list_client_check(l_ban_addr, NULL, NULL)) {
-                log_it(L_ERROR, "Can't ban addr %s: already banlisted", l_ban_addr);
-                return -112;
-            }
-            if (!a_apply)
-                break;
-            dap_hash_fast_t l_decree_hash = {0};
-            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
-            dap_http_ban_list_client_add(l_ban_addr, l_decree_hash, a_decree->header.ts_created);
-        } break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN: {
-            if (dap_chain_datum_decree_get_ban_addr(a_decree, &l_ban_addr)) {
-                log_it(L_WARNING, "Can't get ban address from decree.");
-                return -114;
-            }
-            if (!dap_http_ban_list_client_check(l_ban_addr, NULL, NULL)) {
-                log_it(L_ERROR, "Can't ban addr %s: already banlisted", l_ban_addr);
-                return -112;
-            }
-            if (!a_apply)
-                break;
-            dap_http_ban_list_client_remove(l_ban_addr);
-        } break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD: {
-            if (dap_chain_datum_decree_get_value(a_decree, &l_value)) {
-                log_it(L_WARNING,"Can't get value from decree.");
-                return -103;
-            }
-            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
-            if (!l_chain) {
-                log_it(L_WARNING, "Specified chain not found");
-                return -106;
-            }
-            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-                log_it(L_WARNING, "Can't apply this decree to specified chain");
-                return -115;
-            }
-            if (!a_apply)
-                break;
-            uint64_t l_cur_block_num = l_chain->callback_count_atom(l_chain);
-            return dap_chain_net_add_reward(a_net, l_value, l_cur_block_num);
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT: {
-            if (dap_chain_datum_decree_get_value(a_decree, &l_value)) {
-                log_it(L_WARNING,"Can't get value from decree.");
-                return -103;
-            }
-            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
-            if (!l_chain) {
-                log_it(L_WARNING, "Specified chain not found");
-                return -106;
-            }
-            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-                log_it(L_WARNING, "Can't apply this decree to specified chain");
-                return -115;
-            }
-            if (compare256(l_value, dap_chain_balance_coins_scan("1.0")) >= 0) {
-                log_it(L_WARNING, "Percent must be lower than 100%%");
-                return -116;
-            }
-            if (!a_apply)
-                break;
-            dap_chain_net_srv_stake_set_percent_max(a_net->pub.id, l_value);
-            return 0;
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE: {
-            if (dap_chain_datum_decree_get_action(a_decree, &l_action)) {
-                log_it(L_WARNING, "Can't get action from decree.");
-                return -103;
-            }
-            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
-            if (!l_chain) {
-                log_it(L_WARNING, "Specified chain not found");
-                return -106;
-            }
-            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-                log_it(L_WARNING, "Can't apply this decree to specified chain");
-                return -115;
-            }
-            if (!a_apply)
-                break;
-            return dap_chain_esbocs_set_signs_struct_check(l_chain, l_action);
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS: {
-            if (dap_chain_datum_decree_get_action(a_decree, &l_action)) {
-                log_it(L_WARNING,"Can't get action from decree.");
-                return -103;
-            }
-            if (dap_chain_datum_decree_get_signature_type(a_decree, &l_sign_type)) {
-                log_it(L_WARNING,"Can't get signature type from decree.");
-                return -113;
-            }
-            if (dap_chain_datum_decree_get_hash(a_decree, &l_hash)){
-                log_it(L_WARNING,"Can't get validator hash from decree.");
-                return -105;
-            }
-            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
-            if (!l_chain) {
-                log_it(L_WARNING, "Specified chain not found");
-                return -106;
-            }
-            if (dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-                log_it(L_WARNING, "Can't apply this decree to specified chain");
-                return -115;
-            }
-            if (!a_apply)
-                break;
-            return dap_chain_esbocs_set_emergency_validator(l_chain, l_action, l_sign_type, &l_hash);
-        }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK: {
             if (dap_chain_datum_decree_get_atom_num(a_decree, &l_block_num)) {
                 log_it(L_WARNING, "Can't get atom number from hardfork prepare decree");
@@ -665,14 +472,14 @@ const char *l_ban_addr;
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
-            if (!dap_chain_esbocs_hardfork_engaged(l_chain)) {
+            if (!l_chain->cs_callbacks->hardfork_engaged(l_chain)) {
                 log_it(L_WARNING, "Hardfork is not engaged, can't retry");
                 return -116;
             }
             if (!a_apply)
                 break;
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
-            return dap_chain_esbocs_set_hardfork_prepare(l_chain, 0, 0, NULL, NULL);
+            return l_chain->cs_callbacks->set_hardfork_prepare(l_chain, 0, 0, NULL, NULL);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE: {
             dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
@@ -689,7 +496,8 @@ const char *l_ban_addr;
             // Call hardfork complete callback for all registered services
             dap_chain_srv_hardfork_complete_all(a_net->pub.id);
             // Call hardfork complete for chain
-            return dap_chain_esbocs_set_hardfork_complete(l_chain);
+            l_chain->cs_callbacks->set_hardfork_complete(l_chain);
+            return 0;
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL: {
             dap_tsd_t *l_chain_id = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CANCEL_CHAIN_ID);
@@ -712,8 +520,9 @@ const char *l_ban_addr;
             if (!a_apply)
                 break;
             if (l_chain->generation == l_banned_generation) {
-                dap_chain_esbocs_set_hardfork_complete(l_chain);
-                dap_ledger_chain_purge(l_chain, 0);
+                if (l_chain->cs_callbacks && l_chain->cs_callbacks->set_hardfork_complete)
+                    l_chain->cs_callbacks->set_hardfork_complete(l_chain);
+                dap_ledger_chain_purge(a_net->pub.ledger, l_chain, 0);
             }
             return dap_chain_generation_ban(l_chain, l_banned_generation);
         }

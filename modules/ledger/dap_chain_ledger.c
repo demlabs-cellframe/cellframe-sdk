@@ -40,7 +40,9 @@
 #include "dap_chain_datum_token.h"
 #include "dap_global_db.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_types.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_net_utils.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -774,11 +776,12 @@ void dap_ledger_load_cache(dap_ledger_t *a_ledger)
     DAP_DELETE(l_gdb_group);
 }
 
-static void s_blockchain_timer_callback(dap_chain_t *a_chain, dap_time_t a_blockchain_time, void UNUSED_ARG *a_arg, bool a_reverse)
+static void s_blockchain_timer_callback(dap_chain_t *a_chain, dap_time_t a_blockchain_time, void *a_arg, bool a_reverse)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    assert(l_net);
-    dap_ledger_private_t *l_ledger_pvt = PVT(l_net->pub.ledger);
+    dap_ledger_t *l_ledger = (dap_ledger_t *)a_arg;
+    assert(l_ledger);
+    dap_chain_net_t *l_net = l_ledger->net;
+    dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
     l_ledger_pvt->blockchain_time = a_blockchain_time;
     pthread_rwlock_wrlock(&l_ledger_pvt->locked_outs_rwlock);
     if (a_reverse) {
@@ -799,7 +802,7 @@ static void s_blockchain_timer_callback(dap_chain_t *a_chain, dap_time_t a_block
             break;
         dap_ledger_pvt_balance_update_for_addr(l_net->pub.ledger, &it->addr, it->ticker, it->value, false);
         LL_DELETE(l_ledger_pvt->locked_outs, it);
-        if (!dap_chain_net_get_load_mode(l_net))
+        if (!l_ledger->load_mode)
             LL_PREPEND(l_ledger_pvt->reverse_list, it);
         else
             DAP_DELETE(it);
@@ -817,9 +820,9 @@ static void s_blockchain_cutoff_callback(void *a_arg, dap_chain_t *a_chain, dap_
 {
     if (a_id.uint64)
         return;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    assert(l_net);
-    dap_ledger_private_t *l_ledger_pvt = PVT(l_net->pub.ledger);
+    dap_ledger_t *l_ledger = (dap_ledger_t *)a_arg;
+    assert(l_ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
     l_ledger_pvt->cutoff_time = a_atom_time;
 }
 
@@ -900,8 +903,8 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     dap_ledger_decree_init(l_ledger);
     dap_chain_t *l_default_tx_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     if (l_default_tx_chain) {
-        dap_chain_add_callback_timer(l_default_tx_chain, s_blockchain_timer_callback, NULL);
-        dap_chain_atom_confirmed_notify_add(l_default_tx_chain, s_blockchain_cutoff_callback, NULL, 0);
+        dap_chain_add_callback_timer(l_default_tx_chain, s_blockchain_timer_callback, l_ledger);
+        dap_chain_atom_confirmed_notify_add(l_default_tx_chain, s_blockchain_cutoff_callback, l_ledger, 0);
     } else
         log_it(L_WARNING, "Can't get deafult chain for transactions, timelocks for it will be disabled");
     return l_ledger;
@@ -1084,18 +1087,17 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     PVT(a_ledger)->load_end = false;
 }
 
-int dap_ledger_chain_purge(dap_chain_t *a_chain, size_t a_atom_size)
+int dap_ledger_chain_purge(dap_ledger_t *a_ledger, dap_chain_t *a_chain, size_t a_atom_size)
 {
     dap_return_val_if_fail(a_chain, -1);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    dap_ledger_tx_purge(l_net->pub.ledger, false);
-    if (dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id))
+    dap_ledger_tx_purge(a_ledger, false);
+    if (dap_ledger_anchor_purge(a_ledger, a_chain->id))
         return -2;
     if (dap_chain_srv_purge_all(a_chain->net_id))
         return -3;
     if (a_atom_size && dap_chain_cell_truncate(a_chain, c_dap_chain_cell_id_null, a_atom_size))
         return -4;
-    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
+    dap_chain_node_role_t l_role = a_ledger->net->pub.node_role;
     if (dap_chain_cell_remove(a_chain, c_dap_chain_cell_id_null, l_role.enums == NODE_ROLE_ARCHIVE))
         return -5;
     if (dap_chain_purge(a_chain))
@@ -1543,4 +1545,39 @@ bool dap_ledger_check_condition_owner(dap_ledger_t *a_ledger, dap_hash_fast_t *a
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger)
 {
     return is_ledger_cached(PVT(a_ledger));
+}
+
+void dap_ledger_set_load_mode(dap_ledger_t *a_ledger, bool a_mode)
+{
+    if (a_ledger) {
+        a_ledger->load_mode = a_mode;
+    }
+}
+
+void dap_ledger_set_check_ds(dap_ledger_t *a_ledger, bool a_check)
+{
+    if (a_ledger) {
+        a_ledger->check_ds = a_check;
+    }
+}
+
+void dap_ledger_set_syncing_state(dap_ledger_t *a_ledger, bool a_syncing)
+{
+    if (a_ledger) {
+        a_ledger->is_syncing = a_syncing;
+    }
+}
+
+void dap_ledger_set_fee_callback(dap_ledger_t *a_ledger, dap_ledger_set_fee_callback_t a_callback)
+{
+    if (a_ledger) {
+        a_ledger->set_fee_callback = a_callback;
+    }
+}
+
+char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const char *a_suffix)
+{
+    return a_ledger && a_ledger->net && a_suffix
+            ? dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net->pub.name, a_suffix)
+            : NULL;
 }

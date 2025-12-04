@@ -72,6 +72,8 @@
 #include "dap_enc_base64.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
+#include "dap_chain_net.h"
+#include "dap_chain_net_utils.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_ledger.h"
