@@ -1162,7 +1162,8 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, dap_json_t *a_
     return DAP_NO_ERROR;
 }
 
-int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a_final_tx_hash, dap_json_t*a_jobj_waiting_operations_hashes) {
+int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a_final_tx_hash, dap_json_t *a_jobj_waiting_operations_hashes)
+{
     int l_waiting_operations_count = 0;
     char *l_mempool_group = dap_chain_mempool_group_new(a_chain);
     size_t l_objs_count = 0;
@@ -1206,28 +1207,28 @@ int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a
     return l_waiting_operations_count;
 }
 
-static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, dap_json_t *a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
     const char *l_tx_hash_str = NULL, *l_wallet_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_hash_str);
     if (!l_tx_hash_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -tx");
+        dap_json_rpc_error_add(a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -tx");
         return ERROR_PARAM;
     }
     dap_hash_fast_t l_tx_hash;
     if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_hash_str);
+        dap_json_rpc_error_add(a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_hash_str);
         return ERROR_VALUE;
     }
     dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_tx_hash, false);
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_final_tx_hash);
     if (!l_tx) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find final datum %s", dap_hash_fast_to_str_static(&l_final_tx_hash));
+        dap_json_rpc_error_add(a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find final datum %s", dap_hash_fast_to_str_static(&l_final_tx_hash));
         return ERROR_TX_MISMATCH;
     }
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
     if (!l_cond) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find final tx_out_cond");
+        dap_json_rpc_error_add(a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find final tx_out_cond");
         return ERROR_TX_MISMATCH;
     }
 
@@ -1645,20 +1646,20 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
 
     uint32_t l_valid_signs = s_wallet_shared_get_valid_signs(l_cond, l_tx);
 
-    json_object *l_jarray_remove_txs = json_object_new_array();
+    dap_json_t *l_jarray_remove_txs = dap_json_array_new();
     if (!l_jarray_remove_txs)
         return;
 
     char *l_mempool_group = dap_chain_mempool_group_new(l_chain);
     if (!l_mempool_group) {
-        json_object_put(l_jarray_remove_txs);
+        dap_json_object_free(l_jarray_remove_txs);
         return;
     }
 
     char *l_current_tx_hash_str = a_obj->key ? dap_strdup(a_obj->key) : NULL;
     if (!l_current_tx_hash_str) {
         DAP_DELETE(l_mempool_group);
-        json_object_put(l_jarray_remove_txs);
+        dap_json_object_free(l_jarray_remove_txs);
         return;
     }
 
@@ -1669,8 +1670,8 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
 
     int l_tx_count = dap_chain_shared_tx_find_in_mempool(l_chain, &l_in_cond_hash, l_jarray_remove_txs);
     for (int i = 0; i < l_tx_count; i++) {
-        json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
-        const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
+        dap_json_t *l_jobj_tx_hash = dap_json_array_get_idx(l_jarray_remove_txs, i);
+        const char *l_tx_hash_str = dap_json_get_string(l_jobj_tx_hash);
         if (!l_tx_hash_str)
             continue;
         size_t l_datum_size = 0;
@@ -1704,8 +1705,8 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
         }
     }
     for (int i = 0; i < l_tx_count; i++) {
-        json_object *l_jobj_tx_hash = json_object_array_get_idx(l_jarray_remove_txs, i);
-        const char *l_tx_hash_str = json_object_get_string(l_jobj_tx_hash);
+        dap_json_t *l_jobj_tx_hash = dap_json_array_get_idx(l_jarray_remove_txs, i);
+        const char *l_tx_hash_str = dap_json_get_string(l_jobj_tx_hash);
         if (l_best_hash_str && l_tx_hash_str && !dap_strcmp(l_tx_hash_str, l_best_hash_str))
             continue;
         if (l_tx_hash_str && dap_global_db_del_sync(l_mempool_group, l_tx_hash_str)) {
@@ -1721,7 +1722,7 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
 
 cleanup:
     DAP_DELETE(l_current_tx_hash_str);
-    json_object_put(l_jarray_remove_txs);
+    dap_json_object_free(l_jarray_remove_txs);
     DAP_DELETE(l_mempool_group);
 }
 
