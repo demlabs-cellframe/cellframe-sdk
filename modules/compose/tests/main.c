@@ -9,7 +9,12 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_token.h"
+<<<<<<< HEAD
 #include "dap_json.h"
+=======
+#include "dap_chain_net_srv_stake_ext.h"
+#include <json-c/json.h>
+>>>>>>> 42bddbcd5 ([*] port-20302)
 
 #define LOG_TAG "dap_tx_compose_tests"
 #define KEY_COUNT 10
@@ -33,11 +38,22 @@ struct tests_data {
     uint32_t idx_1;
     uint32_t idx_2;
     dap_hash_fast_t hash_1;
+<<<<<<< HEAD
     dap_chain_srv_uid_t srv_uid;
+=======
+    dap_hash_fast_t stake_ext_hash;
+    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_tx_out_cond_t cond_out;
+>>>>>>> 42bddbcd5 ([*] port-20302)
     dap_chain_id_t chain_id;
     dap_chain_tx_compose_config_t config;
     time_t time_staking;
+<<<<<<< HEAD
     dap_chain_tx_out_cond_t cond_out; // Variable sized type moved to end
+=======
+    dap_time_t lock_time;
+    uint32_t position_id;
+>>>>>>> 42bddbcd5 ([*] port-20302)
 };
 
 static dap_enc_key_type_t s_key_types[] = {
@@ -195,6 +211,28 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     
     dap_json_object_free(l_datum_1_json);
     dap_json_object_free(l_error_json);
+}
+
+void s_datum_sign_and_verify(dap_chain_datum_tx_t **a_datum)
+{
+    size_t l_signs_count = rand() % KEY_COUNT + 1;
+    dap_test_msg("add %zu tsd sections", l_signs_count);
+    for (size_t i = 0; i < l_signs_count; ++i) {
+        int l_rand_data = rand();
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_rand_data, rand(), sizeof(l_rand_data));
+        dap_assert(dap_chain_datum_tx_add_item(a_datum, l_tsd) == 1, "datum add tsd");
+        DAP_DEL_Z(l_tsd);
+    }
+    l_signs_count = rand() % KEY_COUNT + 1;
+    dap_test_msg("add %zu signs", l_signs_count);
+    for (size_t i = 0; i < l_signs_count; ++i)
+        dap_assert(dap_chain_datum_tx_add_sign_item(a_datum, s_key[rand() % KEY_COUNT]) == 1, "datum sign create");
+
+    dap_assert(dap_chain_datum_tx_verify_sign_all(*a_datum) == 0, "datum sign verify");
+
+    dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_signs_count, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(l_signs_count));
+    dap_assert(dap_chain_datum_tx_add_item(a_datum, l_out_count) != 1, "Protection to add item after signs");
+    DAP_DEL_Z(l_out_count);
 }
 
 void s_chain_datum_tx_create_test()
@@ -436,12 +474,346 @@ void s_chain_datum_shared_funds_refill_test()
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
+void s_chain_datum_stake_ext_lock_test()
+{
+    dap_print_module_name("tx_stake_ext_lock_compose");
+    
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        s_data->value,
+        s_data->value_fee,
+        s_data->lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(l_datum_1, "tx_stake_ext_lock_compose");
+    s_datum_sign_and_verify(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+}
+
+void s_chain_datum_stake_ext_unlock_test()
+{
+    dap_print_module_name("tx_stake_ext_unlock_compose");
+    
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_stake_ext_unlock(
+        &s_data->addr_from,
+        &s_data->hash_1,
+        s_data->idx_1,
+        s_ticker_native,
+        s_data->value,
+        s_data->value_fee,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        &s_data->config
+    );
+    dap_assert(l_datum_1, "tx_stake_ext_unlock_compose");
+    s_datum_sign_and_verify(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+}
+
+void s_chain_datum_stake_ext_lock_validation_test()
+{
+    dap_print_module_name("tx_stake_ext_lock_validation");
+    
+    dap_chain_datum_tx_t *l_datum = NULL;
+    
+    l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        NULL,
+        &s_data->stake_ext_hash,
+        s_data->value,
+        s_data->value_fee,
+        s_data->lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(!l_datum, "tx_stake_ext_lock null wallet_addr should fail");
+    
+    l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        NULL,
+        s_data->value,
+        s_data->value_fee,
+        s_data->lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(!l_datum, "tx_stake_ext_lock null stake_ext_hash should fail");
+    
+    uint256_t l_zero_amount = {};
+    l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        l_zero_amount,
+        s_data->value_fee,
+        s_data->lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(!l_datum, "tx_stake_ext_lock zero amount should fail");
+    
+    l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        s_data->value,
+        s_data->value_fee,
+        s_data->lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        NULL
+    );
+    dap_assert(!l_datum, "tx_stake_ext_lock null config should fail");
+}
+
+void s_chain_datum_stake_ext_unlock_validation_test()
+{
+    dap_print_module_name("tx_stake_ext_unlock_validation");
+    
+    dap_chain_datum_tx_t *l_datum = NULL;
+    
+    l_datum = dap_chain_tx_compose_datum_stake_ext_unlock(
+        NULL,
+        &s_data->hash_1,
+        s_data->idx_1,
+        s_ticker_native,
+        s_data->value,
+        s_data->value_fee,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        &s_data->config
+    );
+    dap_assert(!l_datum, "tx_stake_ext_unlock null wallet_addr should fail");
+    
+    l_datum = dap_chain_tx_compose_datum_stake_ext_unlock(
+        &s_data->addr_from,
+        NULL,
+        s_data->idx_1,
+        s_ticker_native,
+        s_data->value,
+        s_data->value_fee,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        &s_data->config
+    );
+    dap_assert(!l_datum, "tx_stake_ext_unlock null lock_tx_hash should fail");
+    
+    l_datum = dap_chain_tx_compose_datum_stake_ext_unlock(
+        &s_data->addr_from,
+        &s_data->hash_1,
+        s_data->idx_1,
+        s_ticker_native,
+        s_data->value,
+        s_data->value_fee,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        NULL
+    );
+    dap_assert(!l_datum, "tx_stake_ext_unlock null config should fail");
+}
+
+void s_chain_datum_stake_ext_lock_time_validation_test()
+{
+    dap_print_module_name("tx_stake_ext_lock_time_validation");
+    
+    dap_time_t l_min_lock_time = 3 * 30 * 24 * 3600;
+    dap_time_t l_max_lock_time = 24 * 30 * 24 * 3600;
+    
+    dap_chain_datum_tx_t *l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        s_data->value,
+        s_data->value_fee,
+        l_min_lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(l_datum, "tx_stake_ext_lock min lock_time (3 months) should succeed");
+    if (l_datum) {
+        s_datum_sign_and_verify(&l_datum);
+        dap_chain_datum_tx_delete(l_datum);
+    }
+    
+    l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        s_data->value,
+        s_data->value_fee,
+        l_max_lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(l_datum, "tx_stake_ext_lock max lock_time (24 months) should succeed");
+    if (l_datum) {
+        s_datum_sign_and_verify(&l_datum);
+        dap_chain_datum_tx_delete(l_datum);
+    }
+    
+    dap_time_t l_mid_lock_time = 12 * 30 * 24 * 3600;
+    l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        s_data->value,
+        s_data->value_fee,
+        l_mid_lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(l_datum, "tx_stake_ext_lock mid lock_time (12 months) should succeed");
+    if (l_datum) {
+        s_datum_sign_and_verify(&l_datum);
+        dap_chain_datum_tx_delete(l_datum);
+    }
+}
+
+void s_chain_datum_stake_ext_multiple_positions_test()
+{
+    dap_print_module_name("tx_stake_ext_multiple_positions");
+    
+    for (uint32_t i = 0; i < 5; i++) {
+        dap_chain_datum_tx_t *l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+            &s_data->addr_from,
+            &s_data->stake_ext_hash,
+            s_data->value,
+            s_data->value_fee,
+            s_data->lock_time,
+            i,
+            s_ticker_delegate,
+            s_data->value_delegate,
+            s_data->chain_id,
+            &s_data->config
+        );
+        dap_assert(l_datum, "tx_stake_ext_lock position should succeed");
+        if (l_datum) {
+            s_datum_sign_and_verify(&l_datum);
+            dap_chain_datum_tx_delete(l_datum);
+        }
+    }
+}
+
+void s_chain_datum_stake_ext_various_amounts_test()
+{
+    dap_print_module_name("tx_stake_ext_various_amounts");
+    
+    uint256_t l_small_amount = dap_chain_coins_to_balance("0.001");
+    dap_chain_datum_tx_t *l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        l_small_amount,
+        s_data->value_fee,
+        s_data->lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(l_datum, "tx_stake_ext_lock small amount should succeed");
+    if (l_datum) {
+        s_datum_sign_and_verify(&l_datum);
+        dap_chain_datum_tx_delete(l_datum);
+    }
+    
+    uint256_t l_large_amount = dap_chain_coins_to_balance("1000000.0");
+    l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        l_large_amount,
+        s_data->value_fee,
+        s_data->lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(l_datum, "tx_stake_ext_lock large amount should succeed");
+    if (l_datum) {
+        s_datum_sign_and_verify(&l_datum);
+        dap_chain_datum_tx_delete(l_datum);
+    }
+}
+
+void s_chain_datum_stake_ext_various_fees_test()
+{
+    dap_print_module_name("tx_stake_ext_various_fees");
+    
+    uint256_t l_zero_fee = {};
+    dap_chain_datum_tx_t *l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        s_data->value,
+        l_zero_fee,
+        s_data->lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(l_datum, "tx_stake_ext_lock zero fee should succeed");
+    if (l_datum) {
+        s_datum_sign_and_verify(&l_datum);
+        dap_chain_datum_tx_delete(l_datum);
+    }
+    
+    uint256_t l_large_fee = dap_chain_coins_to_balance("100.0");
+    l_datum = dap_chain_tx_compose_datum_stake_ext_lock(
+        &s_data->addr_from,
+        &s_data->stake_ext_hash,
+        s_data->value,
+        l_large_fee,
+        s_data->lock_time,
+        s_data->position_id,
+        s_ticker_delegate,
+        s_data->value_delegate,
+        s_data->chain_id,
+        &s_data->config
+    );
+    dap_assert(l_datum, "tx_stake_ext_lock large fee should succeed");
+    if (l_datum) {
+        s_datum_sign_and_verify(&l_datum);
+        dap_chain_datum_tx_delete(l_datum);
+    }
+}
+
 
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
+<<<<<<< HEAD
 
     // Generate keys first before any tests
+=======
+    randombytes(s_data, sizeof(struct tests_data));
+    s_data->time_staking = dap_time_now() + 10000;
+    s_data->reinvest_percent = dap_chain_coins_to_balance("12.3456789");
+    s_data->lock_time = 6 * 30 * 24 * 3600;
+    s_data->position_id = rand() % 10;
+    randombytes(&s_data->stake_ext_hash, sizeof(dap_hash_fast_t));
+>>>>>>> 42bddbcd5 ([*] port-20302)
     for (size_t i = 0; i < KEY_COUNT; ++i)
         s_key[i] = dap_enc_key_new_generate(s_key_types[rand() % s_sign_type_count], NULL, 0, NULL, 0, 0);
     
@@ -523,6 +895,16 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_shared_funds_refill_test();
     dap_pass_msg("OK");
     // s_chain_datum_shared_funds_sign_test();  no need for now
+    
+    s_chain_datum_stake_ext_lock_test();
+    s_chain_datum_stake_ext_unlock_test();
+    s_chain_datum_stake_ext_lock_validation_test();
+    s_chain_datum_stake_ext_unlock_validation_test();
+    s_chain_datum_stake_ext_lock_time_validation_test();
+    s_chain_datum_stake_ext_multiple_positions_test();
+    s_chain_datum_stake_ext_various_amounts_test();
+    s_chain_datum_stake_ext_various_fees_test();
+    
     if (s_data->config.response_handler) {
         dap_json_object_free(s_data->config.response_handler);
     }
