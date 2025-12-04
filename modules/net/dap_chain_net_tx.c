@@ -759,7 +759,7 @@ static int s_dap_chain_net_tx_json_check(size_t a_items_count, dap_json_t *a_jso
             }break;
             case TX_ITEM_TYPE_OUT_COND: {
                 // Check out_cond subtype to distinguish stake_lock from stake_ext_lock
-                const char *l_subtype_str = dap_json_rpc_get_text(l_json_item_obj, "subtype");
+                const char *l_subtype_str = dap_json_object_get_string(l_json_item_obj, "subtype");
                 if (l_subtype_str) {
                     dap_chain_tx_out_cond_subtype_t l_subtype = dap_chain_tx_out_cond_subtype_from_str_short(l_subtype_str);
                     if (l_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK) {
@@ -1425,7 +1425,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             }
         } break;
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: {
-            dap_chain_net_srv_uid_t l_srv_uid;
+            dap_chain_srv_uid_t l_srv_uid;
             if(!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
                 // Default service DAP_CHAIN_NET_SRV_STAKE_EXT_ID
                 l_srv_uid.uint64 = 0x07;
@@ -1437,7 +1437,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 return NULL;
             }
 
-            const char *l_stake_ext_hash_str = dap_json_rpc_get_text(a_json_item_obj, "stake_ext_hash");
+            const char *l_stake_ext_hash_str = dap_json_object_get_string(a_json_item_obj, "stake_ext_hash");
             if (!l_stake_ext_hash_str) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: missing stake_ext_hash in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
                 log_it(L_ERROR, "Json TX: missing stake_ext_hash in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
@@ -1451,14 +1451,14 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             }
 
             uint64_t l_lock_time = 0;
-            if (!dap_json_rpc_get_uint64(a_json_item_obj, "lock_time", &l_lock_time) || l_lock_time == 0) {
+            if (!dap_json_object_get_uint64_ext(a_json_item_obj, "lock_time", &l_lock_time) || l_lock_time == 0) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad lock_time in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
                 log_it(L_ERROR, "Json TX: bad lock_time in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
                 return NULL;
             }
 
             uint64_t l_position_id = 0;
-            if (!dap_json_rpc_get_uint64(a_json_item_obj, "position_id", &l_position_id) || l_position_id == 0) {
+            if (!dap_json_object_get_uint64_ext(a_json_item_obj, "position_id", &l_position_id) || l_position_id == 0) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad position_id in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
                 log_it(L_ERROR, "Json TX: bad position_id in OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK");
                 return NULL;
@@ -1466,12 +1466,12 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
 
             // Optional range_end field (1-8), defaults to 1
             uint64_t l_range_end = 1;
-            dap_json_rpc_get_uint64(a_json_item_obj, "range_end", &l_range_end);
+            dap_json_object_get_uint64_ext(a_json_item_obj, "range_end", &l_range_end);
             if (l_range_end < 1 || l_range_end > 8) {
                 l_range_end = 1;
             }
 
-            const char *l_params_str = dap_json_rpc_get_text(a_json_item_obj, "params");
+            const char *l_params_str = dap_json_object_get_string(a_json_item_obj, "params");
             uint8_t *l_params = NULL;
             size_t l_params_size = 0;
             if (l_params_str) {
@@ -2119,10 +2119,10 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: {
                     l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.stake_ext_hash;
                     l_hash_str = dap_hash_fast_to_str_static(&l_hash_tmp);
-                    json_object_object_add(json_obj_item, "stake_ext_hash", json_object_new_string(l_hash_str));
-                    json_object_object_add(json_obj_item, "position_id", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.position_id));
-                    json_object_object_add(json_obj_item, "lock_time", json_object_new_uint64(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.lock_time));
-                    json_object_object_add(json_obj_item, "range_end", json_object_new_int(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.range_end));
+                    dap_json_object_add_string(json_obj_item, "stake_ext_hash", l_hash_str);
+                    dap_json_object_add_uint64(json_obj_item, "position_id", ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.position_id);
+                    dap_json_object_add_uint64(json_obj_item, "lock_time", ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.lock_time);
+                    dap_json_object_add_int(json_obj_item, "range_end", ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.range_end);
                 } break;
                  case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
                     dap_json_object_add_object(json_obj_item,"subtype", dap_json_object_new_string("wallet_shared"));

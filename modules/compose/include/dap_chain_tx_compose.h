@@ -120,14 +120,16 @@ bool dap_chain_tx_compose_get_remote_net_fee_and_address(uint256_t *a_net_fee, d
 int dap_json_compose_error_add(dap_json_t *a_json_obj_reply, int a_code_error, const char *msg, ...);
 bool dap_chain_tx_compose_check_token_in_ledger(dap_json_t *l_json_coins, const char *a_token);
 uint256_t dap_chain_tx_compose_get_balance_from_json(dap_json_t *l_json_outs, const char *a_token_sell);
-dap_json_t *dap_chain_tx_compose_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_t * a_addr, dap_chain_tx_compose_config_t *a_config);// Stake ext lock/unlock functions
-json_object *dap_chain_tx_compose_stake_ext_lock(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker,
+dap_json_t *dap_chain_tx_compose_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_t * a_addr, dap_chain_tx_compose_config_t *a_config);
+
+// Stake ext lock/unlock functions
+dap_json_t *dap_chain_tx_compose_stake_ext_lock(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker,
                                                  const char *a_url_str, uint16_t a_port, const char *a_enc_cert_path,
                                                  dap_chain_addr_t *a_wallet_addr, const char *a_stake_ext_hash_str,
                                                  const char *a_amount_str, const char *a_lock_period_str,
                                                  const char *a_position_id_str, const char *a_fee_str);
 
-json_object *dap_chain_tx_compose_stake_ext_unlock(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker,
+dap_json_t *dap_chain_tx_compose_stake_ext_unlock(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker,
                                                    const char *a_url_str, uint16_t a_port, const char *a_enc_cert_path,
                                                    dap_chain_addr_t *a_wallet_addr, const char *a_lock_tx_hash_str,
                                                    const char *a_fee_str);
@@ -137,14 +139,14 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_ext_lock(dap_chain_addr_t
                                                                uint256_t a_value, uint256_t a_value_fee,
                                                                dap_time_t a_lock_time, uint32_t a_position_id,
                                                                const char *a_delegated_ticker_str, uint256_t a_delegated_value,
-                                                               dap_chain_id_t a_chain_id, compose_config_t *a_config);
+                                                               dap_chain_id_t a_chain_id, dap_chain_tx_compose_config_t *a_config);
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_ext_unlock(dap_chain_addr_t *a_wallet_addr,
                                                                  dap_hash_fast_t *a_lock_tx_hash, uint32_t a_prev_cond_idx,
                                                                  const char *a_main_ticker, uint256_t a_value,
                                                                  uint256_t a_value_fee,
                                                                  const char *a_delegated_ticker_str, uint256_t a_delegated_value,
-                                                                 compose_config_t *a_config);
+                                                                 dap_chain_tx_compose_config_t *a_config);
 
 #ifdef __cplusplus
 }
