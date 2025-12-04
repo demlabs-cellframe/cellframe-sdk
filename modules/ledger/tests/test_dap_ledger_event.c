@@ -419,8 +419,10 @@ static void test_ledger_event_pkey_check_empty_list(void)
     setup_test();
     
     // Test: Check pkey when allowed list is empty (should allow all)
+    // Function returns: 1 = empty list (all permitted), 0 = key found, -1 = key not found (blocked)
+    // Usage pattern: if (check == -1) { block } - so return 1 means "permitted"
     int l_ret = dap_ledger_event_pkey_check(g_fixture.ledger, &g_fixture.test_pkey_hash);
-    dap_assert(l_ret == 0, "Empty allowed list permits all keys");
+    dap_assert(l_ret == 1, "Empty allowed list returns 1 (all keys permitted)");
     
     teardown_test();
 }

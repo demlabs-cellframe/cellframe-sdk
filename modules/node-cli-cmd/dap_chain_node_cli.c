@@ -34,7 +34,7 @@
 #include "dap_file_utils.h"
 #include "dap_list.h"
 #include "dap_chain_node_cli_cmd.h"
-#include "dap_chain_node_client.h"
+#include "dap_chain_node_sync_client.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli.h"
@@ -498,7 +498,7 @@ void dap_chain_node_cli_delete(void)
 {
     dap_cli_server_deinit();
     // deinit client for handshake
-    dap_chain_node_client_deinit();
+    dap_chain_node_sync_client_deinit();
     dap_chain_node_rpc_deinit();
 }
 

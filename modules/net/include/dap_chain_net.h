@@ -42,7 +42,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_NET_NODES_TTL 14 * 24 * 3600   // 2 weeks
 
 
-typedef struct dap_chain_node_client dap_chain_node_client_t;
 typedef struct dap_ledger dap_ledger_t;
 typedef struct dap_chain_net_decree dap_chain_net_decree_t;
 typedef struct decree_table decree_table_t;

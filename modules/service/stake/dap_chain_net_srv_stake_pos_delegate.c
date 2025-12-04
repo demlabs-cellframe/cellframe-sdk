@@ -36,7 +36,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
 #include "rand/dap_rand.h"
-#include "dap_chain_node_client.h"
+#include "dap_chain_node_sync_client.h"
 #include "dap_chain_net_ch_pkt.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_cli_server.h"
@@ -2332,8 +2332,8 @@ static int time_compare_orders(const void *a, const void *b) {
 static int s_json_compare_by_timestamp(const dap_json_t *a, const dap_json_t *b)
 {
     dap_json_t *timestamp_a = NULL, *timestamp_b = NULL;
-    dap_json_object_get_ex(a, "timestamp", &timestamp_a);
-    dap_json_object_get_ex(b, "timestamp", &timestamp_b);
+    dap_json_object_get_ex((dap_json_t *)a, "timestamp", &timestamp_a);
+    dap_json_object_get_ex((dap_json_t *)b, "timestamp", &timestamp_b);
 
     int64_t time_a = timestamp_a ? dap_json_get_int64(timestamp_a) : 0;
     int64_t time_b = timestamp_b ? dap_json_get_int64(timestamp_b) : 0;
@@ -3723,95 +3723,112 @@ static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2
             ? 0 : l_datum1->header.ts_created < l_datum2->header.ts_created ? 1 : -1;
 }
 
-int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_chain_ch_validator_test_t * out_data,
-                                             int a_time_connect, int a_time_respone)
+int dap_chain_net_srv_stake_check_validator(dap_chain_net_t *a_net, dap_hash_fast_t *a_tx_hash,
+                                             dap_chain_ch_validator_test_t *a_out_data,
+                                             int a_time_connect, int a_time_response)
 {
     size_t l_node_info_size = 0;
     uint8_t l_test_data[DAP_CHAIN_NET_CH_VALIDATOR_READY_REQUEST_SIZE] = {0};
-    dap_chain_node_client_t *l_node_client = NULL;
-    dap_chain_node_info_t *l_remote_node_info = NULL;
+    int l_overall_correct = false;
+
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
-    if (!l_tx) {
+    if (!l_tx)
         return -11;
-    }
-    int l_overall_correct = false;
 
     int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
-    if (!l_tx_out_cond) {
+    if (!l_tx_out_cond)
         return -4;
-    }
-    // read node
-    l_remote_node_info = (dap_chain_node_info_t*) dap_global_db_get_sync(a_net->pub.gdb_nodes,
+
+    // Read node info from GDB
+    dap_chain_node_info_t *l_remote_node_info = (dap_chain_node_info_t *)dap_global_db_get_sync(
+        a_net->pub.gdb_nodes,
         dap_stream_node_addr_to_str_static(l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr),
         &l_node_info_size, NULL, NULL);
     
-
-    if(!l_remote_node_info) {
+    if (!l_remote_node_info)
         return -6;
-    }
 
-    size_t node_info_size_must_be = dap_chain_node_info_get_size(l_remote_node_info);
-    if(node_info_size_must_be != l_node_info_size) {
-        log_it(L_WARNING, "node has bad size in base=%zu (must be %zu)", l_node_info_size, node_info_size_must_be);
+    size_t l_node_info_size_expected = dap_chain_node_info_get_size(l_remote_node_info);
+    if (l_node_info_size_expected != l_node_info_size) {
+        log_it(L_WARNING, "Node has bad size in base=%zu (must be %zu)", l_node_info_size, l_node_info_size_expected);
         DAP_DELETE(l_remote_node_info);
         return -7;
     }
-    // start connect
-    l_node_client = dap_chain_node_client_connect_channels(a_net,l_remote_node_info,"N");
-    if(!l_node_client) {
+
+    // Connect to remote node using sync client
+    dap_chain_node_sync_client_t *l_sync_client = dap_chain_node_sync_client_connect(
+        a_net, l_remote_node_info, "N", a_time_connect);
+    
+    if (!l_sync_client) {
         DAP_DELETE(l_remote_node_info);
         return -8;
     }
-    // wait connected
-    size_t rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, a_time_connect);
-    if (rc) {
-        // clean client struct
-        dap_chain_node_client_close(l_node_client);
-        DAP_DELETE(l_remote_node_info);
-        return -9;
-    }
+    
     log_it(L_NOTICE, "Stream connection established");
 
-    uint8_t l_ch_id = DAP_CHAIN_NET_CH_ID;
-    dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
-
+    // Prepare request with random test data
     randombytes(l_test_data, sizeof(l_test_data));
-    rc = dap_chain_net_ch_pkt_write(l_ch_chain,
-                                            DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
-                                            a_net->pub.id,
-                                            l_test_data, sizeof(l_test_data));
-    if (rc == 0) {
-        dap_chain_node_client_close(l_node_client);
-        DAP_DELETE(l_remote_node_info);
-        return -10;
-    }
-
-    rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_VALID_READY, a_time_respone);
-    if (!rc) {
-        dap_chain_ch_validator_test_t *validators_data = (dap_chain_ch_validator_test_t*)l_node_client->callbacks_arg;
-
-        dap_sign_t *l_sign = NULL;        
+    
+    // Build request packet (channel N requires net_id header)
+    size_t l_request_size = sizeof(dap_chain_net_ch_pkt_t) + sizeof(l_test_data);
+    dap_chain_net_ch_pkt_t *l_request = DAP_NEW_STACK_SIZE(dap_chain_net_ch_pkt_t, l_request_size);
+    l_request->hdr.net_id = a_net->pub.id;
+    l_request->hdr.data_size = sizeof(l_test_data);
+    memcpy(l_request->data, l_test_data, sizeof(l_test_data));
+    
+    // Send request and wait for response
+    void *l_response_data = NULL;
+    size_t l_response_size = 0;
+    
+    int l_ret = dap_chain_node_sync_request(
+        l_sync_client,
+        DAP_CHAIN_NET_CH_ID,
+        DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
+        l_request, l_request_size,
+        DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY,
+        &l_response_data, &l_response_size,
+        a_time_response
+    );
+    
+    if (l_ret == DAP_SYNC_ERROR_NONE && l_response_data) {
+        dap_chain_ch_validator_test_t *l_validators_data = (dap_chain_ch_validator_test_t *)l_response_data;
+        
+        dap_sign_t *l_sign = NULL;
         bool l_sign_correct = false;
-        if(validators_data->header.sign_size){
-            l_sign = (dap_sign_t*)(l_node_client->callbacks_arg + sizeof(dap_chain_ch_validator_test_t));
+        
+        if (l_validators_data->header.sign_size) {
+            l_sign = (dap_sign_t *)((byte_t *)l_response_data + sizeof(dap_chain_ch_validator_test_t));
             dap_hash_fast_t l_sign_pkey_hash;
             dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
-            l_sign_correct = dap_hash_fast_compare(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast, &l_sign_pkey_hash);
+            l_sign_correct = dap_hash_fast_compare(
+                &l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast,
+                &l_sign_pkey_hash);
             if (l_sign_correct)
-                l_sign_correct = !dap_sign_verify_all(l_sign, validators_data->header.sign_size, l_test_data, sizeof(l_test_data));
+                l_sign_correct = !dap_sign_verify_all(l_sign, l_validators_data->header.sign_size, 
+                                                       l_test_data, sizeof(l_test_data));
         }
-        l_overall_correct = l_sign_correct && (validators_data->header.flags & A_PROC) && (validators_data->header.flags & F_ORDR) &&
-                                              (validators_data->header.flags & D_SIGN) && (validators_data->header.flags & F_CERT);
-        *out_data = *validators_data;
-        out_data->header.sign_correct = l_sign_correct ? 1 : 0;
-        out_data->header.overall_correct = l_overall_correct ? 1 : 0;
+        
+        l_overall_correct = l_sign_correct && 
+                           (l_validators_data->header.flags & A_PROC) && 
+                           (l_validators_data->header.flags & F_ORDR) &&
+                           (l_validators_data->header.flags & D_SIGN) && 
+                           (l_validators_data->header.flags & F_CERT);
+        
+        *a_out_data = *l_validators_data;
+        a_out_data->header.sign_correct = l_sign_correct ? 1 : 0;
+        a_out_data->header.overall_correct = l_overall_correct ? 1 : 0;
+        
+        DAP_DELETE(l_response_data);
+    } else if (l_ret != DAP_SYNC_ERROR_NONE) {
+        log_it(L_WARNING, "Validator check request failed: %s", dap_chain_node_sync_error_str(l_ret));
     }
-    DAP_DELETE(l_node_client->callbacks_arg);
-    dap_chain_node_client_close(l_node_client);
+    
+    dap_chain_node_sync_client_close(l_sync_client);
     DAP_DELETE(l_remote_node_info);
+    
     return l_overall_correct;
 }
 

@@ -39,7 +39,6 @@
 #include "dap_cli_server.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_order.h"
-#include "dap_chain_node_client.h"
 #include "dap_client_http.h"
 #include "dap_http_status_code.h"
 #include "dap_worker.h"
