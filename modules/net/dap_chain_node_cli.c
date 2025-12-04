@@ -364,7 +364,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "-value <value> -fee <value> -unit {B | SEC} -srv_uid <srv_uid>\n"
             "tx_cond refill -net <net_name> -w <wallet_name> -tx <tx_cond_hash> -value <value> -fee <value> [-H {hex|base58}]\n"
             "tx_cond remove -net <net_name> -w <wallet_name> -hashes <hash1,hash2...> -fee <value> -srv_uid <srv_uid>\n"
-            "tx_cond unspent_find -net <net_name> -w <wallet_name> -srv_uid <srv_uid>\n");
+            "tx_cond unspent_find -net <net_name> -w <wallet_name> -srv_uid <srv_uid>\n"
+            "tx_cond info -net <net_name> -tx <tx_hash> [-H {hex|base58}]\n");
     dap_cli_server_alias_add(l_cmd_tx_cond, "create", "tx_cond_create");
     dap_cli_server_alias_add(l_cmd_tx_cond, "remove", "tx_cond_remove");
     dap_cli_server_alias_add(l_cmd_tx_cond, "unspent_find", "tx_cond_unspent_find");

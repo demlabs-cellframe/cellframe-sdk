@@ -122,6 +122,7 @@ static int _cmd_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply, in
 static int _cmd_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static int _cmd_tx_cond_remove(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+static int _cmd_tx_cond_info(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static void s_new_wallet_info_notify(const char *a_wallet_name); 
 struct json_object *wallet_list_json_collect(int a_version);
 
@@ -6152,10 +6153,133 @@ static int _cmd_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, UN
     return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX;
 }
 
+static int _cmd_tx_cond_info(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+{
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    int arg_index = 1;
+
+    const char *l_hash_out_type = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if (!l_hash_out_type)
+        l_hash_out_type = "hex";
+
+    const char *l_net_name = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+    if (!l_net_name) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_NET,
+                               "Command requires parameter -net");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_NET;
+    }
+
+    const char *l_tx_hash_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx", &l_tx_hash_str);
+    if (!l_tx_hash_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_CERT,
+                               "Command requires parameter -tx");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_CERT;
+    }
+
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if (!l_net) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET,
+                               "Can't find network '%s'", l_net_name);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET;
+    }
+
+    dap_hash_fast_t l_tx_hash = {};
+    if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+                               "Can't parse TX hash '%s'", l_tx_hash_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX;
+    }
+
+    // Get first and final TX hashes
+    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(
+        l_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_tx_hash, false);
+
+    dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_final_tx_hash);
+    if (!l_final_tx) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+                               "Can't find final TX in ledger");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX;
+    }
+
+    dap_hash_fast_t l_first_tx_hash = dap_ledger_get_first_chain_tx_hash(
+        l_net->pub.ledger, l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY);
+
+    // Get OUT_COND from final TX
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(
+        l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
+    if (!l_cond) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+                               "Can't find OUT_COND in final TX");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX;
+    }
+
+    // Get token ticker
+    const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_final_tx_hash);
+    if (!l_ticker)
+        l_ticker = "unknown";
+
+    // Get balance
+    const char *l_balance_coins = NULL;
+    const char *l_balance_datoshi = dap_uint256_to_char(l_cond->header.value, &l_balance_coins);
+
+    // Get owner pkey hash and address from signature
+    dap_chain_hash_fast_t *l_pkey_hash = &l_cond->subtype.srv_pay.pkey_hash;
+    dap_chain_addr_t l_owner_addr = {};
+    dap_sign_t *l_sign = dap_chain_datum_tx_get_sign(l_final_tx, 0);
+    if (l_sign)
+        dap_chain_addr_fill_from_sign(&l_owner_addr, l_sign, l_net->pub.id);
+
+    bool l_is_base58 = !dap_strcmp(l_hash_out_type, "base58");
+
+    // Build JSON response
+    json_object *l_jobj_info = json_object_new_object();
+    json_object *l_jobj_balance = json_object_new_object();
+    json_object *l_jobj_token = json_object_new_object();
+
+    // First TX hash
+    json_object_object_add(l_jobj_info, "tx_first",
+        json_object_new_string(l_is_base58 ?
+            dap_enc_base58_encode_hash_to_str_static(&l_first_tx_hash) :
+            dap_hash_fast_to_str_static(&l_first_tx_hash)));
+
+    // Final TX hash
+    json_object_object_add(l_jobj_info, "tx_last",
+        json_object_new_string(l_is_base58 ?
+            dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) :
+            dap_hash_fast_to_str_static(&l_final_tx_hash)));
+
+    // Owner pkey hash
+    json_object_object_add(l_jobj_info, "owner_pkey_hash",
+        json_object_new_string(l_is_base58 ?
+            dap_enc_base58_encode_hash_to_str_static(l_pkey_hash) :
+            dap_hash_fast_to_str_static(l_pkey_hash)));
+
+    // Owner address
+    json_object_object_add(l_jobj_info, "owner_addr",
+        json_object_new_string(dap_chain_addr_to_str_static(&l_owner_addr)));
+
+    // Balance block
+    json_object_object_add(l_jobj_balance, "coins", json_object_new_string(l_balance_coins));
+    json_object_object_add(l_jobj_balance, "datoshi", json_object_new_string(l_balance_datoshi));
+    json_object_object_add(l_jobj_info, "balance", l_jobj_balance);
+
+    // Token block
+    json_object_object_add(l_jobj_token, "ticker", json_object_new_string(l_ticker));
+    json_object_object_add(l_jobj_info, "token", l_jobj_token);
+
+    if (*a_json_arr_reply && json_object_is_type(*a_json_arr_reply, json_type_array))
+        json_object_array_add(*a_json_arr_reply, l_jobj_info);
+
+    return 0;
+}
+
 int com_tx_cond(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
-    enum _subcmd { SUBCMD_CREATE, SUBCMD_REFILL, SUBCMD_REMOVE, SUBCMD_UNSPENT_FIND };
+    enum _subcmd { SUBCMD_CREATE, SUBCMD_REFILL, SUBCMD_REMOVE, SUBCMD_UNSPENT_FIND, SUBCMD_INFO };
     enum _subcmd l_cmd = 0;
 
     if (a_argv[1]) {
@@ -6167,14 +6291,16 @@ int com_tx_cond(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             l_cmd = SUBCMD_REMOVE;
         } else if (!dap_strcmp(a_argv[1], "unspent_find")) {
             l_cmd = SUBCMD_UNSPENT_FIND;
+        } else if (!dap_strcmp(a_argv[1], "info")) {
+            l_cmd = SUBCMD_INFO;
         } else {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,
-                "Invalid subcommand '%s'. Use: tx_cond create | refill | remove | unspent_find", a_argv[1]);
+                "Invalid subcommand '%s'. Use: tx_cond create | refill | remove | unspent_find | info", a_argv[1]);
             return DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD;
         }
     } else {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,
-            "Subcommand required. Use: tx_cond create | refill | remove | unspent_find");
+            "Subcommand required. Use: tx_cond create | refill | remove | unspent_find | info");
         return DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD;
     }
 
@@ -6187,6 +6313,8 @@ int com_tx_cond(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             return _cmd_tx_cond_remove(a_argc, a_argv, a_str_reply, a_version);
         case SUBCMD_UNSPENT_FIND:
             return _cmd_tx_cond_unspent_find(a_argc, a_argv, a_str_reply, a_version);
+        case SUBCMD_INFO:
+            return _cmd_tx_cond_info(a_argc, a_argv, a_str_reply, a_version);
     }
     return -1;
 }
