@@ -6395,7 +6395,14 @@ json_object *dap_chain_tx_compose_stake_ext_lock(dap_chain_net_id_t a_net_id, co
         return s_compose_config_return_response_handler(l_config);
     }
 
-    l_amount = dap_chain_balance_scan(a_amount_str);
+    // Parse amount as coins - if no decimal point, append ".0" to interpret as coins not datoshi
+    if (!strchr(a_amount_str, '.')) {
+        char l_amount_with_decimal[64] = {0};
+        snprintf(l_amount_with_decimal, sizeof(l_amount_with_decimal), "%s.0", a_amount_str);
+        l_amount = dap_chain_coins_to_balance(l_amount_with_decimal);
+    } else {
+        l_amount = dap_chain_balance_scan(a_amount_str);
+    }
     if (IS_ZERO_256(l_amount)) {
         log_it(L_ERROR, "Invalid amount format '%s'", a_amount_str);
         s_json_compose_error_add(l_config->response_handler, STAKE_EXT_LOCK_COMPOSE_ERR_INVALID_AMOUNT, "Invalid amount format");
