@@ -706,14 +706,14 @@ bool dap_chain_tx_compose_get_remote_net_fee_and_address(uint256_t *a_net_fee, d
         return false;
     }
 
-    dap_json_t *l_network = NULL;
-    dap_json_object_get_ex(l_fees, "network", &l_network);
-    if (!l_network || !dap_json_is_object(l_network)) {
+    dap_json_t *l_network_fee = NULL;
+    dap_json_object_get_ex(l_fees, "network_fee", &l_network_fee);
+    if (!l_network_fee || !dap_json_is_object(l_network_fee)) {
         dap_json_object_free(l_json_get_fee);
         return false;
     }
 
-    const char *l_balance_str = dap_json_object_get_string(l_network, "balance");
+    const char *l_balance_str = dap_json_object_get_string(l_network_fee, "balance");
     if (!l_balance_str) {
         log_it(L_ERROR, "failed to get balance string");
         dap_json_compose_error_add(a_config->response_handler, -9, "failed to get balance string");
@@ -729,7 +729,7 @@ bool dap_chain_tx_compose_get_remote_net_fee_and_address(uint256_t *a_net_fee, d
         return false;
     }
 
-    const char *l_addr_str = dap_json_object_get_string(l_network, "addr");
+    const char *l_addr_str = dap_json_object_get_string(l_network_fee, "addr");
     if (!l_addr_str) {
         log_it(L_ERROR, "failed to get addr string");
         dap_json_compose_error_add(a_config->response_handler, -12, "failed to get addr string");
