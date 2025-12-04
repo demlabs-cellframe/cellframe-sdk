@@ -33,6 +33,9 @@
 #include "dap_chain_common.h"
 #include "dap_chain_net_types.h"
 #include "dap_chain_net_utils.h"
+#include "dap_chain_net.h"
+#include "dap_chain_net_tx.h"
+#include "dap_chain_cs_esbocs.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_policy.h"
 #include "dap_chain.h"
@@ -522,7 +525,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (l_chain->generation == l_banned_generation) {
                 if (l_chain->cs_callbacks && l_chain->cs_callbacks->set_hardfork_complete)
                     l_chain->cs_callbacks->set_hardfork_complete(l_chain);
-                dap_ledger_chain_purge(a_net->pub.ledger, l_chain, 0);
+                dap_ledger_chain_purge(l_chain, 0);
             }
             return dap_chain_generation_ban(l_chain, l_banned_generation);
         }

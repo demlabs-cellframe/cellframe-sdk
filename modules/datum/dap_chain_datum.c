@@ -808,7 +808,7 @@ void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_o
                 dap_json_object_add_object(json_obj_datum, "=== Datum decree ===", dap_json_object_new_string(""));
             dap_json_object_add_object(json_obj_datum, a_version == 1 ? "hash" : "datum_hash", dap_json_object_new_string(l_hash_str));
             dap_json_object_add_object(json_obj_datum,"size",dap_json_object_new_uint64(l_decree_size));
-            if (DAP_UNLIKELY(s_dump_decree_callback))
+            if (unlikely(s_dump_decree_callback))
                 s_dump_decree_callback(json_obj_datum, l_decree, l_decree_size, a_hash_out_type, a_version);
         } break;
         case DAP_CHAIN_DATUM_ANCHOR:{
@@ -818,7 +818,7 @@ void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_o
                 dap_json_object_add_object(json_obj_datum, "=== Datum anchor ===", dap_json_object_new_string(""));
             dap_json_object_add_object(json_obj_datum, a_version == 1 ? "hash" : "datum_hash", dap_json_object_new_string(l_hash_str));
             dap_json_object_add_object(json_obj_datum,"size",dap_json_object_new_uint64(l_anchor_size));
-            if (DAP_UNLIKELY(s_dump_anchor_callback)) {
+            if (unlikely(s_dump_anchor_callback)) {
                 s_dump_anchor_callback(json_obj_datum, l_anchor, l_anchor_size, a_hash_out_type, a_version);
             } else {
                 dap_hash_fast_t l_decree_hash = { };
