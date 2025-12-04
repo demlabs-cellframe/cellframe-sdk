@@ -7751,8 +7751,11 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
         }
-        // For arbitrage TX, -to_addr is ignored (will be replaced with fee address)
-        // For normal TX, parse -to_addr addresses
+        // For arbitrage TX without -to_addr, initialize with NULL (will be replaced with fee address by arbitrage module)
+        for (size_t i = 0; i < l_addr_el_count; ++i) {
+            l_addr_to[i] = NULL;
+        }
+        // For arbitrage TX with -to_addr or normal TX, parse -to_addr addresses
         if (addr_base58_to) {
             char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
             if (!l_addr_base58_to_array) {
@@ -7841,6 +7844,9 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     }
 
     for (size_t i = 0; i < l_addr_el_count; ++i) {
+        // Skip validation for arbitrage TX - addresses are replaced by arbitrage module
+        if (l_is_arbitrage && !l_addr_to[i])
+            continue;
         if (dap_chain_addr_compare(l_addr_to[i], l_addr_from)) {
             dap_chain_wallet_close(l_wallet);
             dap_enc_key_delete(l_priv_key);
@@ -7853,6 +7859,9 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     }
 
     for (size_t i = 0; i < l_addr_el_count; ++i) {
+        // Skip validation for arbitrage TX without -to_addr - addresses are replaced by arbitrage module
+        if (l_is_arbitrage && !l_addr_to[i])
+            continue;
         if (!dap_chain_addr_is_blank(l_addr_to[i]) && l_addr_to[i]->net_id.uint64 != l_net->pub.id.uint64) {
             bool l_found = false;
             for (size_t j = 0; j < l_net->pub.bridged_networks_count; ++j) {
@@ -9737,4 +9746,22 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
     DAP_DELETE(l_decree_hash_str);
 
     return 0;
+}
+
+/**
+ * @brief com_token_emit_sign
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @param a_version
+ * @return
+ */
+int com_token_emit_sign(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+{
+    (void)a_argc;
+    (void)a_argv;
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_H_PARAM_ERR,
+                           "Command 'token_emit_sign' is deprecated. Please use 'token_emit sign -emission ...' instead.");
+    return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_H_PARAM_ERR;
 }
