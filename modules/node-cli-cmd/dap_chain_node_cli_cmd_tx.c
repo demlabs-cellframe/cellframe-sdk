@@ -2839,7 +2839,7 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
     if (l_tx) DAP_DELETE(l_tx);
 
     // Add transaction to mempool
-    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_nochain_new(l_chain);// get group name for mempool
+    char *l_gdb_group_mempool_base_tx = dap_chain_mempool_group_new(l_chain);// get group name for mempool
     char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
