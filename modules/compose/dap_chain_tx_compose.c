@@ -415,6 +415,9 @@ dap_list_t *s_ledger_get_list_tx_outs_from_jso_ex(json_object * a_outputs_array,
         randombytes(l_item, sizeof(dap_chain_tx_used_out_item_t));
         l_ret = dap_list_append(l_ret, l_item);
     }
+    // Set value_transfer >= value_need so coin back calculation works correctly
+    if (a_value_transfer)
+        *a_value_transfer = a_value_need;
     return l_ret;
 #endif
     dap_return_val_if_pass(!a_outputs_array || a_outputs_count <= 0, NULL);

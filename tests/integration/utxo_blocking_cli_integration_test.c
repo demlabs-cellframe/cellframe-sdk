@@ -40,10 +40,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifndef DAP_OS_WINDOWS
 #include <unistd.h>
 #include <errno.h>
+#endif
 
 #include "dap_common.h"
+#include "dap_file_utils.h"
 #include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_config.h"
@@ -105,19 +108,24 @@ static void s_setup(void)
     system("rm -f /tmp/cli_test.sock");
     
     // Step 1: Create minimal config for CLI server
+#ifdef DAP_OS_WINDOWS
+    const char *l_config_dir = "C:\\Temp\\cli_test_config";
+#else
     const char *l_config_dir = "/tmp/cli_test_config";
     mkdir(l_config_dir, 0755);
     // Create certificate folder
     mkdir("/tmp/cli_test_certs", 0755);
     // Create wallets folder
     mkdir("/tmp/cli_test_wallets", 0755);
+#endif
+    dap_mkdir_with_parents(l_config_dir);
     
+    // CLI server config (server init may fail without full event loop, but test continues)
     const char *l_config_content = 
         "[general]\n"
         "debug=true\n"
         "[cli-server]\n"
         "enabled=true\n"
-        "listen_unix_socket_path=/tmp/cli_test.sock\n"
         "debug=false\n"
         "debug_more=true\n"
         "version=1\n"
@@ -138,7 +146,7 @@ static void s_setup(void)
         "wallets_path=/tmp/cli_test_wallets\n";
     
     char l_config_path[256];
-    snprintf(l_config_path, sizeof(l_config_path), "%s/test.cfg", l_config_dir);
+    snprintf(l_config_path, sizeof(l_config_path), "%s%ctest.cfg", l_config_dir, DAP_DIR_SEPARATOR);
     FILE *l_config_file = fopen(l_config_path, "w");
     if (l_config_file) {
         fwrite(l_config_content, 1, strlen(l_config_content), l_config_file);
@@ -223,6 +231,13 @@ static void s_teardown(void)
     unlink("/tmp/cli_test.sock");
     // Remove global DB directory
     system("rm -rf /tmp/cli_test_gdb");
+
+#ifdef DAP_OS_WINDOWS
+    dap_rm_rf("C:\\Temp\\cli_test_config");
+#else
+    dap_rm_rf("/tmp/cli_test_config");
+    remove("/tmp/cli_test.sock");
+#endif
     
     log_it(L_NOTICE, "✓ Test environment cleaned up");
 }

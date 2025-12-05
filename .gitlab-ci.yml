@@ -29,7 +29,6 @@ tests:amd64.gcc:
       - mkdir build
       - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --output-on-failure --verbose
 
-
 tests:amd64.clang:
     extends: .tests
     image: demlabs/debian/amd64:qt6
@@ -38,11 +37,9 @@ tests:amd64.clang:
       - mkdir build
       - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --output-on-failure --verbose
 
-
-tests:arm64.gcc:
+tests:arm64.cross:
     extends: .tests
-    image: demlabs/debian/arm64:qt5
-    before_script: /opt/buildtools/prepare_environment.sh arm64-linux
+    image: demlabs/debian/amd64:cross
     script:
       - mkdir build
       - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --output-on-failure --verbose
@@ -55,30 +52,27 @@ tests:arm64.clang:
       - mkdir build
       - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --output-on-failure --verbose
 
-tests:arm32.gcc:
+tests:arm32.cross:
     extends: .tests
-    image: demlabs/debian/arm32:qt5
-    before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
+    image: demlabs/debian/amd64:cross
     script:
       - mkdir build
       - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --output-on-failure --verbose
 
-tests:arm32.clang:
+tests:windows.amd64:
     extends: .tests
-    image: demlabs/debian/arm32:qt5
-    before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
+    image: demlabs/windows/amd64:qt6
     script:
       - mkdir build
       - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --output-on-failure --verbose
 
-build:windows:
+tests:macos.arm64:
     extends: .tests
     image: demlabs/windows/amd64:qt6
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - mkdir build
       - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(nproc)
-    
 
 build:macos:
     extends: .tests
@@ -88,14 +82,12 @@ build:macos:
       - mkdir build
       - cd build && cmake -DCMAKE_BUILD_TYPE=Release .. && make -j$(nproc)
 
-
 build:android:
     extends: .tests
     image: demlabs/android/any:qt6
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - ANDROID_NDK_ROOT=/opt/android/ndk/26.1.10909125/ ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1
-
 
 # Performs an in-depth static code analysis with cppcheck, producing a detailed HTML report for manual inspection.
 cppcheck_full_analysis:
