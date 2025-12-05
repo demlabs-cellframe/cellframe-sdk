@@ -2268,3 +2268,119 @@ char *dap_chain_mempool_tx_create_service_decree(dap_chain_t *a_chain, dap_enc_k
                                              a_service_decree_data, a_service_decree_data_size, a_fee_value, a_hash_out_type);
 }
 
+// SRV_PAY cache implementation
+
+static void s_srv_pay_ledger_tx_add_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                              dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
+
+int dap_chain_srv_pay_cache_init(void)
+{
+    // Register ledger notifier for all networks
+    dap_chain_net_t *l_net = dap_chain_net_iter_start();
+    for (; l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        dap_ledger_tx_add_notify(l_net->pub.ledger, s_srv_pay_ledger_tx_add_callback, l_net);
+    }
+    log_it(L_NOTICE, "SRV_PAY cache initialized");
+    return 0;
+}
+
+void dap_chain_srv_pay_cache_deinit(void)
+{
+    // Nothing to do - GDB handles cleanup
+}
+
+static void s_srv_pay_ledger_tx_add_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                              dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode)
+{
+    (void)a_ledger;
+    (void)a_opcode;
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    dap_chain_srv_pay_cache_tx_add(l_net, a_tx, a_tx_hash);
+}
+
+int dap_chain_srv_pay_cache_tx_add(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
+{
+    if (!a_net || !a_tx || !a_tx_hash)
+        return -1;
+
+    // Check if TX has SRV_PAY OUT_COND
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
+    if (!l_out_cond)
+        return 0; // Not a SRV_PAY TX
+
+    // Check if TX has IN_COND (refill) - skip if yes
+    dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
+    if (l_in_cond)
+        return 0; // This is a refill, first TX already cached
+
+    // Get owner pkey_hash from TX signature (owner = who signed/paid)
+    dap_sign_t *l_sign = dap_chain_datum_tx_get_sign(a_tx, 0);
+    if (!l_sign)
+        return -1;
+    
+    dap_hash_fast_t l_pkey_hash_val = {};
+    if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash_val))
+        return -1;
+    dap_hash_fast_t *l_pkey_hash = &l_pkey_hash_val;
+
+    // Build GDB group name
+    char *l_group = dap_strdup_printf("%s.%s", DAP_CHAIN_SRV_PAY_GDB_GROUP, a_net->pub.name);
+    const char *l_key = dap_hash_fast_to_str_static(l_pkey_hash);
+
+    // Get existing hashes
+    size_t l_data_size = 0;
+    dap_srv_pay_tx_hashes_t *l_existing = (dap_srv_pay_tx_hashes_t *)dap_global_db_get_sync(l_group, l_key, &l_data_size, NULL, NULL);
+
+    // Check if this hash already exists
+    if (l_existing) {
+        for (size_t i = 0; i < l_existing->tx_count; i++) {
+            if (dap_hash_fast_compare(&l_existing->tx_hashes[i], a_tx_hash)) {
+                DAP_DELETE(l_existing);
+                DAP_DELETE(l_group);
+                return 0; // Already cached
+            }
+        }
+    }
+
+    // Add new hash
+    size_t l_old_count = l_existing ? l_existing->tx_count : 0;
+    size_t l_new_size = sizeof(dap_srv_pay_tx_hashes_t) + (l_old_count + 1) * sizeof(dap_hash_fast_t);
+    dap_srv_pay_tx_hashes_t *l_new = DAP_NEW_SIZE(dap_srv_pay_tx_hashes_t, l_new_size);
+    if (!l_new) {
+        DAP_DEL_Z(l_existing);
+        DAP_DELETE(l_group);
+        return -1;
+    }
+
+    // Copy existing hashes
+    if (l_existing && l_old_count > 0)
+        memcpy(l_new->tx_hashes, l_existing->tx_hashes, l_old_count * sizeof(dap_hash_fast_t));
+
+    // Add new hash
+    l_new->tx_count = l_old_count + 1;
+    l_new->tx_hashes[l_old_count] = *a_tx_hash;
+
+    // Save to GDB
+    dap_global_db_set_sync(l_group, l_key, l_new, l_new_size, false);
+
+    DAP_DEL_Z(l_existing);
+    DAP_DELETE(l_new);
+    DAP_DELETE(l_group);
+    return 1;
+}
+
+dap_srv_pay_tx_hashes_t *dap_chain_srv_pay_cache_get(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash)
+{
+    if (!a_net || !a_pkey_hash)
+        return NULL;
+
+    char *l_group = dap_strdup_printf("%s.%s", DAP_CHAIN_SRV_PAY_GDB_GROUP, a_net->pub.name);
+    const char *l_key = dap_hash_fast_to_str_static(a_pkey_hash);
+
+    size_t l_data_size = 0;
+    dap_srv_pay_tx_hashes_t *l_ret = (dap_srv_pay_tx_hashes_t *)dap_global_db_get_sync(l_group, l_key, &l_data_size, NULL, NULL);
+
+    DAP_DELETE(l_group);
+    return l_ret;
+}
+

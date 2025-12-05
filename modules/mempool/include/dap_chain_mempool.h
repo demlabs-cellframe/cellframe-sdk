@@ -36,6 +36,20 @@
 // TSD type for SRV_PAY refill transaction marker
 #define DAP_CHAIN_SRV_PAY_TSD_REFILL 0x16
 
+// GDB group for SRV_PAY conditional transactions cache
+#define DAP_CHAIN_SRV_PAY_GDB_GROUP "local.srv_pay_cond"
+
+// Structure for caching SRV_PAY tx hashes by owner pkey_hash
+typedef struct dap_srv_pay_tx_hashes {
+    size_t tx_count;
+    dap_hash_fast_t tx_hashes[];
+} dap_srv_pay_tx_hashes_t;
+
+// SRV_PAY cache functions
+int dap_chain_srv_pay_cache_init(void);
+void dap_chain_srv_pay_cache_deinit(void);
+int dap_chain_srv_pay_cache_tx_add(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
+dap_srv_pay_tx_hashes_t *dap_chain_srv_pay_cache_get(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash);
 
 // action
 enum {
