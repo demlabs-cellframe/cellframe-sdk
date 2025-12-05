@@ -6574,6 +6574,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
     randombytes(&l_cond_prev->header.value, sizeof(uint256_t));
     randombytes(&l_cond_prev->header.srv_uid, sizeof(dap_chain_net_srv_uid_t));
     randombytes(&l_cond_prev->subtype.srv_pay.pkey_hash, sizeof(dap_hash_fast_t));
+    l_cond_prev->subtype.srv_pay.unit.enm = SERV_UNIT_B;
 #endif
 
     // Add 'in_cond' item
@@ -6696,5 +6697,274 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
     DAP_DELETE(l_cond_prev);
 #endif
+    return l_tx;
+}
+
+typedef enum
+{
+    TX_COND_REMOVE_COMPOSE_ERR_OK = 0,
+    TX_COND_REMOVE_COMPOSE_ERR_CONFIG,
+    TX_COND_REMOVE_COMPOSE_ERR_VALUE,
+    TX_COND_REMOVE_COMPOSE_ERR_NETWORK,
+    TX_COND_REMOVE_COMPOSE_ERR_OVERFLOW,
+    TX_COND_REMOVE_COMPOSE_ERR_FUNDS,
+    TX_COND_REMOVE_COMPOSE_ERR_COMPOSE,
+    TX_COND_REMOVE_COMPOSE_ERR_TX_MISMATCH,
+    TX_COND_REMOVE_COMPOSE_ERR_MEMORY,
+    TX_COND_REMOVE_COMPOSE_ERR_NO_HASHES,
+    TX_COND_REMOVE_COMPOSE_ERR_SRV_UID
+} tx_cond_remove_compose_err_t;
+
+static dap_list_t *s_parse_hashes_str(const char *a_hashes_str)
+{
+    if (!a_hashes_str)
+        return NULL;
+    dap_list_t *l_ret = NULL;
+    char *l_dup = dap_strdup(a_hashes_str);
+    char *l_ptr = NULL;
+    char *l_hash_str = strtok_r(l_dup, ",", &l_ptr);
+    while (l_hash_str)
+    {
+        dap_hash_fast_t *l_hash = DAP_NEW_Z(dap_hash_fast_t);
+        if (l_hash && !dap_chain_hash_fast_from_str(l_hash_str, l_hash))
+            l_ret = dap_list_append(l_ret, l_hash);
+        else
+            DAP_DEL_Z(l_hash);
+        l_hash_str = strtok_r(NULL, ",", &l_ptr);
+    }
+    DAP_DELETE(l_dup);
+    return l_ret;
+}
+
+json_object *dap_chain_tx_compose_tx_cond_remove(dap_chain_net_id_t a_net_id, const char *a_net_name,
+                                                 const char *a_native_ticker, const char *a_url_str,
+                                                 uint16_t a_port, const char *a_enc_cert_path,
+                                                 dap_chain_addr_t *a_owner_addr, const char *a_hashes_str,
+                                                 const char *a_fee_str, const char *a_srv_uid_str)
+{
+    compose_config_t *l_config = s_compose_config_init(a_net_id, a_net_name, a_native_ticker, a_url_str, a_port, a_enc_cert_path);
+    if (!l_config)
+    {
+        json_object *l_json_obj_ret = json_object_new_object();
+        s_json_compose_error_add(l_json_obj_ret, TX_COND_REMOVE_COMPOSE_ERR_CONFIG, "Can't create compose config");
+        log_it(L_ERROR, "Can't create compose config");
+        return l_json_obj_ret;
+    }
+
+    uint256_t l_fee = dap_chain_balance_scan(a_fee_str);
+    if (IS_ZERO_256(l_fee))
+    {
+        s_json_compose_error_add(l_config->response_handler, TX_COND_REMOVE_COMPOSE_ERR_VALUE, "Invalid fee");
+        log_it(L_ERROR, "Invalid fee");
+        return s_compose_config_return_response_handler(l_config);
+    }
+
+    dap_chain_net_srv_uid_t l_srv_uid = {};
+    l_srv_uid.uint64 = strtoll(a_srv_uid_str, NULL, 10);
+    if (!l_srv_uid.uint64)
+    {
+        s_json_compose_error_add(l_config->response_handler, TX_COND_REMOVE_COMPOSE_ERR_SRV_UID, "Invalid srv_uid");
+        log_it(L_ERROR, "Invalid srv_uid");
+        return s_compose_config_return_response_handler(l_config);
+    }
+
+    dap_list_t *l_hashes = s_parse_hashes_str(a_hashes_str);
+    if (!l_hashes)
+    {
+        s_json_compose_error_add(l_config->response_handler, TX_COND_REMOVE_COMPOSE_ERR_NO_HASHES, "No valid hashes provided");
+        log_it(L_ERROR, "No valid hashes provided");
+        return s_compose_config_return_response_handler(l_config);
+    }
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_tx_compose_datum_tx_cond_remove(a_owner_addr, l_hashes, l_fee, l_srv_uid, l_config);
+    dap_list_free_full(l_hashes, NULL);
+
+    if (l_tx)
+    {
+        dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
+        dap_chain_datum_tx_delete(l_tx);
+    }
+
+    return s_compose_config_return_response_handler(l_config);
+}
+
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t *a_owner_addr, dap_list_t *a_tx_hashes,
+                                                                uint256_t a_fee, dap_chain_net_srv_uid_t a_srv_uid,
+                                                                compose_config_t *a_config)
+{
+    if (!a_config || !a_tx_hashes || IS_ZERO_256(a_fee) || !a_srv_uid.uint64)
+        return NULL;
+
+    const char *l_native_ticker = a_config->native_ticker;
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx)
+    {
+        s_json_compose_error_add(a_config->response_handler, TX_COND_REMOVE_COMPOSE_ERR_MEMORY, "Can't create TX");
+        return NULL;
+    }
+
+    uint256_t l_cond_value_sum = {};
+    size_t l_added_count = 0;
+
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    for (dap_list_t *l_tmp = a_tx_hashes; l_tmp; l_tmp = l_tmp->next)
+    {
+        dap_hash_fast_t *l_hash = (dap_hash_fast_t *)l_tmp->data;
+        if (!l_hash)
+            continue;
+
+        // Find final TX in chain (like CLI does with dap_ledger_get_final_chain_tx_hash)
+        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash_compose(
+            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash, true, a_config);
+        if (dap_hash_fast_is_blank(&l_final_hash))
+        {
+            log_it(L_WARNING, "TX %s: can't find final TX in chain", dap_hash_fast_to_str_static(l_hash));
+            continue;
+        }
+
+        // Get final TX info from RPC
+        dap_chain_tx_out_cond_t *l_cond = NULL;
+        char *l_token_ticker = NULL;
+        int l_cond_idx = 0;
+        dap_chain_datum_tx_t *l_cond_tx = s_get_datum_info_from_rpc(
+            dap_hash_fast_to_str_static(&l_final_hash), a_config,
+            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_cond, NULL, &l_token_ticker, &l_cond_idx, true);
+
+        if (!l_cond_tx || !l_cond)
+        {
+            log_it(L_WARNING, "TX %s not found or has no SRV_PAY output", dap_hash_fast_to_str_static(&l_final_hash));
+            DAP_DEL_Z(l_token_ticker);
+            DAP_DEL_Z(l_cond);
+            if (l_cond_tx) dap_chain_datum_tx_delete(l_cond_tx);
+            continue;
+        }
+
+        // Check srv_uid matches
+        if (l_cond->header.srv_uid.uint64 != a_srv_uid.uint64)
+        {
+            log_it(L_WARNING, "TX %s srv_uid mismatch", dap_hash_fast_to_str_static(&l_final_hash));
+            DAP_DEL_Z(l_token_ticker);
+            DAP_DEL_Z(l_cond);
+            dap_chain_datum_tx_delete(l_cond_tx);
+            continue;
+        }
+
+        // Check token is native (remove only works with native token, like CLI)
+        if (l_token_ticker && dap_strcmp(l_native_ticker, l_token_ticker))
+        {
+            log_it(L_WARNING, "TX %s token must be native", dap_hash_fast_to_str_static(&l_final_hash));
+            DAP_DEL_Z(l_token_ticker);
+            DAP_DEL_Z(l_cond);
+            dap_chain_datum_tx_delete(l_cond_tx);
+            continue;
+        }
+        DAP_DEL_Z(l_token_ticker);
+
+        // Check that OUT_COND value > 0 (like CLI)
+        if (IS_ZERO_256(l_cond->header.value))
+        {
+            log_it(L_WARNING, "TX %s has zero value", dap_hash_fast_to_str_static(&l_final_hash));
+            DAP_DEL_Z(l_cond);
+            dap_chain_datum_tx_delete(l_cond_tx);
+            continue;
+        }
+
+        // Add IN_COND from final TX
+        if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_hash, l_cond_idx, 0) != 1)
+        {
+            log_it(L_WARNING, "Can't add in_cond for TX %s", dap_hash_fast_to_str_static(&l_final_hash));
+            DAP_DEL_Z(l_cond);
+            dap_chain_datum_tx_delete(l_cond_tx);
+            continue;
+        }
+
+        SUM_256_256(l_cond_value_sum, l_cond->header.value, &l_cond_value_sum);
+        l_added_count++;
+
+        // Cleanup
+        DAP_DEL_Z(l_cond);
+        dap_chain_datum_tx_delete(l_cond_tx);
+    }
+#else
+    // Test mode: add dummy in_cond with large values
+    for (dap_list_t *l_tmp = a_tx_hashes; l_tmp; l_tmp = l_tmp->next)
+    {
+        dap_hash_fast_t *l_hash = (dap_hash_fast_t *)l_tmp->data;
+        if (!l_hash)
+            continue;
+        if (dap_chain_datum_tx_add_in_cond_item(&l_tx, l_hash, rand(), 0) != 1)
+            continue;
+        // Use very large value: 1 billion datoshi per hash (more than any test fee)
+        uint256_t l_test_value = { ._lo = { .b = 1000000000ULL } };
+        SUM_256_256(l_cond_value_sum, l_test_value, &l_cond_value_sum);
+        l_added_count++;
+    }
+#endif
+
+    if (l_added_count == 0 || IS_ZERO_256(l_cond_value_sum))
+    {
+        s_json_compose_error_add(a_config->response_handler, TX_COND_REMOVE_COMPOSE_ERR_TX_MISMATCH,
+                                 "No valid conditional transactions found");
+        log_it(L_ERROR, "No valid conditional transactions found");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Calculate fees
+    uint256_t l_net_fee = {};
+    dap_chain_addr_t *l_net_fee_addr = NULL;
+    bool l_net_fee_used = s_get_remote_net_fee_and_address(&l_net_fee, &l_net_fee_addr, a_config);
+    uint256_t l_total_fee = a_fee;
+    if (l_net_fee_used)
+        SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
+
+    // Check if we have enough to cover fees
+    if (compare256(l_total_fee, l_cond_value_sum) >= 0)
+    {
+        s_json_compose_error_add(a_config->response_handler, TX_COND_REMOVE_COMPOSE_ERR_FUNDS,
+                                 "Sum of conditional outputs must be greater than fees sum");
+        log_it(L_ERROR, "Sum of conditional outputs must be greater than fees sum");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Calculate coin back
+    uint256_t l_coin_back = {};
+    SUBTRACT_256_256(l_cond_value_sum, l_total_fee, &l_coin_back);
+
+    // Add output to owner
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_owner_addr, l_coin_back, l_native_ticker) != 1)
+    {
+        s_json_compose_error_add(a_config->response_handler, TX_COND_REMOVE_COMPOSE_ERR_COMPOSE,
+                                 "Can't add return output");
+        log_it(L_ERROR, "Can't add return output");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // Add net fee
+    if (l_net_fee_used && l_net_fee_addr)
+    {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_net_fee_addr, l_net_fee, l_native_ticker) != 1)
+        {
+            s_json_compose_error_add(a_config->response_handler, TX_COND_REMOVE_COMPOSE_ERR_COMPOSE,
+                                     "Can't add net fee output");
+            log_it(L_ERROR, "Can't add net fee output");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Add validator fee
+    if (!IS_ZERO_256(a_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1)
+    {
+        s_json_compose_error_add(a_config->response_handler, TX_COND_REMOVE_COMPOSE_ERR_COMPOSE,
+                                 "Can't add validator fee output");
+        log_it(L_ERROR, "Can't add validator fee output");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
     return l_tx;
 }
