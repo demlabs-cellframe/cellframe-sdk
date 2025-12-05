@@ -346,6 +346,22 @@ void s_chain_datum_tx_cond_refill_test()
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
+void s_chain_datum_tx_cond_remove_test()
+{
+    dap_print_module_name("tx_cond_remove_compose");
+    dap_hash_fast_t l_hash_2 = {};
+    randombytes(&l_hash_2, sizeof(dap_hash_fast_t));
+    dap_list_t *l_hashes = dap_list_append(NULL, &s_data->hash_1);
+    l_hashes = dap_list_append(l_hashes, &l_hash_2);
+    dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = 1 };
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_cond_remove(
+        &s_data->addr_from, l_hashes, s_data->value_fee, l_srv_uid, &s_data->config);
+    dap_assert(l_datum_1, "tx_cond_remove_compose");
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+    dap_list_free(l_hashes);
+}
+
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
@@ -388,6 +404,7 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_shared_funds_take_test();
     s_chain_datum_shared_funds_refill_test();
     s_chain_datum_tx_cond_refill_test();
+    s_chain_datum_tx_cond_remove_test();
     // s_chain_datum_shared_funds_sign_test();  no need for now
     if (s_data->config.response_handler) {
         json_object_put(s_data->config.response_handler);
