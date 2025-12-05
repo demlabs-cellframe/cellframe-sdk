@@ -28,7 +28,7 @@
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
-#include "dap_chain_node_client.h"
+#include "dap_chain_node_sync_client.h"
 #include "dap_chain_cs_esbocs.h" // TODO set RPC callbacks for exclude consensus specific dependency
 #include "dap_chain_type_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
 #include "dap_chain_net_srv_stake_pos_delegate.h" // TODO set RPC callbacks for exclude service specific dependency
@@ -39,7 +39,6 @@
 #include "dap_json.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_datum_service_state.h"
-#include "dap_chain_node_client.h"
 #include "utlist.h"
 #include "dap_link_manager.h"
 
@@ -285,11 +284,7 @@ void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
     if (!l_state_active) {
         int l_ret = -1;
         for (size_t i = 0; i < 3 && l_ret != 0; i++) {
-            dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net, l_node_info);
-            if (l_client) {
-                l_ret = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 30000);
-                // dap_chain_node_client_close_mt(l_client);
-            }
+            l_ret = dap_chain_node_sync_handshake(l_net, l_node_info, "CN", 30000);
         }
         if (l_ret == 0) {
             l_state_active = true;

@@ -7,7 +7,37 @@ file(GLOB DAP_STAKE_EXT_TESTS_SRC *.c)
 
 add_executable(${PROJECT_NAME} ${DAP_STAKE_EXT_TESTS_SRC} ${DAP_STAKE_EXT_TESTS_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} cellframe_sdk dap_sdk dap_test)
+# Use --start-group/--end-group to resolve circular dependencies (not supported on macOS)
+if(APPLE)
+    target_link_libraries(${PROJECT_NAME} 
+        dap_test
+        dap_sdk 
+        cellframe_sdk
+        dap_io
+        dap_stream
+        dap_stream_ch
+        dap_session
+        dap_http_server
+        dap_client
+        dap_sdk
+        cellframe_sdk
+    )
+else()
+    target_link_libraries(${PROJECT_NAME} 
+        dap_test
+        -Wl,--start-group
+        dap_sdk 
+        cellframe_sdk
+        dap_io
+        dap_stream
+        dap_stream_ch
+        dap_session
+        dap_http_server
+        dap_client
+        dap_sdk
+        -Wl,--end-group
+    )
+endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ../include)

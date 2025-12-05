@@ -28,7 +28,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_net.h"
 #include "dap_http_status_code.h"
-#include "dap_chain_node_client.h"
+#include "dap_chain_node_sync_client.h"
 #include "dap_dns_client.h"
 #include "dap_dns_server.h"
 #include "dap_client_http.h"
@@ -387,12 +387,11 @@ void dap_chain_net_balancer_deinit()
  * @brief balancer handshake
  * @param a_node_info
  * @param a_net
- * @return -1 false, 0 timeout, 1 end of connection or sending data
+ * @return 0 on success, negative error code on failure
  */
 int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_chain_net_t *a_net)
 {
-    dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(a_net, a_node_info);
-    return l_client ? dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 5000) : -1;
+    return dap_chain_node_sync_handshake(a_net, a_node_info, "CN", 5000);
 }
 
 /**
