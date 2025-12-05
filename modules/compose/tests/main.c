@@ -9,12 +9,8 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_token.h"
-<<<<<<< HEAD
-#include "dap_json.h"
-=======
 #include "dap_chain_net_srv_stake_ext.h"
 #include <json-c/json.h>
->>>>>>> 42bddbcd5 ([*] port-20302)
 
 #define LOG_TAG "dap_tx_compose_tests"
 #define KEY_COUNT 10
@@ -38,22 +34,14 @@ struct tests_data {
     uint32_t idx_1;
     uint32_t idx_2;
     dap_hash_fast_t hash_1;
-<<<<<<< HEAD
     dap_chain_srv_uid_t srv_uid;
-=======
     dap_hash_fast_t stake_ext_hash;
-    dap_chain_net_srv_uid_t srv_uid;
     dap_chain_tx_out_cond_t cond_out;
->>>>>>> 42bddbcd5 ([*] port-20302)
     dap_chain_id_t chain_id;
     dap_chain_tx_compose_config_t config;
     time_t time_staking;
-<<<<<<< HEAD
-    dap_chain_tx_out_cond_t cond_out; // Variable sized type moved to end
-=======
     dap_time_t lock_time;
     uint32_t position_id;
->>>>>>> 42bddbcd5 ([*] port-20302)
 };
 
 static dap_enc_key_type_t s_key_types[] = {
@@ -803,17 +791,12 @@ void s_chain_datum_stake_ext_various_fees_test()
 void s_chain_datum_tx_ser_deser_test()
 {
     s_data = DAP_NEW_Z_RET_IF_FAIL(struct tests_data);
-<<<<<<< HEAD
-
-    // Generate keys first before any tests
-=======
     randombytes(s_data, sizeof(struct tests_data));
     s_data->time_staking = dap_time_now() + 10000;
     s_data->reinvest_percent = dap_chain_coins_to_balance("12.3456789");
     s_data->lock_time = 6 * 30 * 24 * 3600;
     s_data->position_id = rand() % 10;
     randombytes(&s_data->stake_ext_hash, sizeof(dap_hash_fast_t));
->>>>>>> 42bddbcd5 ([*] port-20302)
     for (size_t i = 0; i < KEY_COUNT; ++i)
         s_key[i] = dap_enc_key_new_generate(s_key_types[rand() % s_sign_type_count], NULL, 0, NULL, 0, 0);
     
