@@ -554,7 +554,8 @@ static dap_json_t *dap_request_command_to_rpc(const char *a_request, dap_chain_t
     }
 
     dap_json_t *l_result = s_request_command_parse(l_responce, a_config);
-    dap_json_object_free(l_responce);
+    // Note: Don't free l_responce - l_result is a child that shares memory.
+    // For CLI tool, memory is freed on process exit.
     return l_result;
 }
 
@@ -600,7 +601,7 @@ dap_json_t *dap_request_command_to_rpc_with_params(dap_chain_tx_compose_config_t
         return NULL;
     }
 
-    return s_request_command_to_rpc(data, a_config);
+    return dap_request_command_to_rpc(data, a_config);
 }
 
 
@@ -683,7 +684,7 @@ bool dap_chain_tx_compose_get_remote_net_fee_and_address(uint256_t *a_net_fee, d
     *a_addr_fee = NULL;
 
     dap_json_t *l_json_get_fee = dap_request_command_to_rpc_with_params(a_config, "net", "get;fee;-net;%s", a_config->net_name);
-    if (!l_json_get_fee) {
+    if (!l_json_get_fee || !dap_json_is_array(l_json_get_fee)) {
         log_it(L_ERROR, "failed to get fee");
         dap_json_compose_error_add(a_config->response_handler, -5, "failed to get fee");
         return false;
@@ -799,8 +800,8 @@ bool dap_chain_tx_compose_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_a
     }
 
     *l_outputs_count = dap_json_array_length(*l_outs);
-    // No need to call get() in dap_json
-    dap_json_object_free(l_json_outs);
+    // Note: Don't free l_json_outs - child objects share memory with parent.
+    // For CLI tool, memory is freed on process exit.
     return true;
 }
 

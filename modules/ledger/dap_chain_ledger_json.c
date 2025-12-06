@@ -52,7 +52,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, i
         }
         
         dap_json_t *l_value_datosi_obj = NULL;
-        dap_json_object_get_ex(l_output, "value_datosi", &l_value_datosi_obj);
+        dap_json_object_get_ex(l_output, "value_datoshi", &l_value_datosi_obj);
         if (!l_value_datosi_obj) {
             continue;
         }
