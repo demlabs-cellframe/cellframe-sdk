@@ -1299,7 +1299,7 @@ uint256_t dap_chain_tx_compose_get_balance_from_json(dap_json_t *l_json_outs, co
     return l_value;
 }
 
-bool dap_chain_tx_compose_dap_chain_tx_compose_check_token_in_ledger(dap_json_t *l_json_coins, const char *a_token) {
+bool dap_chain_tx_compose_check_token_in_ledger(dap_json_t *l_json_coins, const char *a_token) {
     if (dap_json_is_array(l_json_coins)) {
         for (size_t i = 0; i < dap_json_array_length(l_json_coins); i++) {
             dap_json_t *token_array = dap_json_array_get_idx(l_json_coins, i);
