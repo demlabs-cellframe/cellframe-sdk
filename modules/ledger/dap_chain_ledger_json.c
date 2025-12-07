@@ -75,7 +75,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, i
         if (!l_out_prev_idx_obj) {
             continue;
         }
-        int l_out_idx = dap_json_object_get_int(l_out_prev_idx_obj, NULL);
+        int l_out_idx = (int)dap_json_get_int64(l_out_prev_idx_obj);
 
         dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
         if (!l_item) {
