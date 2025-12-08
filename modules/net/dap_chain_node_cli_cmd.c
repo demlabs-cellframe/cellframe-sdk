@@ -6132,10 +6132,12 @@ static int _cmd_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, UN
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX;
     }
 
-    // Find first TX to verify owner
+    // Find first TX to verify owner (if blank - this is the first TX)
     dap_hash_fast_t l_first_tx_hash = dap_ledger_get_first_chain_tx_hash(
         l_ledger, l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY);
-    dap_chain_datum_tx_t *l_first_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_first_tx_hash);
+    dap_chain_datum_tx_t *l_first_tx = dap_hash_fast_is_blank(&l_first_tx_hash)
+        ? l_final_tx
+        : dap_ledger_tx_find_by_hash(l_ledger, &l_first_tx_hash);
     if (!l_first_tx) {
         dap_enc_key_delete(l_key);
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
@@ -6239,8 +6241,12 @@ static int _cmd_tx_cond_info(int a_argc, char **a_argv, void **a_str_reply, UNUS
     dap_hash_fast_t l_first_tx_hash = dap_ledger_get_first_chain_tx_hash(
         l_net->pub.ledger, l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY);
 
-    // Get first TX to extract srv_uid (always available)
-    dap_chain_datum_tx_t *l_first_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_first_tx_hash);
+    // Get first TX to extract srv_uid (if blank - this is the first TX)
+    dap_chain_datum_tx_t *l_first_tx = dap_hash_fast_is_blank(&l_first_tx_hash)
+        ? l_final_tx
+        : dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_first_tx_hash);
+    if (dap_hash_fast_is_blank(&l_first_tx_hash))
+        l_first_tx_hash = l_final_tx_hash;
     if (!l_first_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
                                "Can't find first TX in ledger");
