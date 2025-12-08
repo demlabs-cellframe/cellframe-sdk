@@ -4767,7 +4767,7 @@ int dap_chain_net_srv_dex_init()
         "srv_dex spread -net <net_name> -pair <BASE/QUOTE> [-verbose]\n"
         "srv_dex volume -net <net_name> -pair <BASE/QUOTE> [-from <T0>] [-to <T1>] [-bucket <sec>]\n"
         "srv_dex slippage -net <net_name> -pair <BASE/QUOTE> -value <VALUE> -side buy|sell -unit base|quote\n"
-        "srv_dex history -net <net_name> {-pair <BASE/QUOTE> | -order <hash>} [-from <T0>] [-to <T1>] [-bucket <sec>] [-seller <addr>]\n"
+        "srv_dex history -net <net_name> -pair <BASE/QUOTE> [-from <T0>] [-to <T1>] [-bucket <sec>] [-seller <addr>]\n"
         "srv_dex purchase -net <net_name> -order <order_hash> -w <wallet> -value <value> [-unit sell|buy] -fee <fee> [-create_leftover_order] [-leftover_rate <rate>]\n"
         "srv_dex purchase_multi -net <net_name> -orders <hash1,hash2,...> -w <wallet> -value <value> [-unit sell|buy] -fee <fee> [-create_leftover_order] [-leftover_rate <rate>]\n"
         "srv_dex purchase_auto -net <net_name> -token_sell <ticker> -token_buy <ticker> -w <wallet> -value <value> [-unit sell|buy] [-min_rate <r>] [-fee <value>] [-create_leftover_order] [-leftover_rate <rate>] [-dry-run]\n"
@@ -6239,55 +6239,12 @@ tvl_output:
     } break; // SPREAD
 
     case CMD_HISTORY: {
+        if (!l_pair_str)
+            return dap_json_rpc_error_add(*json_arr_reply, -2, "missing -pair"), -2;
         const char *l_from_str = NULL, *l_to_str = NULL, *l_bucket_str = NULL, *l_mode_str = NULL;
         const char *l_base = l_pair_base, *l_quote = l_pair_quote;
         const char *l_seller_str = NULL;
-        const char *l_order_hash_str = NULL;
-        char l_pair_from_order[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 4] = "";
-        
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-seller", &l_seller_str);
-        
-        // If -order specified, extract pair from order datum
-        if (l_order_hash_str && !l_pair_str)
-        {
-            dap_hash_fast_t l_order_hash = {};
-            if (dap_chain_hash_fast_from_str(l_order_hash_str, &l_order_hash))
-                return dap_json_rpc_error_add(*json_arr_reply, -2, "invalid -order hash"), -2;
-            
-            // Find order in ledger
-            dap_hash_fast_t l_tail = dap_ledger_get_final_chain_tx_hash(l_net->pub.ledger, 
-                DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_order_hash, false);
-            if (dap_hash_fast_is_blank(&l_tail))
-                l_tail = l_order_hash;
-            
-            dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tail);
-            if (!l_tx)
-                return dap_json_rpc_error_add(*json_arr_reply, -2, "order not found"), -2;
-            
-            dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, 
-                DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
-            if (!l_out_cond)
-                return dap_json_rpc_error_add(*json_arr_reply, -2, "order has no SRV_DEX output"), -2;
-            
-            // Get sell token from transaction
-            const char *l_sell_token = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_tail);
-            if (!l_sell_token)
-                return dap_json_rpc_error_add(*json_arr_reply, -2, "cannot get sell token from order"), -2;
-            
-            const char *l_buy_token = l_out_cond->subtype.srv_dex.buy_token;
-            
-            // Use tokens as they are in the order: sell_token/buy_token
-            snprintf(l_pair_from_order, sizeof(l_pair_from_order), "%s/%s", l_sell_token, l_buy_token);
-            
-            // Parse the constructed pair string
-            char *l_slash = strchr(l_pair_from_order, '/');
-            *l_slash = '\0';
-            l_base = l_pair_from_order;
-            l_quote = l_slash + 1;
-        }
-        else if (!l_pair_str)
-            return dap_json_rpc_error_add(*json_arr_reply, -2, "missing -pair or -order"), -2;
         dap_chain_addr_t l_seller = {};
         if (l_seller_str) {
             dap_chain_addr_t *l_seller_tmp = dap_chain_addr_from_str(l_seller_str);
@@ -6316,13 +6273,7 @@ tvl_output:
         else return dap_json_rpc_error_add(*json_arr_reply, -2, "bad mode %s", l_mode_str), -2;
 
         l_json_reply = json_object_new_object();
-        // Use l_pair_str if provided, otherwise construct from base/quote
-        char l_pair_output[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 4];
-        if (l_pair_str)
-            dap_strncpy(l_pair_output, l_pair_str, sizeof(l_pair_output) - 1);
-        else
-            snprintf(l_pair_output, sizeof(l_pair_output), "%s/%s", l_base, l_quote);
-        json_object_object_add(l_json_reply, "pair", json_object_new_string(l_pair_output));
+        json_object_object_add(l_json_reply, "pair", json_object_new_string(l_pair_str));
         json_object_object_add(l_json_reply, "request_ts", json_object_new_int64((int64_t)dap_time_now()));
 
         if (s_dex_history_enabled && l_bucket) {
