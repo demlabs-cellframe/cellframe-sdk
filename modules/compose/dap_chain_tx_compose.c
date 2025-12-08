@@ -1198,6 +1198,13 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
             }
         }
     }
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    // Free JSON outputs
+    dap_json_object_free(l_outs);
+    if (l_native_outs != l_outs) {
+        dap_json_object_free(l_native_outs);
+    }
+#endif
     return l_tx;
 }
 
@@ -1253,7 +1260,9 @@ dap_json_t *dap_chain_tx_compose_get_remote_tx_outs(const char *a_token_ticker, 
         dap_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_RESPONSE_NULL, "Response is not an array");
         return NULL;
     }
-    // No need to call get() in dap_json
+    // Increment refcount on l_outs before freeing parent,
+    // so l_outs survives. Caller must free l_outs when done.
+    dap_json_object_ref(l_outs);
     dap_json_object_free(l_json_outs);
     return l_outs;
 }
@@ -1991,6 +2000,13 @@ dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_a
         }
     }
 
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    // Free JSON outputs
+    dap_json_object_free(l_outs_native);
+    if (l_outs_main != l_outs_native) {
+        dap_json_object_free(l_outs_main);
+    }
+#endif
     return l_tx;
 }
 
@@ -2385,6 +2401,13 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_refill(dap_chain_
         }
     }
 
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    // Free JSON outputs
+    dap_json_object_free(l_outs_native);
+    if (l_outs_main != l_outs_native) {
+        dap_json_object_free(l_outs_main);
+    }
+#endif
     DAP_DELETE(l_tx_ticker);
     return l_tx;
 }
@@ -2723,9 +2746,13 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
         int rc = dap_chain_datum_tx_add_out_ext_item(&l_tx, a_owner_addr, l_fee_back, l_native_ticker);
         if (rc != 1) {
             dap_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_TX_COMPOSE, "Cant add fee back output");
+            dap_json_object_free(l_outs_native);
             return NULL;
         }
     }
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    dap_json_object_free(l_outs_native);
+#endif
     return l_tx;
 }
 

@@ -209,6 +209,13 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_
         return NULL;
     }
 
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    // Free JSON outputs - caller is responsible for the returned tx
+    dap_json_object_free(l_outs_native);
+    if (l_outs_main != l_outs_native) {
+        dap_json_object_free(l_outs_main);
+    }
+#endif
     DAP_DELETE(l_addr_fee);
     return l_tx;
 }
@@ -512,6 +519,11 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_take(dap_chain_addr_
             }
         }
     }
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    // Free JSON outputs
+    dap_json_object_free(l_outs_native);
+    dap_json_object_free(l_outs_delegated);
+#endif
     DAP_DELETE(l_addr_fee);
     return l_tx;
 }
@@ -1487,11 +1499,20 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_delegate(dap_chain_ad
         }
     }
 
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    // Free JSON outputs
+    dap_json_object_free(l_outs_native);
+    dap_json_object_free(l_outs_delegated);
+#endif
     return l_tx;
 
 tx_fail:
     dap_chain_datum_tx_delete(l_tx);
     DAP_DEL_Z(l_net_fee_addr);
+#ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    dap_json_object_free(l_outs_native);
+    dap_json_object_free(l_outs_delegated);
+#endif
     return NULL;
 }
 
