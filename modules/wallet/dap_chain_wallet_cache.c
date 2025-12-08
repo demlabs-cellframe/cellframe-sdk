@@ -181,7 +181,6 @@ int dap_chain_wallet_cache_init()
             }
             l_chain=l_chain->next;
         }
-        
     }
 
     dap_list_t *l_local_addr_list = dap_chain_wallet_get_local_addr();

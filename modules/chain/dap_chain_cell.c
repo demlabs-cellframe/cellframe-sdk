@@ -457,12 +457,15 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         dap_hash_fast_t l_atom_hash;
         for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
             l_vol_rest = (off_t)(a_cell->map_end - a_cell->map_pos) - sizeof(uint64_t);
-            if ( l_vol_rest <= 0 || (uint64_t)l_vol_rest < *(uint64_t*)a_cell->map_pos )
+            // Use memcpy to avoid unaligned access on ARM
+            uint64_t l_map_pos_val;
+            memcpy(&l_map_pos_val, a_cell->map_pos, sizeof(uint64_t));
+            if ( l_vol_rest <= 0 || (uint64_t)l_vol_rest < l_map_pos_val )
                 if ( s_cell_map_new_volume(a_cell, l_pos, true) ) {
                     l_ret = -2;
                     break;
                 }
-            l_el_size = *(uint64_t*)a_cell->map_pos;
+            memcpy(&l_el_size, a_cell->map_pos, sizeof(uint64_t));
             if ( !l_el_size || l_el_size > (size_t)(l_full_size - l_pos) )
                 break;
             a_cell->map_pos += sizeof(uint64_t);

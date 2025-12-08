@@ -481,7 +481,10 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
         l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
     else {
         l_found = true;
-        HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
+        // Only delete from tx_itemlist if it exists
+        if (l_srv_stake->tx_itemlist) {
+            HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
+        }
         // Free existing pkey before assigning new one to prevent memory leak
         if (l_stake->pkey) {
             DAP_DELETE(l_stake->pkey);
