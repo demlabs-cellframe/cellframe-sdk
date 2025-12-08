@@ -1809,7 +1809,7 @@ dap_json_t *dap_chain_tx_compose_wallet_shared_hold(dap_chain_net_id_t a_net_id,
         if (!l_cur_ptr)
             l_cur_ptr = a_pkeys_str + l_pkeys_str_size;
         size_t l_hash_len = l_cur_ptr - l_token_ptr;
-        dap_strncpy(l_hash_str_buf, l_token_ptr, dap_min(DAP_HASH_FAST_STR_SIZE, l_hash_len + 1));
+        dap_strncpy(l_hash_str_buf, l_token_ptr, dap_min((size_t)DAP_HASH_FAST_STR_SIZE, l_hash_len + 1));
         if (dap_chain_hash_fast_from_str(l_hash_str_buf, l_pkey_hashes + i)) {
             dap_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
             DAP_DEL_Z(l_pkey_hashes);
