@@ -1964,7 +1964,7 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
 // SRV_PAY cache implementation
 
 static void s_srv_pay_ledger_tx_add_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
-                                              dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode);
+                                              dap_ledger_notify_opcodes_t a_opcode);
 
 int dap_chain_srv_pay_cache_init(void)
 {
@@ -1982,12 +1982,14 @@ void dap_chain_srv_pay_cache_deinit(void)
 }
 
 static void s_srv_pay_ledger_tx_add_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
-                                              dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode)
+                                              dap_ledger_notify_opcodes_t a_opcode)
 {
     (void)a_ledger;
     (void)a_opcode;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    dap_chain_srv_pay_cache_tx_add(l_net, a_tx, a_tx_hash);
+    dap_hash_fast_t l_tx_hash;
+    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
+    dap_chain_srv_pay_cache_tx_add(l_net, a_tx, &l_tx_hash);
 }
 
 int dap_chain_srv_pay_cache_tx_add(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
