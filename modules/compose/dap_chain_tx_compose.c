@@ -1564,7 +1564,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_get_datum_from_rpc(
         dap_json_compose_error_add(a_config->response_handler, RPC_DATA_COMPOSE_ERROR_NO_ITEMS_FOUND, "No items found in response\n");
         return NULL;
     }
-    // json_object_get(l_responce);
+    // Increment refcount on l_responce before freeing parent
+    dap_json_object_ref(l_responce);
     dap_json_object_free(l_raw_response);
     dap_chain_datum_tx_t *l_datum = dap_chain_datum_tx_create();
     size_t
