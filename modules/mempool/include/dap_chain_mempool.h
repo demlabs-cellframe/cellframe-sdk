@@ -22,6 +22,24 @@
 
 #define DAP_DATUM_MEMPOOL_VERSION "01"
 
+// TSD type for SRV_PAY refill transaction marker
+#define DAP_CHAIN_SRV_PAY_TSD_REFILL 0x16
+
+// GDB group for SRV_PAY conditional transactions cache
+#define DAP_CHAIN_SRV_PAY_GDB_GROUP "local.srv_pay_cond"
+
+// Structure for storing SRV_PAY transaction hashes per owner
+typedef struct dap_srv_pay_tx_hashes {
+    size_t tx_count;
+    dap_hash_fast_t tx_hashes[];
+} dap_srv_pay_tx_hashes_t;
+
+// SRV_PAY cache functions
+int dap_chain_srv_pay_cache_init(void);
+void dap_chain_srv_pay_cache_deinit(void);
+int dap_chain_srv_pay_cache_tx_add(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
+dap_srv_pay_tx_hashes_t *dap_chain_srv_pay_cache_get(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash);
+
 // dap_chain_mempool_tx_create_cond_input ret status
 #define DAP_CHAIN_MEMPOOL_RET_STATUS_SUCCESS                    0
 #define DAP_CHAIN_MEMPOOL_RET_STATUS_BAD_ARGUMENTS              -100
@@ -85,6 +103,10 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
         uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
         dap_chain_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond,
         size_t a_cond_size, const char *a_hash_out_type);
+
+// Refill conditional SRV_PAY transaction
+char *dap_chain_mempool_tx_cond_refill(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
+        dap_hash_fast_t *a_tx_cond_hash, uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type);
 
 char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
         const dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_tx_sign, dap_chain_datum_tx_receipt_t *a_receipt, const char *a_hash_out_type, int *a_ret_status);

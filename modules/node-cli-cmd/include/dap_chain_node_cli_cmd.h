@@ -135,6 +135,10 @@ typedef enum s_com_tx_create_err{
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_MEMORY_ERR
 }s_com_tx_create_err_t;
+typedef enum s_com_tx_cond{
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_UNKNOWN_SUBCMD = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START
+}s_com_tx_cond_t;
 typedef enum s_com_tx_cond_create{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -181,6 +185,48 @@ typedef enum s_com_tx_cond_remove{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_FIND_DEFAULT_CHAIN_WITH_TX_FOR_NET,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OTHER_ERROR
 }s_com_tx_cond_remove_t;
+
+typedef enum s_com_tx_cond_refill {
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_INVALID_PARAMETER_H = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_W,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_VALUE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_FEE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_OPEN_WALLET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_VALUE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_FEE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_PLACE_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_NOT_OWNER,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_TX_ALREADY_SPENT
+} s_com_tx_cond_refill_t;
+
+typedef enum s_com_tx_cond_info {
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_INFO_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_INFO_INVALID_PARAMETER_H = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_INFO_REQUIRES_PARAMETER_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_INFO_REQUIRES_PARAMETER_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_INFO_CAN_NOT_FIND_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_INFO_CAN_NOT_FIND_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_INFO_CAN_NOT_FIND_FIRST_TX
+} s_com_tx_cond_info_t;
+
+typedef enum s_com_tx_cond_list {
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_LIST_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_LIST_INVALID_PARAMETER_H = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_LIST_REQUIRES_PARAMETER_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_LIST_REQUIRES_PARAMETER_OWNER,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_LIST_CAN_NOT_FIND_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_LIST_INVALID_PARAMETER_STATUS,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_LIST_CAN_NOT_PARSE_PKEY_HASH,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_LIST_CAN_NOT_OPEN_WALLET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_LIST_CAN_NOT_GET_OWNER_PKEY_HASH
+} s_com_tx_cond_list_t;
+
 typedef enum s_com_token_decl_err{
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_FIND_TICKER_ERR,
@@ -414,6 +460,12 @@ int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
 int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 int com_tx_create_json(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 int com_tx_cond_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_cond_refill(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_cond_info(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_cond_list(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_cond(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_cond_remove(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 typedef enum dap_chain_node_cli_cmd {
     DAP_CHAIN_NODE_CLI_CMD_ID_UNKNOWN,
@@ -424,6 +476,8 @@ typedef enum dap_chain_node_cli_cmd {
     DAP_CHAIN_NODE_CLI_CMD_ID_TX_CREATE,
     DAP_CHAIN_NODE_CLI_CMD_ID_TX_CREATE_JSON,
     DAP_CHAIN_NODE_CLI_CMD_ID_TX_VERIFY,
+    DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND,
+    // Backward compatibility
     DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_CREATE,
     DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_REMOVE,
     DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_UNSPENT_FIND,

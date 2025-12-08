@@ -343,20 +343,18 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool", dap_chain_node_cli_cmd_id_from_str("mempool_add"),
                 "json_datum_mempool_put  -net <net_name> [-chain <chain_name>] -json <json_file_path> | -tx_obj <tx_json_object>\n" );
-    dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, NULL, "Make cond transaction", dap_chain_node_cli_cmd_id_from_str("tx_cond_create"),
-                "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
-                " { -cert <pub_cert_name> | -pkey <pkey_hash> } -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n\n" 
-                "Hint:\n"
-                "\texample coins amount syntax (only natural) 1.0 123.4567\n"
-                "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
-    dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, NULL, "Remove cond transactions and return funds from condition outputs to wallet",  dap_chain_node_cli_cmd_id_from_str("tx_cond_remove"),
-                "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
-                " -fee <value> -srv_uid <numeric_uid>\n" 
-                "Hint:\n"
-                "\texample coins amount syntax (only natural) 1.0 123.4567\n"
-                "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n");
-    dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, NULL, "Find cond transactions by wallet", dap_chain_node_cli_cmd_id_from_str("tx_cond_unspent_find"),
-                                        "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
+    dap_cli_cmd_t *l_cmd_tx_cond = dap_cli_server_cmd_add ("tx_cond", com_tx_cond, NULL, "Conditional SRV_PAY transaction operations", dap_chain_node_cli_cmd_id_from_str("tx_cond"),
+                "tx_cond create -net <net_name> -token <token_ticker> -w <wallet_name>"
+                " { -cert <pub_cert_name> | -pkey <pkey_hash> } -value <value> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n"
+                "tx_cond refill -net <net_name> -w <wallet_name> -tx <tx_cond_hash> -value <value> -fee <value> [-H {hex|base58}]\n"
+                "tx_cond remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name> -fee <value> -srv_uid <numeric_uid>\n"
+                "tx_cond unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name>\n"
+                "tx_cond info -net <net_name> -tx <tx_cond_hash> [-H {hex|base58}]\n"
+                "tx_cond list -net <net_name> {-addr <address> | -pkey <pkey_hash> | -w <wallet_name>} [-status {all|spent|unspent}] [-H {hex|base58}]\n");
+    // Backward compatibility aliases
+    dap_cli_server_alias_add(l_cmd_tx_cond, "create", "tx_cond_create");
+    dap_cli_server_alias_add(l_cmd_tx_cond, "remove", "tx_cond_remove");
+    dap_cli_server_alias_add(l_cmd_tx_cond, "unspent_find", "tx_cond_unspent_find");
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, NULL, "Verifing transaction in mempool", dap_chain_node_cli_cmd_id_from_str("tx_verify"),
             "tx_verify -net <net_name> [-chain <chain_name>] -tx <tx_hash>\n" );

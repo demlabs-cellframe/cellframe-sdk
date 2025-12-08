@@ -6922,6 +6922,7 @@ dap_chain_node_cli_cmd_t dap_chain_node_cli_cmd_id_from_str(const char *a_cmd_st
     if (!strcmp(a_cmd_str, "tx_create")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_CREATE;
     if (!strcmp(a_cmd_str, "tx_create_json")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_CREATE_JSON;
     if (!strcmp(a_cmd_str, "tx_verify")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_VERIFY;
+    if (!strcmp(a_cmd_str, "tx_cond")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND;
     if (!strcmp(a_cmd_str, "tx_cond_create")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_CREATE;
     if (!strcmp(a_cmd_str, "tx_cond_remove")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_REMOVE;
     if (!strcmp(a_cmd_str, "tx_cond_unspent_find")) return DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_UNSPENT_FIND;

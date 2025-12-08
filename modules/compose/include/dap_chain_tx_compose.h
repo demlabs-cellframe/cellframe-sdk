@@ -104,6 +104,28 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_sign(const char *a_tx_in_hash_str, dap_enc_key_t *a_enc_key, dap_chain_tx_compose_config_t *a_config);
 
+// SRV_PAY tx_cond refill compose functions
+dap_json_t *dap_chain_tx_compose_tx_cond_refill(dap_chain_net_id_t a_net_id, const char *a_net_name,
+                                                const char *a_native_ticker, const char *a_url_str,
+                                                uint16_t a_port, const char *a_enc_cert_path,
+                                                dap_chain_addr_t *a_owner_addr, const char *a_value_str,
+                                                const char *a_fee_str, const char *a_tx_cond_hash_str);
+
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t *a_owner_addr, uint256_t a_value,
+                                                                uint256_t a_fee, dap_hash_fast_t *a_tx_cond_hash,
+                                                                dap_chain_tx_compose_config_t *a_config);
+
+// SRV_PAY tx_cond remove compose functions
+dap_json_t *dap_chain_tx_compose_tx_cond_remove(dap_chain_net_id_t a_net_id, const char *a_net_name,
+                                                const char *a_native_ticker, const char *a_url_str,
+                                                uint16_t a_port, const char *a_enc_cert_path,
+                                                dap_chain_addr_t *a_owner_addr, const char *a_hashes_str,
+                                                const char *a_fee_str, const char *a_srv_uid_str);
+
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t *a_owner_addr, dap_list_t *a_tx_hashes,
+                                                                uint256_t a_fee, dap_chain_srv_uid_t a_srv_uid,
+                                                                dap_chain_tx_compose_config_t *a_config);
+
 dap_chain_datum_tx_t *dap_chain_tx_compose_get_datum_from_rpc(
     const char *a_tx_str, dap_chain_tx_compose_config_t *a_config,
     dap_chain_tx_out_cond_subtype_t a_cond_subtype,
