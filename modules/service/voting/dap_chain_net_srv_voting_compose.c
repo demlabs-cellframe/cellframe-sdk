@@ -611,7 +611,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
     uint256_t l_value_transfer_new = {};
     int l_votes_count = 0;
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST   
-    dap_json_t *l_votes_list = dap_json_object_get_object(l_voting_info, "votes_list");
+    dap_json_t *l_votes_list = dap_json_object_get_object(l_voting_info, "votes");
     if (!l_votes_list) { 
         log_it(L_ERROR, "can't get voting list");
         dap_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting list\n");
