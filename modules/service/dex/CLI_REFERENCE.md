@@ -327,34 +327,34 @@ Governance operations via signed decrees. Requires appropriate signing authority
 | `-service_key` | yes | Certificate name for decree signing |
 | `-method` | yes | Operation type (see below) |
 
-**Methods:**
+**Methods (parameters are strictly separated, no mixing allowed):**
 
 #### `fee_set`
-Set global network fee for DEX transactions.
+Set global service fee. Parameters: `-fee_amount`, `-fee_addr` (required).
 ```
 srv_dex decree -net Backbone -w authority -service_key dex_master -method fee_set -fee_amount 1.0 -fee_addr hXYZ...
 ```
 
 #### `pair_add`
-Whitelist new trading pair.
+Whitelist new trading pair. Parameters: `-token_base`, `-token_quote` (required), `-fee_config` (optional).
 ```
 srv_dex decree -net Backbone -w authority -service_key dex_master -method pair_add -token_base KEL -token_quote USDT -fee_config 0x82
 ```
 
 #### `pair_remove`
-Remove pair from whitelist (existing orders remain until cancelled).
+Remove pair from whitelist. Parameters: `-token_base`, `-token_quote` (required).
 ```
 srv_dex decree -net Backbone -w authority -service_key dex_master -method pair_remove -token_base KEL -token_quote USDT
 ```
 
 #### `pair_fee_set`
-Set service fee for specific pair.
+Set fee for specific pair. Parameters: `-token_base`, `-token_quote`, `-fee_config` (all required).
 ```
 srv_dex decree -net Backbone -w authority -service_key dex_master -method pair_fee_set -token_base KEL -token_quote USDT -fee_config 0x82
 ```
 
 #### `pair_fee_set_all`
-Set service fee for all pairs.
+Set fee for all pairs. Parameters: `-fee_config` (required).
 ```
 srv_dex decree -net Backbone -w authority -service_key dex_master -method pair_fee_set_all -fee_config 0x82
 ```

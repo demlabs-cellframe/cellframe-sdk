@@ -46,6 +46,8 @@ target_link_libraries(dex_test
     dap_chain_cs_dag
     dap_chain_cs_dag_poa
     dap_chain_cs_esbocs
+    dap_cli_server
+    dap_json_rpc
     dap_test
     dap_core
     dap_crypto

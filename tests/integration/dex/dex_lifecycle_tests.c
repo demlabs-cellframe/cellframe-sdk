@@ -233,6 +233,39 @@ static bool tamper_tx_type(dap_chain_datum_tx_t *tx, void *user_data) {
     return true;
 }
 
+// Tamper immutable field: rate
+static bool tamper_rate(dap_chain_datum_tx_t *tx, void *user_data) {
+    uint256_t new_rate = *(uint256_t*)user_data;
+    dap_chain_tx_out_cond_t *out = s_find_dex_out_cond(tx);
+    if (!out)
+        return false;
+    
+    out->subtype.srv_dex.rate = new_rate;
+    return true;
+}
+
+// Tamper immutable field: buy_token
+static bool tamper_buy_token(dap_chain_datum_tx_t *tx, void *user_data) {
+    const char *new_token = (const char*)user_data;
+    dap_chain_tx_out_cond_t *out = s_find_dex_out_cond(tx);
+    if (!out)
+        return false;
+    
+    dap_strncpy(out->subtype.srv_dex.buy_token, new_token, DAP_CHAIN_TICKER_SIZE_MAX);
+    return true;
+}
+
+// Tamper immutable field: min_fill
+static bool tamper_min_fill(dap_chain_datum_tx_t *tx, void *user_data) {
+    uint8_t new_mf = *(uint8_t*)user_data;
+    dap_chain_tx_out_cond_t *out = s_find_dex_out_cond(tx);
+    if (!out)
+        return false;
+    
+    out->subtype.srv_dex.min_fill = new_mf;
+    return true;
+}
+
 // ============================================================================
 // PHASE 1: ORDER CREATION
 // ============================================================================
@@ -272,6 +305,24 @@ static int run_phase_create(test_context_t *ctx) {
     uint256_t value = dap_chain_coins_to_balance(tmpl->amount);
     uint256_t rate_value = dap_chain_coins_to_balance(tmpl->rate);
     dap_chain_datum_tx_t *create_tx = NULL;
+    
+    // Negative control: insufficient sell balance for absolute fee configs (no 0x80)
+    if (!(pair->fee_config & 0x80)) {
+        uint256_t seller_balance = dap_ledger_calc_balance(f->net->net->pub.ledger, seller_addr, sell_token);
+        uint256_t inflated = uint256_0;
+        SUM_256_256(seller_balance, GET_256_FROM_64(1), &inflated); // balance + 1 unit
+        dap_chain_net_srv_dex_create_error_t err_abs = dap_chain_net_srv_dex_create(
+            f->net->net, buy_token, sell_token, inflated, rate_value, tmpl->min_fill, f->network_fee, seller_wallet, &create_tx
+        );
+        if (err_abs == DEX_CREATE_ERROR_OK && create_tx) {
+            log_it(L_ERROR, "Insufficient funds check should fail for absolute fee");
+            dap_chain_datum_tx_delete(create_tx);
+            return -99;
+        }
+        log_it(L_NOTICE, "✓ Absolute-fee insufficient balance rejected (err=%d)", err_abs);
+        create_tx = NULL;
+    }
+    
     dap_chain_net_srv_dex_create_error_t err = dap_chain_net_srv_dex_create(
         f->net->net, buy_token, sell_token, value, rate_value, tmpl->min_fill, f->network_fee, seller_wallet, &create_tx
     );
@@ -363,6 +414,29 @@ static int run_phase_full_buy(test_context_t *ctx) {
         log_it(L_NOTICE, "✓ Self-purchase rejected by composer (err=%d)", err);
     }
     
+    // Negative control: insufficient buyer balance (tiny budget). Skip when min_fill=0 (partial allowed).
+    if (MINFILL_PCT(ctx->tmpl->min_fill) > 0) {
+        wallet_id_t buyer_id = get_regular_buyer(ctx->tmpl->side);
+        dap_chain_wallet_t *buyer_wallet = get_wallet(f, buyer_id);
+        const char *sell_token, *buy_token;
+        get_order_tokens(ctx->pair, ctx->tmpl->side, &sell_token, &buy_token);
+        const dap_chain_addr_t *buyer_addr = get_wallet_addr(f, buyer_id);
+        // is_budget_buy=false → buyer sells QUOTE for ASK, BASE for BID; set tiny budget to force rejection
+        uint256_t huge_budget = GET_256_FROM_64(100); // 100 wei, still far below required
+        dap_chain_datum_tx_t *tx_insuff = NULL;
+        dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
+            f->net->net, &order->tail, huge_budget, false,
+            f->network_fee, buyer_wallet, false, uint256_0, &tx_insuff
+        );
+        if (err == DEX_PURCHASE_ERROR_OK && tx_insuff) {
+            dap_chain_datum_tx_delete(tx_insuff);
+            log_it(L_ERROR, "Insufficient balance purchase should be rejected");
+            return -101;
+        } else {
+            log_it(L_NOTICE, "✓ Insufficient balance purchase rejected (err=%d)", err);
+        }
+    }
+    
     buyer_scenario_t scenarios[2];
     size_t scenario_count;
     generate_buyer_scenarios(ctx->tmpl->side, ctx->tmpl->seller, scenarios, &scenario_count);
@@ -388,7 +462,6 @@ static int run_phase_full_buy(test_context_t *ctx) {
         
         // Expected deltas (ASK vs BID have different fee logic)
         const uint128_t POW18 = 1000000000000000000ULL;
-        const uint128_t POW36 = POW18 * POW18;
         
         uint128_t order_val = dap_uint256_to_uint128(order->value);
         uint128_t rate = dap_uint256_to_uint128(order->price);
@@ -584,6 +657,32 @@ static int run_phase_full_buy(test_context_t *ctx) {
                 return -26;
             
             log_it(L_NOTICE, "✓ Rollback successful");
+        } else {
+            // === PURCHASE CONSUMED TEST ===
+            // Order is fully consumed, try to purchase again (should fail)
+            log_it(L_INFO, "--- Testing purchase of consumed order ---");
+            
+            dap_chain_datum_tx_t *tx_consumed = NULL;
+            dap_chain_net_srv_dex_purchase_error_t consumed_err = dap_chain_net_srv_dex_purchase(
+                f->net->net, &order->tail, uint256_0, false,
+                f->network_fee, buyer_wallet, false, uint256_0, &tx_consumed
+            );
+            
+            if (consumed_err == DEX_PURCHASE_ERROR_OK && tx_consumed) {
+                // Composer succeeded, try ledger (should reject)
+                dap_hash_fast_t consumed_hash = {0};
+                dap_hash_fast(tx_consumed, dap_chain_datum_tx_get_size(tx_consumed), &consumed_hash);
+                int ledger_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx_consumed, &consumed_hash, false, NULL);
+                dap_chain_datum_tx_delete(tx_consumed);
+                
+                if (ledger_ret == 0) {
+                    log_it(L_ERROR, "✗ Purchase of consumed order was ACCEPTED by ledger!");
+                    return -30;
+                }
+                log_it(L_NOTICE, "✓ Purchase of consumed order rejected by ledger");
+            } else {
+                log_it(L_NOTICE, "✓ Purchase of consumed order rejected by composer (err=%d)", consumed_err);
+            }
         }
     }
     
@@ -607,6 +706,44 @@ static int run_phase_partial_buy(test_context_t *ctx) {
     
     wallet_id_t buyer_id = get_regular_buyer(ctx->tmpl->side);
     dap_chain_wallet_t *buyer_wallet = get_wallet(f, buyer_id);
+    
+    // Absolute-fee dust check: budgets far below precision must be rejected (min_fill>0)
+    if (!(ctx->pair->fee_config & 0x80) && pct > 0) {
+        uint256_t dust_budget = GET_256_FROM_64(100); // 100 wei
+        dap_chain_datum_tx_t *tx_dust = NULL;
+        dap_chain_net_srv_dex_purchase_error_t err_dust = dap_chain_net_srv_dex_purchase(
+            f->net->net, &order->tail, dust_budget, true,
+            f->network_fee, buyer_wallet, false, uint256_0, &tx_dust
+        );
+        if (err_dust == DEX_PURCHASE_ERROR_OK && tx_dust) {
+            dap_hash_fast_t h_dust = {0};
+            dap_hash_fast(tx_dust, dap_chain_datum_tx_get_size(tx_dust), &h_dust);
+            int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx_dust, &h_dust, false, NULL);
+            dap_chain_datum_tx_delete(tx_dust);
+            if (add_ret == 0) {
+                log_it(L_ERROR, "Dust partial (BUY) on abs-fee should be rejected");
+                return -107;
+            }
+        }
+        log_it(L_NOTICE, "✓ Dust partial (BUY, abs fee) rejected (err=%d)", err_dust);
+        
+        tx_dust = NULL;
+        err_dust = dap_chain_net_srv_dex_purchase(
+            f->net->net, &order->tail, dust_budget, false,
+            f->network_fee, buyer_wallet, false, uint256_0, &tx_dust
+        );
+        if (err_dust == DEX_PURCHASE_ERROR_OK && tx_dust) {
+            dap_hash_fast_t h_dust = {0};
+            dap_hash_fast(tx_dust, dap_chain_datum_tx_get_size(tx_dust), &h_dust);
+            int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx_dust, &h_dust, false, NULL);
+            dap_chain_datum_tx_delete(tx_dust);
+            if (add_ret == 0) {
+                log_it(L_ERROR, "Dust partial (SELL) on abs-fee should be rejected");
+                return -108;
+            }
+        }
+        log_it(L_NOTICE, "✓ Dust partial (SELL, abs fee) rejected (err=%d)", err_dust);
+    }
     
     // AON (100%) special case
     if (pct >= 100) {
@@ -889,6 +1026,139 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         return -4;
     }
     log_it(L_NOTICE, "✓ Tampered partial TX rejected by verifier");
+    
+    // Boundary check: exact min_fill%
+    {
+        uint256_t boundary_base, boundary_quote;
+        if (ctx->tmpl->side == SIDE_ASK) {
+            boundary_base = calc_pct(exec_sell_full, pct);
+            MULT_256_COIN(boundary_base, order->price, &boundary_quote);
+        } else {
+            boundary_base = calc_pct(exec_sell_full, pct);
+            boundary_quote = calc_pct(order->value, pct);
+        }
+        
+        // Expected deltas at boundary
+        const uint128_t POW18 = 1000000000000000000ULL;
+        const uint128_t POW36 = POW18 * POW18;
+        bool seller_is_service = (ctx->tmpl->seller == WALLET_CAROL);
+        const dap_chain_addr_t *net_fee_addr = test_get_net_fee_addr(f);
+        bool buyer_is_net_collector = dap_chain_addr_compare(buyer_addr, net_fee_addr);
+        bool seller_is_net_collector = dap_chain_addr_compare(seller_addr, net_fee_addr);
+        
+        uint128_t partial_val = (ctx->tmpl->side == SIDE_ASK)
+            ? dap_uint256_to_uint128(boundary_base)
+            : dap_uint256_to_uint128(boundary_quote);
+        uint128_t rate = dap_uint256_to_uint128(order->price);
+        uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
+        uint128_t service_fee = 0;
+        uint128_t buyer_gets_base, buyer_spends_quote, seller_gets_quote;
+        
+        if (ctx->tmpl->side == SIDE_ASK) {
+            seller_gets_quote = (partial_val * rate) / POW18;
+            if (ctx->pair->fee_config & 0x80)
+                service_fee = (seller_gets_quote * (ctx->pair->fee_config & 0x7F)) / 100;
+            buyer_gets_base = partial_val;
+            buyer_spends_quote = seller_gets_quote + service_fee;
+            if (seller_is_service)
+                seller_gets_quote += service_fee;
+            if (seller_is_net_collector && ctx->pair->quote_is_native)
+                seller_gets_quote += net_fee;
+        } else {
+            uint128_t exec_quote = partial_val;
+            uint128_t exec_sell = (exec_quote * POW18) / rate;
+            seller_gets_quote = exec_sell;
+            if (ctx->pair->fee_config & 0x80)
+                service_fee = (exec_quote * (ctx->pair->fee_config & 0x7F)) / 100;
+            buyer_gets_base = exec_quote - service_fee;
+            buyer_spends_quote = exec_sell;
+            if (seller_is_net_collector && ctx->pair->base_is_native)
+                seller_gets_quote += net_fee;
+        }
+        adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native, buyer_is_net_collector,
+                          net_fee, &buyer_spends_quote, &buyer_gets_base);
+        
+        uint256_t budget_buy_boundary = (ctx->tmpl->side == SIDE_ASK) ? boundary_base : boundary_quote;
+        
+        // Snapshots
+        balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_coll_before, net_coll_after;
+        test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_before);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_before);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_before);
+        
+        log_it(L_INFO, "--- Boundary partial %d%% in BUY token ---", pct);
+        err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_buy_boundary, true,
+                                              f->network_fee, buyer_wallet, false, uint256_0, &tx);
+        if (err != DEX_PURCHASE_ERROR_OK || !tx) {
+            log_it(L_ERROR, "Boundary partial failed: err=%d", err);
+            return -42;
+        }
+        
+        dap_hash_fast(tx, dap_chain_datum_tx_get_size(tx), &h);
+        add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx, &h, false, NULL);
+        if (add_ret != 0) {
+            log_it(L_ERROR, "Boundary partial TX rejected");
+            dap_chain_datum_tx_delete(tx);
+            return -43;
+        }
+        
+        test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_after);
+        
+        uint128_t buyer_base_delta, buyer_quote_delta, seller_base_delta, seller_quote_delta;
+        bool buyer_base_dec, buyer_quote_dec;
+        if (ctx->tmpl->side == SIDE_ASK) {
+            buyer_base_delta = buyer_gets_base;  buyer_base_dec = false;
+            buyer_quote_delta = buyer_spends_quote;  buyer_quote_dec = true;
+            seller_base_delta = (seller_is_net_collector && ctx->pair->base_is_native) ? net_fee : 0;
+            seller_quote_delta = seller_gets_quote;
+        } else {
+            buyer_base_delta = buyer_spends_quote;  buyer_base_dec = true;
+            buyer_quote_delta = buyer_gets_base;    buyer_quote_dec = false;
+            seller_base_delta = seller_gets_quote;
+            uint128_t extra_quote = (seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
+            seller_quote_delta = (seller_is_service ? service_fee : 0) + extra_quote;
+        }
+        
+        if (test_dex_snap_verify("Boundary Buyer", &buyer_before, &buyer_after, buyer_base_delta, buyer_base_dec, buyer_quote_delta, buyer_quote_dec) != 0)
+            return -44;
+        if (test_dex_snap_verify("Boundary Seller", &seller_before, &seller_after, seller_base_delta, false, seller_quote_delta, false) != 0)
+            return -45;
+        if (!buyer_is_net_collector && !seller_is_net_collector) {
+            if (test_dex_snap_verify_fee("Boundary Net", &net_coll_before, &net_coll_after, net_fee, false) != 0)
+                return -46;
+        }
+        
+        // Rollback to restore order
+        dap_chain_datum_tx_t *tx_for_remove = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &h);
+        if (dap_ledger_tx_remove(f->net->net->pub.ledger, tx_for_remove, &h) != 0) {
+            log_it(L_ERROR, "Boundary rollback failed");
+            return -47;
+        }
+        log_it(L_NOTICE, "✓ Boundary partial accepted and rolled back");
+    }
+    
+    // BID dust rejection: minimal BUY budget should fail
+    if (ctx->tmpl->side == SIDE_BID) {
+        uint256_t tiny_budget = GET_256_FROM_64(1);
+        dap_chain_datum_tx_t *tx_tiny = NULL;
+        dap_chain_net_srv_dex_purchase_error_t err_tiny = dap_chain_net_srv_dex_purchase(
+            f->net->net, &order->tail, tiny_budget, true,
+            f->network_fee, buyer_wallet, false, uint256_0, &tx_tiny
+        );
+        if (err_tiny == DEX_PURCHASE_ERROR_OK && tx_tiny) {
+            dap_hash_fast_t h_tiny = {0};
+            dap_hash_fast(tx_tiny, dap_chain_datum_tx_get_size(tx_tiny), &h_tiny);
+            int add_ret_tiny = dap_ledger_tx_add(f->net->net->pub.ledger, tx_tiny, &h_tiny, false, NULL);
+            dap_chain_datum_tx_delete(tx_tiny);
+            if (add_ret_tiny == 0) {
+                log_it(L_ERROR, "Dust BID budget was accepted");
+                return -48;
+            }
+        }
+        log_it(L_NOTICE, "✓ Dust BID budget rejected (err=%d)", err_tiny);
+    }
     
     // Step 3: Valid partial at min_fill boundary
     uint8_t valid_pct = pct + 5;  // e.g. 50% min_fill → try 55%
@@ -1505,6 +1775,20 @@ static int run_phase_update_untouched(test_context_t *ctx) {
     dap_chain_wallet_t *seller_wallet = get_wallet(f, ctx->tmpl->seller);
     const dap_chain_addr_t *seller_addr = get_wallet_addr(f, ctx->tmpl->seller);
     
+    // Non-owner update must be rejected
+    wallet_id_t non_owner_id = (ctx->tmpl->seller == WALLET_ALICE) ? WALLET_BOB : WALLET_ALICE;
+    dap_chain_wallet_t *non_owner_wallet = get_wallet(f, non_owner_id);
+    dap_chain_datum_tx_t *foreign_tx = NULL;
+    dap_chain_net_srv_dex_update_error_t foreign_err = dap_chain_net_srv_dex_update(
+        f->net->net, &ctx->order_hash, true, order->value, f->network_fee, non_owner_wallet, &foreign_tx
+    );
+    if (foreign_err == DEX_UPDATE_ERROR_OK && foreign_tx) {
+        log_it(L_ERROR, "Foreign UPDATE should have been rejected by API");
+        dap_chain_datum_tx_delete(foreign_tx);
+        return -21;
+    }
+    log_it(L_NOTICE, "✓ Foreign UPDATE rejected at API level");
+    
     const char *sell_token, *buy_token;
     get_order_tokens(ctx->pair, ctx->tmpl->side, &sell_token, &buy_token);
     
@@ -1577,7 +1861,31 @@ static int run_phase_update_untouched(test_context_t *ctx) {
         return -14;
     }
     
-    log_it(L_NOTICE, "✓ All UPDATE tampering tests passed");
+    // T6: Change immutable field: rate
+    uint256_t fake_rate = dap_chain_coins_to_balance("999.0");
+    if (test_dex_tamper_and_verify_rejection(f, tx_template, seller_wallet,
+            tamper_rate, &fake_rate, "UPDATE: change rate (immutable)") != 0) {
+        dap_chain_datum_tx_delete(tx_template);
+        return -15;
+    }
+    
+    // T7: Change immutable field: buy_token
+    const char *fake_token = "FAKE";
+    if (test_dex_tamper_and_verify_rejection(f, tx_template, seller_wallet,
+            tamper_buy_token, (void*)fake_token, "UPDATE: change buy_token (immutable)") != 0) {
+        dap_chain_datum_tx_delete(tx_template);
+        return -16;
+    }
+    
+    // T8: Change immutable field: min_fill
+    uint8_t fake_mf = 0xFF;
+    if (test_dex_tamper_and_verify_rejection(f, tx_template, seller_wallet,
+            tamper_min_fill, &fake_mf, "UPDATE: change min_fill (immutable)") != 0) {
+        dap_chain_datum_tx_delete(tx_template);
+        return -17;
+    }
+    
+    log_it(L_NOTICE, "✓ All UPDATE tampering tests passed (incl. immutables)");
     
     // === VALID UPDATE ===
     dap_hash_fast_t update_hash = {0};
@@ -1620,6 +1928,46 @@ static int run_phase_update_untouched(test_context_t *ctx) {
     // Update context for next phases
     ctx->order_hash = update_hash;
     ctx->order.value = new_value;
+    
+    // === UPDATE SAME VALUE TEST (no-op) ===
+    log_it(L_INFO, "--- Testing UPDATE with same value (no-op) ---");
+    
+    balance_snap_t noop_before;
+    test_dex_snap_take(f->net->net->pub.ledger, seller_addr, sell_token, buy_token, &noop_before);
+    
+    dap_chain_datum_tx_t *tx_noop = NULL;
+    dap_chain_net_srv_dex_update_error_t noop_err = dap_chain_net_srv_dex_update(
+        f->net->net, &ctx->order_hash, true, new_value, f->network_fee, seller_wallet, &tx_noop
+    );
+    
+    if (noop_err != DEX_UPDATE_ERROR_OK || !tx_noop) {
+        log_it(L_ERROR, "UPDATE same value rejected by composer: err=%d", noop_err);
+        return -40;
+    }
+    
+    dap_hash_fast_t noop_hash = {0};
+    dap_hash_fast(tx_noop, dap_chain_datum_tx_get_size(tx_noop), &noop_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx_noop, &noop_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "UPDATE same value rejected by ledger");
+        dap_chain_datum_tx_delete(tx_noop);
+        return -41;
+    }
+    
+    // Verify: only fees paid, no delta in BASE
+    balance_snap_t noop_after;
+    test_dex_snap_take(f->net->net->pub.ledger, seller_addr, sell_token, buy_token, &noop_after);
+    
+    // Fees only: if native=sell, BASE decreases by fee; if native=buy, QUOTE decreases
+    uint128_t noop_base = sell_is_native ? effective_fee : 0;
+    uint128_t noop_quote = buy_is_native ? effective_fee : 0;
+    
+    if (test_dex_snap_verify("Update NoOp", &noop_before, &noop_after, noop_base, true, noop_quote, true) != 0) {
+        log_it(L_ERROR, "UPDATE no-op balance verification failed");
+        return -42;
+    }
+    
+    ctx->order_hash = noop_hash;  // Update hash for next phases
+    log_it(L_NOTICE, "✓ UPDATE same value (no-op) accepted, fees paid");
     
     log_it(L_NOTICE, "✓ UPDATE UNTOUCHED COMPLETE");
     return 0;
@@ -1978,11 +2326,152 @@ static int run_phase_cancel_untouched(test_context_t *ctx) {
         }
     }
     
+    // === DOUBLE CANCEL TEST ===
+    // Order is cancelled, try to cancel again (should fail)
+    log_it(L_INFO, "--- Testing double cancel (already cancelled order) ---");
+    
+    dap_chain_datum_tx_t *tx_double = NULL;
+    dap_chain_net_srv_dex_remove_error_t double_err = dap_chain_net_srv_dex_remove(
+        f->net->net, &ctx->order_hash, f->network_fee, seller_wallet, &tx_double
+    );
+    
+    if (double_err == DEX_REMOVE_ERROR_OK && tx_double) {
+        // Composer succeeded, try ledger (should reject - UTXO already spent)
+        dap_hash_fast_t double_hash = {0};
+        dap_hash_fast(tx_double, dap_chain_datum_tx_get_size(tx_double), &double_hash);
+        int ledger_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx_double, &double_hash, false, NULL);
+        dap_chain_datum_tx_delete(tx_double);
+        
+        if (ledger_ret == 0) {
+            log_it(L_ERROR, "✗ Double cancel was ACCEPTED by ledger!");
+            return -31;
+        }
+        log_it(L_NOTICE, "✓ Double cancel rejected by ledger (UTXO spent)");
+    } else {
+        log_it(L_NOTICE, "✓ Double cancel rejected by composer (err=%d)", double_err);
+    }
+    
     // Order is now cancelled - clear context
     memset(&ctx->order, 0, sizeof(ctx->order));
     memset(&ctx->order_hash, 0, sizeof(ctx->order_hash));
     
     log_it(L_NOTICE, "✓ CANCEL UNTOUCHED COMPLETE");
+    return 0;
+}
+
+// ============================================================================
+// PHASE: UPDATE AON ORDER
+// For AON orders: UPDATE value, verify partial still rejected, rollback
+// ============================================================================
+
+static int run_phase_update_aon(test_context_t *ctx) {
+    log_it(L_INFO, "=== PHASE: UPDATE AON (decrease + partial rejection + rollback) ===");
+    
+    dex_test_fixture_t *f = ctx->fixture;
+    dex_order_info_t *order = &ctx->order;
+    
+    dap_chain_wallet_t *seller_wallet = get_wallet(f, ctx->tmpl->seller);
+    const dap_chain_addr_t *seller_addr = get_wallet_addr(f, ctx->tmpl->seller);
+    
+    wallet_id_t buyer_id = get_regular_buyer(ctx->tmpl->side);
+    dap_chain_wallet_t *buyer_wallet = get_wallet(f, buyer_id);
+    
+    const char *sell_token, *buy_token;
+    get_order_tokens(ctx->pair, ctx->tmpl->side, &sell_token, &buy_token);
+    
+    // Save original state for rollback verification
+    uint256_t original_value = order->value;
+    dap_hash_fast_t original_hash = ctx->order_hash;
+    
+    // Take balance snapshot before UPDATE
+    balance_snap_t seller_before;
+    test_dex_snap_take(f->net->net->pub.ledger, seller_addr, sell_token, buy_token, &seller_before);
+    
+    // Step 1: UPDATE - decrease value by 50%
+    uint256_t decrease = uint256_0;
+    DIV_256(order->value, GET_256_FROM_64(2), &decrease);
+    uint256_t new_value = uint256_0;
+    SUBTRACT_256_256(order->value, decrease, &new_value);
+    
+    log_it(L_INFO, "UPDATE AON: %s → %s (decrease by 50%%)",
+           dap_uint256_to_char_ex(order->value).frac, dap_uint256_to_char_ex(new_value).frac);
+    
+    dap_chain_datum_tx_t *tx_update = NULL;
+    dap_chain_net_srv_dex_update_error_t err = dap_chain_net_srv_dex_update(
+        f->net->net, &ctx->order_hash, true, new_value, f->network_fee, seller_wallet, &tx_update
+    );
+    if (err != DEX_UPDATE_ERROR_OK || !tx_update) {
+        log_it(L_ERROR, "Failed to create UPDATE TX for AON: err=%d", err);
+        return -1;
+    }
+    
+    dap_hash_fast_t update_hash = {0};
+    dap_hash_fast(tx_update, dap_chain_datum_tx_get_size(tx_update), &update_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx_update, &update_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "UPDATE AON TX rejected by ledger");
+        dap_chain_datum_tx_delete(tx_update);
+        return -2;
+    }
+    
+    log_it(L_NOTICE, "✓ UPDATE AON accepted (value decreased)");
+    
+    // Update context
+    ctx->order_hash = update_hash;
+    ctx->order.value = new_value;
+    
+    // Step 2: Try partial buy (should be rejected - AON preserved!)
+    log_it(L_INFO, "--- Testing partial buy on updated AON (should be rejected) ---");
+    
+    // 80% of new_value
+    uint256_t partial_80 = calc_pct(new_value, 80);
+    uint256_t budget;
+    if (ctx->tmpl->side == SIDE_ASK) {
+        MULT_256_COIN(partial_80, order->price, &budget);
+    } else {
+        budget = partial_80;
+    }
+    
+    dap_chain_datum_tx_t *tx_partial = NULL;
+    dap_chain_net_srv_dex_purchase_error_t purchase_err = dap_chain_net_srv_dex_purchase(
+        f->net->net, &ctx->order_hash, budget, false,
+        f->network_fee, buyer_wallet, false, uint256_0, &tx_partial
+    );
+    
+    if (purchase_err == DEX_PURCHASE_ERROR_OK && tx_partial) {
+        log_it(L_ERROR, "✗ Partial buy on AON should be rejected by composer!");
+        dap_chain_datum_tx_delete(tx_partial);
+        return -3;
+    }
+    log_it(L_NOTICE, "✓ Partial buy on updated AON rejected (err=%d)", purchase_err);
+    
+    // Step 3: Rollback UPDATE
+    log_it(L_INFO, "--- Rollback UPDATE AON ---");
+    
+    dap_chain_datum_tx_t *tx_for_remove = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &update_hash);
+    if (dap_ledger_tx_remove(f->net->net->pub.ledger, tx_for_remove, &update_hash) != 0) {
+        log_it(L_ERROR, "Failed to rollback UPDATE AON");
+        return -4;
+    }
+    
+    // Restore context
+    ctx->order_hash = original_hash;
+    ctx->order.value = original_value;
+    
+    // Verify balance restored
+    balance_snap_t seller_after_rollback;
+    test_dex_snap_take(f->net->net->pub.ledger, seller_addr, sell_token, buy_token, &seller_after_rollback);
+    
+    if (test_dex_snap_verify("UPDATE AON rollback", &seller_before, &seller_after_rollback, 0, false, 0, false) != 0) {
+        log_it(L_ERROR, "UPDATE AON rollback balance mismatch");
+        return -5;
+    }
+    
+    // After rollback, cancel untouched AON order
+    int cancel_ret = run_phase_cancel_untouched(ctx);
+    if (cancel_ret != 0)
+        return cancel_ret;
+    
+    log_it(L_NOTICE, "✓ UPDATE AON PHASE COMPLETE (value decreased, partial rejected, rollback OK)");
     return 0;
 }
 
@@ -2053,6 +2542,7 @@ int run_order_lifecycle(
     // UPDATE and CANCEL phases - after Phase 3 rollback, the order is untouched
     // MINFILL_NONE: Full UPDATE/CANCEL chain (UPDATE untouched → partial → UPDATE leftover → CANCEL leftover)
     // MINFILL_50_CURRENT: Just CANCEL untouched (covers both ASK and BID)
+    // MINFILL_AON: UPDATE AON (decrease + partial rejection + rollback)
     if (tmpl->min_fill == MINFILL_NONE) {
         // Phase 5: UPDATE untouched order (uses current ctx->order after Phase 3 rollback)
         ret = run_phase_update_untouched(&ctx);
@@ -2064,6 +2554,20 @@ int run_order_lifecycle(
         
         // Phase 7: CANCEL leftover (cancels the leftover from Phase 6)
         ret = run_phase_cancel_leftover(&ctx);
+        if (ret != 0) return ret;
+    } else if (tmpl->min_fill == MINFILL_75_ORIGIN) {
+        memset(&ctx.order, 0, sizeof(ctx.order));
+        ret = run_phase_create(&ctx);
+        if (ret != 0) return ret;
+        
+        ret = run_phase_update_untouched(&ctx);
+        if (ret != 0) return ret;
+        
+        ret = run_phase_cancel_untouched(&ctx);
+        if (ret != 0) return ret;
+    } else if (tmpl->min_fill == MINFILL_AON) {
+        // Phase: UPDATE AON order (decrease, verify partial rejected, rollback)
+        ret = run_phase_update_aon(&ctx);
         if (ret != 0) return ret;
     } else if (tmpl->min_fill == MINFILL_50_CURRENT) {
         // Phase 8: CANCEL untouched order (tests INVALIDATE on fresh order)

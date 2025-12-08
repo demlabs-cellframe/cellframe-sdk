@@ -12,6 +12,9 @@
 #include "dap_enc.h"
 #include "dap_test.h"
 #include "dap_chain_wallet.h"
+#include "dap_cli_server.h"
+#include "dap_chain_node_cli.h"
+#include "json.h"
 
 extern int dap_chain_cs_dag_init(void);
 extern int dap_chain_cs_dag_poa_init(void);
@@ -49,11 +52,18 @@ static void s_setup(bool a_cache) {
     dap_chain_cs_dag_poa_init();
     dap_chain_cs_esbocs_init();
     
-    log_it(L_NOTICE, "Test environment initialized");
+    // Initialize CLI server (without network listener) for CLI tests
+    dap_cli_server_init(false, "cli-server");
+    dap_chain_node_cli_init(g_config);
+    
+    log_it(L_NOTICE, "Test environment initialized (with CLI)");
 }
 
 static void s_teardown(void) {
     log_it(L_NOTICE, "Cleaning up test environment...");
+    
+    // Clean up CLI server first
+    dap_chain_node_cli_delete();
     
     if (g_config) {
         dap_config_close(g_config);
@@ -65,6 +75,66 @@ static void s_teardown(void) {
     rmdir("/tmp/dex_integration_test_config");
     
     log_it(L_NOTICE, "Cleanup completed");
+}
+
+// ============================================================================
+// CLI TESTS
+// ============================================================================
+
+static int s_test_cli_pairs(dex_test_fixture_t *fixture) {
+    log_it(L_NOTICE, "=== CLI Test: srv_dex pairs ===");
+    
+    // Build JSON-RPC request for srv_dex pairs
+    // Format: params[0] = "cmd;subcmd;-arg;value;..." (split by ';')
+    // a_argv[0] = "srv_dex", a_argv[1] = "pairs", a_argv[2] = "-net", a_argv[3] = "name"
+    char l_json_request[1024];
+    snprintf(l_json_request, sizeof(l_json_request),
+             "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;pairs;-net;%s\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+             fixture->net->net->pub.name);
+    
+    log_it(L_INFO, "CLI request: %s", l_json_request);
+    
+    char *l_reply = dap_cli_cmd_exec(l_json_request);
+    if (!l_reply) {
+        log_it(L_ERROR, "CLI command returned NULL");
+        return -1;
+    }
+    
+    log_it(L_INFO, "CLI reply: %s", l_reply);
+    
+    // Parse JSON reply
+    json_object *l_json = json_tokener_parse(l_reply);
+    if (!l_json) {
+        log_it(L_ERROR, "Failed to parse JSON reply");
+        return -2;
+    }
+    
+    // Check for error
+    json_object *l_error = NULL;
+    if (json_object_object_get_ex(l_json, "error", &l_error)) {
+        log_it(L_ERROR, "CLI returned error: %s", json_object_to_json_string(l_error));
+        json_object_put(l_json);
+        return -3;
+    }
+    
+    // Extract result
+    json_object *l_result = NULL;
+    if (json_object_object_get_ex(l_json, "result", &l_result)) {
+        json_object *l_pairs = NULL;
+        if (json_object_object_get_ex(l_result, "pairs", &l_pairs)) {
+            int l_count = json_object_array_length(l_pairs);
+            log_it(L_NOTICE, "Found %d trading pairs:", l_count);
+            
+            for (int i = 0; i < l_count; i++) {
+                json_object *l_pair = json_object_array_get_idx(l_pairs, i);
+                log_it(L_INFO, "  [%d] %s", i, json_object_to_json_string(l_pair));
+            }
+        }
+    }
+    
+    json_object_put(l_json);
+    log_it(L_NOTICE, "CLI pairs test PASSED");
+    return 0;
 }
 
 // ============================================================================
@@ -99,6 +169,12 @@ int main(int argc, char *argv[]) {
         dex_test_fixture_destroy(fixture);
         s_teardown();
         return ret;
+    }
+    
+    // Run CLI tests after lifecycle tests
+    ret = s_test_cli_pairs(fixture);
+    if (ret != 0) {
+        log_it(L_WARNING, "CLI pairs test failed with code %d (non-fatal)", ret);
     }
     
     // TODO: Add when implemented

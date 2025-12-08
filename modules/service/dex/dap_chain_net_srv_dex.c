@@ -4588,12 +4588,14 @@ typedef enum {
 /*
  * dap_chain_net_srv_dex_decree_callback
  * Decree callback for DEX service governance.
- * Methods (first TSD section type=0x0000):
- *   - DEX_DECREE_FEE_SET (1): Set global fee (TSD: FEE_AMOUNT, FEE_ADDR)
- *   - DEX_DECREE_PAIR_ADD (2): Add pair to whitelist (TSD: TOKEN_BASE, TOKEN_QUOTE, NET_BASE, NET_QUOTE, FEE_CONFIG)
- *   - DEX_DECREE_PAIR_REMOVE (3): Remove pair (TSD: TOKEN_BASE, TOKEN_QUOTE, NET_BASE, NET_QUOTE)
- *   - DEX_DECREE_PAIR_FEE_SET (4): Update fee_config for pair (TSD: TOKEN_BASE, TOKEN_QUOTE, NET_BASE, NET_QUOTE, FEE_CONFIG)
- *   - DEX_DECREE_PAIR_FEE_SET_ALL (5): Update fee_config for all pairs (TSD: FEE_CONFIG)
+ * Each method has strict parameter requirements (no mixing allowed):
+ * 
+ *   FEE_SET (1):          FEE_AMOUNT + FEE_ADDR required, all others prohibited
+ *   PAIR_ADD (2):         TOKEN_* + NET_* required, FEE_CONFIG optional, FEE_AMOUNT/ADDR prohibited
+ *   PAIR_REMOVE (3):      TOKEN_* + NET_* required, FEE_CONFIG/AMOUNT/ADDR prohibited
+ *   PAIR_FEE_SET (4):     TOKEN_* + NET_* + FEE_CONFIG required, FEE_AMOUNT/ADDR prohibited
+ *   PAIR_FEE_SET_ALL (5): FEE_CONFIG required, all others prohibited
+ * 
  * Returns 0 on success, negative on error.
  */
 int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size)
@@ -4625,10 +4627,19 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
     int l_ret = 0;
     switch (l_method) {
     case DEX_DECREE_FEE_SET:
-        // Required: FEE_AMOUNT, FEE_ADDR; prohibited tokens and net-ids
-        dap_ret_val_if_any(-1, !l_tsd_fee_amount, !l_tsd_fee_addr,
+        // Required: FEE_AMOUNT, FEE_ADDR; prohibited: tokens, net-ids, fee_config
+        dap_ret_val_if_any(-1, !l_tsd_fee_amount, !l_tsd_fee_addr, l_tsd_fee_config,
             l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote);
-        break;
+        if (a_apply) {
+            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+            memcpy(&s_dex_native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
+            memcpy(&s_dex_service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
+            pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            log_it(L_NOTICE, "Service fee set: %s %s to %s",
+                a_ledger->net->pub.native_ticker, dap_uint256_to_char_ex(s_dex_native_fee_amount).frac,
+                dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
+        }
+        return 0;
     
     case DEX_DECREE_PAIR_FEE_SET_ALL: {
         // Required: FEE_CONFIG
@@ -4653,8 +4664,9 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
     case DEX_DECREE_PAIR_ADD:
     case DEX_DECREE_PAIR_REMOVE:
     case DEX_DECREE_PAIR_FEE_SET: {
-        // Common validation and parsing for all pair operations
-        dap_ret_val_if_any(-1, !l_tsd_token_base, !l_tsd_token_quote, !l_tsd_net_base, !l_tsd_net_quote);
+        // Common validation: required tokens/nets, prohibited fee_amount/fee_addr
+        dap_ret_val_if_any(-1, !l_tsd_token_base, !l_tsd_token_quote, !l_tsd_net_base, !l_tsd_net_quote,
+            l_tsd_fee_amount, l_tsd_fee_addr);
         const char *l_token_base = dap_tsd_get_string_const(l_tsd_token_base), *l_token_quote = dap_tsd_get_string_const(l_tsd_token_quote);
         dap_ret_val_if_any(-2, !dap_strcmp(l_token_base, l_token_quote),
                                 !dap_isstralnum(l_token_base), !dap_isstralnum(l_token_quote));
@@ -4711,19 +4723,6 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
     
     default:
         return log_it(L_WARNING, "Unknown decree method for DEX service: %u", (unsigned)l_method), -2;
-    }
-    
-    // Apply optional fee_set (if FEE_AMOUNT and FEE_ADDR present, for any method)
-    if ( !l_ret && a_apply && (l_tsd_fee_amount || l_tsd_fee_addr) ) {
-        pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-        if ( l_tsd_fee_amount )
-            memcpy(&s_dex_native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
-        if ( l_tsd_fee_addr )
-            memcpy(&s_dex_service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
-        log_it(L_NOTICE, "Service fee set: %s %s to %s",
-            a_ledger->net->pub.native_ticker, dap_uint256_to_char_ex(s_dex_native_fee_amount).frac,
-            dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
-        pthread_rwlock_unlock(&s_dex_cache_rwlock);
     }
     return l_ret;
 }
@@ -5454,9 +5453,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
     case CMD_ORDER: {
         enum { SUBCMD_CREATE, SUBCMD_REMOVE, SUBCMD_UPDATE, SUBCMD_NONE } l_subcmd = SUBCMD_NONE;
         const char *l_order_hash_str = NULL;
-        if ( dap_cli_server_cmd_check_option(a_argv, l_arg_index, 1, "create") >= l_arg_index) l_subcmd = SUBCMD_CREATE;
-        else if ( dap_cli_server_cmd_check_option(a_argv, l_arg_index, 1, "remove") >= l_arg_index) l_subcmd = SUBCMD_REMOVE;
-        else if ( dap_cli_server_cmd_check_option(a_argv, l_arg_index, 1, "update") >= l_arg_index) l_subcmd = SUBCMD_UPDATE;            
+        if ( dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "create") >= l_arg_index) l_subcmd = SUBCMD_CREATE;
+        else if ( dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "remove") >= l_arg_index) l_subcmd = SUBCMD_REMOVE;
+        else if ( dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "update") >= l_arg_index) l_subcmd = SUBCMD_UPDATE;            
 
         switch (l_subcmd) {
         case SUBCMD_CREATE: {
@@ -7266,19 +7265,35 @@ tvl_output:
         uint8_t l_method_byte = (uint8_t)l_method;
         l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_METHOD, &l_method_byte, sizeof(uint8_t));
         
-        // Optional global fee params (can be combined with any method)
+        // Parse fee params (usage depends on method)
         const char *l_fee_amount_str = NULL, *l_fee_addr_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_amount", &l_fee_amount_str);
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_addr", &l_fee_addr_str);
         
         switch (l_method) {
-        case DEX_DECREE_FEE_SET:
-            // fee_set requires both -fee_amount and -fee_addr
+        case DEX_DECREE_FEE_SET: {
+            // fee_set requires both -fee_amount and -fee_addr, no other params
             if (!l_fee_amount_str || !l_fee_addr_str)
                 return dap_json_rpc_error_add(*json_arr_reply, -2, "fee_set requires -fee_amount and -fee_addr"), -2;
-            break;
+            
+            uint256_t l_fee_amount = dap_chain_coins_to_balance(l_fee_amount_str);
+            if ( IS_ZERO_256(l_fee_amount) )
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "invalid -fee_amount"), -2;
+            
+            dap_chain_addr_t *l_fee_addr = dap_chain_addr_from_str(l_fee_addr_str);
+            if (!l_fee_addr)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "invalid -fee_addr"), -2;
+            
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_AMOUNT, &l_fee_amount, sizeof(uint256_t));
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_ADDR, l_fee_addr, sizeof(dap_chain_addr_t));
+            DAP_DELETE(l_fee_addr);
+        } break;
         
         case DEX_DECREE_PAIR_FEE_SET_ALL: {
+            // Only -fee_config allowed, no fee_amount/fee_addr
+            if (l_fee_amount_str || l_fee_addr_str)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "pair_fee_set_all: -fee_amount/-fee_addr not allowed"), -2;
+            
             const char *l_fee_config_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_config", &l_fee_config_str);
             if (!l_fee_config_str)
@@ -7291,7 +7306,10 @@ tvl_output:
         case DEX_DECREE_PAIR_ADD:
         case DEX_DECREE_PAIR_REMOVE:
         case DEX_DECREE_PAIR_FEE_SET: {
-            // Common parameters for all pair operations
+            // Pair operations: no fee_amount/fee_addr allowed
+            if (l_fee_amount_str || l_fee_addr_str)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "pair operations: -fee_amount/-fee_addr not allowed"), -2;
+            
             const char *l_token_base = NULL, *l_token_quote = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_base", &l_token_base);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_quote", &l_token_quote);
@@ -7328,7 +7346,9 @@ tvl_output:
             if (l_method == DEX_DECREE_PAIR_FEE_SET && !l_fee_config_str)
                 return dap_json_rpc_error_add(*json_arr_reply, -2, "pair_fee_set requires -fee_config"), -2;
             
-            if (l_fee_config_str && l_method != DEX_DECREE_PAIR_REMOVE) {
+            if (l_fee_config_str) {
+                if (l_method == DEX_DECREE_PAIR_REMOVE)
+                    return dap_json_rpc_error_add(*json_arr_reply, -2, "pair_remove: -fee_config not allowed"), -2;
                 uint8_t l_fee_config = (uint8_t)strtoul(l_fee_config_str, NULL, 0);
                 l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_CONFIG, &l_fee_config, sizeof(uint8_t));
             }
@@ -7336,21 +7356,6 @@ tvl_output:
         
         default:
             return dap_json_rpc_error_add(*json_arr_reply, -2, "unknown decree method"), -2;
-        }
-        
-        // Write optional global fee params (if provided, can be independent)
-        if (l_fee_amount_str) {
-            uint256_t l_fee_amount = dap_chain_coins_to_balance(l_fee_amount_str);
-            if (IS_ZERO_256(l_fee_amount))
-                return dap_json_rpc_error_add(*json_arr_reply, -2, "invalid -fee_amount"), -2;
-            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_AMOUNT, &l_fee_amount, sizeof(uint256_t));
-        }
-        if (l_fee_addr_str) {
-            dap_chain_addr_t *l_fee_addr = dap_chain_addr_from_str(l_fee_addr_str);
-            if (!l_fee_addr)
-                return dap_json_rpc_error_add(*json_arr_reply, -2, "invalid -fee_addr"), -2;
-            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_ADDR, l_fee_addr, sizeof(dap_chain_addr_t));
-            DAP_DELETE(l_fee_addr);
         }
         
         // Calculate actual TSD size
