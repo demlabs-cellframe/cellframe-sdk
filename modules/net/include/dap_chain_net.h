@@ -53,7 +53,7 @@ typedef enum dap_chain_net_state {
     NET_STATE_LINKS_CONNECTING,
     NET_STATE_LINKS_ESTABLISHED,
     NET_STATE_SYNC_CHAINS,
-    NET_STATE_ONLINE
+    NET_STATE_ONLINE    
 } dap_chain_net_state_t;
 
 static const char s_gdb_nodes_postfix[] = "nodes.list";
