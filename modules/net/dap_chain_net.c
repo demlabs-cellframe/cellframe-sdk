@@ -176,6 +176,7 @@ typedef struct dap_chain_net_pvt{
     struct chain_sync_context sync_context;
 
     _Atomic(dap_chain_net_state_t) state, state_target;
+    bool was_online;                                        // Flag: network has reached ONLINE state at least once
     uint16_t acl_idx;
 
     //Global DB clusters for different access groups. Notification with cluster contents changing
@@ -210,6 +211,32 @@ static const char *c_net_states[] = {
 
 static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
     return a_state < NET_STATE_LOADING || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
+}
+
+/**
+ * @brief Get user-visible state string.
+ *        Before reaching ONLINE for the first time - show actual states as is.
+ *        After reaching ONLINE - show simplified: ONLINE, OFFLINE, or RESYNC_CHAINS for all other states.
+ *        When target is OFFLINE - show actual states as is (reset to normal behavior).
+ * @param a_net Network object
+ * @return State string for user display
+ */
+static inline const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net)
+{
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    dap_chain_net_state_t l_state = l_net_pvt->state;
+    // Before first ONLINE or when target is OFFLINE, show actual states as is
+    if (!l_net_pvt->was_online || l_net_pvt->state_target == NET_STATE_OFFLINE)
+        return c_net_states[l_state];
+    // After reaching ONLINE, show simplified states
+    switch (l_state) {
+    case NET_STATE_ONLINE:
+        return c_net_states[NET_STATE_ONLINE];
+    case NET_STATE_OFFLINE:
+        return c_net_states[NET_STATE_OFFLINE];
+    default:
+        return "NET_STATE_RESYNC_CHAINS";
+    }
 }
 
 // Node link callbacks
@@ -633,7 +660,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
 void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out, int a_version) {
     json_object_object_add(a_json_out, "name", json_object_new_string((const char *) a_net->pub.name));
     json_object_object_add(a_json_out, a_version == 1 ? "networkState" : "network_state",
-                           json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
+                           json_object_new_string(dap_chain_net_state_to_str_user(a_net)));
     json_object_object_add(a_json_out, a_version == 1 ? "targetState" : "target_state",
                            json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
     json_object_object_add(a_json_out, a_version == 1 ? "linksCount" : "links_count", json_object_new_int(0));
@@ -910,7 +937,7 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_objec
     json_object_object_add(a_json_out, "processed", l_json_sync_status);
 
     json_object *l_jobj_states = json_object_new_object();
-    json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
+    json_object *l_jobj_current_states = json_object_new_string(dap_chain_net_state_to_str_user(a_net));
     json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
     json_object_object_add(l_jobj_states, "current", l_jobj_current_states);
     json_object_object_add(l_jobj_states, "target", l_jobj_target_states);
@@ -3255,6 +3282,7 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     }
     dap_chain_net_state_t l_prev_state = l_net_pvt->state;
     l_net_pvt->state = NET_STATE_ONLINE;
+    l_net_pvt->was_online = true;  // Mark that network has reached ONLINE state
     s_net_states_proc(a_net);
     if(l_prev_state == NET_STATE_SYNC_CHAINS)
         dap_ledger_load_end(a_net->pub.ledger);
@@ -3388,6 +3416,7 @@ static bool s_net_states_proc(void *a_arg)
         if(l_net_pvt->state == NET_STATE_SYNC_CHAINS)
             dap_ledger_load_end(l_net->pub.ledger);
         l_net_pvt->state = NET_STATE_OFFLINE;
+        l_net_pvt->was_online = false;  // Reset flag when going offline
     }
 
     switch ((dap_chain_net_state_t)l_net_pvt->state) {
