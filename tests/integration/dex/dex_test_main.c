@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
     
     dex_print_balances(fixture, "INITIAL STATE");
     
-    // Run lifecycle tests (create, buy, partial, rollback, cancel)
+    // Run lifecycle tests (long)
     int ret = run_lifecycle_tests(fixture);
     if (ret != 0) {
         log_it(L_ERROR, "Lifecycle tests FAILED with code %d", ret);
@@ -170,6 +170,15 @@ int main(int argc, char *argv[]) {
         s_teardown();
         return ret;
     }
+    
+    // Seed orderbook for matcher tests (short)
+    /*int ret = run_seed_orderbook(fixture);
+    if (ret != 0) {
+        log_it(L_ERROR, "Orderbook seeding FAILED with code %d", ret);
+        dex_test_fixture_destroy(fixture);
+        s_teardown();
+        return ret;
+    }*/
     
     // Run CLI tests after lifecycle tests
     ret = s_test_cli_pairs(fixture);

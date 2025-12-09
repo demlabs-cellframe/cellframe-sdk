@@ -23,3 +23,8 @@ int run_order_lifecycle(
  */
 int run_lifecycle_tests(dex_test_fixture_t *f);
 
+/**
+ * Seed orderbook with multi-level ASKs/BIDs (no executions)
+ */
+int run_seed_orderbook(dex_test_fixture_t *f);
+

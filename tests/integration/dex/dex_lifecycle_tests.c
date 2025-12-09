@@ -5,6 +5,16 @@
 
 #include "dex_test_scenarios.h"
 #include "dap_chain_net_srv_dex.h"
+#include "dap_chain_wallet.h"
+#include "dap_chain_datum_tx_items.h"
+#include "dap_time.h"
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+static const uint128_t S_POW18 = 1000000000000000000ULL;
+static const uint128_t S_ABS_SRV_FEE = 100000000000000000ULL;  // 0.1 * 10^18
 
 // ============================================================================
 // HELPERS
@@ -49,6 +59,265 @@ static inline void adjust_native_fee(
         else if (quote_is_native)
             *buyer_receiving -= fee;
     }
+}
+
+// Adjust buyer deltas for absolute service fee (0.1 TestCoin) when native token is traded
+// Only applies to pairs with absolute fee config (no 0x80 flag) where quote or base is native
+static inline void adjust_abs_service_fee(
+    uint8_t side, bool quote_is_native, bool base_is_native, uint8_t fee_cfg,
+    uint128_t *buyer_spending, uint128_t *buyer_receiving)
+{
+    if ((fee_cfg & 0x80) || (!quote_is_native && !base_is_native))
+        return;  // percentage fee or native not traded
+    
+    const uint128_t ABS_SRV_FEE = 100000000000000000ULL;  // 0.1 * 10^18
+    
+    if (side == SIDE_ASK) {
+        if (quote_is_native)
+            *buyer_spending += ABS_SRV_FEE;
+        else if (base_is_native)
+            *buyer_receiving -= ABS_SRV_FEE;
+    } else {  // SIDE_BID
+        if (base_is_native)
+            *buyer_spending += ABS_SRV_FEE;
+        else if (quote_is_native)
+            *buyer_receiving -= ABS_SRV_FEE;
+    }
+}
+
+// ============================================================================
+// PARTICIPANT CONTEXT
+// ============================================================================
+
+typedef struct {
+    const dap_chain_addr_t *buyer;
+    const dap_chain_addr_t *seller;
+    const dap_chain_addr_t *net_fee_collector;
+    const dap_chain_addr_t *service_addr;
+    bool buyer_is_net_collector;
+    bool seller_is_net_collector;
+    bool seller_is_service;
+} participants_t;
+
+static participants_t init_participants(
+    dex_test_fixture_t *f,
+    const test_context_t *ctx,
+    wallet_id_t buyer_id)
+{
+    participants_t p = {
+        .buyer = get_wallet_addr(f, buyer_id),
+        .seller = get_wallet_addr(f, ctx->tmpl->seller),
+        .net_fee_collector = test_get_net_fee_addr(f),
+        .service_addr = &f->carol_addr
+    };
+    p.buyer_is_net_collector = dap_chain_addr_compare(p.buyer, p.net_fee_collector);
+    p.seller_is_net_collector = dap_chain_addr_compare(p.seller, p.net_fee_collector);
+    p.seller_is_service = (ctx->tmpl->seller == WALLET_CAROL);
+    return p;
+}
+
+// ============================================================================
+// EXPECTED DELTAS CALCULATION
+// ============================================================================
+
+typedef struct {
+    uint128_t buyer_base;
+    uint128_t buyer_quote;
+    uint128_t seller_base;
+    uint128_t seller_quote;
+    bool buyer_base_dec;
+    bool buyer_quote_dec;
+} expected_deltas_t;
+
+// Calculate expected balance changes for a purchase
+// exec_value: for ASK = BASE amount bought, for BID = QUOTE amount bought
+static expected_deltas_t calc_purchase_deltas(
+    const test_context_t *ctx,
+    const dex_test_fixture_t *f,
+    const participants_t *p,
+    uint128_t exec_value,
+    bool fee_waived)
+{
+    expected_deltas_t d = {0};
+    uint128_t rate = dap_uint256_to_uint128(ctx->order.price);
+    uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
+    uint8_t fee_cfg = ctx->pair->fee_config;
+    bool is_pct_fee = (fee_cfg & 0x80) != 0;
+    uint128_t service_fee = 0;
+    
+    uint128_t buyer_gets, buyer_spends, seller_gets;
+    
+    if (ctx->tmpl->side == SIDE_ASK) {
+        // ASK: buyer spends QUOTE, gets BASE; seller gets QUOTE
+        buyer_gets = exec_value;
+        seller_gets = (exec_value * rate) / S_POW18;
+        if (!fee_waived && is_pct_fee)
+            service_fee = (seller_gets * (fee_cfg & 0x7F)) / 100;
+        buyer_spends = seller_gets + service_fee;
+        
+        if (p->seller_is_service)
+            seller_gets += service_fee;
+        if (p->seller_is_net_collector && ctx->pair->quote_is_native)
+            seller_gets += net_fee;
+        if (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->quote_is_native)
+            seller_gets += S_ABS_SRV_FEE;
+        
+        d.buyer_base = buyer_gets;
+        d.buyer_quote = buyer_spends;
+        d.buyer_base_dec = false;
+        d.buyer_quote_dec = true;
+        // ASK: seller already locked BASE in order, gets QUOTE at purchase
+        d.seller_base = (p->seller_is_net_collector && ctx->pair->base_is_native) ? net_fee : 0;
+        d.seller_quote = seller_gets;
+        // Service wallet receives abs fee in native BASE (separate OUT, not aggregated for ASK when native=BASE)
+        if (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->base_is_native)
+            d.seller_base += S_ABS_SRV_FEE;
+    } else {
+        // BID: buyer spends BASE, gets QUOTE; seller gets BASE
+        uint128_t exec_base = (exec_value * S_POW18) / rate;
+        buyer_spends = exec_base;
+        seller_gets = exec_base;
+        if (!fee_waived && is_pct_fee)
+            service_fee = (exec_value * (fee_cfg & 0x7F)) / 100;
+        buyer_gets = exec_value - service_fee;
+        
+        d.buyer_base = buyer_spends;
+        d.buyer_quote = buyer_gets;
+        d.buyer_base_dec = true;
+        d.buyer_quote_dec = false;
+        // BID: seller already locked QUOTE in order, gets BASE at purchase
+        d.seller_base = seller_gets;
+        if (p->seller_is_net_collector && ctx->pair->base_is_native)
+            d.seller_base += net_fee;
+        // BID: abs fee in native BASE aggregates to seller payout (l_can_agg_bid condition)
+        if (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->base_is_native)
+            d.seller_base += S_ABS_SRV_FEE;
+        
+        uint128_t extra_quote = (p->seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
+        uint128_t abs_fee_quote = (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->quote_is_native)
+            ? S_ABS_SRV_FEE : 0;
+        d.seller_quote = (p->seller_is_service ? service_fee : 0) + extra_quote + abs_fee_quote;
+    }
+    
+    adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native,
+                      p->buyer_is_net_collector, net_fee,
+                      ctx->tmpl->side == SIDE_ASK ? &d.buyer_quote : &d.buyer_base,
+                      ctx->tmpl->side == SIDE_ASK ? &d.buyer_base : &d.buyer_quote);
+    
+    if (!fee_waived)
+        adjust_abs_service_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native,
+                               fee_cfg,
+                               ctx->tmpl->side == SIDE_ASK ? &d.buyer_quote : &d.buyer_base,
+                               ctx->tmpl->side == SIDE_ASK ? &d.buyer_base : &d.buyer_quote);
+    
+    return d;
+}
+
+// ============================================================================
+// TX LIFECYCLE HELPERS
+// ============================================================================
+
+// Execute purchase and add to ledger
+static int exec_purchase_and_add(
+    dex_test_fixture_t *f,
+    dap_hash_fast_t *order_tail,
+    uint256_t budget,
+    bool is_budget_buy,
+    dap_chain_wallet_t *buyer_wallet,
+    dap_hash_fast_t *out_tx_hash,
+    dap_chain_datum_tx_t **out_tx)
+{
+    dap_chain_datum_tx_t *tx = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
+        f->net->net, order_tail, budget, is_budget_buy,
+        f->network_fee, buyer_wallet, false, uint256_0, &tx
+    );
+    
+    if (err != DEX_PURCHASE_ERROR_OK || !tx) {
+        log_it(L_ERROR, "Purchase compose failed: err=%d", err);
+        return -1;
+    }
+    
+    dap_hash_fast(tx, dap_chain_datum_tx_get_size(tx), out_tx_hash);
+    int ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx, out_tx_hash, false, NULL);
+    if (ret != 0) {
+        log_it(L_ERROR, "TX add to ledger failed");
+        dap_chain_datum_tx_delete(tx);
+        return -2;
+    }
+    
+    if (out_tx)
+        *out_tx = tx;
+    return 0;
+}
+
+// Verify purchase deltas
+static int verify_deltas(
+    const char *phase_name,
+    const balance_snap_t *buyer_before, const balance_snap_t *buyer_after,
+    const balance_snap_t *seller_before, const balance_snap_t *seller_after,
+    const balance_snap_t *net_before, const balance_snap_t *net_after,
+    const expected_deltas_t *d,
+    const participants_t *p,
+    uint128_t net_fee)
+{
+    char label[64];
+    snprintf(label, sizeof(label), "%s Buyer", phase_name);
+    if (test_dex_snap_verify(label, buyer_before, buyer_after,
+            d->buyer_base, d->buyer_base_dec, d->buyer_quote, d->buyer_quote_dec) != 0)
+        return -1;
+    
+    snprintf(label, sizeof(label), "%s Seller", phase_name);
+    if (test_dex_snap_verify(label, seller_before, seller_after,
+            d->seller_base, false, d->seller_quote, false) != 0)
+        return -2;
+    
+    if (!p->buyer_is_net_collector && !p->seller_is_net_collector) {
+        snprintf(label, sizeof(label), "%s Net", phase_name);
+        if (test_dex_snap_verify_fee(label, net_before, net_after, net_fee, false) != 0)
+            return -3;
+    }
+    
+    return 0;
+}
+
+// ============================================================================
+// TAMPER HELPERS
+// ============================================================================
+
+// Tamper ts_created
+static bool tamper_ts_created(dap_chain_datum_tx_t *tx, void *user_data) {
+    if (!tx || !user_data)
+        return false;
+    dap_time_t new_ts = *(dap_time_t*)user_data;
+    tx->header.ts_created = new_ts;
+    return true;
+}
+
+// Resign TX after tamper: strip old signatures, add new with wallet key[0]
+static int s_resign_tx(dap_chain_datum_tx_t **a_tx, dap_chain_wallet_t *wallet) {
+    dap_return_val_if_fail(a_tx && *a_tx && wallet, -1);
+    
+    uint8_t *l_first_sig = dap_chain_datum_tx_item_get(*a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+    size_t l_tx_size_without_sigs = l_first_sig
+        ? (size_t)(l_first_sig - (uint8_t*)*a_tx)
+        : dap_chain_datum_tx_get_size(*a_tx);
+    
+    dap_chain_datum_tx_t *l_new_tx = DAP_DUP_SIZE(*a_tx, l_tx_size_without_sigs);
+    dap_return_val_if_fail(l_new_tx, -2);
+    l_new_tx->header.tx_items_size = l_tx_size_without_sigs - sizeof(dap_chain_datum_tx_t);
+    
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(wallet, 0);
+    dap_return_val_if_fail(l_key, -3);
+    if (dap_chain_datum_tx_add_sign_item(&l_new_tx, l_key) <= 0) {
+        DAP_DELETE(l_key);
+        dap_chain_datum_tx_delete(l_new_tx);
+        return -4;
+    }
+    DAP_DELETE(l_key);
+    dap_chain_datum_tx_delete(*a_tx);
+    *a_tx = l_new_tx;
+    return 0;
 }
 
 // ============================================================================
@@ -453,55 +722,11 @@ static int run_phase_full_buy(test_context_t *ctx) {
         const char *sell_token, *buy_token;
         get_order_tokens(ctx->pair, ctx->tmpl->side, &sell_token, &buy_token);
         
-        // Addresses needed for delta calculations
-        const dap_chain_addr_t *buyer_addr = get_wallet_addr(f, sc->buyer);
-        const dap_chain_addr_t *seller_addr = get_wallet_addr(f, ctx->tmpl->seller);
-        const dap_chain_addr_t *net_fee_addr = test_get_net_fee_addr(f);
-        bool buyer_is_net_collector = dap_chain_addr_compare(buyer_addr, net_fee_addr);
-        bool seller_is_net_collector = dap_chain_addr_compare(seller_addr, net_fee_addr);
-        
-        // Expected deltas (ASK vs BID have different fee logic)
-        const uint128_t POW18 = 1000000000000000000ULL;
-        
+        // Init participants and calculate expected deltas
+        participants_t p = init_participants(f, ctx, sc->buyer);
         uint128_t order_val = dap_uint256_to_uint128(order->value);
-        uint128_t rate = dap_uint256_to_uint128(order->price);
+        expected_deltas_t d = calc_purchase_deltas(ctx, f, &p, order_val, sc->expect_fee_waived);
         uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
-        uint128_t service_fee = 0;
-        uint128_t buyer_gets_base, buyer_spends_quote, seller_gets_quote;
-        uint8_t fee_cfg = ctx->pair->fee_config;
-        
-        bool seller_is_service = (ctx->tmpl->seller == WALLET_CAROL);
-        
-        if (ctx->tmpl->side == SIDE_ASK) {
-            // ASK: seller sells BASE, buyer pays QUOTE + svc_fee
-            seller_gets_quote = (order_val * rate) / POW18;
-            if (!sc->expect_fee_waived && (fee_cfg & 0x80))
-                service_fee = (seller_gets_quote * (fee_cfg & 0x7F)) / 100;
-            buyer_gets_base = order_val;
-            buyer_spends_quote = seller_gets_quote + service_fee;
-            // When seller = Carol (service wallet), fee aggregates to seller payout
-            if (seller_is_service)
-                seller_gets_quote += service_fee;
-            // When seller = net_fee_collector and QUOTE is native, seller also receives net_fee
-            if (seller_is_net_collector && ctx->pair->quote_is_native)
-                seller_gets_quote += net_fee;
-        } else {
-            // BID: seller sells QUOTE (order_val), gets BASE (exec_sell)
-            // Rate is now canonical (QUOTE/BASE), no inversion needed
-            // exec_sell = order_val / rate (QUOTE / (QUOTE/BASE) = BASE)
-            uint128_t exec_sell = (order_val * POW18) / rate;
-            seller_gets_quote = exec_sell;  // Actually seller gets BASE (exec_sell)
-            if (!sc->expect_fee_waived && (fee_cfg & 0x80))
-                service_fee = (order_val * (fee_cfg & 0x7F)) / 100;
-            buyer_gets_base = order_val - service_fee;  // Buyer gets QUOTE minus fee
-            buyer_spends_quote = exec_sell;  // Buyer spends BASE (exec_sell)
-            // When seller = net_fee_collector and BASE is native (seller gets BASE), seller also receives net_fee
-            if (seller_is_net_collector && ctx->pair->base_is_native)
-                seller_gets_quote += net_fee;
-        }
-        
-        adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native, buyer_is_net_collector,
-                          net_fee, &buyer_spends_quote, &buyer_gets_base);
         
         // Build purchase TX
         dap_chain_datum_tx_t *tx_template = NULL;
@@ -517,7 +742,7 @@ static int run_phase_full_buy(test_context_t *ctx) {
         
         // Tampering test
         tamper_output_data_t tamper_data = {
-            .target_addr = get_wallet_addr(f, ctx->tmpl->seller),
+            .target_addr = (dap_chain_addr_t*)p.seller,
             .token = buy_token,
             .tampered_value = dap_chain_coins_to_balance("99999.0")
         };
@@ -527,13 +752,13 @@ static int run_phase_full_buy(test_context_t *ctx) {
             return -2;
         }
         
-        // Security tamper tests: transfer funds between OUTs (balance preserved, should fail DEX verifier)
+        // Security tamper tests: transfer funds between OUTs
         const char *svc_fee_token = (ctx->tmpl->side == SIDE_ASK) ? buy_token : sell_token;
         tamper_transfer_data_t transfer_ctx = {
-            .seller_addr = seller_addr,
-            .buyer_addr = buyer_addr,
-            .net_addr = net_fee_addr,
-            .srv_addr = &f->carol_addr,
+            .seller_addr = p.seller,
+            .buyer_addr = p.buyer,
+            .net_addr = p.net_fee_collector,
+            .srv_addr = p.service_addr,
             .native_ticker = "TestCoin",
             .buy_ticker = buy_token,
             .sell_ticker = sell_token,
@@ -541,8 +766,8 @@ static int run_phase_full_buy(test_context_t *ctx) {
             .transfer_amount = dap_chain_coins_to_balance("1.0")
         };
         
-        // T1: Steal from seller payout to net_fee (skip if seller == net_collector)
-        if (!seller_is_net_collector) {
+        // T1: Steal from seller payout to net_fee
+        if (!p.seller_is_net_collector) {
             transfer_ctx.source = TAMPER_OUT_SELLER_PAYOUT;
             transfer_ctx.destination = TAMPER_OUT_NET_FEE;
             if (test_dex_tamper_and_verify_rejection(f, tx_template, buyer_wallet, tamper_transfer_funds, &transfer_ctx, "Steal seller→net_fee") != 0) {
@@ -551,8 +776,8 @@ static int run_phase_full_buy(test_context_t *ctx) {
             }
         }
         
-        // T2: Steal from seller payout to service_fee (skip if seller == srv_addr)
-        if (!seller_is_service) {
+        // T2: Steal from seller payout to service_fee
+        if (!p.seller_is_service) {
             transfer_ctx.source = TAMPER_OUT_SELLER_PAYOUT;
             transfer_ctx.destination = TAMPER_OUT_SRV_FEE;
             if (test_dex_tamper_and_verify_rejection(f, tx_template, buyer_wallet, tamper_transfer_funds, &transfer_ctx, "Steal seller→srv_fee") != 0) {
@@ -561,9 +786,8 @@ static int run_phase_full_buy(test_context_t *ctx) {
             }
         }
         
-        // T3-T6: Seller ↔ Buyer transfers (self-purchase forbidden, so seller != buyer always)
+        // T3-T6: Seller ↔ Buyer transfers
         {
-            // T3: Steal from seller payout to validator_fee
             transfer_ctx.source = TAMPER_OUT_SELLER_PAYOUT;
             transfer_ctx.destination = TAMPER_OUT_VALIDATOR_FEE;
             if (test_dex_tamper_and_verify_rejection(f, tx_template, buyer_wallet, tamper_transfer_funds, &transfer_ctx, "Steal seller→validator_fee") != 0) {
@@ -571,8 +795,7 @@ static int run_phase_full_buy(test_context_t *ctx) {
                 return -32;
             }
             
-            // T4: Steal from buyer payout to net_fee (skip if buyer == net_collector)
-            if (!buyer_is_net_collector) {
+            if (!p.buyer_is_net_collector) {
                 transfer_ctx.source = TAMPER_OUT_BUYER_PAYOUT;
                 transfer_ctx.destination = TAMPER_OUT_NET_FEE;
                 if (test_dex_tamper_and_verify_rejection(f, tx_template, buyer_wallet, tamper_transfer_funds, &transfer_ctx, "Steal buyer→net_fee") != 0) {
@@ -580,9 +803,7 @@ static int run_phase_full_buy(test_context_t *ctx) {
                     return -33;
                 }
             }
-        
-            // T5/T6: Seller↔Buyer transfer
-            // T5: Steal from seller payout to buyer (buyer gets extra)
+            
             transfer_ctx.source = TAMPER_OUT_SELLER_PAYOUT;
             transfer_ctx.destination = TAMPER_OUT_BUYER_CASHBACK;
             if (test_dex_tamper_and_verify_rejection(f, tx_template, buyer_wallet, tamper_transfer_funds, &transfer_ctx, "Steal seller→buyer") != 0) {
@@ -590,7 +811,6 @@ static int run_phase_full_buy(test_context_t *ctx) {
                 return -34;
             }
             
-            // T6: Steal from buyer payout to seller (seller gets extra)
             transfer_ctx.source = TAMPER_OUT_BUYER_PAYOUT;
             transfer_ctx.destination = TAMPER_OUT_SELLER_PAYOUT;
             if (test_dex_tamper_and_verify_rejection(f, tx_template, buyer_wallet, tamper_transfer_funds, &transfer_ctx, "Steal buyer→seller") != 0) {
@@ -599,12 +819,11 @@ static int run_phase_full_buy(test_context_t *ctx) {
             }
         }
         
-        // Snapshot BEFORE
-        uint256_t buyer_base_before = dap_ledger_calc_balance(f->net->net->pub.ledger, buyer_addr, sell_token);
-        uint256_t buyer_quote_before = dap_ledger_calc_balance(f->net->net->pub.ledger, buyer_addr, buy_token);
-        uint256_t seller_quote_before = dap_ledger_calc_balance(f->net->net->pub.ledger, seller_addr, buy_token);
-        uint256_t net_collector_before = dap_ledger_calc_balance(f->net->net->pub.ledger, net_fee_addr, "TestCoin");
-        uint256_t carol_svc_before = dap_ledger_calc_balance(f->net->net->pub.ledger, &f->carol_addr, svc_fee_token);
+        // Snapshots
+        balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_before, net_after;
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_before);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_before);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_before);
         
         // Add TX
         dap_hash_fast_t purchase_hash = {0};
@@ -614,31 +833,15 @@ static int run_phase_full_buy(test_context_t *ctx) {
             return -3;
         }
         
-        // Snapshot AFTER
-        uint256_t buyer_base_after = dap_ledger_calc_balance(f->net->net->pub.ledger, buyer_addr, sell_token);
-        uint256_t buyer_quote_after = dap_ledger_calc_balance(f->net->net->pub.ledger, buyer_addr, buy_token);
-        uint256_t seller_quote_after = dap_ledger_calc_balance(f->net->net->pub.ledger, seller_addr, buy_token);
-        uint256_t net_collector_after = dap_ledger_calc_balance(f->net->net->pub.ledger, net_fee_addr, "TestCoin");
-        uint256_t carol_svc_after = dap_ledger_calc_balance(f->net->net->pub.ledger, &f->carol_addr, svc_fee_token);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_after);
         
         // Verify deltas
-        if (test_dex_verify_delta("Buyer BASE", buyer_base_before, buyer_base_after, buyer_gets_base, false) != 0)
-            return -20;
-        if (test_dex_verify_delta("Buyer QUOTE", buyer_quote_before, buyer_quote_after, buyer_spends_quote, true) != 0)
-            return -21;
-        if (test_dex_verify_delta("Seller QUOTE", seller_quote_before, seller_quote_after, seller_gets_quote, false) != 0)
-            return -22;
-        
-        // Verify net fee collector received network_fee (unless buyer is net collector)
-        if (!buyer_is_net_collector && !seller_is_net_collector) {
-            if (test_dex_verify_delta("Net collector fee", net_collector_before, net_collector_after, net_fee, false) != 0)
-                return -23;
-        }
-        // Verify Carol received service_fee (unless seller is Carol - then it's aggregated)
-        if (service_fee > 0 && !seller_is_service) {
-            if (test_dex_verify_delta("Carol service_fee", carol_svc_before, carol_svc_after, service_fee, false) != 0)
-                return -24;
-        }
+        int ret = verify_deltas("Full", &buyer_before, &buyer_after, &seller_before, &seller_after,
+                                &net_before, &net_after, &d, &p, net_fee);
+        if (ret != 0)
+            return -20 + ret;
         
         log_it(L_NOTICE, "✓ Valid purchase accepted");
         
@@ -648,18 +851,15 @@ static int run_phase_full_buy(test_context_t *ctx) {
             if (dap_ledger_tx_remove(f->net->net->pub.ledger, tx_for_remove, &purchase_hash) != 0)
                 return -4;
             
-            uint256_t buyer_base_restored = dap_ledger_calc_balance(f->net->net->pub.ledger, buyer_addr, sell_token);
-            uint256_t buyer_quote_restored = dap_ledger_calc_balance(f->net->net->pub.ledger, buyer_addr, buy_token);
+            balance_snap_t buyer_restored;
+            test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_restored);
             
-            if (test_dex_verify_delta("Buyer BASE rollback", buyer_base_before, buyer_base_restored, 0, false) != 0)
+            if (test_dex_snap_verify("Rollback", &buyer_before, &buyer_restored, 0, false, 0, false) != 0)
                 return -25;
-            if (test_dex_verify_delta("Buyer QUOTE rollback", buyer_quote_before, buyer_quote_restored, 0, false) != 0)
-                return -26;
             
             log_it(L_NOTICE, "✓ Rollback successful");
         } else {
-            // === PURCHASE CONSUMED TEST ===
-            // Order is fully consumed, try to purchase again (should fail)
+            // Order consumed test
             log_it(L_INFO, "--- Testing purchase of consumed order ---");
             
             dap_chain_datum_tx_t *tx_consumed = NULL;
@@ -669,7 +869,6 @@ static int run_phase_full_buy(test_context_t *ctx) {
             );
             
             if (consumed_err == DEX_PURCHASE_ERROR_OK && tx_consumed) {
-                // Composer succeeded, try ledger (should reject)
                 dap_hash_fast_t consumed_hash = {0};
                 dap_hash_fast(tx_consumed, dap_chain_datum_tx_get_size(tx_consumed), &consumed_hash);
                 int ledger_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx_consumed, &consumed_hash, false, NULL);
@@ -835,57 +1034,15 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         // Step 6: Full buy AON (budget=0 means full)
         log_it(L_INFO, "--- AON: full buy (should succeed) ---");
         
-        const char *sell_token, *buy_token;
-        get_order_tokens(ctx->pair, ctx->tmpl->side, &sell_token, &buy_token);
-        const dap_chain_addr_t *buyer_addr = get_wallet_addr(f, buyer_id);
-        const dap_chain_addr_t *seller_addr = get_wallet_addr(f, ctx->tmpl->seller);
-        
-        // Expected deltas (ASK vs BID have different fee logic)
-        const uint128_t POW18 = 1000000000000000000ULL;
-        const uint128_t POW36 = POW18 * POW18;
-        
+        participants_t p = init_participants(f, ctx, buyer_id);
         uint128_t order_val = dap_uint256_to_uint128(order->value);
-        uint128_t rate = dap_uint256_to_uint128(order->price);
+        expected_deltas_t d = calc_purchase_deltas(ctx, f, &p, order_val, false);
         uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
-        uint128_t service_fee = 0;
-        uint128_t buyer_gets_base, buyer_spends_quote, seller_gets_quote;
         
-        // Determine net_fee collector before calculating deltas
-        const dap_chain_addr_t *net_fee_addr = test_get_net_fee_addr(f);
-        bool buyer_is_net_collector = dap_chain_addr_compare(buyer_addr, net_fee_addr);
-        bool seller_is_net_collector = dap_chain_addr_compare(seller_addr, net_fee_addr);
-        
-        if (ctx->tmpl->side == SIDE_ASK) {
-            // ASK: seller sells BASE, buyer pays QUOTE + svc_fee
-            seller_gets_quote = (order_val * rate) / POW18;
-            if (ctx->pair->fee_config & 0x80)
-                service_fee = (seller_gets_quote * (ctx->pair->fee_config & 0x7F)) / 100;
-            buyer_gets_base = order_val;
-            buyer_spends_quote = seller_gets_quote + service_fee;
-            // When seller = net_fee_collector and QUOTE is native, seller also receives net_fee
-            if (seller_is_net_collector && ctx->pair->quote_is_native)
-                seller_gets_quote += net_fee;
-        } else {
-            // BID: rate is now canonical (QUOTE/BASE), no inversion needed
-            uint128_t exec_sell = (order_val * POW18) / rate;
-            seller_gets_quote = exec_sell;
-            if (ctx->pair->fee_config & 0x80)
-                service_fee = (order_val * (ctx->pair->fee_config & 0x7F)) / 100;
-            buyer_gets_base = order_val - service_fee;
-            buyer_spends_quote = exec_sell;
-            // When seller = net_fee_collector and BASE is native, seller also receives net_fee
-            if (seller_is_net_collector && ctx->pair->base_is_native)
-                seller_gets_quote += net_fee;
-        }
-        
-        adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native, buyer_is_net_collector,
-                          net_fee, &buyer_spends_quote, &buyer_gets_base);
-        
-        // Snapshots
-        balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_coll_before, net_coll_after;
-        test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_before);
-        test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_before);
-        test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_before);
+        balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_before, net_after;
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_before);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_before);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_before);
         
         dap_chain_datum_tx_t *tx_full = NULL;
         err = dap_chain_net_srv_dex_purchase(
@@ -906,34 +1063,14 @@ static int run_phase_partial_buy(test_context_t *ctx) {
             return -6;
         }
         
-        // Verify balances
-        test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_after);
-        test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_after);
-        test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_after);
         
-        // ASK: buyer gets BASE, spends QUOTE; BID: buyer spends BASE, gets QUOTE
-        uint128_t buyer_base_delta, buyer_quote_delta, seller_base_delta, seller_quote_delta;
-        bool buyer_base_dec, buyer_quote_dec;
-        if (ctx->tmpl->side == SIDE_ASK) {
-            buyer_base_delta = buyer_gets_base;  buyer_base_dec = false;
-            buyer_quote_delta = buyer_spends_quote;  buyer_quote_dec = true;
-            seller_base_delta = (seller_is_net_collector && ctx->pair->base_is_native) ? net_fee : 0;
-            seller_quote_delta = seller_gets_quote;
-        } else {
-            buyer_base_delta = buyer_spends_quote;  buyer_base_dec = true;
-            buyer_quote_delta = buyer_gets_base;  buyer_quote_dec = false;
-            seller_base_delta = seller_gets_quote;
-            seller_quote_delta = (seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
-        }
-        if (test_dex_snap_verify("AON Buyer", &buyer_before, &buyer_after, buyer_base_delta, buyer_base_dec, buyer_quote_delta, buyer_quote_dec) != 0)
-            return -60;
-        if (test_dex_snap_verify("AON Seller", &seller_before, &seller_after, seller_base_delta, false, seller_quote_delta, false) != 0)
-            return -61;
-        // Net fee: skip if buyer == net_collector (same address, fees already in buyer's costs)
-        if (!buyer_is_net_collector && !seller_is_net_collector) {
-            if (test_dex_snap_verify_fee("AON Net", &net_coll_before, &net_coll_after, net_fee, false) != 0)
-                return -62;
-        }
+        int ret = verify_deltas("AON", &buyer_before, &buyer_after, &seller_before, &seller_after,
+                                &net_before, &net_after, &d, &p, net_fee);
+        if (ret != 0)
+            return -60 + ret;
         log_it(L_NOTICE, "✓ AON full buy accepted (balances verified)");
         
         // Rollback
@@ -943,8 +1080,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
             return -7;
         }
         
-        // Verify rollback
-        test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
         if (test_dex_snap_verify("AON rollback", &buyer_before, &buyer_after, 0, false, 0, false) != 0)
             return -65;
         
@@ -1038,53 +1174,19 @@ static int run_phase_partial_buy(test_context_t *ctx) {
             boundary_quote = calc_pct(order->value, pct);
         }
         
-        // Expected deltas at boundary
-        const uint128_t POW18 = 1000000000000000000ULL;
-        const uint128_t POW36 = POW18 * POW18;
-        bool seller_is_service = (ctx->tmpl->seller == WALLET_CAROL);
-        const dap_chain_addr_t *net_fee_addr = test_get_net_fee_addr(f);
-        bool buyer_is_net_collector = dap_chain_addr_compare(buyer_addr, net_fee_addr);
-        bool seller_is_net_collector = dap_chain_addr_compare(seller_addr, net_fee_addr);
-        
+        participants_t p = init_participants(f, ctx, buyer_id);
         uint128_t partial_val = (ctx->tmpl->side == SIDE_ASK)
             ? dap_uint256_to_uint128(boundary_base)
             : dap_uint256_to_uint128(boundary_quote);
-        uint128_t rate = dap_uint256_to_uint128(order->price);
+        expected_deltas_t d = calc_purchase_deltas(ctx, f, &p, partial_val, false);
         uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
-        uint128_t service_fee = 0;
-        uint128_t buyer_gets_base, buyer_spends_quote, seller_gets_quote;
-        
-        if (ctx->tmpl->side == SIDE_ASK) {
-            seller_gets_quote = (partial_val * rate) / POW18;
-            if (ctx->pair->fee_config & 0x80)
-                service_fee = (seller_gets_quote * (ctx->pair->fee_config & 0x7F)) / 100;
-            buyer_gets_base = partial_val;
-            buyer_spends_quote = seller_gets_quote + service_fee;
-            if (seller_is_service)
-                seller_gets_quote += service_fee;
-            if (seller_is_net_collector && ctx->pair->quote_is_native)
-                seller_gets_quote += net_fee;
-        } else {
-            uint128_t exec_quote = partial_val;
-            uint128_t exec_sell = (exec_quote * POW18) / rate;
-            seller_gets_quote = exec_sell;
-            if (ctx->pair->fee_config & 0x80)
-                service_fee = (exec_quote * (ctx->pair->fee_config & 0x7F)) / 100;
-            buyer_gets_base = exec_quote - service_fee;
-            buyer_spends_quote = exec_sell;
-            if (seller_is_net_collector && ctx->pair->base_is_native)
-                seller_gets_quote += net_fee;
-        }
-        adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native, buyer_is_net_collector,
-                          net_fee, &buyer_spends_quote, &buyer_gets_base);
         
         uint256_t budget_buy_boundary = (ctx->tmpl->side == SIDE_ASK) ? boundary_base : boundary_quote;
         
-        // Snapshots
-        balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_coll_before, net_coll_after;
-        test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_before);
-        test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_before);
-        test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_before);
+        balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_before, net_after;
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_before);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_before);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_before);
         
         log_it(L_INFO, "--- Boundary partial %d%% in BUY token ---", pct);
         err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_buy_boundary, true,
@@ -1102,33 +1204,14 @@ static int run_phase_partial_buy(test_context_t *ctx) {
             return -43;
         }
         
-        test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_after);
-        test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_after);
-        test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_after);
+        test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_after);
         
-        uint128_t buyer_base_delta, buyer_quote_delta, seller_base_delta, seller_quote_delta;
-        bool buyer_base_dec, buyer_quote_dec;
-        if (ctx->tmpl->side == SIDE_ASK) {
-            buyer_base_delta = buyer_gets_base;  buyer_base_dec = false;
-            buyer_quote_delta = buyer_spends_quote;  buyer_quote_dec = true;
-            seller_base_delta = (seller_is_net_collector && ctx->pair->base_is_native) ? net_fee : 0;
-            seller_quote_delta = seller_gets_quote;
-        } else {
-            buyer_base_delta = buyer_spends_quote;  buyer_base_dec = true;
-            buyer_quote_delta = buyer_gets_base;    buyer_quote_dec = false;
-            seller_base_delta = seller_gets_quote;
-            uint128_t extra_quote = (seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
-            seller_quote_delta = (seller_is_service ? service_fee : 0) + extra_quote;
-        }
-        
-        if (test_dex_snap_verify("Boundary Buyer", &buyer_before, &buyer_after, buyer_base_delta, buyer_base_dec, buyer_quote_delta, buyer_quote_dec) != 0)
-            return -44;
-        if (test_dex_snap_verify("Boundary Seller", &seller_before, &seller_after, seller_base_delta, false, seller_quote_delta, false) != 0)
-            return -45;
-        if (!buyer_is_net_collector && !seller_is_net_collector) {
-            if (test_dex_snap_verify_fee("Boundary Net", &net_coll_before, &net_coll_after, net_fee, false) != 0)
-                return -46;
-        }
+        int ret = verify_deltas("Boundary", &buyer_before, &buyer_after, &seller_before, &seller_after,
+                                &net_before, &net_after, &d, &p, net_fee);
+        if (ret != 0)
+            return -44 + ret;
         
         // Rollback to restore order
         dap_chain_datum_tx_t *tx_for_remove = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &h);
@@ -1164,76 +1247,29 @@ static int run_phase_partial_buy(test_context_t *ctx) {
     uint8_t valid_pct = pct + 5;  // e.g. 50% min_fill → try 55%
     uint256_t valid_base, valid_quote;
     if (ctx->tmpl->side == SIDE_ASK) {
-        valid_base = calc_pct(exec_sell_full, valid_pct);  // exec_sell_full computed above
+        valid_base = calc_pct(exec_sell_full, valid_pct);
         MULT_256_COIN(valid_base, order->price, &valid_quote);
     } else {
         valid_base = calc_pct(exec_sell_full, valid_pct);
         valid_quote = calc_pct(order->value, valid_pct);
     }
     
-    // Expected deltas (ASK vs BID have different fee logic)
-    const uint128_t POW18 = 1000000000000000000ULL;
-    const uint128_t POW36 = POW18 * POW18;
-    bool seller_is_service = (ctx->tmpl->seller == WALLET_CAROL);
-    
-    // Determine net_fee collector before calculating deltas
-    const dap_chain_addr_t *net_fee_addr = test_get_net_fee_addr(f);
-    bool buyer_is_net_collector = dap_chain_addr_compare(buyer_addr, net_fee_addr);
-    bool seller_is_net_collector = dap_chain_addr_compare(seller_addr, net_fee_addr);
-    
-    // For expected delta calculations:
-    // Step 3a uses is_budget_buy=true: budget in token buyer WANTS
-    //   ASK: buyer wants BASE → partial_val = valid_base
-    //   BID: buyer wants QUOTE → partial_val = valid_quote
+    participants_t p = init_participants(f, ctx, buyer_id);
     uint128_t partial_val = (ctx->tmpl->side == SIDE_ASK)
         ? dap_uint256_to_uint128(valid_base)
         : dap_uint256_to_uint128(valid_quote);
-    uint128_t rate = dap_uint256_to_uint128(order->price);
+    expected_deltas_t d = calc_purchase_deltas(ctx, f, &p, partial_val, false);
     uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
-    uint128_t service_fee = 0;
-    // Variable naming is historical: for BID these represent different tokens
-    // ASK: buyer_gets_base=BASE, buyer_spends_quote=QUOTE, seller_gets_quote=QUOTE
-    // BID: buyer_gets_base→QUOTE, buyer_spends_quote→BASE, seller_gets_quote→BASE
-    uint128_t buyer_gets_base, buyer_spends_quote, seller_gets_quote;
     
-    if (ctx->tmpl->side == SIDE_ASK) {
-        seller_gets_quote = (partial_val * rate) / POW18;
-        if (ctx->pair->fee_config & 0x80)
-            service_fee = (seller_gets_quote * (ctx->pair->fee_config & 0x7F)) / 100;
-        buyer_gets_base = partial_val;
-        buyer_spends_quote = seller_gets_quote + service_fee;
-        if (seller_is_service)
-            seller_gets_quote += service_fee;
-        if (seller_is_net_collector && ctx->pair->quote_is_native)
-            seller_gets_quote += net_fee;
-    } else {
-        // BID with QUOTE budget (is_budget_buy=true): exec_quote = budget (exact), exec_sell = budget / rate
-        // Matcher stores exact exec_quote, no round-trip needed
-        uint128_t exec_quote = partial_val;  // QUOTE budget directly (exact!)
-        uint128_t exec_sell = (exec_quote * POW18) / rate;  // BASE = QUOTE / rate
-        seller_gets_quote = exec_sell;  // Seller gets BASE (named _quote for historical reasons)
-        if (ctx->pair->fee_config & 0x80)
-            service_fee = (exec_quote * (ctx->pair->fee_config & 0x7F)) / 100;
-        buyer_gets_base = exec_quote - service_fee;  // Buyer gets QUOTE minus fee
-        buyer_spends_quote = exec_sell;  // Buyer spends BASE
-        if (seller_is_net_collector && ctx->pair->base_is_native)
-            seller_gets_quote += net_fee;
-    }
-    
-    adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native, buyer_is_net_collector,
-                      net_fee, &buyer_spends_quote, &buyer_gets_base);
-    
-    // API: is_budget_buy=true means token buyer wants (ASK: BASE, BID: QUOTE)
     uint256_t budget_buy_valid = (ctx->tmpl->side == SIDE_ASK) ? valid_base : valid_quote;
     
-    // Snapshots
-    balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_coll_before, net_coll_after;
+    balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_before, net_after;
     
     // Step 3a: Valid partial in BUY token
     log_it(L_INFO, "--- Valid partial %d%% in BUY token ---", valid_pct);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_before);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_before);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_before);
     
     err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_buy_valid, true,
                                           f->network_fee, buyer_wallet, false, uint256_0, &tx);
@@ -1242,18 +1278,16 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         return -5;
     }
     
-    // Security tamper tests for OUT_COND SRV_DEX fields
-    // T7: Set blank order_root_hash (should have head hash) → reject
+    // Security tamper tests
     if (test_dex_tamper_and_verify_rejection(f, tx, buyer_wallet,
             tamper_order_root_hash, NULL, "Blank order_root_hash in partial") != 0) {
         dap_chain_datum_tx_delete(tx);
         return -70;
     }
     
-    // T8: Set wrong order_root_hash (random) → reject
     {
         dap_hash_fast_t fake_hash;
-        memset(&fake_hash, 0xCD, sizeof(fake_hash));  // Non-matching fake hash
+        memset(&fake_hash, 0xCD, sizeof(fake_hash));
         if (test_dex_tamper_and_verify_rejection(f, tx, buyer_wallet,
                 tamper_order_root_hash, &fake_hash, "Wrong order_root_hash in partial") != 0) {
             dap_chain_datum_tx_delete(tx);
@@ -1261,7 +1295,6 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         }
     }
     
-    // T9: Change tx_type from EXCHANGE to ORDER → reject
     {
         uint8_t wrong_type = DEX_TX_TYPE_ORDER;
         if (test_dex_tamper_and_verify_rejection(f, tx, buyer_wallet,
@@ -1280,36 +1313,14 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         return -6;
     }
     
-    // Verify balances (use pair tokens for consistent base=KEL, quote=USDT)
-    test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_after);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_after);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_after);
     
-    // ASK: buyer gets BASE, spends QUOTE; BID: buyer gets QUOTE, spends BASE
-    uint128_t buyer_base_delta, buyer_quote_delta, seller_base_delta, seller_quote_delta;
-    bool buyer_base_dec, buyer_quote_dec;
-    if (ctx->tmpl->side == SIDE_ASK) {
-        buyer_base_delta = buyer_gets_base;  buyer_base_dec = false;
-        buyer_quote_delta = buyer_spends_quote;  buyer_quote_dec = true;
-        seller_base_delta = (seller_is_net_collector && ctx->pair->base_is_native) ? net_fee : 0;
-        seller_quote_delta = seller_gets_quote;  // already includes service_fee if seller_is_service
-    } else {
-        // BID: buyer spends BASE (KEL), gets QUOTE (USDT)
-        buyer_base_delta = buyer_spends_quote;  buyer_base_dec = true;   // KEL spent
-        buyer_quote_delta = buyer_gets_base;  buyer_quote_dec = false;   // USDT received
-        seller_base_delta = seller_gets_quote;  // KEL received
-        uint128_t extra_quote = (seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
-        seller_quote_delta = (seller_is_service ? service_fee : 0) + extra_quote;
-    }
-    if (test_dex_snap_verify("Partial Buyer", &buyer_before, &buyer_after, buyer_base_delta, buyer_base_dec, buyer_quote_delta, buyer_quote_dec) != 0)
-        return -50;
-    if (test_dex_snap_verify("Partial Seller", &seller_before, &seller_after, seller_base_delta, false, seller_quote_delta, false) != 0)
-        return -51;
-    // Net fee: skip if buyer == net_collector (same address, fees already in buyer's costs)
-    if (!buyer_is_net_collector && !seller_is_net_collector) {
-        if (test_dex_snap_verify_fee("Partial Net", &net_coll_before, &net_coll_after, net_fee, false) != 0)
-            return -52;
-    }
+    int ret = verify_deltas("Partial", &buyer_before, &buyer_after, &seller_before, &seller_after,
+                            &net_before, &net_after, &d, &p, net_fee);
+    if (ret != 0)
+        return -50 + ret;
     log_it(L_NOTICE, "✓ Valid partial (BASE) accepted (balances verified)");
     
     // Rollback
@@ -1319,49 +1330,52 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         return -7;
     }
     
-    test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
     if (test_dex_snap_verify("Partial rollback", &buyer_before, &buyer_after, 0, false, 0, false) != 0)
         return -55;
     log_it(L_NOTICE, "✓ Rolled back for QUOTE test");
     
-    // Step 3b: Valid partial in SELL token (is_budget_buy=false: budget in token buyer SELLS)
-    // ASK: buyer sells QUOTE → valid_quote
-    // BID: buyer sells BASE → valid_base (needs canonical correction!)
+    // Step 3b: Valid partial in SELL token (is_budget_buy=false)
+    // BID with BASE budget requires canonical correction
     uint256_t budget_sell_valid = (ctx->tmpl->side == SIDE_ASK) ? valid_quote : valid_base;
+    expected_deltas_t d_sell = d;  // Start with same deltas as Step 3a
     
-    // Recalculate deltas for SELL token budget (different from BUY token budget in Step 3a)
     if (ctx->tmpl->side == SIDE_BID) {
         // BID with BASE budget: apply canonical correction (same as composer)
-        // budget = valid_base (BASE), exec_quote = budget * rate, exec_sell_canonical = exec_quote / rate
+        uint128_t rate = dap_uint256_to_uint128(order->price);
         uint128_t budget_base = dap_uint256_to_uint128(valid_base);
-        uint128_t exec_quote = (budget_base * rate) / POW18;  // round-trip step 1
-        uint128_t exec_sell_canonical = (exec_quote * POW18) / rate;  // round-trip step 2 (canonical)
-        seller_gets_quote = exec_sell_canonical;
-        service_fee = 0;
-        if (ctx->pair->fee_config & 0x80)
-            service_fee = (exec_quote * (ctx->pair->fee_config & 0x7F)) / 100;
-        buyer_gets_base = exec_quote - service_fee;
-        buyer_spends_quote = exec_sell_canonical;
-        if (seller_is_net_collector && ctx->pair->base_is_native)
-            seller_gets_quote += net_fee;
-        // Recalculate deltas for BID with QUOTE budget
-        buyer_base_delta = buyer_spends_quote;  buyer_base_dec = true;
-        buyer_quote_delta = buyer_gets_base;  buyer_quote_dec = false;
-        seller_base_delta = seller_gets_quote;
-        uint128_t extra_quote_3b = (seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
-        seller_quote_delta = (seller_is_service ? service_fee : 0) + extra_quote_3b;
-        adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native, buyer_is_net_collector,
-                          net_fee, &buyer_spends_quote, &buyer_gets_base);
-        // Update buyer deltas after fee adjustment
-        buyer_base_delta = buyer_spends_quote;
-        buyer_quote_delta = buyer_gets_base;
+        uint128_t exec_quote = (budget_base * rate) / S_POW18;
+        uint128_t exec_sell_canonical = (exec_quote * S_POW18) / rate;
+        
+        uint8_t fee_cfg = ctx->pair->fee_config;
+        uint128_t service_fee = 0;
+        if (fee_cfg & 0x80)
+            service_fee = (exec_quote * (fee_cfg & 0x7F)) / 100;
+        
+        d_sell.buyer_base = exec_sell_canonical;
+        d_sell.buyer_quote = exec_quote - service_fee;
+        d_sell.seller_base = exec_sell_canonical;
+        if (p.seller_is_net_collector && ctx->pair->base_is_native)
+            d_sell.seller_base += net_fee;
+        // BID: abs fee in native BASE aggregates to seller payout
+        if (p.seller_is_service && !(fee_cfg & 0x80) && ctx->pair->base_is_native)
+            d_sell.seller_base += S_ABS_SRV_FEE;
+        
+        uint128_t extra_quote = (p.seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
+        uint128_t abs_fee = (p.seller_is_service && !(fee_cfg & 0x80) && ctx->pair->quote_is_native)
+            ? S_ABS_SRV_FEE : 0;
+        d_sell.seller_quote = (p.seller_is_service ? service_fee : 0) + extra_quote + abs_fee;
+        
+        adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native,
+                          p.buyer_is_net_collector, net_fee, &d_sell.buyer_base, &d_sell.buyer_quote);
+        adjust_abs_service_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native,
+                               fee_cfg, &d_sell.buyer_base, &d_sell.buyer_quote);
     }
-    // ASK with QUOTE budget: same calculation as Step 3a (no correction needed)
     
     log_it(L_INFO, "--- Valid partial %d%% in SELL token ---", valid_pct);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_before);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_before);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_before);
     
     err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_sell_valid, false,
                                           f->network_fee, buyer_wallet, false, uint256_0, &tx);
@@ -1378,20 +1392,14 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         return -9;
     }
     
-    // Verify balances (use pair tokens)
-    test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_after);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_after);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_after);
     
-    if (test_dex_snap_verify("PartialQ Buyer", &buyer_before, &buyer_after, buyer_base_delta, buyer_base_dec, buyer_quote_delta, buyer_quote_dec) != 0)
-        return -56;
-    if (test_dex_snap_verify("PartialQ Seller", &seller_before, &seller_after, seller_base_delta, false, seller_quote_delta, false) != 0)
-        return -57;
-    // Net fee: skip if buyer == net_collector (same address)
-    if (!buyer_is_net_collector && !seller_is_net_collector) {
-        if (test_dex_snap_verify_fee("PartialQ Net", &net_coll_before, &net_coll_after, net_fee, false) != 0)
-            return -58;
-    }
+    ret = verify_deltas("PartialQ", &buyer_before, &buyer_after, &seller_before, &seller_after,
+                        &net_before, &net_after, &d_sell, &p, net_fee);
+    if (ret != 0)
+        return -56 + ret;
     log_it(L_NOTICE, "✓ Valid partial (QUOTE) accepted (balances verified)");
     
     // Rollback
@@ -1473,44 +1481,11 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
            dap_uint256_to_char_ex(min_from_origin).frac,
            compare256(test_amount, min_from_origin) < 0 ? "YES (test valid)" : "NO (test invalid)");
     
-    // Expected deltas for Step 1 (ASK vs BID have different fee logic)
-    const uint128_t POW18 = 1000000000000000000ULL;
-    const uint128_t POW36 = POW18 * POW18;
-    
-    // Determine net_fee collector before calculating deltas
-    const dap_chain_addr_t *net_fee_addr = test_get_net_fee_addr(f);
-    bool buyer_is_net_collector = dap_chain_addr_compare(buyer_addr, net_fee_addr);
-    bool seller_is_net_collector = dap_chain_addr_compare(seller_addr, net_fee_addr);
-    
+    // Init participants and calculate expected deltas for Step 1
+    participants_t p = init_participants(f, ctx, buyer_id);
     uint128_t partial_val = dap_uint256_to_uint128(partial_amount);
-    uint128_t rate = dap_uint256_to_uint128(order->price);
+    expected_deltas_t d1 = calc_purchase_deltas(ctx, f, &p, partial_val, false);
     uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
-    uint128_t service_fee = 0;
-    uint128_t buyer_gets_base, buyer_spends_quote, seller_gets_quote;
-    
-    if (ctx->tmpl->side == SIDE_ASK) {
-        seller_gets_quote = (partial_val * rate) / POW18;
-        if (ctx->pair->fee_config & 0x80)
-            service_fee = (seller_gets_quote * (ctx->pair->fee_config & 0x7F)) / 100;
-        buyer_gets_base = partial_val;
-        buyer_spends_quote = seller_gets_quote + service_fee;
-        if (seller_is_net_collector && ctx->pair->quote_is_native)
-            seller_gets_quote += net_fee;
-    } else {
-        // BID PARTIAL: rate is now canonical (QUOTE/BASE), no inversion needed
-        uint128_t exec_sell = (partial_val * POW18) / rate;  // BASE = QUOTE / rate
-        uint128_t exec_quote = (exec_sell * rate) / POW18;   // QUOTE = BASE * rate
-        seller_gets_quote = exec_sell;
-        if (ctx->pair->fee_config & 0x80)
-            service_fee = (exec_quote * (ctx->pair->fee_config & 0x7F)) / 100;
-        buyer_gets_base = exec_quote - service_fee;
-        buyer_spends_quote = exec_sell;
-        if (seller_is_net_collector && ctx->pair->base_is_native)
-            seller_gets_quote += net_fee;
-    }
-    
-    adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native, buyer_is_net_collector,
-                      net_fee, &buyer_spends_quote, &buyer_gets_base);
     
     // -------------------------------------------------------------------------
     // Step 1: Partial buy to create sub-minfill leftover
@@ -1518,10 +1493,10 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
     log_it(L_INFO, "--- Step 1: Partial %d%% (%s) → leftover %d%% ---",
            partial_pct, dap_uint256_to_char_ex(partial_amount).frac, leftover_pct);
     
-    balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_coll_before, net_coll_after;
-    test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_before);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_before);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_before);
+    balance_snap_t buyer_before, buyer_after, seller_before, seller_after, net_before, net_after;
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_before);
     
     dap_chain_datum_tx_t *tx_partial = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
@@ -1543,34 +1518,14 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
         return -2;
     }
     
-    // Verify balances
-    test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_after);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_after);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_after);
     
-    // ASK: buyer gets BASE, spends QUOTE; BID: buyer spends BASE, gets QUOTE
-    uint128_t buyer_base_delta, buyer_quote_delta, seller_base_delta, seller_quote_delta;
-    bool buyer_base_dec, buyer_quote_dec;
-    if (ctx->tmpl->side == SIDE_ASK) {
-        buyer_base_delta = buyer_gets_base;  buyer_base_dec = false;
-        buyer_quote_delta = buyer_spends_quote;  buyer_quote_dec = true;
-        seller_base_delta = (seller_is_net_collector && ctx->pair->base_is_native) ? net_fee : 0;
-        seller_quote_delta = seller_gets_quote;
-    } else {
-        buyer_base_delta = buyer_spends_quote;  buyer_base_dec = true;
-        buyer_quote_delta = buyer_gets_base;  buyer_quote_dec = false;
-        seller_base_delta = seller_gets_quote;
-        seller_quote_delta = (seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
-    }
-    if (test_dex_snap_verify("SubMF Buyer", &buyer_before, &buyer_after, buyer_base_delta, buyer_base_dec, buyer_quote_delta, buyer_quote_dec) != 0)
-        return -20;
-    if (test_dex_snap_verify("SubMF Seller", &seller_before, &seller_after, seller_base_delta, false, seller_quote_delta, false) != 0)
-        return -21;
-    // Net fee: skip if buyer == net_collector (same address)
-    if (!buyer_is_net_collector && !seller_is_net_collector) {
-        if (test_dex_snap_verify_fee("SubMF Net", &net_coll_before, &net_coll_after, net_fee, false) != 0)
-            return -22;
-    }
+    int ret = verify_deltas("SubMF", &buyer_before, &buyer_after, &seller_before, &seller_after,
+                            &net_before, &net_after, &d1, &p, net_fee);
+    if (ret != 0)
+        return -20 + ret;
     
     log_it(L_NOTICE, "✓ Partial %d%% accepted (balances verified)", partial_pct);
     ctx->order_hash = partial_hash;
@@ -1674,37 +1629,12 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
     log_it(L_INFO, "--- Step 4: Full buy of leftover (%s) ---",
            dap_uint256_to_char_ex(leftover_value).frac);
     
-    // Expected deltas for full buy of leftover (ASK vs BID)
     uint128_t left_val = dap_uint256_to_uint128(leftover_value);
-    uint128_t left_svc_fee = 0;
-    uint128_t left_buyer_gets, left_buyer_spends, left_seller_gets;
+    expected_deltas_t d4 = calc_purchase_deltas(ctx, f, &p, left_val, false);
     
-    if (ctx->tmpl->side == SIDE_ASK) {
-        left_seller_gets = (left_val * rate) / POW18;
-        if (ctx->pair->fee_config & 0x80)
-            left_svc_fee = (left_seller_gets * (ctx->pair->fee_config & 0x7F)) / 100;
-        left_buyer_gets = left_val;
-        left_buyer_spends = left_seller_gets + left_svc_fee;
-        if (seller_is_net_collector && ctx->pair->quote_is_native)
-            left_seller_gets += net_fee;
-    } else {
-        // BID: rate is now canonical (QUOTE/BASE), no inversion needed
-        uint128_t exec_sell = (left_val * POW18) / rate;  // BASE = QUOTE / rate
-        left_seller_gets = exec_sell;
-        if (ctx->pair->fee_config & 0x80)
-            left_svc_fee = (left_val * (ctx->pair->fee_config & 0x7F)) / 100;
-        left_buyer_gets = left_val - left_svc_fee;
-        left_buyer_spends = exec_sell;
-        if (seller_is_net_collector && ctx->pair->base_is_native)
-            left_seller_gets += net_fee;
-    }
-    
-    adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native, buyer_is_net_collector,
-                      net_fee, &left_buyer_spends, &left_buyer_gets);
-    
-    test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_before);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_before);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_before);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_before);
     
     dap_chain_datum_tx_t *tx_full = NULL;
     err = dap_chain_net_srv_dex_purchase(
@@ -1726,34 +1656,14 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
         return -9;
     }
     
-    // Verify balances
-    test_dex_snap_take_pair(f->net->net->pub.ledger, buyer_addr, ctx->pair, &buyer_after);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, seller_addr, ctx->pair, &seller_after);
-    test_dex_snap_take_pair(f->net->net->pub.ledger, net_fee_addr, ctx->pair, &net_coll_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.seller, ctx->pair, &seller_after);
+    test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_after);
     
-    // ASK: buyer gets BASE, spends QUOTE; BID: buyer spends BASE, gets QUOTE
-    uint128_t b_base_delta, b_quote_delta, s_base_delta, s_quote_delta;
-    bool b_base_dec, b_quote_dec;
-    if (ctx->tmpl->side == SIDE_ASK) {
-        b_base_delta = left_buyer_gets;  b_base_dec = false;
-        b_quote_delta = left_buyer_spends;  b_quote_dec = true;
-        s_base_delta = (seller_is_net_collector && ctx->pair->base_is_native) ? net_fee : 0;
-        s_quote_delta = left_seller_gets;
-    } else {
-        b_base_delta = left_buyer_spends;  b_base_dec = true;
-        b_quote_delta = left_buyer_gets;  b_quote_dec = false;
-        s_base_delta = left_seller_gets;
-        s_quote_delta = (seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
-    }
-    if (test_dex_snap_verify("SubMF Full Buyer", &buyer_before, &buyer_after, b_base_delta, b_base_dec, b_quote_delta, b_quote_dec) != 0)
-        return -90;
-    if (test_dex_snap_verify("SubMF Full Seller", &seller_before, &seller_after, s_base_delta, false, s_quote_delta, false) != 0)
-        return -91;
-    // Net fee: skip if buyer == net_collector (same address)
-    if (!buyer_is_net_collector && !seller_is_net_collector) {
-        if (test_dex_snap_verify_fee("SubMF Full Net", &net_coll_before, &net_coll_after, net_fee, false) != 0)
-            return -92;
-    }
+    ret = verify_deltas("SubMF Full", &buyer_before, &buyer_after, &seller_before, &seller_after,
+                        &net_before, &net_after, &d4, &p, net_fee);
+    if (ret != 0)
+        return -90 + ret;
     
     log_it(L_NOTICE, "✓ Full buy of sub-minfill leftover accepted (balances verified)");
     log_it(L_NOTICE, "✓ SUB-MINFILL PHASE COMPLETE (only full buy allowed)");
@@ -2071,6 +1981,223 @@ static int run_phase_update_leftover(test_context_t *ctx) {
     ctx->order.value = new_value;
     
     log_it(L_NOTICE, "✓ UPDATE LEFTOVER COMPLETE");
+    return 0;
+}
+
+// ============================================================================
+// FINAL: CANCEL ALL REMAINING ORDERS (owner-driven cleanup)
+// Uses ledger iterator instead of stored context; tampering before valid cancel
+// ============================================================================
+
+typedef struct {
+    dap_hash_fast_t tail;
+    dap_chain_addr_t seller_addr;
+    char sell_token[DAP_CHAIN_TICKER_SIZE_MAX];
+    char buy_token[DAP_CHAIN_TICKER_SIZE_MAX];
+} active_order_t;
+
+static int s_collect_active_orders(dex_test_fixture_t *f, active_order_t *out, size_t max_count, size_t *out_count) {
+    if (!f || !out || !out_count)
+        return -1;
+    *out_count = 0;
+    dap_ledger_t *ledger = f->net->net->pub.ledger;
+    dap_ledger_datum_iter_t *it = dap_ledger_datum_iter_create(f->net->net);
+    if (!it)
+        return -2;
+    for (dap_chain_datum_tx_t *tx = dap_ledger_datum_iter_get_first(it); tx; tx = dap_ledger_datum_iter_get_next(it)) {
+        int l_out_idx = 0;
+        dap_chain_tx_out_cond_t *l_out = dap_chain_datum_tx_out_cond_get(tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_out_idx);
+        if (!l_out || dap_ledger_tx_hash_is_used_out_item(ledger, &it->cur_hash, l_out_idx, NULL))
+            continue;
+        if (*out_count >= max_count)
+            break;
+        active_order_t *slot = &out[*out_count];
+        slot->tail = it->cur_hash;
+        slot->seller_addr = l_out->subtype.srv_dex.seller_addr;
+        const char *sell_tok = dap_ledger_tx_get_token_ticker_by_hash(ledger, &it->cur_hash);
+        dap_strncpy(slot->sell_token, sell_tok ? sell_tok : "", sizeof(slot->sell_token) - 1);
+        dap_strncpy(slot->buy_token, l_out->subtype.srv_dex.buy_token, sizeof(slot->buy_token) - 1);
+        (*out_count)++;
+    }
+    dap_ledger_datum_iter_delete(it);
+    return 0;
+}
+
+static dap_chain_wallet_t *s_wallet_by_addr(dex_test_fixture_t *f, const dap_chain_addr_t *addr) {
+    if (dap_chain_addr_compare(addr, &f->alice_addr)) return f->alice;
+    if (dap_chain_addr_compare(addr, &f->bob_addr))   return f->bob;
+    if (dap_chain_addr_compare(addr, &f->carol_addr)) return f->carol;
+    return NULL;
+}
+
+static int run_cancel_all_active(dex_test_fixture_t *f) {
+    log_it(L_INFO, "=== FINAL: CANCEL ALL ACTIVE ORDERS ===");
+    
+    active_order_t orders[256];
+    size_t count = 0;
+    int ret = s_collect_active_orders(f, orders, sizeof(orders)/sizeof(orders[0]), &count);
+    if (ret != 0) {
+        log_it(L_ERROR, "Collect active orders failed: %d", ret);
+        return -1;
+    }
+    if (count == 0) {
+        log_it(L_NOTICE, "No active orders to cancel");
+        return 0;
+    }
+    
+    for (size_t i = 0; i < count; i++) {
+        active_order_t *o = &orders[i];
+        dap_chain_wallet_t *seller_wallet = s_wallet_by_addr(f, &o->seller_addr);
+        if (!seller_wallet) {
+            log_it(L_WARNING, "Skip cancel: unknown seller for %s", dap_chain_hash_fast_to_str_static(&o->tail));
+            continue;
+        }
+        
+        // Build CANCEL TX template
+        dap_chain_datum_tx_t *tx_template = NULL;
+        dap_chain_net_srv_dex_remove_error_t err = dap_chain_net_srv_dex_remove(
+            f->net->net, &o->tail, f->network_fee, seller_wallet, &tx_template
+        );
+        if (err != DEX_REMOVE_ERROR_OK || !tx_template) {
+            log_it(L_ERROR, "Cancel build failed for %s: err=%d", dap_chain_hash_fast_to_str_static(&o->tail), err);
+            return -2;
+        }
+        
+        // Tampering: inflate refund
+        tamper_output_data_t tamper_data = {
+            .target_addr = (dap_chain_addr_t*)&o->seller_addr,
+            .token = o->sell_token,
+            .tampered_value = dap_chain_coins_to_balance("99999.0")
+        };
+        if (test_dex_tamper_and_verify_rejection(f, tx_template, seller_wallet,
+                tamper_inflate_output, &tamper_data, "CANCEL-ALL: inflate refund") != 0) {
+            dap_chain_datum_tx_delete(tx_template);
+            return -12;
+        }
+        
+        // Valid CANCEL
+        dap_hash_fast_t cancel_hash = {0};
+        dap_hash_fast(tx_template, dap_chain_datum_tx_get_size(tx_template), &cancel_hash);
+        if (dap_ledger_tx_add(f->net->net->pub.ledger, tx_template, &cancel_hash, false, NULL) != 0) {
+            log_it(L_ERROR, "Valid CANCEL (all) rejected");
+            dap_chain_datum_tx_delete(tx_template);
+            return -3;
+        }
+        
+        log_it(L_NOTICE, "✓ CANCEL-ALL success: %s", dap_chain_hash_fast_to_str_static(&o->tail));
+    }
+    
+    return 0;
+}
+
+// ============================================================================
+// SEED ORDERBOOK (multi-level ASK/BID by roles)
+// ============================================================================
+
+static int s_seed_create_order(
+    dex_test_fixture_t *f,
+    const test_pair_config_t *pair,
+    wallet_id_t seller,
+    uint8_t side,
+    uint8_t min_fill,
+    const char *rate_str,
+    const char *amount_str)
+{
+    dap_chain_wallet_t *wallet = get_wallet(f, seller);
+    if (!wallet) {
+        log_it(L_ERROR, "Seed create: wallet not found");
+        return -1;
+    }
+    const char *sell_token, *buy_token;
+    get_order_tokens(pair, side, &sell_token, &buy_token);
+    
+    uint256_t value = dap_chain_coins_to_balance(amount_str);
+    uint256_t rate_value = dap_chain_coins_to_balance(rate_str);
+    dap_chain_datum_tx_t *create_tx = NULL;
+    dap_chain_net_srv_dex_create_error_t err = dap_chain_net_srv_dex_create(
+        f->net->net, buy_token, sell_token, value, rate_value, min_fill, f->network_fee, wallet, &create_tx
+    );
+    if (err != DEX_CREATE_ERROR_OK || !create_tx) {
+        log_it(L_ERROR, "Seed create failed: err=%d side=%u pair=%s/%s rate=%s amount=%s",
+               err, side, pair->base_token, pair->quote_token, rate_str, amount_str);
+        return -2;
+    }
+    // Enforce unique ts_created only for same-rate seeds (FIFO tie-break) with resign
+    static dap_time_t s_seed_ts_base = 0;
+    static uint64_t s_seed_ts_counter = 0;
+    static uint256_t s_prev_rate = {0};
+    if (!s_seed_ts_base)
+        s_seed_ts_base = dap_time_now();
+    if (EQUAL_256(s_prev_rate, rate_value)) {
+        dap_time_t new_ts = s_seed_ts_base + s_seed_ts_counter++;
+        if (!tamper_ts_created(create_tx, &new_ts) || s_resign_tx(&create_tx, wallet) != 0) {
+            log_it(L_ERROR, "Seed ts tamper/resign failed");
+            dap_chain_datum_tx_delete(create_tx);
+            return -4;
+        }
+    } else {
+        s_prev_rate = rate_value;
+        s_seed_ts_counter = 0;
+        // First order with this rate uses base ts; still resign to align signatures
+        if (s_resign_tx(&create_tx, wallet) != 0) {
+            log_it(L_ERROR, "Seed ts resign failed");
+            dap_chain_datum_tx_delete(create_tx);
+            return -5;
+        }
+    }
+    dap_hash_fast_t h = {0};
+    dap_hash_fast(create_tx, dap_chain_datum_tx_get_size(create_tx), &h);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, create_tx, &h, false, NULL) != 0) {
+        log_it(L_ERROR, "Seed create rejected by ledger");
+        dap_chain_datum_tx_delete(create_tx);
+        return -3;
+    }
+    log_it(L_NOTICE, "Seed order created: %s %s/%s rate=%s value=%s minfill=%d%s",
+           side == SIDE_ASK ? "ASK" : "BID",
+           pair->base_token, pair->quote_token, rate_str, amount_str,
+           MINFILL_PCT(min_fill), MINFILL_IS_FROM_ORIGIN(min_fill) ? " origin" : "");
+    return 0;
+}
+
+int run_seed_orderbook(dex_test_fixture_t *f) {
+    log_it(L_NOTICE, "=== SEED ORDERBOOK (multi-level) ===");
+    
+    const test_pair_config_t *pairs = test_get_standard_pairs();
+    size_t pairs_count = test_get_standard_pairs_count();
+    
+    const char *ask_rates[] = {"2.5", "2.6", "2.8"};
+    const char *bid_rates[] = {"0.3", "0.4", "0.6"};
+    const uint8_t mfs[] = {MINFILL_NONE, MINFILL_50_CURRENT, MINFILL_75_ORIGIN};
+    const char *ask_amount = "10.0";
+    const char *bid_amount = "7.5";
+    
+    for (size_t p = 0; p < pairs_count; p++) {
+        const test_pair_config_t *pair = &pairs[p];
+        log_it(L_NOTICE, "--- Seeding pair %s ---", pair->description);
+        
+        // Alice ASKs: three levels
+        for (int i = 0; i < 3; i++) {
+            if (s_seed_create_order(f, pair, WALLET_ALICE, SIDE_ASK, mfs[i], ask_rates[i], ask_amount) != 0)
+                return -100 - i;
+        }
+        // Bob BIDs: three levels
+        for (int i = 0; i < 3; i++) {
+            // Bob has no KEL; skip BID for pairs with quote=KEL (CELL/KEL)
+            if (!dap_strcmp(pair->quote_token, "KEL")) {
+                log_it(L_INFO, "Skip Bob BID for pair %s (no KEL balance)", pair->description);
+                break;
+            }
+            if (s_seed_create_order(f, pair, WALLET_BOB, SIDE_BID, mfs[i], bid_rates[i], bid_amount) != 0)
+                return -110 - i;
+        }
+        // Carol mid-level ASK/BID (service wallet)
+        if (s_seed_create_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_50_CURRENT, ask_rates[1], ask_amount) != 0)
+            return -120;
+        if (s_seed_create_order(f, pair, WALLET_CAROL, SIDE_BID, MINFILL_50_CURRENT, bid_rates[1], bid_amount) != 0)
+            return -121;
+    }
+    
+    test_dex_dump_orderbook(f, "After seed");
     return 0;
 }
 
@@ -2490,12 +2617,11 @@ int run_order_lifecycle(
         .fixture = f,
         .pair = pair,
         .tmpl = tmpl,
-        .order = {0},
         .pair_idx = pair_idx,
         .tmpl_idx = tmpl_idx
     };
     
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "════════════════════════════════════════════════════════");
     log_it(L_NOTICE, "  ORDER LIFECYCLE [%zu.%zu]: %s %s min_fill=%s rate=%s",
            pair_idx, tmpl_idx,
@@ -2599,7 +2725,7 @@ static const char* get_net_fee_collector_name(net_fee_collector_t nfc) {
 }
 
 int run_lifecycle_tests(dex_test_fixture_t *f) {
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
     log_it(L_NOTICE, "║          DEX LIFECYCLE TESTS                             ║");
     log_it(L_NOTICE, "╚══════════════════════════════════════════════════════════╝");
@@ -2613,13 +2739,13 @@ int run_lifecycle_tests(dex_test_fixture_t *f) {
     for (net_fee_collector_t nfc = NET_FEE_DAVE; nfc <= NET_FEE_BOB; nfc++) {
         test_set_net_fee_collector(f, nfc);
         
-        log_it(L_NOTICE, "");
+        log_it(L_NOTICE, " ");
         log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
         log_it(L_NOTICE, "║  NET FEE COLLECTOR: %s", get_net_fee_collector_name(nfc));
         log_it(L_NOTICE, "╚══════════════════════════════════════════════════════════╝");
         
         for (size_t p = 0; p < pairs_count; p++) {
-            log_it(L_NOTICE, "");
+            log_it(L_NOTICE, " ");
             log_it(L_NOTICE, "┌──────────────────────────────────────────────────────────┐");
             log_it(L_NOTICE, "│  PAIR %zu/%zu: %s", p+1, pairs_count, pairs[p].description);
             log_it(L_NOTICE, "└──────────────────────────────────────────────────────────┘");
@@ -2640,7 +2766,16 @@ int run_lifecycle_tests(dex_test_fixture_t *f) {
         }
     }
     test_dex_dump_orderbook(f, "At success");
-    log_it(L_NOTICE, "");
+    
+    // Final cleanup: cancel all remaining active orders (owner-driven)
+    int cancel_all_ret = run_cancel_all_active(f);
+    if (cancel_all_ret != 0) {
+        log_it(L_ERROR, "Cancel-all phase failed: %d", cancel_all_ret);
+        return cancel_all_ret;
+    }
+    
+    test_dex_dump_orderbook(f, "After cancel-all");
+    log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
     log_it(L_NOTICE, "║  ✓ ALL %zu LIFECYCLE TESTS PASSED                        ║", passed);
     log_it(L_NOTICE, "╚══════════════════════════════════════════════════════════╝");

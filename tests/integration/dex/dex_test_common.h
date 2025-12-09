@@ -103,7 +103,7 @@ typedef int (*test_scenario_fn)(dex_test_fixture_t *f, const test_pair_config_t 
 typedef enum {
     NET_FEE_DAVE,   // Separate wallet (neutral case)
     NET_FEE_ALICE,  // Seller may == net collector
-    NET_FEE_BOB     // Seller may == net collector
+    NET_FEE_BOB     // Buyer may == net collector
 } net_fee_collector_t;
 
 typedef struct dex_test_fixture {

@@ -109,7 +109,7 @@ void test_set_net_fee_collector(dex_test_fixture_t *fixture, net_fee_collector_t
             break;
         case NET_FEE_BOB:
             addr = &fixture->bob_addr;
-            name = "Bob (seller)";
+            name = "Bob (buyer)";
             break;
         default:
             log_it(L_ERROR, "Unknown net fee collector: %d", collector);
@@ -200,6 +200,16 @@ static const test_pair_config_t TEST_PAIRS[] = {
         .base_is_native = false,
         .fee_config = 3,  // 3 TestCoin (absolute)
         .description = "CELL/KEL (3 TestCoin absolute fee)"
+    },
+    
+    // Configuration 6: NATIVE absolute fee, native as BASE (unique for BID aggregation)
+    {
+        .base_token = "TestCoin",
+        .quote_token = "USDC",
+        .quote_is_native = false,
+        .base_is_native = true,
+        .fee_config = 4,  // 4 TestCoin (absolute) - covers l_can_agg_bid path
+        .description = "TestCoin/USDC (4 TestCoin absolute, native as BASE+fee)"
     }
 };
 

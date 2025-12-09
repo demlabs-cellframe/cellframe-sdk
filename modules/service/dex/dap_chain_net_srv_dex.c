@@ -2053,6 +2053,13 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
     }
     
     // OUTs depend on direction (ASK vs BID)
+    // Service fee aggregation: when seller == service_addr AND fee_token == seller's payout token
+    // - ASK: seller gets QUOTE, aggregate if fee_in_quote OR native == QUOTE
+    // - BID: seller gets BASE, aggregate if native == BASE
+    bool l_srv_fee_used = !IS_ZERO_256(l_reqs.fee_srv), 
+        l_native_is_quote = !strcmp(l_reqs.ticker_native, l_quote_ticker),
+        l_native_is_base = !strcmp(l_reqs.ticker_native, l_base_ticker);
+    
     if (l_reqs.side == DEX_SIDE_ASK) {
         // ASK: taker buys BASE, pays QUOTE
         
@@ -2060,8 +2067,9 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
         if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_buyer_addr, l_reqs.exec_sell, l_base_ticker, 0) == -1)
             RET_ERR;
         
-        // 2. Sellers receive QUOTE + Service fee (aggregated if in QUOTE)
-        const dap_chain_addr_t *l_srv_addr = (l_reqs.fee_in_quote && !IS_ZERO_256(l_reqs.fee_srv)) ? &l_reqs.service_addr : NULL;
+        // 2. Sellers receive QUOTE + Service fee (aggregated if fee_token == QUOTE)
+        bool l_can_agg_ask = l_reqs.fee_in_quote || l_native_is_quote;
+        const dap_chain_addr_t *l_srv_addr = (l_can_agg_ask && l_srv_fee_used) ? &l_reqs.service_addr : NULL;
         uint256_t l_srv_fee_agg = l_srv_addr ? l_reqs.fee_srv : uint256_0;
         if (s_dex_add_seller_payouts(&l_tx, a_matches, l_srv_addr, l_srv_fee_agg, l_quote_ticker, true) < 0)
             RET_ERR;
@@ -2070,22 +2078,25 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
         
         // 1. Buyer receives QUOTE (deduct QUOTE service fee if applicable)
         uint256_t l_taker_quote = l_reqs.sellers_payout_quote;
-        if (l_reqs.fee_in_quote && !IS_ZERO_256(l_reqs.fee_srv))
+        if (l_reqs.fee_in_quote && l_srv_fee_used)
             SUBTRACT_256_256(l_taker_quote, l_reqs.fee_srv, &l_taker_quote);
         
         if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_buyer_addr, l_taker_quote, l_quote_ticker, 0) == -1)
             RET_ERR;
         
-        // 1b. Service fee in QUOTE (if not waived)
-        if (l_reqs.fee_in_quote && !IS_ZERO_256(l_reqs.fee_srv)) {
+        // 1b. Service fee in QUOTE (if not waived and not aggregated to seller)
+        if (l_reqs.fee_in_quote && l_srv_fee_used) {
             if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_reqs.service_addr, l_reqs.fee_srv, l_quote_ticker, 0) == -1)
                 RET_ERR;
             debug_if(s_debug_more, L_DEBUG, "{ %s } Added service fee OUT in Q: %s %s", __FUNCTION__,
                 dap_uint256_to_char_ex(l_reqs.fee_srv).frac, l_quote_ticker);
         }
         
-        // 2. Sellers receive BASE (aggregated)
-        if (s_dex_add_seller_payouts(&l_tx, a_matches, NULL, uint256_0, l_base_ticker, false) < 0)
+        // 2. Sellers receive BASE + Service fee (aggregated if !fee_in_quote && native == BASE)
+        bool l_can_agg_bid = !l_reqs.fee_in_quote && l_native_is_base;
+        const dap_chain_addr_t *l_srv_addr_bid = (l_can_agg_bid && l_srv_fee_used) ? &l_reqs.service_addr : NULL;
+        uint256_t l_srv_fee_agg_bid = l_srv_addr_bid ? l_reqs.fee_srv : uint256_0;
+        if (s_dex_add_seller_payouts(&l_tx, a_matches, l_srv_addr_bid, l_srv_fee_agg_bid, l_base_ticker, false) < 0)
             RET_ERR;
     }
     
@@ -2095,8 +2106,12 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
     debug_if(s_debug_more, L_DEBUG, "{ %s } Added net fee and validator's fee %s %s", __FUNCTION__,
         dap_uint256_to_char_ex(l_reqs.network_fee).frac, l_reqs.ticker_native);
     
-    // 4. Service fee in NATIVE (if not QUOTE and not waived)
-    if (!l_reqs.fee_in_quote && !IS_ZERO_256(l_reqs.fee_srv)) {
+    // 4. Service fee in NATIVE (if not aggregated above)
+    // Skip if: fee_in_quote (already handled) OR native==QUOTE (ASK aggregated) OR !fee_in_quote && native==BASE (BID aggregated)
+    bool l_srv_fee_aggregated = l_reqs.fee_in_quote || 
+        (l_reqs.side == DEX_SIDE_ASK && l_native_is_quote) ||
+        (l_reqs.side == DEX_SIDE_BID && !l_reqs.fee_in_quote && l_native_is_base);
+    if (!l_srv_fee_aggregated && l_srv_fee_used) {
         if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_reqs.service_addr, l_reqs.fee_srv, l_reqs.ticker_native, 0) == -1)
             RET_ERR;
         debug_if(s_debug_more, L_DEBUG, "{ %s } Added service fee OUT in native: %s %s", __FUNCTION__,
@@ -3824,6 +3839,9 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         // Total fee = net_fee + validator_fee (buyer pays both even if fee_collector)
         uint256_t l_total_fee = uint256_0;
         SUM_256_256(l_net_fee_req, l_fee_native, &l_total_fee);
+        // Add abs service fee if buyer pays it in native token (ASK with native=sell_token)
+        if (l_srv_used && !l_fee_in_quote && !strcmp(l_sell_ticker, l_native_ticker))
+            SUM_256_256(l_total_fee, l_srv_fee_req, &l_total_fee);
         
         // Verify buyer contributed enough for fees (skip if buyer is fee collector)
         if (!l_buyer_is_fee_collector && l_net_used && !IS_ZERO_256(l_paid_net_fee)) {
@@ -4076,6 +4094,11 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                     MULT_256_256(l_pct_256, l_quote_amount_canon, &l_srv_fee_req_canon);
                     DIV_256(l_srv_fee_req_canon, GET_256_FROM_64(100), &l_srv_fee_req_canon);
                 }
+            } else {
+                // Native absolute fee: use global fallback amount
+                pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+                l_srv_fee_req_canon = s_dex_native_fee_amount;
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
             }
             
             // Step 3: Verify canonical service fee matches preliminary fee (from Phase 2)
@@ -4092,6 +4115,8 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             // In Phase 3, if seller == service and fee_ticker == buy_token,
             // preliminary expected_buy was increased by l_srv_fee_req.
             // We need to add l_srv_fee_req_canon to canonical expected_buy before comparison.
+            // NOTE: For BID, l_base_total was derived from expected_buy (which already includes
+            // aggregated fee), so we skip adding fee again to avoid double-counting.
             int l_srv_seller_idx = -1;
             for (int i = 0; i < l_uniq_sllrs_cnt; i++) {
                 if (dap_chain_addr_compare(&l_sellers[i].addr, &l_srv_addr)) { 
@@ -4101,7 +4126,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             }
             bool l_is_buyer_service = (l_buyer_addr && dap_chain_addr_compare(l_buyer_addr, &l_srv_addr));
             bool l_fee_was_aggregated = (l_srv_seller_idx >= 0 && l_srv_ticker && !strcmp(l_srv_ticker, l_buy_ticker) && !l_is_buyer_service);
-            if (l_fee_was_aggregated && !IS_ZERO_256(l_srv_fee_req_canon)) {
+            if (l_baseline_side != DEX_SIDE_BID && l_fee_was_aggregated && !IS_ZERO_256(l_srv_fee_req_canon)) {
                 SUM_256_256(l_canon_expected_buy[l_srv_seller_idx], l_srv_fee_req_canon, 
                            &l_canon_expected_buy[l_srv_seller_idx]);
             }
@@ -7217,6 +7242,22 @@ tvl_output:
             json_object_object_add(l_pair_obj, "quote_token", json_object_new_string(l_pair->key.token_quote));
             json_object_object_add(l_pair_obj, "net_id_base", json_object_new_uint64(l_pair->key.net_id_base.uint64));
             json_object_object_add(l_pair_obj, "net_id_quote", json_object_new_uint64(l_pair->key.net_id_quote.uint64));
+            
+            // Fee info: fee_config + decoded mode/value
+            json_object *l_fee_obj = json_object_new_object();
+            uint8_t l_fc = l_pair->key.fee_config;
+            json_object_object_add(l_fee_obj, "config", json_object_new_int((int)l_fc));
+            if (l_fc & 0x80) {
+                uint8_t l_pct = l_fc & 0x7F;
+                json_object_object_add(l_fee_obj, "type", json_object_new_string("quote_pct"));
+                json_object_object_add(l_fee_obj, "percent", json_object_new_int((int)l_pct));
+            } else {
+                json_object_object_add(l_fee_obj, "type", json_object_new_string("native_abs"));
+                json_object_object_add(l_fee_obj, "amount", json_object_new_string(dap_uint256_to_char_ex(s_dex_native_fee_amount).frac));
+                json_object_object_add(l_fee_obj, "ticker", json_object_new_string(l_net->pub.native_ticker));
+            }
+            json_object_object_add(l_pair_obj, "fee", l_fee_obj);
+            
             json_object_array_add(l_pairs_arr, l_pair_obj);
         }
         pthread_rwlock_unlock(&s_dex_cache_rwlock);

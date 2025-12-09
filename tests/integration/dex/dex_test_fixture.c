@@ -102,7 +102,7 @@ dex_test_fixture_t* dex_test_fixture_create(void) {
     //   Result: ~initial state (minus 2x fees + 2x network fees)
     // ============================================================================
     
-    dap_chain_hash_fast_t kel_emission_hash, usdt_emission_hash, tc_emission_hash, cell_emission_hash;
+    dap_chain_hash_fast_t kel_emission_hash, usdt_emission_hash, usdc_emission_hash, tc_emission_hash, cell_emission_hash;
     
     test_token_fixture_t *cell_token = test_token_fixture_create_with_emission(
         fixture->net->ledger, "CELL", "1000000.0", "5000.0",
@@ -134,12 +134,25 @@ dex_test_fixture_t* dex_test_fixture_create(void) {
         goto cleanup;
     }
     
+    test_token_fixture_t *usdc_token = test_token_fixture_create_with_emission(
+        fixture->net->ledger, "USDC", "5000000.0", "50000.0",
+        &fixture->bob_addr, bob_cert, &usdc_emission_hash
+    );
+    if (!usdc_token) {
+        log_it(L_ERROR, "Failed to create USDC token");
+        test_token_fixture_destroy(usdt_token);
+        test_token_fixture_destroy(kel_token);
+        test_token_fixture_destroy(cell_token);
+        goto cleanup;
+    }
+    
     test_token_fixture_t *tc_token = test_token_fixture_create_with_emission(
         fixture->net->ledger, "TestCoin", "10000000.0", "100000.0",
         &fixture->alice_addr, alice_cert, &tc_emission_hash
     );
     if (!tc_token) {
         log_it(L_ERROR, "Failed to create TestCoin token");
+        test_token_fixture_destroy(usdc_token);
         test_token_fixture_destroy(usdt_token);
         test_token_fixture_destroy(kel_token);
         test_token_fixture_destroy(cell_token);
@@ -153,6 +166,7 @@ dex_test_fixture_t* dex_test_fixture_create(void) {
     if (!tc_bob_emission) {
         log_it(L_ERROR, "Failed to create TestCoin emission for Bob");
         test_token_fixture_destroy(tc_token);
+        test_token_fixture_destroy(usdc_token);
         test_token_fixture_destroy(usdt_token);
         test_token_fixture_destroy(kel_token);
         goto cleanup;
@@ -206,6 +220,20 @@ dex_test_fixture_t* dex_test_fixture_create(void) {
         goto cleanup;
     }
     
+    dap_chain_hash_fast_t usdc_carol_emission_hash = {0};
+    test_emission_fixture_t *usdc_carol_emission = test_emission_fixture_create_with_cert(
+        "USDC", dap_chain_coins_to_balance("10000.0"), &fixture->carol_addr, carol_cert
+    );
+    if (!usdc_carol_emission) {
+        log_it(L_ERROR, "Failed to create USDC emission for Carol");
+        goto cleanup;
+    }
+    if (test_emission_fixture_add_to_ledger(fixture->net->ledger, usdc_carol_emission) != 0 ||
+        !test_emission_fixture_get_hash(usdc_carol_emission, &usdc_carol_emission_hash)) {
+        log_it(L_ERROR, "Failed to add Carol's USDC emission to ledger");
+        goto cleanup;
+    }
+    
     dap_chain_hash_fast_t tc_carol_emission_hash = {0};
     test_emission_fixture_t *tc_carol_emission = test_emission_fixture_create_with_cert(
         "TestCoin", dap_chain_coins_to_balance("100000.0"), &fixture->carol_addr, carol_cert
@@ -252,6 +280,14 @@ dex_test_fixture_t* dex_test_fixture_create(void) {
         goto cleanup;
     }
     
+    test_tx_fixture_t *bob_usdc_tx = test_tx_fixture_create_from_emission(
+        fixture->net->ledger, &usdc_emission_hash, "USDC", "50000.0", &fixture->bob_addr, bob_cert
+    );
+    if (!bob_usdc_tx || test_tx_fixture_add_to_ledger(fixture->net->ledger, bob_usdc_tx) != 0) {
+        log_it(L_ERROR, "Failed to add Bob USDC TX");
+        goto cleanup;
+    }
+    
     test_tx_fixture_t *bob_tc_tx = test_tx_fixture_create_from_emission(
         fixture->net->ledger, &tc_bob_emission_hash, "TestCoin", "100000.0", &fixture->bob_addr, bob_cert
     );
@@ -285,6 +321,14 @@ dex_test_fixture_t* dex_test_fixture_create(void) {
         goto cleanup;
     }
     
+    test_tx_fixture_t *carol_usdc_tx = test_tx_fixture_create_from_emission(
+        fixture->net->ledger, &usdc_carol_emission_hash, "USDC", "10000.0", &fixture->carol_addr, carol_cert
+    );
+    if (!carol_usdc_tx || test_tx_fixture_add_to_ledger(fixture->net->ledger, carol_usdc_tx) != 0) {
+        log_it(L_ERROR, "Failed to add Carol USDC TX");
+        goto cleanup;
+    }
+    
     test_tx_fixture_t *carol_tc_tx = test_tx_fixture_create_from_emission(
         fixture->net->ledger, &tc_carol_emission_hash, "TestCoin", "100000.0", &fixture->carol_addr, carol_cert
     );
@@ -298,7 +342,7 @@ dex_test_fixture_t* dex_test_fixture_create(void) {
     dap_chain_net_tx_set_fee(fixture->net->net->pub.id, fixture->network_fee, fixture->dave_addr);
     log_it(L_NOTICE, "Network fee configured: 1.0 TestCoin → Dave (neutral)");
     
-    int l_fee_global_set = test_decree_fee_set(fixture->net->ledger, uint256_0, &fixture->carol_addr);
+    int l_fee_global_set = test_decree_fee_set(fixture->net->ledger, dap_chain_coins_to_balance("0.1"), &fixture->carol_addr);
     if (l_fee_global_set != 0) {
         log_it(L_ERROR, "Failed to set Carol as service wallet via decree");
         goto cleanup;
