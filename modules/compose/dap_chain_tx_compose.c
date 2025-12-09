@@ -817,7 +817,8 @@ typedef enum {
     TX_CREATE_COMPOSE_OUT_ERROR = -8,
     TX_CREATE_COMPOSE_OUT_COUNT_ERROR = -9,
     TX_CREATE_COMPOSE_IN_COND_ERROR = -10,
-    TX_CREATE_COMPOSE_INVALID_CONFIG = -11
+    TX_CREATE_COMPOSE_INVALID_CONFIG = -11,
+    TX_CREATE_COMPOSE_TX_CREATE_ERROR = -12
 } tx_create_compose_error_t;
 
 dap_json_t *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
@@ -967,6 +968,14 @@ dap_json_t *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const ch
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
+    } else {
+        // Add fallback error if no specific error was set
+        dap_json_t *l_errors = NULL;
+        if (!dap_json_object_get_ex(l_config->response_handler, "errors", &l_errors) || 
+            !dap_json_is_array(l_errors) || dap_json_array_length(l_errors) == 0) {
+            log_it(L_ERROR, "Failed to create transaction (unknown error)");
+            dap_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_TX_CREATE_ERROR, "Failed to create transaction");
+        }
     }
 
     DAP_DEL_MULTY(l_addr_to, l_value);
@@ -1605,7 +1614,13 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_get_datum_from_rpc(
                 dap_json_t *l_spent_out_json = dap_json_array_get_idx(l_spent_outs, i);
                 if (dap_json_object_get_int(l_spent_out_json, "out_idx") == l_out_idx) {
                     const char *l_spent_by_tx = dap_json_object_get_string(l_spent_out_json, "spent_by_tx");
-                    *a_spent_by_hash = dap_strdup(l_spent_by_tx);
+                    // Check if spent_by_tx is valid (not NULL, not empty, not a zero hash)
+                    if (l_spent_by_tx && *l_spent_by_tx) {
+                        dap_hash_fast_t l_check_hash = {};
+                        if (!dap_chain_hash_fast_from_str(l_spent_by_tx, &l_check_hash) && !dap_hash_fast_is_blank(&l_check_hash)) {
+                            *a_spent_by_hash = dap_strdup(l_spent_by_tx);
+                        }
+                    }
                     break;
                 }
             }

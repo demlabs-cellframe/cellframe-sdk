@@ -1335,6 +1335,41 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 break;
             }
             
+            uint64_t l_srv_uid = 0;
+            if (!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid))
+                // Default service for wallet shared
+                l_srv_uid = DAP_CHAIN_WALLET_SHARED_ID;
+            
+            // Try to use raw params for exact TSD reconstruction (needed for signature verification)
+            const char *l_params_str = dap_json_object_get_string(a_json_item_obj, "params");
+            if (l_params_str && *l_params_str) {
+                // Decode raw TSD data from params to ensure byte-for-byte identical reconstruction
+                size_t l_params_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_params_str));
+                byte_t *l_params_data = DAP_NEW_Z_SIZE(byte_t, l_params_size);
+                if (l_params_data) {
+                    size_t l_params_decoded_size = dap_enc_base58_decode(l_params_str, l_params_data);
+                    if (l_params_decoded_size > 0) {
+                        // Create out_cond with raw TSD data
+                        size_t l_item_size = sizeof(dap_chain_tx_out_cond_t) + l_params_decoded_size;
+                        dap_chain_tx_out_cond_t *l_out_cond_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, l_item_size);
+                        if (l_out_cond_item) {
+                            l_out_cond_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+                            l_out_cond_item->header.value = l_value;
+                            l_out_cond_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED;
+                            l_out_cond_item->header.srv_uid.uint64 = l_srv_uid;
+                            l_out_cond_item->subtype.wallet_shared.signers_minimum = (uint32_t)l_min_sig_count;
+                            l_out_cond_item->tsd_size = l_params_decoded_size;
+                            memcpy(l_out_cond_item->tsd, l_params_data, l_params_decoded_size);
+                            DAP_DELETE(l_params_data);
+                            SUM_256_256(*a_value_need, l_value, a_value_need);
+                            return (uint8_t *)l_out_cond_item;
+                        }
+                    }
+                    DAP_DELETE(l_params_data);
+                }
+            }
+            
+            // Fallback: recreate from individual fields if params not available
             // Read owner public key hashes array
             dap_json_t *l_json_pkey_hashes = dap_json_object_get_object(a_json_item_obj, "owner_pkey_hashes");
             if(!l_json_pkey_hashes || !dap_json_is_array(l_json_pkey_hashes)) {
@@ -1405,11 +1440,6 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                     dap_string_free(l_tags_string, false);
                 }
             }
-            
-            uint64_t l_srv_uid = 0;
-            if (!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid))
-                // Default service for wallet shared
-                l_srv_uid = DAP_CHAIN_WALLET_SHARED_ID;
             
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared((dap_chain_srv_uid_t){.uint64 = l_srv_uid},
                                                                                                              l_value, (uint32_t)l_min_sig_count, l_pkey_hashes,

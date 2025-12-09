@@ -690,16 +690,11 @@ dap_json_t *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_i
             log_it(L_ERROR, "Failed to get rpc answer");
             return dap_chain_tx_compose_config_return_response_handler(l_config);
         }
-        dap_json_t *l_json_coins = dap_json_array_get_idx(l_json_answer, 0);
-        if (!l_json_coins) {
-            log_it(L_ERROR, "Failed to get keys list");
-            return dap_chain_tx_compose_config_return_response_handler(l_config);
-        }
 
-        bool tx_exists = false;
-        int tx_count = dap_json_array_length(l_json_coins);
+        // Check if the transaction is still actively delegated (if so, need to revoke first)
+        int tx_count = dap_json_array_length(l_json_answer);
         for (int i = 0; i < tx_count; i++) {
-            dap_json_t *tx_item = dap_json_array_get_idx(l_json_coins, i);
+            dap_json_t *tx_item = dap_json_array_get_idx(l_json_answer, i);
             const char *tx_hash = dap_json_object_get_string(tx_item, "tx_hash");
             if (tx_hash && strcmp(tx_hash, l_tx_hash_str_tmp) == 0) {
                 const char *l_pkey_hash_str = dap_json_object_get_string(tx_item, "pkey_hash");
