@@ -4782,17 +4782,17 @@ int dap_chain_net_srv_dex_init()
     dap_cli_server_cmd_add("srv_dex", s_cli_srv_dex, NULL, "DEX v2 service commands",
         "srv_dex order create -net <net_name> -token_sell <ticker> -token_buy <ticker> -w <wallet> -value <value> -rate <rate> -fee <fee>\n"
         "srv_dex order remove -net <net_name> -order <order_hash> -w <wallet> -fee <fee>\n"
-        "srv_dex order update -net <net_name> -order <root_hash> -w <wallet> [-rate <rate>] [-value_new <value>] -fee <fee>\n"
+        "srv_dex order update -net <net_name> -order <root_hash> -w <wallet> -value <value> -fee <fee>\n"
         "srv_dex orders -net <net_name> -pair <BASE/QUOTE> [-seller <addr>]\n"
         "srv_dex migrate -net <net_name> -from <tx[:idx]> -rate <RATE> -fee <FEE> -w <wallet>\n"
         "srv_dex orderbook -net <net_name> -pair <BASE/QUOTE> -depth <N>\n"
         "srv_dex status -net <net_name> -pair <BASE/QUOTE> [-seller <addr>]\n"
         "srv_dex market_rate -net <net_name> -pair <BASE/QUOTE> [-from <T0>] [-to <T1>] [-bucket <sec>]\n"
         "srv_dex tvl -net <net_name> -token <ticker>\n"
-        "srv_dex spread -net <net_name> -pair <BASE/QUOTE>\n"
+        "srv_dex spread -net <net_name> -pair <BASE/QUOTE> [-verbose]\n"
         "srv_dex volume -net <net_name> -pair <BASE/QUOTE> [-from <T0>] [-to <T1>] [-bucket <sec>]\n"
-        "srv_dex slippage -net <net_name> -pair <BASE/QUOTE> -value <VALUE> [-side buy|sell]\n"
-        "srv_dex history -net <net_name> -order <order_hash>\n"
+        "srv_dex slippage -net <net_name> -pair <BASE/QUOTE> -value <VALUE> -side buy|sell -unit base|quote\n"
+        "srv_dex history -net <net_name> -pair <BASE/QUOTE> [-from <T0>] [-to <T1>] [-bucket <sec>] [-seller <addr>]\n"
         "srv_dex purchase -net <net_name> -order <order_hash> -w <wallet> -value <value> [-unit sell|buy] -fee <fee> [-create_leftover_order] [-leftover_rate <rate>]\n"
         "srv_dex purchase_multi -net <net_name> -orders <hash1,hash2,...> -w <wallet> -value <value> [-unit sell|buy] -fee <fee> [-create_leftover_order] [-leftover_rate <rate>]\n"
         "srv_dex purchase_auto -net <net_name> -token_sell <ticker> -token_buy <ticker> -w <wallet> -value <value> [-unit sell|buy] [-min_rate <r>] [-fee <value>] [-create_leftover_order] [-leftover_rate <rate>] [-dry-run]\n"
@@ -5478,9 +5478,10 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
     case CMD_ORDER: {
         enum { SUBCMD_CREATE, SUBCMD_REMOVE, SUBCMD_UPDATE, SUBCMD_NONE } l_subcmd = SUBCMD_NONE;
         const char *l_order_hash_str = NULL;
-        if ( dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "create") >= l_arg_index) l_subcmd = SUBCMD_CREATE;
-        else if ( dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "remove") >= l_arg_index) l_subcmd = SUBCMD_REMOVE;
-        else if ( dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "update") >= l_arg_index) l_subcmd = SUBCMD_UPDATE;            
+        const int l_subcmd_idx = 2; // Position of subcommand after "srv_dex order"
+        if ( dap_cli_server_cmd_check_option(a_argv, l_subcmd_idx, a_argc, "create") >= l_subcmd_idx) l_subcmd = SUBCMD_CREATE;
+        else if ( dap_cli_server_cmd_check_option(a_argv, l_subcmd_idx, a_argc, "remove") >= l_subcmd_idx) l_subcmd = SUBCMD_REMOVE;
+        else if ( dap_cli_server_cmd_check_option(a_argv, l_subcmd_idx, a_argc, "update") >= l_subcmd_idx) l_subcmd = SUBCMD_UPDATE;            
 
         switch (l_subcmd) {
         case SUBCMD_CREATE: {
@@ -5571,7 +5572,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             dap_chain_wallet_close(l_wallet);
         } break;
         default:
-            return dap_json_rpc_error_add(*json_arr_reply, -1, "unknown subcommand %s", a_argv[l_arg_index]), -1;
+            return dap_json_rpc_error_add(*json_arr_reply, -1, "unknown subcommand %s", a_argv[l_subcmd_idx]), -1;
         }
     } break; // CMD_ORDER
 
@@ -6269,7 +6270,7 @@ tvl_output:
         const char *l_base = l_pair_base, *l_quote = l_pair_quote;
         const char *l_seller_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-seller", &l_seller_str);
-        dap_chain_addr_t l_seller;
+        dap_chain_addr_t l_seller = {};
         if (l_seller_str) {
             dap_chain_addr_t *l_seller_tmp = dap_chain_addr_from_str(l_seller_str);
             if (!l_seller_tmp)
