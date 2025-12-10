@@ -466,6 +466,7 @@ void dap_ledger_set_net_id(dap_ledger_t *a_ledger, dap_chain_net_id_t a_net_id);
 void dap_ledger_set_native_ticker(dap_ledger_t *a_ledger, const char *a_native_ticker);
 void dap_ledger_set_fee_params(dap_ledger_t *a_ledger, uint256_t a_fee_value, dap_chain_addr_t a_fee_addr);
 void dap_ledger_set_poa_keys(dap_ledger_t *a_ledger, dap_list_t *a_poa_keys, uint16_t a_min_count);
+void dap_ledger_set_syncing_state(dap_ledger_t *a_ledger, bool a_is_syncing);
 void dap_ledger_set_reward_removed_callback(dap_ledger_t *a_ledger, dap_ledger_reward_removed_callback_t a_callback);
 
 // Decree callback registration - modules register handlers for decree operations

@@ -20,7 +20,7 @@
  */
 
 #include "dap_chain_node.h"
-#include "dap_chain_node_cli_cmd.h"
+#include "../node-cli-cmd/include/dap_chain_node_cli_cmd.h"
 #include "dap_config.h"
 
 #ifdef DAP_OS_LINUX

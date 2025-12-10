@@ -7,7 +7,9 @@
 #include "dap_chain_ledger.h"
 #include "dap_http_server.h"
 #include "dap_cert.h"
-#include "dap_chain_block_cache.h"
+// Forward declarations to avoid circular dependency  
+typedef struct dap_chain_block_cache dap_chain_block_cache_t;
+typedef struct dap_chain_type_blocks dap_chain_type_blocks_t;
 /*
  // datum mempool structure
  typedef struct dap_datum_mempool {

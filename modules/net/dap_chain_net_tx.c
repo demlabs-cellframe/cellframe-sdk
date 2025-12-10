@@ -26,7 +26,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_common.h"
-#include "dap_chain_block_cache.h"
+#include "../type/blocks/include/dap_chain_block_cache.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_datum_tx_in_reward.h"
