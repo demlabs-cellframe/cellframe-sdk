@@ -9,6 +9,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_SRV_STAKE_SRCS} HEADERS ${DAP_SRV_ST
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PRIVATE ../../node-cli-cmd/include ../xchange/include)
 # All DAP SDK includes are automatically provided through dap_sdk target
 target_link_libraries(${PROJECT_NAME} dap_sdk dap_chain dap_chain_ledger dap_chain_net_srv dap_compose)
 

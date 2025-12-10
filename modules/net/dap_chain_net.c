@@ -1959,9 +1959,29 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
 
     int l_res = s_chains_init_all(a_net, a_net->pub.config->path, &l_ledger_flags);
     if (!l_res) {
-        a_net->pub.ledger = dap_ledger_create(a_net, l_ledger_flags);
-        dap_ledger_set_load_mode(a_net->pub.ledger, true);
-        dap_ledger_set_fee_callback(a_net->pub.ledger, dap_chain_net_tx_set_fee);
+        // Create ledger with new options API
+        dap_ledger_create_options_t *l_opts = dap_ledger_create_options_default();
+        if (!l_opts) {
+            log_it(L_ERROR, "Failed to create ledger options for net %s", a_net->pub.name);
+            return -1;
+        }
+        
+        // Configure ledger options from network
+        dap_strncpy(l_opts->name, a_net->pub.name, sizeof(l_opts->name));
+        l_opts->net_id = a_net->pub.id;
+        l_opts->flags = l_ledger_flags;
+        
+        // Create ledger
+        a_net->pub.ledger = dap_ledger_create(l_opts);
+        DAP_DELETE(l_opts);
+        
+        if (!a_net->pub.ledger) {
+            log_it(L_ERROR, "Failed to create ledger for net %s", a_net->pub.name);
+            return -1;
+        }
+        
+        // Set ledger callbacks and context
+        a_net->pub.ledger->load_mode = true;
     }
     
     return l_res;
@@ -2516,9 +2536,9 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
             return -156;
         return dap_ledger_token_emission_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_DECREE:
-        return dap_ledger_decree_verify(l_net, (dap_chain_datum_decree_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
+        return dap_ledger_decree_verify(l_net->pub.ledger, (dap_chain_datum_decree_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_ANCHOR:
-        return dap_ledger_anchor_verify(l_net, (dap_chain_datum_anchor_t *)a_datum->data, a_datum->header.data_size);
+        return dap_ledger_anchor_verify(l_net->pub.ledger, (dap_chain_datum_anchor_t *)a_datum->data, a_datum->header.data_size);
     default:
         if (a_chain->callback_datum_find_by_hash &&
                 a_chain->callback_datum_find_by_hash(a_chain, a_datum_hash, NULL, NULL))
@@ -2709,7 +2729,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                a_datum_size );
         return -101;
     }
-    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ledger_t *l_ledger = l_net->pub.ledger;
     if ( dap_ledger_datum_is_enforced(l_ledger, a_datum_hash, false) )
         return log_it(L_ERROR, "Datum %s is blacklisted", dap_hash_fast_to_str_static(a_datum_hash)), -100;
     switch (a_datum->header.type_id) {
@@ -2721,7 +2742,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                                             dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_decree_size);
                 return -102;
             }
-            return dap_ledger_decree_load(a_net->pub.ledger, l_decree, a_chain->id, a_datum_hash);
+            return dap_ledger_decree_load(l_net->pub.ledger, l_decree, a_chain->id, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_ANCHOR: {
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
@@ -2731,7 +2752,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                                             dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_anchor_size);
                 return -102;
             }
-            return dap_ledger_anchor_load(a_net->pub.ledger, l_anchor, a_chain->id, a_datum_hash);
+            return dap_ledger_anchor_load(l_net->pub.ledger, l_anchor, a_chain->id, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_TOKEN:
             return dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum->header.ts_create);
@@ -2783,7 +2804,8 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
                a_datum_size );
         return -101;
     }
-    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ledger_t *l_ledger = l_net->pub.ledger;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             return 0; 
@@ -2795,7 +2817,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
                 return -102;
             }
-            return dap_ledger_anchor_unload(a_net->pub.ledger, l_anchor, a_chain->id, a_datum_hash);
+            return dap_ledger_anchor_unload(l_net->pub.ledger, l_anchor, a_chain->id, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_TOKEN:
             return 0;
@@ -3286,9 +3308,9 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_ledger_set_syncing_state(a_net->pub.ledger, false);
     }
     if (a_new_state == NET_STATE_LOADING) {
-        dap_ledger_set_load_mode(a_net->pub.ledger, true);
+        a_net->pub.ledger->load_mode = true;
     } else {
-        dap_ledger_set_load_mode(a_net->pub.ledger, false);
+        a_net->pub.ledger->load_mode = false;
     }
     if (a_new_state == NET_STATE_OFFLINE) {
         char l_err_str[] = "ERROR_NET_IS_OFFLINE";

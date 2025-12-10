@@ -25,8 +25,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include "dap_chain.h"
 #include "dap_json.h"
-#include "dap_chain_block.h"
 #include "dap_chain_type_blocks.h"
+
+// Forward declarations
+typedef struct dap_global_db_cluster dap_global_db_cluster_t;
 #include "dap_global_db_driver.h"
 
 #define DAP_STREAM_CH_ESBOCS_ID                     'E'

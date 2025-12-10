@@ -35,7 +35,7 @@
 
 typedef struct dap_chain dap_chain_t;
 typedef struct dap_ledger dap_ledger_t;
-struct dap_config;
+typedef struct dap_conf dap_config_t;
 
 #define DAP_CHAIN_NET_NAME_MAX 32
 #define DAP_CHAIN_NET_NODES_POSTFIX "nodes.list"
@@ -67,7 +67,7 @@ typedef struct dap_chain_net {
         dap_chain_addr_t fee_addr;
         dap_chain_net_id_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
         uint16_t bridged_networks_count;
-        struct dap_config *config;
+        dap_config_t *config;
         dap_chain_node_role_t node_role;
         bool mempool_autoproc;
     } pub;

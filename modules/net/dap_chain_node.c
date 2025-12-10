@@ -885,7 +885,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                     continue;
                 }
                 bool l_is_applied = false;
-                l_decree = dap_ledger_decree_get_by_hash(l_net, &l_decree_hash, &l_is_applied);
+                l_decree = dap_ledger_decree_get_by_hash(l_net->pub.ledger, &l_decree_hash, &l_is_applied);
                 if (!l_decree) {
                     log_it(L_WARNING, "Can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
                     return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;

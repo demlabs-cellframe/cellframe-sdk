@@ -100,7 +100,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
     dap_chain_tx_out_cond_t *l_cond_out = NULL;
     dap_chain_addr_t l_net_fee_addr;
     uint16_t l_change_type = 0;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(dap_ledger_get_net_id(a_ledger), NULL, &l_net_fee_addr);
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         switch (*l_item) {

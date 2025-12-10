@@ -1110,7 +1110,8 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val_mempool_check(dap_ledger_
                                                        uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check)
 {
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
-    if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(a_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_need, a_value_transfer, a_mempool_check) != -101)
+    dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
+    if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_need, a_value_transfer, a_mempool_check) != -101)
         return l_list_used_out;
     dap_chain_hash_fast_t l_tx_cur_hash = { };
     uint256_t l_value_transfer = { };
@@ -1164,7 +1165,8 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val_mempool_check(dap_ledger_
             default:
                 continue;
             }
-            if (a_mempool_check && dap_chain_mempool_out_is_used(a_ledger->net, &l_tx_cur_hash, l_out_idx_tmp))
+            dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
+            if (a_mempool_check && dap_chain_mempool_out_is_used(l_net, &l_tx_cur_hash, l_out_idx_tmp))
                 continue;
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
@@ -1185,7 +1187,8 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_mempool_check(dap_ledger_t *a_ledg
                                         uint256_t *a_value_transfer, bool a_mempool_check)
 {
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
-    if (dap_chain_wallet_cache_tx_find_outs_mempool_check(a_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_transfer, a_mempool_check) != -101)
+    dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
+    if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_transfer, a_mempool_check) != -101)
         return l_list_used_out;
     dap_chain_hash_fast_t l_tx_cur_hash = { };
     uint256_t l_value_transfer = {};
@@ -1235,7 +1238,8 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_mempool_check(dap_ledger_t *a_ledg
             default:
                 continue;
             }
-            if (a_mempool_check && dap_chain_mempool_out_is_used(a_ledger->net, &l_tx_cur_hash, l_out_idx_tmp))
+            dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
+            if (a_mempool_check && dap_chain_mempool_out_is_used(l_net, &l_tx_cur_hash, l_out_idx_tmp))
                 continue;
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *(l_item) = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
