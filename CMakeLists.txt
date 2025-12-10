@@ -225,10 +225,10 @@ endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
 
-# Add libatomic for 32-bit ARM (required for 64-bit atomic operations)
+# Add libatomic for 32-bit systems (required for 64-bit atomic operations)
 # Must come AFTER all other libraries
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm" OR CMAKE_SYSTEM_PROCESSOR MATCHES "armv7")
-    message("[+] 32-bit ARM detected (${CMAKE_SYSTEM_PROCESSOR}), adding libatomic to cellframe-sdk")
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message("[+] 32-bit system detected (${CMAKE_SYSTEM_PROCESSOR}), adding libatomic to cellframe-sdk")
     target_link_libraries(${PROJECT_NAME} atomic)
 endif()
 
