@@ -225,13 +225,6 @@ endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
 
-# Add libatomic for 32-bit systems (required for 64-bit atomic operations)
-# Must come AFTER all other libraries
-if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message("[+] 32-bit system detected (${CMAKE_SYSTEM_PROCESSOR}), adding libatomic to cellframe-sdk")
-    target_link_libraries(${PROJECT_NAME} atomic)
-endif()
-
 # For .so
 #target_link_libraries(${PROJECT_NAME} -Wl,--whole-archive ${CELLFRAME_LIBS} -Wl,--no-whole-archive)
 
