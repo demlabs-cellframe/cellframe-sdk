@@ -960,6 +960,42 @@ dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger)
     return a_ledger ? a_ledger->net_id : (dap_chain_net_id_t){0};
 }
 
+// Global ledger registry for find functions
+static dap_ledger_t *s_ledger_registry = NULL; // Using uthash
+
+/**
+ * @brief Find ledger by name
+ * @param a_name Ledger name
+ * @return Ledger instance or NULL if not found
+ */
+dap_ledger_t *dap_ledger_find_by_name(const char *a_name)
+{
+    if (!a_name)
+        return NULL;
+    
+    dap_ledger_t *l_ledger, *l_tmp;
+    HASH_ITER(hh, s_ledger_registry, l_ledger, l_tmp) {
+        if (l_ledger->name && !dap_strcmp(l_ledger->name, a_name))
+            return l_ledger;
+    }
+    return NULL;
+}
+
+/**
+ * @brief Find ledger by network ID
+ * @param a_net_id Network ID
+ * @return Ledger instance or NULL if not found
+ */
+dap_ledger_t *dap_ledger_find_by_net_id(dap_chain_net_id_t a_net_id)
+{
+    dap_ledger_t *l_ledger, *l_tmp;
+    HASH_ITER(hh, s_ledger_registry, l_ledger, l_tmp) {
+        if (l_ledger->net_id.uint64 == a_net_id.uint64)
+            return l_ledger;
+    }
+    return NULL;
+}
+
 /**
  * @brief Register balance change notification callback
  */

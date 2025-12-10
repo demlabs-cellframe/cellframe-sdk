@@ -1,6 +1,7 @@
 /**
- * @file dap_chain_mempool_compose.h
- * @brief Mempool transaction compose API
+ * @file dap_chain_compose_in_mempool.h
+ * @brief Transaction compose API for mempool operations
+ * @details Functions for composing transactions that are stored in mempool
  */
 
 #pragma once
@@ -30,9 +31,9 @@ typedef enum dap_tx_cond_create_compose_error {
 } dap_tx_cond_create_compose_error_t;
 
 /**
- * @brief Create conditional transaction for mempool
+ * @brief Create conditional transaction and add to mempool
  */
-dap_chain_datum_tx_t* dap_chain_mempool_compose_tx_create_cond(
+dap_chain_datum_tx_t* dap_chain_compose_in_mempool_tx_create_cond(
     dap_chain_addr_t *a_wallet_addr, 
     dap_pkey_t *a_key_cond,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],

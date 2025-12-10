@@ -30,7 +30,6 @@
 #include "dap_enc_base64.h"
 #include "dap_global_db.h"
 #include "dap_chain_net_srv_countries.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_json.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"

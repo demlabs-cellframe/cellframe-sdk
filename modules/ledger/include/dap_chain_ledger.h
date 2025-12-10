@@ -124,6 +124,9 @@ typedef struct dap_ledger {
     
     // Private data
     void *_internal;
+    
+    // Hash table handle for global ledger registry
+    UT_hash_handle hh;
 } dap_ledger_t;
 
 typedef struct dap_ledger_locked_out {
@@ -459,6 +462,21 @@ bool dap_ledger_has_chain_id(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
 // Getters for ledger identification
 const char *dap_ledger_get_name(dap_ledger_t *a_ledger);
+dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger);
+
+/**
+ * @brief Find ledger by name
+ * @param a_name Ledger name
+ * @return Ledger instance or NULL if not found
+ */
+dap_ledger_t *dap_ledger_find_by_name(const char *a_name);
+
+/**
+ * @brief Find ledger by network ID
+ * @param a_net_id Network ID
+ * @return Ledger instance or NULL if not found
+ */
+dap_ledger_t *dap_ledger_find_by_net_id(dap_chain_net_id_t a_net_id);
 dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger);
 
 // Configuration setters - called by net module to setup ledger context

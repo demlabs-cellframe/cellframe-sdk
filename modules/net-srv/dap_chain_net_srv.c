@@ -652,7 +652,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
     }
 
     // Checking politics
-    if (dap_chain_policy_is_activated(a_ledger->net->pub.id, DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
+    if (dap_chain_policy_is_activated(dap_ledger_get_net_id(a_ledger), DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2) &&
         (!l_receipt || l_receipt->receipt_info.version < 2)){
         log_it(L_ERROR, "Receipt version must be >= 2.");
         return -17;
@@ -773,7 +773,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
     // find 'out' items
     uint256_t l_cond_out_value = {};
     dap_chain_addr_t l_network_fee_addr = {}, l_out_addr = {};
-    dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_network_fee_addr);
+    dap_chain_net_tx_get_fee(dap_ledger_get_net_id(a_ledger), NULL, &l_network_fee_addr);
     byte_t *l_item; size_t l_size; int i, l_item_idx = -1;
     TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_tx_in) {
         ++l_item_idx;
@@ -822,9 +822,10 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
 
 static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond)
 {
-    if (dap_chain_net_get_load_mode(a_ledger->net))
+    dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
+    if (!l_net || dap_chain_net_get_load_mode(l_net))
         return;
-    dap_chain_net_srv_t *l_net_srv = dap_chain_srv_get_internal(a_ledger->net->pub.id, a_cond->header.srv_uid);
+    dap_chain_net_srv_t *l_net_srv = dap_chain_srv_get_internal(dap_ledger_get_net_id(a_ledger), a_cond->header.srv_uid);
     if (!l_net_srv) // No error, just no active service found
         return;
     dap_chain_net_srv_ch_grace_control(l_net_srv, a_tx_out_hash);

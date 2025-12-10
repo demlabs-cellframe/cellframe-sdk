@@ -19,6 +19,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/module/net/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/module/global-db/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../type/blocks/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../service/stake/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../node-cli-cmd/include
 )
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_cs dap_chain_ledger dap_chain_net_srv dap_link_manager)

@@ -848,7 +848,7 @@ static void s_stake_ext_cache_event_callback(void *a_arg,
         log_it(L_DEBUG, "Stake_ext event data preview (%zu bytes): %s", l_preview_len, l_data_hex);
     }
 #ifndef DAP_STAKE_EXT_TEST
-    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
+    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(dap_ledger_get_net_id(a_ledger));
 #else
     struct stake_ext *l_stake_ext_service = a_arg;
 #endif
@@ -887,7 +887,7 @@ static void s_stake_ext_cache_event_callback(void *a_arg,
                     }
                     // Create new stake_ext entry with proper stake_ext started data
                     int l_result = s_stake_ext_cache_add_stake_ext(l_stake_ext_service, &a_event->tx_hash, 
-                                                                a_ledger->net->pub.id, a_event->group_name,
+                                                                dap_ledger_get_net_id(a_ledger), a_event->group_name,
                                                                 l_started_data, a_event->timestamp);
                     if (l_result != 0) {
                         log_it(L_ERROR, "Failed to add stake_ext %s to cache: %d", 
@@ -1073,7 +1073,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
 
     // 2. Extract lock amount from conditional output value
     uint256_t l_lock_amount = a_out_item->header.value;
-    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
+    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(dap_ledger_get_net_id(a_ledger));
     if (!l_stake_ext_service) {
         log_it(L_ERROR, "Failed to get stake_ext service");
         return;
@@ -1105,7 +1105,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
 static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,
             dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item)
 {
-    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
+    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(dap_ledger_get_net_id(a_ledger));
     if (!l_stake_ext_service) {
         log_it(L_ERROR, "Failed to get stake_ext service");
         return;
@@ -1160,7 +1160,7 @@ static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chai
 static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,
                                               dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_from_mempool)
 {
-    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
+    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(dap_ledger_get_net_id(a_ledger));
     if (!l_stake_ext_service) {
         log_it(L_ERROR, "Failed to get stake_ext service");
         return -11;

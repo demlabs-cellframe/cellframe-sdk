@@ -1,23 +1,22 @@
 /**
- * @file dap_chain_mempool_compose.c
- * @brief Mempool transaction compose functions
- * 
- * These functions were moved from modules/compose/ to eliminate circular dependencies.
+ * @file dap_chain_compose_in_mempool.c
+ * @brief Transaction compose functions for mempool operations
+ * @details Functions for composing transactions that are stored in mempool
  */
 
 #include "dap_common.h"
-#include "dap_chain_mempool.h"
-#include "dap_chain_mempool_compose.h"
+#include "dap_chain_compose_in_mempool.h"
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_ledger.h"
 #include "dap_pkey.h"
 
-#define LOG_TAG "mempool_compose"
+#define LOG_TAG "compose_in_mempool"
 
-// Mempool compose functions
-
-dap_chain_datum_tx_t *dap_chain_mempool_compose_tx_create_cond(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
+/**
+ * @brief Create conditional transaction and add to mempool
+ */
+dap_chain_datum_tx_t *dap_chain_compose_in_mempool_tx_create_cond(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max,
         dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_srv_uid_t a_srv_uid,

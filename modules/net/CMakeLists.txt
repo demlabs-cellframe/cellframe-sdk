@@ -15,6 +15,11 @@ target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_link_ma
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ../type/blocks/include
+    ../service/stake/include
+    ../wallet/include
+)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_HEADERS}")

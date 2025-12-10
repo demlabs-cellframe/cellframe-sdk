@@ -30,7 +30,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_token.h"
-#include "dap_chain_mempool_compose.h"
+#include "dap_chain_compose_in_mempool.h"
 #include "dap_math_ops.h"
 #include "dap_net.h"
 #include "dap_app_cli.h"
