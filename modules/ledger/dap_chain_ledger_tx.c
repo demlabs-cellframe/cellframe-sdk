@@ -1211,8 +1211,9 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
         }
         DAP_DELETE(l_gdb_group);
     }
-    // Note: Wallet notifications moved to wallet module where they belong
-    // Ledger only manages balances by address, not wallet names
+    // Note: Balance change notifications are now handled through 
+    // dap_ledger_balance_change_notifier system in dap_ledger_pvt_balance_update_for_addr
+    // Wallet module should register its own notifier for wallet-specific logic
     return 0;
 }
 
@@ -1347,9 +1348,13 @@ int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_add
     dap_ledger_wallet_balance_t *l_wallet_balance = NULL;
     char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, a_token_ticker, (char*)NULL);
     debug_if(g_debug_ledger, L_DEBUG, "%s %s to addr: %s", a_reverse ? "UNDO" : "GOT", dap_uint256_to_char(a_value, NULL), l_wallet_balance_key);
+    
     pthread_rwlock_wrlock(&l_ledger_pvt->balance_accounts_rwlock);
     HASH_FIND_STR(l_ledger_pvt->balance_accounts, l_wallet_balance_key, l_wallet_balance);
+    
+    uint256_t l_old_balance = {0};
     if (l_wallet_balance) {
+        l_old_balance = l_wallet_balance->balance;
         if (a_reverse) {
             int of = SUBTRACT_256_256(l_wallet_balance->balance, a_value, &l_wallet_balance->balance);
             assert(!of);
@@ -1376,9 +1381,22 @@ int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_add
         HASH_ADD_KEYPTR(hh, PVT(a_ledger)->balance_accounts, l_wallet_balance->key,
                         strlen(l_wallet_balance_key), l_wallet_balance);
     }
+    
+    uint256_t l_new_balance = l_wallet_balance->balance;
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
+    
     // Update the cache
     s_balance_cache_update(a_ledger, l_wallet_balance);
+    
+    // Notify all registered balance change listeners
+    for (dap_ledger_balance_change_notifier_t *l_notifier = l_ledger_pvt->balance_change_notifiers; 
+         l_notifier; 
+         l_notifier = l_notifier->next) {
+        if (l_notifier->callback) {
+            l_notifier->callback(a_ledger, a_addr, a_token_ticker, l_old_balance, l_new_balance, !a_reverse);
+        }
+    }
+    
     return 0;
 }
 

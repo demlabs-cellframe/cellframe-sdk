@@ -961,6 +961,56 @@ dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger)
 }
 
 /**
+ * @brief Register balance change notification callback
+ */
+void dap_ledger_balance_change_notifier_register(dap_ledger_t *a_ledger, 
+                                                  dap_ledger_balance_change_callback_t a_callback,
+                                                  void *a_user_data)
+{
+    if (!a_ledger || !a_callback)
+        return;
+    
+    dap_ledger_balance_change_notifier_t *l_notifier = DAP_NEW_Z(dap_ledger_balance_change_notifier_t);
+    if (!l_notifier) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return;
+    }
+    
+    l_notifier->callback = a_callback;
+    l_notifier->user_data = a_user_data;
+    
+    dap_ledger_private_t *l_pvt = PVT(a_ledger);
+    l_notifier->next = l_pvt->balance_change_notifiers;
+    l_pvt->balance_change_notifiers = l_notifier;
+    
+    log_it(L_INFO, "Registered balance change notifier for ledger '%s'", a_ledger->name);
+}
+
+/**
+ * @brief Unregister balance change notification callback
+ */
+void dap_ledger_balance_change_notifier_unregister(dap_ledger_t *a_ledger, 
+                                                    dap_ledger_balance_change_callback_t a_callback)
+{
+    if (!a_ledger || !a_callback)
+        return;
+    
+    dap_ledger_private_t *l_pvt = PVT(a_ledger);
+    dap_ledger_balance_change_notifier_t **l_current = &l_pvt->balance_change_notifiers;
+    
+    while (*l_current) {
+        if ((*l_current)->callback == a_callback) {
+            dap_ledger_balance_change_notifier_t *l_to_delete = *l_current;
+            *l_current = (*l_current)->next;
+            DAP_DELETE(l_to_delete);
+            log_it(L_INFO, "Unregistered balance change notifier for ledger '%s'", a_ledger->name);
+            return;
+        }
+        l_current = &(*l_current)->next;
+    }
+}
+
+/**
  * @brief Set network ID for ledger
  */
 void dap_ledger_set_net_id(dap_ledger_t *a_ledger, dap_chain_net_id_t a_net_id)

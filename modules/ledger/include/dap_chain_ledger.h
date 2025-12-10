@@ -64,6 +64,24 @@ typedef void (*dap_ledger_set_fee_callback_t)(dap_ledger_t *, uint256_t);
 typedef void (*dap_ledger_reward_removed_callback_t)(dap_ledger_t *);  // Callback when reward is removed during anchor unload
 typedef uint256_t (*dap_ledger_calc_reward_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);  // Calculate reward for block
 
+// Balance change notification callback
+// Called when balance changes for any address
+typedef void (*dap_ledger_balance_change_callback_t)(
+    dap_ledger_t *a_ledger,
+    const dap_chain_addr_t *a_addr,
+    const char *a_token_ticker,
+    uint256_t a_old_balance,
+    uint256_t a_new_balance,
+    bool a_is_add  // true = balance added, false = balance removed
+);
+
+// Balance change callback registration
+typedef struct dap_ledger_balance_change_notifier {
+    dap_ledger_balance_change_callback_t callback;
+    void *user_data;  // Optional user data for callback
+    struct dap_ledger_balance_change_notifier *next;
+} dap_ledger_balance_change_notifier_t;
+
 // Decree operation callbacks - called from ledger when decree needs to affect net/consensus/services
 typedef int (*dap_ledger_decree_set_fee_callback_t)(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain_addr_t a_fee_addr);
 
@@ -428,6 +446,13 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options);
 
 // Helper to create default options (random net_id, chain_id=0, name from net_id)
 dap_ledger_create_options_t *dap_ledger_create_options_default(void);
+
+// Balance change notification registration
+void dap_ledger_balance_change_notifier_register(dap_ledger_t *a_ledger, 
+                                                  dap_ledger_balance_change_callback_t a_callback,
+                                                  void *a_user_data);
+void dap_ledger_balance_change_notifier_unregister(dap_ledger_t *a_ledger, 
+                                                    dap_ledger_balance_change_callback_t a_callback);
 
 // Check if ledger manages specific chain_id
 bool dap_ledger_has_chain_id(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
