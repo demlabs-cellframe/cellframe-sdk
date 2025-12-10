@@ -223,13 +223,14 @@ if (DARWIN)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
-# Add libatomic for 32-bit ARM (required for 64-bit atomic operations)
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm" AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-    message("[+] 32-bit ARM detected, adding libatomic to cellframe-sdk")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} atomic)
-endif()
-
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+
+# Add libatomic for 32-bit ARM (required for 64-bit atomic operations)
+# Must come AFTER all other libraries
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm" OR CMAKE_SYSTEM_PROCESSOR MATCHES "armv7")
+    message("[+] 32-bit ARM detected (${CMAKE_SYSTEM_PROCESSOR}), adding libatomic to cellframe-sdk")
+    target_link_libraries(${PROJECT_NAME} atomic)
+endif()
 
 # For .so
 #target_link_libraries(${PROJECT_NAME} -Wl,--whole-archive ${CELLFRAME_LIBS} -Wl,--no-whole-archive)
