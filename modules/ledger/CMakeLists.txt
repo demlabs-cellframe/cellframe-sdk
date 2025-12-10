@@ -12,6 +12,8 @@ target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_notify_srv dap_cha
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../net/include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../consensus/include)
 
 # Add tests subdirectory if testing is enabled
 if(BUILD_CELLFRAME_SDK_TESTS)

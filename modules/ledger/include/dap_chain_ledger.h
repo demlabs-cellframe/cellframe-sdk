@@ -34,21 +34,75 @@
 #include "dap_math_ops.h"
 #include "dap_json.h"
 #include "dap_chain_common.h"
+#include "dap_chain.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
-//#include "dap_chain_net.h"
+
+// Forward declarations - ledger doesn't depend on net/chain modules
 
 
 #define DAP_CHAIN_NET_SRV_TRANSFER_ID 0x07
 #define DAP_CHAIN_NET_SRV_BLOCK_REWARD_ID 0x08
 #define DAP_CHAIN_NET_SRV_EVENT_ID 0x09
 
+typedef struct dap_ledger dap_ledger_t;
+
+// Ledger creation options
+typedef struct dap_ledger_create_options {
+    char name[256];                    // Ledger name (default: hex of net_id)
+    dap_chain_net_id_t net_id;         // Network ID (default: random with uniqueness check)
+    dap_chain_id_t *chain_ids;         // Array of chain IDs for this ledger
+    size_t chain_ids_count;            // Number of chain IDs (default: 1, with chain_id=0)
+    uint16_t flags;                    // Ledger flags
+} dap_ledger_create_options_t;
+
+// Callback typedefs
+typedef void (*dap_ledger_set_fee_callback_t)(dap_ledger_t *, uint256_t);
+typedef void (*dap_ledger_reward_removed_callback_t)(dap_ledger_t *);  // Callback when reward is removed during anchor unload
+
+// Decree operation callbacks - called from ledger when decree needs to affect net/consensus/services
+typedef int (*dap_ledger_decree_set_fee_callback_t)(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain_addr_t a_fee_addr);
+
+// Generic decree handler callback - for complex decree types that need full processing
+// Returns 0 on success, negative on error
+// Uses chain_id instead of chain pointer to avoid circular dependency
+typedef int (*dap_ledger_decree_handler_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_decree, dap_chain_id_t a_chain_id, bool a_apply, bool a_anchored);
+
 typedef struct dap_ledger {
-    dap_chain_net_t *net;
+    // Ledger identification
+    char name[256];                    // Ledger name
+    dap_chain_net_id_t net_id;         // Network ID
+    dap_chain_id_t *chain_ids;         // Array of chain IDs managed by this ledger
+    size_t chain_ids_count;            // Number of chain IDs
+    
+    // Network context - set by net module via setters
+    char native_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t fee_value;
+    dap_chain_addr_t fee_addr;
+    dap_list_t *poa_keys;  // PoA keys for signature validation
+    uint16_t poa_keys_min_count;
+    
+    // Ledger state flags
     bool is_hardfork_state;
+    bool load_mode;
+    bool check_ds;
+    bool is_syncing;
+    
+    // Callbacks
+    dap_ledger_set_fee_callback_t set_fee_callback;
+    dap_ledger_reward_removed_callback_t reward_removed_callback;
+    
+    // Decree operation callbacks
+    dap_ledger_decree_set_fee_callback_t decree_set_fee_callback;
+    
+    // Generic decree handler - for subtypes not handled in ledger (hardfork, consensus-specific, etc)
+    // This is registered by net/consensus/services modules for their specific decree subtypes
+    dap_ledger_decree_handler_callback_t decree_generic_callback;
+    
+    // Private data
     void *_internal;
 } dap_ledger_t;
 
@@ -207,7 +261,7 @@ typedef enum dap_chain_tx_tag_action_type {
 } dap_chain_tx_tag_action_type_t;
 
 typedef struct dap_ledger_datum_iter {
-    dap_chain_net_t *net;
+    dap_ledger_t *ledger;
     dap_chain_datum_tx_t *cur;
     dap_chain_hash_fast_t cur_hash;
     bool is_unspent;
@@ -263,8 +317,27 @@ typedef struct dap_ledger_datum_iter_data {
 extern "C" {
 #endif
 
+// Decree callback - modules register handlers for specific decree types
+// Called during decree apply/load operations
+// Chain module registers this callback and routes to appropriate handlers based on chain_id
+typedef int (*dap_ledger_decree_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_decree, bool a_apply, bool a_anchored);
+
+// Anchor unload callback - chain module registers handler that routes by chain_id
+// Called during anchor unload to revert decree effects
+// First level: ledger -> chain module (with chain_id)
+// Second level: chain module -> net/consensus/services (with actual chain pointer)
+typedef int (*dap_ledger_anchor_unload_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_decree, dap_chain_id_t a_chain_id, dap_hash_fast_t *a_anchor_hash);
+
 int dap_ledger_init();
 void dap_ledger_deinit();
+
+// Register decree callback for specific type/subtype
+// Chain module calls this to register handler that routes by chain_id
+void dap_ledger_decree_set_callback(uint16_t a_type, uint16_t a_subtype, dap_ledger_decree_callback_t a_callback);
+
+// Register anchor unload callback for specific decree type/subtype
+// Chain module calls this to register unload handler that routes by chain_id
+void dap_ledger_anchor_unload_set_callback(uint16_t a_type, uint16_t a_subtype, dap_ledger_anchor_unload_callback_t a_callback);
 
 DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_t a_error)
 {
@@ -349,15 +422,41 @@ typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chai
 typedef bool (*dap_ledger_tax_callback_t)(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_signer_pkey_hash, dap_chain_addr_t *a_tax_addr, uint256_t *a_tax_value);
 
 
-dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags);
+dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options);
+
+// Helper to create default options (random net_id, chain_id=0, name from net_id)
+dap_ledger_create_options_t *dap_ledger_create_options_default(void);
+
+// Check if ledger manages specific chain_id
+bool dap_ledger_has_chain_id(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
+
+// Getters for ledger identification
+const char *dap_ledger_get_name(dap_ledger_t *a_ledger);
+dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger);
+
+// Configuration setters - called by net module to setup ledger context
+void dap_ledger_set_net_id(dap_ledger_t *a_ledger, dap_chain_net_id_t a_net_id);
+void dap_ledger_set_native_ticker(dap_ledger_t *a_ledger, const char *a_native_ticker);
+void dap_ledger_set_fee_params(dap_ledger_t *a_ledger, uint256_t a_fee_value, dap_chain_addr_t a_fee_addr);
+void dap_ledger_set_poa_keys(dap_ledger_t *a_ledger, dap_list_t *a_poa_keys, uint16_t a_min_count);
+void dap_ledger_set_reward_removed_callback(dap_ledger_t *a_ledger, dap_ledger_reward_removed_callback_t a_callback);
+
+// Decree callback registration - modules register handlers for decree operations
+void dap_ledger_set_decree_set_fee_callback(dap_ledger_t *a_ledger, dap_ledger_decree_set_fee_callback_t a_callback);
+void dap_ledger_set_decree_generic_callback(dap_ledger_t *a_ledger, dap_ledger_decree_handler_callback_t a_callback);
+
+// Setup functions called by net module after ledger creation
+void dap_ledger_load_cache(dap_ledger_t *a_ledger);
+// HAL/HRL and timer setup moved to net module - ledger doesn't manage chains directly
 
 // Clear & remove dap_ledger_t structure
 void dap_ledger_handle_free(dap_ledger_t *a_ledger);
 
-DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const char *a_suffix)
+// Helper function for GDB groups - requires net parameter since ledger doesn't store it
+DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(const char *a_net_name, const char *a_suffix)
 {
-    return a_ledger && a_ledger->net && a_suffix
-            ? dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net->pub.name, a_suffix)
+    return a_net_name && a_suffix
+            ? dap_strdup_printf("local.ledger-cache.%s.%s", a_net_name, a_suffix)
             : NULL;
 }
 
@@ -418,7 +517,7 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
 
 // Hardfork support functions
 int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t a_hardfork_time);
-int dap_ledger_chain_purge(dap_chain_t *a_chain, size_t a_atom_size);
+int dap_ledger_chain_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id, size_t a_atom_size);
 
 /* Add stake-lock item */
 int dap_ledger_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash);
@@ -435,7 +534,7 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
 
 const char *dap_ledger_get_description_by_ticker(dap_ledger_t *a_ledger, const char *a_token_ticker);
 
-bool dap_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+bool dap_ledger_tx_poa_signed(dap_list_t *a_poa_keys, dap_chain_datum_tx_t *a_tx);
 
 //TX service-tags
 bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, char **a_service_name, dap_chain_srv_uid_t *uid, dap_chain_tx_tag_action_type_t *action);
@@ -528,7 +627,7 @@ int dap_ledger_tax_callback_set(dap_ledger_tax_callback_t a_callback);
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool a_reverse, bool a_unspent_only);
 
-dap_ledger_datum_iter_t *dap_ledger_datum_iter_create(dap_chain_net_t *a_net);
+dap_ledger_datum_iter_t *dap_ledger_datum_iter_create(dap_ledger_t *a_ledger);
 void dap_ledger_datum_iter_delete(dap_ledger_datum_iter_t *a_iter);
 dap_chain_datum_tx_t *dap_ledger_datum_iter_get_first(dap_ledger_datum_iter_t *a_iter);
 dap_chain_datum_tx_t *dap_ledger_datum_iter_get_next(dap_ledger_datum_iter_t *a_iter);
@@ -546,22 +645,22 @@ dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(d
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 
 void dap_ledger_decree_init(dap_ledger_t *a_ledger);
-int dap_ledger_decree_purge(dap_ledger_t *a_ledger);
+int dap_ledger_decree_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 
 uint16_t dap_ledger_decree_get_min_num_of_signers(dap_ledger_t *a_ledger);
 uint16_t dap_ledger_decree_get_num_of_owners(dap_ledger_t *a_ledger);
 const dap_list_t *dap_ledger_decree_get_owners_pkeys(dap_ledger_t *a_ledger);
 
-int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
-int dap_ledger_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash);
-int dap_ledger_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash);
-dap_chain_datum_decree_t *dap_ledger_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash, bool *is_applied);
-int dap_ledger_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_decree_hash);
+int dap_ledger_decree_apply(dap_ledger_t *a_ledger, dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_id_t a_chain_id, dap_hash_fast_t *a_anchor_hash);
+int dap_ledger_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash);
+int dap_ledger_decree_load(dap_ledger_t *a_ledger, dap_chain_datum_decree_t * a_decree, dap_chain_id_t a_chain_id, dap_chain_hash_fast_t *a_decree_hash);
+dap_chain_datum_decree_t *dap_ledger_decree_get_by_hash(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hash, bool *is_applied);
+int dap_ledger_decree_reset_applied(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_decree_hash);
 
-int dap_ledger_anchor_verify(dap_chain_net_id_t a_net_id, dap_chain_datum_anchor_t * a_anchor, size_t a_data_size);
-int dap_ledger_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
-int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash);
+int dap_ledger_anchor_verify(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t * a_anchor, size_t a_data_size);
+int dap_ledger_anchor_load(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t * a_anchor, dap_chain_id_t a_chain_id, dap_hash_fast_t *a_anchor_hash);
+int dap_ledger_anchor_unload(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t * a_anchor, dap_chain_id_t a_chain_id, dap_hash_fast_t *a_anchor_hash);
 dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash);
 int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 

@@ -33,21 +33,16 @@
 #include "dap_chain_common.h"
 #include "dap_chain_net_types.h"
 #include "dap_chain_net_utils.h"
-#include "dap_chain_net.h"
-#include "dap_chain_net_tx.h"
-#include "dap_chain_cs_esbocs.h"
 #include "dap_chain_ledger_pvt.h"
-#include "dap_chain_policy.h"
 #include "dap_chain.h"
 #include "dap_json.h"
-#include "dap_chain_srv.h"
 
 #define LOG_TAG "dap_ledger_decree"
 
 // Private fuctions prototype
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
-static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored);
-static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_ledger_t *a_ledger, bool a_apply, bool a_anchored);
+static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_ledger_t *a_ledger, bool a_apply);
 
 typedef struct dap_ledger_decree_callback_item {
     uint16_t type;
@@ -72,11 +67,11 @@ void dap_ledger_decree_set_callback(uint16_t a_type, uint16_t a_subtype, dap_led
 
 void dap_ledger_decree_init(dap_ledger_t *a_ledger) {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    l_ledger_pvt->decree_min_num_of_signers = a_ledger->net->pub.keys_min_count;
-    l_ledger_pvt->decree_num_of_owners = dap_list_length(a_ledger->net->pub.keys);
-    l_ledger_pvt->decree_owners_pkeys = a_ledger->net->pub.keys;
+    l_ledger_pvt->decree_min_num_of_signers = a_ledger->poa_keys_min_count;
+    l_ledger_pvt->decree_num_of_owners = dap_list_length(a_ledger->poa_keys);
+    l_ledger_pvt->decree_owners_pkeys = a_ledger->poa_keys;
     if ( !l_ledger_pvt->decree_owners_pkeys )
-        log_it(L_WARNING, "PoA certificates for net %s not found", a_ledger->net->pub.name);
+        log_it(L_WARNING, "PoA certificates not found for ledger");
 }
 
 static int s_decree_clear(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
@@ -84,7 +79,8 @@ static int s_decree_clear(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_decree_item_t *l_cur_decree, *l_tmp;
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
-    dap_chain_policy_net_purge(a_ledger->net->pub.id);
+    // Policy purge should be handled by callback from net module
+    // Net module should provide decree purge callback
     HASH_ITER(hh, l_ledger_pvt->decrees, l_cur_decree, l_tmp) {
         if (l_cur_decree->storage_chain_id.uint64 != a_chain_id.uint64)
             continue;
@@ -99,21 +95,15 @@ static int s_decree_clear(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
     return 0;
 }
 
-int dap_ledger_decree_purge(dap_ledger_t *a_ledger)
+int dap_ledger_decree_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
 {
     dap_return_val_if_fail(a_ledger, -1);
-    int ret = 0;
-    for (dap_chain_t *l_chain = a_ledger->net->pub.chains; l_chain; l_chain = l_chain->next) {
-        if (dap_chain_datum_type_supported_by_chain(l_chain, DAP_CHAIN_DATUM_DECREE)) {
-            ret += s_decree_clear(a_ledger, l_chain->id);
-            dap_list_free_full(PVT(a_ledger)->decree_owners_pkeys, NULL);
-        } else
-            ret += dap_ledger_anchor_purge(a_ledger, l_chain->id);
-    }
+    int ret = s_decree_clear(a_ledger, a_chain_id);
+    dap_list_free_full(PVT(a_ledger)->decree_owners_pkeys, NULL);
     return ret;
 }
 
-static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_anchored)
+static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_anchored)
 {
     if (a_data_size < sizeof(dap_chain_datum_decree_t)) {
         log_it(L_WARNING, "Decree size is too small");
@@ -123,12 +113,12 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
         log_it(L_WARNING, "Decree size is invalid");
         return -121;
     }
-    if (a_decree->header.common_decree_params.net_id.uint64 != a_net->pub.id.uint64) {
+    if (a_decree->header.common_decree_params.net_id.uint64 != a_ledger->net_id.uint64) {
         log_it(L_WARNING, "Decree net id is invalid");
         return -122;
     }
 
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_decree_item_t *l_sought_decree = NULL;
     pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
     HASH_FIND(hh, l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
@@ -159,15 +149,14 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
 
     // Verify all keys and its signatures
     uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
-    dap_chain_datum_decree_t *l_decree = a_net->pub.chains->is_mapped
-        ? DAP_DUP_SIZE(a_decree, a_data_size)
-        : a_decree;
+    // Always duplicate for verification as we need to modify the structure temporarily
+    dap_chain_datum_decree_t *l_decree = DAP_DUP_SIZE(a_decree, a_data_size);
     l_decree->header.signs_size = 0;
     size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
 
     for (size_t i = 0; i < l_num_of_unique_signs; i++) {
         size_t l_sign_max_size = dap_sign_get_size(l_unique_signs[i]);
-        if (s_verify_pkey(l_unique_signs[i], a_net)) {
+        if (s_verify_pkey(l_unique_signs[i], a_ledger)) {
             // 3. verify sign
             if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
                 l_signs_verify_counter++;
@@ -182,10 +171,8 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
         l_decree->header.signs_size = l_signs_size_for_current_sign;
     }
 
-    if ( a_net->pub.chains->is_mapped )
-        DAP_DELETE(l_decree);
-    else
-        l_decree->header.signs_size = l_signs_size;
+    // Always cleanup temporary copy
+    DAP_DELETE(l_decree);
     DAP_DELETE(l_unique_signs);
 
     if (l_signs_verify_counter < l_min_signs) {
@@ -214,22 +201,17 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     return 0;
 }
 
-int dap_ledger_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash)
+int dap_ledger_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash)
 {
-    return s_decree_verify(a_net, a_decree, a_data_size, a_decree_hash, false);
+    return s_decree_verify(a_ledger, a_decree, a_data_size, a_decree_hash, false);
 }
 
-int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash)
+int dap_ledger_decree_apply(dap_ledger_t *a_ledger, dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_id_t a_chain_id, dap_hash_fast_t *a_anchor_hash)
 {
-    dap_return_val_if_fail(a_decree_hash && a_chain, -107);
+    dap_return_val_if_fail(a_ledger && a_decree_hash && a_chain_id.uint64, -107);
     int ret_val = 0;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     
-    if (!l_net) {
-        log_it(L_WARNING, "Invalid net ID 0x%016" DAP_UINT64_FORMAT_x, a_chain->net_id.uint64);
-        return -108;
-    }
-    dap_ledger_private_t *l_ledger_pvt = PVT(l_net->pub.ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_decree_item_t *l_new_decree = NULL;
     unsigned l_hash_value;
     HASH_VALUE(a_decree_hash, sizeof(dap_hash_fast_t), l_hash_value);
@@ -243,7 +225,7 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
             return -1;
         }
         l_new_decree->decree_hash = *a_decree_hash;
-        l_new_decree->storage_chain_id = a_chain->id;
+        l_new_decree->storage_chain_id = a_chain_id;
         HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->decrees, decree_hash, sizeof(dap_hash_fast_t), l_hash_value, l_new_decree);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
@@ -263,8 +245,9 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
             debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
             return -123;
         }
-        l_new_decree->decree = a_chain->is_mapped ? a_decree : DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
-        if (a_decree->header.common_decree_params.chain_id.uint64 != a_chain->id.uint64 && !l_new_decree->wait_for_apply)
+        // Always duplicate decree data for storage (chain module manages original memory)
+        l_new_decree->decree = DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
+        if (a_decree->header.common_decree_params.chain_id.uint64 != a_chain_id.uint64 && !l_new_decree->wait_for_apply)
             // Apply it with corresponding anchor
             return ret_val;
     }
@@ -272,10 +255,10 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
     // Process decree
     switch(l_new_decree->decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-        ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, a_anchor_hash);
+        ret_val = s_common_decree_handler(l_new_decree->decree, a_ledger, true, a_anchor_hash);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
-        ret_val = s_service_decree_handler(l_new_decree->decree, l_net, true);
+        ret_val = s_service_decree_handler(l_new_decree->decree, a_ledger, true);
         break;
     default:
         log_it(L_WARNING,"Decree type is undefined!");
@@ -293,30 +276,29 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
     return ret_val;
 }
 
-int dap_ledger_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash)
+int dap_ledger_decree_load(dap_ledger_t *a_ledger, dap_chain_datum_decree_t * a_decree, dap_chain_id_t a_chain_id, dap_chain_hash_fast_t *a_decree_hash)
 {
     int ret_val = 0;
-    if (!a_chain || !a_decree) {
+    if (!a_chain_id.uint64 || !a_decree || !a_ledger) {
         log_it(L_ERROR, "Bad arguments");
         return -100;
     }
 
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-
     size_t l_data_size = dap_chain_datum_decree_get_size(a_decree);
 
-    if ((ret_val = s_decree_verify(l_net, a_decree, l_data_size, a_decree_hash, false)) != 0) {
+    if ((ret_val = dap_ledger_decree_verify(a_ledger, a_decree, l_data_size, a_decree_hash)) != 0) {
         //log_it(L_ERROR, "Decree verification failed!");
         return ret_val;
     }
 
-    return dap_ledger_decree_apply(a_decree_hash, a_decree, a_chain, NULL);
+    return dap_ledger_decree_apply(a_ledger, a_decree_hash, a_decree, a_chain_id, NULL);
 }
 
-int dap_ledger_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_decree_hash)
+int dap_ledger_decree_reset_applied(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_decree_hash)
 {
-    dap_return_val_if_fail(a_net && a_decree_hash, -1);
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
+    dap_return_val_if_fail(a_ledger && a_decree_hash, -1);
+    
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_decree_item_t *l_sought_decree = NULL;
     pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
     HASH_FIND(hh, l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
@@ -327,11 +309,11 @@ int dap_ledger_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_
     return 0;
 }
 
-dap_chain_datum_decree_t *dap_ledger_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_decree_hash, bool *is_applied)
+dap_chain_datum_decree_t *dap_ledger_decree_get_by_hash(dap_ledger_t *a_ledger, dap_hash_fast_t *a_decree_hash, bool *is_applied)
 {
-    dap_return_val_if_fail(a_net && a_decree_hash, NULL);
+    dap_return_val_if_fail(a_ledger && a_decree_hash, NULL);
     dap_ledger_decree_item_t *l_sought_decree = NULL;
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
     HASH_FIND(hh, l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
@@ -350,45 +332,46 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
     return false;
 }
 
-static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored)
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_ledger_t *a_ledger, bool a_apply, bool a_anchored)
 {
     uint256_t l_value;
     uint64_t l_block_num;
     dap_chain_addr_t l_addr = {};
     dap_list_t *l_owners_list = NULL;
 
-    dap_return_val_if_fail(a_decree && a_net, -112);
+    dap_return_val_if_fail(a_decree && a_ledger, -112);
 
     for (dap_ledger_decree_callback_item_t *it = s_decree_callbacks; it; it = it->next) {
         if (it->type == a_decree->header.type && it->subtype == a_decree->header.sub_type) {
-            return it->callback(a_net->pub.ledger, a_decree, a_apply, a_anchored);
+            return it->callback(a_ledger, a_decree, a_apply, a_anchored);
         }
     }
 
     switch (a_decree->header.sub_type)
     {
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
-            /* if (dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)) {
-                if (dap_chain_addr_is_blank(&a_net->pub.fee_addr)) {
-                    log_it(L_WARNING, "Fee wallet address not set.");
-                    return -111;
-                } else
-                    l_addr = a_net->pub.fee_addr;
-            } */
             if (!a_anchored)
                 break;
             if (dap_chain_datum_decree_get_fee(a_decree, &l_value))
                 return log_it(L_WARNING,"Can't get fee value from decree"), -103;
             if (dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)) {
-                if (dap_chain_addr_is_blank(&a_net->pub.fee_addr))
+                // If no fee address in decree, use current ledger's fee address
+                l_addr = a_ledger->fee_addr;
+                if (dap_chain_addr_is_blank(&l_addr))
                     return log_it(L_WARNING, "Fee wallet address not set"), -111;
-                else
-                    l_addr = a_net->pub.fee_addr;
             }
             if (!a_apply)
                 break;
-            if (!dap_chain_net_tx_set_fee(a_net->pub.id, l_value, l_addr))
-                log_it(L_ERROR, "Can't set fee value for network %s", a_net->pub.name);
+            // Call fee set callback registered by net module
+            if (a_ledger->decree_set_fee_callback) {
+                int ret = a_ledger->decree_set_fee_callback(a_ledger, l_value, l_addr);
+                if (ret != 0) {
+                    log_it(L_ERROR, "Failed to set fee via callback, error %d", ret);
+                    return ret;
+                }
+            } else {
+                log_it(L_WARNING, "No decree_set_fee_callback registered");
+            }
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
             l_owners_list = dap_chain_datum_decree_get_owners(a_decree, NULL);
@@ -398,7 +381,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
+            dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
             l_ledger_pvt->decree_num_of_owners = dap_list_length(l_owners_list);
             dap_list_free_full(l_ledger_pvt->decree_owners_pkeys, NULL);
             l_ledger_pvt->decree_owners_pkeys = l_owners_list;
@@ -414,9 +397,22 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            PVT(a_net->pub.ledger)->decree_min_num_of_signers = dap_uint256_to_uint64(l_value);
+            PVT(a_ledger)->decree_min_num_of_signers = dap_uint256_to_uint64(l_value);
             break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK: {
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK:
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY:
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE:
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL:
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN: {
+            // Complex decree types - delegate to generic callback registered by net/consensus module
+            if (a_ledger->decree_generic_callback) {
+                dap_chain_id_t l_chain_id = a_decree->header.common_decree_params.chain_id;
+                return a_ledger->decree_generic_callback(a_ledger, a_decree, l_chain_id, a_apply, a_anchored);
+            } else {
+                log_it(L_WARNING, "No generic decree callback registered for subtype %u", a_decree->header.sub_type);
+                return -1;
+            }
+        }
             if (dap_chain_datum_decree_get_atom_num(a_decree, &l_block_num)) {
                 log_it(L_WARNING, "Can't get atom number from hardfork prepare decree");
                 return -103;
@@ -525,7 +521,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (l_chain->generation == l_banned_generation) {
                 if (l_chain->cs_callbacks && l_chain->cs_callbacks->set_hardfork_complete)
                     l_chain->cs_callbacks->set_hardfork_complete(l_chain);
-                dap_ledger_chain_purge(l_chain, 0);
+                dap_ledger_chain_purge(a_net->pub.ledger, l_chain, 0);
             }
             return dap_chain_generation_ban(l_chain, l_banned_generation);
         }
@@ -537,7 +533,10 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get policy from decree.");
                 return -105;
             }
-            return dap_chain_policy_apply(l_policy, a_net->pub.id);
+            // TODO: Policy apply should be handled by callback from chain module
+            // Chain module should call: dap_ledger_decree_set_callback(DECREE_TYPE_COMMON, SUBTYPE_POLICY, chain_policy_handler)
+            log_it(L_WARNING, "POLICY decree: no callback registered (should be in dap_chain)");
+            return 0;
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD: {
             dap_hash_fast_t l_pkey_hash;
@@ -617,7 +616,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
     return 0;
 }
 
-static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, bool a_apply)
+static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_ledger_t *a_ledger, bool a_apply)
 {
    // size_t l_datum_data_size = ;
    //            dap_chain_srv_t * l_srv = dap_chain_srv_get(l_decree->header.srv_id);
@@ -673,8 +672,8 @@ static bool s_compare_anchors(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchor
     dap_hash_fast_t l_exist_hash = {}, l_comp_hash = {};
     dap_chain_datum_anchor_get_hash_from_data(a_comp->anchor, &l_comp_hash);
     dap_chain_datum_anchor_get_hash_from_data(a_exist->anchor, &l_exist_hash);
-    dap_chain_datum_decree_t *l_comp_decree = dap_ledger_decree_get_by_hash(a_ledger->net, &l_comp_hash, NULL);
-    dap_chain_datum_decree_t *l_exist_decree = dap_ledger_decree_get_by_hash(a_ledger->net, &l_exist_hash, NULL);
+    dap_chain_datum_decree_t *l_comp_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_comp_hash, NULL);
+    dap_chain_datum_decree_t *l_exist_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_exist_hash, NULL);
     if (l_ban_type) {
         const char *l_comp_ban_addr = NULL, *l_exist_ban_addr = NULL;
         dap_chain_datum_decree_get_ban_addr(l_comp_decree, &l_comp_ban_addr);
