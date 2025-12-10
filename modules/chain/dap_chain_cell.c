@@ -550,8 +550,8 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
                 return -2;
     }
     
-    debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "Before writing an atom of size %lu, stream pos of %s is %ld and pos is %lu, space left in map %lu", 
-                                            a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
+    debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "Before writing an atom of size %zu, stream pos of %s is %lld and pos is %zu, space left in map %zu", 
+                                            a_atom_size, a_cell->file_storage_path, (long long)ftello(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map), (size_t)(a_cell->map_end - a_cell->map_pos));
 
     if (fwrite(&a_atom_size, sizeof(a_atom_size), 1, a_cell->file_storage) != 1) {
@@ -565,8 +565,8 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
                         a_atom_size, a_cell->file_storage_path, errno, dap_strerror(errno) );
         return -3;
     }
-    debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "After writing an atom of size %lu, stream pos of %s is %lu and map shift is %lu", 
-                                            a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
+    debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG, "After writing an atom of size %zu, stream pos of %s is %lld and map shift is %zu", 
+                                            a_atom_size, a_cell->file_storage_path, (long long)ftello(a_cell->file_storage),
                                             (size_t)(a_cell->map_pos - a_cell->map));
 #ifdef DAP_OS_DARWIN
     fflush(a_cell->file_storage);
@@ -624,7 +624,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         l_total_res += sizeof(dap_chain_cell_file_header_t);
         dap_chain_atom_iter_t *l_atom_iter = a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id, NULL);
         dap_chain_atom_ptr_t l_atom;
-        uint64_t l_atom_size = 0;
+        size_t l_atom_size = 0;
         for (l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
              l_atom && l_atom_size;
              l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size))
@@ -639,12 +639,12 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         }
         a_cell->chain->is_mapped = was_mapped;
         a_cell->chain->callback_atom_iter_delete(l_atom_iter);
-        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "After rewriting file %s, stream pos is %ld and map pos is %zu",
-                      a_cell->file_storage_path, ftello(a_cell->file_storage),
+        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "After rewriting file %s, stream pos is %lld and map pos is %zu",
+                      a_cell->file_storage_path, (long long)ftello(a_cell->file_storage),
                       (size_t)(a_cell->map_pos - a_cell->map));
     } else {
-        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "Before appending an atom of size %zu, stream pos of %s is %ld, map pos is %zu",
-                      a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
+        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "Before appending an atom of size %zu, stream pos of %s is %lld, map pos is %zu",
+                      a_atom_size, a_cell->file_storage_path, (long long)ftello(a_cell->file_storage),
                       (size_t)(a_cell->map_pos - a_cell->map));
         if ( s_cell_file_atom_add(a_cell, a_atom, a_atom_size) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't save atom!",
@@ -652,8 +652,8 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             pthread_rwlock_unlock(&a_cell->storage_rwlock);
             return -4;
         }
-        debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG,"After appending an atom of size %zu, stream pos of %s is %ld, map pos is %zu",
-                                                a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
+        debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG,"After appending an atom of size %zu, stream pos of %s is %lld, map pos is %zu",
+                                                a_atom_size, a_cell->file_storage_path, (long long)ftello(a_cell->file_storage),
                                                 (size_t)(a_cell->map_end - a_cell->map_pos));
         ++l_count;
         l_total_res = a_atom_size + sizeof(uint64_t);
