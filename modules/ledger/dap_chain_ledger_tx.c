@@ -30,7 +30,6 @@
 #include "dap_notify_srv.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_json.h"
-#include "../wallet/include/dap_chain_wallet.h"
 
 #define LOG_TAG "dap_ledger_tx"
 
@@ -113,7 +112,6 @@ static bool s_ledger_is_used_out_item(dap_ledger_tx_item_t *a_item, uint32_t a_i
 static dap_ledger_stake_lock_item_t *s_emissions_for_stake_lock_item_find(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
 void dap_ledger_colour_clear_callback(void *a_list_data);
 static dap_chain_datum_tx_t *s_tx_find_by_hash(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash, dap_ledger_tx_item_t **a_item_out, bool a_unspent_only);
-static dap_json_t *s_wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
 
 static void s_ledger_stake_lock_cache_update(dap_ledger_t *a_ledger, dap_ledger_stake_lock_item_t *a_stake_lock_item);
 
@@ -1197,29 +1195,6 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     return l_ret_check;
 }
 
-static dap_json_t *s_wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_bal)
-{
-    char *pos = strrchr(a_bal->key, ' ');
-    if (pos) {
-        size_t l_addr_len = pos - a_bal->key;
-        char l_addr_str[l_addr_len + 1];
-        dap_strncpy(l_addr_str, a_bal->key, l_addr_len + 1);
-        dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
-        const char *l_wallet_name = dap_chain_wallet_addr_cache_get_name(l_addr);
-        DAP_DELETE(l_addr);
-        if (l_wallet_name) {
-            dap_json_t *l_json = dap_json_object_new();
-            dap_json_object_add_string(l_json, "class", "WalletInfo");
-            dap_json_t *l_jobj_wallet = dap_json_object_new();
-            dap_json_object_add_object(l_jobj_wallet, l_wallet_name, dap_chain_wallet_info_to_json(l_wallet_name,
-                                                                                           dap_chain_wallet_get_path(g_config)));
-            dap_json_object_add_object(l_json, "wallet", l_jobj_wallet);
-            return l_json;
-        }
-    }
-    return NULL;
-}
-
 /**
  * @brief s_balance_cache_update
  * @param a_ledger
@@ -1236,18 +1211,8 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
         }
         DAP_DELETE(l_gdb_group);
     }
-    /* Notify the world*/
-    if ( !a_ledger->load_mode ) {
-        dap_json_t *l_json = s_wallet_info_json_collect(a_ledger, a_balance);
-        if (l_json) {
-            char *l_json_str = dap_json_to_string(l_json);
-            if (l_json_str) {
-                dap_notify_server_send(l_json_str);
-                DAP_DELETE(l_json_str);
-            }
-            dap_json_object_free(l_json);
-        }
-    }
+    // Note: Wallet notifications moved to wallet module where they belong
+    // Ledger only manages balances by address, not wallet names
     return 0;
 }
 
