@@ -104,9 +104,12 @@
 #include "dap_http_ban_list_client.h"
 #include "dap_net.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_cs_esbocs.h"
+// Note: Removed direct include of dap_chain_cs_esbocs.h to avoid circular dependencies
+// esbocs functions should be accessed via chain->cs_callbacks or through chain module API
+// Forward declaration for esbocs-specific function
+extern uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id);
 #include "dap_chain_policy.h"
-#include "dap_chain_node_cli_cmd.h"
+#include "../node-cli-cmd/include/dap_chain_node_cli_cmd.h"
 #include "dap_chain_srv.h"
 #include <stdio.h>
 #include <sys/types.h>
@@ -2499,7 +2502,7 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
                     return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_FEE;
                 }
             } else {
-                if (!dap_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
+                if (!dap_ledger_tx_poa_signed(l_net->pub.ledger->poa_keys, l_tx)) {
                     log_it(L_WARNING, "Can't get fee value from tx %s", dap_get_data_hash_str(l_tx, dap_chain_datum_tx_get_size(l_tx)).s);
                     return -157;
                 }
@@ -2795,7 +2798,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
                 return -102;
             }
-            return dap_ledger_anchor_unload(l_anchor, a_chain, a_datum_hash);
+            return dap_ledger_anchor_unload(a_net->pub.ledger, l_anchor, a_chain->id, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_TOKEN:
             return 0;
@@ -3306,7 +3309,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
     } else if (PVT(a_net)->state == NET_STATE_OFFLINE) {
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
         uint16_t l_permalink_hosts_count = 0;
-        dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
+        dap_config_get_array_str(g_config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
             if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,

@@ -1051,6 +1051,16 @@ void dap_ledger_set_poa_keys(dap_ledger_t *a_ledger, dap_list_t *a_poa_keys, uin
 }
 
 /**
+ * @brief Set syncing state for ledger
+ */
+void dap_ledger_set_syncing_state(dap_ledger_t *a_ledger, bool a_is_syncing)
+{
+    if (a_ledger) {
+        a_ledger->is_syncing = a_is_syncing;
+    }
+}
+
+/**
  * @brief Setup HAL/HRL lists for ledger from chain config
  * Called by net module for each chain
  */
@@ -1754,13 +1764,6 @@ void dap_ledger_set_check_ds(dap_ledger_t *a_ledger, bool a_check)
 {
     if (a_ledger) {
         a_ledger->check_ds = a_check;
-    }
-}
-
-void dap_ledger_set_syncing_state(dap_ledger_t *a_ledger, bool a_syncing)
-{
-    if (a_ledger) {
-        a_ledger->is_syncing = a_syncing;
     }
 }
 
