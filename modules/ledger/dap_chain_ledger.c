@@ -784,7 +784,6 @@ static void s_blockchain_timer_callback(dap_chain_t *a_chain, dap_time_t a_block
 {
     dap_ledger_t *l_ledger = (dap_ledger_t *)a_arg;
     assert(l_ledger);
-    dap_chain_net_t *l_net = l_ledger->net;
     dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
     l_ledger_pvt->blockchain_time = a_blockchain_time;
     pthread_rwlock_wrlock(&l_ledger_pvt->locked_outs_rwlock);
@@ -793,7 +792,7 @@ static void s_blockchain_timer_callback(dap_chain_t *a_chain, dap_time_t a_block
         LL_FOREACH_SAFE(l_ledger_pvt->reverse_list, it, tmp) {
             if (it->unlock_time <= a_blockchain_time)
                 break;
-            dap_ledger_pvt_balance_update_for_addr(l_net->pub.ledger, &it->addr, it->ticker, it->value, true);
+            dap_ledger_pvt_balance_update_for_addr(l_ledger, &it->addr, it->ticker, it->value, true);
             LL_DELETE(l_ledger_pvt->reverse_list, it);
             LL_APPEND(l_ledger_pvt->locked_outs, it);
         }
@@ -804,7 +803,7 @@ static void s_blockchain_timer_callback(dap_chain_t *a_chain, dap_time_t a_block
     LL_FOREACH_SAFE(l_ledger_pvt->locked_outs, it, tmp) {
         if (it->unlock_time > a_blockchain_time)
             break;
-        dap_ledger_pvt_balance_update_for_addr(l_net->pub.ledger, &it->addr, it->ticker, it->value, false);
+        dap_ledger_pvt_balance_update_for_addr(l_ledger, &it->addr, it->ticker, it->value, false);
         LL_DELETE(l_ledger_pvt->locked_outs, it);
         if (!l_ledger->load_mode)
             LL_PREPEND(l_ledger_pvt->reverse_list, it);
@@ -867,7 +866,9 @@ dap_ledger_create_options_t *dap_ledger_create_options_default(void)
         return NULL;
     
     // Generate random net_id (caller should verify uniqueness)
-    dap_random_bytes((uint8_t*)&l_opts->net_id, sizeof(dap_chain_net_id_t));
+    for (size_t i = 0; i < sizeof(dap_chain_net_id_t); i++) {
+        ((uint8_t*)&l_opts->net_id)[i] = dap_random_byte();
+    }
     
     // Default name from net_id hex
     snprintf(l_opts->name, sizeof(l_opts->name), "%016" DAP_UINT64_FORMAT_X, l_opts->net_id.uint64);

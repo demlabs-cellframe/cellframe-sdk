@@ -85,7 +85,7 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_instance_t 
                  sizeof(dap_chain_hash_fast_t), l_emission_item);
     }
 
-    char* l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_STAKE_LOCK_STR);
+    char* l_gdb_group = dap_ledger_get_gdb_group(l_ledger->name, DAP_LEDGER_STAKE_LOCK_STR);
     dap_global_db_get_all(l_gdb_group, 0, dap_ledger_pvt_cache_gdb_load_stake_lock_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
     return true;
@@ -135,7 +135,7 @@ bool dap_ledger_pvt_cache_gdb_load_tokens_callback(dap_global_db_instance_t *a_d
             l_token_item->current_supply = *(uint256_t*)a_values[i].value;
     }
 
-    char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_EMISSIONS_STR);
+    char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger->name, DAP_LEDGER_EMISSIONS_STR);
     dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_emissions_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
     return true;
@@ -1082,7 +1082,7 @@ void s_ledger_token_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_item_t
 {
     if (! is_ledger_cached(PVT(a_ledger)) )
         return;
-    char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
+    char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_TOKENS_STR);
     size_t l_cache_size = l_token_item->datum_token_size + sizeof(uint256_t);
     uint8_t *l_cache = DAP_NEW_STACK_SIZE(uint8_t, l_cache_size);
     if ( !l_cache ) {
@@ -1276,7 +1276,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
 
 int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time)
 {
-    if (dap_chain_net_get_load_mode(a_ledger->net)) {
+    if (a_ledger->load_mode) {
         const char *l_ticker = NULL;
         switch (*(uint16_t *)a_token) {
         case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
@@ -1486,7 +1486,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
         DAP_DELETE(l_signs);
         if (l_aproves < l_token_item->auth_signs_valid && !dap_ledger_datum_is_enforced(a_ledger, a_emission_hash, true) ) {
             log_it(L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %zu valid aproves when %zu need",
-                        dap_uint256_to_char(l_emission->hdr.value, NULL), a_ledger->net->pub.name, l_emission->hdr.ticker,
+                        dap_uint256_to_char(l_emission->hdr.value, NULL), a_ledger->name, l_emission->hdr.ticker,
                         l_aproves, l_token_item->auth_signs_valid);
             debug_if(g_debug_ledger, L_ATT, "!!! Datum hash for HAL: %s", dap_chain_hash_fast_to_str_static(a_emission_hash));
             DAP_DELETE(l_emission);
@@ -1520,7 +1520,7 @@ void dap_ledger_pvt_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_tok
 {
     if (! is_ledger_cached(PVT(a_ledger)) )
         return;
-    char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_EMISSIONS_STR);
+    char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_EMISSIONS_STR);
     size_t l_cache_size = a_emission_item->datum_token_emission_size + sizeof(dap_hash_fast_t);
     uint8_t *l_cache = DAP_NEW_STACK_SIZE(uint8_t, l_cache_size);
     memcpy(l_cache, &a_emission_item->tx_used_out, sizeof(dap_hash_fast_t));
@@ -1593,7 +1593,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
 int dap_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission,
                                          size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash)
 {
-    if (dap_chain_net_get_load_mode(a_ledger->net)) {
+    if (a_ledger->load_mode) {
         dap_ledger_token_emission_item_t *l_token_emission_item = NULL;
         dap_ledger_token_item_t *l_token_item, *l_item_tmp;
         pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
@@ -1988,17 +1988,20 @@ int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t 
                 continue; // Skip already used emissions
             
             // Check if emission was created before hardfork time
+            // TODO: This logic needs to be moved to chain/net module via callback
+            // Ledger should not have direct access to chain structures
             dap_time_t l_emission_time = 0;
-            dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_ledger->net, CHAIN_TYPE_EMISSION);
-            if (l_chain) {
-                dap_hash_fast_t l_atom_hash = { };
-                l_chain->callback_datum_find_by_hash(l_chain, &l_emission_item->datum_token_emission_hash, &l_atom_hash, NULL);
-                dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain, c_dap_chain_cell_id_null, &l_atom_hash);
-                if (l_atom_iter && l_atom_iter->cur) {
-                    l_emission_time = l_atom_iter->cur_ts;
-                    l_chain->callback_atom_iter_delete(l_atom_iter);
-                }
-            }
+            // TEMP: Disabled due to circular dependency removal
+            // dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_ledger->net, CHAIN_TYPE_EMISSION);
+            // if (l_chain) {
+            //     dap_hash_fast_t l_atom_hash = { };
+            //     l_chain->callback_datum_find_by_hash(l_chain, &l_emission_item->datum_token_emission_hash, &l_atom_hash, NULL);
+            //     dap_chain_atom_iter_t *l_atom_iter = l_chain->callback_atom_iter_create(l_chain, c_dap_chain_cell_id_null, &l_atom_hash);
+            //     if (l_atom_iter && l_atom_iter->cur) {
+            //         l_emission_time = l_atom_iter->cur_ts;
+            //         l_chain->callback_atom_iter_delete(l_atom_iter);
+            //     }
+            // }
 
             if (l_emission_time && l_emission_time < a_hardfork_time) {
                 // Mark emission as spent with hardfork hash

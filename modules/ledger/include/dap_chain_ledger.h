@@ -62,6 +62,7 @@ typedef struct dap_ledger_create_options {
 // Callback typedefs
 typedef void (*dap_ledger_set_fee_callback_t)(dap_ledger_t *, uint256_t);
 typedef void (*dap_ledger_reward_removed_callback_t)(dap_ledger_t *);  // Callback when reward is removed during anchor unload
+typedef uint256_t (*dap_ledger_calc_reward_callback_t)(dap_ledger_t *a_ledger, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);  // Calculate reward for block
 
 // Decree operation callbacks - called from ledger when decree needs to affect net/consensus/services
 typedef int (*dap_ledger_decree_set_fee_callback_t)(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain_addr_t a_fee_addr);
@@ -94,6 +95,7 @@ typedef struct dap_ledger {
     // Callbacks
     dap_ledger_set_fee_callback_t set_fee_callback;
     dap_ledger_reward_removed_callback_t reward_removed_callback;
+    dap_ledger_calc_reward_callback_t calc_reward_callback;  // Calculate reward for block
     
     // Decree operation callbacks
     dap_ledger_decree_set_fee_callback_t decree_set_fee_callback;

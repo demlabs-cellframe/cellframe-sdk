@@ -87,17 +87,13 @@ static int s_anchor_verify(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_a
     // Always duplicate anchor for verification to avoid modifying original
     bool l_need_dup = true;
     dap_chain_datum_anchor_t *l_anchor = DAP_DUP_SIZE(a_anchor, a_data_size);
+    if (!l_anchor)
+        return log_it(L_CRITICAL, "Memory allocation error"), -1;
     l_anchor->header.signs_size = 0;
 
     if (!l_num_of_unique_signs || !l_unique_signs)
         return log_it(L_WARNING, "No unique signatures!"), -106;
-    bool l_sign_authorized = false;
-    size_t l_signs_size_original = a_anchor->header.signs_size;
-    // Always duplicate anchor for verification to avoid modifying original
-    dap_chain_datum_anchor_t *l_anchor = DAP_DUP_SIZE(a_anchor, a_data_size);
-    if (!l_anchor)
-        return log_it(L_CRITICAL, "Memory allocation error"), -1;
-    l_anchor->header.signs_size = 0;
+    
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     for (size_t i = 0; i < l_num_of_unique_signs; i++) {
         for (dap_list_t *it = l_ledger_pvt->decree_owners_pkeys; it; it = it->next) {
