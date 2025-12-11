@@ -6538,12 +6538,57 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
         }
     }
 
-    // Get previous conditional TX info
+    // Find final TX in chain using tx_cond list command
+    // This allows users to pass tx_first hash and we automatically find tx_last
+    dap_hash_fast_t l_final_tx_hash = *a_tx_cond_hash;
+    json_object *l_json_tx_cond_list = s_request_command_to_rpc_with_params(
+        a_config, "tx_cond", "list;-net;%s;-addr;%s;-status;unspent",
+        a_config->net_name, dap_chain_addr_to_str_static(a_owner_addr));
+    if (l_json_tx_cond_list)
+    {
+        // Parse response to find tx_last for given tx_first (or tx_last itself)
+        json_object *l_first_item = json_object_array_get_idx(l_json_tx_cond_list, 0);
+        if (l_first_item)
+        {
+            json_object *l_transactions = NULL;
+            if (json_object_object_get_ex(l_first_item, "transactions", &l_transactions) &&
+                json_object_is_type(l_transactions, json_type_array))
+            {
+                const char *l_input_hash_str = dap_hash_fast_to_str_static(a_tx_cond_hash);
+                int l_arr_len = json_object_array_length(l_transactions);
+                for (int i = 0; i < l_arr_len; i++)
+                {
+                    json_object *l_tx_item = json_object_array_get_idx(l_transactions, i);
+                    json_object *l_tx_first_obj = NULL, *l_tx_last_obj = NULL;
+                    if (json_object_object_get_ex(l_tx_item, "tx_first", &l_tx_first_obj) &&
+                        json_object_object_get_ex(l_tx_item, "tx_last", &l_tx_last_obj))
+                    {
+                        const char *l_tx_first_str = json_object_get_string(l_tx_first_obj);
+                        const char *l_tx_last_str = json_object_get_string(l_tx_last_obj);
+                        // Match if input is tx_first OR tx_last
+                        if ((l_tx_first_str && !dap_strcmp(l_input_hash_str, l_tx_first_str)) ||
+                            (l_tx_last_str && !dap_strcmp(l_input_hash_str, l_tx_last_str)))
+                        {
+                            if (l_tx_last_str && !dap_chain_hash_fast_from_str(l_tx_last_str, &l_final_tx_hash))
+                            {
+                                log_it(L_DEBUG, "Resolved tx_last: %s from tx_first: %s",
+                                       l_tx_last_str, l_tx_first_str);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        json_object_put(l_json_tx_cond_list);
+    }
+
+    // Get previous conditional TX info using the resolved final hash
     dap_chain_tx_out_cond_t *l_cond_prev = NULL;
     char *l_token_ticker = NULL;
     int l_prev_cond_idx = 0;
     dap_chain_datum_tx_t *l_tx_prev = s_get_datum_info_from_rpc(
-        dap_hash_fast_to_str_static(a_tx_cond_hash), a_config,
+        dap_hash_fast_to_str_static(&l_final_tx_hash), a_config,
         DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_cond_prev, NULL, &l_token_ticker, &l_prev_cond_idx, true);
     DAP_DELETE(l_token_ticker);
 
@@ -6560,9 +6605,6 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
         DAP_DELETE(l_tx_ticker);
         return NULL;
     }
-
-    // Use final TX hash from the chain if available
-    dap_hash_fast_t l_final_tx_hash = *a_tx_cond_hash;
 #else
     dap_hash_fast_t l_final_tx_hash = {};
     randombytes(&l_final_tx_hash, sizeof(dap_hash_fast_t));
@@ -6808,15 +6850,56 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
     size_t l_added_count = 0;
 
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
+    // Get tx_cond list to resolve tx_first -> tx_last mappings
+    json_object *l_json_tx_cond_list = s_request_command_to_rpc_with_params(
+        a_config, "tx_cond", "list;-net;%s;-addr;%s;-status;unspent",
+        a_config->net_name, dap_chain_addr_to_str_static(a_owner_addr));
+
     for (dap_list_t *l_tmp = a_tx_hashes; l_tmp; l_tmp = l_tmp->next)
     {
         dap_hash_fast_t *l_hash = (dap_hash_fast_t *)l_tmp->data;
         if (!l_hash)
             continue;
 
-        // Find final TX in chain (like CLI does with dap_ledger_get_final_chain_tx_hash)
-        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash_compose(
-            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash, true, a_config);
+        // Find final TX in chain using tx_cond list response
+        dap_hash_fast_t l_final_hash = *l_hash;
+        if (l_json_tx_cond_list)
+        {
+            json_object *l_first_item = json_object_array_get_idx(l_json_tx_cond_list, 0);
+            if (l_first_item)
+            {
+                json_object *l_transactions = NULL;
+                if (json_object_object_get_ex(l_first_item, "transactions", &l_transactions) &&
+                    json_object_is_type(l_transactions, json_type_array))
+                {
+                    const char *l_input_hash_str = dap_hash_fast_to_str_static(l_hash);
+                    int l_arr_len = json_object_array_length(l_transactions);
+                    for (int i = 0; i < l_arr_len; i++)
+                    {
+                        json_object *l_tx_item = json_object_array_get_idx(l_transactions, i);
+                        json_object *l_tx_first_obj = NULL, *l_tx_last_obj = NULL;
+                        if (json_object_object_get_ex(l_tx_item, "tx_first", &l_tx_first_obj) &&
+                            json_object_object_get_ex(l_tx_item, "tx_last", &l_tx_last_obj))
+                        {
+                            const char *l_tx_first_str = json_object_get_string(l_tx_first_obj);
+                            const char *l_tx_last_str = json_object_get_string(l_tx_last_obj);
+                            // Match if input is tx_first OR tx_last
+                            if ((l_tx_first_str && !dap_strcmp(l_input_hash_str, l_tx_first_str)) ||
+                                (l_tx_last_str && !dap_strcmp(l_input_hash_str, l_tx_last_str)))
+                            {
+                                if (l_tx_last_str && !dap_chain_hash_fast_from_str(l_tx_last_str, &l_final_hash))
+                                {
+                                    log_it(L_DEBUG, "Resolved tx_last: %s from tx_first: %s",
+                                           l_tx_last_str, l_tx_first_str);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if (dap_hash_fast_is_blank(&l_final_hash))
         {
             log_it(L_WARNING, "TX %s: can't find final TX in chain", dap_hash_fast_to_str_static(l_hash));
@@ -6886,6 +6969,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
         DAP_DEL_Z(l_cond);
         dap_chain_datum_tx_delete(l_cond_tx);
     }
+    if (l_json_tx_cond_list)
+        json_object_put(l_json_tx_cond_list);
 #else
     // Test mode: add dummy in_cond with large values
     for (dap_list_t *l_tmp = a_tx_hashes; l_tmp; l_tmp = l_tmp->next)
