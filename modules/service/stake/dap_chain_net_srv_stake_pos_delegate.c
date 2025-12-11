@@ -4984,8 +4984,6 @@ int dap_chain_net_srv_stake_hardfork_data_export(dap_chain_net_t *a_net, dap_lis
         }
         dap_tsd_t *l_tsd_cur = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, &l_item->decree_hash.hash, sizeof(l_item->decree_hash.hash));
         l_list_cur = dap_list_append(l_list_cur, l_tsd_cur);
-        l_tsd_cur = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, &l_item->tx_hash.hash, sizeof(l_item->tx_hash.hash));
-        l_list_cur = dap_list_append(l_list_cur, l_tsd_cur);
     }
     *a_out = dap_list_concat(*a_out, l_list_cur);
     *a_out = dap_list_concat(*a_out, dap_ledger_decrees_get_by_type(a_net->pub.ledger, DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE));

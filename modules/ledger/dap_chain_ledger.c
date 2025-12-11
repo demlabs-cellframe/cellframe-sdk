@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
@@ -1081,6 +1081,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     dap_ledger_tx_purge(a_ledger, a_preserve_db);
     dap_ledger_token_purge(a_ledger, a_preserve_db);
     dap_ledger_decree_purge(a_ledger);
+    dap_ledger_event_purge(a_ledger);
     PVT(a_ledger)->load_end = false;
 }
 
@@ -1089,6 +1090,7 @@ int dap_ledger_chain_purge(dap_chain_t *a_chain, size_t a_atom_size)
     dap_return_val_if_fail(a_chain, -1);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_ledger_tx_purge(l_net->pub.ledger, false);
+    dap_ledger_event_purge(l_net->pub.ledger);
     if (dap_ledger_anchor_purge(l_net->pub.ledger, a_chain->id))
         return -2;
     if (dap_chain_srv_purge_all(a_chain->net_id))

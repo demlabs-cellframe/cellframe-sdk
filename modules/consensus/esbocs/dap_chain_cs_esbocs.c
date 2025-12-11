@@ -411,7 +411,10 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             .add_block_collect = s_add_block_collect_callback_wrapper,
             .get_autocollect_status = dap_chain_esbocs_get_autocollect_status,
             .set_hardfork_state = dap_chain_esbocs_set_hardfork_state,
-            .hardfork_engaged = dap_chain_esbocs_hardfork_engaged
+            .hardfork_engaged = dap_chain_esbocs_hardfork_engaged,
+            // Stake service callbacks for hardfork
+            .stake_switch_table = dap_chain_net_srv_stake_switch_table,
+            .stake_hardfork_data_import = dap_chain_net_srv_stake_hardfork_data_import
         };
         dap_chain_cs_set_callbacks(a_chain, &s_cs_callbacks);
         log_it(L_INFO, "ESBOCS consensus callbacks registered for chain %s", a_chain->name);

@@ -1504,6 +1504,10 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                 l_tracker_item->coloured_value = l_tracker_item->cur_value = l_tsd_item->coloured_value;
                 DL_APPEND(l_hardfork_tracker->items, l_tracker_item);
             } break;
+            // Event-specific TSD types, handled in dap_chain_ledger_event.c
+            case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_PKEY_HASH:
+            case DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_EVENT_DATA:
+                break;
             default:
                 log_it(L_WARNING, "Illegal harfork datum tx TSD item type 0x%X", l_tsd->type);
                 break;
@@ -1594,7 +1598,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     
     if (!dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true))
         assert(!l_err_num);
-
 
     // Update balance: deducts
     const char *l_cur_token_ticker = NULL;
@@ -2882,6 +2885,12 @@ static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap
             .sign = DAP_DUP_SIZE(a_sign, dap_chain_datum_item_tx_get_size((byte_t *)a_sign, 0))
     };
     dap_strncpy(l_new_condout->ticker, a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    if (g_debug_ledger) {
+        const char *l_value_str; dap_uint256_to_char(a_out_cond->header.value, &l_value_str);
+        log_it(L_NOTICE, "Aggregate conditional out %s %s with subtype %d for tx %s",
+               l_value_str, a_token_ticker, a_out_cond->header.subtype,
+               dap_hash_fast_to_str_static(a_tx_hash));
+    }
     l_new_condout->trackers = s_trackers_aggregate_hardfork(a_ledger, NULL, a_trackers, a_hardfork_start_time);
     DL_APPEND(*a_ret_list, l_new_condout);
     return 0;
@@ -2895,9 +2904,12 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
     dap_ledger_hardfork_balances_t *ret = NULL;
     dap_ledger_hardfork_condouts_t *l_cond_ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    size_t l_outs_count = 0, l_cond_outs_count = 0, l_locked_outs_count = 0, l_fees_count = 0;
     dap_ledger_hardfork_fees_t *it;
-    DL_FOREACH(a_fees_list, it)
+    DL_FOREACH(a_fees_list, it) {
         s_aggregate_out(&ret, a_ledger, a_ledger->net->pub.native_ticker, &it->owner_addr, it->fees_n_rewards_sum, a_hardfork_decree_creation_time, NULL, a_changed_addrs);
+        l_fees_count++;
+    }
 
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     for (dap_ledger_tx_item_t *it = l_ledger_pvt->ledger_items; it; it = it->hh.next) {
@@ -2915,24 +2927,30 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
             case TX_ITEM_TYPE_OUT: {
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_tx_item;
                 s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, &l_out->addr, l_out->header.value, a_hardfork_decree_creation_time, l_trackers, a_changed_addrs);
+                l_outs_count++;
                 break;
             }
             case TX_ITEM_TYPE_OUT_OLD: {
                 dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t *)l_tx_item;
                 s_aggregate_out(&ret, a_ledger, it->cache_data.token_ticker, &l_out->addr, GET_256_FROM_64(l_out->header.value), a_hardfork_decree_creation_time, l_trackers, a_changed_addrs);
+                l_outs_count++;
                 break;
             }
             case TX_ITEM_TYPE_OUT_EXT: {
                 dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_tx_item;
                 s_aggregate_out(&ret, a_ledger, l_out->token, &l_out->addr, l_out->header.value, a_hardfork_decree_creation_time, l_trackers, a_changed_addrs);
+                l_outs_count++;
                 break;
             }
             case TX_ITEM_TYPE_OUT_STD: {
                 dap_chain_tx_out_std_t *l_out = (dap_chain_tx_out_std_t *)l_tx_item;
-                if (l_out->ts_unlock <= dap_ledger_get_blockchain_time(a_ledger))
+                if (l_out->ts_unlock <= dap_ledger_get_blockchain_time(a_ledger)) {
                     s_aggregate_out(&ret, a_ledger, l_out->token, &l_out->addr, l_out->value, a_hardfork_decree_creation_time, l_trackers, a_changed_addrs);
-                else
+                    l_outs_count++;
+                } else {
                     s_aggregate_out_locked(&ret, a_ledger, l_out->token, &l_out->addr, l_out->value, a_hardfork_decree_creation_time, l_trackers, a_changed_addrs, l_out->ts_unlock);
+                    l_locked_outs_count++;
+                }
                 break;
             }
             case TX_ITEM_TYPE_OUT_COND: {
@@ -2952,6 +2970,7 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
                     continue;
                 }
                 s_aggregate_out_cond(&l_cond_ret, a_ledger, l_out, l_tx_sign, &it->tx_hash_fast, it->cache_data.token_ticker, a_hardfork_decree_creation_time, l_trackers);
+                l_cond_outs_count++;
                 break;
             }
             default:
@@ -2961,6 +2980,8 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
         }
     }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    debug_if(g_debug_ledger, L_NOTICE, "Aggregated states total: %zu standard outs, %zu locked outs, %zu conditional outs, %zu fee entries",
+             l_outs_count, l_locked_outs_count, l_cond_outs_count, l_fees_count);
     if (l_cond_outs_list)
         *l_cond_outs_list = l_cond_ret;
     return ret;
