@@ -3815,7 +3815,8 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t *a_net, dap_hash_fas
                            (l_validators_data->header.flags & A_PROC) && 
                            (l_validators_data->header.flags & F_ORDR) &&
                            (l_validators_data->header.flags & D_SIGN) && 
-                           (l_validators_data->header.flags & F_CERT);
+                           (l_validators_data->header.flags & F_CERT) &&
+                           (l_validators_data->header.flags & F_NLST);
         
         *a_out_data = *l_validators_data;
         a_out_data->header.sign_correct = l_sign_correct ? 1 : 0;
@@ -3997,6 +3998,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, dap_json_t *a_json_arr_rep
             dap_json_object_add_bool(json_obj_order, a_version == 1 ? "ORDER" : "order", (l_out.header.flags & F_ORDR));
             dap_json_object_add_bool(json_obj_order, a_version == 1 ? "AUTO_ONLINE" : "auto_online", (l_out.header.flags & A_ONLN));
             dap_json_object_add_bool(json_obj_order, a_version == 1 ? "AUTO_UPDATE" : "auto_update", (l_out.header.flags & A_UPDT));
+            dap_json_object_add_bool(json_obj_order, "in_nodelist", (l_out.header.flags & F_NLST));
             dap_json_object_add_bool(json_obj_order, a_version == 1 ? "DATA_SIGNED" : "data_signed", (l_out.header.flags & D_SIGN));
             dap_json_object_add_bool(json_obj_order, a_version == 1 ? "FOUND_CERT" : "found_cert", (l_out.header.flags & F_CERT));
             dap_json_object_add_bool(json_obj_order, a_version == 1 ? "SIGN_CORRECT" : "sign_correct", l_out.header.sign_correct);

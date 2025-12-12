@@ -45,7 +45,7 @@ typedef struct dap_chain_ch_validator_test{
         /// node Version
         uint8_t version[32];
         /// autoproc status
-        uint8_t flags;//0 bit -autoproc; 1 bit - find order; 2 bit - auto online; 3 bit - auto update; 6 bit - data sign; 7 bit - find cert;
+        uint8_t flags;//0 bit - autoproc; 1 bit - find order; 2 bit - auto online; 3 bit - auto update; 4 bit - in nodelist; 6 bit - data sign; 7 bit - find cert;
         uint32_t sign_size;
         uint8_t sign_correct;
         uint8_t overall_correct;
@@ -58,8 +58,9 @@ typedef struct dap_chain_ch_validator_test{
 #define F_ORDR 0x02//order exist
 #define A_ONLN 0x04//auto online
 #define A_UPDT 0x08//auto update
+#define F_NLST 0x10//node in nodelist
 #define D_SIGN 0x40//data signed
-#define F_CERT 0x80//faund sert
+#define F_CERT 0x80//found cert
 
 #define DAP_CHAIN_NET_CH_ID 'N'
 #define DAP_STREAM_CH_CHAIN_NET(a) ((dap_chain_net_ch_t *) ((a)->internal) )

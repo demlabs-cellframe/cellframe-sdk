@@ -684,6 +684,16 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
 
+    // Check if this node is present in nodelist
+    dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_session->my_addr);
+    if (!l_node_info) {
+        log_it(L_ERROR, "This node address "NODE_ADDR_FP_STR" is not present in nodelist. "
+                        "Add it with 'node add' command before starting consensus",
+                        NODE_ADDR_FP_ARGS_S(l_session->my_addr));
+        return -8;
+    }
+    DAP_DELETE(l_node_info);
+
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
@@ -1039,7 +1049,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(a_esbocs);
     dap_list_t *l_ret = NULL;
     dap_list_t *l_validators = NULL;
-    if (!l_esbocs_pvt->poa_mode) {
+    if (l_esbocs_pvt->poa_mode) { // UNDO it after debug!
         if (a_excluded_list_size) {
             l_validators =  dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, false, NULL);
             uint16_t l_excluded_num = *a_excluded_list;
@@ -1612,6 +1622,11 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                         l_item->message->hdr.attempt_num == a_session->cur_round.attempt_num &&
                         dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator)) {
                     // Reprocess saved SUBMIT message to add candidate to store_items and trigger verification
+                    const char *l_candidate_hash_str = dap_chain_hash_fast_to_str_static(&l_item->message->hdr.candidate_hash);
+                    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                                " Reprocessing saved SUBMIT message, candidate %s",
+                                                    a_session->chain->net_name, a_session->chain->name,
+                                                        a_session->cur_round.id, l_item->message->hdr.attempt_num, l_candidate_hash_str);
                     s_session_packet_in(a_session, NULL, (uint8_t *)l_item->message, s_get_esbocs_message_size(l_item->message));
                     break;
                 }
@@ -1901,6 +1916,12 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
                     l_item->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_COMMIT_SIGN) &&
                 dap_hash_fast_compare(&l_item->message->hdr.candidate_hash, a_candidate_hash) &&
                 l_item->message->hdr.attempt_num == a_session->cur_round.attempt_num) {
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                        " Reprocessing early %s message for candidate %s",
+                                            a_session->chain->net_name, a_session->chain->name,
+                                                a_session->cur_round.id, l_item->message->hdr.attempt_num,
+                                                    s_voting_msg_type_to_str(l_item->message->hdr.type),
+                                                        dap_chain_hash_fast_to_str_static(a_candidate_hash));
             s_session_packet_in(a_session, NULL, (uint8_t *)l_item->message, s_get_esbocs_message_size(l_item->message));
         }
     }
@@ -2216,6 +2237,12 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
                     l_item->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST) &&
                 dap_hash_fast_compare(&l_item->message->hdr.candidate_hash, a_directive_hash) &&
                 l_item->message->hdr.attempt_num == a_session->cur_round.attempt_num) {
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                        " Reprocessing early %s message for directive %s",
+                                            a_session->chain->net_name, a_session->chain->name,
+                                                a_session->cur_round.id, l_item->message->hdr.attempt_num,
+                                                    s_voting_msg_type_to_str(l_item->message->hdr.type),
+                                                        dap_chain_hash_fast_to_str_static(a_directive_hash));
             s_session_packet_in(a_session, NULL, (uint8_t *)l_item->message, s_get_esbocs_message_size(l_item->message));
         }
     }
@@ -3586,6 +3613,22 @@ static int s_cli_esbocs(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION;
             }
         }
+
+        // Check if this node is in nodelist
+        dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_session->my_addr);
+        bool l_in_nodelist = l_node_info != NULL;
+        DAP_DEL_Z(l_node_info);
+
+        dap_json_t *l_json_obj_node_status = dap_json_object_new();
+        dap_json_object_add_string(l_json_obj_node_status, "node_addr", 
+                                   dap_stream_node_addr_to_str_static(l_session->my_addr));
+        dap_json_object_add_bool(l_json_obj_node_status, "in_nodelist", l_in_nodelist);
+        if (!l_in_nodelist) {
+            dap_json_object_add_string(l_json_obj_node_status, "warning", 
+                                       "Node is NOT in nodelist! Consensus will not work properly. "
+                                       "Add this node with 'node add' command");
+        }
+        dap_json_array_add(a_json_arr_reply, l_json_obj_node_status);
 
         const char *l_penalty_group = s_get_penalty_group(l_net->pub.id);
         size_t l_penalties_count = 0;
