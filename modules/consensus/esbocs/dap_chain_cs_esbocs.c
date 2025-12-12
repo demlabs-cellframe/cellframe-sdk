@@ -1612,6 +1612,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         } else {
             for (dap_chain_esbocs_message_item_t *l_item = a_session->cur_round.message_items; l_item; l_item = l_item->hh.next) {
                 if (l_item->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT &&
+                        l_item->message->hdr.attempt_num == a_session->cur_round.attempt_num &&
                         dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator)) {
                     dap_hash_fast_t *l_candidate_hash = &l_item->message->hdr.candidate_hash;
                     if (dap_hash_fast_is_blank(l_candidate_hash))
@@ -1699,14 +1700,21 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
     } break;
 
     case DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS: {
-        if (a_session->old_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS)
-            s_session_state_change(a_session, a_session->old_state, a_time);
-        else {
+        if (a_session->old_state == DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS) {
             log_it(L_ERROR, "No previous state registered, can't roll back");
             if (!a_session->new_round_enqueued) {
                 a_session->new_round_enqueued = true;
                 dap_proc_thread_callback_add(a_session->proc_thread, s_session_round_new, a_session);
             }
+        } else if (a_session->old_state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC) {
+            // Returning from WAIT_VOTING to WAIT_PROC after directive voting
+            // Current submitter should submit candidate now without choosing new one
+            a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC;
+            if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
+                s_session_candidate_submit(a_session);
+            }
+        } else {
+            s_session_state_change(a_session, a_session->old_state, a_time);
         }
     }
     default:
@@ -2695,6 +2703,24 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         l_session->esbocs->last_submitted_candidate_timestamp = dap_time_now();
         // check for NULL candidate
         if (!l_candidate_size || dap_hash_fast_is_blank(&l_message->hdr.candidate_hash)) {
+            // Check that sender is the submitter for current attempt
+            if (!dap_chain_addr_compare(&l_signing_addr, &l_session->cur_round.attempt_submit_validator)) {
+                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                            " Decline SUBMIT NULL from non-submitter %s",
+                                                l_session->chain->net_name, l_session->chain->name,
+                                                    l_session->cur_round.id, l_session->cur_round.attempt_num,
+                                                        l_validator_addr_str);
+                break;
+            }
+            // Check that attempt number matches
+            if (l_message->hdr.attempt_num != l_session->cur_round.attempt_num) {
+                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                            " Decline SUBMIT NULL with wrong attempt %hhu",
+                                                l_session->chain->net_name, l_session->chain->name,
+                                                    l_session->cur_round.id, l_session->cur_round.attempt_num,
+                                                        l_message->hdr.attempt_num);
+                break;
+            }
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Receive SUBMIT candidate NULL",
                                             l_session->chain->net_name, l_session->chain->name,
