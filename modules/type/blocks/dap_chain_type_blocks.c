@@ -33,7 +33,8 @@
 #include "dap_cli_server.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_decree.h"
-#include "dap_chain_net.h"
+// Phase 5.3: Use network API layer instead of full net module to break cycles
+#include "dap_chain_net_api.h"  // Core net API (lookup, getters) - replaces dap_chain_net.h
 #include "dap_chain_mempool.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_type.h"  // For old consensus class registration
@@ -492,12 +493,12 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
 {
     dap_return_val_if_fail(a_net && a_cert && a_cert->enc_key &&
                            a_cert->enc_key->priv_key_data && a_cert->enc_key->priv_key_data_size, NULL);
-    dap_chain_t *l_chain_anchor = a_chain ? a_chain : dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
+    dap_chain_t *l_chain_anchor = a_chain ? a_chain : dap_chain_net_api_get_default_chain_by_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain_anchor) {
         log_it(L_ERROR, "Can't find chain with anchor support");
         return NULL;
     }
-    dap_chain_t *l_chain_decree = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    dap_chain_t *l_chain_decree = dap_chain_net_api_get_default_chain_by_type(a_net, CHAIN_TYPE_DECREE);
     if (!l_chain_decree) {
         log_it(L_ERROR, "Can't find chain with decree support");
         return NULL;
@@ -512,7 +513,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
     l_decree->header.common_decree_params.net_id = a_net->pub.id;
     l_decree->header.common_decree_params.chain_id = l_chain_anchor->id;
-    l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
+    l_decree->header.common_decree_params.cell_id = *dap_chain_net_api_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD;
     l_decree->header.data_size = l_tsd_total_size;
     // Fill a TSD section
@@ -628,7 +629,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_json_t *a_json
     DAP_DEL_Z(l_val);
     if (l_objs_count) {
         dap_global_db_objs_delete(l_objs, l_objs_count);
-        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+        dap_chain_t *l_chain = dap_chain_net_api_get_default_chain_by_type(a_net, CHAIN_TYPE_TX);
         uint256_t l_collect_fee = l_chain ? dap_chain_cs_get_fee(l_chain) : uint256_0;
         SUM_256_256(l_collect_fee, a_net->pub.fee_value, &l_collect_fee);
         uint256_t l_collect_tax = {}, l_collect_value = {};
@@ -1287,7 +1288,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     }
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show") >= 0) {
-                    uint256_t l_cur_reward = dap_chain_net_get_reward(l_net, UINT64_MAX);
+                    uint256_t l_cur_reward = dap_chain_net_api_get_reward(l_net, UINT64_MAX);
                     const char *l_reward_str; dap_uint256_to_char(l_cur_reward, &l_reward_str);
                     dap_json_t *json_obj_out = dap_json_object_new();
                     char *l_val = dap_strdup_printf("Current base block reward is %s\n", l_reward_str);
@@ -1858,10 +1859,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     switch (ret) {
     case ATOM_ACCEPT:{
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
         assert(l_net);
-        if ( !dap_chain_net_get_load_mode(l_net) ) {
+        if ( !dap_chain_net_api_get_load_mode(l_net) ) {
             int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
             if (l_err < 0) {
                 log_it(L_ERROR, "Can't save atom to file, code %d", l_err);
@@ -1871,7 +1872,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 #endif
         if (!( l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped) )) {
             log_it(L_ERROR, "Block %s is corrupted!", l_block_cache->block_hash_str);
-            return dap_chain_net_get_load_mode(l_net) ? ATOM_CORRUPTED : ATOM_REJECT;
+            return dap_chain_net_api_get_load_mode(l_net) ? ATOM_CORRUPTED : ATOM_REJECT;
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
 
@@ -1931,7 +1932,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                         // Send it to notificator listeners
 #ifndef DAP_CHAIN_BLOCKS_TEST
-                        if (!dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id))){
+                        if (!dap_chain_net_api_get_load_mode( dap_chain_net_api_by_id(a_chain->net_id))){
 #endif
                             dap_list_t *l_iter;
                             DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
@@ -2023,7 +2024,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         break;
     case ATOM_FORK:{
 #ifndef DAP_CHAIN_BLOCKS_TEST
-        if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
+        if ( !dap_chain_net_api_get_load_mode( dap_chain_net_api_by_id(a_chain->net_id)) ) {
             int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
             dap_return_val_if_pass_err(l_err, ATOM_REJECT, "Can't save atom to file, code %d", l_err);
             ret = ATOM_FORK;
@@ -2075,7 +2076,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         debug_if(s_debug_more, L_DEBUG, "... %s is already present", dap_chain_hash_fast_to_str_static(&l_block_hash));
         break;
     case ATOM_CORRUPTED:
-        debug_if(s_debug_more, L_DEBUG, "... atom is corrupted.%s", dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id))
+        debug_if(s_debug_more, L_DEBUG, "... atom is corrupted.%s", dap_chain_net_api_get_load_mode(dap_chain_net_api_by_id(a_chain->net_id))
             ? " The file will be truncated!" : "");
     default:
         debug_if(s_debug_more, L_DEBUG, "Unknown verification ret code %d", ret);
@@ -2095,7 +2096,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
 {
     dap_return_val_if_fail(a_chain && a_atom && a_atom_size && a_atom_hash, ATOM_REJECT);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    bool l_load_mode = l_net ? dap_chain_net_get_load_mode(l_net) : false;
+    bool l_load_mode = l_net ? dap_chain_net_api_get_load_mode(l_net) : false;
     dap_chain_type_blocks_t * l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     assert(l_blocks);
     dap_chain_type_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
@@ -2902,7 +2903,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
         log_it(L_WARNING, "Reward is not set for this block");
         return l_ret;
     }
-    l_ret = dap_chain_net_get_reward(l_net, l_block_cache->block_number);
+    l_ret = dap_chain_net_api_get_reward(l_net, l_block_cache->block_number);
     size_t l_signs_count = l_block_cache->sign_count;
     if (l_block_cache->is_genesis) {
         DIV_256(l_ret, GET_256_FROM_64(l_signs_count), &l_ret);
@@ -3095,7 +3096,7 @@ dap_ledger_hardfork_fees_t *dap_chain_type_blocks_fees_aggregate(dap_chain_t *a_
 dap_pkey_t *dap_chain_type_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash)
 {
     dap_return_val_if_pass(!a_pkey_hash, NULL);
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    dap_chain_t *l_chain = dap_chain_net_api_get_chain_by_type(a_net, CHAIN_TYPE_TX);
     if (!l_chain || !DAP_CHAIN_TYPE_BLOCKS(l_chain) || !PVT(DAP_CHAIN_TYPE_BLOCKS(l_chain)))
         return NULL;
     dap_pkey_t *l_ret = NULL;

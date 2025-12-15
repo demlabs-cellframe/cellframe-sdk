@@ -36,6 +36,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_utils.h"
+#include "dap_chain_net_api.h"  // Phase 5.3: Core net API for breaking cycles
 #include "rand/dap_rand.h"
 #include "dap_chain_node_sync_client.h"
 #include "dap_chain_net_ch_pkt.h"
@@ -1146,7 +1147,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     }
     if (!dap_hash_fast_is_blank(&l_stake->tx_hash.hash)) {
         HASH_ADD(ht, l_srv_stake->tx_itemlist, tx_hash.hash_key, sizeof(l_stake->tx_hash.hash_key), l_stake);
-        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+        dap_chain_t *l_chain = dap_chain_net_api_get_default_chain_by_type(a_net, CHAIN_TYPE_TX);
         if (!l_chain || !l_chain->generation)
             s_stake_add_tx(a_net, l_stake);
     }
@@ -1432,7 +1433,7 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
 
 static int s_pos_delegate_purge(dap_chain_net_id_t a_net_id, void *a_service_internal)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_net_id);
     if (!l_net)
         return -1;
     dap_ledger_t *l_ledger = l_net->pub.ledger;
@@ -1741,7 +1742,7 @@ static dap_chain_datum_tx_t *s_order_tx_create(dap_chain_net_t * a_net, dap_enc_
 // Put the transaction to mempool
 static char *s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net, const char *a_hash_out_type)
 {
-    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    dap_chain_t *l_chain = dap_chain_net_api_get_default_chain_by_type(a_net, CHAIN_TYPE_TX);
     if (!l_chain)
         return NULL;
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
@@ -1856,14 +1857,14 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     l_decree->header.ts_created = dap_time_now();
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
     l_decree->header.common_decree_params.net_id = a_net->pub.id;
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
+    dap_chain_t *l_chain = dap_chain_net_api_get_chain_by_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
         DAP_DEL_Z(l_decree);
         return NULL;
     }
     l_decree->header.common_decree_params.chain_id = l_chain->id;
-    l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
+    l_decree->header.common_decree_params.cell_id = *dap_chain_net_api_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE;
     l_decree->header.data_size = l_total_tsd_size;
     l_decree->header.signs_size = 0;
@@ -1914,14 +1915,14 @@ static dap_chain_datum_decree_t *s_decree_pkey_update(dap_chain_net_t *a_net, da
     l_decree->header.ts_created = dap_time_now();
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
     l_decree->header.common_decree_params.net_id = a_net->pub.id;
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
+    dap_chain_t *l_chain = dap_chain_net_api_get_chain_by_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
         DAP_DEL_Z(l_decree);
         return NULL;
     }
     l_decree->header.common_decree_params.chain_id = l_chain->id;
-    l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
+    l_decree->header.common_decree_params.cell_id = *dap_chain_net_api_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE;
     l_decree->header.data_size = l_total_tsd_size;
     l_decree->header.signs_size = 0;
@@ -1949,7 +1950,7 @@ static char *s_stake_decree_put(dap_chain_datum_decree_t *a_decree, dap_chain_ne
 {
     size_t l_decree_size = dap_chain_datum_decree_get_size(a_decree);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, a_decree, l_decree_size);
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    dap_chain_t *l_chain = dap_chain_net_api_get_chain_by_type(a_net, CHAIN_TYPE_DECREE);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported decree datum type");
         return NULL;
@@ -2131,7 +2132,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     l_decree->header.ts_created = dap_time_now();
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
     l_decree->header.common_decree_params.net_id = a_net->pub.id;
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
+    dap_chain_t *l_chain = dap_chain_net_api_get_chain_by_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
         DAP_DEL_Z(l_decree);
@@ -2139,7 +2140,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
         return NULL;
     }
     l_decree->header.common_decree_params.chain_id = l_chain->id;
-    l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
+    l_decree->header.common_decree_params.cell_id = *dap_chain_net_api_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE;
     l_decree->header.data_size = l_total_tsd_size;
     l_decree->header.signs_size = 0;
@@ -2183,7 +2184,7 @@ static dap_chain_datum_decree_t *s_stake_decree_set_max_weight(dap_chain_net_t *
 {
     size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
     dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
-                                                                    *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+                                                                    *dap_chain_net_api_get_cur_cell(a_net), l_total_tsd_size);
     if (!l_decree)
         return NULL;
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT;
@@ -2197,7 +2198,7 @@ static dap_chain_datum_decree_t *s_stake_decree_set_min_stake(dap_chain_net_t *a
 {
     size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
     dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
-                                                                    *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+                                                                    *dap_chain_net_api_get_cur_cell(a_net), l_total_tsd_size);
     if (!l_decree)
         return NULL;
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE;
@@ -4529,7 +4530,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, dap_json_t *a_json_arr_rep
                 return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NET_ERR;
             }
 
-            l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+            l_chain = dap_chain_net_api_get_default_chain_by_type(l_net, CHAIN_TYPE_TX);
 
             if (!l_chain) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_CHAIN_PARAM_ERR,
@@ -4851,7 +4852,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
 
 static dap_json_t *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_net_id);
     uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
     dap_chain_net_srv_stake_get_fee_validators(l_net, &l_max, &l_average, &l_min, &l_median);
     const char *l_native_token  = l_net->pub.native_ticker;
@@ -5001,7 +5002,7 @@ int dap_chain_net_srv_stake_hardfork_data_export(dap_chain_net_t *a_net, dap_lis
  */
 int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hardfork_decree_hash)
 { 
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_net_id);
     dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(l_net, a_hardfork_decree_hash, NULL);
     if (!l_decree) {
         log_it(L_ERROR, "Can't find hardfork decree by hash %s", dap_hash_fast_to_str_static(a_hardfork_decree_hash));
@@ -5045,7 +5046,7 @@ int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, da
 
 int dap_chain_net_srv_stake_hardfork_data_verify(dap_chain_net_t *a_net, dap_hash_fast_t *a_hardfork_decree_hash)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net->pub.id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_net->pub.id);
     dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(l_net, a_hardfork_decree_hash, NULL);
     if (!l_decree) {
         log_it(L_ERROR, "Can't find hardfork decree by hash %s", dap_hash_fast_to_str_static(a_hardfork_decree_hash));
@@ -5092,7 +5093,7 @@ int dap_chain_net_srv_stake_hardfork_data_verify(dap_chain_net_t *a_net, dap_has
  */
 int dap_chain_net_srv_stake_switch_table(dap_chain_net_id_t a_net_id, bool a_to_sandbox)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_net_id);
     struct srv_stake *l_srv_stake = s_srv_stake_by_net_id(a_net_id);
     if (!l_srv_stake || !l_net)
         return -1;

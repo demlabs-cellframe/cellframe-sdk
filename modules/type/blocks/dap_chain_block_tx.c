@@ -470,3 +470,4 @@ char *dap_chain_block_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks
     DAP_DELETE(l_datum);
     return l_ret;
 }
+

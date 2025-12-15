@@ -41,6 +41,10 @@
 // Custom datum type
 #define DAP_CHAIN_DATUM_CUSTOM              0xffff
 
+// Consensus type string constants
+// Moved from consensus modules to break cyclic dependencies (Phase 5.3)
+#define DAP_CHAIN_ESBOCS_CS_TYPE_STR "esbocs"
+
 // Chain type enum
 typedef enum dap_chain_type {
     CHAIN_TYPE_INVALID = -1,

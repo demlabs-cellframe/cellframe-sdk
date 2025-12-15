@@ -30,6 +30,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_stake.h"
 #include "dap_chain_net_utils.h"
+#include "dap_chain_net_api.h"  // Phase 5.3: Core net API for breaking cycles
 #include "dap_chain_net_tx.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
@@ -366,9 +367,9 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-chain", &l_chain_str)
     &&	l_chain_str)
-        l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+        l_chain = dap_chain_net_api_get_chain_by_name(l_net, l_chain_str);
     else
-        l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        l_chain = dap_chain_net_api_get_default_chain_by_type(l_net, CHAIN_TYPE_TX);
     if(!l_chain)
         return CHAIN_ERROR;
 
@@ -505,9 +506,9 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-chain", &l_chain_str)
         &&	l_chain_str)
-        l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+        l_chain = dap_chain_net_api_get_chain_by_name(l_net, l_chain_str);
     else
-        l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        l_chain = dap_chain_net_api_get_default_chain_by_type(l_net, CHAIN_TYPE_TX);
     if(!l_chain)
         return CHAIN_ERROR;
 
@@ -1208,7 +1209,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
 
         // add 'in_ems' item
         {
-            dap_chain_id_t l_chain_id = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX)->id;
+            dap_chain_id_t l_chain_id = dap_chain_net_api_get_default_chain_by_type(a_net, CHAIN_TYPE_TX)->id;
             dap_hash_fast_t l_blank_hash = {};
             dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, a_delegated_ticker_str);
             if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems) == -1) {

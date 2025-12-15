@@ -25,7 +25,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "utlist.h"
 #include "dap_rand.h"
 #include "dap_stream_ch_proc.h"
-#include "dap_chain_net.h"
+// Phase 5.3: Use network API layer instead of full net module to break cycles
+#include "dap_chain_net_api.h"  // Core net API (lookup functions) - replaces dap_chain_net.h for core functions
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
@@ -124,7 +125,7 @@ DAP_STATIC_INLINE uint32_t s_directive_calc_size(uint8_t a_type)
 
 DAP_STATIC_INLINE char *s_get_penalty_group(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_net_id);
     return dap_strdup_printf(DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX".%s.penalty", l_net->pub.gdb_groups_prefix);
 }
 
@@ -334,7 +335,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->start_validators_min     = l_esbocs_pvt->min_validators_count = l_validators_count;
 
     uint16_t i, l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     int l_dot_pos = strlen(l_auth_certs_prefix), l_len = l_dot_pos + 16, l_pos2 = 0;
     char l_cert_name[l_len];
     dap_strncpy(l_cert_name, l_auth_certs_prefix, l_len);
@@ -396,7 +397,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         if (l_preset_reward_str) {
             uint256_t l_preset_reward = dap_chain_balance_scan(l_preset_reward_str);
             if (!IS_ZERO_256(l_preset_reward))
-                dap_chain_net_add_reward(l_net, l_preset_reward, 0);
+                dap_chain_net_api_add_reward(l_net, l_preset_reward, 0);
         }
         
         // Register consensus callbacks for this chain 
@@ -522,7 +523,7 @@ static void s_add_block_collect_internal(dap_chain_block_cache_t *a_block_cache,
     if (a_type == DAP_CHAIN_BLOCK_COLLECT_BOTH || a_type == DAP_CHAIN_BLOCK_COLLECT_FEES) {
         dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_cache->block, a_block_cache->block_size, 0);
         if (dap_pkey_compare_with_sign(a_block_collect_params->block_sign_pkey, l_sign)) {
-            dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
+            dap_chain_net_t *l_net = dap_chain_net_api_by_id(l_chain->net_id);
             assert(l_net);
             uint256_t l_value_fee = uint256_0;
             dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
@@ -543,7 +544,7 @@ static void s_add_block_collect_internal(dap_chain_block_cache_t *a_block_cache,
         return;
     if (dap_chain_block_sign_match_pkey(a_block_cache->block, a_block_cache->block_size,
                                         a_block_collect_params->block_sign_pkey)) {
-        dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
+        dap_chain_net_t *l_net = dap_chain_net_api_by_id(l_chain->net_id);
         assert(l_net);
         if (!dap_ledger_is_used_reward(l_net->pub.ledger, &a_block_cache->block_hash,
                                         &a_block_collect_params->collecting_addr->data.hash_fast)) {
@@ -658,7 +659,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         dap_list_free_full(l_validators, NULL);
         return -3;
     }
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if (l_role.enums > NODE_ROLE_MASTER) {
         log_it(L_NOTICE, "Node role is lower than master role, so this node can't be a consensus validator");
@@ -787,7 +788,7 @@ static int s_callback_stop(dap_chain_t *a_chain)
     DL_FOREACH(s_session_items, l_session) {
         if (l_session->chain == a_chain &&
             l_session->cs_timer) {
-            log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
+            log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_api_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
             l_session->cs_timer = false;
         }
     }
@@ -799,7 +800,7 @@ static int s_callback_start(dap_chain_t *a_chain)
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session) {
         if (l_session->chain == a_chain) {
-            log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
+            log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_api_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
             l_session->cs_timer = true;
         }
     }
@@ -910,7 +911,7 @@ int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     dap_list_free_full(l_esbocs->hardfork_trusted_addrs, NULL);
     l_esbocs->hardfork_trusted_addrs = NULL;
     dap_json_object_free(l_esbocs->hardfork_changed_addrs);
@@ -928,7 +929,7 @@ static int s_callback_purge(dap_chain_t *a_chain)
     dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
     for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;

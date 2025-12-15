@@ -98,6 +98,7 @@
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "rand/dap_rand.h"
+#include "dap_chain_net_api.h"  // Phase 5.3: Network API registration
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
@@ -305,6 +306,28 @@ int dap_chain_net_init()
         log_it(L_WARNING, "Can't open entries on path %s, error %d: \"%s\"", l_path, errno, dap_strerror(errno));
 
     dap_enc_http_set_acl_callback(s_net_set_acl);
+    
+    // Phase 5.3: Register network API functions for mid-level modules
+    // This breaks cyclic dependencies by allowing blocks/esbocs/stake to use
+    // core net functions without depending on full net module
+    dap_chain_net_api_registry_t l_api_registry = {
+        .by_id = dap_chain_net_by_id,
+        .by_name = dap_chain_net_by_name,
+        .get_chain_by_name = dap_chain_net_get_chain_by_name,
+        .get_chain_by_type = dap_chain_net_get_chain_by_chain_type,
+        .get_default_chain_by_type = dap_chain_net_get_default_chain_by_chain_type,
+        .get_cur_cell = dap_chain_net_get_cur_cell,
+        .get_load_mode = dap_chain_net_get_load_mode,
+        .get_reward = dap_chain_net_get_reward,
+        .add_reward = dap_chain_net_add_reward
+    };
+    int l_api_ret = dap_chain_net_api_register(&l_api_registry);
+    if (l_api_ret != 0) {
+        log_it(L_ERROR, "Failed to register network API functions (code %d)", l_api_ret);
+        return -2;
+    }
+    log_it(L_INFO, "Network API functions registered for dependency inversion");
+    
     log_it(L_NOTICE,"Chain networks initialized");
     return 0;
 }

@@ -29,9 +29,12 @@
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
 #include "dap_chain_node_sync_client.h"
-#include "dap_chain_cs_esbocs.h" // TODO set RPC callbacks for exclude consensus specific dependency
-#include "dap_chain_type_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
-#include "dap_chain_net_srv_stake_pos_delegate.h" // TODO set RPC callbacks for exclude service specific dependency
+#include "dap_chain_types.h" // Consensus type strings moved to common (Phase 5.3)
+#include "dap_chain_rpc_callbacks.h" // RPC callbacks for Dependency Inversion (Phase 5.3)
+// REMOVED: #include "dap_chain_cs_esbocs.h" - using DAP_CHAIN_ESBOCS_CS_TYPE_STR from dap_chain_types.h
+// TODO Phase 5.3: Replace direct calls with callbacks for blocks and stake
+#include "dap_chain_type_blocks.h" // TODO Phase 5.3: wrap in callback pattern
+#include "dap_chain_net_srv_stake_pos_delegate.h" // TODO Phase 5.3: wrap in callback pattern
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_cli_server.h"

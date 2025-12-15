@@ -1,0 +1,303 @@
+{
+  "version": "1.0",
+  "created": "2025-12-15T18:30:00Z",
+  "analysis_type": "deep_dependency_usage_analysis",
+  "phase": "5.3.1",
+  "title": "Cellframe SDK Cyclic Dependencies - Detailed Usage Analysis",
+  "methodology_reference": ".context/modules/methodologies/circular_dependency_resolution.json",
+  
+  "dependency_matrix": {
+    "wallet": {
+      "depends_on": ["net", "ledger", "datum", "mempool"],
+      "depended_by": ["net", "stake", "compose"],
+      "includes_from_net": [
+        "dap_chain_net.h (in wallet_cache.h)",
+        "dap_chain_net_tx.h (in wallet_shared.c)"
+      ],
+      "usage_pattern": "Uses net types for transaction and network context",
+      "dependency_depth": "MEDIUM - uses net types and some API"
+    },
+    "net": {
+      "depends_on": ["wallet", "blocks", "esbocs", "stake", "ledger", "datum", "mempool", "cs"],
+      "depended_by": ["esbocs", "blocks", "stake", "wallet", "compose"],
+      "includes_from_others": {
+        "wallet": ["dap_chain_wallet.h", "dap_chain_wallet_shared.h", "dap_chain_wallet_cache.h"],
+        "blocks": ["dap_chain_type_blocks.h"],
+        "stake": ["dap_chain_net_srv_stake_pos_delegate.h"],
+        "esbocs": ["dap_chain_cs_esbocs.h (REMOVED in Phase 5.3.1)"]
+      },
+      "function_calls_to_others": {
+        "blocks": ["dap_chain_type_blocks_fees_aggregate()"],
+        "stake": ["dap_chain_net_srv_stake_hardfork_data_verify()"]
+      },
+      "usage_pattern": "Coordinates all modules, very high coupling",
+      "dependency_depth": "VERY HIGH - central module with bidirectional deps"
+    },
+    "esbocs": {
+      "depends_on": ["net", "blocks", "stake", "chain", "ledger"],
+      "depended_by": ["net"],
+      "includes_from_net": ["dap_chain_net.h", "dap_chain_net_srv_order.h", "dap_chain_net_srv_stake_pos_delegate.h"],
+      "function_calls_to_net": [
+        "dap_chain_net_by_id()",
+        "dap_chain_net_srv_stake_get_pkey_by_hash()",
+        "dap_chain_net_srv_stake_get_allowed_min_value()",
+        "dap_chain_net_srv_stake_key_delegate()",
+        "dap_chain_net_add_reward()"
+      ],
+      "usage_pattern": "Consensus logic uses net for network operations and stake integration",
+      "dependency_depth": "STRONG - 8+ net API function calls"
+    },
+    "blocks": {
+      "depends_on": ["net", "stake", "ledger", "datum"],
+      "depended_by": ["net", "esbocs"],
+      "includes_from_net": ["dap_chain_net.h", "dap_chain_net_tx.h"],
+      "includes_from_stake": ["dap_chain_net_srv_stake.h"],
+      "function_calls_to_net": [
+        "dap_chain_net_by_id()",
+        "dap_chain_net_get_default_chain_by_chain_type()",
+        "dap_chain_net_get_cur_cell()",
+        "dap_chain_net_get_load_mode()",
+        "dap_chain_net_get_reward()",
+        "And 10+ more net API calls"
+      ],
+      "usage_pattern": "Block storage type extensively uses net API for chain management",
+      "dependency_depth": "VERY STRONG - 15+ net API function calls, deep integration"
+    },
+    "stake": {
+      "depends_on": ["net", "compose", "wallet", "ledger"],
+      "depended_by": ["net", "esbocs", "blocks"],
+      "includes_from_net": ["dap_chain_net_utils.h", "dap_chain_net_tx.h", "dap_chain_net_srv.h"],
+      "function_calls_to_net": [
+        "dap_chain_net_tx_get_fee()",
+        "Various net_srv functions"
+      ],
+      "usage_pattern": "Staking service uses net transaction API",
+      "dependency_depth": "MEDIUM - uses specific net_tx API"
+    },
+    "compose": {
+      "depends_on": ["wallet", "net", "ledger"],
+      "depended_by": ["stake"],
+      "includes_from_wallet": ["dap_chain_wallet_shared.h"],
+      "includes_from_net": ["dap_chain_net_tx.h", "dap_chain_net_srv_order.h"],
+      "usage_pattern": "Transaction composition uses wallet and net API",
+      "dependency_depth": "MEDIUM - uses wallet and net types/functions"
+    }
+  },
+  
+  "cycle_analysis_detailed": {
+    "strongly_connected_component": {
+      "members": ["wallet", "net", "blocks", "esbocs", "stake", "compose"],
+      "size": 6,
+      "type": "Full bidirectional dependencies - all depend on all",
+      "cmake_restriction": "OBJECT_LIBRARY cannot have cycles",
+      "phase_5_2_solution": "Converted to STATIC_LIBRARY (allows cycles)"
+    },
+    "dependency_directions": {
+      "forward_net_dependencies": {
+        "net_to_wallet": "3 includes, function calls",
+        "net_to_blocks": "1 include, 1 function call",
+        "net_to_stake": "1 include, 1 function call",
+        "net_to_esbocs": "RESOLVED - constant moved to common"
+      },
+      "reverse_dependencies_to_net": {
+        "wallet_to_net": "2 includes (net.h, net_tx.h)",
+        "blocks_to_net": "EXTENSIVE - 15+ API functions",
+        "esbocs_to_net": "STRONG - 8+ API functions",
+        "stake_to_net": "MEDIUM - net_tx API usage",
+        "compose_to_net": "MEDIUM - net_tx API usage"
+      }
+    }
+  },
+  
+  "architectural_problems_identified": {
+    "problem_1_inverted_layering": {
+      "description": "Mid-level modules (blocks, esbocs, stake) depend on high-level module (net)",
+      "correct_layering": "net should be high-level, consuming blocks/esbocs/stake services",
+      "actual_layering": "net is mixed - has both low-level types and high-level coordination",
+      "solution": "Extract low-level net types/API to common module"
+    },
+    "problem_2_god_module": {
+      "module": "net",
+      "symptoms": [
+        "14+ direct dependencies in CMakeLists.txt",
+        "Handles networking + transactions + nodes + RPC integration",
+        "Depended upon by almost all other modules"
+      ],
+      "slc_antipattern": "god_module - multiple responsibilities",
+      "solution": "Module decomposition: net_core + net_coordination + net_rpc"
+    },
+    "problem_3_api_in_wrong_module": {
+      "issue": "Core API functions (dap_chain_net_by_id, dap_chain_net_get_*) are in net module",
+      "problem": "Low-level modules need these functions but can't depend on high-level net",
+      "creates_cycles": "Low-level blocks/esbocs must depend on high-level net",
+      "solution": "Move core API to dap_chain_net_common or dap_common"
+    }
+  },
+  
+  "refactoring_approaches_detailed": {
+    "approach_1_callback_only": {
+      "scope": "Replace forward deps (net → esbocs/blocks/stake) with callbacks",
+      "solves": "Forward dependencies only",
+      "doesnt_solve": "Reverse dependencies (blocks/esbocs/stake → net remain)",
+      "coverage": "~30% of problem",
+      "effort": "4-6 hours",
+      "result": "Incomplete - reverse deps create cycles",
+      "slc_verdict": "INSUFFICIENT - doesn't eliminate logical cycles"
+    },
+    "approach_2_type_extraction_minimal": {
+      "scope": "Extract only dap_chain_net_t structure to common",
+      "solves": "Type-level dependencies",
+      "doesnt_solve": "API function dependencies (15+ functions in blocks alone)",
+      "coverage": "~40% of problem",
+      "effort": "6-8 hours",
+      "result": "Partial - function dependencies remain",
+      "slc_verdict": "INSUFFICIENT - incomplete solution"
+    },
+    "approach_3_type_extraction_full": {
+      "scope": "Extract dap_chain_net_t + core net API (dap_chain_net_by_id, get_*, etc)",
+      "solves": "All structural dependencies",
+      "remaining": "Some coordination logic may need callbacks",
+      "coverage": "~80-90% of problem",
+      "effort": "12-16 hours",
+      "result": "Near-complete - most cycles eliminated",
+      "slc_verdict": "GOOD - significant progress toward clean architecture"
+    },
+    "approach_4_module_decomposition": {
+      "scope": "Split net into net_common + net_core + net_coordination",
+      "solves": "All dependencies through proper layering",
+      "coverage": "100% of problem",
+      "effort": "16-24 hours",
+      "result": "Complete - clean layered architecture",
+      "slc_verdict": "EXCELLENT - ideal solution, proper architecture",
+      "risk": "HIGH - very large refactoring, extensive testing needed"
+    }
+  },
+  
+  "recommended_approach": {
+    "choice": "Approach 3 (Type Extraction Full) or Approach 4 (Module Decomposition)",
+    "rationale": [
+      "Approach 1 and 2 are insufficient per SLC principles",
+      "Approach 3 achieves 80-90% cycle elimination with manageable effort",
+      "Approach 4 is ideal but requires 16-24 hours + extensive testing",
+      "Given current task context, Approach 3 minimum required"
+    ],
+    "slc_compliance": "Approach 3 minimum for SLC compliance, Approach 4 ideal"
+  },
+  
+  "files_analyzed": {
+    "cmake_files": [
+      "modules/wallet/CMakeLists.txt",
+      "modules/net/CMakeLists.txt",
+      "modules/consensus/esbocs/CMakeLists.txt",
+      "modules/service/stake/CMakeLists.txt",
+      "modules/compose/CMakeLists.txt"
+    ],
+    "source_files": [
+      "modules/net/dap_chain_node.c (PRIMARY - has TODO comments)",
+      "modules/net/dap_chain_net_tx.c",
+      "modules/net/dap_chain_net_ch.c",
+      "modules/consensus/esbocs/dap_chain_cs_esbocs.c",
+      "modules/type/blocks/dap_chain_type_blocks.c",
+      "modules/type/blocks/dap_chain_block_tx.c",
+      "modules/service/stake/dap_chain_net_srv_stake.c",
+      "modules/compose/dap_chain_tx_compose.c"
+    ],
+    "header_files": [
+      "modules/wallet/include/*.h",
+      "modules/net/include/*.h",
+      "modules/consensus/esbocs/include/*.h",
+      "modules/type/blocks/include/*.h",
+      "modules/service/stake/include/*.h"
+    ]
+  },
+  
+  "metrics": {
+    "total_cycles": 6,
+    "cycles_fully_resolved": 0,
+    "cycles_partially_resolved": 1,
+    "cycles_remaining": 5,
+    "infrastructure_prepared": 1,
+    "callback_registry_created": true,
+    "type_constants_extracted": 1,
+    "forward_includes_removed": 1,
+    "reverse_dependencies_remaining": "EXTENSIVE (15+ API calls in blocks alone)",
+    "estimated_total_refactoring_hours": "12-20 hours for Approach 3, 16-24 hours for Approach 4"
+  },
+  
+  "code_locations": {
+    "todo_comments": {
+      "file": "modules/net/dap_chain_node.c",
+      "lines": [32, 33, 34],
+      "content": [
+        "TODO set RPC callbacks for exclude consensus specific dependency",
+        "TODO set RPC callbacks for exclude storage type specific dependency",
+        "TODO set RPC callbacks for exclude service specific dependency"
+      ],
+      "action_taken": "Implemented callback infrastructure in modules/common/dap_chain_rpc_callbacks.*"
+    },
+    "critical_dependencies": {
+      "blocks_to_net_api": {
+        "file": "modules/type/blocks/dap_chain_type_blocks.c",
+        "calls": [
+          "dap_chain_net_by_id()",
+          "dap_chain_net_get_default_chain_by_chain_type()",
+          "dap_chain_net_get_cur_cell()",
+          "dap_chain_net_get_load_mode()",
+          "dap_chain_net_get_reward()",
+          "dap_chain_net_* (10+ more)"
+        ],
+        "line_count": "15+ calls throughout file",
+        "refactoring_needed": "Extract these API functions to dap_chain_net_common"
+      },
+      "esbocs_to_net_api": {
+        "file": "modules/consensus/esbocs/dap_chain_cs_esbocs.c",
+        "calls": [
+          "dap_chain_net_by_id()",
+          "dap_chain_net_srv_stake_get_pkey_by_hash()",
+          "dap_chain_net_srv_stake_get_allowed_min_value()",
+          "dap_chain_net_srv_stake_key_delegate()",
+          "dap_chain_net_add_reward()",
+          "And more"
+        ],
+        "line_count": "8+ calls",
+        "refactoring_needed": "Extract net API or use callbacks for notifications"
+      }
+    }
+  },
+  
+  "slc_methodology_application": {
+    "forbidden_solutions_avoided": {
+      "no_forward_declarations": true,
+      "no_include_path_hacks": true,
+      "no_symlinks": true,
+      "no_code_duplication": true,
+      "no_ifdef_hiding": true
+    },
+    "proper_solutions_applied": {
+      "type_extraction": "PARTIAL - one constant moved to common",
+      "callback_inversion": "INFRASTRUCTURE_READY - registry created",
+      "module_decomposition": "NOT_YET - identified as needed",
+      "deep_refactoring": "IN_PROGRESS - proper approach being followed"
+    },
+    "principles_followed": [
+      "Analysis before implementation - DONE",
+      "Understanding usage patterns - DONE",
+      "Choosing clean solutions over quick fixes - DONE",
+      "Infrastructure preparation - DONE",
+      "Realistic effort estimation - UPDATED (12-20h not 6-8h)"
+    ]
+  },
+  
+  "navigation_system": {
+    "purpose": "Dependency analysis for Phase 5.3 architectural refactoring",
+    "recovery_path": ".context/tasks/python_dap_guides_ru_en_20251208.json",
+    "current_file": "cellframe-sdk/phase_5_dependency_analysis.json",
+    "file_role": "ANALYSIS_DOCUMENT",
+    "related_files": {
+      "status": "cellframe-sdk/phase_5_3_status.json",
+      "task": ".context/tasks/python_dap_guides_ru_en_20251208.json",
+      "methodology": ".context/modules/methodologies/circular_dependency_resolution.json"
+    },
+    "ai_context": "Phase 5.3 dependency analysis - auto-loaded for task context"
+  }
+}

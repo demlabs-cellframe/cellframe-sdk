@@ -58,51 +58,36 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/cmake/LibraryHelpers.cmake)
 # =========================================
 # INTERNAL MODULE CREATION MACRO
 # =========================================
-# ⚠️ TEMPORARY FIX (Phase 5.2): Creates STATIC libraries instead of OBJECT
-# This is a TEMPORARY solution to bypass CMake OBJECT_LIBRARY cycle restrictions.
-# MANDATORY: Phase 5.3 architectural refactoring REQUIRED after this.
-# See: MANDATORY_NEXT_STEP.md for details.
-#
-# Creates internal static modules (temporary workaround for circular dependencies)
+# Creates internal object modules using universal create_object_library
 # Usage: cellframe_add_library(target_name sources... HEADERS headers...)
 macro(cellframe_add_library TARGET_NAME)
     cmake_parse_arguments(CELLFRAME_LIB "" "" "HEADERS" ${ARGN})
     
-    # TEMPORARY: Create STATIC library instead of OBJECT to allow circular dependencies
-    # CMake allows cycles between STATIC libraries but NOT between OBJECT libraries
-    add_library(${TARGET_NAME} STATIC ${CELLFRAME_LIB_UNPARSED_ARGUMENTS} ${CELLFRAME_LIB_HEADERS})
+    # Use universal create_object_library function
+    create_object_library(${TARGET_NAME} CELLFRAME_INTERNAL_MODULES ${CELLFRAME_LIB_UNPARSED_ARGUMENTS} HEADERS ${CELLFRAME_LIB_HEADERS})
     
-    # Enable position independent code for potential shared library
-    set_property(TARGET ${TARGET_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
-    
-    # Track module in the internal modules list
-    if(NOT DEFINED CELLFRAME_INTERNAL_MODULES)
-        set(CELLFRAME_INTERNAL_MODULES "" CACHE INTERNAL "List of internal modules")
-    endif()
-    list(APPEND CELLFRAME_INTERNAL_MODULES ${TARGET_NAME})
-    set(CELLFRAME_INTERNAL_MODULES ${CELLFRAME_INTERNAL_MODULES} CACHE INTERNAL "List of internal modules")
-    
-    message("[+] Cellframe Internal Module: ${TARGET_NAME} (STATIC - TEMPORARY FIX)")
+    message("[+] Cellframe Internal Module: ${TARGET_NAME} (OBJECT)")
 endmacro()
 
 # =========================================
 # FINAL LIBRARY CREATION (will be called at the end)
 # =========================================
-# ⚠️ TEMPORARY FIX (Phase 5.2): Modified to work with STATIC internal modules
-# Previously collected OBJECT files, now links STATIC libraries
-# See: MANDATORY_NEXT_STEP.md for architectural refactoring requirements
-#
 # Creates final combined Cellframe SDK library 
 macro(cellframe_create_final_library)
     if(DEFINED CELLFRAME_INTERNAL_MODULES)
         message("[+] Creating final Cellframe SDK library: cellframe_sdk (${CELLFRAME_BUILD_MODE})")
-        message("[+] Internal STATIC modules to link: ${CELLFRAME_INTERNAL_MODULES}")
-        message("[!] TEMPORARY FIX: Using STATIC libraries (Phase 5.2)")
-        message("[!] Phase 5.3 architectural refactoring REQUIRED - see MANDATORY_NEXT_STEP.md")
+        message("[+] Internal modules to combine: ${CELLFRAME_INTERNAL_MODULES}")
         
-        # TEMPORARY: Create final library from source (not from object files)
-        # Internal modules are now STATIC libraries, so we link them instead
-        add_library(cellframe_sdk ${CELLFRAME_FINAL_LIB_TYPE} cellframe-sdk.c)
+        set(ALL_OBJECTS "")
+        foreach(MODULE ${CELLFRAME_INTERNAL_MODULES})
+            if(TARGET ${MODULE})
+                list(APPEND ALL_OBJECTS $<TARGET_OBJECTS:${MODULE}>)
+            else()
+                message(WARNING "[SDK] Module ${MODULE} registered but target does not exist")
+            endif()
+        endforeach()
+        
+        add_library(cellframe_sdk ${CELLFRAME_FINAL_LIB_TYPE} ${ALL_OBJECTS} cellframe-sdk.c)
         
         if(BUILD_SHARED)
             set_target_properties(cellframe_sdk PROPERTIES
@@ -115,14 +100,6 @@ macro(cellframe_create_final_library)
         else()
             target_compile_definitions(cellframe_sdk INTERFACE CELLFRAME_USING_STATIC)
         endif()
-        
-        # TEMPORARY FIX: Link all internal STATIC modules
-        # (Previously they were OBJECT libraries combined via TARGET_OBJECTS)
-        foreach(MODULE ${CELLFRAME_INTERNAL_MODULES})
-            if(TARGET ${MODULE})
-                target_link_libraries(cellframe_sdk PUBLIC ${MODULE})
-            endif()
-        endforeach()
         
         # Link with external Cellframe libraries (those not created via cellframe_add_library)
         # These are STATIC libraries like dap_chain_type_blocks, dap_chain_cs_esbocs, etc.

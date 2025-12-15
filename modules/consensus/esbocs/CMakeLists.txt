@@ -24,7 +24,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../node-cli-cmd/include
 )
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_cs dap_chain_ledger dap_chain_net_srv dap_link_manager)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_cs dap_chain_ledger dap_chain_net_srv dap_link_manager dap_chain_type_blocks)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_CS_ESBOCS_HEADERS}")
