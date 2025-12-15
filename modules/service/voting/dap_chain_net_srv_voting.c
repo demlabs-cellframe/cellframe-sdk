@@ -241,9 +241,12 @@ static inline bool s_voting_delete(dap_chain_net_id_t a_net_id, dap_hash_fast_t 
 uint64_t *dap_chain_net_srv_voting_get_result(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_voting_hash)
 {
     dap_return_val_if_fail(a_ledger && a_voting_hash, NULL);
-    struct voting *l_voting = s_voting_find(a_ledger->net->pub.id, a_voting_hash);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+    if (!l_net)
+        return NULL;
+    struct voting *l_voting = s_voting_find(l_net->pub.id, a_voting_hash);
     if (!l_voting) {
-        log_it(L_ERROR, "Can't find poll with hash %s in net %s", dap_hash_fast_to_str_static(a_voting_hash), a_ledger->net->pub.name);
+        log_it(L_ERROR, "Can't find poll with hash %s in net %s", dap_hash_fast_to_str_static(a_voting_hash), l_net->pub.name);
         return NULL;
     }
     size_t l_options_count = dap_list_length(l_voting->params->options);
@@ -264,9 +267,12 @@ uint64_t *dap_chain_net_srv_voting_get_result(dap_ledger_t *a_ledger, dap_chain_
 dap_time_t dap_chain_net_srv_voting_get_expiration_time(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_voting_hash)
 {
     dap_return_val_if_fail(a_ledger && a_voting_hash, 0);
-    struct voting *l_voting = s_voting_find(a_ledger->net->pub.id, a_voting_hash);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+    if (!l_net)
+        return 0;
+    struct voting *l_voting = s_voting_find(l_net->pub.id, a_voting_hash);
     if (!l_voting) {
-        log_it(L_ERROR, "Can't find poll with hash %s in net %s", dap_hash_fast_to_str_static(a_voting_hash), a_ledger->net->pub.name);
+        log_it(L_ERROR, "Can't find poll with hash %s in net %s", dap_hash_fast_to_str_static(a_voting_hash), l_net->pub.name);
         return 0;
     }
     return l_voting->params->voting_expire;
@@ -275,6 +281,9 @@ dap_time_t dap_chain_net_srv_voting_get_expiration_time(dap_ledger_t *a_ledger, 
 
 static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply)
 {
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+    if (!l_net)
+        return -1;
     if (!a_apply) {
         bool l_question_present = false, l_options_present = false;
         byte_t *l_item; size_t l_tx_item_size;
@@ -354,8 +363,8 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     if (!l_item->params)
         return DAP_DELETE(l_item), -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
     if (!*l_item->params->token_ticker)
-        strcpy(l_item->params->token_ticker, a_ledger->net->pub.native_ticker);
-    s_voting_add(a_ledger->net->pub.id, l_item);
+        strcpy(l_item->params->token_ticker, l_net->pub.native_ticker);
+    s_voting_add(l_net->pub.id, l_item);
 
     log_it(L_NOTICE, "Poll with hash %s succefully added to ledger", dap_hash_fast_to_str_static(a_tx_hash));
 
@@ -364,13 +373,16 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
 
 static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_pkey_hash, bool a_apply)
 {
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+    if (!l_net)
+        return -1;
     dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
     assert(l_vote_tx_item);
 
-    struct voting *l_voting = s_voting_find(a_ledger->net->pub.id, &l_vote_tx_item->voting_hash);
+    struct voting *l_voting = s_voting_find(l_net->pub.id, &l_vote_tx_item->voting_hash);
     if (!l_voting) {
         log_it(L_ERROR, "Can't find poll with hash %s in net %s",
-               dap_chain_hash_fast_to_str_static(&l_vote_tx_item->voting_hash), a_ledger->net->pub.name);
+               dap_chain_hash_fast_to_str_static(&l_vote_tx_item->voting_hash), l_net->pub.name);
         return -5;
     }
 
@@ -436,7 +448,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     }
 
     if (l_voting->params->delegate_key_required &&
-            !dap_chain_net_srv_stake_check_pkey_hash(a_ledger->net->pub.id, &l_pkey_hash)){
+            !dap_chain_net_srv_stake_check_pkey_hash(l_net->pub.id, &l_pkey_hash)){
         log_it(L_WARNING, "Poll %s required a delegated key", dap_chain_hash_fast_to_str_static(&l_voting->hash));
         return -10;
     }
@@ -557,11 +569,14 @@ static inline bool s_vote_delete(dap_chain_net_id_t a_net_id, dap_chain_datum_tx
 
 static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash)
 {
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+    if (!l_net)
+        return false;
     if (a_type == TX_ITEM_TYPE_VOTING)
-        return s_voting_delete(a_ledger->net->pub.id, a_tx_hash);
+        return s_voting_delete(l_net->pub.id, a_tx_hash);
 
     if (a_type == TX_ITEM_TYPE_VOTE)
-        return s_vote_delete(a_ledger->net->pub.id, a_tx_in, a_tx_hash);
+        return s_vote_delete(l_net->pub.id, a_tx_in, a_tx_hash);
 
     log_it(L_ERROR, "Unknown poll type %d fot tx_hash %s", a_type, dap_chain_hash_fast_to_str_static(a_tx_hash));
     return false;

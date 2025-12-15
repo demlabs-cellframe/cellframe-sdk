@@ -43,6 +43,7 @@
 #include "dap_json.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_utils.h"
+#include "dap_chain_net.h"  // For dap_chain_net_by_id and related functions
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
 #include "dap_math_convert.h"
@@ -127,7 +128,8 @@ static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
     dap_json_object_add_string(json_obj_out, a_version == 1 ? "Token_ticker" : "token_ticker", l_ticker);
     dap_json_object_add_object(json_obj_out, a_version == 1 ? "Token_description" : "token_description", l_description ? dap_json_object_new_string(l_description)
                                                                             : dap_json_object_new());
-    dap_chain_datum_dump_tx_json(a_json_arr_reply, a_datum, l_ticker, json_obj_out, a_hash_out_type, a_tx_hash, a_ledger->net->pub.id, a_version);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+    dap_chain_datum_dump_tx_json(a_json_arr_reply, a_datum, l_ticker, json_obj_out, a_hash_out_type, a_tx_hash, l_net ? l_net->pub.id : a_ledger->net_id, a_version);
     dap_json_t *json_arr_items = dap_json_array_new();
     bool l_spent = false;
     byte_t *l_item; size_t l_size; int i, l_out_idx = -1;
@@ -1548,9 +1550,17 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                                             "Parameter -certs is required");
                     return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
                 }
+                dap_chain_net_t *l_net = dap_chain_net_by_id(l_ledger->net_id);
+                if (!l_net) {
+                    DAP_DELETE(l_certs);
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR,
+                                            "Can't get network for ledger");
+                    dap_strfreev(l_certs_array);
+                    return -DAP_CHAIN_NODE_CLI_COM_LEDGER_LACK_ERR;
+                }
 
                 // Get or create decree chain
-                dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(l_ledger->net, CHAIN_TYPE_DECREE);
+                dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
                 if (!l_chain) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_DECREE_CHAIN,
                                             "Network %s doesn't have a decree chain", l_net_str);
@@ -1559,8 +1569,8 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                     return DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_DECREE_CHAIN;
                 }
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_target_chain_str);
-                dap_chain_t *l_target_chain = l_target_chain_str ? dap_chain_net_get_chain_by_name(l_ledger->net, l_target_chain_str) 
-                                                                 : dap_chain_net_get_chain_by_chain_type(l_ledger->net, CHAIN_TYPE_TX);
+                dap_chain_t *l_target_chain = l_target_chain_str ? dap_chain_net_get_chain_by_name(l_net, l_target_chain_str) 
+                                                                 : dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
                 if (!l_target_chain) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_ANCHOR_CHAIN,
                                             "Network %s doesn't have a chain %s", l_net_str, l_target_chain_str ? l_target_chain_str : "type tx");
@@ -1573,9 +1583,9 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
                 l_decree->header.ts_created = dap_time_now();
                 l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
-                l_decree->header.common_decree_params.net_id = l_ledger->net->pub.id;
+                l_decree->header.common_decree_params.net_id = l_net->pub.id;
                 l_decree->header.common_decree_params.chain_id = l_target_chain->id;
-                l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_ledger->net);
+                l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_net);
                 // Set the subtype based on command
                 l_decree->header.sub_type = l_key_subcmd == KEY_SUBCMD_ADD ? 
                                         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD : 

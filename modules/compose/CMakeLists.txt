@@ -10,7 +10,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_COMPOSE_SRCS} HEADERS ${DAP_CH
 
 target_link_libraries(${PROJECT_NAME} dap_sdk dap_app_cli dap_chain dap_chain_ledger dap_client_http dap_chain_wallet)
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
-target_include_directories(${PROJECT_NAME} PRIVATE ../service/xchange/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/service/xchange/include)
 target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
 
 if(BUILD_CELLFRAME_SDK_TESTS)

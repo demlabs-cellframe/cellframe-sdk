@@ -32,6 +32,7 @@
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "../../service/stake/include/dap_chain_net_srv_stake.h"
+#include "../../service/stake/include/dap_chain_net_srv_stake_pos_delegate.h"  // For full dap_chain_net_srv_stake_item_t definition
 
 #define LOG_TAG "dap_chain_block_tx"
 

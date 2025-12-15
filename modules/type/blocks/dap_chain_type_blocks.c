@@ -41,7 +41,7 @@
 #include "dap_chain_cs_esbocs.h"  // For esbocs-specific types
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
-#include "dap_chain_node_cli_cmd.h"
+#include "../../node-cli-cmd/include/dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_type_blocks"
 
@@ -1969,7 +1969,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     // Make a block copy to avoid unmapping block pointer destruction
                     dap_chain_block_t *l_block_copy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_block, a_atom_size, ATOM_REJECT);
                     l_block = l_block_copy;
-                    if (dap_ledger_chain_purge(a_chain, a_atom_size)) {
+                    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
+                    if (l_net && l_net->pub.ledger && dap_ledger_chain_purge(l_net->pub.ledger, a_chain->id, a_atom_size)) {
                         log_it(L_ERROR, "Can't accept hardfork genesis block %s: removing cell error", dap_hash_fast_to_str_static(a_atom_hash));
                         DAP_DELETE(l_block_copy);
                         return ATOM_REJECT;
@@ -2944,7 +2945,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
 static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
                                       dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner, bool UNUSED_ARG a_from_mempool)
 {
-    dap_chain_net_t *l_net = a_ledger->net;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
     assert(l_net);
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {

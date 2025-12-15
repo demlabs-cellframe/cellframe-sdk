@@ -30,6 +30,12 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 // Forward declarations instead of dap_chain.h to avoid circular dependency
 typedef struct dap_chain dap_chain_t;
+typedef struct dap_chain_datum_decree dap_chain_datum_decree_t;
+typedef struct dap_chain_datum_anchor dap_chain_datum_anchor_t;
+
+// Policy callback types
+typedef int (*dap_chain_policy_decree_callback_t)(dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_apply, void *a_arg);
+typedef int (*dap_chain_policy_anchor_callback_t)(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash, void *a_arg);
 
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE                      BIT(0)
 

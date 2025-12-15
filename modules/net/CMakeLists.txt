@@ -11,7 +11,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_NET_SRCS} HEADERS ${DAP_CHAIN_
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_link_manager dap_dns_server
                                         dap_io dap_notify_srv dap_global_db dap_json_rpc
                                         dap_chain dap_chain_datum dap_chain_cs dap_chain_ledger
-                                        dap_chain_cs_esbocs dap_chain_policy dap_chain_mempool)
+                                        dap_chain_cs_esbocs dap_chain_mempool)
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)

@@ -29,7 +29,7 @@
 #include "dap_math_ops.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_wallet.h"
-#include "dap_chain_net_srv_xchange.h"
+// #include "dap_chain_net_srv_xchange.h"  // Phase 5.3: Commented out - not used in compose header
 #include "dap_json.h"
 
 

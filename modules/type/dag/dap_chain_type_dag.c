@@ -52,7 +52,7 @@
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+#include "../../node-cli-cmd/include/dap_chain_node_cli_cmd.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net.h"
 #include "dap_chain_ledger.h"

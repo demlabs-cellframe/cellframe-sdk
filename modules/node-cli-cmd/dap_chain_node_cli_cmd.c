@@ -5319,7 +5319,7 @@ int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
                     return -DAP_CHAIN_NODE_CLI_COM_DECREE_FIND_REQ_PARAM_VALUE_ERR;
         }
         bool l_applied = false;
-        dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(l_net, &l_datum_hash, &l_applied);
+        dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(l_net->pub.ledger, &l_datum_hash, &l_applied);
         dap_json_t *json_obj_status = dap_json_object_new();
         if (!json_obj_status) return dap_json_rpc_allocation_put_error(json_obj_status);
         dap_json_object_add_object(json_obj_status, "find_status", l_decree ? (l_applied ? dap_json_object_new_string("applied") :

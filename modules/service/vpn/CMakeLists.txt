@@ -12,6 +12,7 @@ add_definitions("-DDAP_TUN_IN_WORKER")
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/node-cli-cmd/include)
 target_include_directories(${PROJECT_NAME} PRIVATE ../../node-cli-cmd/include ../../wallet/include)
 
 if (INSTALL_SDK)

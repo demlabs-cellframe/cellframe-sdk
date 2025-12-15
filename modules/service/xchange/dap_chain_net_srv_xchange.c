@@ -750,7 +750,7 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datu
 
     dap_chain_addr_t l_service_fee_addr, *l_seller_addr = &a_tx_out_cond->subtype.srv_xchange.seller_addr;
     uint16_t l_service_fee_type = 0;
-    dap_chain_net_t *l_net = a_ledger->net;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
     bool l_service_fee_used = dap_chain_net_srv_xchange_get_fee(l_net->pub.id, &l_service_fee_val, &l_service_fee_addr, &l_service_fee_type);
     const char *l_native_ticker = l_net->pub.native_ticker;
     const char *l_service_ticker = (l_service_fee_type == SERVICE_FEE_OWN_FIXED || l_service_fee_type == SERVICE_FEE_OWN_PERCENT) ?
