@@ -28,3 +28,8 @@ int run_lifecycle_tests(dex_test_fixture_t *f);
  */
 int run_seed_orderbook(dex_test_fixture_t *f);
 
+/**
+ * Cancel all active orders in the orderbook
+ */
+int run_cancel_all_active(dex_test_fixture_t *f);
+

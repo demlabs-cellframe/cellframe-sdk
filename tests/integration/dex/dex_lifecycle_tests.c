@@ -4,100 +4,34 @@
  */
 
 #include "dex_test_scenarios.h"
+#include "dex_test_helpers.h"
 #include "dap_chain_net_srv_dex.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_time.h"
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS - Use dex_test_helpers.h
 // ============================================================================
 
-static const uint128_t S_POW18 = 1000000000000000000ULL;
-static const uint128_t S_ABS_SRV_FEE = 100000000000000000ULL;  // 0.1 * 10^18
+#define S_POW18                 DEX_TEST_POW18
+#define S_NATIVE_FEE_FALLBACK   DEX_TEST_NATIVE_FEE_FALLBACK
+#define get_native_srv_fee      dex_test_get_native_srv_fee
 
 // ============================================================================
-// HELPERS
+// HELPERS - Use dex_test_helpers.h
 // ============================================================================
 
-// Calculate percentage: result = value * pct / 100
-static inline uint256_t calc_pct(uint256_t value, uint8_t pct) {
-    uint256_t result = uint256_0;
-    if (pct && !IS_ZERO_256(value)) {
-        MULT_256_256(value, GET_256_FROM_64(pct), &result);
-        DIV_256(result, GET_256_FROM_64(100), &result);
-    }
-    return result;
-}
+#define calc_pct                dex_test_calc_pct
 
-// Adjust buyer deltas when fee token == one of the traded tokens
-// net_fee is always paid in NATIVE token (TestCoin), so:
-// - if quote_is_native: affects buyer's QUOTE spending/receiving
-// - if base_is_native: affects buyer's BASE receiving/spending
-static inline void adjust_native_fee(
-    uint8_t side, bool quote_is_native, bool base_is_native, bool buyer_is_net_collector,
-    uint128_t net_fee,
-    uint128_t *buyer_spending, uint128_t *buyer_receiving)
-{
-    // buyer_is_net_collector: net_fee goes back to buyer, but validator_fee is still paid
-    uint128_t fee = buyer_is_net_collector ? net_fee : 2 * net_fee;
-    if (fee == 0) return;
-    
-    // For ASK: buyer spends QUOTE, gets BASE
-    // For BID: buyer spends BASE, gets QUOTE
-    // When native == what buyer gets → subtract fee from receiving
-    // When native == what buyer spends → add fee to spending
-    
-    if (side == SIDE_ASK) {
-        if (quote_is_native)
-            *buyer_spending += fee;
-        else if (base_is_native)
-            *buyer_receiving -= fee;
-    } else {  // SIDE_BID
-        if (base_is_native)
-            *buyer_spending += fee;
-        else if (quote_is_native)
-            *buyer_receiving -= fee;
-    }
-}
-
-// Adjust buyer deltas for absolute service fee (0.1 TestCoin) when native token is traded
-// Only applies to pairs with absolute fee config (no 0x80 flag) where quote or base is native
-static inline void adjust_abs_service_fee(
-    uint8_t side, bool quote_is_native, bool base_is_native, uint8_t fee_cfg,
-    uint128_t *buyer_spending, uint128_t *buyer_receiving)
-{
-    if ((fee_cfg & 0x80) || (!quote_is_native && !base_is_native))
-        return;  // percentage fee or native not traded
-    
-    const uint128_t ABS_SRV_FEE = 100000000000000000ULL;  // 0.1 * 10^18
-    
-    if (side == SIDE_ASK) {
-        if (quote_is_native)
-            *buyer_spending += ABS_SRV_FEE;
-        else if (base_is_native)
-            *buyer_receiving -= ABS_SRV_FEE;
-    } else {  // SIDE_BID
-        if (base_is_native)
-            *buyer_spending += ABS_SRV_FEE;
-        else if (quote_is_native)
-            *buyer_receiving -= ABS_SRV_FEE;
-    }
-}
+#define adjust_native_fee       dex_test_adjust_native_fee
+#define adjust_abs_service_fee  dex_test_adjust_abs_service_fee
 
 // ============================================================================
-// PARTICIPANT CONTEXT
+// PARTICIPANT CONTEXT - Use dex_test_helpers.h
 // ============================================================================
 
-typedef struct {
-    const dap_chain_addr_t *buyer;
-    const dap_chain_addr_t *seller;
-    const dap_chain_addr_t *net_fee_collector;
-    const dap_chain_addr_t *service_addr;
-    bool buyer_is_net_collector;
-    bool seller_is_net_collector;
-    bool seller_is_service;
-} participants_t;
+#define participants_t dex_test_participants_t
 
 static participants_t init_participants(
     dex_test_fixture_t *f,
@@ -148,11 +82,12 @@ static expected_deltas_t calc_purchase_deltas(
     uint128_t buyer_gets, buyer_spends, seller_gets;
     
     if (ctx->tmpl->side == SIDE_ASK) {
-        // ASK: buyer spends QUOTE, gets BASE; seller gets QUOTE
+        // ASK: buyer spends QUOTE + service_fee, gets BASE; seller gets QUOTE
         buyer_gets = exec_value;
         seller_gets = (exec_value * rate) / S_POW18;
+        // % fee from INPUT (QUOTE for ASK), 0.1% step
         if (!fee_waived && is_pct_fee)
-            service_fee = (seller_gets * (fee_cfg & 0x7F)) / 100;
+            service_fee = (seller_gets * (fee_cfg & 0x7F)) / 1000;
         buyer_spends = seller_gets + service_fee;
         
         if (p->seller_is_service)
@@ -160,7 +95,7 @@ static expected_deltas_t calc_purchase_deltas(
         if (p->seller_is_net_collector && ctx->pair->quote_is_native)
             seller_gets += net_fee;
         if (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->quote_is_native)
-            seller_gets += S_ABS_SRV_FEE;
+            seller_gets += get_native_srv_fee(fee_cfg);
         
         d.buyer_base = buyer_gets;
         d.buyer_quote = buyer_spends;
@@ -171,32 +106,39 @@ static expected_deltas_t calc_purchase_deltas(
         d.seller_quote = seller_gets;
         // Service wallet receives abs fee in native BASE (separate OUT, not aggregated for ASK when native=BASE)
         if (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->base_is_native)
-            d.seller_base += S_ABS_SRV_FEE;
+            d.seller_base += get_native_srv_fee(fee_cfg);
     } else {
-        // BID: buyer spends BASE, gets QUOTE; seller gets BASE
+        // BID: buyer spends BASE + service_fee (if % mode), gets QUOTE
         uint128_t exec_base = (exec_value * S_POW18) / rate;
-        buyer_spends = exec_base;
         seller_gets = exec_base;
+        
+        // % fee from INPUT (BASE for BID), 0.1% step
         if (!fee_waived && is_pct_fee)
-            service_fee = (exec_value * (fee_cfg & 0x7F)) / 100;
-        buyer_gets = exec_value - service_fee;
+            service_fee = (exec_base * (fee_cfg & 0x7F)) / 1000;
+        buyer_spends = exec_base + service_fee;
+        buyer_gets = exec_value;  // full QUOTE, no deduction
         
         d.buyer_base = buyer_spends;
         d.buyer_quote = buyer_gets;
         d.buyer_base_dec = true;
         d.buyer_quote_dec = false;
+        
         // BID: seller already locked QUOTE in order, gets BASE at purchase
+        // % fee in BASE aggregates to seller if seller == service
         d.seller_base = seller_gets;
+        if (p->seller_is_service && is_pct_fee)
+            d.seller_base += service_fee;
         if (p->seller_is_net_collector && ctx->pair->base_is_native)
             d.seller_base += net_fee;
-        // BID: abs fee in native BASE aggregates to seller payout (l_can_agg_bid condition)
+        // Native abs fee in BASE aggregates to seller payout
         if (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->base_is_native)
-            d.seller_base += S_ABS_SRV_FEE;
+            d.seller_base += get_native_srv_fee(fee_cfg);
         
+        // Seller QUOTE delta: only net_fee if native=QUOTE, or abs fee if native=QUOTE
         uint128_t extra_quote = (p->seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
         uint128_t abs_fee_quote = (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->quote_is_native)
-            ? S_ABS_SRV_FEE : 0;
-        d.seller_quote = (p->seller_is_service ? service_fee : 0) + extra_quote + abs_fee_quote;
+            ? get_native_srv_fee(fee_cfg) : 0;
+        d.seller_quote = extra_quote + abs_fee_quote;
     }
     
     adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native,
@@ -282,258 +224,28 @@ static int verify_deltas(
 }
 
 // ============================================================================
-// TAMPER HELPERS
+// TAMPER HELPERS - Use dex_test_helpers.h
 // ============================================================================
 
-// Tamper ts_created
-static bool tamper_ts_created(dap_chain_datum_tx_t *tx, void *user_data) {
-    if (!tx || !user_data)
-        return false;
-    dap_time_t new_ts = *(dap_time_t*)user_data;
-    tx->header.ts_created = new_ts;
-    return true;
-}
+// Aliases for backward compatibility with existing code
+#define tamper_ts_created       dex_test_tamper_ts_created
+#define s_resign_tx             dex_test_resign_tx
+#define tamper_inflate_output   dex_test_tamper_inflate_output
+#define tamper_transfer_funds   dex_test_tamper_transfer_funds
+#define s_find_dex_out_cond     dex_test_find_dex_out_cond
+#define tamper_order_root_hash  dex_test_tamper_order_root_hash
+#define tamper_tx_type          dex_test_tamper_tx_type
+#define tamper_rate             dex_test_tamper_rate
+#define tamper_buy_token        dex_test_tamper_buy_token
+#define tamper_min_fill         dex_test_tamper_min_fill
+#define s_find_out_value        dex_test_find_out_value
+#define s_find_out_value_ex     dex_test_find_out_value_ex
+#define dex_test_wallet_by_addr        dex_test_wallet_by_addr
 
-// Resign TX after tamper: strip old signatures, add new with wallet key[0]
-static int s_resign_tx(dap_chain_datum_tx_t **a_tx, dap_chain_wallet_t *wallet) {
-    dap_return_val_if_fail(a_tx && *a_tx && wallet, -1);
-    
-    uint8_t *l_first_sig = dap_chain_datum_tx_item_get(*a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-    size_t l_tx_size_without_sigs = l_first_sig
-        ? (size_t)(l_first_sig - (uint8_t*)*a_tx)
-        : dap_chain_datum_tx_get_size(*a_tx);
-    
-    dap_chain_datum_tx_t *l_new_tx = DAP_DUP_SIZE(*a_tx, l_tx_size_without_sigs);
-    dap_return_val_if_fail(l_new_tx, -2);
-    l_new_tx->header.tx_items_size = l_tx_size_without_sigs - sizeof(dap_chain_datum_tx_t);
-    
-    dap_enc_key_t *l_key = dap_chain_wallet_get_key(wallet, 0);
-    dap_return_val_if_fail(l_key, -3);
-    if (dap_chain_datum_tx_add_sign_item(&l_new_tx, l_key) <= 0) {
-        DAP_DELETE(l_key);
-        dap_chain_datum_tx_delete(l_new_tx);
-        return -4;
-    }
-    DAP_DELETE(l_key);
-    dap_chain_datum_tx_delete(*a_tx);
-    *a_tx = l_new_tx;
-    return 0;
-}
-
-// ============================================================================
-// TAMPERING CALLBACKS
-// ============================================================================
-
-typedef struct {
-    dap_chain_addr_t *target_addr;
-    const char *token;
-    uint256_t original_value;
-    uint256_t tampered_value;
-} tamper_output_data_t;
-
-static bool tamper_inflate_output(dap_chain_datum_tx_t *tx, void *user_data) {
-    tamper_output_data_t *data = (tamper_output_data_t*)user_data;
-    byte_t *it; size_t sz;
-    
-    TX_ITEM_ITER_TX(it, sz, tx) {
-        if (*it == TX_ITEM_TYPE_OUT_STD) {
-            dap_chain_tx_out_std_t *out = (dap_chain_tx_out_std_t*)it;
-            if (dap_chain_addr_compare(&out->addr, data->target_addr) &&
-                !dap_strcmp(out->token, data->token)) {
-                data->original_value = out->value;
-                out->value = data->tampered_value;
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-// Transfer tampering: move funds from source OUT to destination OUT
-// Preserves total balance so TX passes ledger check but fails DEX verifier
-typedef enum {
-    TAMPER_OUT_SELLER_PAYOUT,   // OUT_STD to seller in buy_token
-    TAMPER_OUT_BUYER_PAYOUT,    // OUT_STD to buyer in sell_token
-    TAMPER_OUT_BUYER_CASHBACK,  // OUT_STD to buyer in buy_token
-    TAMPER_OUT_NET_FEE,         // OUT_STD to net_addr in native
-    TAMPER_OUT_SRV_FEE,         // OUT_STD to srv_addr in fee_token
-    TAMPER_OUT_VALIDATOR_FEE    // OUT_COND subtype=FEE
-} tamper_out_type_t;
-
-typedef struct {
-    tamper_out_type_t source;
-    tamper_out_type_t destination;
-    uint256_t transfer_amount;
-    // Context for finding OUTs
-    const dap_chain_addr_t *seller_addr;
-    const dap_chain_addr_t *buyer_addr;
-    const dap_chain_addr_t *net_addr;
-    const dap_chain_addr_t *srv_addr;
-    const char *native_ticker;
-    const char *buy_ticker;
-    const char *sell_ticker;
-    const char *fee_ticker;  // Service fee token (quote for ASK, sell for BID)
-} tamper_transfer_data_t;
-
-// Find OUT by type and return pointer to its value
-// skip_ptr: if not NULL, skip this OUT (to find a different one with same criteria)
-static uint256_t *s_find_out_value_ex(dap_chain_datum_tx_t *tx, tamper_out_type_t type, 
-                                       const tamper_transfer_data_t *ctx, uint256_t *skip_ptr) {
-    byte_t *it; size_t sz;
-    TX_ITEM_ITER_TX(it, sz, tx) {
-        if (type == TAMPER_OUT_VALIDATOR_FEE) {
-            if (*it == TX_ITEM_TYPE_OUT_COND) {
-                dap_chain_tx_out_cond_t *out = (dap_chain_tx_out_cond_t*)it;
-                if (out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                    if (&out->header.value != skip_ptr)
-                        return &out->header.value;
-                }
-            }
-        } else if (*it == TX_ITEM_TYPE_OUT_STD) {
-            dap_chain_tx_out_std_t *out = (dap_chain_tx_out_std_t*)it;
-            if (&out->value == skip_ptr)
-                continue;
-            switch (type) {
-                case TAMPER_OUT_SELLER_PAYOUT:
-                    if (dap_chain_addr_compare(&out->addr, ctx->seller_addr) &&
-                        !dap_strcmp(out->token, ctx->buy_ticker))
-                        return &out->value;
-                    break;
-                case TAMPER_OUT_BUYER_PAYOUT:
-                    if (dap_chain_addr_compare(&out->addr, ctx->buyer_addr) &&
-                        !dap_strcmp(out->token, ctx->sell_ticker))
-                        return &out->value;
-                    break;
-                case TAMPER_OUT_BUYER_CASHBACK:
-                    if (dap_chain_addr_compare(&out->addr, ctx->buyer_addr) &&
-                        !dap_strcmp(out->token, ctx->buy_ticker))
-                        return &out->value;
-                    break;
-                case TAMPER_OUT_NET_FEE:
-                    if (dap_chain_addr_compare(&out->addr, ctx->net_addr) &&
-                        !dap_strcmp(out->token, ctx->native_ticker))
-                        return &out->value;
-                    break;
-                case TAMPER_OUT_SRV_FEE:
-                    if (dap_chain_addr_compare(&out->addr, ctx->srv_addr) &&
-                        !dap_strcmp(out->token, ctx->fee_ticker))
-                        return &out->value;
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-    return NULL;
-}
-
-static uint256_t *s_find_out_value(dap_chain_datum_tx_t *tx, tamper_out_type_t type,
-                                    const tamper_transfer_data_t *ctx) {
-    return s_find_out_value_ex(tx, type, ctx, NULL);
-}
-
-static bool tamper_transfer_funds(dap_chain_datum_tx_t *tx, void *user_data) {
-    tamper_transfer_data_t *data = (tamper_transfer_data_t*)user_data;
-    
-    uint256_t *src_val = s_find_out_value(tx, data->source, data);
-    if (!src_val)
-        return false;
-    
-    // Find destination, but skip source OUT if they might be the same
-    // (e.g., seller_payout and buyer_cashback when seller == buyer or same token)
-    uint256_t *dst_val = s_find_out_value_ex(tx, data->destination, data, src_val);
-    if (!dst_val)
-        return false;
-    
-    // Double-check they're different OUTs
-    if (src_val == dst_val)
-        return false;
-    
-    // Check source has enough to transfer
-    if (compare256(*src_val, data->transfer_amount) < 0)
-        return false;
-    
-    // Transfer: src -= amount, dst += amount
-    SUBTRACT_256_256(*src_val, data->transfer_amount, src_val);
-    SUM_256_256(*dst_val, data->transfer_amount, dst_val);
-    return true;
-}
-
-// ============================================================================
-// OUT_COND SRV_DEX field tampering
-// ============================================================================
-
-// Find OUT_COND with subtype SRV_DEX
-static dap_chain_tx_out_cond_t *s_find_dex_out_cond(dap_chain_datum_tx_t *tx) {
-    byte_t *it; size_t sz;
-    TX_ITEM_ITER_TX(it, sz, tx) {
-        if (*it == TX_ITEM_TYPE_OUT_COND) {
-            dap_chain_tx_out_cond_t *out = (dap_chain_tx_out_cond_t*)it;
-            if (out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX)
-                return out;
-        }
-    }
-    return NULL;
-}
-
-// Tamper order_root_hash in OUT_COND SRV_DEX
-// new_root_hash: NULL = set blank, otherwise set to this hash
-static bool tamper_order_root_hash(dap_chain_datum_tx_t *tx, void *user_data) {
-    dap_hash_fast_t *new_hash = (dap_hash_fast_t*)user_data;
-    dap_chain_tx_out_cond_t *out = s_find_dex_out_cond(tx);
-    if (!out)
-        return false;
-    
-    if (new_hash)
-        out->subtype.srv_dex.order_root_hash = *new_hash;
-    else
-        memset(&out->subtype.srv_dex.order_root_hash, 0, sizeof(dap_hash_fast_t));
-    return true;
-}
-
-// Tamper tx_type in OUT_COND SRV_DEX
-static bool tamper_tx_type(dap_chain_datum_tx_t *tx, void *user_data) {
-    uint8_t new_type = *(uint8_t*)user_data;
-    dap_chain_tx_out_cond_t *out = s_find_dex_out_cond(tx);
-    if (!out)
-        return false;
-    
-    out->subtype.srv_dex.tx_type = new_type;
-    return true;
-}
-
-// Tamper immutable field: rate
-static bool tamper_rate(dap_chain_datum_tx_t *tx, void *user_data) {
-    uint256_t new_rate = *(uint256_t*)user_data;
-    dap_chain_tx_out_cond_t *out = s_find_dex_out_cond(tx);
-    if (!out)
-        return false;
-    
-    out->subtype.srv_dex.rate = new_rate;
-    return true;
-}
-
-// Tamper immutable field: buy_token
-static bool tamper_buy_token(dap_chain_datum_tx_t *tx, void *user_data) {
-    const char *new_token = (const char*)user_data;
-    dap_chain_tx_out_cond_t *out = s_find_dex_out_cond(tx);
-    if (!out)
-        return false;
-    
-    dap_strncpy(out->subtype.srv_dex.buy_token, new_token, DAP_CHAIN_TICKER_SIZE_MAX);
-    return true;
-}
-
-// Tamper immutable field: min_fill
-static bool tamper_min_fill(dap_chain_datum_tx_t *tx, void *user_data) {
-    uint8_t new_mf = *(uint8_t*)user_data;
-    dap_chain_tx_out_cond_t *out = s_find_dex_out_cond(tx);
-    if (!out)
-        return false;
-    
-    out->subtype.srv_dex.min_fill = new_mf;
-    return true;
-}
+// Type aliases
+#define tamper_output_data_t    dex_tamper_output_data_t
+#define tamper_out_type_t       dex_tamper_out_type_t
+#define tamper_transfer_data_t  dex_tamper_transfer_data_t
 
 // ============================================================================
 // PHASE 1: ORDER CREATION
@@ -1348,23 +1060,28 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         uint128_t exec_sell_canonical = (exec_quote * S_POW18) / rate;
         
         uint8_t fee_cfg = ctx->pair->fee_config;
+        bool is_pct_fee = (fee_cfg & 0x80) != 0;
         uint128_t service_fee = 0;
-        if (fee_cfg & 0x80)
-            service_fee = (exec_quote * (fee_cfg & 0x7F)) / 100;
+        // % fee from INPUT (BASE for BID), 0.1% step
+        if (is_pct_fee)
+            service_fee = (exec_sell_canonical * (fee_cfg & 0x7F)) / 1000;
         
-        d_sell.buyer_base = exec_sell_canonical;
-        d_sell.buyer_quote = exec_quote - service_fee;
+        d_sell.buyer_base = exec_sell_canonical + service_fee;
+        d_sell.buyer_quote = exec_quote;  // full QUOTE
         d_sell.seller_base = exec_sell_canonical;
+        // % fee in BASE aggregates to seller if seller == service
+        if (p.seller_is_service && is_pct_fee)
+            d_sell.seller_base += service_fee;
         if (p.seller_is_net_collector && ctx->pair->base_is_native)
             d_sell.seller_base += net_fee;
-        // BID: abs fee in native BASE aggregates to seller payout
-        if (p.seller_is_service && !(fee_cfg & 0x80) && ctx->pair->base_is_native)
-            d_sell.seller_base += S_ABS_SRV_FEE;
+        // Native abs fee in BASE aggregates to seller payout
+        if (p.seller_is_service && !is_pct_fee && ctx->pair->base_is_native)
+            d_sell.seller_base += get_native_srv_fee(fee_cfg);
         
         uint128_t extra_quote = (p.seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
-        uint128_t abs_fee = (p.seller_is_service && !(fee_cfg & 0x80) && ctx->pair->quote_is_native)
-            ? S_ABS_SRV_FEE : 0;
-        d_sell.seller_quote = (p.seller_is_service ? service_fee : 0) + extra_quote + abs_fee;
+        uint128_t abs_fee = (p.seller_is_service && !is_pct_fee && ctx->pair->quote_is_native)
+            ? get_native_srv_fee(fee_cfg) : 0;
+        d_sell.seller_quote = extra_quote + abs_fee;
         
         adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native,
                           p.buyer_is_net_collector, net_fee, &d_sell.buyer_base, &d_sell.buyer_quote);
@@ -2023,14 +1740,9 @@ static int s_collect_active_orders(dex_test_fixture_t *f, active_order_t *out, s
     return 0;
 }
 
-static dap_chain_wallet_t *s_wallet_by_addr(dex_test_fixture_t *f, const dap_chain_addr_t *addr) {
-    if (dap_chain_addr_compare(addr, &f->alice_addr)) return f->alice;
-    if (dap_chain_addr_compare(addr, &f->bob_addr))   return f->bob;
-    if (dap_chain_addr_compare(addr, &f->carol_addr)) return f->carol;
-    return NULL;
-}
+// dex_test_wallet_by_addr -> dex_test_wallet_by_addr (defined in helpers)
 
-static int run_cancel_all_active(dex_test_fixture_t *f) {
+int run_cancel_all_active(dex_test_fixture_t *f) {
     log_it(L_INFO, "=== FINAL: CANCEL ALL ACTIVE ORDERS ===");
     
     active_order_t orders[256];
@@ -2047,7 +1759,7 @@ static int run_cancel_all_active(dex_test_fixture_t *f) {
     
     for (size_t i = 0; i < count; i++) {
         active_order_t *o = &orders[i];
-        dap_chain_wallet_t *seller_wallet = s_wallet_by_addr(f, &o->seller_addr);
+        dap_chain_wallet_t *seller_wallet = dex_test_wallet_by_addr(f, &o->seller_addr);
         if (!seller_wallet) {
             log_it(L_WARNING, "Skip cancel: unknown seller for %s", dap_chain_hash_fast_to_str_static(&o->tail));
             continue;
@@ -2087,6 +1799,9 @@ static int run_cancel_all_active(dex_test_fixture_t *f) {
         log_it(L_NOTICE, "✓ CANCEL-ALL success: %s", dap_chain_hash_fast_to_str_static(&o->tail));
     }
     
+    // Dump orderbook after cancel-all to verify cleanup
+    test_dex_dump_orderbook(f, "After CANCEL-ALL");
+    
     return 0;
 }
 
@@ -2122,28 +1837,37 @@ static int s_seed_create_order(
                err, side, pair->base_token, pair->quote_token, rate_str, amount_str);
         return -2;
     }
-    // Enforce unique ts_created only for same-rate seeds (FIFO tie-break) with resign
+    // Unique ts only for same pair+rate (FIFO tie-break), same ts for different rates (rate sorting)
+    static struct { char pair[32]; uint256_t rate; int count; } s_seed_entries[128];
+    static int s_seed_entry_count = 0;
     static dap_time_t s_seed_ts_base = 0;
-    static uint64_t s_seed_ts_counter = 0;
-    static uint256_t s_prev_rate = {0};
     if (!s_seed_ts_base)
-        s_seed_ts_base = dap_time_now();
-    if (EQUAL_256(s_prev_rate, rate_value)) {
-        dap_time_t new_ts = s_seed_ts_base + s_seed_ts_counter++;
-        if (!tamper_ts_created(create_tx, &new_ts) || s_resign_tx(&create_tx, wallet) != 0) {
-            log_it(L_ERROR, "Seed ts tamper/resign failed");
-            dap_chain_datum_tx_delete(create_tx);
-            return -4;
+        s_seed_ts_base = dap_time_now() - 1000;  // 1000s before now, so executions are always later
+    
+    // Build pair key
+    char pair_key[32];
+    snprintf(pair_key, sizeof(pair_key), "%s/%s", pair->base_token, pair->quote_token);
+    
+    // Find existing pair+rate or add new
+    int ts_offset = 0;
+    for (int i = 0; i < s_seed_entry_count; i++) {
+        if (!strcmp(s_seed_entries[i].pair, pair_key) && EQUAL_256(s_seed_entries[i].rate, rate_value)) {
+            ts_offset = ++s_seed_entries[i].count;
+            break;
         }
-    } else {
-        s_prev_rate = rate_value;
-        s_seed_ts_counter = 0;
-        // First order with this rate uses base ts; still resign to align signatures
-        if (s_resign_tx(&create_tx, wallet) != 0) {
-            log_it(L_ERROR, "Seed ts resign failed");
-            dap_chain_datum_tx_delete(create_tx);
-            return -5;
-        }
+    }
+    if (ts_offset == 0 && s_seed_entry_count < 128) {
+        dap_strncpy(s_seed_entries[s_seed_entry_count].pair, pair_key, sizeof(s_seed_entries[0].pair));
+        s_seed_entries[s_seed_entry_count].rate = rate_value;
+        s_seed_entries[s_seed_entry_count].count = 0;
+        s_seed_entry_count++;
+    }
+    
+    dap_time_t new_ts = s_seed_ts_base + ts_offset;
+    if (!tamper_ts_created(create_tx, &new_ts) || s_resign_tx(&create_tx, wallet) != 0) {
+        log_it(L_ERROR, "Seed ts tamper/resign failed");
+        dap_chain_datum_tx_delete(create_tx);
+        return -4;
     }
     dap_hash_fast_t h = {0};
     dap_hash_fast(create_tx, dap_chain_datum_tx_get_size(create_tx), &h);
@@ -2196,6 +1920,18 @@ int run_seed_orderbook(dex_test_fixture_t *f) {
         if (s_seed_create_order(f, pair, WALLET_CAROL, SIDE_BID, MINFILL_50_CURRENT, bid_rates[1], bid_amount) != 0)
             return -121;
     }
+    
+    // Add AON orders for E02/E03 tests (All-Or-Nothing, minfill=100%)
+    // KEL/USDT pair
+    const test_pair_config_t *kel_usdt = &pairs[0];  // KEL/USDT is first pair
+    // AON @ 2.55 (mid-range) - for E03 skip test
+    if (s_seed_create_order(f, kel_usdt, WALLET_ALICE, SIDE_ASK, MINFILL_AON, "2.55", "15.0") != 0)
+        return -130;
+    // AON @ 3.0 (high rate) - for E02 "all AON" test with min_rate=2.9 filter
+    if (s_seed_create_order(f, kel_usdt, WALLET_ALICE, SIDE_ASK, MINFILL_AON, "3.0", "20.0") != 0)
+        return -131;
+    if (s_seed_create_order(f, kel_usdt, WALLET_BOB, SIDE_BID, MINFILL_AON, "0.35", "10.0") != 0)
+        return -132;
     
     test_dex_dump_orderbook(f, "After seed");
     return 0;
@@ -2712,6 +2448,1966 @@ int run_order_lifecycle(
 }
 
 // ============================================================================
+// MULTI-EXECUTION TESTS (Group M)
+// Tests for sequential partial fills and buyer-leftover lifecycle
+// Run on clean orderbook after mass cancellation
+// ============================================================================
+
+// Helper: create a simple ASK or BID order and return its hash
+static int s_create_test_order(
+    dex_test_fixture_t *f,
+    const test_pair_config_t *pair,
+    wallet_id_t seller_id,
+    uint8_t side,
+    uint8_t min_fill,
+    const char *rate_str,
+    const char *amount_str,
+    dap_hash_fast_t *out_hash)
+{
+    dap_chain_wallet_t *wallet = get_wallet(f, seller_id);
+    if (!wallet) return -1;
+    
+    const char *sell_token, *buy_token;
+    get_order_tokens(pair, side, &sell_token, &buy_token);
+    
+    uint256_t amount = dap_chain_coins_to_balance(amount_str);
+    uint256_t rate = dap_chain_coins_to_balance(rate_str);
+    
+    dap_chain_datum_tx_t *tx = NULL;
+    int err = dap_chain_net_srv_dex_create(
+        f->net->net, buy_token, sell_token,
+        amount, rate, min_fill, f->network_fee, wallet, &tx
+    );
+    if (err != 0 || !tx) {
+        log_it(L_ERROR, "Failed to create test order: err=%d", err);
+        return -1;
+    }
+    
+    dap_hash_fast(tx, dap_chain_datum_tx_get_size(tx), out_hash);
+    int ledger_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx, out_hash, false, NULL);
+    dap_chain_datum_tx_delete(tx);
+    
+    if (ledger_ret != 0) {
+        log_it(L_ERROR, "Test order rejected by ledger");
+        return -2;
+    }
+    
+    return 0;
+}
+
+// M01: Seller partial chain with MINFILL_50_CURRENT
+// Order: 30 units @ rate, min_fill=50% current
+// Buyer A: 20 units → leftover 10 (min_fill now 5)
+// Buyer B: 10 units → closed
+static int s_run_m01_seller_partial_current(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M01: Seller partial chain (MINFILL_50_CURRENT) ---");
+    
+    const char *base = pair->base_token;
+    const char *quote = pair->quote_token;
+    
+    // Create ASK order: Alice sells 30 BASE @ 2.5, min_fill=50% current
+    dap_hash_fast_t order_hash = {0};
+    int ret = s_create_test_order(f, pair, WALLET_ALICE, SIDE_ASK, MINFILL_50_CURRENT, "2.5", "30.0", &order_hash);
+    if (ret != 0) {
+        log_it(L_ERROR, "M01: Failed to create initial order");
+        return -1;
+    }
+    log_it(L_INFO, "M01: Created ASK order 30 %s @ 2.5, min_fill=50%% current", base);
+    
+    // Take balance snapshots
+    balance_snap_t alice_before, bob_before;
+    test_dex_snap_take(f->net->net->pub.ledger, &f->alice_addr, base, quote, &alice_before);
+    test_dex_snap_take(f->net->net->pub.ledger, &f->bob_addr, base, quote, &bob_before);
+    
+    // Buyer A (Bob): buy 20 units → leftover 10, min_fill becomes 5
+    uint256_t budget_20 = dap_chain_coins_to_balance("20.0");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &order_hash, budget_20, true, f->network_fee, f->bob, false, uint256_0, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M01: First partial purchase failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M01: First partial TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_NOTICE, "✓ M01: First partial (20 units) accepted, leftover=10, new min_fill=5");
+    
+    // Find the leftover order hash (it's in the OUT_COND of tx1)
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    dap_hash_fast_t leftover_hash = tx1_hash;  // Leftover references this TX
+    
+    // Buyer B (Carol): buy remaining 10 units → order closed
+    uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
+    
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &leftover_hash, budget_10, true, f->network_fee, f->carol, false, uint256_0, &tx2
+    );
+    if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
+        log_it(L_ERROR, "M01: Second purchase failed: err=%d", err2);
+        return -4;
+    }
+    
+    dap_hash_fast_t tx2_hash = {0};
+    dap_hash_fast(tx2, dap_chain_datum_tx_get_size(tx2), &tx2_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx2, &tx2_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M01: Second TX rejected");
+        dap_chain_datum_tx_delete(tx2);
+        return -5;
+    }
+    dap_chain_datum_tx_delete(tx2);
+    log_it(L_NOTICE, "✓ M01: Second purchase (10 units) accepted, order closed");
+    
+    // Verify: Alice received full payout (30 * 2.5 = 75 QUOTE, minus service fee)
+    balance_snap_t alice_after;
+    test_dex_snap_take(f->net->net->pub.ledger, &f->alice_addr, base, quote, &alice_after);
+    
+    // Alice should have received ~75 USDT (50 + 25, minus fees for non-service buyers)
+    // Just verify she got more QUOTE than before
+    if (compare256(alice_after.quote, alice_before.quote) <= 0) {
+        log_it(L_ERROR, "M01: Alice QUOTE balance did not increase!");
+        return -6;
+    }
+    log_it(L_NOTICE, "✓ M01: Alice received payout: %s %s", 
+           dap_uint256_to_char_ex(alice_after.quote).frac, quote);
+    
+    log_it(L_NOTICE, "✓ M01: SELLER PARTIAL CHAIN (MINFILL_50_CURRENT) PASSED");
+    
+    // Rollback transactions to restore balances for next tests
+    dap_chain_datum_tx_t *tx2_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx2_hash);
+    if (tx2_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx2_ledger, &tx2_hash);
+    
+    if (tx1_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    
+    dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+    if (order_tx)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+    
+    log_it(L_DEBUG, "M01: Rolled back all transactions");
+    return 0;
+}
+
+// M02: Seller partial chain with MINFILL_75_ORIGIN - rejection test
+// Order: 40 units @ rate, min_fill=75% origin (30 units always)
+// Buyer A: 30 units → leftover 10, min_fill still 30
+// Buyer B: tries 5 units → REJECTED (5 < 30)
+// Buyer C: 10 units → closed (exact remaining)
+static int s_run_m02_seller_partial_origin(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M02: Seller partial chain (MINFILL_75_ORIGIN) with rejection ---");
+    
+    const char *base = pair->base_token;
+    
+    // Create ASK order: Alice sells 40 BASE @ 2.5, min_fill=75% origin (30)
+    dap_hash_fast_t order_hash = {0};
+    int ret = s_create_test_order(f, pair, WALLET_ALICE, SIDE_ASK, MINFILL_75_ORIGIN, "2.5", "40.0", &order_hash);
+    if (ret != 0) {
+        log_it(L_ERROR, "M02: Failed to create initial order");
+        return -1;
+    }
+    log_it(L_INFO, "M02: Created ASK order 40 %s @ 2.5, min_fill=75%% origin (30)", base);
+    
+    // Buyer A (Bob): buy 30 units → leftover 10, min_fill remains 30
+    uint256_t budget_30 = dap_chain_coins_to_balance("30.0");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &order_hash, budget_30, true, f->network_fee, f->bob, false, uint256_0, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M02: First purchase failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M02: First TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_NOTICE, "✓ M02: First purchase (30 units) accepted, leftover=10, min_fill still=30");
+    
+    dap_hash_fast_t leftover_hash = tx1_hash;
+    
+    // Buyer B (Carol): try 5 units → SHOULD BE REJECTED (5 < 30 min_fill)
+    uint256_t budget_5 = dap_chain_coins_to_balance("5.0");
+    
+    dap_chain_datum_tx_t *tx_reject = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err_reject = dap_chain_net_srv_dex_purchase(
+        f->net->net, &leftover_hash, budget_5, true, f->network_fee, f->carol, false, uint256_0, &tx_reject
+    );
+    
+    if (err_reject == DEX_PURCHASE_ERROR_OK && tx_reject) {
+        // TX was created - check if ledger rejects it
+        dap_hash_fast_t reject_hash = {0};
+        dap_hash_fast(tx_reject, dap_chain_datum_tx_get_size(tx_reject), &reject_hash);
+        int ledger_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx_reject, &reject_hash, false, NULL);
+        dap_chain_datum_tx_delete(tx_reject);
+        
+        if (ledger_ret == 0) {
+            log_it(L_ERROR, "M02: Purchase below min_fill should be REJECTED!");
+            return -4;
+        }
+        log_it(L_NOTICE, "✓ M02: Purchase below min_fill rejected by ledger");
+    } else {
+        log_it(L_NOTICE, "✓ M02: Purchase below min_fill rejected by composer (err=%d)", err_reject);
+    }
+    
+    // Buyer C (Carol): buy remaining 10 units → closed (exact match to remaining)
+    uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
+    
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &leftover_hash, budget_10, true, f->network_fee, f->carol, false, uint256_0, &tx2
+    );
+    if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
+        log_it(L_ERROR, "M02: Final purchase failed: err=%d", err2);
+        return -5;
+    }
+    
+    dap_hash_fast_t tx2_hash = {0};
+    dap_hash_fast(tx2, dap_chain_datum_tx_get_size(tx2), &tx2_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx2, &tx2_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M02: Final TX rejected");
+        dap_chain_datum_tx_delete(tx2);
+        return -6;
+    }
+    log_it(L_NOTICE, "✓ M02: Final purchase (10 units = remaining) accepted, order closed");
+    
+    log_it(L_NOTICE, "✓ M02: SELLER PARTIAL CHAIN (MINFILL_75_ORIGIN) PASSED");
+    
+    // Rollback transactions
+    dap_chain_datum_tx_t *tx2_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx2_hash);
+    if (tx2_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx2_ledger, &tx2_hash);
+    
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    
+    dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+    if (order_tx)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+    
+    dap_chain_datum_tx_delete(tx2);
+    log_it(L_DEBUG, "M02: Rolled back all transactions");
+    return 0;
+}
+
+// M03: Buyer-leftover lifecycle
+// Bob buys with leftover=true → creates new order
+// Alice matches Bob's new order
+static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M03: Buyer-leftover lifecycle ---");
+    
+    const char *base = pair->base_token;
+    const char *quote = pair->quote_token;
+    
+    // Step 1: Carol creates ASK order: 10 BASE @ 2.5
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) {
+        log_it(L_ERROR, "M03: Failed to create Carol's order");
+        return -1;
+    }
+    log_it(L_INFO, "M03: Carol created ASK 10 %s @ 2.5", base);
+    
+    // Step 2: Bob buys with budget=15, leftover=true, leftover_rate=2.6
+    // Bob gets 10 BASE, creates buyer-order for 5 BASE @ 2.6
+    uint256_t budget_15 = dap_chain_coins_to_balance("15.0");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget_15, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M03: Bob's purchase with leftover failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M03: Bob's TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_NOTICE, "✓ M03: Bob purchased 10 %s, created buyer-leftover order for 5 %s @ 2.6", base, base);
+    
+    // Step 3: Alice matches Bob's buyer-leftover order
+    // Bob's order is a BID (he wants to buy BASE), so Alice needs to sell BASE
+    dap_hash_fast_t bob_order = tx1_hash;  // Buyer-leftover references this TX
+    
+    uint256_t budget_5 = dap_chain_coins_to_balance("5.0");
+    
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &bob_order, budget_5, true, f->network_fee, f->alice, false, uint256_0, &tx2
+    );
+    if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
+        log_it(L_ERROR, "M03: Alice's match failed: err=%d", err2);
+        return -4;
+    }
+    
+    dap_hash_fast_t tx2_hash = {0};
+    dap_hash_fast(tx2, dap_chain_datum_tx_get_size(tx2), &tx2_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx2, &tx2_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M03: Alice's TX rejected");
+        dap_chain_datum_tx_delete(tx2);
+        return -5;
+    }
+    log_it(L_NOTICE, "✓ M03: Alice matched Bob's buyer-leftover order");
+    
+    log_it(L_NOTICE, "✓ M03: BUYER-LEFTOVER LIFECYCLE PASSED");
+    
+    // Rollback transactions
+    dap_chain_datum_tx_t *tx2_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx2_hash);
+    if (tx2_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx2_ledger, &tx2_hash);
+    
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    
+    dap_chain_datum_tx_t *carol_order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_order_tx)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, carol_order_tx, &carol_order);
+    
+    dap_chain_datum_tx_delete(tx2);
+    log_it(L_DEBUG, "M03: Rolled back all transactions");
+    return 0;
+}
+
+// ============================================================================
+// BID TESTS (M04-M06) - Mirror of ASK tests (M01-M03)
+// ============================================================================
+
+// M04: BID partial chain with MINFILL_50_CURRENT
+// Bob creates BID (sells QUOTE, wants BASE), Alice/Carol sell BASE
+// Order: 75 QUOTE @ rate 2.5 (wants 30 BASE), min_fill=50% current
+// Buyer A (Alice): sell 20 BASE → leftover, min_fill becomes 12.5 QUOTE
+// Buyer B (Carol): sell 10 BASE → closed
+static int s_run_m04_bid_partial_current(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M04: BID partial chain (MINFILL_50_CURRENT) ---");
+    
+    const char *base = pair->base_token;
+    const char *quote = pair->quote_token;
+    
+    // Create BID order: Bob sells 75 QUOTE @ 2.5 to buy 30 BASE, min_fill=50% current
+    dap_hash_fast_t order_hash = {0};
+    int ret = s_create_test_order(f, pair, WALLET_BOB, SIDE_BID, MINFILL_50_CURRENT, "2.5", "75.0", &order_hash);
+    if (ret != 0) {
+        log_it(L_ERROR, "M04: Failed to create initial BID order");
+        return -1;
+    }
+    log_it(L_INFO, "M04: Bob created BID order 75 %s @ 2.5 (wants 30 %s), min_fill=50%% current", quote, base);
+    
+    // Take balance snapshots
+    balance_snap_t bob_before;
+    test_dex_snap_take(f->net->net->pub.ledger, &f->bob_addr, base, quote, &bob_before);
+    
+    // Buyer A (Alice): sell 20 BASE → Bob gets 20 BASE, Alice gets 50 QUOTE
+    // budget_in_buy_tokens=false means budget is in what buyer SELLS (BASE)
+    uint256_t budget_20 = dap_chain_coins_to_balance("20.0");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &order_hash, budget_20, false, f->network_fee, f->alice, false, uint256_0, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M04: First partial purchase failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M04: First partial TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_NOTICE, "✓ M04: First partial (20 %s sold) accepted, leftover=25 %s, new min_fill=12.5", base, quote);
+    
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    dap_hash_fast_t leftover_hash = tx1_hash;
+    
+    // Buyer B (Carol): sell remaining 10 BASE → order closed
+    uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
+    
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &leftover_hash, budget_10, false, f->network_fee, f->carol, false, uint256_0, &tx2
+    );
+    if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
+        log_it(L_ERROR, "M04: Second purchase failed: err=%d", err2);
+        return -4;
+    }
+    
+    dap_hash_fast_t tx2_hash = {0};
+    dap_hash_fast(tx2, dap_chain_datum_tx_get_size(tx2), &tx2_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx2, &tx2_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M04: Second TX rejected");
+        dap_chain_datum_tx_delete(tx2);
+        return -5;
+    }
+    dap_chain_datum_tx_delete(tx2);
+    log_it(L_NOTICE, "✓ M04: Second purchase (10 %s sold) accepted, order closed", base);
+    
+    // Verify: Bob received BASE (30 total from both buyers)
+    balance_snap_t bob_after;
+    test_dex_snap_take(f->net->net->pub.ledger, &f->bob_addr, base, quote, &bob_after);
+    
+    if (compare256(bob_after.base, bob_before.base) <= 0) {
+        log_it(L_ERROR, "M04: Bob BASE balance did not increase!");
+        return -6;
+    }
+    log_it(L_NOTICE, "✓ M04: Bob received BASE: %s %s", 
+           dap_uint256_to_char_ex(bob_after.base).frac, base);
+    
+    log_it(L_NOTICE, "✓ M04: BID PARTIAL CHAIN (MINFILL_50_CURRENT) PASSED");
+    
+    // Rollback
+    dap_chain_datum_tx_t *tx2_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx2_hash);
+    if (tx2_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx2_ledger, &tx2_hash);
+    if (tx1_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+    if (order_tx)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+    
+    log_it(L_DEBUG, "M04: Rolled back all transactions");
+    return 0;
+}
+
+// M05: BID partial chain with MINFILL_75_ORIGIN - rejection test
+// Bob creates BID (sells QUOTE), Alice/Carol sell BASE
+static int s_run_m05_bid_partial_origin(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M05: BID partial chain (MINFILL_75_ORIGIN) with rejection ---");
+    
+    const char *base = pair->base_token;
+    const char *quote = pair->quote_token;
+    
+    // Create BID order: Bob sells 100 QUOTE @ 2.5 (wants 40 BASE), min_fill=75% origin
+    dap_hash_fast_t order_hash = {0};
+    int ret = s_create_test_order(f, pair, WALLET_BOB, SIDE_BID, MINFILL_75_ORIGIN, "2.5", "100.0", &order_hash);
+    if (ret != 0) {
+        log_it(L_ERROR, "M05: Failed to create initial BID order");
+        return -1;
+    }
+    log_it(L_INFO, "M05: Bob created BID order 100 %s @ 2.5, min_fill=75%% origin", quote);
+    
+    // Buyer A (Alice): sell 30 BASE → leftover, min_fill still 75 QUOTE
+    // budget_in_buy_tokens=false for BID orders (budget is in BASE that buyer sells)
+    uint256_t budget_30 = dap_chain_coins_to_balance("30.0");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &order_hash, budget_30, false, f->network_fee, f->alice, false, uint256_0, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M05: First purchase failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M05: First TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_NOTICE, "✓ M05: First purchase (30 %s) accepted, leftover=25 %s, min_fill still=75", base, quote);
+    
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    dap_hash_fast_t leftover_hash = tx1_hash;
+    
+    // Buyer B (Carol): try 5 BASE → SHOULD BE REJECTED
+    uint256_t budget_5 = dap_chain_coins_to_balance("5.0");
+    
+    dap_chain_datum_tx_t *tx_reject = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err_reject = dap_chain_net_srv_dex_purchase(
+        f->net->net, &leftover_hash, budget_5, false, f->network_fee, f->carol, false, uint256_0, &tx_reject
+    );
+    
+    if (err_reject == DEX_PURCHASE_ERROR_OK && tx_reject) {
+        dap_hash_fast_t reject_hash = {0};
+        dap_hash_fast(tx_reject, dap_chain_datum_tx_get_size(tx_reject), &reject_hash);
+        int ledger_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx_reject, &reject_hash, false, NULL);
+        dap_chain_datum_tx_delete(tx_reject);
+        
+        if (ledger_ret == 0) {
+            log_it(L_ERROR, "M05: Purchase below min_fill should be REJECTED!");
+            return -4;
+        }
+        log_it(L_NOTICE, "✓ M05: Purchase below min_fill rejected by ledger");
+    } else {
+        log_it(L_NOTICE, "✓ M05: Purchase below min_fill rejected by composer (err=%d)", err_reject);
+    }
+    
+    // Buyer C (Carol): sell remaining 10 BASE → closed
+    uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
+    
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &leftover_hash, budget_10, false, f->network_fee, f->carol, false, uint256_0, &tx2
+    );
+    if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
+        log_it(L_ERROR, "M05: Final purchase failed: err=%d", err2);
+        return -5;
+    }
+    
+    dap_hash_fast_t tx2_hash = {0};
+    dap_hash_fast(tx2, dap_chain_datum_tx_get_size(tx2), &tx2_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx2, &tx2_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M05: Final TX rejected");
+        dap_chain_datum_tx_delete(tx2);
+        return -6;
+    }
+    log_it(L_NOTICE, "✓ M05: Final purchase (10 %s = remaining) accepted, order closed", base);
+    
+    log_it(L_NOTICE, "✓ M05: BID PARTIAL CHAIN (MINFILL_75_ORIGIN) PASSED");
+    
+    // Rollback
+    dap_chain_datum_tx_t *tx2_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx2_hash);
+    if (tx2_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx2_ledger, &tx2_hash);
+    if (tx1_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+    if (order_tx)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+    
+    dap_chain_datum_tx_delete(tx2);
+    log_it(L_DEBUG, "M05: Rolled back all transactions");
+    return 0;
+}
+
+// M06: BID buyer-leftover lifecycle
+// Bob creates BID, Alice sells with leftover=true → creates ASK leftover order
+// Carol matches Alice's ASK leftover
+static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M06: BID buyer-leftover lifecycle ---");
+    
+    const char *base = pair->base_token;
+    const char *quote = pair->quote_token;
+    
+    // Step 1: Bob creates BID order: 25 QUOTE @ 2.5 (wants 10 BASE)
+    dap_hash_fast_t bob_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_BOB, SIDE_BID, MINFILL_NONE, "2.5", "25.0", &bob_order);
+    if (ret != 0) {
+        log_it(L_ERROR, "M06: Failed to create Bob's BID order");
+        return -1;
+    }
+    log_it(L_INFO, "M06: Bob created BID 25 %s @ 2.5 (wants 10 %s)", quote, base);
+    
+    // Step 2: Alice sells with budget=15 BASE, leftover=true, leftover_rate=2.6
+    // Alice sells 10 BASE (fills Bob's order), creates ASK leftover for 5 BASE @ 2.6
+    // budget_in_buy_tokens=false for BID orders (budget is in BASE that buyer sells)
+    uint256_t budget_15 = dap_chain_coins_to_balance("15.0");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &bob_order, budget_15, false, f->network_fee, f->alice, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M06: Alice's purchase with leftover failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M06: Alice's TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_NOTICE, "✓ M06: Alice sold 10 %s, created buyer-leftover ASK for 5 %s @ 2.6", base, base);
+    
+    // Step 3: Carol matches Alice's buyer-leftover ASK order
+    // Alice's leftover is ASK (she wants to sell remaining BASE), so Carol buys BASE
+    dap_hash_fast_t alice_leftover = tx1_hash;
+    
+    uint256_t budget_5 = dap_chain_coins_to_balance("5.0");
+    
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &alice_leftover, budget_5, true, f->network_fee, f->carol, false, uint256_0, &tx2
+    );
+    if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
+        log_it(L_ERROR, "M06: Carol's match failed: err=%d", err2);
+        return -4;
+    }
+    
+    dap_hash_fast_t tx2_hash = {0};
+    dap_hash_fast(tx2, dap_chain_datum_tx_get_size(tx2), &tx2_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx2, &tx2_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M06: Carol's TX rejected");
+        dap_chain_datum_tx_delete(tx2);
+        return -5;
+    }
+    log_it(L_NOTICE, "✓ M06: Carol matched Alice's buyer-leftover ASK order");
+    
+    log_it(L_NOTICE, "✓ M06: BID BUYER-LEFTOVER LIFECYCLE PASSED");
+    
+    // Rollback
+    dap_chain_datum_tx_t *tx2_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx2_hash);
+    if (tx2_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx2_ledger, &tx2_hash);
+    
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    
+    dap_chain_datum_tx_t *bob_order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &bob_order);
+    if (bob_order_tx)
+        dap_ledger_tx_remove(f->net->net->pub.ledger, bob_order_tx, &bob_order);
+    
+    dap_chain_datum_tx_delete(tx2);
+    log_it(L_DEBUG, "M06: Rolled back all transactions");
+    return 0;
+}
+
+// ============================================================================
+// BUYER-LEFTOVER OPERATIONS (M07-M10)
+// ============================================================================
+
+// M07: UPDATE buyer-leftover (decrease value)
+// Bob creates buyer-leftover, then updates it (decreases value)
+static int s_run_m07_buyer_leftover_update(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M07: UPDATE buyer-leftover ---");
+    
+    const char *base = pair->base_token;
+    const char *quote = pair->quote_token;
+    
+    // Step 1: Carol creates ASK order: 10 BASE @ 2.5
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) {
+        log_it(L_ERROR, "M07: Failed to create Carol's order");
+        return -1;
+    }
+    
+    // Step 2: Bob buys with budget=40, leftover=true, leftover_rate=2.6
+    // Bob gets 10 BASE (cost 25 QUOTE), creates buyer-leftover for 15 QUOTE @ 2.6
+    uint256_t budget = dap_chain_coins_to_balance("40.0");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M07: Bob's purchase failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M07: Bob's TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_INFO, "M07: Bob created buyer-leftover order");
+    
+    // Get buyer-leftover order info
+    dex_order_info_t bl_order = {0};
+    if (test_dex_order_get_info(f->net->net->pub.ledger, &tx1_hash, &bl_order) != 0) {
+        log_it(L_ERROR, "M07: Failed to get buyer-leftover info");
+        return -4;
+    }
+    log_it(L_INFO, "M07: Buyer-leftover value=%s", dap_uint256_to_char_ex(bl_order.value).frac);
+    
+    // Step 3: UPDATE buyer-leftover (decrease by 50%)
+    uint256_t new_value = uint256_0;
+    DIV_256(bl_order.value, GET_256_FROM_64(2), &new_value);
+    
+    balance_snap_t bob_before;
+    test_dex_snap_take(f->net->net->pub.ledger, &f->bob_addr, base, quote, &bob_before);
+    
+    dap_chain_datum_tx_t *update_tx = NULL;
+    dap_chain_net_srv_dex_update_error_t upd_err = dap_chain_net_srv_dex_update(
+        f->net->net, &tx1_hash, true, new_value, f->network_fee, f->bob, &update_tx
+    );
+    if (upd_err != DEX_UPDATE_ERROR_OK || !update_tx) {
+        log_it(L_ERROR, "M07: UPDATE API failed: err=%d", upd_err);
+        return -5;
+    }
+    
+    dap_hash_fast_t update_hash = {0};
+    dap_hash_fast(update_tx, dap_chain_datum_tx_get_size(update_tx), &update_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, update_tx, &update_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M07: UPDATE TX rejected");
+        dap_chain_datum_tx_delete(update_tx);
+        return -6;
+    }
+    
+    // Verify Bob got partial refund (QUOTE tokens)
+    balance_snap_t bob_after;
+    test_dex_snap_take(f->net->net->pub.ledger, &f->bob_addr, base, quote, &bob_after);
+    
+    uint256_t refund = uint256_0;
+    SUBTRACT_256_256(bl_order.value, new_value, &refund);
+    uint256_t actual_delta = uint256_0;
+    SUBTRACT_256_256(bob_after.quote, bob_before.quote, &actual_delta);
+    
+    // Expected: refund - network_fee (1.0 for UPDATE)
+    uint256_t expected_min = uint256_0;
+    if (compare256(refund, f->network_fee) > 0)
+        SUBTRACT_256_256(refund, f->network_fee, &expected_min);
+    
+    log_it(L_INFO, "M07: Expected refund=%s (minus fee=%s), actual QUOTE delta=%s",
+           dap_uint256_to_char_ex(refund).frac,
+           dap_uint256_to_char_ex(f->network_fee).frac,
+           dap_uint256_to_char_ex(actual_delta).frac);
+    
+    // Verify delta >= expected_min (refund - fee)
+    if (compare256(actual_delta, expected_min) < 0) {
+        log_it(L_ERROR, "M07: Refund too small: got %s, expected at least %s",
+               dap_uint256_to_char_ex(actual_delta).frac,
+               dap_uint256_to_char_ex(expected_min).frac);
+        return -7;
+    }
+    
+    log_it(L_NOTICE, "✓ M07: BUYER-LEFTOVER UPDATE PASSED");
+    
+    // Rollback
+    dap_chain_datum_tx_t *upd_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &update_hash);
+    if (upd_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, upd_ledger, &update_hash);
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    dap_chain_datum_tx_delete(update_tx);
+    return 0;
+}
+
+// M08: CANCEL buyer-leftover
+// Bob creates buyer-leftover, then cancels it
+static int s_run_m08_buyer_leftover_cancel(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M08: CANCEL buyer-leftover ---");
+    
+    const char *base = pair->base_token;
+    const char *quote = pair->quote_token;
+    
+    // Step 1: Carol creates ASK order: 10 BASE @ 2.5
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) {
+        log_it(L_ERROR, "M08: Failed to create Carol's order");
+        return -1;
+    }
+    
+    // Step 2: Bob buys with leftover=true
+    uint256_t budget = dap_chain_coins_to_balance("40.0");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M08: Bob's purchase failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M08: Bob's TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_INFO, "M08: Bob created buyer-leftover order");
+    
+    // Get buyer-leftover order info
+    dex_order_info_t bl_order = {0};
+    if (test_dex_order_get_info(f->net->net->pub.ledger, &tx1_hash, &bl_order) != 0) {
+        log_it(L_ERROR, "M08: Failed to get buyer-leftover info");
+        return -4;
+    }
+    
+    // Step 3: CANCEL buyer-leftover
+    balance_snap_t bob_before;
+    test_dex_snap_take(f->net->net->pub.ledger, &f->bob_addr, base, quote, &bob_before);
+    
+    dap_chain_datum_tx_t *cancel_tx = NULL;
+    dap_chain_net_srv_dex_remove_error_t rem_err = dap_chain_net_srv_dex_remove(
+        f->net->net, &tx1_hash, f->network_fee, f->bob, &cancel_tx
+    );
+    if (rem_err != DEX_REMOVE_ERROR_OK || !cancel_tx) {
+        log_it(L_ERROR, "M08: CANCEL API failed: err=%d", rem_err);
+        return -5;
+    }
+    
+    dap_hash_fast_t cancel_hash = {0};
+    dap_hash_fast(cancel_tx, dap_chain_datum_tx_get_size(cancel_tx), &cancel_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, cancel_tx, &cancel_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M08: CANCEL TX rejected");
+        dap_chain_datum_tx_delete(cancel_tx);
+        return -6;
+    }
+    
+    // Verify Bob got full refund
+    balance_snap_t bob_after;
+    test_dex_snap_take(f->net->net->pub.ledger, &f->bob_addr, base, quote, &bob_after);
+    
+    uint256_t actual_delta = uint256_0;
+    SUBTRACT_256_256(bob_after.quote, bob_before.quote, &actual_delta);
+    
+    log_it(L_INFO, "M08: Expected refund=%s, actual QUOTE delta=%s",
+           dap_uint256_to_char_ex(bl_order.value).frac,
+           dap_uint256_to_char_ex(actual_delta).frac);
+    
+    // Verify delta matches expected refund (must be >= order value, minus possible fees)
+    // Note: refund should be close to bl_order.value, may be slightly less due to network fee
+    uint256_t min_expected = uint256_0;
+    uint256_t fee_tolerance = dap_chain_coins_to_balance("2.0");  // Allow up to 2.0 for fees
+    if (compare256(bl_order.value, fee_tolerance) > 0)
+        SUBTRACT_256_256(bl_order.value, fee_tolerance, &min_expected);
+    
+    if (compare256(actual_delta, min_expected) < 0) {
+        log_it(L_ERROR, "M08: Refund too small: got %s, expected at least %s",
+               dap_uint256_to_char_ex(actual_delta).frac,
+               dap_uint256_to_char_ex(min_expected).frac);
+        return -7;
+    }
+    
+    log_it(L_NOTICE, "✓ M08: BUYER-LEFTOVER CANCEL PASSED");
+    
+    // Rollback
+    dap_chain_datum_tx_t *cancel_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &cancel_hash);
+    if (cancel_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, cancel_ledger, &cancel_hash);
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    dap_chain_datum_tx_delete(cancel_tx);
+    return 0;
+}
+
+// M09: Double CANCEL buyer-leftover (must fail)
+// Try to cancel an already-cancelled buyer-leftover
+static int s_run_m09_buyer_leftover_double_cancel(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M09: Double CANCEL buyer-leftover ---");
+    
+    // Step 1: Carol creates ASK order
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) {
+        log_it(L_ERROR, "M09: Failed to create Carol's order");
+        return -1;
+    }
+    
+    // Step 2: Bob buys with leftover=true
+    uint256_t budget = dap_chain_coins_to_balance("40.0");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M09: Bob's purchase failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M09: Bob's TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_INFO, "M09: Bob created buyer-leftover order");
+    
+    // Step 3: First CANCEL (valid)
+    dap_chain_datum_tx_t *cancel1_tx = NULL;
+    dap_chain_net_srv_dex_remove_error_t rem_err = dap_chain_net_srv_dex_remove(
+        f->net->net, &tx1_hash, f->network_fee, f->bob, &cancel1_tx
+    );
+    if (rem_err != DEX_REMOVE_ERROR_OK || !cancel1_tx) {
+        log_it(L_ERROR, "M09: First CANCEL API failed: err=%d", rem_err);
+        return -4;
+    }
+    
+    dap_hash_fast_t cancel1_hash = {0};
+    dap_hash_fast(cancel1_tx, dap_chain_datum_tx_get_size(cancel1_tx), &cancel1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, cancel1_tx, &cancel1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M09: First CANCEL TX rejected");
+        dap_chain_datum_tx_delete(cancel1_tx);
+        return -5;
+    }
+    dap_chain_datum_tx_delete(cancel1_tx);
+    log_it(L_INFO, "M09: First CANCEL succeeded");
+    
+    // Step 4: Second CANCEL (must fail at API level - order no longer exists)
+    dap_chain_datum_tx_t *cancel2_tx = NULL;
+    dap_chain_net_srv_dex_remove_error_t rem_err2 = dap_chain_net_srv_dex_remove(
+        f->net->net, &tx1_hash, f->network_fee, f->bob, &cancel2_tx
+    );
+    if (rem_err2 == DEX_REMOVE_ERROR_OK && cancel2_tx) {
+        // API didn't catch it, try ledger
+        dap_hash_fast_t cancel2_hash = {0};
+        dap_hash_fast(cancel2_tx, dap_chain_datum_tx_get_size(cancel2_tx), &cancel2_hash);
+        int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, cancel2_tx, &cancel2_hash, false, NULL);
+        dap_chain_datum_tx_delete(cancel2_tx);
+        if (add_ret == 0) {
+            log_it(L_ERROR, "M09: Double CANCEL was accepted (should be rejected)");
+            return -6;
+        }
+        log_it(L_INFO, "M09: Double CANCEL rejected by ledger (ret=%d)", add_ret);
+    } else {
+        log_it(L_INFO, "M09: Double CANCEL rejected at API level (err=%d)", rem_err2);
+    }
+    
+    log_it(L_NOTICE, "✓ M09: DOUBLE CANCEL REJECTED");
+    
+    // Rollback
+    dap_chain_datum_tx_t *cancel1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &cancel1_hash);
+    if (cancel1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, cancel1_ledger, &cancel1_hash);
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return 0;
+}
+
+// M10: Foreign owner UPDATE/CANCEL buyer-leftover (must fail)
+// Alice tries to UPDATE/CANCEL Bob's buyer-leftover
+static int s_run_m10_buyer_leftover_foreign_ops(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M10: Foreign owner UPDATE/CANCEL buyer-leftover ---");
+    
+    // Step 1: Carol creates ASK order
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) {
+        log_it(L_ERROR, "M10: Failed to create Carol's order");
+        return -1;
+    }
+    
+    // Step 2: Bob buys with leftover=true
+    uint256_t budget = dap_chain_coins_to_balance("40.0");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M10: Bob's purchase failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M10: Bob's TX rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_INFO, "M10: Bob created buyer-leftover order");
+    
+    // Get order info
+    dex_order_info_t bl_order = {0};
+    if (test_dex_order_get_info(f->net->net->pub.ledger, &tx1_hash, &bl_order) != 0) {
+        log_it(L_ERROR, "M10: Failed to get buyer-leftover info");
+        return -4;
+    }
+    
+    // Step 3: Alice tries to UPDATE Bob's order (must fail)
+    uint256_t new_value = uint256_0;
+    DIV_256(bl_order.value, GET_256_FROM_64(2), &new_value);
+    
+    dap_chain_datum_tx_t *foreign_update = NULL;
+    dap_chain_net_srv_dex_update_error_t upd_err = dap_chain_net_srv_dex_update(
+        f->net->net, &tx1_hash, true, new_value, f->network_fee, f->alice, &foreign_update
+    );
+    if (upd_err == DEX_UPDATE_ERROR_OK && foreign_update) {
+        // API didn't catch it, try ledger
+        dap_hash_fast_t upd_hash = {0};
+        dap_hash_fast(foreign_update, dap_chain_datum_tx_get_size(foreign_update), &upd_hash);
+        int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, foreign_update, &upd_hash, false, NULL);
+        dap_chain_datum_tx_delete(foreign_update);
+        if (add_ret == 0) {
+            log_it(L_ERROR, "M10: Foreign UPDATE was accepted (should be rejected)");
+            dap_chain_datum_tx_t *upd_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &upd_hash);
+            if (upd_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, upd_ledger, &upd_hash);
+            return -5;
+        }
+        log_it(L_INFO, "M10: Foreign UPDATE rejected by ledger (ret=%d)", add_ret);
+    } else {
+        log_it(L_INFO, "M10: Foreign UPDATE rejected at API level (err=%d)", upd_err);
+    }
+    log_it(L_NOTICE, "✓ Foreign UPDATE rejected");
+    
+    // Step 4: Alice tries to CANCEL Bob's order (must fail)
+    dap_chain_datum_tx_t *foreign_cancel = NULL;
+    dap_chain_net_srv_dex_remove_error_t rem_err = dap_chain_net_srv_dex_remove(
+        f->net->net, &tx1_hash, f->network_fee, f->alice, &foreign_cancel
+    );
+    if (rem_err == DEX_REMOVE_ERROR_OK && foreign_cancel) {
+        // API didn't catch it, try ledger
+        dap_hash_fast_t rem_hash = {0};
+        dap_hash_fast(foreign_cancel, dap_chain_datum_tx_get_size(foreign_cancel), &rem_hash);
+        int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, foreign_cancel, &rem_hash, false, NULL);
+        dap_chain_datum_tx_delete(foreign_cancel);
+        if (add_ret == 0) {
+            log_it(L_ERROR, "M10: Foreign CANCEL was accepted (should be rejected)");
+            dap_chain_datum_tx_t *rem_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &rem_hash);
+            if (rem_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, rem_ledger, &rem_hash);
+            return -6;
+        }
+        log_it(L_INFO, "M10: Foreign CANCEL rejected by ledger (ret=%d)", add_ret);
+    } else {
+        log_it(L_INFO, "M10: Foreign CANCEL rejected at API level (err=%d)", rem_err);
+    }
+    log_it(L_NOTICE, "✓ Foreign CANCEL rejected");
+    
+    log_it(L_NOTICE, "✓ M10: FOREIGN OWNER OPS REJECTED");
+    
+    // Rollback
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return 0;
+}
+
+// ============================================================================
+// BUYER-LEFTOVER TAMPERING TESTS (T_BL)
+// ============================================================================
+
+// Helper: find DEX OUT_COND by type (buyer-leftover: root=0, seller-leftover: root!=0)
+static dap_chain_tx_out_cond_t *s_find_dex_out_cond_by_type(dap_chain_datum_tx_t *tx, bool a_buyer_leftover) {
+    if (!tx) return NULL;
+    
+    int l_item_idx = 0;
+    size_t l_item_size = 0;
+    byte_t *l_item = NULL;
+    
+    while ((l_item = dap_chain_datum_tx_item_get(tx, &l_item_idx, NULL, TX_ITEM_TYPE_OUT_COND, &l_item_size))) {
+        dap_chain_tx_out_cond_t *out_cond = (dap_chain_tx_out_cond_t *)l_item;
+        if (out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+            bool is_root_blank = dap_hash_fast_is_blank(&out_cond->subtype.srv_dex.order_root_hash);
+            if (a_buyer_leftover && is_root_blank) {
+                return out_cond;
+            }
+            if (!a_buyer_leftover && !is_root_blank) {
+                return out_cond;
+            }
+        }
+        l_item_idx++;
+    }
+    return NULL;
+}
+
+// Helper: tamper TX, re-sign, and verify rejection
+// Returns 0 if tamper was correctly rejected, <0 on error, >0 if tamper was accepted (test failure)
+typedef bool (*bl_tamper_fn)(dap_chain_datum_tx_t *tx, void *ctx);
+
+static int s_tamper_resign_and_verify(dex_test_fixture_t *f, dap_chain_datum_tx_t *tx, 
+                                       dap_chain_wallet_t *wallet, bl_tamper_fn tamper_fn, 
+                                       void *ctx, const char *desc) {
+    // 1. Strip signatures
+    uint8_t *l_first_sig = dap_chain_datum_tx_item_get(tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+    if (!l_first_sig) {
+        log_it(L_ERROR, "%s: No signature in TX", desc);
+        return -1;
+    }
+    
+    size_t l_tx_size_no_sig = (size_t)(l_first_sig - (uint8_t*)tx);
+    dap_chain_datum_tx_t *l_tampered = DAP_DUP_SIZE(tx, l_tx_size_no_sig);
+    if (!l_tampered) return -2;
+    l_tampered->header.tx_items_size = l_tx_size_no_sig - sizeof(dap_chain_datum_tx_t);
+    
+    // 2. Apply tamper
+    if (!tamper_fn(l_tampered, ctx)) {
+        dap_chain_datum_tx_delete(l_tampered);
+        log_it(L_WARNING, "%s: Tamper not applied (skipped)", desc);
+        return 0;  // Not an error, just nothing to tamper
+    }
+    
+    // 3. Re-sign
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(wallet, 0);
+    if (!l_key || dap_chain_datum_tx_add_sign_item(&l_tampered, l_key) <= 0) {
+        DAP_DEL_Z(l_key);
+        dap_chain_datum_tx_delete(l_tampered);
+        log_it(L_ERROR, "%s: Failed to re-sign", desc);
+        return -3;
+    }
+    DAP_DELETE(l_key);
+    
+    // 4. Try to add
+    dap_hash_fast_t l_hash = {0};
+    dap_hash_fast(l_tampered, dap_chain_datum_tx_get_size(l_tampered), &l_hash);
+    int ret = dap_ledger_tx_add(f->net->net->pub.ledger, l_tampered, &l_hash, false, NULL);
+    dap_chain_datum_tx_delete(l_tampered);
+    
+    if (ret == 0) {
+        log_it(L_ERROR, "%s: TAMPERED TX was ACCEPTED!", desc);
+        dap_chain_datum_tx_t *tx_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &l_hash);
+        if (tx_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx_ledger, &l_hash);
+        return 1;  // Test failure
+    }
+    
+    log_it(L_NOTICE, "✓ %s REJECTED", desc);
+    return 0;
+}
+
+// Tamper callbacks for T_BL tests
+typedef struct { dap_hash_fast_t fake_root; } t_bl01_ctx_t;
+static bool s_tamper_bl01_nonzero_root(dap_chain_datum_tx_t *tx, void *ctx) {
+    t_bl01_ctx_t *c = ctx;
+    dap_chain_tx_out_cond_t *bl = s_find_dex_out_cond_by_type(tx, true);
+    if (!bl) return false;
+    bl->subtype.srv_dex.order_root_hash = c->fake_root;
+    return true;
+}
+
+// Real attack: steal from SELLER payout into buyer-leftover
+// Bob (buyer) underpays Carol (seller) and inflates his own buyer-leftover
+// This should be rejected by DEXV_SELLER_PAYOUT_MISMATCH
+static bool s_tamper_bl03_value_inflate(dap_chain_datum_tx_t *tx, void *ctx) {
+    (void)ctx;
+    dap_chain_tx_out_cond_t *bl = s_find_dex_out_cond_by_type(tx, true);
+    if (!bl) return false;
+    
+    // Get buyer address (owner of buyer-leftover)
+    dap_chain_addr_t *buyer_addr = &bl->subtype.srv_dex.seller_addr;
+    
+    // Find seller payout: OUT_STD going to address OTHER than buyer
+    // This is Carol's payout which we want to steal from
+    dap_chain_tx_out_std_t *seller_payout = NULL;
+    int item_idx = 0;
+    byte_t *item;
+    while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_STD, NULL))) {
+        dap_chain_tx_out_std_t *out = (dap_chain_tx_out_std_t *)item;
+        // Not buyer's address = seller's payout
+        if (!dap_chain_addr_compare(&out->addr, buyer_addr) && 
+            !IS_ZERO_256(out->value)) {
+            seller_payout = out;
+            break;
+        }
+        item_idx++;
+    }
+    if (!seller_payout) return false;
+    
+    // Steal 5 units from seller's payout to buyer-leftover
+    // Carol gets 5 less, Bob's leftover grows by 5
+    uint256_t steal_amount = dap_chain_coins_to_balance("5.0");
+    if (compare256(seller_payout->value, steal_amount) < 0) return false;
+    
+    uint256_t new_seller = uint256_0, new_bl = uint256_0;
+    SUBTRACT_256_256(seller_payout->value, steal_amount, &new_seller);
+    SUM_256_256(bl->header.value, steal_amount, &new_bl);
+    seller_payout->value = new_seller;
+    bl->header.value = new_bl;
+    return true;
+}
+
+typedef struct { dap_chain_addr_t hijack_addr; } t_bl04_ctx_t;
+static bool s_tamper_bl04_addr_hijack(dap_chain_datum_tx_t *tx, void *ctx) {
+    t_bl04_ctx_t *c = ctx;
+    dap_chain_tx_out_cond_t *bl = s_find_dex_out_cond_by_type(tx, true);
+    if (!bl) return false;
+    bl->subtype.srv_dex.seller_addr = c->hijack_addr;
+    return true;
+}
+
+// T_BL01: Buyer-leftover with non-zero root_hash (should be rejected)
+static int s_run_t_bl01_nonzero_root(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_BL01: Buyer-leftover with non-zero root_hash ---");
+    
+    // Create ASK order
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) return -1;
+    
+    // Bob purchases with leftover
+    uint256_t budget_38 = dap_chain_coins_to_balance("38.5");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
+    
+    // Tamper: set fake root_hash
+    t_bl01_ctx_t ctx = { .fake_root = carol_order };
+    ret = s_tamper_resign_and_verify(f, tx1, f->bob, s_tamper_bl01_nonzero_root, &ctx, 
+                                     "T_BL01: Buyer-leftover with non-zero root_hash");
+    dap_chain_datum_tx_delete(tx1);
+    
+    // Cleanup
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return ret > 0 ? -3 : ret;
+}
+
+// T_BL02: Partial fill on buyer-leftover with wrong root_hash
+typedef struct { dap_hash_fast_t wrong_root; } t_bl02_ctx_t;
+static bool s_tamper_bl02_wrong_root(dap_chain_datum_tx_t *tx, void *ctx) {
+    t_bl02_ctx_t *c = ctx;
+    dap_chain_tx_out_cond_t *sl = s_find_dex_out_cond_by_type(tx, false);  // seller-leftover
+    if (!sl || dap_hash_fast_is_blank(&sl->subtype.srv_dex.order_root_hash)) return false;
+    sl->subtype.srv_dex.order_root_hash = c->wrong_root;
+    return true;
+}
+
+static int s_run_t_bl02_wrong_chain_root(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_BL02: Partial fill on buyer-leftover with wrong root ---");
+    
+    // Create original ASK order
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) return -1;
+    
+    // Bob purchases, creates buyer-leftover
+    uint256_t budget_38 = dap_chain_coins_to_balance("38.5");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    
+    // Alice partially fills buyer-leftover
+    uint256_t budget_5 = dap_chain_coins_to_balance("5.0");
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &tx1_hash, budget_5, false, f->network_fee, f->alice, false, uint256_0, &tx2
+    );
+    
+    int result = 0;
+    if (err2 == DEX_PURCHASE_ERROR_OK && tx2) {
+        t_bl02_ctx_t ctx = { .wrong_root = carol_order };
+        ret = s_tamper_resign_and_verify(f, tx2, f->alice, s_tamper_bl02_wrong_root, &ctx,
+                                          "T_BL02: Wrong chain root");
+        dap_chain_datum_tx_delete(tx2);
+        if (ret > 0) result = -4;
+    } else {
+        log_it(L_WARNING, "T_BL02: Partial fill failed (err=%d), skipping", err2);
+    }
+    
+    // Rollback
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return result;
+}
+
+// T_BL03: Steal from seller payout to inflate buyer-leftover (underpay seller attack)
+static int s_run_t_bl03_value_inflate(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_BL03: Underpay seller to inflate buyer-leftover ---");
+    
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) return -1;
+    
+    uint256_t budget_38 = dap_chain_coins_to_balance("38.5");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
+    
+    ret = s_tamper_resign_and_verify(f, tx1, f->bob, s_tamper_bl03_value_inflate, NULL,
+                                     "T_BL03: Underpay seller to inflate buyer-leftover");
+    dap_chain_datum_tx_delete(tx1);
+    
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return ret > 0 ? -3 : ret;
+}
+
+// T_BL04: Buyer-leftover seller_addr hijack
+static int s_run_t_bl04_addr_hijack(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_BL04: Buyer-leftover seller_addr hijack ---");
+    
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) return -1;
+    
+    uint256_t budget_38 = dap_chain_coins_to_balance("38.5");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
+    
+    t_bl04_ctx_t ctx = { .hijack_addr = f->carol_addr };
+    ret = s_tamper_resign_and_verify(f, tx1, f->bob, s_tamper_bl04_addr_hijack, &ctx,
+                                     "T_BL04: Buyer-leftover seller_addr hijack");
+    dap_chain_datum_tx_delete(tx1);
+    
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return ret > 0 ? -3 : ret;
+}
+
+// T_BL05: Inflate seller-leftover (partial fill on buyer-leftover)
+// Attack: inflate seller-leftover BEYOND actual remaining value (breaks balance)
+static bool s_tamper_bl05_over_exec(dap_chain_datum_tx_t *tx, void *ctx) {
+    (void)ctx;
+    dap_chain_tx_out_cond_t *sl = s_find_dex_out_cond_by_type(tx, false);  // seller-leftover
+    if (!sl || dap_hash_fast_is_blank(&sl->subtype.srv_dex.order_root_hash)) return false;
+    
+    // Simply inflate seller-leftover by 10 units (no compensation = breaks balance)
+    uint256_t inflate_amount = dap_chain_coins_to_balance("10.0");
+    uint256_t new_sl = uint256_0;
+    SUM_256_256(sl->header.value, inflate_amount, &new_sl);
+    sl->header.value = new_sl;
+    return true;
+}
+
+static int s_run_t_bl05_over_exec(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_BL05: Partial fill exceeds buyer-leftover value ---");
+    
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) return -1;
+    
+    // Bob purchases, creates buyer-leftover
+    uint256_t budget_38 = dap_chain_coins_to_balance("38.5");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    
+    // Alice fills buyer-leftover partially
+    uint256_t budget_3 = dap_chain_coins_to_balance("3.0");
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &tx1_hash, budget_3, false, f->network_fee, f->alice, false, uint256_0, &tx2
+    );
+    
+    int result = 0;
+    if (err2 == DEX_PURCHASE_ERROR_OK && tx2) {
+        ret = s_tamper_resign_and_verify(f, tx2, f->alice, s_tamper_bl05_over_exec, NULL,
+                                          "T_BL05: Over-execution leftover");
+        dap_chain_datum_tx_delete(tx2);
+        if (ret > 0) result = -4;
+    } else {
+        log_it(L_WARNING, "T_BL05: Partial fill failed (err=%d), skipping", err2);
+    }
+    
+    // Rollback
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return result;
+}
+
+// T_BL06: Match buyer-leftover with wrong root_hash (use original TX hash instead of blank)
+// When matching a buyer-leftover, the resulting seller-leftover (if any) must have correct root
+typedef struct { dap_hash_fast_t original_tx_hash; } t_bl06_ctx_t;
+static bool s_tamper_bl06_wrong_match_root(dap_chain_datum_tx_t *tx, void *ctx) {
+    t_bl06_ctx_t *c = ctx;
+    // Find seller-leftover (non-blank root) and tamper it
+    dap_chain_tx_out_cond_t *sl = s_find_dex_out_cond_by_type(tx, false);
+    if (!sl) return false;
+    // Replace with original TX hash (wrong chain)
+    sl->subtype.srv_dex.order_root_hash = c->original_tx_hash;
+    return true;
+}
+
+static int s_run_t_bl06_match_wrong_root(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_BL06: Match buyer-leftover with tampered seller-leftover root ---");
+    
+    // Step 1: Carol creates ASK order
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) return -1;
+    
+    // Step 2: Bob buys, creates buyer-leftover (BID 78 QUOTE @ 2.6)
+    uint256_t budget = dap_chain_coins_to_balance("40.0");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    
+    // Step 3: Alice partially fills buyer-leftover (creates seller-leftover)
+    uint256_t budget_3 = dap_chain_coins_to_balance("3.0");
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &tx1_hash, budget_3, false, f->network_fee, f->alice, false, uint256_0, &tx2
+    );
+    
+    int result = 0;
+    if (err2 == DEX_PURCHASE_ERROR_OK && tx2) {
+        // Tamper: put wrong root_hash (original Carol's order hash) into seller-leftover
+        t_bl06_ctx_t ctx = { .original_tx_hash = carol_order };
+        ret = s_tamper_resign_and_verify(f, tx2, f->alice, s_tamper_bl06_wrong_match_root, &ctx,
+                                          "T_BL06: Seller-leftover with wrong root (original order)");
+        dap_chain_datum_tx_delete(tx2);
+        if (ret > 0) result = -4;
+    } else {
+        log_it(L_WARNING, "T_BL06: Partial fill failed (err=%d), skipping", err2);
+    }
+    
+    // Rollback
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return result;
+}
+
+// T_BL07: UPDATE buyer-leftover - tamper root_hash to wrong value
+// In UPDATE TX, OUT_COND has root_hash pointing to previous TX in chain
+// We tamper it to a completely different hash (breaks chain integrity)
+static bool s_tamper_bl07_update_wrong_root(dap_chain_datum_tx_t *tx, void *ctx) {
+    dap_hash_fast_t *fake_root = ctx;
+    // Find ANY DEX OUT_COND in UPDATE TX (root_hash is NOT blank for UPDATE)
+    int l_item_idx = 0;
+    byte_t *l_item = NULL;
+    while ((l_item = dap_chain_datum_tx_item_get(tx, &l_item_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL))) {
+        dap_chain_tx_out_cond_t *out_cond = (dap_chain_tx_out_cond_t *)l_item;
+        if (out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+            // Tamper root_hash to wrong value (breaks order chain)
+            out_cond->subtype.srv_dex.order_root_hash = *fake_root;
+            return true;
+        }
+        l_item_idx++;
+    }
+    return false;
+}
+
+static int s_run_t_bl07_update_with_root(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_BL07: UPDATE buyer-leftover with non-blank root_hash ---");
+    
+    // Step 1: Carol creates ASK order
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) return -1;
+    
+    // Step 2: Bob buys, creates buyer-leftover
+    uint256_t budget = dap_chain_coins_to_balance("40.0");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    
+    // Get buyer-leftover info
+    dex_order_info_t bl_order = {0};
+    if (test_dex_order_get_info(f->net->net->pub.ledger, &tx1_hash, &bl_order) != 0) return -4;
+    
+    // Step 3: Create UPDATE TX
+    uint256_t new_value = uint256_0;
+    DIV_256(bl_order.value, GET_256_FROM_64(2), &new_value);
+    
+    dap_chain_datum_tx_t *update_tx = NULL;
+    dap_chain_net_srv_dex_update_error_t upd_err = dap_chain_net_srv_dex_update(
+        f->net->net, &tx1_hash, true, new_value, f->network_fee, f->bob, &update_tx
+    );
+    
+    int result = 0;
+    if (upd_err == DEX_UPDATE_ERROR_OK && update_tx) {
+        // Tamper: change root_hash to completely wrong value (breaks chain)
+        dap_hash_fast_t fake_root = {0};
+        dap_hash_fast("fake_root_for_bl07", 18, &fake_root);
+        ret = s_tamper_resign_and_verify(f, update_tx, f->bob, s_tamper_bl07_update_wrong_root, &fake_root,
+                                          "T_BL07: UPDATE buyer-leftover with wrong root_hash");
+        dap_chain_datum_tx_delete(update_tx);
+        if (ret > 0) result = -5;
+    } else {
+        log_it(L_WARNING, "T_BL07: UPDATE API failed (err=%d), skipping", upd_err);
+    }
+    
+    // Rollback
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return result;
+}
+
+// T_BL08: CANCEL with tampered IN_COND pointing to different order
+// Attack: Bob creates CANCEL for his buyer-leftover, but we tamper IN_COND
+// to point to Carol's order instead (attempt to cancel someone else's order)
+typedef struct { dap_hash_fast_t target_order; } t_bl08_ctx_t;
+static bool s_tamper_bl08_cancel_foreign_order(dap_chain_datum_tx_t *tx, void *ctx) {
+    t_bl08_ctx_t *c = ctx;
+    // Find IN_COND and change tx_prev_hash to different order
+    int l_item_idx = 0;
+    byte_t *l_item = NULL;
+    while ((l_item = dap_chain_datum_tx_item_get(tx, &l_item_idx, NULL, TX_ITEM_TYPE_IN_COND, NULL))) {
+        dap_chain_tx_in_cond_t *in_cond = (dap_chain_tx_in_cond_t *)l_item;
+        // Tamper: point to Carol's order instead of Bob's buyer-leftover
+        in_cond->header.tx_prev_hash = c->target_order;
+        return true;
+    }
+    return false;
+}
+
+static int s_run_t_bl08_cancel_foreign_order(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_BL08: CANCEL with IN_COND pointing to foreign order ---");
+    
+    // Step 1: Carol creates ASK order (this will be the "foreign" order)
+    dap_hash_fast_t carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.5", "10.0", &carol_order);
+    if (ret != 0) return -1;
+    
+    // Step 2: Bob buys, creates buyer-leftover
+    uint256_t budget = dap_chain_coins_to_balance("40.0");
+    uint256_t leftover_rate = dap_chain_coins_to_balance("2.6");
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    
+    // Step 3: Alice creates another order (to have a second foreign order)
+    dap_hash_fast_t alice_order = {0};
+    ret = s_create_test_order(f, pair, WALLET_ALICE, SIDE_ASK, MINFILL_NONE, "2.7", "15.0", &alice_order);
+    if (ret != 0) {
+        dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+        if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+        dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+        if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+        return -4;
+    }
+    
+    // Step 4: Bob creates CANCEL for his buyer-leftover
+    dap_chain_datum_tx_t *cancel_tx = NULL;
+    dap_chain_net_srv_dex_remove_error_t rem_err = dap_chain_net_srv_dex_remove(
+        f->net->net, &tx1_hash, f->network_fee, f->bob, &cancel_tx
+    );
+    
+    int result = 0;
+    if (rem_err == DEX_REMOVE_ERROR_OK && cancel_tx) {
+        // Tamper: change IN_COND to point to Alice's order (foreign order)
+        t_bl08_ctx_t ctx = { .target_order = alice_order };
+        ret = s_tamper_resign_and_verify(f, cancel_tx, f->bob, s_tamper_bl08_cancel_foreign_order, &ctx,
+                                          "T_BL08: CANCEL with IN_COND pointing to Alice's order");
+        dap_chain_datum_tx_delete(cancel_tx);
+        if (ret > 0) result = -5;
+    } else {
+        log_it(L_WARNING, "T_BL08: CANCEL API failed (err=%d), skipping", rem_err);
+    }
+    
+    // Rollback
+    dap_chain_datum_tx_t *alice_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+    if (alice_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, alice_tx, &alice_order);
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+    
+    return result;
+}
+
+// ============================================================================
+// SELLER-LEFTOVER TAMPERING TESTS (T_SL)
+// ============================================================================
+
+// T_SL01: Seller-leftover with blank root_hash (should be non-blank)
+static int s_run_t_sl01_blank_root(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_SL01: Seller-leftover with blank root_hash ---");
+    
+    // Create ASK order (partial fill will create seller-leftover)
+    dap_hash_fast_t alice_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_ALICE, SIDE_ASK, MINFILL_NONE, "2.5", "20.0", &alice_order);
+    if (ret != 0) return -1;
+    
+    // Bob purchases partially (10 of 20)
+    uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+    
+    if (err != DEX_PURCHASE_ERROR_OK || !tx1) {
+        dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+        if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &alice_order);
+        return -2;
+    }
+    
+    // Tamper: blank root_hash (should be non-blank for seller-leftover)
+    ret = s_tamper_resign_and_verify(f, tx1, f->bob, 
+        (bl_tamper_fn)tamper_order_root_hash, NULL,
+        "T_SL01: Seller-leftover with blank root_hash");
+    dap_chain_datum_tx_delete(tx1);
+    
+    // Cleanup
+    dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+    if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &alice_order);
+    
+    return ret > 0 ? -3 : ret;
+}
+
+// T_SL02: Seller-leftover with wrong root_hash (different order)
+static int s_run_t_sl02_wrong_root(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_SL02: Seller-leftover with wrong root_hash ---");
+    
+    // Create two orders
+    dap_hash_fast_t alice_order = {0}, carol_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_ALICE, SIDE_ASK, MINFILL_NONE, "2.5", "20.0", &alice_order);
+    if (ret != 0) return -1;
+    ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.6", "10.0", &carol_order);
+    if (ret != 0) {
+        dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+        if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &alice_order);
+        return -2;
+    }
+    
+    // Bob purchases Alice's order partially
+    uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+    
+    if (err != DEX_PURCHASE_ERROR_OK || !tx1) {
+        ret = -3;
+        goto cleanup;
+    }
+    
+    // Tamper: use Carol's order hash as root_hash (wrong chain)
+    ret = s_tamper_resign_and_verify(f, tx1, f->bob,
+        (bl_tamper_fn)tamper_order_root_hash, &carol_order,
+        "T_SL02: Seller-leftover with wrong root_hash");
+    dap_chain_datum_tx_delete(tx1);
+    
+    if (ret > 0) ret = -4;
+    
+cleanup: ;
+    dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+    if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &alice_order);
+    tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+    if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &carol_order);
+    
+    return ret;
+}
+
+// Tamper seller_addr in seller-leftover
+typedef struct { dap_chain_addr_t hijack_addr; } t_sl03_ctx_t;
+static bool s_tamper_sl03_addr(dap_chain_datum_tx_t *tx, void *ctx) {
+    t_sl03_ctx_t *c = ctx;
+    dap_chain_tx_out_cond_t *sl = s_find_dex_out_cond_by_type(tx, false);  // seller-leftover
+    if (!sl || dap_hash_fast_is_blank(&sl->subtype.srv_dex.order_root_hash)) return false;
+    sl->subtype.srv_dex.seller_addr = c->hijack_addr;
+    return true;
+}
+
+// T_SL03: Seller-leftover seller_addr hijack
+static int s_run_t_sl03_addr_hijack(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_SL03: Seller-leftover seller_addr hijack ---");
+    
+    dap_hash_fast_t alice_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_ALICE, SIDE_ASK, MINFILL_NONE, "2.5", "20.0", &alice_order);
+    if (ret != 0) return -1;
+    
+    uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+    
+    if (err != DEX_PURCHASE_ERROR_OK || !tx1) {
+        dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+        if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &alice_order);
+        return -2;
+    }
+    
+    // Tamper: hijack to Carol's address
+    t_sl03_ctx_t ctx = { .hijack_addr = f->carol_addr };
+    ret = s_tamper_resign_and_verify(f, tx1, f->bob, s_tamper_sl03_addr, &ctx,
+        "T_SL03: Seller-leftover seller_addr hijack");
+    dap_chain_datum_tx_delete(tx1);
+    
+    dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+    if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &alice_order);
+    
+    return ret > 0 ? -3 : ret;
+}
+
+// Tamper rate in seller-leftover
+typedef struct { uint256_t fake_rate; } t_sl04_ctx_t;
+static bool s_tamper_sl04_rate(dap_chain_datum_tx_t *tx, void *ctx) {
+    t_sl04_ctx_t *c = ctx;
+    dap_chain_tx_out_cond_t *sl = s_find_dex_out_cond_by_type(tx, false);
+    if (!sl || dap_hash_fast_is_blank(&sl->subtype.srv_dex.order_root_hash)) return false;
+    sl->subtype.srv_dex.rate = c->fake_rate;
+    return true;
+}
+
+// T_SL04: Seller-leftover with wrong rate
+static int s_run_t_sl04_wrong_rate(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_SL04: Seller-leftover with wrong rate ---");
+    
+    dap_hash_fast_t alice_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_ALICE, SIDE_ASK, MINFILL_NONE, "2.5", "20.0", &alice_order);
+    if (ret != 0) return -1;
+    
+    uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+    
+    if (err != DEX_PURCHASE_ERROR_OK || !tx1) {
+        dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+        if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &alice_order);
+        return -2;
+    }
+    
+    // Tamper: change rate from 2.5 to 1.0 (lower rate = more favorable for attacker)
+    t_sl04_ctx_t ctx = { .fake_rate = dap_chain_coins_to_balance("1.0") };
+    ret = s_tamper_resign_and_verify(f, tx1, f->bob, s_tamper_sl04_rate, &ctx,
+        "T_SL04: Seller-leftover with wrong rate");
+    dap_chain_datum_tx_delete(tx1);
+    
+    dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+    if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &alice_order);
+    
+    return ret > 0 ? -3 : ret;
+}
+
+// Run all seller-leftover tampering tests
+static int s_run_seller_leftover_tampers(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    int ret;
+    
+    ret = s_run_t_sl01_blank_root(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_sl02_wrong_root(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_sl03_addr_hijack(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_sl04_wrong_rate(f, pair);
+    if (ret != 0) return ret;
+    
+    return 0;
+}
+
+// Run all buyer-leftover tampering tests
+static int s_run_buyer_leftover_tampers(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    int ret;
+    
+    ret = s_run_t_bl01_nonzero_root(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_bl02_wrong_chain_root(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_bl03_value_inflate(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_bl04_addr_hijack(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_bl05_over_exec(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_bl06_match_wrong_root(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_bl07_update_with_root(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_bl08_cancel_foreign_order(f, pair);
+    if (ret != 0) return ret;
+    
+    return 0;
+}
+
+// Run all multi-execution tests for a single pair
+static int s_run_multi_tests_for_pair(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    int ret;
+    
+    // ASK tests (M01-M03)
+    ret = s_run_m01_seller_partial_current(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_m02_seller_partial_origin(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_m03_buyer_leftover(f, pair);
+    if (ret != 0) return ret;
+    
+    // BID tests (M04-M06)
+    ret = s_run_m04_bid_partial_current(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_m05_bid_partial_origin(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_m06_bid_buyer_leftover(f, pair);
+    if (ret != 0) return ret;
+    
+    // Buyer-leftover operations (M07-M10)
+    ret = s_run_m07_buyer_leftover_update(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_m08_buyer_leftover_cancel(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_m09_buyer_leftover_double_cancel(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_m10_buyer_leftover_foreign_ops(f, pair);
+    if (ret != 0) return ret;
+    
+    // Seller-leftover tampering tests (T_SL01-T_SL04)
+    ret = s_run_seller_leftover_tampers(f, pair);
+    if (ret != 0) return ret;
+    
+    // Buyer-leftover tampering tests (T_BL01-T_BL05)
+    ret = s_run_buyer_leftover_tampers(f, pair);
+    if (ret != 0) return ret;
+    
+    return 0;
+}
+
+// Main entry point for multi-execution tests
+// Rollback is done after each test to preserve balances across pairs
+static int run_multi_execution_tests(dex_test_fixture_t *f) {
+    log_it(L_NOTICE, " ");
+    log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
+    log_it(L_NOTICE, "║          MULTI-EXECUTION TESTS (Group M)                 ║");
+    log_it(L_NOTICE, "╚══════════════════════════════════════════════════════════╝");
+    
+    const test_pair_config_t *pairs = test_get_standard_pairs();
+    size_t pairs_count = test_get_standard_pairs_count();
+    
+    size_t passed = 0, skipped = 0;
+    for (size_t p = 0; p < pairs_count; p++) {
+        // Check balances for all participants:
+        // ASK tests: Alice needs BASE, Bob needs QUOTE
+        // BID tests: Bob needs QUOTE, Alice needs BASE
+        uint256_t alice_base = dap_ledger_calc_balance(f->net->net->pub.ledger, &f->alice_addr, pairs[p].base_token);
+        uint256_t bob_quote = dap_ledger_calc_balance(f->net->net->pub.ledger, &f->bob_addr, pairs[p].quote_token);
+        uint256_t min_required = dap_chain_coins_to_balance("100.0");
+        
+        if (compare256(bob_quote, min_required) < 0) {
+            log_it(L_WARNING, "MULTI-EXEC PAIR %zu/%zu: %s - SKIPPED (Bob has insufficient %s)", 
+                   p+1, pairs_count, pairs[p].description, pairs[p].quote_token);
+            skipped++;
+            continue;
+        }
+        if (compare256(alice_base, min_required) < 0) {
+            log_it(L_WARNING, "MULTI-EXEC PAIR %zu/%zu: %s - SKIPPED (Alice has insufficient %s)", 
+                   p+1, pairs_count, pairs[p].description, pairs[p].base_token);
+            skipped++;
+            continue;
+        }
+        
+        log_it(L_NOTICE, " ");
+        log_it(L_NOTICE, "┌──────────────────────────────────────────────────────────┐");
+        log_it(L_NOTICE, "│  MULTI-EXEC PAIR %zu/%zu: %s", p+1, pairs_count, pairs[p].description);
+        log_it(L_NOTICE, "└──────────────────────────────────────────────────────────┘");
+        
+        int ret = s_run_multi_tests_for_pair(f, &pairs[p]);
+        if (ret != 0) {
+            log_it(L_ERROR, "Multi-execution tests failed for pair %s: %d", pairs[p].description, ret);
+            return ret;
+        }
+        passed++;
+    }
+    
+    log_it(L_NOTICE, "Multi-exec: %zu pairs passed, %zu skipped", passed, skipped);
+    
+    log_it(L_NOTICE, " ");
+    log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
+    log_it(L_NOTICE, "║  ✓ ALL MULTI-EXECUTION TESTS PASSED                      ║");
+    log_it(L_NOTICE, "╚══════════════════════════════════════════════════════════╝");
+    
+    return 0;
+}
+
+// ============================================================================
 // GROUP RUNNER
 // ============================================================================
 
@@ -2733,7 +4429,7 @@ int run_lifecycle_tests(dex_test_fixture_t *f) {
     const test_pair_config_t *pairs = test_get_standard_pairs();
     size_t pairs_count = test_get_standard_pairs_count();
     
-    size_t passed = 0;
+   size_t passed = 0;
     
     // Iterate over network fee collector configurations
     for (net_fee_collector_t nfc = NET_FEE_DAVE; nfc <= NET_FEE_BOB; nfc++) {
@@ -2775,6 +4471,23 @@ int run_lifecycle_tests(dex_test_fixture_t *f) {
     }
     
     test_dex_dump_orderbook(f, "After cancel-all");
+    
+    // Run multi-execution tests on clean orderbook
+    int multi_ret = run_multi_execution_tests(f);
+    if (multi_ret != 0) {
+        log_it(L_ERROR, "Multi-execution tests failed: %d", multi_ret);
+        return multi_ret;
+    }
+    
+    // Cleanup orderbook after multi-execution tests (for subsequent automatch seed)
+    test_dex_dump_orderbook(f, "Before final cleanup");
+    int cancel_ret = run_cancel_all_active(f);
+    if (cancel_ret != 0) {
+        log_it(L_ERROR, "Final cleanup (cancel-all) failed: %d", cancel_ret);
+        return cancel_ret;
+    }
+    test_dex_dump_orderbook(f, "After final cleanup");
+    
     log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
     log_it(L_NOTICE, "║  ✓ ALL %zu LIFECYCLE TESTS PASSED                        ║", passed);

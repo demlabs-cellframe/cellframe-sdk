@@ -34,6 +34,11 @@
 
 #define DAP_CHAIN_NET_SRV_DEX_ID 0x000000000000000AULL
 
+// Fee calculation constants (256-bit values as 64-bit for GET_256_FROM_64)
+#define DAP_DEX_FEE_UNIT_NATIVE   10000000000000000ULL   // 0.01 × 10^18 (per-pair step for native abs fee)
+#define DAP_DEX_FEE_STEP_PCT      1000000000000000ULL    // 0.001 × 10^18 (0.1% step for percentage fee)
+#define DAP_DEX_POW18             1000000000000000000ULL // 1.0 × 10^18
+
 typedef enum dex_tx_type{
     DEX_TX_TYPE_UNDEFINED,
     DEX_TX_TYPE_ORDER,        // has SRV_DEX OUT only (composer writes this to payload)

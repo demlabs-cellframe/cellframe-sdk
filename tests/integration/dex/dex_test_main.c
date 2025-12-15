@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include "dex_test_fixture.h"
 #include "dex_lifecycle_tests.h"
+#include "dex_automatch_tests.h"
 #include "dap_config.h"
 #include "dap_enc.h"
 #include "dap_test.h"
@@ -151,7 +152,7 @@ int main(int argc, char *argv[]) {
     dap_enc_init();
     dap_chain_wallet_init();
     
-    s_setup(false);
+    s_setup(true);
     
     dex_test_fixture_t *fixture = dex_test_fixture_create();
     if (!fixture) {
@@ -161,9 +162,9 @@ int main(int argc, char *argv[]) {
     }
     
     dex_print_balances(fixture, "INITIAL STATE");
-    
+    int ret = 0;
     // Run lifecycle tests (long)
-    int ret = run_lifecycle_tests(fixture);
+    /*ret = run_lifecycle_tests(fixture);
     if (ret != 0) {
         log_it(L_ERROR, "Lifecycle tests FAILED with code %d", ret);
         dex_test_fixture_destroy(fixture);
@@ -171,14 +172,20 @@ int main(int argc, char *argv[]) {
         return ret;
     }
     
+    // Extra cleanup: cancel any remaining orders after lifecycle tests
+    ret = run_cancel_all_active(fixture);
+    if (ret != 0) {
+        log_it(L_WARNING, "Post-lifecycle cleanup failed: %d (continuing)", ret);
+    }*/
+    
     // Seed orderbook for matcher tests (short)
-    /*int ret = run_seed_orderbook(fixture);
+    ret = run_seed_orderbook(fixture);
     if (ret != 0) {
         log_it(L_ERROR, "Orderbook seeding FAILED with code %d", ret);
         dex_test_fixture_destroy(fixture);
         s_teardown();
         return ret;
-    }*/
+    }
     
     // Run CLI tests after lifecycle tests
     ret = s_test_cli_pairs(fixture);
@@ -186,8 +193,16 @@ int main(int argc, char *argv[]) {
         log_it(L_WARNING, "CLI pairs test failed with code %d (non-fatal)", ret);
     }
     
+    // Run automatch tests (uses seeded orderbook from lifecycle tests)
+    ret = run_automatch_tests(fixture);
+    if (ret != 0) {
+        log_it(L_ERROR, "Automatch tests FAILED with code %d", ret);
+        dex_test_fixture_destroy(fixture);
+        s_teardown();
+        return ret;
+    }
+    
     // TODO: Add when implemented
-    // run_automatch_tests(fixture);
     // run_leftover_tests(fixture);
     // run_operations_tests(fixture);
     

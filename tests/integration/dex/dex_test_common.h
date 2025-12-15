@@ -169,6 +169,15 @@ int test_dex_order_get_info(dap_ledger_t *ledger, const dap_hash_fast_t *hash, d
 // Returns true if tampering was applied, false if skipped (OUT not found)
 typedef bool (*tamper_callback_fn)(dap_chain_datum_tx_t *tx, void *user_data);
 
+int test_dex_tamper_and_verify_rejection_ex(
+    dex_test_fixture_t *fixture,
+    dap_chain_datum_tx_t *tx_template,
+    dap_chain_wallet_t *wallet,
+    tamper_callback_fn tamper_fn,
+    void *tamper_data,
+    const char *tamper_description,
+    bool require_tamper_applied);
+
 int test_dex_tamper_and_verify_rejection(
     dex_test_fixture_t *fixture,
     dap_chain_datum_tx_t *tx_template,

@@ -15,10 +15,11 @@ cmake_minimum_required(VERSION 3.10)
 add_executable(dex_test
     dex_test_common.c
     dex_test_fixture.c
+    dex_test_helpers.c
     dex_test_main.c
     dex_lifecycle_tests.c
+    dex_automatch_tests.c
     # TODO: add when implemented
-    # dex_automatch_tests.c
     # dex_leftover_tests.c
     # dex_operations_tests.c
 )

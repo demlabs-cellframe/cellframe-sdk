@@ -20,6 +20,7 @@ typedef enum {
     WALLET_ALICE = 0,
     WALLET_BOB,
     WALLET_CAROL,
+    WALLET_DAVE,
     WALLET_COUNT
 } wallet_id_t;
 
@@ -119,6 +120,7 @@ static inline dap_chain_wallet_t* get_wallet(dex_test_fixture_t *f, wallet_id_t 
         case WALLET_ALICE: return f->alice;
         case WALLET_BOB:   return f->bob;
         case WALLET_CAROL: return f->carol;
+        case WALLET_DAVE:  return f->dave;
         default:           return NULL;
     }
 }
@@ -128,6 +130,7 @@ static inline dap_chain_addr_t* get_wallet_addr(dex_test_fixture_t *f, wallet_id
         case WALLET_ALICE: return &f->alice_addr;
         case WALLET_BOB:   return &f->bob_addr;
         case WALLET_CAROL: return &f->carol_addr;
+        case WALLET_DAVE:  return &f->dave_addr;
         default:           return NULL;
     }
 }
@@ -137,6 +140,7 @@ static inline const char* get_wallet_name(wallet_id_t id) {
         case WALLET_ALICE: return "Alice";
         case WALLET_BOB:   return "Bob";
         case WALLET_CAROL: return "Carol";
+        case WALLET_DAVE:  return "Dave";
         default:           return "Unknown";
     }
 }

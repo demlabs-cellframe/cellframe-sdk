@@ -14,6 +14,7 @@
 #include "dap_chain_net_srv_dex.h"
 #include "dap_chain_net_tx.h"
 #include "dap_hash.h"
+#include "dap_time.h"
 #include "dap_tsd.h"
 #include "dap_test.h"
 #include "dap_chain_datum_tx.h"
@@ -142,34 +143,34 @@ const dap_chain_addr_t* test_get_net_fee_addr(dex_test_fixture_t *fixture)
  * All pairs are unique to avoid policy conflicts.
  */
 static const test_pair_config_t TEST_PAIRS[] = {
-    // Configuration 0: Baseline - QUOTE % fee, non-native
+    // Configuration 0: Baseline - % fee from INPUT, non-native
     {
         .base_token = "KEL",
         .quote_token = "USDT",
         .quote_is_native = false,
         .base_is_native = false,
-        .fee_config = 0x80 | 2,  // 2% QUOTE
-        .description = "KEL/USDT (2% QUOTE fee)"
+        .fee_config = 0x80 | 20,  // 2% INPUT (20 × 0.1%)
+        .description = "KEL/USDT (2% INPUT fee)"
     },
     
-    // Configuration 1: Native as QUOTE - QUOTE % fee
+    // Configuration 1: Native as QUOTE - % fee from INPUT
     {
         .base_token = "KEL",
         .quote_token = "TestCoin",
         .quote_is_native = true,
         .base_is_native = false,
-        .fee_config = 0x80 | 2,  // 2% QUOTE (native)
-        .description = "KEL/TestCoin (2% QUOTE fee, native as QUOTE+fee)"
+        .fee_config = 0x80 | 20,  // 2% INPUT (native as QUOTE)
+        .description = "KEL/TestCoin (2% INPUT fee, native as QUOTE)"
     },
     
-    // Configuration 2: Native as BASE - QUOTE % fee
+    // Configuration 2: Native as BASE - % fee from INPUT
     {
         .base_token = "TestCoin",
         .quote_token = "USDT",
         .quote_is_native = false,
         .base_is_native = true,
-        .fee_config = 0x80 | 2,  // 2% QUOTE
-        .description = "TestCoin/USDT (2% QUOTE fee, native base)"
+        .fee_config = 0x80 | 20,  // 2% INPUT (native as BASE)
+        .description = "TestCoin/USDT (2% INPUT fee, native as BASE)"
     },
     
     // Configuration 3: NATIVE absolute fee, non-native pair
@@ -178,8 +179,8 @@ static const test_pair_config_t TEST_PAIRS[] = {
         .quote_token = "USDT",
         .quote_is_native = false,
         .base_is_native = false,
-        .fee_config = 2,  // 2 TestCoin (absolute)
-        .description = "CELL/USDT (2 TestCoin absolute fee)"
+        .fee_config = 2,  // 0.02 TestCoin (2 × 0.01)
+        .description = "CELL/USDT (0.02 TestCoin absolute fee)"
     },
     
     // Configuration 4: NATIVE absolute fee, native as QUOTE
@@ -188,8 +189,8 @@ static const test_pair_config_t TEST_PAIRS[] = {
         .quote_token = "TestCoin",
         .quote_is_native = true,
         .base_is_native = false,
-        .fee_config = 5,  // 5 TestCoin (absolute)
-        .description = "CELL/TestCoin (5 TestCoin absolute, native as QUOTE+fee)"
+        .fee_config = 0,  // fallback to global (0.1 TestCoin)
+        .description = "CELL/TestCoin (fallback abs fee, native as QUOTE+fee)"
     },
     
     // Configuration 5: NATIVE absolute fee, cross-pair
@@ -198,8 +199,8 @@ static const test_pair_config_t TEST_PAIRS[] = {
         .quote_token = "KEL",
         .quote_is_native = false,
         .base_is_native = false,
-        .fee_config = 3,  // 3 TestCoin (absolute)
-        .description = "CELL/KEL (3 TestCoin absolute fee)"
+        .fee_config = 3,  // 0.03 TestCoin (3 × 0.01)
+        .description = "CELL/KEL (0.03 TestCoin absolute fee)"
     },
     
     // Configuration 6: NATIVE absolute fee, native as BASE (unique for BID aggregation)
@@ -208,8 +209,18 @@ static const test_pair_config_t TEST_PAIRS[] = {
         .quote_token = "USDC",
         .quote_is_native = false,
         .base_is_native = true,
-        .fee_config = 4,  // 4 TestCoin (absolute) - covers l_can_agg_bid path
-        .description = "TestCoin/USDC (4 TestCoin absolute, native as BASE+fee)"
+        .fee_config = 4,  // 0.04 TestCoin (4 × 0.01) - covers l_can_agg_bid path
+        .description = "TestCoin/USDC (0.04 TestCoin absolute, native as BASE+fee)"
+    },
+    
+    // Configuration 7: Exempt pair (fee_config = 0x80, senior bit only)
+    {
+        .base_token = "CELL",
+        .quote_token = "USDC",
+        .quote_is_native = false,
+        .base_is_native = false,
+        .fee_config = 0x80,  // per-pair policy exists, fee = 0 → exempt
+        .description = "CELL/USDC (exempt pair, zero service fee)"
     }
 };
 
@@ -233,7 +244,7 @@ void test_run_parameterized(
     const test_pair_config_t *pairs,
     size_t num_pairs)
 {
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "════════════════════════════════════════════════════════");
     log_it(L_NOTICE, "  PARAMETERIZED TEST: %s", test_name);
     log_it(L_NOTICE, "  Configurations: %zu", num_pairs);
@@ -246,7 +257,7 @@ void test_run_parameterized(
         log_it(L_INFO, "│  Configuration %zu/%zu: %s", i+1, num_pairs, pairs[i].description);
         log_it(L_INFO, "│  Pair: %s/%s", pairs[i].base_token, pairs[i].quote_token);
         log_it(L_INFO, "│  Fee: 0x%02X %s", pairs[i].fee_config,
-               (pairs[i].fee_config & 0x80) ? "(QUOTE %)" : "(NATIVE absolute)");
+               (pairs[i].fee_config & 0x80) ? "(INPUT %)" : "(NATIVE absolute)");
         log_it(L_INFO, "└────────────────────────────────────────────────────┘");
         
         int ret = scenario(f, &pairs[i]);
@@ -261,7 +272,7 @@ void test_run_parameterized(
                i+1, num_pairs, pairs[i].description);
     }
     
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "════════════════════════════════════════════════════════");
     if (failed == 0) {
         log_it(L_NOTICE, "  ✓✓✓ ALL %zu CONFIGURATIONS PASSED", num_pairs);
@@ -270,7 +281,7 @@ void test_run_parameterized(
     }
     log_it(L_NOTICE, "  Test: %s", test_name);
     log_it(L_NOTICE, "════════════════════════════════════════════════════════");
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
 }
 
 /**
@@ -380,6 +391,19 @@ int test_dex_tamper_and_verify_rejection(
     void *tamper_data,
     const char *tamper_description)
 {
+    return test_dex_tamper_and_verify_rejection_ex(
+        fixture, tx_template, wallet, tamper_fn, tamper_data, tamper_description, false);
+}
+
+int test_dex_tamper_and_verify_rejection_ex(
+    dex_test_fixture_t *fixture,
+    dap_chain_datum_tx_t *tx_template,
+    dap_chain_wallet_t *wallet,
+    tamper_callback_fn tamper_fn,
+    void *tamper_data,
+    const char *tamper_description,
+    bool require_tamper_applied)
+{
     dap_ret_val_if_any(-1, !fixture, !tx_template, !wallet, !tamper_fn);
     
     // 1. Strip signatures: copy TX up to first SIG item
@@ -400,6 +424,11 @@ int test_dex_tamper_and_verify_rejection(
     // 2. Apply tampering via callback (returns true if applied, false if skipped)
     bool l_tamper_applied = tamper_fn(l_tampered_tx, tamper_data);
     if (!l_tamper_applied) {
+        if (require_tamper_applied) {
+            log_it(L_ERROR, "Tamper '%s' was NOT applied (required)", tamper_description);
+            dap_chain_datum_tx_delete(l_tampered_tx);
+            return -6;
+        }
         // Tampering skipped (required OUT not found), this is OK for some TX configurations
         log_it(L_DEBUG, "Tamper '%s' skipped: required OUT not present", tamper_description);
         dap_chain_datum_tx_delete(l_tampered_tx);
@@ -791,7 +820,7 @@ void test_dex_dump_balances(dex_test_fixture_t *f, const char *label)
 {
     dap_ret_if_any(!f, !label);
     
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "========== BALANCE DUMP: %s ==========", label);
     
     log_it(L_NOTICE, "Alice: KEL=%s, USDT=%s, TC=%s",
@@ -813,14 +842,14 @@ void test_dex_dump_balances(dex_test_fixture_t *f, const char *label)
            dap_uint256_to_char_ex(dap_ledger_calc_balance(f->net->net->pub.ledger, &f->dave_addr, "TestCoin")).frac);
 
     log_it(L_NOTICE, "========================================");
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
 }
 
 void test_dex_dump_orderbook(dex_test_fixture_t *f, const char *label)
 {
     dap_ret_if_any(!f, !label);
     
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "========== ORDERBOOK DUMP: %s ==========", label);
     
     // Dump from cache
@@ -847,15 +876,17 @@ void test_dex_dump_orderbook(dex_test_fixture_t *f, const char *label)
         const char *sell_tok = dap_ledger_tx_get_token_ticker_by_hash(ledger, &it->cur_hash);
         const char *buy_tok = l_out->subtype.srv_dex.buy_token;
         int side = (sell_tok && buy_tok && strcmp(sell_tok, buy_tok) < 0) ? 0 : 1;
-        
-        log_it(L_NOTICE, "  [%zu] %s %s: %s/%s value=%s rate=%s minfill=%d%%%s",
+        char ts[64];
+        dap_time_to_str_rfc822(ts, 64, tx->header.ts_created);
+        log_it(L_NOTICE, "  [%zu] %s %s: %s/%s value=%s rate=%s minfill=%d%%%s ts: %s",
                count++,
                dap_hash_fast_is_blank(&l_out->subtype.srv_dex.order_root_hash) ? dap_hash_fast_to_str_static(&it->cur_hash) : dap_hash_fast_to_str_static(&l_out->subtype.srv_dex.order_root_hash),
                side == 0 ? "ASK" : "BID",
                sell_tok ? sell_tok : "?", buy_tok,
                dap_uint256_to_char_ex(l_out->header.value).frac,
                dap_uint256_to_char_ex(l_out->subtype.srv_dex.rate).frac,
-               l_out->subtype.srv_dex.min_fill & 0x7F, (l_out->subtype.srv_dex.min_fill & 0x80) ? " of origin" : ""
+               l_out->subtype.srv_dex.min_fill & 0x7F, (l_out->subtype.srv_dex.min_fill & 0x80) ? " of origin" : "",
+               ts
             );
     }
     
@@ -865,7 +896,7 @@ void test_dex_dump_orderbook(dex_test_fixture_t *f, const char *label)
         log_it(L_NOTICE, "  (empty - no active orders)");
     
     log_it(L_NOTICE, "========================================");
-    log_it(L_NOTICE, "");
+    log_it(L_NOTICE, " ");
 }
 
 int test_dex_adjust_minfill(dex_test_fixture_t *fixture, const dap_hash_fast_t *a_order_tail,
