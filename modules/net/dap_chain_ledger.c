@@ -4272,7 +4272,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             dap_ledger_token_item_t *l_token_item_for_utxo_check = s_ledger_find_token(a_ledger, l_token);
             if (!l_arbitrage_auth_valid &&  // Authorized arbitrage TX bypasses UTXO blocking
                 l_token_item_for_utxo_check && 
-                !(l_token_item_for_utxo_check->datum_token->header_private_decl.flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
+                !(l_token_item_for_utxo_check->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
                 !a_check_for_removing) {
                 // UTXO blocking is enabled (default behavior) - check if this UTXO is in blocklist
                 if (dap_ledger_utxo_is_blocked(l_token_item_for_utxo_check, l_tx_prev_hash, l_tx_prev_out_idx, a_ledger)) {
