@@ -320,15 +320,75 @@ char *dap_chain_arbitrage_cli_create_tx(
            a_token_ticker, l_fee_token_ticker ? l_fee_token_ticker : "NULL", 
            l_fee_token_same_as_arbitrage, l_auth_signs_valid);
     
+    // === PHASE 1.1: FULL VALIDATION OF ARBITRAGE PARAMETERS ===
+    // For custom tokens (non-native), arbitrage requires token owner signature via -certs parameter
+    // when fee token != arbitrage token (i.e., when wallet signature does NOT count for arbitrage)
+    bool l_is_native_token = l_fee_token_ticker && !dap_strcmp(l_fee_token_ticker, a_token_ticker);
+    
+    // CRITICAL VALIDATION: For custom tokens requiring owner authorization, -certs is MANDATORY
+    // when wallet signature cannot be used for arbitrage authorization
+    if (!l_is_native_token && l_auth_signs_valid > 0) {
+        // Custom token with owner authorization requirements
+        if (!l_fee_token_same_as_arbitrage && !a_certs_str) {
+            // Fee token != arbitrage token AND no -certs provided
+            // This means wallet signature is used ONLY for fee payment, NOT for arbitrage
+            // Therefore, arbitrage authorization is IMPOSSIBLE without -certs
+            log_it(L_ERROR, "Arbitrage transaction FAILED: Custom token '%s' requires token owner signature for arbitrage authorization. "
+                   "Wallet signature is used ONLY for fee payment (fee token '%s' != arbitrage token '%s'). "
+                   "You MUST provide -certs parameter with token owner certificate.",
+                   a_token_ticker, l_fee_token_ticker ? l_fee_token_ticker : "NULL", a_token_ticker);
+            
+            char l_error_msg[1024];
+            snprintf(l_error_msg, sizeof(l_error_msg),
+                    "Arbitrage transaction for custom token '%s' requires -certs parameter with token owner certificate. "
+                    "Wallet signature is used ONLY for fee payment authorization, NOT for arbitrage authorization "
+                    "(because fee token '%s' is different from arbitrage token '%s'). "
+                    "Token requires %zu owner signature(s) for arbitrage. "
+                    "Example: tx_create -net %s -from_wallet <wallet> -arbitrage -token %s -value <amount> -fee <fee> "
+                    "-certs <token_owner_cert> where <token_owner_cert> is the certificate used to declare the token.",
+                    a_token_ticker, 
+                    l_fee_token_ticker ? l_fee_token_ticker : "native",
+                    a_token_ticker,
+                    l_auth_signs_valid,
+                    a_net->pub.name,
+                    a_token_ticker);
+            
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, l_error_msg);
+            return NULL;
+        }
+        
+        // If fee token == arbitrage token, wallet signature MAY count for arbitrage
+        // but ONLY if wallet key belongs to token owner (will be validated in ledger)
+        // We allow TX creation here and let ledger validation handle the authorization check
+        if (l_fee_token_same_as_arbitrage && !a_certs_str) {
+            log_it(L_NOTICE, "Arbitrage transaction for custom token '%s': -certs parameter not provided. "
+                   "Fee token == arbitrage token, so wallet signature MAY count for arbitrage authorization "
+                   "(if wallet key belongs to token owner). Token requires %zu owner signature(s). "
+                   "Transaction will be created and ledger will validate if wallet signature is authorized.",
+                   a_token_ticker, l_auth_signs_valid);
+        }
+    }
+    
     // Parse certificates for arbitrage authorization
     dap_cert_t **l_arbitrage_certs = NULL;
     size_t l_arbitrage_certs_count = 0;
     if (a_certs_str) {
         dap_cert_parse_str_list(a_certs_str, &l_arbitrage_certs, &l_arbitrage_certs_count);
-            if (!l_arbitrage_certs_count) {
-            log_it(L_WARNING, "Failed to parse certificates from -certs parameter");
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, 
-                                  "Arbitrage transaction requires valid certificates via -certs parameter");
+        if (!l_arbitrage_certs_count) {
+            log_it(L_ERROR, "Failed to parse certificates from -certs parameter: '%s'. "
+                   "Possible reasons: certificate file not found, invalid certificate format, or incorrect certificate name.",
+                   a_certs_str);
+            
+            char l_error_msg[1024];
+            snprintf(l_error_msg, sizeof(l_error_msg),
+                    "Failed to parse certificates from -certs parameter: '%s'. "
+                    "Verify that: 1) Certificate files exist in the certificates directory; "
+                    "2) Certificate names are correct (without file extension); "
+                    "3) Certificates are valid and not corrupted. "
+                    "For multiple certificates, use comma-separated list: -certs cert1,cert2,cert3",
+                    a_certs_str);
+            
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, l_error_msg);
             return NULL;
         }
         
