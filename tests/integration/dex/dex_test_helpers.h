@@ -30,7 +30,11 @@
  */
 static inline uint128_t dex_test_get_native_srv_fee(uint8_t fee_config) {
     uint8_t mult = fee_config & 0x7F;
-    return mult > 0 ? (uint128_t)mult * DAP_DEX_FEE_UNIT_NATIVE : DEX_TEST_NATIVE_FEE_FALLBACK;
+    if (mult == 0)
+        return GET_128_FROM_64(DEX_TEST_NATIVE_FEE_FALLBACK);
+    uint128_t result;
+    MULT_128_128(GET_128_FROM_64(mult), GET_128_FROM_64(DAP_DEX_FEE_UNIT_NATIVE), &result);
+    return result;
 }
 
 /**
@@ -57,19 +61,23 @@ static inline void dex_test_adjust_native_fee(
     uint128_t net_fee,
     uint128_t *buyer_spending, uint128_t *buyer_receiving)
 {
-    uint128_t fee = buyer_is_net_collector ? net_fee : 2 * net_fee;
-    if (fee == 0) return;
+    uint128_t fee;
+    if (buyer_is_net_collector)
+        fee = net_fee;
+    else
+        SUM_128_128(net_fee, net_fee, &fee);  // 2 * net_fee
+    if (IS_ZERO_128(fee)) return;
     
     if (side == SIDE_ASK) {
         if (quote_is_native)
-            *buyer_spending += fee;
+            SUM_128_128(*buyer_spending, fee, buyer_spending);
         else if (base_is_native)
-            *buyer_receiving -= fee;
+            SUBTRACT_128_128(*buyer_receiving, fee, buyer_receiving);
     } else {
         if (base_is_native)
-            *buyer_spending += fee;
+            SUM_128_128(*buyer_spending, fee, buyer_spending);
         else if (quote_is_native)
-            *buyer_receiving -= fee;
+            SUBTRACT_128_128(*buyer_receiving, fee, buyer_receiving);
     }
 }
 
@@ -87,14 +95,14 @@ static inline void dex_test_adjust_abs_service_fee(
     
     if (side == SIDE_ASK) {
         if (quote_is_native)
-            *buyer_spending += abs_fee;
+            SUM_128_128(*buyer_spending, abs_fee, buyer_spending);
         else if (base_is_native)
-            *buyer_receiving -= abs_fee;
+            SUBTRACT_128_128(*buyer_receiving, abs_fee, buyer_receiving);
     } else {
         if (base_is_native)
-            *buyer_spending += abs_fee;
+            SUM_128_128(*buyer_spending, abs_fee, buyer_spending);
         else if (quote_is_native)
-            *buyer_receiving -= abs_fee;
+            SUBTRACT_128_128(*buyer_receiving, abs_fee, buyer_receiving);
     }
 }
 

@@ -252,7 +252,7 @@ void test_run_parameterized(
     
     size_t failed = 0;
     for (size_t i = 0; i < num_pairs; i++) {
-        log_it(L_INFO, "");
+        log_it(L_INFO, " ");
         log_it(L_INFO, "┌────────────────────────────────────────────────────┐");
         log_it(L_INFO, "│  Configuration %zu/%zu: %s", i+1, num_pairs, pairs[i].description);
         log_it(L_INFO, "│  Pair: %s/%s", pairs[i].base_token, pairs[i].quote_token);
@@ -321,18 +321,25 @@ size_t test_get_standard_pairs_count(void)
  */
 const test_pair_config_t* test_get_stratified_sample(size_t *out_count)
 {
-    // Stratified sample: 5 configurations covering critical paths
+    // Stratified sample: configurations covering critical paths
     // Note: CELL/KEL excluded - requires Bob to have KEL for BID creation
-    static const test_pair_config_t STRATIFIED_SAMPLE[] = {
-        TEST_PAIRS[0],  // KEL/USDT (2% QUOTE) - baseline, non-native BASE+QUOTE
-        TEST_PAIRS[1],  // KEL/TestCoin (2% QUOTE) - native as QUOTE + fee token
-        TEST_PAIRS[2],  // TestCoin/USDT (2% QUOTE) - native as BASE (unique scenario!)
-        TEST_PAIRS[3],  // CELL/USDT (2 TC absolute) - absolute fee, non-native
-        TEST_PAIRS[4]   // CELL/TestCoin (5 TC absolute) - native as QUOTE + absolute fee
+    static const size_t s_indices[] = {
+        0,  // KEL/USDT (2% QUOTE) - baseline, non-native BASE+QUOTE
+        1,  // KEL/TestCoin (2% QUOTE) - native as QUOTE + fee token
+        2,  // TestCoin/USDT (2% QUOTE) - native as BASE (unique scenario!)
+        3,  // CELL/USDT (2 TC absolute) - absolute fee, non-native
+        4   // CELL/TestCoin (5 TC absolute) - native as QUOTE + absolute fee
     };
-    
-    *out_count = sizeof(STRATIFIED_SAMPLE) / sizeof(STRATIFIED_SAMPLE[0]);
-    return STRATIFIED_SAMPLE;
+    static const size_t s_count = sizeof(s_indices) / sizeof(s_indices[0]);
+    static test_pair_config_t s_sample[sizeof(s_indices) / sizeof(s_indices[0])];
+    static bool s_initialized = false;
+    if (!s_initialized) {
+        for (size_t i = 0; i < s_count; i++)
+            s_sample[i] = TEST_PAIRS[s_indices[i]];
+        s_initialized = true;
+    }
+    *out_count = s_count;
+    return s_sample;
 }
 
 // ============================================================================
@@ -637,7 +644,7 @@ int test_dex_order_purchase(
     
     dap_chain_datum_tx_t *tx = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-        fixture->net->net, order_hash, budget, true, network_fee, wallet, 
+        fixture->net->net, (dap_hash_fast_t *)order_hash, budget, true, network_fee, wallet, 
         false, uint256_0, &tx
     );
     
@@ -716,7 +723,7 @@ int test_dex_order_cancel(
     
     dap_chain_datum_tx_t *tx = NULL;
     dap_chain_net_srv_dex_remove_error_t err = dap_chain_net_srv_dex_remove(
-        fixture->net->net, order_hash, network_fee, owner, &tx
+        fixture->net->net, (dap_hash_fast_t *)order_hash, network_fee, owner, &tx
     );
     
     if (err != DEX_REMOVE_ERROR_OK || !tx) {

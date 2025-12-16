@@ -77,45 +77,55 @@ static expected_deltas_t calc_purchase_deltas(
     uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
     uint8_t fee_cfg = ctx->pair->fee_config;
     bool is_pct_fee = (fee_cfg & 0x80) != 0;
-    uint128_t service_fee = 0;
+    uint128_t service_fee = uint128_0;
+    uint128_t tmp;
     
     uint128_t buyer_gets, buyer_spends, seller_gets;
     
     if (ctx->tmpl->side == SIDE_ASK) {
         // ASK: buyer spends QUOTE + service_fee, gets BASE; seller gets QUOTE
         buyer_gets = exec_value;
-        seller_gets = (exec_value * rate) / S_POW18;
+        // seller_gets = (exec_value * rate) / S_POW18
+        MULT_128_128(exec_value, rate, &tmp);
+        DIV_128(tmp, GET_128_FROM_64(S_POW18), &seller_gets);
         // % fee from INPUT (QUOTE for ASK), 0.1% step
-        if (!fee_waived && is_pct_fee)
-            service_fee = (seller_gets * (fee_cfg & 0x7F)) / 1000;
-        buyer_spends = seller_gets + service_fee;
+        if (!fee_waived && is_pct_fee) {
+            MULT_128_128(seller_gets, GET_128_FROM_64(fee_cfg & 0x7F), &tmp);
+            DIV_128(tmp, GET_128_FROM_64(1000), &service_fee);
+        }
+        SUM_128_128(seller_gets, service_fee, &buyer_spends);
         
         if (p->seller_is_service)
-            seller_gets += service_fee;
+            SUM_128_128(seller_gets, service_fee, &seller_gets);
         if (p->seller_is_net_collector && ctx->pair->quote_is_native)
-            seller_gets += net_fee;
+            SUM_128_128(seller_gets, net_fee, &seller_gets);
         if (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->quote_is_native)
-            seller_gets += get_native_srv_fee(fee_cfg);
+            SUM_128_128(seller_gets, get_native_srv_fee(fee_cfg), &seller_gets);
         
         d.buyer_base = buyer_gets;
         d.buyer_quote = buyer_spends;
         d.buyer_base_dec = false;
         d.buyer_quote_dec = true;
         // ASK: seller already locked BASE in order, gets QUOTE at purchase
-        d.seller_base = (p->seller_is_net_collector && ctx->pair->base_is_native) ? net_fee : 0;
+        d.seller_base = (p->seller_is_net_collector && ctx->pair->base_is_native) ? net_fee : uint128_0;
         d.seller_quote = seller_gets;
         // Service wallet receives abs fee in native BASE (separate OUT, not aggregated for ASK when native=BASE)
         if (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->base_is_native)
-            d.seller_base += get_native_srv_fee(fee_cfg);
+            SUM_128_128(d.seller_base, get_native_srv_fee(fee_cfg), &d.seller_base);
     } else {
         // BID: buyer spends BASE + service_fee (if % mode), gets QUOTE
-        uint128_t exec_base = (exec_value * S_POW18) / rate;
+        // exec_base = (exec_value * S_POW18) / rate
+        uint128_t exec_base;
+        MULT_128_128(exec_value, GET_128_FROM_64(S_POW18), &tmp);
+        DIV_128(tmp, rate, &exec_base);
         seller_gets = exec_base;
         
         // % fee from INPUT (BASE for BID), 0.1% step
-        if (!fee_waived && is_pct_fee)
-            service_fee = (exec_base * (fee_cfg & 0x7F)) / 1000;
-        buyer_spends = exec_base + service_fee;
+        if (!fee_waived && is_pct_fee) {
+            MULT_128_128(exec_base, GET_128_FROM_64(fee_cfg & 0x7F), &tmp);
+            DIV_128(tmp, GET_128_FROM_64(1000), &service_fee);
+        }
+        SUM_128_128(exec_base, service_fee, &buyer_spends);
         buyer_gets = exec_value;  // full QUOTE, no deduction
         
         d.buyer_base = buyer_spends;
@@ -127,18 +137,18 @@ static expected_deltas_t calc_purchase_deltas(
         // % fee in BASE aggregates to seller if seller == service
         d.seller_base = seller_gets;
         if (p->seller_is_service && is_pct_fee)
-            d.seller_base += service_fee;
+            SUM_128_128(d.seller_base, service_fee, &d.seller_base);
         if (p->seller_is_net_collector && ctx->pair->base_is_native)
-            d.seller_base += net_fee;
+            SUM_128_128(d.seller_base, net_fee, &d.seller_base);
         // Native abs fee in BASE aggregates to seller payout
         if (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->base_is_native)
-            d.seller_base += get_native_srv_fee(fee_cfg);
+            SUM_128_128(d.seller_base, get_native_srv_fee(fee_cfg), &d.seller_base);
         
         // Seller QUOTE delta: only net_fee if native=QUOTE, or abs fee if native=QUOTE
-        uint128_t extra_quote = (p->seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
+        uint128_t extra_quote = (p->seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : uint128_0;
         uint128_t abs_fee_quote = (!fee_waived && !is_pct_fee && p->seller_is_service && ctx->pair->quote_is_native)
-            ? get_native_srv_fee(fee_cfg) : 0;
-        d.seller_quote = extra_quote + abs_fee_quote;
+            ? get_native_srv_fee(fee_cfg) : uint128_0;
+        SUM_128_128(extra_quote, abs_fee_quote, &d.seller_quote);
     }
     
     adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native,
@@ -346,8 +356,15 @@ static int run_phase_create(test_context_t *ctx) {
     // Verify seller spent order_value (+ net_fee + validator_fee if sell_token == native)
     // seller_is_net_collector: net_fee returns, but validator_fee still paid
     uint128_t expected_seller_spent = order_val;
-    if (sell_is_native)
-        expected_seller_spent += seller_is_net_collector ? net_fee : 2 * net_fee;
+    if (sell_is_native) {
+        if (seller_is_net_collector)
+            SUM_128_128(expected_seller_spent, net_fee, &expected_seller_spent);
+        else {
+            uint128_t double_fee;
+            SUM_128_128(net_fee, net_fee, &double_fee);
+            SUM_128_128(expected_seller_spent, double_fee, &expected_seller_spent);
+        }
+    }
     if (test_dex_verify_delta("Seller sell_token", seller_sell_before, seller_sell_after, expected_seller_spent, true) != 0)
         return -10;
     
@@ -566,7 +583,7 @@ static int run_phase_full_buy(test_context_t *ctx) {
             balance_snap_t buyer_restored;
             test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_restored);
             
-            if (test_dex_snap_verify("Rollback", &buyer_before, &buyer_restored, 0, false, 0, false) != 0)
+            if (test_dex_snap_verify("Rollback", &buyer_before, &buyer_restored, uint128_0, false, uint128_0, false) != 0)
                 return -25;
             
             log_it(L_NOTICE, "✓ Rollback successful");
@@ -793,7 +810,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         }
         
         test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
-        if (test_dex_snap_verify("AON rollback", &buyer_before, &buyer_after, 0, false, 0, false) != 0)
+        if (test_dex_snap_verify("AON rollback", &buyer_before, &buyer_after, uint128_0, false, uint128_0, false) != 0)
             return -65;
         
         log_it(L_NOTICE, "✓ AON full buy rolled back (balances verified)");
@@ -1043,7 +1060,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
     }
     
     test_dex_snap_take_pair(f->net->net->pub.ledger, p.buyer, ctx->pair, &buyer_after);
-    if (test_dex_snap_verify("Partial rollback", &buyer_before, &buyer_after, 0, false, 0, false) != 0)
+    if (test_dex_snap_verify("Partial rollback", &buyer_before, &buyer_after, uint128_0, false, uint128_0, false) != 0)
         return -55;
     log_it(L_NOTICE, "✓ Rolled back for QUOTE test");
     
@@ -1056,32 +1073,39 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         // BID with BASE budget: apply canonical correction (same as composer)
         uint128_t rate = dap_uint256_to_uint128(order->price);
         uint128_t budget_base = dap_uint256_to_uint128(valid_base);
-        uint128_t exec_quote = (budget_base * rate) / S_POW18;
-        uint128_t exec_sell_canonical = (exec_quote * S_POW18) / rate;
+        uint128_t exec_quote, exec_sell_canonical, tmp128;
+        // exec_quote = (budget_base * rate) / S_POW18
+        MULT_128_128(budget_base, rate, &tmp128);
+        DIV_128(tmp128, GET_128_FROM_64(S_POW18), &exec_quote);
+        // exec_sell_canonical = (exec_quote * S_POW18) / rate
+        MULT_128_128(exec_quote, GET_128_FROM_64(S_POW18), &tmp128);
+        DIV_128(tmp128, rate, &exec_sell_canonical);
         
         uint8_t fee_cfg = ctx->pair->fee_config;
         bool is_pct_fee = (fee_cfg & 0x80) != 0;
-        uint128_t service_fee = 0;
+        uint128_t service_fee = uint128_0;
         // % fee from INPUT (BASE for BID), 0.1% step
-        if (is_pct_fee)
-            service_fee = (exec_sell_canonical * (fee_cfg & 0x7F)) / 1000;
+        if (is_pct_fee) {
+            MULT_128_128(exec_sell_canonical, GET_128_FROM_64(fee_cfg & 0x7F), &tmp128);
+            DIV_128(tmp128, GET_128_FROM_64(1000), &service_fee);
+        }
         
-        d_sell.buyer_base = exec_sell_canonical + service_fee;
+        SUM_128_128(exec_sell_canonical, service_fee, &d_sell.buyer_base);
         d_sell.buyer_quote = exec_quote;  // full QUOTE
         d_sell.seller_base = exec_sell_canonical;
         // % fee in BASE aggregates to seller if seller == service
         if (p.seller_is_service && is_pct_fee)
-            d_sell.seller_base += service_fee;
+            SUM_128_128(d_sell.seller_base, service_fee, &d_sell.seller_base);
         if (p.seller_is_net_collector && ctx->pair->base_is_native)
-            d_sell.seller_base += net_fee;
+            SUM_128_128(d_sell.seller_base, net_fee, &d_sell.seller_base);
         // Native abs fee in BASE aggregates to seller payout
         if (p.seller_is_service && !is_pct_fee && ctx->pair->base_is_native)
-            d_sell.seller_base += get_native_srv_fee(fee_cfg);
+            SUM_128_128(d_sell.seller_base, get_native_srv_fee(fee_cfg), &d_sell.seller_base);
         
-        uint128_t extra_quote = (p.seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : 0;
+        uint128_t extra_quote = (p.seller_is_net_collector && ctx->pair->quote_is_native) ? net_fee : uint128_0;
         uint128_t abs_fee = (p.seller_is_service && !is_pct_fee && ctx->pair->quote_is_native)
-            ? get_native_srv_fee(fee_cfg) : 0;
-        d_sell.seller_quote = extra_quote + abs_fee;
+            ? get_native_srv_fee(fee_cfg) : uint128_0;
+        SUM_128_128(extra_quote, abs_fee, &d_sell.seller_quote);
         
         adjust_native_fee(ctx->tmpl->side, ctx->pair->quote_is_native, ctx->pair->base_is_native,
                           p.buyer_is_net_collector, net_fee, &d_sell.buyer_base, &d_sell.buyer_quote);
@@ -1538,12 +1562,20 @@ static int run_phase_update_untouched(test_context_t *ctx) {
     uint128_t delta_128 = dap_uint256_to_uint128(delta);
     uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
     // If seller = net_collector, net_fee returns to seller; effective fee = validator only
-    uint128_t effective_fee = seller_is_net_collector ? net_fee : (2 * net_fee);
+    uint128_t effective_fee;
+    if (seller_is_net_collector)
+        effective_fee = net_fee;
+    else
+        SUM_128_128(net_fee, net_fee, &effective_fee);  // 2 * net_fee
     
     // BASE: delta + effective_fee if sell=native, else just delta
-    uint128_t expected_base = sell_is_native ? (delta_128 + effective_fee) : delta_128;
+    uint128_t expected_base;
+    if (sell_is_native)
+        SUM_128_128(delta_128, effective_fee, &expected_base);
+    else
+        expected_base = delta_128;
     // QUOTE: effective_fee if buy=native, else 0
-    uint128_t expected_quote = buy_is_native ? effective_fee : 0;
+    uint128_t expected_quote = buy_is_native ? effective_fee : uint128_0;
     bool quote_decrease = buy_is_native;
     
     if (test_dex_snap_verify("Update Untouched", &seller_before, &seller_after,
@@ -1585,8 +1617,8 @@ static int run_phase_update_untouched(test_context_t *ctx) {
     test_dex_snap_take(f->net->net->pub.ledger, seller_addr, sell_token, buy_token, &noop_after);
     
     // Fees only: if native=sell, BASE decreases by fee; if native=buy, QUOTE decreases
-    uint128_t noop_base = sell_is_native ? effective_fee : 0;
-    uint128_t noop_quote = buy_is_native ? effective_fee : 0;
+    uint128_t noop_base = sell_is_native ? effective_fee : uint128_0;
+    uint128_t noop_quote = buy_is_native ? effective_fee : uint128_0;
     
     if (test_dex_snap_verify("Update NoOp", &noop_before, &noop_after, noop_base, true, noop_quote, true) != 0) {
         log_it(L_ERROR, "UPDATE no-op balance verification failed");
@@ -1676,16 +1708,24 @@ static int run_phase_update_leftover(test_context_t *ctx) {
     
     uint128_t decrease_128 = dap_uint256_to_uint128(decrease);
     uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
-    uint128_t effective_fee = seller_is_net_collector ? net_fee : (2 * net_fee);
+    uint128_t effective_fee;
+    if (seller_is_net_collector)
+        effective_fee = net_fee;
+    else
+        SUM_128_128(net_fee, net_fee, &effective_fee);  // 2 * net_fee
     
     // BASE: refund - effective_fee if sell=native, else full refund
-    uint128_t base_fee = sell_is_native ? effective_fee : 0;
-    uint128_t expected_base = (decrease_128 > base_fee) ? (decrease_128 - base_fee) : 0;
+    uint128_t base_fee = sell_is_native ? effective_fee : uint128_0;
+    uint128_t expected_base;
+    if (compare128(decrease_128, base_fee) > 0)
+        SUBTRACT_128_128(decrease_128, base_fee, &expected_base);
+    else
+        expected_base = uint128_0;
     // QUOTE: effective_fee if buy=native, else 0
-    uint128_t expected_quote = buy_is_native ? effective_fee : 0;
+    uint128_t expected_quote = buy_is_native ? effective_fee : uint128_0;
     bool quote_decrease = buy_is_native;
     
-    if (expected_base > 0 || expected_quote > 0) {
+    if (!IS_ZERO_128(expected_base) || !IS_ZERO_128(expected_quote)) {
         if (test_dex_snap_verify("Update Leftover", &seller_before, &seller_after,
                                  expected_base, false, expected_quote, quote_decrease) != 0) {
             log_it(L_ERROR, "UPDATE leftover balance verification failed");
@@ -2042,16 +2082,24 @@ static int run_phase_cancel_leftover(test_context_t *ctx) {
     
     uint128_t value_128 = dap_uint256_to_uint128(order->value);
     uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
-    uint128_t effective_fee = seller_is_net_collector ? net_fee : (2 * net_fee);
+    uint128_t effective_fee;
+    if (seller_is_net_collector)
+        effective_fee = net_fee;
+    else
+        SUM_128_128(net_fee, net_fee, &effective_fee);  // 2 * net_fee
     
     // BASE: refund - effective_fee if sell=native, else full refund
-    uint128_t base_fee = sell_is_native ? effective_fee : 0;
-    uint128_t expected_base = (value_128 > base_fee) ? (value_128 - base_fee) : 0;
+    uint128_t base_fee = sell_is_native ? effective_fee : uint128_0;
+    uint128_t expected_base;
+    if (compare128(value_128, base_fee) > 0)
+        SUBTRACT_128_128(value_128, base_fee, &expected_base);
+    else
+        expected_base = uint128_0;
     // QUOTE: effective_fee if buy=native, else 0
-    uint128_t expected_quote = buy_is_native ? effective_fee : 0;
+    uint128_t expected_quote = buy_is_native ? effective_fee : uint128_0;
     bool quote_decrease = buy_is_native;
     
-    if (expected_base > 0 || expected_quote > 0) {
+    if (!IS_ZERO_128(expected_base) || !IS_ZERO_128(expected_quote)) {
         if (test_dex_snap_verify("Cancel Leftover", &seller_before, &seller_after,
                                  expected_base, false, expected_quote, quote_decrease) != 0) {
             log_it(L_ERROR, "CANCEL leftover balance verification failed");
@@ -2172,16 +2220,24 @@ static int run_phase_cancel_untouched(test_context_t *ctx) {
     
     uint128_t value_128 = dap_uint256_to_uint128(order->value);
     uint128_t net_fee = dap_uint256_to_uint128(f->network_fee);
-    uint128_t effective_fee = seller_is_net_collector ? net_fee : (2 * net_fee);
+    uint128_t effective_fee;
+    if (seller_is_net_collector)
+        effective_fee = net_fee;
+    else
+        SUM_128_128(net_fee, net_fee, &effective_fee);  // 2 * net_fee
     
     // BASE: refund - effective_fee if sell=native, else full refund
-    uint128_t base_fee = sell_is_native ? effective_fee : 0;
-    uint128_t expected_base = (value_128 > base_fee) ? (value_128 - base_fee) : 0;
+    uint128_t base_fee = sell_is_native ? effective_fee : uint128_0;
+    uint128_t expected_base;
+    if (compare128(value_128, base_fee) > 0)
+        SUBTRACT_128_128(value_128, base_fee, &expected_base);
+    else
+        expected_base = uint128_0;
     // QUOTE: effective_fee if buy=native, else 0
-    uint128_t expected_quote = buy_is_native ? effective_fee : 0;
+    uint128_t expected_quote = buy_is_native ? effective_fee : uint128_0;
     bool quote_decrease = buy_is_native;
     
-    if (expected_base > 0 || expected_quote > 0) {
+    if (!IS_ZERO_128(expected_base) || !IS_ZERO_128(expected_quote)) {
         if (test_dex_snap_verify("Cancel Untouched", &seller_before, &seller_after,
                                  expected_base, false, expected_quote, quote_decrease) != 0) {
             log_it(L_ERROR, "CANCEL untouched balance verification failed");
@@ -2324,7 +2380,7 @@ static int run_phase_update_aon(test_context_t *ctx) {
     balance_snap_t seller_after_rollback;
     test_dex_snap_take(f->net->net->pub.ledger, seller_addr, sell_token, buy_token, &seller_after_rollback);
     
-    if (test_dex_snap_verify("UPDATE AON rollback", &seller_before, &seller_after_rollback, 0, false, 0, false) != 0) {
+    if (test_dex_snap_verify("UPDATE AON rollback", &seller_before, &seller_after_rollback, uint128_0, false, uint128_0, false) != 0) {
         log_it(L_ERROR, "UPDATE AON rollback balance mismatch");
         return -5;
     }

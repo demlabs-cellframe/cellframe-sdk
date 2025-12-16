@@ -5,7 +5,14 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#include <stdlib.h>
+#define TEST_MKDIR(path) _mkdir(path)
+#else
 #include <unistd.h>
+#define TEST_MKDIR(path) mkdir(path, 0755)
+#endif
 #include "dex_test_fixture.h"
 #include "dex_lifecycle_tests.h"
 #include "dex_automatch_tests.h"
@@ -28,8 +35,16 @@ extern int dap_chain_cs_esbocs_init(void);
 static void s_setup(bool a_cache) {
     log_it(L_NOTICE, "=== DEX Integration Tests Setup ===");
     
+#ifdef _WIN32
+    char l_config_dir[256];
+    const char *l_temp = getenv("TEMP");
+    if (!l_temp) l_temp = getenv("TMP");
+    if (!l_temp) l_temp = ".";
+    snprintf(l_config_dir, sizeof(l_config_dir), "%s\\dex_integration_test_config", l_temp);
+#else
     const char *l_config_dir = "/tmp/dex_integration_test_config";
-    mkdir(l_config_dir, 0755);
+#endif
+    TEST_MKDIR(l_config_dir);
     
     const char *l_config_content = a_cache ?
         "[general]\ndebug_mode=true\n[srv_dex]\nmemcached=true\n" :
@@ -164,7 +179,7 @@ int main(int argc, char *argv[]) {
     dex_print_balances(fixture, "INITIAL STATE");
     int ret = 0;
     // Run lifecycle tests (long)
-    /*ret = run_lifecycle_tests(fixture);
+    ret = run_lifecycle_tests(fixture);
     if (ret != 0) {
         log_it(L_ERROR, "Lifecycle tests FAILED with code %d", ret);
         dex_test_fixture_destroy(fixture);
@@ -176,7 +191,7 @@ int main(int argc, char *argv[]) {
     ret = run_cancel_all_active(fixture);
     if (ret != 0) {
         log_it(L_WARNING, "Post-lifecycle cleanup failed: %d (continuing)", ret);
-    }*/
+    }
     
     // Seed orderbook for matcher tests (short)
     ret = run_seed_orderbook(fixture);
