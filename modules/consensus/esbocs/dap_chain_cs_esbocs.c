@@ -83,6 +83,7 @@ static int s_callback_stop(dap_chain_t *a_chain);
 static int s_callback_start(dap_chain_t *a_chain);
 static int s_callback_purge(dap_chain_t *a_chain);
 static void s_callback_delete(dap_chain_type_blocks_t *a_blocks);
+static void s_validator_free(void *a_validator);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 
 // Callback wrapper declarations
@@ -375,15 +376,14 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_validator->signing_addr = l_signing_addr;
         l_validator->node_addr = l_signer_node_addr;
         l_validator->weight = uint256_1;
+        l_validator->pkey = dap_pkey_from_enc_key(l_cert_cur->enc_key);
         l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
         log_it(L_MSG, "add validator addr "NODE_ADDR_FP_STR", signing addr %s", NODE_ADDR_FP_ARGS_S(l_signer_node_addr), dap_chain_addr_to_str_static(&l_signing_addr));
 
         if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
-            dap_pkey_t *l_pkey = dap_pkey_from_enc_key(l_cert_cur->enc_key);
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, NULL, NULL,
-                                                 l_weight, &l_signer_node_addr, l_pkey);
-            DAP_DELETE(l_pkey);
+                                                 l_weight, &l_signer_node_addr, l_validator->pkey);
         }
     }
     if (!i)
@@ -421,7 +421,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         return 0;
     }
     default:
-        dap_list_free_full(l_esbocs_pvt->poa_validators, NULL);
+        dap_list_free_full(l_esbocs_pvt->poa_validators, s_validator_free);
         DAP_DEL_MULTY(l_esbocs_pvt, l_esbocs);
         l_blocks->_inheritor = NULL;
         l_blocks->callback_delete = NULL;
@@ -943,7 +943,7 @@ static int s_callback_purge(dap_chain_t *a_chain)
     for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
         dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, NULL, NULL,
-                                             l_weight, &l_validator->node_addr, NULL);
+                                             l_weight, &l_validator->node_addr, l_validator->pkey);
     }
     l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
     return 0;
@@ -1002,6 +1002,8 @@ static void s_callback_delete(dap_chain_type_blocks_t *a_blocks)
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_enc_key_delete(PVT(l_esbocs)->blocks_sign_key);
+    dap_list_free_full(PVT(l_esbocs)->poa_validators, s_validator_free);
+    dap_list_free_full(PVT(l_esbocs)->emergency_validator_addrs, NULL);
     DAP_DEL_MULTY(PVT(l_esbocs)->block_sign_pkey, PVT(l_esbocs)->collecting_addr, l_esbocs->_pvt);
     dap_chain_esbocs_session_t *l_session = l_esbocs->session;
     if (!l_session) {
@@ -1024,9 +1026,22 @@ static void s_callback_delete(dap_chain_type_blocks_t *a_blocks)
     DAP_DEL_MULTY(l_session, a_blocks->_inheritor, a_blocks->_pvt); // a_blocks->_inheritor - l_esbocs
 }
 
+static void s_validator_free(void *a_validator)
+{
+    dap_chain_esbocs_validator_t *l_validator = (dap_chain_esbocs_validator_t *)a_validator;
+    if (l_validator) {
+        DAP_DELETE(l_validator->pkey);
+        DAP_DELETE(l_validator);
+    }
+}
+
 static void *s_callback_list_copy(const void *a_validator, UNUSED_ARG void *a_data)
 {
-    return DAP_DUP((dap_chain_esbocs_validator_t *)a_validator);
+    dap_chain_esbocs_validator_t *l_src = (dap_chain_esbocs_validator_t *)a_validator;
+    dap_chain_esbocs_validator_t *l_dst = DAP_DUP(l_src);
+    if (l_dst && l_src->pkey)
+        l_dst->pkey = DAP_DUP_SIZE(l_src->pkey, dap_pkey_get_size(l_src->pkey));
+    return l_dst;
 }
 
 static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *a_data)
