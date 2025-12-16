@@ -752,6 +752,113 @@ static bool s_verify_tx_outputs_go_to_addr(dap_chain_datum_tx_t *a_tx, const dap
 }
 
 /**
+ * @brief Test Bug #2 (BUG-003): Arbitrage without fee_addr configuration
+ * @details Tests crash/failure when attempting arbitrage without network fee address configured.
+ *          This was reported as a crash after container restart when fee_addr was not persisted.
+ *          
+ * Scenario:
+ * 1. Create custom token with emission
+ * 2. Clear network fee address (simulate restart without fee_addr persistence)
+ * 3. Attempt arbitrage transaction - should FAIL GRACEFULLY with clear error message
+ * 4. Set fee address
+ * 5. Retry arbitrage - should succeed
+ * 
+ * Expected: Graceful failure with clear error message, NO CRASH
+ * Actual (before fix): SEGFAULT or unclear error
+ */
+static void test_arbitrage_without_fee_addr(void)
+{
+    log_it(L_NOTICE, "=== TEST: BUG-003 - Arbitrage without fee_addr ===");
+    
+    // 1. Create wallet and certificate
+    dap_mkdir_with_parents("/tmp/reg_test_wallets");
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_nofee", "/tmp/reg_test_wallets", 
+                                                                      (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM}, NULL, 0, NULL);
+    dap_assert_PIF(l_wallet != NULL, "Wallet created");
+    
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet, 0);
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_addr_fill_from_key(&l_addr, l_key, s_net_fixture->net->pub.id);
+    
+    dap_cert_t *l_cert = DAP_NEW_Z(dap_cert_t);
+    l_cert->enc_key = l_key;
+    snprintf(l_cert->name, sizeof(l_cert->name), "reg_test_cert_nofee");
+    dap_cert_add(l_cert);
+    
+    // Save cert to file for CLI
+    dap_mkdir_with_parents("/tmp/reg_test_certs");
+    char l_cert_path[512];
+    snprintf(l_cert_path, sizeof(l_cert_path), "/tmp/reg_test_certs/%s.dcert", l_cert->name);
+    dap_cert_file_save(l_cert, l_cert_path);
+    
+    // Reset fee BEFORE creating tokens
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_addr);
+    
+    // 2. Create custom token using fixtures
+    const char *l_custom_ticker = "NOFEETEST";
+    test_token_fixture_t *l_token_fixture = s_create_token_and_emission(l_custom_ticker, &l_addr, l_cert);
+    dap_assert_PIF(l_token_fixture != NULL, "Token created");
+    
+    // NOTE: Fee token not needed for this test - we're testing graceful failure when fee_addr is blank
+    // Success case is already covered by Phase 1 and Phase 2 tests
+    
+    // 3. CRITICAL: Clear fee address to simulate restart without fee_addr persistence
+    // This simulates the bug scenario: node restarted, fee_addr not properly restored
+    log_it(L_INFO, "Clearing network fee address to simulate bug scenario");
+    memset(&s_net_fixture->net->pub.fee_addr, 0, sizeof(dap_chain_addr_t));
+    
+    // Verify fee_addr is indeed blank
+    dap_assert_PIF(dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr), "Fee address is blank (as expected for test)");
+    
+    // 4. Attempt arbitrage WITHOUT fee_addr - should FAIL GRACEFULLY (not crash!)
+    log_it(L_NOTICE, "=== 3.1: Testing arbitrage WITHOUT fee_addr (should fail gracefully) ===");
+    
+    char l_cmd_no_fee[2048];
+    snprintf(l_cmd_no_fee, sizeof(l_cmd_no_fee),
+             "tx_create -net %s -chain %s -from_wallet reg_wallet_nofee -token %s -value 100.0 -arbitrage -fee 0.1 -certs %s",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             l_custom_ticker, l_cert->name);
+    
+    log_it(L_INFO, "Command (no fee_addr): %s", l_cmd_no_fee);
+    
+    char l_json_req_no_fee[4096];
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_no_fee, "tx_create", l_json_req_no_fee, sizeof(l_json_req_no_fee), 1);
+    
+    char *l_reply_no_fee = dap_cli_cmd_exec(l_json_req_no_fee);
+    dap_assert_PIF(l_reply_no_fee != NULL, "Reply received (no fee_addr)");
+    
+    // Parse response - should contain error about missing fee_addr
+    json_object *l_json_no_fee = json_tokener_parse(l_reply_no_fee);
+    dap_assert_PIF(l_json_no_fee != NULL, "JSON parsed (no fee_addr)");
+    
+    json_object *l_result_no_fee = NULL;
+    bool l_has_result_no_fee = json_object_object_get_ex(l_json_no_fee, "result", &l_result_no_fee);
+    dap_assert_PIF(l_has_result_no_fee, "Response has result field");
+    
+    // Result should be array with errors
+    dap_assert_PIF(json_object_is_type(l_result_no_fee, json_type_array), "Result is array");
+    json_object *l_result_item_no_fee = json_object_array_get_idx(l_result_no_fee, 0);
+    dap_assert_PIF(l_result_item_no_fee != NULL, "Got first result item");
+    
+    json_object *l_errors_no_fee = NULL;
+    bool l_has_errors = json_object_object_get_ex(l_result_item_no_fee, "errors", &l_errors_no_fee);
+    dap_assert_PIF(l_has_errors, "TX creation failed as expected (no fee_addr)");
+    
+    log_it(L_NOTICE, "✓ Arbitrage WITHOUT fee_addr: Failed gracefully with error (NO CRASH!)");
+    log_it(L_NOTICE, "=== BUG-003 TEST PASSED: Graceful failure prevents crash ===");
+    
+    // NOTE: Success case (arbitrage WITH fee_addr) is already covered by Phase 1 and Phase 2 tests
+    // This test focuses on preventing crash/segfault when fee_addr is not configured
+    
+    json_object_put(l_json_no_fee);
+    DAP_DELETE(l_reply_no_fee);
+    
+    // Cleanup
+    dap_chain_wallet_close(l_wallet);
+    test_token_fixture_destroy(l_token_fixture);
+}
+
+/**
  * @brief Test Bug #3 (BUG-002): Arbitrage with/without -to_addr parameter
  * Tests that -to_addr is IGNORED for arbitrage transactions and tokens ALWAYS go to fee_addr
  */
@@ -989,8 +1096,9 @@ int main(int argc, char **argv)
     // Tests
     test_bug_arbitrage_without_certs();     // BUG-001: Arbitrage without -certs
     test_arbitrage_to_addr_behavior();      // BUG-002: Arbitrage with/without -to_addr
+    test_arbitrage_without_fee_addr();      // BUG-003: Arbitrage without fee_addr configuration
     
-    // NOTE: Original tests disabled - functionality already covered by Phase 1 & Phase 2
+    // NOTE: Original tests disabled - functionality already covered by Phase 1-3
     // test_bug_arbitrage_availability();      // Original test - covered by Phase 1
     // test_bug_arbitrage_arguments();         // BUG-002: Arguments validation - covered by Phase 1 & 2
     

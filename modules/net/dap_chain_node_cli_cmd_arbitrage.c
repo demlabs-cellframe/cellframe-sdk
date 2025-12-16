@@ -202,6 +202,14 @@ char *dap_chain_arbitrage_tx_create_with_signatures(
     // CRITICAL: For arbitrage TX, ALL outputs (including change/back) MUST go to fee address
     // Get network fee address for change outputs
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    
+    // PHASE 3: Validate fee address is configured
+    if (!l_net || dap_chain_addr_is_blank(&l_net->pub.fee_addr)) {
+        log_it(L_ERROR, "Cannot create arbitrage TX: network fee address not configured");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
     const dap_chain_addr_t *l_fee_addr_for_change = &l_net->pub.fee_addr;
     
     // coin back
@@ -445,6 +453,23 @@ char *dap_chain_arbitrage_cli_create_tx(
     
     // CRITICAL: For arbitrage transactions, ALL outputs MUST go to fee address ONLY
     // Ignore user-provided -to_addr and replace with network fee address
+    
+    // === PHASE 3: FULL VALIDATION OF NETWORK FEE ADDRESS ===
+    // Check that network fee address is properly configured before creating arbitrage TX
+    if (dap_chain_addr_is_blank(&a_net->pub.fee_addr)) {
+        char l_error_msg[512];
+        snprintf(l_error_msg, sizeof(l_error_msg),
+                "Arbitrage transaction failed: Network '%s' has no fee address configured. "
+                "Network fee address must be set before arbitrage transactions can be processed. "
+                "Use 'net -net %s fee_addr <address>' to configure the fee collection address.",
+                a_net->pub.name, a_net->pub.name);
+        
+        log_it(L_ERROR, "Arbitrage transaction FAILED: %s", l_error_msg);
+        DAP_DEL_Z(l_arbitrage_certs);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, l_error_msg);
+        return NULL;
+    }
+    
     dap_chain_addr_t l_fee_addr_copy = a_net->pub.fee_addr;
     dap_chain_addr_t *l_arbitrage_addr_to[1] = { &l_fee_addr_copy };
     
