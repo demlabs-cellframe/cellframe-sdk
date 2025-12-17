@@ -630,10 +630,17 @@ const char *l_ban_addr;
                 log_it(L_WARNING, "Invalid hardfork generation %hu, current generation is %hu", l_hardfork_generation, l_chain->generation);
                 return -117;
             }
+            
+            if (a_anchored && dap_chain_generation_banned(l_chain, l_hardfork_generation)) {
+                // Silent hardfork start ignorance for banned generations with already applied anchors
+                if (!a_apply)
+                    log_it(L_ERROR, "Generation %hu is banned", l_hardfork_generation);
+                return -118;
+            }
 
-            if (!a_apply || (a_anchored && dap_chain_generation_banned(l_chain, l_hardfork_generation)))
-                break;   // Silent hardfork start ignorance for banned generations
-
+            if (!a_apply)
+                break;   
+            
             dap_list_t *l_addrs = NULL, *l_addrs_tsd = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
                                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, sizeof(dap_stream_node_addr_t));
             for (dap_list_t *it = l_addrs_tsd; it; it = it->next) {
