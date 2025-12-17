@@ -50,6 +50,7 @@ char* dap_chain_cs_get_fee_group(dap_chain_t *a_chain, const char *a_net_name);
 char* dap_chain_cs_get_reward_group(dap_chain_t *a_chain, const char *a_net_name);
 uint256_t dap_chain_cs_get_fee(dap_chain_t *a_chain);
 dap_pkey_t* dap_chain_cs_get_sign_pkey(dap_chain_t *a_chain);
+dap_enc_key_t* dap_chain_cs_get_sign_key(dap_chain_t *a_chain);
 uint256_t dap_chain_cs_get_collecting_level(dap_chain_t *a_chain);
 void dap_chain_cs_add_block_collect(dap_chain_t *a_chain, void *a_block_cache, void *a_params, int a_type);
 bool dap_chain_cs_get_autocollect_status(dap_chain_t *a_chain);

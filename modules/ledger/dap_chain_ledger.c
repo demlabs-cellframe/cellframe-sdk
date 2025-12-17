@@ -1140,6 +1140,19 @@ void dap_ledger_set_blockchain_timer(dap_ledger_t *a_ledger, dap_chain_t *a_chai
     log_it(L_DEBUG, "Blockchain timer callbacks registered for chain %s", a_chain->name);
 }
 
+/**
+ * @brief Set blockchain time directly (for testing purposes)
+ * @param a_ledger Ledger instance
+ * @param a_time Time to set
+ */
+void dap_ledger_set_blockchain_time(dap_ledger_t *a_ledger, dap_time_t a_time)
+{
+    if (!a_ledger)
+        return;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    l_ledger_pvt->blockchain_time = a_time;
+}
+
 static int s_callback_sign_compare(dap_list_t *a_list_elem, dap_list_t *a_sign_elem)
 {
     dap_pkey_t *l_key = (dap_pkey_t *)a_list_elem->data;

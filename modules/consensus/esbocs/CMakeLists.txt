@@ -9,8 +9,10 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_ESBOCS_SRCS} HEADERS ${DAP_CHA
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-
-
+# Include stake headers without linking (to avoid circular dependencies)
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${CMAKE_SOURCE_DIR}/modules/service/stake/include
+    ${CMAKE_SOURCE_DIR}/modules/node-cli-cmd/include)
 
 # OBJECT library: use validator API instead of direct stake dependency
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_cs dap_chain_ledger dap_link_manager

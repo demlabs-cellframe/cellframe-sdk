@@ -349,6 +349,19 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_ledge
 
     switch (a_decree->header.sub_type)
     {
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD:
+            // Reward decree - validate TSD structure but don't apply any changes
+            // Actual reward processing is done by chain module when blocks are created
+            if (dap_chain_datum_decree_get_value(a_decree, &l_value)) {
+                log_it(L_WARNING, "Can't get reward value from decree");
+                return -102;
+            }
+            if (IS_ZERO_256(l_value)) {
+                log_it(L_WARNING, "Reward value is zero");
+                return -114;
+            }
+            // Reward decree is valid, no further action needed
+            break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
             if (!a_anchored)
                 break;
@@ -425,18 +438,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_ledge
 
 static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_ledger_t *a_ledger, bool a_apply)
 {
-   // size_t l_datum_data_size = ;
-   //            dap_chain_srv_t * l_srv = dap_chain_srv_get(l_decree->header.srv_id);
-   //            if(l_srv){
-   //                if(l_srv->callbacks.decree){
-   //                    dap_chain_net_t * l_net = dap_chain_net_by_id(a_chain->net_id);
-   //                    l_srv->callbacks.decree(l_srv,l_net,a_chain,l_decree,l_datum_data_size);
-   //                 }
-   //            }else{
-   //                log_it(L_WARNING,"Decree for unknown srv uid 0x%016"DAP_UINT64_FORMAT_X , l_decree->header.srv_id.uint64);
-   //                return -103;
-   //            }
-
+    // SERVICE decree is handled through event mechanism (DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE)
+    // See dap_chain_ledger_event.c:278-286 for actual implementation
     return 0;
 }
 

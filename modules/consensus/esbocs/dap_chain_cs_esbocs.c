@@ -408,6 +408,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             // Chain → Consensus callbacks
             .get_fee = dap_chain_esbocs_get_fee,
             .get_sign_pkey = dap_chain_esbocs_get_sign_pkey,
+            .get_sign_key = dap_chain_esbocs_get_sign_key,
             .get_collecting_level = dap_chain_esbocs_get_collecting_level,
             .add_block_collect = s_add_block_collect_callback_wrapper,
             .get_autocollect_status = dap_chain_esbocs_get_autocollect_status,

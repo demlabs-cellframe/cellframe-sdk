@@ -41,6 +41,7 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 // REMOVED: esbocs.h - breaks cycle, use generic dap_chain_cs.h API instead
+#include "dap_chain_cs.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"

@@ -11,6 +11,11 @@ target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/node-cli-cmd/include)
 target_include_directories(${PROJECT_NAME} PRIVATE ../../node-cli-cmd/include ../xchange/include)
+# Include compose and esbocs headers without linking (to avoid circular dependencies)
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${CMAKE_SOURCE_DIR}/modules/compose/include
+    ${CMAKE_SOURCE_DIR}/modules/consensus/esbocs/include
+    ${CMAKE_SOURCE_DIR}/modules/type/blocks/include)
 # OBJECT library: stake registers with validator API (no esbocs dependency)
 target_link_libraries(${PROJECT_NAME} dap_sdk dap_chain dap_chain_ledger dap_chain_cs
     dap_chain_wallet dap_chain_net dap_chain_net_srv)

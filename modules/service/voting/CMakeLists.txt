@@ -10,6 +10,9 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_SRV_VTNG_SRCS} HEADERS ${DAP_SRV_VTN
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/node-cli-cmd/include)
+# Include stake headers without linking
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${CMAKE_SOURCE_DIR}/modules/service/stake/include)
 target_link_libraries(${PROJECT_NAME} dap_sdk dap_chain dap_chain_net_srv dap_compose)
 
 if (INSTALL_SDK)
