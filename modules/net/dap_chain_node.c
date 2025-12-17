@@ -470,9 +470,11 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
         }
     }
     int l_verify_datum = dap_chain_net_verify_datum_for_add(a_chain, a_datum, &l_datum_hash);
-    // Log emission verification result
+    // Log ALL verification results
+    log_it(L_INFO, "VERIFY DATUM: type_id=%u, hash=%s, result=%d", 
+           a_datum->header.type_id, a_datum_hash_str, l_verify_datum);
     if (a_datum && a_datum->header.type_id == 0xf100) {
-        debug_if(s_debug_more, L_INFO, "EMISSION verify result: %d, hash=%s", l_verify_datum, a_datum_hash_str);
+        log_it(L_INFO, "EMISSION verify result: %d, hash=%s", l_verify_datum, a_datum_hash_str);
     }
     debug_if(s_debug_more, L_DEBUG, "dap_chain_net_verify_datum_for_add returned: %d for datum type_id=%u, hash=%s", 
            l_verify_datum, a_datum->header.type_id, a_datum_hash_str);

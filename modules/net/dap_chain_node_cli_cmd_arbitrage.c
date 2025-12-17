@@ -203,7 +203,7 @@ char *dap_chain_arbitrage_tx_create_with_signatures(
     // Get network fee address for change outputs
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     
-    // PHASE 3: Validate fee address is configured
+    // Validate fee address is configured
     if (!l_net || dap_chain_addr_is_blank(&l_net->pub.fee_addr)) {
         log_it(L_ERROR, "Cannot create arbitrage TX: network fee address not configured");
         dap_chain_datum_tx_delete(l_tx);
@@ -328,53 +328,36 @@ char *dap_chain_arbitrage_cli_create_tx(
            a_token_ticker, l_fee_token_ticker ? l_fee_token_ticker : "NULL", 
            l_fee_token_same_as_arbitrage, l_auth_signs_valid);
     
-    // === PHASE 1.1: FULL VALIDATION OF ARBITRAGE PARAMETERS ===
-    // For custom tokens (non-native), arbitrage requires token owner signature via -certs parameter
-    // when fee token != arbitrage token (i.e., when wallet signature does NOT count for arbitrage)
-    bool l_is_native_token = l_fee_token_ticker && !dap_strcmp(l_fee_token_ticker, a_token_ticker);
+    // === FULL VALIDATION OF ARBITRAGE PARAMETERS ===
+    // CRITICAL: Arbitrage is an action performed by TOKEN OWNER, not UTXO owner
+    // Wallet signature is ALWAYS used ONLY for fee payment authorization
+    // Token owner signature (via -certs) is REQUIRED for arbitrage authorization
+    // This logic is INDEPENDENT of whether token is native or custom
     
-    // CRITICAL VALIDATION: For custom tokens requiring owner authorization, -certs is MANDATORY
-    // when wallet signature cannot be used for arbitrage authorization
-    if (!l_is_native_token && l_auth_signs_valid > 0) {
-        // Custom token with owner authorization requirements
-        if (!l_fee_token_same_as_arbitrage && !a_certs_str) {
-            // Fee token != arbitrage token AND no -certs provided
-            // This means wallet signature is used ONLY for fee payment, NOT for arbitrage
-            // Therefore, arbitrage authorization is IMPOSSIBLE without -certs
-            log_it(L_ERROR, "Arbitrage transaction FAILED: Custom token '%s' requires token owner signature for arbitrage authorization. "
-                   "Wallet signature is used ONLY for fee payment (fee token '%s' != arbitrage token '%s'). "
-                   "You MUST provide -certs parameter with token owner certificate.",
-                   a_token_ticker, l_fee_token_ticker ? l_fee_token_ticker : "NULL", a_token_ticker);
-            
-            char l_error_msg[1024];
-            snprintf(l_error_msg, sizeof(l_error_msg),
-                    "Arbitrage transaction for custom token '%s' requires -certs parameter with token owner certificate. "
-                    "Wallet signature is used ONLY for fee payment authorization, NOT for arbitrage authorization "
-                    "(because fee token '%s' is different from arbitrage token '%s'). "
-                    "Token requires %zu owner signature(s) for arbitrage. "
-                    "Example: tx_create -net %s -from_wallet <wallet> -arbitrage -token %s -value <amount> -fee <fee> "
-                    "-certs <token_owner_cert> where <token_owner_cert> is the certificate used to declare the token.",
-                    a_token_ticker, 
-                    l_fee_token_ticker ? l_fee_token_ticker : "native",
-                    a_token_ticker,
-                    l_auth_signs_valid,
-                    a_net->pub.name,
-                    a_token_ticker);
-            
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, l_error_msg);
-            return NULL;
-        }
+    if (l_auth_signs_valid > 0 && !a_certs_str) {
+        // Token requires owner authorization AND no -certs provided
+        // Wallet signature is ALWAYS used ONLY for fee payment, NOT for arbitrage authorization
+        // Therefore, arbitrage authorization is IMPOSSIBLE without -certs
+        log_it(L_ERROR, "Arbitrage transaction FAILED: Token '%s' requires token owner signature for arbitrage authorization. "
+               "Wallet signature is used ONLY for fee payment. "
+               "You MUST provide -certs parameter with token owner certificate.",
+               a_token_ticker);
         
-        // If fee token == arbitrage token, wallet signature MAY count for arbitrage
-        // but ONLY if wallet key belongs to token owner (will be validated in ledger)
-        // We allow TX creation here and let ledger validation handle the authorization check
-        if (l_fee_token_same_as_arbitrage && !a_certs_str) {
-            log_it(L_NOTICE, "Arbitrage transaction for custom token '%s': -certs parameter not provided. "
-                   "Fee token == arbitrage token, so wallet signature MAY count for arbitrage authorization "
-                   "(if wallet key belongs to token owner). Token requires %zu owner signature(s). "
-                   "Transaction will be created and ledger will validate if wallet signature is authorized.",
-                   a_token_ticker, l_auth_signs_valid);
-        }
+        char l_error_msg[1024];
+        snprintf(l_error_msg, sizeof(l_error_msg),
+                "Arbitrage transaction for token '%s' requires -certs parameter with token owner certificate. "
+                "Wallet signature (-from_wallet) is used ONLY for fee payment authorization, NOT for arbitrage authorization. "
+                "Token requires %zu owner signature(s) for arbitrage. "
+                "Example: tx_create -net %s -from_wallet <wallet> -arbitrage -token %s -value <amount> -fee <fee> "
+                "-certs <token_owner_cert> where <token_owner_cert> is the certificate used to declare the token. "
+                "Note: This requirement applies to ALL tokens (native or custom) that require owner authorization.",
+                a_token_ticker, 
+                l_auth_signs_valid,
+                a_net->pub.name,
+                a_token_ticker);
+        
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, l_error_msg);
+        return NULL;
     }
     
     // Parse certificates for arbitrage authorization

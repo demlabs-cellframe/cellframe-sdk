@@ -3118,16 +3118,49 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
             l_emission->data.type_auth.tsd_n_signs_size = 0;
         }
         size_t l_aproves = 0;
+        debug_if(s_debug_more, L_DEBUG, "=== Emission signature validation for %s: %zu unique signs, need to match with %zu token auth_pkeys ===", 
+                 l_emission->hdr.ticker, l_signs_unique, l_token_item->auth_signs_total);
         for (uint16_t i = 0; i < l_signs_unique; i++) {
+            dap_hash_fast_t l_sign_pkey_hash = {0};
+            dap_sign_get_pkey_hash(l_signs[i], &l_sign_pkey_hash);
+            debug_if(s_debug_more, L_DEBUG, "  Sign[%u] pkey hash: %s", i, dap_hash_fast_to_str_static(&l_sign_pkey_hash));
+            
+            bool l_matched = false;
             for (uint16_t k = 0; k < l_token_item->auth_signs_total; k++) {
-                if (dap_pkey_compare_with_sign(l_token_item->auth_pkeys[k], l_signs[i])) {
+                size_t l_sign_pkey_size = 0;
+                const uint8_t *l_sign_pkey = dap_sign_get_pkey(l_signs[i], &l_sign_pkey_size);
+                dap_pkey_t *l_token_pkey = l_token_item->auth_pkeys[k];
+                
+                debug_if(s_debug_more, L_DEBUG, "    Comparing with token auth_pkey[%u]: type=%u, size=%u, data_start=0x%02X%02X%02X%02X", 
+                         k, l_token_pkey->header.type.type, l_token_pkey->header.size,
+                         l_token_pkey->pkey[0], l_token_pkey->pkey[1], l_token_pkey->pkey[2], l_token_pkey->pkey[3]);
+                debug_if(s_debug_more, L_DEBUG, "    Sign pkey: type=%u, size=%u, data_start=0x%02X%02X%02X%02X",
+                         dap_sign_type_to_key_type(l_signs[i]->header.type), (uint32_t)l_sign_pkey_size,
+                         l_sign_pkey[0], l_sign_pkey[1], l_sign_pkey[2], l_sign_pkey[3]);
+                
+                if (dap_pkey_compare_with_sign(l_token_pkey, l_signs[i])) {
+                    debug_if(s_debug_more, L_DEBUG, "    ✓ MATCH! Verifying signature...");
                     // Verify if token emission is signed
-                    if (!dap_sign_verify(l_signs[i], l_emission, l_sign_data_check_size))
+                    if (!dap_sign_verify(l_signs[i], l_emission, l_sign_data_check_size)) {
                         l_aproves++;
+                        debug_if(s_debug_more, L_DEBUG, "    ✓ Signature VALID (l_aproves=%zu)", l_aproves);
+                    } else {
+                        debug_if(s_debug_more, L_DEBUG, "    ✗ Signature INVALID");
+                    }
+                    l_matched = true;
                     break;
+                } else {
+                    debug_if(s_debug_more, L_DEBUG, "    ✗ NO MATCH (types=%d vs %d, sizes=%u vs %u, memcmp=%d)",
+                             dap_pkey_type_to_enc_key_type(l_token_pkey->header.type), dap_sign_type_to_key_type(l_signs[i]->header.type),
+                             l_token_pkey->header.size, (uint32_t)l_sign_pkey_size,
+                             (l_token_pkey->header.size == l_sign_pkey_size) ? memcmp(l_token_pkey->pkey, l_sign_pkey, l_token_pkey->header.size) : -999);
                 }
             }
+            if (!l_matched) {
+                debug_if(s_debug_more, L_DEBUG, "  ✗ Sign[%u] did NOT match any token auth_pkey", i);
+            }
         }
+        debug_if(s_debug_more, L_DEBUG, "=== Emission validation result: %zu aproves out of %zu required ===", l_aproves, l_token_item->auth_signs_valid);
         if (l_emission->hdr.version >= 3) {
             l_emission->data.type_auth.signs_count = l_sign_auth_count;
             l_emission->data.type_auth.tsd_n_signs_size = l_sign_auth_size;
