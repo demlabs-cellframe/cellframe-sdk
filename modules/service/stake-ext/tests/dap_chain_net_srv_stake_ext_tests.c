@@ -1421,7 +1421,7 @@ void dap_chain_srv_stake_ext_test_event_callbacks(void)
     dap_chain_net_id_t l_net_id = {.uint64 = 0x4001};
     dap_chain_net_t *l_ledger_net = DAP_NEW_Z(dap_chain_net_t);
     l_ledger_net->pub.id = l_net_id;
-    l_ledger->net = l_ledger_net;
+    l_ledger->net_id = l_ledger_net->pub.id;
     // Test callback with ADDED opcode
     dap_chain_srv_stake_ext_cache_event_callback((void*)l_cache, l_ledger, &l_event_added, &l_tx_hash, 
                                     DAP_LEDGER_NOTIFY_OPCODE_ADDED);    

@@ -38,7 +38,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_type.h"  // For old consensus class registration
-#include "dap_chain_cs_esbocs.h"  // For esbocs-specific types
+#include "dap_chain_block_collect.h"  // Common block collection types (breaks esbocs cycle)
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
 #include "../../node-cli-cmd/include/dap_chain_node_cli_cmd.h"

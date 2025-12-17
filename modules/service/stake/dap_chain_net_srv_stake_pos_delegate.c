@@ -43,6 +43,7 @@
 #include "dap_cli_server.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_tsd.h"
+#include "dap_chain_block_callbacks.h"  // Phase 5.3: Register sovereign tax callback
 #include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake_pos_delegate"
@@ -138,7 +139,7 @@ static bool s_debug_more = false;
 static void *s_pos_delegate_start(dap_chain_net_id_t a_net_id, dap_config_t UNUSED_ARG *a_config);
 static int s_pos_delegate_purge(dap_chain_net_id_t a_net_id, void *a_service_internal);
 static dap_json_t *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_net_id);
-bool s_tax_callback(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash, dap_chain_addr_t *a_addr_out, uint256_t *a_value_out);
+// Sovereign tax adapter moved to implementation section
 
 DAP_STATIC_INLINE void s_srv_stake_item_free(void *a_item)
 {
@@ -797,12 +798,18 @@ static int s_print_for_srv_stake_all(dap_json_rpc_response_t *a_response, char *
     return -1;
 }
 
+// Forward declaration for sovereign tax adapter
+static dap_chain_sovereign_tax_info_t* s_sovereign_tax_adapter(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash);
+
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
+    // Register sovereign tax callback with blocks module (Dependency Inversion)
+    dap_chain_block_callbacks_register_sovereign_tax(s_sovereign_tax_adapter);
+    
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_out_check_callback, s_stake_updater_callback, NULL, s_stake_deleted_callback, NULL);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, s_print_for_srv_stake_all, "Delegated stake service commands", dap_chain_node_cli_cmd_id_from_str("srv_stake"),
             "\t\t=== Commands for work with orders ===\n"
@@ -858,7 +865,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_chain_srv_add(l_uid, DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL, &l_callbacks);
     dap_ledger_service_add(l_uid, DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL, s_tag_check_key_delegation);
-    dap_ledger_tax_callback_set(s_tax_callback);
+    // dap_ledger_tax_callback_set removed - using dap_chain_block_callbacks instead (Dependency Inversion)
     return 0;
 }
 
@@ -4925,16 +4932,32 @@ dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_chai
     return NULL;
 }
 
-bool s_tax_callback(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash, dap_chain_addr_t *a_addr_out, uint256_t *a_value_out)
+/**
+ * @brief Callback adapter for sovereign tax (used by blocks module via Dependency Inversion)
+ * 
+ * Converts stake module's internal data to common callback API format
+ */
+static dap_chain_sovereign_tax_info_t* s_sovereign_tax_adapter(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash)
 {
-    dap_chain_net_srv_stake_item_t *l_stake = dap_chain_net_srv_stake_check_pkey_hash(a_net_id, a_pkey_hash);
-    if (!l_stake || dap_chain_addr_is_blank(&l_stake->sovereign_addr) || IS_ZERO_256(l_stake->sovereign_tax))
-        return false;
-    if (a_addr_out)
-        *a_addr_out = l_stake->sovereign_addr;
-    if (a_value_out)
-        *a_value_out = l_stake->sovereign_tax;
-    return true;
+    dap_chain_net_srv_stake_item_t *l_stake_item = dap_chain_net_srv_stake_check_pkey_hash(a_net_id, a_pkey_hash);
+    
+    if (!l_stake_item)
+        return NULL;
+    
+    // Check if sovereign tax is configured
+    if (IS_ZERO_256(l_stake_item->sovereign_tax) || dap_chain_addr_is_blank(&l_stake_item->sovereign_addr))
+        return NULL;
+    
+    // Allocate and fill tax info structure
+    dap_chain_sovereign_tax_info_t *l_tax_info = DAP_NEW_Z(dap_chain_sovereign_tax_info_t);
+    if (!l_tax_info)
+        return NULL;
+    
+    l_tax_info->has_tax = true;
+    l_tax_info->sovereign_addr = l_stake_item->sovereign_addr;
+    l_tax_info->sovereign_tax = l_stake_item->sovereign_tax;
+    
+    return l_tax_info;
 }
 
 size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_t *a_in_active_count)

@@ -26,6 +26,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain.h"
 #include "dap_json.h"
 #include "dap_chain_type_blocks.h"
+#include "dap_chain_block_collect.h"  // Common block collection types (moved here to break cycles)
 
 // Forward declarations
 typedef struct dap_global_db_cluster dap_global_db_cluster_t;
@@ -231,15 +232,7 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_addr_t my_signing_addr;
 } dap_chain_esbocs_session_t;
 
-typedef struct dap_chain_esbocs_block_collect{
-    uint256_t collecting_level;
-    uint256_t minimum_fee;
-    dap_chain_t *chain;
-    dap_enc_key_t * blocks_sign_key;
-    dap_pkey_t * block_sign_pkey;
-    dap_chain_addr_t * collecting_addr;
-    dap_chain_cell_id_t cell_id;
-}dap_chain_esbocs_block_collect_t;
+// dap_chain_esbocs_block_collect_t moved to dap_chain_block_collect.h (breaks cycle with blocks)
 
 typedef enum s_com_esbocs_err{
     DAP_CHAIN_NODE_CLI_COM_ESBOCS_OK = 0,
@@ -268,11 +261,7 @@ typedef enum s_com_esbocs_err{
 
 #define DAP_CHAIN_ESBOCS(a) ((dap_chain_esbocs_t *)(a)->_inheritor)
 
-typedef enum dap_chain_block_autocollect_type {
-    DAP_CHAIN_BLOCK_COLLECT_BOTH,
-    DAP_CHAIN_BLOCK_COLLECT_FEES,
-    DAP_CHAIN_BLOCK_COLLECT_REWARDS
-} dap_chain_block_autocollect_type_t;
+// Block collection types moved to ../include/dap_chain_block_collect.h to break blocks ↔ esbocs cycle
 
 int dap_chain_cs_esbocs_init();
 void dap_chain_cs_esbocs_deinit(void);

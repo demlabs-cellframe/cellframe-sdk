@@ -98,14 +98,14 @@
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "rand/dap_rand.h"
-#include "dap_chain_net_api.h"  // Phase 5.3: Network API registration
+#include "dap_chain_net_api.h" 
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_net.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_cs_esbocs.h"
+// REMOVED: dap_chain_cs_esbocs.h - breaks cycle, use generic dap_chain_cs.h API
 #include "dap_chain_policy.h"
 #include "../node-cli-cmd/include/dap_chain_node_cli_cmd.h"
 #include "dap_chain_srv.h"
@@ -2533,7 +2533,7 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
         if (!dap_strcmp(dap_chain_get_cs_type(a_chain), "esbocs")) {
             uint256_t l_tx_fee = {};
             if (!dap_chain_datum_tx_get_fee_value(l_tx, &l_tx_fee) && !IS_ZERO_256(l_tx_fee)) {
-                uint256_t l_min_fee = dap_chain_esbocs_get_fee(a_chain->net_id);
+                uint256_t l_min_fee = dap_chain_cs_get_fee(a_chain);  // Use generic CS API instead of esbocs-specific
                 if (compare256(l_tx_fee, l_min_fee) < 0) {
                     const char *l_tx_fee_str; dap_uint256_to_char(l_tx_fee, &l_tx_fee_str);
                     const char *l_min_fee_str; dap_uint256_to_char(l_min_fee, &l_min_fee_str);

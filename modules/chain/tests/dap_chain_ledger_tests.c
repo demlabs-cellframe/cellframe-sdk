@@ -138,19 +138,19 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_full(dap_enc_key_t *a_key_from, 
                                                       dap_chain_addr_t *a_addr_to, uint256_t a_value, dap_ledger_t *a_ledger) {
 
     dap_chain_addr_t l_addr = {0};
-    dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net->pub.id);
+    dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net_id);
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
     int l_out_idx = 0;
     dap_chain_tx_out_ext_t *l_tx_prev_out = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
     //dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, a_value);
-    dap_chain_tx_out_ext_t *l_out = dap_chain_datum_tx_item_out_ext_create(a_addr_to, a_value, a_ledger->net->pub.native_ticker);
+    dap_chain_tx_out_ext_t *l_out = dap_chain_datum_tx_item_out_ext_create(a_addr_to, a_value, "KEL");
     uint256_t l_change = {};
     if (l_tx_prev_out)
     SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_change);
     //dap_chain_tx_out_t *l_out_change = dap_chain_datum_tx_item_out_create(&l_addr, l_change);
-    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, a_ledger->net->pub.native_ticker);
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, "KEL");
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
@@ -163,7 +163,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_full(dap_enc_key_t *a_key_from, 
 dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
                                                       dap_chain_addr_t *a_addr_to, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_addr_t l_addr = {0};
-    dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net->pub.id);
+    dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net_id);
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
     int l_out_idx = 0;
     dap_chain_tx_out_ext_t *l_tx_prev_out = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
@@ -176,7 +176,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, 
     uint256_t l_change = {};
     if (l_tx_prev_out)
         SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_change);
-    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, a_ledger->net->pub.native_ticker);
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, "KEL");
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_cond);
@@ -190,7 +190,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, 
 dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
                                                       dap_enc_key_t *a_key_to, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_addr_t l_addr = {0};
-    dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net->pub.id);
+    dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net_id);
     // get previous transaction
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
@@ -217,8 +217,8 @@ dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_
     
     // add all items to tx
     dap_chain_addr_t l_addr_to = {0};
-    dap_chain_addr_fill_from_key(&l_addr_to, a_key_to, a_ledger->net->pub.id);
-    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, a_value, a_ledger->net->pub.native_ticker);
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_to, a_ledger->net_id);
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, a_value, "KEL");
     dap_chain_datum_tx_add_item(&l_tx, (byte_t*)l_receipt);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_cond);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
@@ -244,8 +244,8 @@ dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_chain_hash_
 
     // add all items to tx
     dap_chain_addr_t l_addr_to = {0};
-    dap_chain_addr_fill_from_key(&l_addr_to, a_key_to, a_ledger->net->pub.id);
-    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, l_tx_prev_out->header.value, a_ledger->net->pub.native_ticker);
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_to, a_ledger->net_id);
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, l_tx_prev_out->header.value, "KEL");
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_cond);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
     dap_chain_datum_tx_add_sign_item(&l_tx, a_key_to);
@@ -263,7 +263,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
     dap_chain_tx_out_ext_t *l_tx_prev_out = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
     
     dap_chain_addr_t l_addr_to = {0};
-    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net_id);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
@@ -316,7 +316,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_unstake_tx_cond(dap_enc_key_t *a_ke
     dap_chain_tx_out_ext_t *l_tx_prev_out_ext = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
 
     dap_chain_addr_t l_addr_to = {0};
-    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net_id);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in_ext = dap_chain_datum_tx_item_in_create(a_hash_prev, 2);
@@ -343,7 +343,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_unstake_tx_cond(dap_enc_key_t *a_ke
 }
 
 
-int dap_ledger_test_create_reward_decree(dap_chain_t *a_chain, dap_chain_net_id_t a_net_id, uint256_t a_value, dap_cert_t *a_cert)
+int dap_ledger_test_create_reward_decree(dap_ledger_t *a_ledger, dap_chain_t *a_chain, dap_chain_net_id_t a_net_id, uint256_t a_value, dap_cert_t *a_cert)
 {
     // Create decree
     size_t l_tsd_total_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
@@ -389,7 +389,7 @@ int dap_ledger_test_create_reward_decree(dap_chain_t *a_chain, dap_chain_net_id_
     dap_hash_fast_t l_decree_hash = {};
     dap_hash_fast(l_decree, l_decree_size, &l_decree_hash);
     // a_chain->callback_atom_add();
-    dap_assert_PIF(dap_ledger_decree_apply(&l_decree_hash, l_decree, a_chain, false)==0, "Decree applying:");
+    dap_assert_PIF(dap_ledger_decree_apply(a_ledger, &l_decree_hash, l_decree, a_chain->id, NULL)==0, "Decree applying:");
     return 0;
 }
 
@@ -465,7 +465,7 @@ void dap_ledger_test_create_delegate_key_approve_decree()
     dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, TX_ITEM_TYPE_OUT, NULL);
     
     dap_chain_addr_t l_addr_to = {0};
-    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net_id);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
@@ -731,7 +731,7 @@ dap_hash_fast_t dap_ledger_test_double_spending(
     dap_ledger_t *a_ledger, dap_hash_fast_t *a_prev_hash, dap_enc_key_t  *a_from_key, dap_chain_addr_t a_addr_to, dap_chain_net_id_t a_net_id) {
     dap_print_module_name("dap_ledger_double_spending");
     dap_chain_datum_tx_t *l_first_tx = dap_ledger_test_create_tx(a_from_key, a_prev_hash,
-                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee),a_ledger->net->pub.native_ticker);
+                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee),"KEL");
     dap_assert_PIF(l_first_tx, "Can't creating base transaction.");
     dap_chain_hash_fast_t l_first_tx_hash = {0};
     dap_hash_fast(l_first_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_first_tx_hash);
@@ -739,7 +739,7 @@ dap_hash_fast_t dap_ledger_test_double_spending(
     //uint256_t l_balance = dap_ledger_calc_balance(a_ledger, &l_addr_first, s_token_ticker);
     // Second tx
     dap_chain_datum_tx_t *l_second_tx = dap_ledger_test_create_tx(a_from_key, a_prev_hash,
-                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee),a_ledger->net->pub.native_ticker);
+                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee),"KEL");
     dap_chain_hash_fast_t l_second_tx_hash = {0};
     dap_hash_fast(l_second_tx, dap_chain_datum_tx_get_size(l_second_tx), &l_second_tx_hash);
     dap_assert_PIF(dap_ledger_tx_add(a_ledger, l_second_tx, &l_second_tx_hash, false, NULL), "Added second transaction on ledger");
@@ -1024,7 +1024,11 @@ void dap_ledger_test_run(void){
     dap_chain_net_id_t l_iddn = {.uint64 = 0};
     sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_iddn);
-    dap_ledger_t *l_ledger = dap_ledger_create(l_net, l_flags);
+    dap_ledger_create_options_t l_opts = {
+        .net_id = l_net->pub.id,
+        .flags = l_flags
+    };
+    dap_ledger_t *l_ledger = dap_ledger_create(&l_opts);
     l_net->pub.ledger = l_ledger;
 
     // Create zerochain with dag_poa consensus
@@ -1047,7 +1051,7 @@ void dap_ledger_test_run(void){
     size_t l_seed_ph_size = strlen(l_seed_ph);
     dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("testCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, l_seed_ph, l_seed_ph_size);
 
-    dap_assert_PIF(dap_ledger_test_create_reward_decree(l_chain_main, l_net->pub.id,  dap_chain_uint256_from(2), l_cert)==0, "Reward decree creating:");
+    dap_assert_PIF(dap_ledger_test_create_reward_decree(l_ledger, l_chain_main, l_net->pub.id, dap_chain_uint256_from(2), l_cert)==0, "Reward decree creating:");
 
 
     size_t l_token_decl_size = 0;
@@ -1246,7 +1250,7 @@ static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond(dap_enc
     dap_chain_tx_out_t *l_tx_prev_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(l_tx_prev, &l_out_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
 
     dap_chain_addr_t l_addr_to = {0};
-    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net_id);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
@@ -1271,7 +1275,7 @@ static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond(dap_enc
 static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond_ems(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create((dap_chain_id_t) {.uint64 = 0}, a_hash_prev, s_delegated_token_ticker);
     dap_chain_addr_t l_addr_to = {0};
-    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net_id);
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
     dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, a_value, s_delegated_token_ticker);
@@ -1314,7 +1318,7 @@ static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_unstake_tx_cond(dap_e
         return NULL;
 
     dap_chain_addr_t l_addr_to = {0};
-    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net_id);
 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 

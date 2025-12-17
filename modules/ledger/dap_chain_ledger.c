@@ -973,12 +973,9 @@ dap_ledger_t *dap_ledger_find_by_name(const char *a_name)
     if (!a_name)
         return NULL;
     
-    dap_ledger_t *l_ledger, *l_tmp;
-    HASH_ITER(hh, s_ledger_registry, l_ledger, l_tmp) {
-        if (l_ledger->name && !dap_strcmp(l_ledger->name, a_name))
-            return l_ledger;
-    }
-    return NULL;
+    dap_ledger_t *l_ledger = NULL;
+    HASH_FIND_STR(s_ledger_registry, a_name, l_ledger); 
+    return l_ledger;
 }
 
 /**

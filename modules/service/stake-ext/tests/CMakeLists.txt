@@ -19,8 +19,6 @@ if(APPLE)
         dap_session
         dap_http_server
         dap_client
-        dap_sdk
-        cellframe_sdk
     )
 else()
     target_link_libraries(${PROJECT_NAME} 
@@ -34,7 +32,6 @@ else()
         dap_session
         dap_http_server
         dap_client
-        dap_sdk
         -Wl,--end-group
     )
 endif()

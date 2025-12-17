@@ -94,7 +94,7 @@ static dap_ledger_t *create_test_ledger(void)
     
     // Connect structures
     l_ledger->_internal = l_priv;
-    l_ledger->net = l_net;
+    l_ledger->net_id = l_net->pub.id;
     l_ledger->is_hardfork_state = false;
     
     return l_ledger;
@@ -135,8 +135,7 @@ static void destroy_test_ledger(dap_ledger_t *a_ledger)
         DAP_DELETE(l_priv);
     }
     
-    if (a_ledger->net)
-        DAP_DELETE(a_ledger->net);
+    // net_id is just an ID, no need to delete
     
     DAP_DELETE(a_ledger);
 }

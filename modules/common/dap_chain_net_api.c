@@ -222,3 +222,4 @@ int dap_chain_net_api_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uin
     pthread_mutex_unlock(&s_api_mutex);
     return result;
 }
+

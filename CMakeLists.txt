@@ -1,36 +1,34 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 project(cellframe-sdk C)
 
 set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "4.0.0")
 
 # =========================================
-# UNIVERSAL BUILD SYSTEM - CELLFRAME SDK
+# INCLUDE CELLFRAME LIBRARY HELPERS (use DAP SDK system)
 # =========================================
-# Cellframe SDK always builds its modules as STATIC internally,
-# then combines them into one big STATIC or SHARED library
+# Universal library creation helpers (shared with DAP SDK)
+include(dap-sdk/cmake/LibraryHelpers.cmake)
 
-# Default: BUILD_SHARED=ON (final library is shared)
-# Override: BUILD_SHARED=OFF (final library is static)
+# CMake 3.12+ supports OBJECT libraries natively - no need for ObjectLibraryHelpers override
+
+# =========================================
+# BUILD OPTIONS
+# =========================================
 option(BUILD_SHARED "Build final Cellframe SDK library as shared (default)" ON)
 option(INSTALL_CELLFRAME_SDK "Install Cellframe SDK library and headers (disable when used as subproject)" ON)
 
-# Internal modules are ALWAYS static
-set(CELLFRAME_INTERNAL_LIB_TYPE STATIC)
-
 if(BUILD_SHARED)
-    message("[+] Cellframe SDK: Building final library as SHARED (modules: static internally)")
-    set(CELLFRAME_FINAL_LIB_TYPE SHARED)
+    message("[+] Cellframe SDK: Building final library as SHARED (modules: OBJECT internally)")
     set(CELLFRAME_BUILD_MODE "shared")
 else()
-    message("[+] Cellframe SDK: Building final library as STATIC (modules: static internally)")
-    set(CELLFRAME_FINAL_LIB_TYPE STATIC)
+    message("[+] Cellframe SDK: Building final library as STATIC (modules: OBJECT internally)")
     set(CELLFRAME_BUILD_MODE "static")
 endif()
 
-# Export build mode for consumers
-set(CELLFRAME_SDK_BUILD_MODE ${CELLFRAME_BUILD_MODE} CACHE STRING "Cellframe SDK final library mode (shared/static)")
-set(CELLFRAME_SDK_INTERNAL_MODE "static" CACHE STRING "Cellframe SDK internal modules mode (always static)")
+# Set module type for all Cellframe modules (OBJECT for proper symbol export)
+set(CELLFRAME_MODULE_TYPE "OBJECT" CACHE STRING "Type for Cellframe internal modules (OBJECT)")
+message(STATUS "[Cellframe] Module type: ${CELLFRAME_MODULE_TYPE}")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
@@ -66,11 +64,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/cmake/LibraryHelpers.cmake)
 # Creates internal static modules (temporary workaround for circular dependencies)
 # Usage: cellframe_add_library(target_name sources... HEADERS headers...)
 macro(cellframe_add_library TARGET_NAME)
-    cmake_parse_arguments(CELLFRAME_LIB "" "" "HEADERS" ${ARGN})
+    cmake_parse_arguments(CF_MOD "" "" "HEADERS" ${ARGN})
     
-    # TEMPORARY: Create STATIC library instead of OBJECT to allow circular dependencies
-    # CMake allows cycles between STATIC libraries but NOT between OBJECT libraries
-    add_library(${TARGET_NAME} STATIC ${CELLFRAME_LIB_UNPARSED_ARGUMENTS} ${CELLFRAME_LIB_HEADERS})
+    # Create OBJECT library using universal helper (same as DAP SDK)
+    create_object_library(${TARGET_NAME} CELLFRAME_INTERNAL_MODULES ${CF_MOD_UNPARSED_ARGUMENTS} HEADERS ${CF_MOD_HEADERS})
     
     # Enable position independent code for potential shared library
     set_property(TARGET ${TARGET_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -96,74 +93,35 @@ endmacro()
 macro(cellframe_create_final_library)
     if(DEFINED CELLFRAME_INTERNAL_MODULES)
         message("[+] Creating final Cellframe SDK library: cellframe_sdk (${CELLFRAME_BUILD_MODE})")
-        message("[+] Internal STATIC modules to link: ${CELLFRAME_INTERNAL_MODULES}")
-        message("[!] TEMPORARY FIX: Using STATIC libraries (Phase 5.2)")
-        message("[!] Phase 5.3 architectural refactoring REQUIRED - see MANDATORY_NEXT_STEP.md")
-        
-        # TEMPORARY: Create final library from source (not from object files)
-        # Internal modules are now STATIC libraries, so we link them instead
-        add_library(cellframe_sdk ${CELLFRAME_FINAL_LIB_TYPE} cellframe-sdk.c)
-        
-        if(BUILD_SHARED)
-            set_target_properties(cellframe_sdk PROPERTIES
-                POSITION_INDEPENDENT_CODE ON
-                VERSION ${CELLFRAME_SDK_NATIVE_VERSION}
-                SOVERSION 4
-            )
-            target_compile_definitions(cellframe_sdk PRIVATE CELLFRAME_BUILDING_LIB)
-            target_compile_definitions(cellframe_sdk INTERFACE CELLFRAME_USING_SHARED)
-        else()
-            target_compile_definitions(cellframe_sdk INTERFACE CELLFRAME_USING_STATIC)
-        endif()
-        
-        # TEMPORARY FIX: Link all internal STATIC modules
-        # (Previously they were OBJECT libraries combined via TARGET_OBJECTS)
-        foreach(MODULE ${CELLFRAME_INTERNAL_MODULES})
-            if(TARGET ${MODULE})
-                target_link_libraries(cellframe_sdk PUBLIC ${MODULE})
-            endif()
-        endforeach()
-        
-        # Link with external Cellframe libraries (those not created via cellframe_add_library)
-        # These are STATIC libraries like dap_chain_type_blocks, dap_chain_cs_esbocs, etc.
-        if(DEFINED CELLFRAME_LIBS)
-            # Filter out DAP SDK components
-            string(REPLACE "dap_app_cli;" "" FILTERED_LIBS "${CELLFRAME_LIBS}")
-            string(REPLACE "dap_core;" "" FILTERED_LIBS "${FILTERED_LIBS}")
-            string(REPLACE "dap_plugin;" "" FILTERED_LIBS "${FILTERED_LIBS}")
-            string(REPLACE "dap_crypto;" "" FILTERED_LIBS "${FILTERED_LIBS}")
-            string(REPLACE "dap_io;" "" FILTERED_LIBS "${FILTERED_LIBS}")
-            
-            if(FILTERED_LIBS)
-                target_link_libraries(cellframe_sdk PUBLIC ${FILTERED_LIBS})
-                message("[+] Cellframe SDK: Linked with external libraries: ${FILTERED_LIBS}")
-            endif()
-        endif()
-        
-        # Link with DAP SDK (external if available, otherwise built-in)  
-        if(CELLFRAME_USING_EXTERNAL_DAP_SDK)
-            message("[+] Cellframe SDK: Linking with external DAP SDK (dap_sdk)")
-            target_link_libraries(cellframe_sdk PUBLIC dap_sdk)
-            
-            # For SHARED builds, rely on the main dap_sdk library which contains all components
-            if(BUILD_SHARED)
-                message("[+] Cellframe SDK: Using main DAP SDK library for shared build")
-                # The dap_sdk target already contains all necessary components
-            endif()
-        else()
-            message("[+] Cellframe SDK: Using built-in DAP SDK targets")
-            # Built-in DAP SDK targets will be automatically included
-        endif()
-        
-        # Inherit include directories from internal modules
-        foreach(module ${CELLFRAME_INTERNAL_MODULES})
-            get_target_property(module_includes ${module} INTERFACE_INCLUDE_DIRECTORIES)
-            if(module_includes)
-                target_include_directories(cellframe_sdk PUBLIC ${module_includes})
-            endif()
-        endforeach()
-        
-        message("[+] Final Cellframe SDK Library: cellframe_sdk created successfully")
+    
+    # Collect all external STATIC libraries and DAP SDK
+    set(CELLFRAME_LINK_LIBS "")
+    
+    # Add external Cellframe STATIC libraries (consensus types, services, etc)
+    if(DEFINED CELLFRAME_LIBS)
+        list(APPEND CELLFRAME_LINK_LIBS ${CELLFRAME_LIBS})
+    endif()
+    
+    # Add DAP SDK (built-in by default)
+    if(CELLFRAME_USING_EXTERNAL_DAP_SDK)
+        list(APPEND CELLFRAME_LINK_LIBS dap_sdk)
+        message(STATUS "[Cellframe] Using external DAP SDK")
+    else()
+        list(APPEND CELLFRAME_LINK_LIBS dap_sdk)
+        message(STATUS "[Cellframe] Using built-in DAP SDK")
+    endif()
+    
+    # Create final library using universal helper (same as DAP SDK)
+    create_final_shared_library(
+        LIBRARY_NAME "cellframe_sdk"
+        MODULE_LIST_VAR CELLFRAME_INTERNAL_MODULES
+        VERSION ${CELLFRAME_SDK_NATIVE_VERSION}
+        VERSION_MAJOR 4
+        ADDITIONAL_SOURCES cellframe-sdk.c
+        LINK_LIBRARIES ${CELLFRAME_LINK_LIBS}
+    )
+    
+    message(STATUS "[Cellframe] Final library cellframe_sdk created successfully")
     endif()
 endmacro()
 
@@ -268,7 +226,7 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
+        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool dap_chain_node_cli_cmd)
 endif()
 
 # Compose
@@ -300,10 +258,9 @@ if (CELLFRAME_MODULES MATCHES "cs-dag-pos")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_type_dag_pos)
 endif()
 
-# Blocks based consensus(es)
-if (CELLFRAME_MODULES MATCHES "cs-block-" OR CELLFRAME_MODULES MATCHES "cs-esbocs")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_type_blocks)
-endif()
+# Block-based consensus(es) - ALWAYS include blocks (used by mempool, tests, etc)
+message("[+] Module 'dap_chain_type_blocks'")
+set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_type_blocks)
 
 # ESBOCS consensus for blocks
 if (CELLFRAME_MODULES MATCHES "cs-esbocs")

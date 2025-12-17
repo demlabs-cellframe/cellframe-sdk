@@ -61,3 +61,4 @@ dap_chain_net_id_t dap_chain_net_srv_get_net_id_by_name(const char *a_net_name)
     return s_get_net_id_by_name_callback ? s_get_net_id_by_name_callback(a_net_name) : (dap_chain_net_id_t){.uint64 = 0};
 }
 
+

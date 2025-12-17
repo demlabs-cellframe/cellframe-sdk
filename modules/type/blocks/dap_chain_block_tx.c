@@ -31,8 +31,7 @@
 #include "../../mempool/include/dap_chain_mempool.h"
 #include "dap_pkey.h"
 #include "dap_sign.h"
-#include "../../service/stake/include/dap_chain_net_srv_stake.h"
-#include "../../service/stake/include/dap_chain_net_srv_stake_pos_delegate.h"  // For full dap_chain_net_srv_stake_item_t definition
+#include "dap_chain_block_callbacks.h"  // Phase 5.3: Callback API for breaking stake cycle
 
 #define LOG_TAG "dap_chain_block_tx"
 
@@ -153,31 +152,40 @@ char *dap_chain_block_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks,
         }
     }
 
-    // Check and apply sovereign tax for this key
+    // Check and apply sovereign tax for this key (via callback to avoid stake dependency)
     uint256_t l_value_tax = {};
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_net_id, &l_sign_pkey_hash);
-    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
-                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
-        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
+    dap_chain_sovereign_tax_info_t *l_tax_info = dap_chain_block_callbacks_get_sovereign_tax(a_net_id, &l_sign_pkey_hash);
+    if (l_tax_info && l_tax_info->has_tax && !IS_ZERO_256(l_tax_info->sovereign_tax) &&
+                !dap_chain_addr_is_blank(&l_tax_info->sovereign_addr)) {
+        MULT_256_COIN(l_value_out, l_tax_info->sovereign_tax, &l_value_tax);
         if (compare256(l_value_tax, l_value_out) < 1)
             SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
+        else {
+            DAP_DELETE(l_tax_info);
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Sovereign tax exceeds transaction value");
+            return NULL;
+        }
     }
 
     //add 'out' items
     if (!IS_ZERO_256(l_value_out)) {
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, l_value_out, a_native_ticker) != 1) {
+            DAP_DELETE(l_tax_info);
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_WARNING, "Can't create out item in transaction fee");
             return NULL;
         }
     }
     if (!IS_ZERO_256(l_value_tax)) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax, a_native_ticker) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_tax_info->sovereign_addr, l_value_tax, a_native_ticker) != 1) {
+            DAP_DELETE(l_tax_info);
             dap_chain_datum_tx_delete(l_tx);
-            log_it(L_WARNING, "Can't create out item in transaction fee");
+            log_it(L_WARNING, "Can't create sovereign tax out item in transaction fee");
             return NULL;
         }
     }
+    DAP_DELETE(l_tax_info);
 
     // add 'sign' items
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
@@ -295,30 +303,39 @@ char *dap_chain_block_tx_reward_create(dap_chain_type_blocks_t *a_blocks,
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    // Check and apply sovereign tax for this key
+    // Check and apply sovereign tax for this key (via callback to avoid stake dependency)
     uint256_t l_value_tax = {};
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_net_id, &l_sign_pkey_hash);
-    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
-                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
-        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
+    dap_chain_sovereign_tax_info_t *l_tax_info = dap_chain_block_callbacks_get_sovereign_tax(a_net_id, &l_sign_pkey_hash);
+    if (l_tax_info && l_tax_info->has_tax && !IS_ZERO_256(l_tax_info->sovereign_tax) &&
+                !dap_chain_addr_is_blank(&l_tax_info->sovereign_addr)) {
+        MULT_256_COIN(l_value_out, l_tax_info->sovereign_tax, &l_value_tax);
         if (compare256(l_value_tax, l_value_out) < 1)
             SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
+        else {
+            DAP_DELETE(l_tax_info);
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Sovereign tax exceeds transaction value");
+            return NULL;
+        }
     }
     //add 'out' items
     if (!IS_ZERO_256(l_value_out)) {
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, l_value_out, a_native_ticker) != 1) {
+            DAP_DELETE(l_tax_info);
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_WARNING, "Can't create out item in transaction fee");
             return NULL;
         }
     }
     if (!IS_ZERO_256(l_value_tax)) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax, a_native_ticker) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_tax_info->sovereign_addr, l_value_tax, a_native_ticker) != 1) {
+            DAP_DELETE(l_tax_info);
             dap_chain_datum_tx_delete(l_tx);
-            log_it(L_WARNING, "Can't create out item in transaction fee");
+            log_it(L_WARNING, "Can't create sovereign tax out item in transaction fee");
             return NULL;
         }
     }
+    DAP_DELETE(l_tax_info);
     // add 'sign' item
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_sign_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
@@ -393,27 +410,35 @@ char *dap_chain_block_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks
         return NULL;
     }
 
-    // Check and apply sovereign tax for this key
+    // Check and apply sovereign tax for this key (via callback to avoid stake dependency)
     uint256_t l_value_tax = {}, l_value_out = ((dap_chain_tx_out_std_t *)l_out_prev)->value;
     if (IS_ZERO_256(l_value_out)) {
         log_it(L_WARNING, "OUT_STD item in tx with addr %s has zero value", dap_chain_addr_to_str_static(&l_addr_to));
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(a_net_id, &l_sign_pkey_hash);
-    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
-                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
-        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
+    dap_chain_sovereign_tax_info_t *l_tax_info = dap_chain_block_callbacks_get_sovereign_tax(a_net_id, &l_sign_pkey_hash);
+    if (l_tax_info && l_tax_info->has_tax && !IS_ZERO_256(l_tax_info->sovereign_tax) &&
+                !dap_chain_addr_is_blank(&l_tax_info->sovereign_addr)) {
+        MULT_256_COIN(l_value_out, l_tax_info->sovereign_tax, &l_value_tax);
         if (compare256(l_value_tax, l_value_out) < 1)
             SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
-    }
-    if (!IS_ZERO_256(l_value_tax)) {
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax, a_native_ticker) != 1) {
+        else {
+            DAP_DELETE(l_tax_info);
             dap_chain_datum_tx_delete(l_tx);
-            log_it(L_WARNING, "Can't create out item in transaction fee");
+            log_it(L_WARNING, "Sovereign tax exceeds transaction value");
             return NULL;
         }
     }
+    if (!IS_ZERO_256(l_value_tax)) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_tax_info->sovereign_addr, l_value_tax, a_native_ticker) != 1) {
+            DAP_DELETE(l_tax_info);
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't create sovereign tax out item in transaction fee");
+            return NULL;
+        }
+    }
+    DAP_DELETE(l_tax_info);
 
     // Network fee
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net_id, &l_net_fee, &l_addr_fee);

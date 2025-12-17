@@ -40,7 +40,7 @@
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
-#include "../consensus/esbocs/include/dap_chain_cs_esbocs.h"
+// REMOVED: esbocs.h - breaks cycle, use generic dap_chain_cs.h API instead
 #include "dap_chain_net_srv_order.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
@@ -212,7 +212,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             dap_chain_t *l_chain = NULL;
             DL_FOREACH(l_net->pub.chains, l_chain)
                 if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-                    l_enc_key_pvt = dap_chain_esbocs_get_sign_key(l_chain);
+                    l_enc_key_pvt = dap_chain_cs_get_sign_key(l_chain);  // Use generic CS API
                     if (l_enc_key_pvt)
                         break;
                 }

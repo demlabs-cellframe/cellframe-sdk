@@ -10,7 +10,10 @@ if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
 endif()
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_cli_server dap_chain_cs dap_chain_ledger dap_chain_mempool dap_chain_net_srv_stake)
+# OBJECT library: include propagation through dependencies
+# Added dap_chain_cs_esbocs for esbocs header (if esbocs depends on blocks - need to break cycle)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_cli_server dap_chain_cs dap_chain_ledger 
+    dap_chain_mempool dap_common)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 

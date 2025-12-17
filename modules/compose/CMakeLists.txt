@@ -8,9 +8,10 @@ message("[+] Module 'compose'")
 # Use universal Cellframe library macro
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_COMPOSE_SRCS} HEADERS ${DAP_CHAIN_COMPOSE_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_sdk dap_app_cli dap_chain dap_chain_ledger dap_client_http dap_chain_wallet)
-target_include_directories(${PROJECT_NAME} PUBLIC include/ )
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/service/xchange/include)
+# OBJECT library: compose needs wallet + net_srv (for order.h) + net (for net_tx.h)
+target_link_libraries(${PROJECT_NAME} dap_sdk dap_app_cli dap_chain dap_chain_ledger dap_client_http 
+    dap_chain_wallet dap_chain_net_srv dap_chain_net)
+target_include_directories(${PROJECT_NAME} PUBLIC include/)
 target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
 
 if(BUILD_CELLFRAME_SDK_TESTS)
