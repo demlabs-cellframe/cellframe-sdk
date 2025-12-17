@@ -118,6 +118,22 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
         return -109;
     }
 
+    // Check generation for hardfork decrees to prevent stale hardfork anchors from being added after hardfork complete
+    if (l_decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON &&
+            l_decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK) {
+        dap_tsd_t *l_generation = dap_tsd_find(l_decree->data_n_signs, l_decree->header.data_size,
+                                               DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION);
+        if (l_generation && l_generation->size == sizeof(uint16_t)) {
+            uint16_t l_hardfork_generation = *(uint16_t *)l_generation->data;
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, l_decree->header.common_decree_params.chain_id);
+            if (l_chain && l_hardfork_generation <= l_chain->generation) {
+                log_it(L_WARNING, "Hardfork anchor rejected: decree generation %hu <= chain generation %hu",
+                       l_hardfork_generation, l_chain->generation);
+                return -117;  // Same error code as in s_common_decree_handler for consistency
+            }
+        }
+    }
+
     return 0;
 }
 

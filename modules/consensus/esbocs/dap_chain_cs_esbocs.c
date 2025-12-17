@@ -41,6 +41,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_sign.h"
 #include "dap_link_manager.h"
+#include "dap_chain_node.h"
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 
@@ -929,6 +930,8 @@ int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
     l_esbocs->hardfork_state = false;
     l_net->pub.ledger->is_hardfork_state = false;
     dap_chain_net_srv_stake_hardfork_tx_update(l_net);
+    // Cleanup chain hardfork data to prevent stale state from affecting block creation
+    dap_chain_node_hardfork_data_cleanup(a_chain);
     return 0;
 }
 

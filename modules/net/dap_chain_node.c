@@ -930,6 +930,71 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
     return 0;
 }
 
+/**
+ * @brief Cleanup hardfork data from chain structure
+ * Should be called when hardfork is cancelled or completed to prevent
+ * stale hardfork_data from affecting block creation
+ * @param a_chain Chain to cleanup hardfork data from
+ */
+void dap_chain_node_hardfork_data_cleanup(dap_chain_t *a_chain)
+{
+    dap_return_if_fail(a_chain);
+    if (!a_chain->hardfork_data)
+        return;
+    
+    struct hardfork_states *l_states = a_chain->hardfork_data;
+    
+    // Free anchors list
+    dap_ledger_hardfork_anchors_t *l_anchor, *l_anchor_tmp;
+    DL_FOREACH_SAFE(l_states->anchors, l_anchor, l_anchor_tmp) {
+        DL_DELETE(l_states->anchors, l_anchor);
+        DAP_DEL_Z(l_anchor->anchor);
+        DAP_DELETE(l_anchor);
+    }
+    
+    // Free balances list
+    dap_ledger_hardfork_balances_t *l_balance, *l_balance_tmp;
+    DL_FOREACH_SAFE(l_states->balances, l_balance, l_balance_tmp) {
+        DL_DELETE(l_states->balances, l_balance);
+        dap_list_free(l_balance->trackers);
+        DAP_DELETE(l_balance);
+    }
+    
+    // Free condouts list
+    dap_ledger_hardfork_condouts_t *l_condout, *l_condout_tmp;
+    DL_FOREACH_SAFE(l_states->condouts, l_condout, l_condout_tmp) {
+        DL_DELETE(l_states->condouts, l_condout);
+        DAP_DEL_Z(l_condout->cond);
+        DAP_DEL_Z(l_condout->sign);
+        dap_list_free(l_condout->trackers);
+        DAP_DELETE(l_condout);
+    }
+    
+    // Free events list
+    dap_ledger_hardfork_events_t *l_event, *l_event_tmp;
+    DL_FOREACH_SAFE(l_states->events, l_event, l_event_tmp) {
+        DL_DELETE(l_states->events, l_event);
+        DAP_DEL_Z(l_event->event);
+        DAP_DELETE(l_event);
+    }
+    
+    // Free service states list
+    dap_chain_srv_hardfork_state_t *l_srv_state, *l_srv_state_tmp;
+    DL_FOREACH_SAFE(l_states->service_states, l_srv_state, l_srv_state_tmp) {
+        DL_DELETE(l_states->service_states, l_srv_state);
+        DAP_DELETE(l_srv_state);
+    }
+    
+    // Note: trusted_addrs is not freed here as it may be owned by esbocs
+    // and is already freed in dap_chain_esbocs_set_hardfork_complete
+    
+    DAP_DELETE(l_states);
+    a_chain->hardfork_data = NULL;
+    a_chain->hardfork_generation = 0;
+    
+    log_it(L_INFO, "Hardfork data cleaned up for chain %s", a_chain->name);
+}
+
 static int s_compare_trackers(dap_list_t *a_list1, dap_list_t *a_list2)
 {
     int ret = 0;
