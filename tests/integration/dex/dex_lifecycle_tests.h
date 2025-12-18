@@ -33,3 +33,8 @@ int run_seed_orderbook(dex_test_fixture_t *f);
  */
 int run_cancel_all_active(dex_test_fixture_t *f);
 
+/**
+ * Run multi-execution tests (multiple orders closed by single TX)
+ */
+int run_multi_execution_tests(dex_test_fixture_t *f);
+

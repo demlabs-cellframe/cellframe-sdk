@@ -184,6 +184,7 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
 
 // Dump DEX memcache to log
 void dap_chain_net_srv_dex_dump_orders_cache();
+void dap_chain_net_srv_dex_dump_history_cache();
 
 /**
  * @brief Adjust min_fill field in cached order

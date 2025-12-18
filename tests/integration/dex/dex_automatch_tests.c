@@ -1735,6 +1735,8 @@ int run_automatch_test(dex_test_fixture_t *f, const automatch_test_template_t *t
             tmpl->sell_token, dap_uint256_to_char(l_buyer_sell_after, NULL),
             tmpl->buy_token, dap_uint256_to_char(l_buyer_buy_after, NULL));
         
+        //dap_chain_net_srv_dex_dump_history_cache();
+        
         // Rollback TX
         int l_rollback_ret = dap_ledger_tx_remove(
             f->net->net->pub.ledger, l_tx, &l_tx_hash);
@@ -1742,6 +1744,7 @@ int run_automatch_test(dex_test_fixture_t *f, const automatch_test_template_t *t
         if (l_rollback_ret != 0) {
             log_it(L_WARNING, "Test %s: rollback failed with %d", tmpl->name, l_rollback_ret);
         }
+        //dap_chain_net_srv_dex_dump_history_cache();
         
         // Verify rollback
         uint256_t l_buyer_sell_restored = dap_ledger_calc_balance(

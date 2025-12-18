@@ -14,8 +14,10 @@
 #define TEST_MKDIR(path) mkdir(path, 0755)
 #endif
 #include "dex_test_fixture.h"
+#include "dex_test_common.h"
 #include "dex_lifecycle_tests.h"
 #include "dex_automatch_tests.h"
+#include "dap_chain_net_srv_dex.h"
 #include "dap_config.h"
 #include "dap_enc.h"
 #include "dap_test.h"
@@ -47,7 +49,7 @@ static void s_setup(bool a_cache) {
     TEST_MKDIR(l_config_dir);
     
     const char *l_config_content = a_cache ?
-        "[general]\ndebug_mode=true\n[srv_dex]\nmemcached=true\n" :
+        "[general]\ndebug_mode=true\n[srv_dex]\nmemcached=true\nhistory_cache=true\n" :
         "[general]\ndebug_mode=true";
     
     char l_config_path[256], l_log_path[100];
@@ -153,6 +155,124 @@ static int s_test_cli_pairs(dex_test_fixture_t *fixture) {
     return 0;
 }
 
+static int s_test_cli_bucket_alignment(dex_test_fixture_t *fixture) {
+    log_it(L_NOTICE, "=== CLI Test: Bucket Calendar Alignment ===");
+    
+    // Test different bucket sizes and verify calendar alignment
+    // bucket_sec values: 3600 (hour), 86400 (day), 604800 (week), 2592000 (month), 31536000 (year)
+    const struct { uint64_t sec; const char *name; } buckets[] = {
+        { 3600,     "1h (hour)" },
+        { 86400,    "1d (day)" },
+        { 604800,   "1w (week)" },
+        { 2592000,  "1M (month)" },
+        { 31536000, "1Y (year)" }
+    };
+    
+    for (size_t i = 0; i < sizeof(buckets)/sizeof(buckets[0]); i++) {
+        char l_json_request[1024];
+        snprintf(l_json_request, sizeof(l_json_request),
+            "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;market_rate;-net;%s;-pair;KEL/USDT;-bucket;%"DAP_UINT64_FORMAT_U"\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+            fixture->net->net->pub.name, buckets[i].sec);
+        
+        log_it(L_INFO, "Testing bucket %s (%"DAP_UINT64_FORMAT_U" sec)", buckets[i].name, buckets[i].sec);
+        
+        char *l_reply = dap_cli_cmd_exec(l_json_request);
+        if (!l_reply) {
+            log_it(L_WARNING, "  CLI returned NULL for bucket %s", buckets[i].name);
+            continue;
+        }
+        
+        json_object *l_json = json_tokener_parse(l_reply);
+        if (!l_json) {
+            log_it(L_WARNING, "  Failed to parse JSON for bucket %s", buckets[i].name);
+            DAP_DELETE(l_reply);
+            continue;
+        }
+        
+        json_object *l_error = NULL;
+        if (json_object_object_get_ex(l_json, "error", &l_error)) {
+            log_it(L_WARNING, "  Error for bucket %s: %s", buckets[i].name, json_object_to_json_string(l_error));
+            json_object_put(l_json);
+            DAP_DELETE(l_reply);
+            continue;
+        }
+        
+        json_object *l_result = NULL;
+        if (json_object_object_get_ex(l_json, "result", &l_result)) {
+            json_object *l_ohlc = NULL;
+            if (json_object_object_get_ex(l_result, "ohlc", &l_ohlc)) {
+                int l_count = json_object_array_length(l_ohlc);
+                log_it(L_NOTICE, "  Bucket %s: %d candles", buckets[i].name, l_count);
+                for (int j = 0; j < l_count && j < 3; j++) {
+                    json_object *l_candle = json_object_array_get_idx(l_ohlc, j);
+                    json_object *l_ts = NULL, *l_ts_str = NULL;
+                    if (json_object_object_get_ex(l_candle, "ts", &l_ts) &&
+                        json_object_object_get_ex(l_candle, "ts_str", &l_ts_str)) {
+                        log_it(L_NOTICE, "    [%d] ts=%"DAP_UINT64_FORMAT_U" (%s)", 
+                            j, (uint64_t)json_object_get_int64(l_ts), json_object_get_string(l_ts_str));
+                    }
+                }
+            }
+        }
+        
+        json_object_put(l_json);
+        DAP_DELETE(l_reply);
+    }
+    
+    log_it(L_NOTICE, "Bucket alignment test complete");
+    return 0;
+}
+
+static int s_test_cli_raw_trades(dex_test_fixture_t *fixture) {
+    log_it(L_NOTICE, "=== CLI Test: Raw Trades (history -mode trades) ===");
+    
+    char l_json_request[1024];
+    snprintf(l_json_request, sizeof(l_json_request),
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;trades\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        fixture->net->net->pub.name);
+    
+    log_it(L_INFO, "CLI request: %s", l_json_request);
+    
+    char *l_reply = dap_cli_cmd_exec(l_json_request);
+    if (!l_reply) {
+        log_it(L_ERROR, "CLI returned NULL");
+        return -1;
+    }
+    
+    log_it(L_INFO, "CLI reply:\n%s", l_reply);
+    
+    json_object *l_json = json_tokener_parse(l_reply);
+    if (!l_json) {
+        log_it(L_ERROR, "Failed to parse JSON reply");
+        DAP_DELETE(l_reply);
+        return -2;
+    }
+    
+    json_object *l_error = NULL;
+    if (json_object_object_get_ex(l_json, "error", &l_error)) {
+        log_it(L_ERROR, "CLI returned error: %s", json_object_to_json_string(l_error));
+        json_object_put(l_json);
+        DAP_DELETE(l_reply);
+        return -3;
+    }
+    
+    json_object *l_result = NULL;
+    if (json_object_object_get_ex(l_json, "result", &l_result)) {
+        json_object *l_trades = NULL, *l_count = NULL;
+        if (json_object_object_get_ex(l_result, "trades", &l_trades) &&
+            json_object_object_get_ex(l_result, "count", &l_count)) {
+            int l_total = json_object_get_int(l_count);
+            int l_arr_len = json_object_array_length(l_trades);
+            log_it(L_NOTICE, "Raw trades: count=%d, array_length=%d", l_total, l_arr_len);
+        }
+    }
+    
+    json_object_put(l_json);
+    DAP_DELETE(l_reply);
+    log_it(L_NOTICE, "Raw trades test PASSED");
+    return 0;
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -178,6 +298,7 @@ int main(int argc, char *argv[]) {
     
     dex_print_balances(fixture, "INITIAL STATE");
     int ret = 0;
+    
     // Run lifecycle tests (long)
     ret = run_lifecycle_tests(fixture);
     if (ret != 0) {
@@ -187,13 +308,51 @@ int main(int argc, char *argv[]) {
         return ret;
     }
     
-    // Extra cleanup: cancel any remaining orders after lifecycle tests
+    // Dump orderbook and history after lifecycle (has trades)
+    test_dex_dump_orderbook(fixture, "After lifecycle tests");
+    
+    /*dap_chain_net_srv_dex_dump_history_cache();
+    
+    // Test bucket calendar alignment (while history has data)
+    ret = s_test_cli_bucket_alignment(fixture);
+    if (ret != 0) {
+        log_it(L_WARNING, "Bucket alignment test failed with code %d (non-fatal)", ret);
+    }
+    
+    // Test raw trades output
+    ret = s_test_cli_raw_trades(fixture);
+    if (ret != 0) {
+        log_it(L_WARNING, "Raw trades test failed with code %d (non-fatal)", ret);
+    }*/
+    
+    // Cleanup before multi-execution tests
     ret = run_cancel_all_active(fixture);
     if (ret != 0) {
         log_it(L_WARNING, "Post-lifecycle cleanup failed: %d (continuing)", ret);
     }
+    test_dex_dump_orderbook(fixture, "After cancel-all (pre-multi)");
     
-    // Seed orderbook for matcher tests (short)
+    // Run multi-execution tests on clean orderbook
+    ret = run_multi_execution_tests(fixture);
+    if (ret != 0) {
+        log_it(L_ERROR, "Multi-execution tests FAILED with code %d", ret);
+        dex_test_fixture_destroy(fixture);
+        s_teardown();
+        return ret;
+    }
+    
+    // Dump after multi-execution (has new trades)
+    test_dex_dump_orderbook(fixture, "After multi-execution tests");
+    dap_chain_net_srv_dex_dump_history_cache();
+    
+    // Cleanup after multi-execution
+    ret = run_cancel_all_active(fixture);
+    if (ret != 0) {
+        log_it(L_WARNING, "Post-multi cleanup failed: %d (continuing)", ret);
+    }
+    test_dex_dump_orderbook(fixture, "After cancel-all (pre-seed)");
+    
+    // Seed orderbook for automatch tests
     ret = run_seed_orderbook(fixture);
     if (ret != 0) {
         log_it(L_ERROR, "Orderbook seeding FAILED with code %d", ret);
@@ -202,13 +361,13 @@ int main(int argc, char *argv[]) {
         return ret;
     }
     
-    // Run CLI tests after lifecycle tests
+    // Run CLI tests
     ret = s_test_cli_pairs(fixture);
     if (ret != 0) {
         log_it(L_WARNING, "CLI pairs test failed with code %d (non-fatal)", ret);
     }
     
-    // Run automatch tests (uses seeded orderbook from lifecycle tests)
+    // Run automatch tests (uses seeded orderbook)
     ret = run_automatch_tests(fixture);
     if (ret != 0) {
         log_it(L_ERROR, "Automatch tests FAILED with code %d", ret);

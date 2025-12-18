@@ -4409,7 +4409,7 @@ static int s_run_multi_tests_for_pair(dex_test_fixture_t *f, const test_pair_con
 
 // Main entry point for multi-execution tests
 // Rollback is done after each test to preserve balances across pairs
-static int run_multi_execution_tests(dex_test_fixture_t *f) {
+int run_multi_execution_tests(dex_test_fixture_t *f) {
     log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
     log_it(L_NOTICE, "║          MULTI-EXECUTION TESTS (Group M)                 ║");
@@ -4517,33 +4517,6 @@ int run_lifecycle_tests(dex_test_fixture_t *f) {
             test_dex_dump_balances(f, "After pair");
         }
     }
-    test_dex_dump_orderbook(f, "At success");
-    
-    // Final cleanup: cancel all remaining active orders (owner-driven)
-    int cancel_all_ret = run_cancel_all_active(f);
-    if (cancel_all_ret != 0) {
-        log_it(L_ERROR, "Cancel-all phase failed: %d", cancel_all_ret);
-        return cancel_all_ret;
-    }
-    
-    test_dex_dump_orderbook(f, "After cancel-all");
-    
-    // Run multi-execution tests on clean orderbook
-    int multi_ret = run_multi_execution_tests(f);
-    if (multi_ret != 0) {
-        log_it(L_ERROR, "Multi-execution tests failed: %d", multi_ret);
-        return multi_ret;
-    }
-    
-    // Cleanup orderbook after multi-execution tests (for subsequent automatch seed)
-    test_dex_dump_orderbook(f, "Before final cleanup");
-    int cancel_ret = run_cancel_all_active(f);
-    if (cancel_ret != 0) {
-        log_it(L_ERROR, "Final cleanup (cancel-all) failed: %d", cancel_ret);
-        return cancel_ret;
-    }
-    test_dex_dump_orderbook(f, "After final cleanup");
-    
     log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
     log_it(L_NOTICE, "║  ✓ ALL %zu LIFECYCLE TESTS PASSED                        ║", passed);
