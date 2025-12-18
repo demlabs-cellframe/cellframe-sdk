@@ -175,7 +175,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
         if (l_json_obj_out)
             dap_json_array_add(json_arr_items, l_json_obj_out);
     }
-    dap_json_object_add_object(json_obj_out, a_version == 1 ? "Spent OUTs" : "spent_outs", json_arr_items);
+    dap_json_object_add_object(json_obj_out, a_version == 1 ? "Spent OUTs" : "spent_or_coloured_outs", json_arr_items);
     dap_json_object_add_object(json_obj_out, a_version == 1 ? "all OUTs yet unspent" : "all_outs_yet_unspent", l_spent ? dap_json_object_new_string("no") : dap_json_object_new_string("yes"));
     return true;
 }
@@ -843,8 +843,7 @@ static int s_json_tx_history_pack(dap_json_t *a_json_arr_reply, dap_json_t** a_j
                                   size_t* a_rejected, bool a_look_for_unknown_service, const char *a_srv, int a_version)
 {
     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
-    dap_hash_fast_t l_ttx_hash = {0};
-    dap_hash_fast(l_tx, a_datum->header.data_size, &l_ttx_hash);
+    dap_hash_fast_t l_ttx_hash = a_datum_iter->cur_hash ? *a_datum_iter->cur_hash : (dap_hash_fast_t){0};
 
     const char *service_name = NULL;
     dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
@@ -1268,7 +1267,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
 
     //switch ledger params list | tx | info | trace
     int l_cmd = CMD_NONE;
-    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "list", NULL)){
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "list", NULL)){
         l_cmd = CMD_LIST;
     } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "info", NULL))
         l_cmd = CMD_TX_INFO;
@@ -1345,7 +1344,14 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Parameter -event_type is required");
                 return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
             }
-            uint16_t l_event_type = (uint16_t)strtol(l_event_type_str, NULL, 10);
+            uint16_t l_event_type = dap_chain_tx_item_event_type_from_str(l_event_type_str);
+            if (l_event_type == (uint16_t)-1) {
+                l_event_type = strtoul(l_event_type_str, NULL, 10);
+                if (!l_event_type) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Parameter -event_type is not recognized as standard type ot integer value");
+                    return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+                }
+            }
             
             const char *l_event_data_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-event_data", &l_event_data_str);
@@ -1905,7 +1911,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             if (l_all_outs_unspent) {
                 dap_json_object_free(json_arr_items);
             } else {
-                dap_json_object_add_object(json_datum, "spent_outs", json_arr_items);
+                dap_json_object_add_object(json_datum, "spent_or_coloured_outs", json_arr_items);
             }
             dap_chain_net_tx_to_json(l_datum_tx, json_datum);
             if (!dap_json_object_length(json_datum)) {

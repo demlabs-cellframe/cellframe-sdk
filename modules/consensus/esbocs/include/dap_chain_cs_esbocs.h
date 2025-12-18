@@ -202,6 +202,7 @@ typedef struct dap_chain_esbocs_validator {
     uint256_t weight;
     bool is_synced;
     bool is_chosen;
+    dap_pkey_t *pkey;   // Full public key for POA validators
 } dap_chain_esbocs_validator_t;
 
 typedef struct dap_chain_esbocs_penalty_item {

@@ -56,6 +56,7 @@ struct vote {
 
 struct voting {
     dap_chain_hash_fast_t hash;
+    dap_chain_addr_t creator_addr;
     dap_time_t start_time;
     dap_list_t *votes;
     dap_chain_datum_tx_voting_params_t *params;
@@ -364,6 +365,13 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
         return DAP_DELETE(l_item), -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY;
     if (!*l_item->params->token_ticker)
         strcpy(l_item->params->token_ticker, l_net->pub.native_ticker);
+    // Fill creator address from transaction signature
+    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+    if (l_tx_sig) {
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
+        if (l_sign)
+            dap_chain_addr_fill_from_sign(&l_item->creator_addr, l_sign, l_net->pub.id);
+    }
     s_voting_add(l_net->pub.id, l_item);
 
     log_it(L_NOTICE, "Poll with hash %s succefully added to ledger", dap_hash_fast_to_str_static(a_tx_hash));
@@ -1111,19 +1119,8 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
         dap_json_t *json_vote_out = dap_json_object_new();
         dap_json_object_add_object(json_vote_out, "poll_tx", dap_json_object_new_string_len(l_hash_str, sizeof(dap_hash_str_t)));
 
-        // get creator address from voting tx
-        dap_ledger_t *l_ledger = l_net->pub.ledger;
-        dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash);
-        dap_chain_datum_tx_t *l_voting_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_voting_hash);
-        if (!l_voting_tx) {
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE, "Can't find poll with hash %s", l_hash_str);
-            return -DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE;
-        }
-        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_voting_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_tx_sig);
-        dap_chain_addr_t l_creator_addr = {0};
-        dap_chain_addr_fill_from_sign(&l_creator_addr, l_sign, l_net->pub.id);
-        dap_json_object_add_object(json_vote_out,"creator_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&l_creator_addr))); 
+        // Get creator address from voting structure (stored during creation and preserved through hardfork)
+        dap_json_object_add_object(json_vote_out, "creator_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&l_voting->creator_addr))); 
 
         dap_json_object_add_string(json_vote_out, "question", l_voting->params->question);
         dap_json_object_add_string(json_vote_out, "token", l_voting->params->token_ticker);
@@ -1670,6 +1667,8 @@ void dap_chain_net_voting_info_free(dap_chain_net_voting_info_t *a_info)
 struct voting_serial {
     uint64_t size;
     dap_hash_fast_t hash;
+    dap_chain_addr_t creator_addr;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_time_t voting_start;
     dap_time_t voting_expire;
     uint64_t votes_max_count;
@@ -1715,6 +1714,7 @@ static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_s
         *cur = (struct voting_serial) {
                 .size = l_voting_size,
                 .hash = it->hash,
+                .creator_addr = it->creator_addr,
                 .voting_start = it->start_time,
                 .voting_expire = it->params->voting_expire,
                 .votes_max_count = it->params->votes_max_count,
@@ -1722,6 +1722,7 @@ static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_s
                 .delegate_key_required = it->params->delegate_key_required,
                 .vote_changing_allowed = it->params->vote_changing_allowed
         };
+        dap_strncpy(cur->token_ticker, it->params->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
         byte_t *l_tsd = dap_tsd_write(cur->question_n_options_n_votes, VOTING_TSD_TYPE_QUESTION, it->params->question, strlen(it->params->question));
         for (dap_list_t *lst = it->params->options; lst; lst = lst->next)
             l_tsd = dap_tsd_write(l_tsd, VOTING_TSD_TYPE_OPTION, lst->data, strlen(lst->data));
@@ -1739,15 +1740,20 @@ static byte_t *s_votings_backup(dap_chain_net_id_t a_net_id, uint64_t *a_state_s
 static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint64_t a_state_size, uint32_t a_states_count)
 {
     struct srv_voting *l_service_internal = dap_chain_srv_get_internal(a_net_id, (dap_chain_srv_uid_t) { .uint64 = DAP_CHAIN_NET_SRV_VOTING_ID });
-    if (!l_service_internal)
+    if (!l_service_internal) {
+        log_it(L_ERROR, "Can't find voting service internal for net id 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
         return -1;
+    }
     byte_t *l_cur_ptr = a_state;
     size_t l_data_size = a_state_size * a_states_count;
+    size_t l_restored_count = 0;
     for (uint32_t i = 0; i < a_states_count; i++) {
         struct voting_serial *cur = (struct voting_serial *)l_cur_ptr;
         if (l_cur_ptr + cur->size > (byte_t *)a_state + l_data_size ||
-                cur->size <  sizeof(struct voting_serial) + sizeof(dap_tsd_t) * 2)
+                cur->size <  sizeof(struct voting_serial) + sizeof(dap_tsd_t) * 2) {
+            log_it(L_ERROR, "Invalid voting state data size at index %u", i);
             return -2;
+        }
         unsigned l_hash_value;
         HASH_VALUE(&cur->hash, sizeof(dap_hash_fast_t), l_hash_value);
         struct voting *l_voting = NULL;
@@ -1756,6 +1762,7 @@ static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint6
             l_voting = DAP_NEW_Z_RET_VAL_IF_FAIL(struct voting, -3);
             *l_voting = (struct voting) {
                 .hash = cur->hash,
+                .creator_addr = cur->creator_addr,
                 .start_time = cur->voting_start,
                 .status = DAP_CHAIN_NET_VOTING_STATUS_ACTIVE
             };
@@ -1766,10 +1773,11 @@ static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint6
                     .delegate_key_required = cur->delegate_key_required,
                     .vote_changing_allowed = cur->vote_changing_allowed
             };
+            dap_strncpy(l_voting->params->token_ticker, cur->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
             dap_tsd_t *l_tsd; size_t l_tsd_size;
             dap_tsd_iter(l_tsd, l_tsd_size,
                          cur->question_n_options_n_votes,
-                         l_data_size - sizeof(struct voting_serial)) {
+                         cur->size - sizeof(struct voting_serial)) {
                 switch (l_tsd->type) {
                 case VOTING_TSD_TYPE_QUESTION:
                     l_voting->params->question = DAP_DUP_SIZE((byte_t*)l_tsd->data, l_tsd->size);
@@ -1809,9 +1817,12 @@ static int s_votings_restore(dap_chain_net_id_t a_net_id, byte_t *a_state, uint6
                 }
             }
             HASH_ADD_BYHASHVALUE(hh, l_service_internal->ht, hash, sizeof(dap_hash_fast_t), l_hash_value, l_voting);
+            l_restored_count++;
+            log_it(L_DEBUG, "Restored poll %s from hardfork state", dap_hash_fast_to_str_static(&l_voting->hash));
         }
         l_cur_ptr = l_cur_ptr + cur->size;
     }
+    log_it(L_NOTICE, "Restored %zu polls from hardfork state for net id 0x%016" DAP_UINT64_FORMAT_x, l_restored_count, a_net_id.uint64);
     return 0;
 }
 

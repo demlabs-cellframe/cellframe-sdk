@@ -117,6 +117,7 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
 int dap_chain_node_hardfork_process(dap_chain_t *a_chain);
 int dap_chain_node_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 int dap_chain_node_hardfork_confirm(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
+void dap_chain_node_hardfork_data_cleanup(dap_chain_t *a_chain);
 
 dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_ignored, size_t a_ignored_count);
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr);

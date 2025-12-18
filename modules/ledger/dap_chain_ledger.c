@@ -1336,6 +1336,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     dap_ledger_tx_purge(a_ledger, a_preserve_db);
     dap_ledger_token_purge(a_ledger, a_preserve_db);
     // Note: decree purge is chain-specific, should be called from dap_ledger_chain_purge
+    dap_ledger_event_purge(a_ledger);
     PVT(a_ledger)->load_end = false;
 }
 
@@ -1347,7 +1348,7 @@ int dap_ledger_chain_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id, si
     
     // Purge transactions (ledger-wide, not chain-specific)
     dap_ledger_tx_purge(a_ledger, false);
-    
+    dap_ledger_event_purge(a_ledger);
     // Purge anchors for this chain
     if (dap_ledger_anchor_purge(a_ledger, a_chain_id))
         return -2;

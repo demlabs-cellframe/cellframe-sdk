@@ -603,6 +603,7 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
 void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
 void dap_ledger_tx_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
 void dap_ledger_token_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
+void dap_ledger_event_purge(dap_ledger_t *a_ledger);
 
 /**
  * Return number transactions from the cache
