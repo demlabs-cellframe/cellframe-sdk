@@ -6330,7 +6330,8 @@ typedef enum
     TX_COND_REFILL_COMPOSE_ERR_FUNDS,
     TX_COND_REFILL_COMPOSE_ERR_COMPOSE,
     TX_COND_REFILL_COMPOSE_ERR_TX_MISMATCH,
-    TX_COND_REFILL_COMPOSE_ERR_MEMORY
+    TX_COND_REFILL_COMPOSE_ERR_MEMORY,
+    TX_COND_REFILL_COMPOSE_ERR_TX_SPENT
 } tx_cond_refill_compose_err_t;
 
 json_object *dap_chain_tx_compose_tx_cond_refill(dap_chain_net_id_t a_net_id, const char *a_net_name,
@@ -6390,30 +6391,78 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
         return NULL;
 
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
-    // Get ledger info to find token ticker
-    json_object *l_json_ledger_info = s_request_command_to_rpc_with_params(
-        a_config, "ledger", "info;-hash;%s;-net;%s", dap_hash_fast_to_str_static(a_tx_cond_hash), a_config->net_name);
-    if (!l_json_ledger_info)
+    // Get tx_cond list to find final TX in chain (resolve tx_first -> tx_last)
+    json_object *l_json_tx_cond_list = s_request_command_to_rpc_with_params(
+        a_config, "tx_cond", "list;-net;%s;-addr;%s;-status;unspent",
+        a_config->net_name, dap_chain_addr_to_str_static(a_owner_addr));
+
+    dap_hash_fast_t l_final_hash = *a_tx_cond_hash;
+    if (l_json_tx_cond_list)
     {
-        log_it(L_ERROR, "Can't get ledger info");
-        s_json_compose_error_add(a_config->response_handler, TX_COND_REFILL_COMPOSE_ERR_NETWORK, "Can't get ledger info");
-        return NULL;
+        json_object *l_first_item = json_object_array_get_idx(l_json_tx_cond_list, 0);
+        if (l_first_item)
+        {
+            json_object *l_transactions = NULL;
+            if (json_object_object_get_ex(l_first_item, "transactions", &l_transactions) &&
+                json_object_is_type(l_transactions, json_type_array))
+            {
+                const char *l_input_hash_str = dap_hash_fast_to_str_static(a_tx_cond_hash);
+                int l_arr_len = json_object_array_length(l_transactions);
+                for (int i = 0; i < l_arr_len; i++)
+                {
+                    json_object *l_tx_item = json_object_array_get_idx(l_transactions, i);
+                    json_object *l_tx_first_obj = NULL, *l_tx_last_obj = NULL;
+                    if (json_object_object_get_ex(l_tx_item, "tx_first", &l_tx_first_obj) &&
+                        json_object_object_get_ex(l_tx_item, "tx_last", &l_tx_last_obj))
+                    {
+                        const char *l_tx_first_str = json_object_get_string(l_tx_first_obj);
+                        const char *l_tx_last_str = json_object_get_string(l_tx_last_obj);
+                        // Match if input is tx_first OR tx_last
+                        if ((l_tx_first_str && !dap_strcmp(l_input_hash_str, l_tx_first_str)) ||
+                            (l_tx_last_str && !dap_strcmp(l_input_hash_str, l_tx_last_str)))
+                        {
+                            if (l_tx_last_str && !dap_chain_hash_fast_from_str(l_tx_last_str, &l_final_hash))
+                            {
+                                log_it(L_DEBUG, "Resolved tx_last: %s from input: %s", l_tx_last_str, l_input_hash_str);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        json_object_put(l_json_tx_cond_list);
     }
 
-    // Extract token ticker from JSON response
+    // Get final TX info and check if spent
+    dap_chain_tx_out_cond_t *l_cond = NULL;
+    char *l_spent_by_hash = NULL;
     char *l_tx_ticker = NULL;
-    json_object *l_first_item = json_object_array_get_idx(l_json_ledger_info, 0);
-    if (l_first_item)
+    dap_chain_datum_tx_t *l_cond_tx = s_get_datum_info_from_rpc(
+        dap_hash_fast_to_str_static(&l_final_hash), a_config,
+        DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_cond, &l_spent_by_hash, &l_tx_ticker, NULL, true);
+
+    if (!l_cond_tx || !l_cond)
     {
-        json_object *l_token_ticker_obj = NULL;
-        if (json_object_object_get_ex(l_first_item, "token_ticker", &l_token_ticker_obj))
-        {
-            const char *l_ticker_str = json_object_get_string(l_token_ticker_obj);
-            if (l_ticker_str)
-                l_tx_ticker = dap_strdup(l_ticker_str);
-        }
+        log_it(L_ERROR, "Can't get TX info or TX has no SRV_PAY output");
+        s_json_compose_error_add(a_config->response_handler, TX_COND_REFILL_COMPOSE_ERR_TX_MISMATCH, "Can't get TX info or TX has no SRV_PAY output");
+        DAP_DEL_Z(l_spent_by_hash);
+        DAP_DEL_Z(l_tx_ticker);
+        return NULL;
     }
-    json_object_put(l_json_ledger_info);
+    dap_chain_datum_tx_delete(l_cond_tx);
+    DAP_DEL_Z(l_cond);
+
+    // Check if TX is already spent (removed)
+    if (l_spent_by_hash)
+    {
+        log_it(L_ERROR, "Conditional TX is already spent (removed), spent by: %s", l_spent_by_hash);
+        s_json_compose_error_add(a_config->response_handler, TX_COND_REFILL_COMPOSE_ERR_TX_SPENT,
+                                 "Conditional TX is already spent (removed)");
+        DAP_DEL_Z(l_spent_by_hash);
+        DAP_DEL_Z(l_tx_ticker);
+        return NULL;
+    }
 
     if (!l_tx_ticker)
     {
@@ -6538,57 +6587,12 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
         }
     }
 
-    // Find final TX in chain using tx_cond list command
-    // This allows users to pass tx_first hash and we automatically find tx_last
-    dap_hash_fast_t l_final_tx_hash = *a_tx_cond_hash;
-    json_object *l_json_tx_cond_list = s_request_command_to_rpc_with_params(
-        a_config, "tx_cond", "list;-net;%s;-addr;%s;-status;unspent",
-        a_config->net_name, dap_chain_addr_to_str_static(a_owner_addr));
-    if (l_json_tx_cond_list)
-    {
-        // Parse response to find tx_last for given tx_first (or tx_last itself)
-        json_object *l_first_item = json_object_array_get_idx(l_json_tx_cond_list, 0);
-        if (l_first_item)
-        {
-            json_object *l_transactions = NULL;
-            if (json_object_object_get_ex(l_first_item, "transactions", &l_transactions) &&
-                json_object_is_type(l_transactions, json_type_array))
-            {
-                const char *l_input_hash_str = dap_hash_fast_to_str_static(a_tx_cond_hash);
-                int l_arr_len = json_object_array_length(l_transactions);
-                for (int i = 0; i < l_arr_len; i++)
-                {
-                    json_object *l_tx_item = json_object_array_get_idx(l_transactions, i);
-                    json_object *l_tx_first_obj = NULL, *l_tx_last_obj = NULL;
-                    if (json_object_object_get_ex(l_tx_item, "tx_first", &l_tx_first_obj) &&
-                        json_object_object_get_ex(l_tx_item, "tx_last", &l_tx_last_obj))
-                    {
-                        const char *l_tx_first_str = json_object_get_string(l_tx_first_obj);
-                        const char *l_tx_last_str = json_object_get_string(l_tx_last_obj);
-                        // Match if input is tx_first OR tx_last
-                        if ((l_tx_first_str && !dap_strcmp(l_input_hash_str, l_tx_first_str)) ||
-                            (l_tx_last_str && !dap_strcmp(l_input_hash_str, l_tx_last_str)))
-                        {
-                            if (l_tx_last_str && !dap_chain_hash_fast_from_str(l_tx_last_str, &l_final_tx_hash))
-                            {
-                                log_it(L_DEBUG, "Resolved tx_last: %s from tx_first: %s",
-                                       l_tx_last_str, l_tx_first_str);
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        json_object_put(l_json_tx_cond_list);
-    }
-
-    // Get previous conditional TX info using the resolved final hash
+    // Get previous conditional TX info using the resolved final hash (from tx_cond list above)
     dap_chain_tx_out_cond_t *l_cond_prev = NULL;
     char *l_token_ticker = NULL;
     int l_prev_cond_idx = 0;
     dap_chain_datum_tx_t *l_tx_prev = s_get_datum_info_from_rpc(
-        dap_hash_fast_to_str_static(&l_final_tx_hash), a_config,
+        dap_hash_fast_to_str_static(&l_final_hash), a_config,
         DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_cond_prev, NULL, &l_token_ticker, &l_prev_cond_idx, true);
     DAP_DELETE(l_token_ticker);
 
@@ -6601,13 +6605,18 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
         s_json_compose_error_add(a_config->response_handler, TX_COND_REFILL_COMPOSE_ERR_TX_MISMATCH,
                                  "Requested conditional transaction not found or has no SRV_PAY output");
         log_it(L_ERROR, "Requested conditional transaction not found or has no SRV_PAY output");
+        if (l_tx_prev)
+            dap_chain_datum_tx_delete(l_tx_prev);
+        DAP_DEL_Z(l_cond_prev);
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_tx_ticker);
         return NULL;
     }
+    // l_tx_prev no longer needed, free it
+    dap_chain_datum_tx_delete(l_tx_prev);
 #else
-    dap_hash_fast_t l_final_tx_hash = {};
-    randombytes(&l_final_tx_hash, sizeof(dap_hash_fast_t));
+    dap_hash_fast_t l_final_hash = {};
+    randombytes(&l_final_hash, sizeof(dap_hash_fast_t));
     int l_prev_cond_idx = rand();
     // Create minimal OUT_COND for test
     dap_chain_tx_out_cond_t *l_cond_prev = DAP_NEW_Z(dap_chain_tx_out_cond_t);
@@ -6620,10 +6629,11 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
 #endif
 
     // Add 'in_cond' item
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, -1) != 1)
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_hash, l_prev_cond_idx, -1) != 1)
     {
         s_json_compose_error_add(a_config->response_handler, TX_COND_REFILL_COMPOSE_ERR_COMPOSE, "Can't compose transaction conditional input");
         log_it(L_ERROR, "Can't compose transaction conditional input");
+        DAP_DELETE(l_cond_prev);
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_tx_ticker);
         return NULL;
@@ -6636,6 +6646,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
         s_json_compose_error_add(a_config->response_handler, TX_COND_REFILL_COMPOSE_ERR_OVERFLOW, "Integer overflow in new value calculation");
         log_it(L_ERROR, "Integer overflow in new value calculation");
+        DAP_DELETE(l_cond_prev);
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_tx_ticker);
         return NULL;
@@ -6645,6 +6656,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
     // Create new OUT_COND with increased value
     size_t l_cond_size = sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size;
     dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, l_cond_size);
+    DAP_DELETE(l_cond_prev);  // No longer needed after copy
     if (!l_out_cond)
     {
         s_json_compose_error_add(a_config->response_handler, TX_COND_REFILL_COMPOSE_ERR_MEMORY, "Memory allocation error");
@@ -6736,9 +6748,6 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
     }
 
     DAP_DELETE(l_tx_ticker);
-#ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    DAP_DELETE(l_cond_prev);
-#endif
     return l_tx;
 }
 
@@ -6754,7 +6763,8 @@ typedef enum
     TX_COND_REMOVE_COMPOSE_ERR_TX_MISMATCH,
     TX_COND_REMOVE_COMPOSE_ERR_MEMORY,
     TX_COND_REMOVE_COMPOSE_ERR_NO_HASHES,
-    TX_COND_REMOVE_COMPOSE_ERR_SRV_UID
+    TX_COND_REMOVE_COMPOSE_ERR_SRV_UID,
+    TX_COND_REMOVE_COMPOSE_ERR_TX_SPENT
 } tx_cond_remove_compose_err_t;
 
 static dap_list_t *s_parse_hashes_str(const char *a_hashes_str)
@@ -6909,17 +6919,30 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
         // Get final TX info from RPC
         dap_chain_tx_out_cond_t *l_cond = NULL;
         char *l_token_ticker = NULL;
+        char *l_spent_by_hash = NULL;
         int l_cond_idx = 0;
         dap_chain_datum_tx_t *l_cond_tx = s_get_datum_info_from_rpc(
             dap_hash_fast_to_str_static(&l_final_hash), a_config,
-            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_cond, NULL, &l_token_ticker, &l_cond_idx, true);
+            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_cond, &l_spent_by_hash, &l_token_ticker, &l_cond_idx, true);
 
         if (!l_cond_tx || !l_cond)
         {
             log_it(L_WARNING, "TX %s not found or has no SRV_PAY output", dap_hash_fast_to_str_static(&l_final_hash));
             DAP_DEL_Z(l_token_ticker);
+            DAP_DEL_Z(l_spent_by_hash);
             DAP_DEL_Z(l_cond);
             if (l_cond_tx) dap_chain_datum_tx_delete(l_cond_tx);
+            continue;
+        }
+
+        // Check if TX is already spent
+        if (l_spent_by_hash)
+        {
+            log_it(L_WARNING, "TX %s is already spent by %s", dap_hash_fast_to_str_static(&l_final_hash), l_spent_by_hash);
+            DAP_DEL_Z(l_token_ticker);
+            DAP_DEL_Z(l_spent_by_hash);
+            DAP_DEL_Z(l_cond);
+            dap_chain_datum_tx_delete(l_cond_tx);
             continue;
         }
 

@@ -6436,40 +6436,25 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
         DAP_DELETE(l_addr);
     }
 
-    // Get cached tx hashes
-    dap_srv_pay_tx_hashes_t *l_hashes = dap_chain_srv_pay_cache_get(l_net, &l_pkey_hash);
+    // Get cached entries from in-memory cache
+    srv_pay_cache_list_t *l_cache_list = dap_chain_srv_pay_cache_get(l_net, &l_pkey_hash);
 
     bool l_is_base58 = !dap_strcmp(l_hash_out_type, "base58");
     json_object *l_jobj_ret = json_object_new_object();
     json_object *l_jobj_tx_list = json_object_new_array();
     size_t l_filtered_count = 0;
 
-    if (l_hashes && l_hashes->tx_count > 0) {
-        for (size_t i = 0; i < l_hashes->tx_count; i++) {
-            dap_hash_fast_t *l_first_hash = &l_hashes->tx_hashes[i];
+    if (l_cache_list && l_cache_list->count > 0) {
+        // Use cache
+        for (size_t i = 0; i < l_cache_list->count; i++) {
+            srv_pay_cache_entry_t *l_entry = l_cache_list->entries[i];
+            if (!l_entry)
+                continue;
 
-            // Get final hash in chain
-            dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
-                l_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_first_hash, false);
-
-            // Get srv_uid from first TX
-            dap_chain_datum_tx_t *l_first_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, l_first_hash);
-            uint64_t l_srv_uid = 0;
-            if (l_first_tx) {
-                dap_chain_tx_out_cond_t *l_first_cond = dap_chain_datum_tx_out_cond_get(l_first_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
-                if (l_first_cond)
-                    l_srv_uid = l_first_cond->header.srv_uid.uint64;
-            }
-
-            // Check if final TX OUT_COND is spent
-            dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_final_hash);
-            int l_cond_idx = 0;
-            bool l_is_spent = true;
-            if (l_final_tx) {
-                dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_cond_idx);
-                if (l_cond)
-                    l_is_spent = dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_final_hash, l_cond_idx, NULL);
-            }
+            // Check if UT is spent: either marked as removed in cache, or OUT_COND is used
+            bool l_is_spent = l_entry->is_removed || 
+                dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, 
+                    &l_entry->tail_hash, l_entry->prev_cond_idx, NULL);
 
             // Apply status filter
             if ((l_status_filter == STATUS_SPENT && !l_is_spent) ||
@@ -6479,13 +6464,20 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
             json_object *l_jobj_tx = json_object_new_object();
             json_object_object_add(l_jobj_tx, "tx_first",
                 json_object_new_string(l_is_base58 ?
-                    dap_enc_base58_encode_hash_to_str_static(l_first_hash) :
-                    dap_hash_fast_to_str_static(l_first_hash)));
+                    dap_enc_base58_encode_hash_to_str_static(&l_entry->root_hash) :
+                    dap_hash_fast_to_str_static(&l_entry->root_hash)));
             json_object_object_add(l_jobj_tx, "tx_last",
                 json_object_new_string(l_is_base58 ?
-                    dap_enc_base58_encode_hash_to_str_static(&l_final_hash) :
-                    dap_hash_fast_to_str_static(&l_final_hash)));
-            json_object_object_add(l_jobj_tx, "srv_uid", json_object_new_uint64(l_srv_uid));
+                    dap_enc_base58_encode_hash_to_str_static(&l_entry->tail_hash) :
+                    dap_hash_fast_to_str_static(&l_entry->tail_hash)));
+            json_object_object_add(l_jobj_tx, "srv_uid", json_object_new_uint64(l_entry->srv_uid));
+            json_object_object_add(l_jobj_tx, "ticker", json_object_new_string(l_entry->ticker));
+            // Add value from cache (0 for spent)
+            uint256_t l_value = l_is_spent ? uint256_0 : l_entry->value;
+            const char *l_value_coins = NULL;
+            const char *l_value_str = dap_uint256_to_char(l_value, &l_value_coins);
+            json_object_object_add(l_jobj_tx, "value", json_object_new_string(l_value_str));
+            json_object_object_add(l_jobj_tx, "coins", json_object_new_string(l_value_coins));
             json_object_object_add(l_jobj_tx, "status",
                 json_object_new_string(l_is_spent ? "spent" : "unspent"));
 
@@ -6493,11 +6485,133 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
             l_filtered_count++;
         }
     }
+    else
+    {
+        // Fallback: scan ledger directly (slower, but works without cache)
+        dap_ledger_datum_iter_t *l_iter = dap_ledger_datum_iter_create(l_net);
+        if (l_iter) {
+            dap_hash_fast_t *l_processed = NULL;  // Track processed root hashes to avoid duplicates
+            size_t l_processed_count = 0;
+            
+            for (dap_chain_datum_tx_t *l_tx = dap_ledger_datum_iter_get_first(l_iter);
+                 l_tx;
+                 l_tx = dap_ledger_datum_iter_get_next(l_iter))
+            {
+                // Check if TX has SRV_PAY OUT_COND
+                int l_out_idx = 0;
+                dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, 
+                    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_idx);
+                if (!l_out_cond)
+                    continue;
+
+                // Check owner matches
+                dap_sign_t *l_sign = dap_chain_datum_tx_get_sign(l_tx, 0);
+                if (!l_sign)
+                    continue;
+                dap_hash_fast_t l_tx_owner = {};
+                if (!dap_sign_get_pkey_hash(l_sign, &l_tx_owner))
+                    continue;
+                if (memcmp(&l_tx_owner, &l_pkey_hash, sizeof(dap_hash_fast_t)) != 0)
+                    continue;
+
+                // Get root hash (first TX in chain)
+                dap_hash_fast_t l_root_hash = dap_ledger_get_first_chain_tx_hash(l_net->pub.ledger, 
+                    l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY);
+                if (dap_hash_fast_is_blank(&l_root_hash))
+                    l_root_hash = l_iter->cur_hash;
+
+                // Skip if already processed this chain
+                bool l_skip = false;
+                for (size_t i = 0; i < l_processed_count; i++) {
+                    if (dap_hash_fast_compare(&l_processed[i], &l_root_hash)) {
+                        l_skip = true;
+                        break;
+                    }
+                }
+                if (l_skip)
+                    continue;
+
+                // Add to processed list
+                l_processed = DAP_REALLOC(l_processed, (l_processed_count + 1) * sizeof(dap_hash_fast_t));
+                l_processed[l_processed_count++] = l_root_hash;
+
+                // Get final TX in chain (follow spend chain from current TX)
+                dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_net->pub.ledger,
+                    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_iter->cur_hash, false);
+                if (dap_hash_fast_is_blank(&l_final_hash))
+                    l_final_hash = l_iter->cur_hash;
+
+                // Get final TX data
+                int l_final_out_idx = 0;
+                dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_final_hash);
+                dap_chain_tx_out_cond_t *l_final_cond = l_final_tx ? 
+                    dap_chain_datum_tx_out_cond_get(l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_final_out_idx) : NULL;
+
+                // Determine spent status: if final TX has no OUT_COND, it's a remove TX (spent)
+                bool l_is_spent = false;
+                dap_hash_fast_t l_last_out_cond_hash = l_final_hash;
+                dap_chain_tx_out_cond_t *l_last_out_cond = l_final_cond;
+                
+                if (!l_final_cond) {
+                    // Final TX is remove TX - find prev TX with OUT_COND for value
+                    l_is_spent = true;
+                    dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)
+                        dap_chain_datum_tx_item_get(l_final_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
+                    if (l_in_cond) {
+                        dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, 
+                            &l_in_cond->header.tx_prev_hash);
+                        if (l_prev_tx) {
+                            l_last_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, 
+                                DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_final_out_idx);
+                            l_last_out_cond_hash = l_in_cond->header.tx_prev_hash;
+                        }
+                    }
+                } else {
+                    l_is_spent = dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, 
+                        &l_final_hash, l_final_out_idx, NULL);
+                }
+
+                // Apply status filter
+                if ((l_status_filter == STATUS_SPENT && !l_is_spent) ||
+                    (l_status_filter == STATUS_UNSPENT && l_is_spent))
+                    continue;
+
+                // Build JSON
+                json_object *l_jobj_tx = json_object_new_object();
+                json_object_object_add(l_jobj_tx, "tx_first",
+                    json_object_new_string(l_is_base58 ?
+                        dap_enc_base58_encode_hash_to_str_static(&l_root_hash) :
+                        dap_hash_fast_to_str_static(&l_root_hash)));
+                json_object_object_add(l_jobj_tx, "tx_last",
+                    json_object_new_string(l_is_base58 ?
+                        dap_enc_base58_encode_hash_to_str_static(&l_final_hash) :
+                        dap_hash_fast_to_str_static(&l_final_hash)));
+                json_object_object_add(l_jobj_tx, "srv_uid", 
+                    json_object_new_uint64(l_last_out_cond ? l_last_out_cond->header.srv_uid.uint64 : l_out_cond->header.srv_uid.uint64));
+                const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_last_out_cond_hash);
+                json_object_object_add(l_jobj_tx, "ticker", json_object_new_string(l_ticker ? l_ticker : ""));
+                
+                uint256_t l_value = l_is_spent ? uint256_0 : 
+                    (l_last_out_cond ? l_last_out_cond->header.value : l_out_cond->header.value);
+                const char *l_value_coins = NULL;
+                const char *l_value_str = dap_uint256_to_char(l_value, &l_value_coins);
+                json_object_object_add(l_jobj_tx, "value", json_object_new_string(l_value_str));
+                json_object_object_add(l_jobj_tx, "coins", json_object_new_string(l_value_coins));
+                json_object_object_add(l_jobj_tx, "status",
+                    json_object_new_string(l_is_spent ? "spent" : "unspent"));
+
+                json_object_array_add(l_jobj_tx_list, l_jobj_tx);
+                l_filtered_count++;
+            }
+            DAP_DEL_Z(l_processed);
+            dap_ledger_datum_iter_delete(l_iter);
+        }
+    }
 
     json_object_object_add(l_jobj_ret, "transactions", l_jobj_tx_list);
     json_object_object_add(l_jobj_ret, "total_count", json_object_new_uint64(l_filtered_count));
 
-    DAP_DEL_Z(l_hashes);
+    dap_chain_srv_pay_cache_list_free(l_cache_list);
 
     if (*a_json_arr_reply && json_object_is_type(*a_json_arr_reply, json_type_array))
         json_object_array_add(*a_json_arr_reply, l_jobj_ret);
@@ -6685,88 +6799,109 @@ static int _cmd_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_rep
     }
 
     uint256_t l_cond_value_sum = {};
+    dap_list_t *l_processed_final_hashes = NULL;  // Track processed final hashes to avoid duplicates
     size_t l_num_of_hashes = dap_list_length(l_hashes_list);
     log_it(L_INFO, "Found %zu hashes. Start returning funds from transactions.", l_num_of_hashes);
-    for (dap_list_t * l_tmp = l_hashes_list; l_tmp; l_tmp=l_tmp->next){
-        dap_hash_fast_t *l_hash = (dap_hash_fast_t*)l_tmp->data;
-        // get tx by hash
-        dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, l_hash);
-        if (!l_cond_tx) {
+    for (dap_list_t *l_tmp = l_hashes_list; l_tmp; l_tmp = l_tmp->next)
+    {
+        dap_hash_fast_t *l_hash = (dap_hash_fast_t *)l_tmp->data;
+
+        // Get final tx in chain (unspent only)
+        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash, true);
+        dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_final_hash);
+        if (!l_final_tx)
+        {
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            log_it(L_WARNING, "Requested conditional transaction with hash %s not found. Continue.", l_hash_str);
+            log_it(L_WARNING, "Can't find final unspent TX for hash %s. Continue.", l_hash_str);
             continue;
         }
 
-        const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, l_hash);
-        if (!l_tx_ticker) {
+        // Check if this final hash was already processed (avoid duplicates when multiple input hashes resolve to same final TX)
+        bool l_already_processed = false;
+        for (dap_list_t *l_check = l_processed_final_hashes; l_check; l_check = l_check->next)
+        {
+            if (dap_hash_fast_compare(&l_final_hash, (dap_hash_fast_t *)l_check->data))
+            {
+                l_already_processed = true;
+                break;
+            }
+        }
+        if (l_already_processed)
+        {
+            log_it(L_DEBUG, "Final TX %s already processed, skipping duplicate", dap_hash_fast_to_str_static(&l_final_hash));
+            continue;
+        }
+
+        const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_final_hash);
+        if (!l_tx_ticker)
+        {
             log_it(L_WARNING, "Can't get tx ticker");
             continue;
         }
-        if (strcmp(l_native_ticker, l_tx_ticker)) {
+        if (strcmp(l_native_ticker, l_tx_ticker))
+        {
             log_it(L_WARNING, "Tx must be in native ticker");
             continue;
         }
 
-        // Get out_cond from l_cond_tx
-        int l_prev_cond_idx = 0;
-        dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
-                                                                             &l_prev_cond_idx);
-        if (!l_tx_out_cond) {
-            log_it(L_WARNING, "Requested conditional transaction has no contitional output with srv_uid %"DAP_UINT64_FORMAT_U, l_srv_uid.uint64);
+        // Get out_cond from final tx
+        int l_final_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_final_tx_out_cond = dap_chain_datum_tx_out_cond_get(
+            l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_final_cond_idx);
+        if (!l_final_tx_out_cond)
+        {
+            log_it(L_WARNING, "Final TX has no conditional output with subtype SRV_PAY");
             continue;
         }
-        if (l_tx_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64)
-            continue;
-        
-        if (dap_ledger_tx_hash_is_used_out_item(l_ledger, l_hash, l_prev_cond_idx, NULL)) {
-            log_it(L_WARNING, "Requested conditional transaction is already used out");
+        if (l_final_tx_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64)
+        {
+            log_it(L_WARNING, "Final TX srv_uid mismatch");
             continue;
         }
-        // Get owner tx
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_cond_tx, l_tx_out_cond->header.subtype);
+        if (IS_ZERO_256(l_final_tx_out_cond->header.value))
+        {
+            log_it(L_WARNING, "Final TX has zero value");
+            continue;
+        }
+
+        // Get first (owner) tx to verify ownership
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_final_tx, l_final_tx_out_cond->header.subtype);
         dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
-            ? l_cond_tx:
-            dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
+            ? l_final_tx
+            : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
         if (!l_owner_tx)
+        {
+            log_it(L_WARNING, "Can't find owner TX");
             continue;
+        }
         dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
         dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
-
-        if (!l_owner_sign) {
-            log_it(L_WARNING, "Can't get sign.");
+        if (!l_owner_sign)
+        {
+            log_it(L_WARNING, "Can't get owner sign");
             continue;
         }
-
-        if (!dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign)) {
+        if (!dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign))
+        {
             log_it(L_WARNING, "Only owner can return funds from tx cond");
             continue;
         }
 
-        // get final tx 
-        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash, true);
-        dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_final_hash);
-        if (!l_final_tx) {
-            log_it(L_WARNING, "Only get final tx hash or tx is already used out.");
-            continue;
-        }
-
-        // get and check tx_cond_out
-        int l_final_cond_idx = 0;
-        dap_chain_tx_out_cond_t *l_final_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
-                                                                             &l_final_cond_idx);
-        if (!l_final_tx_out_cond || IS_ZERO_256(l_final_tx_out_cond->header.value)) 
-            continue;
-
-        
-        // add in_cond to new tx
-        // add 'in' item to buy from conditional transaction
+        // Add in_cond to new tx
         dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_hash, l_final_cond_idx, 0);
         SUM_256_256(l_cond_value_sum, l_final_tx_out_cond->header.value, &l_cond_value_sum);
+
+        // Remember this final hash to avoid duplicates
+        dap_hash_fast_t *l_final_hash_copy = DAP_DUP(&l_final_hash);
+        if (l_final_hash_copy)
+            l_processed_final_hashes = dap_list_append(l_processed_final_hashes, l_final_hash_copy);
     }
     dap_list_free_full(l_hashes_list, NULL);
+    dap_list_free_full(l_processed_final_hashes, NULL);
 
-    if (IS_ZERO_256(l_cond_value_sum)){
+    if (IS_ZERO_256(l_cond_value_sum))
+    {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_UNSPENT_COND_TX_IN_HASH_LIST_FOR_WALLET,
                                "No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
         dap_chain_datum_tx_delete(l_tx);
@@ -7030,8 +7165,8 @@ static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_ar
         l_tx_count++;
         SUM_256_256(l_total_value, l_out_cond->header.value, &l_total_value);
     }
-    char *l_total_datoshi_str = dap_chain_balance_to_coins(l_total_value);
-    char *l_total_coins_str = dap_chain_balance_print(l_total_value);
+    char *l_total_coins_str = dap_chain_balance_to_coins(l_total_value);
+    char *l_total_datoshi_str = dap_chain_balance_print(l_total_value);
     json_object *l_jobj_total = json_object_new_object();
     json_object *l_jobj_total_datoshi = json_object_new_string(l_total_datoshi_str);
     json_object *l_jobj_total_coins = json_object_new_string(l_total_coins_str);
