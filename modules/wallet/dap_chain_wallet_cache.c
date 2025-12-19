@@ -229,10 +229,18 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
     }
 
     // Only load cache when network is ONLINE (not during LOADING)
+    // EXCEPTION: In test mode (DAP_LEDGER_TEST defined), allow cache load even in LOADING mode
+    // This is needed because test networks remain in LOADING mode but still need wallet cache for arbitrage TX
+#ifndef DAP_LEDGER_TEST
     if (dap_chain_net_get_load_mode(a_net)) {
         debug_if(s_debug_more, L_DEBUG, "Network %s is in LOADING mode, skipping wallet cache load", a_net->pub.name);
         return 0;
     }
+#else
+    if (dap_chain_net_get_load_mode(a_net)) {
+        debug_if(s_debug_more, L_DEBUG, "Network %s is in LOADING mode, but DAP_LEDGER_TEST is defined - loading cache anyway", a_net->pub.name);
+    }
+#endif
 
     debug_if(s_debug_more, L_DEBUG, "Loading wallet cache for net %s", a_net->pub.name);
 

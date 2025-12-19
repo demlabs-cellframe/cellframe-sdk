@@ -111,6 +111,8 @@ static void s_setup(void)
                 "debug_more=true\n\n"
                 "[ledger]\n"
                 "debug_more=true\n\n"
+                "[wallet]\n"
+                "debug_more=true\n\n"
                 "[wallets]\n"
                 "wallets_cache=all\n\n"
                 "[global_db]\n"
@@ -277,6 +279,16 @@ static bool s_create_token_and_emission(const char *a_ticker, dap_chain_addr_t *
     // Pass 3: base TX processed and UTXO created
     dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
     
+    // CRITICAL: Reload wallet cache after base TX creates UTXOs
+    // Network may be in LOADING mode, but DAP_LEDGER_TEST allows cache load anyway
+    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
+    
+    // Wait for async wallet cache loading (detached threads) with intelligent polling
+    bool l_cache_loaded = test_wait_for_wallet_cache_loaded(s_net_fixture->net, a_addr_owner, 50, 100);
+    if (!l_cache_loaded) {
+        log_it(L_WARNING, "Wallet cache loading timeout, arbitrage TX may fail with 'not enough funds'");
+    }
+    
     // Verify balance
     uint256_t l_balance = dap_ledger_calc_balance(s_net_fixture->ledger, a_addr_owner, a_ticker);
     char *l_balance_str = dap_chain_balance_to_coins(l_balance);
@@ -349,8 +361,13 @@ static void test_bug_arbitrage_availability(void)
     // 3. Open wallet and load cache for arbitrage TX
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_avail", "/tmp/reg_test_wallets", NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+    
+    dap_enc_key_t *l_wallet_key_avail = dap_chain_wallet_get_key(l_wallet_opened, 0);
+    dap_chain_addr_t l_wallet_addr_avail = {0};
+    dap_chain_addr_fill_from_key(&l_wallet_addr_avail, l_wallet_key_avail, s_net_fixture->net->pub.id);
+    
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    sleep(2);  // Wait for async cache loading (proc thread)
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_avail, 50, 100);
     
     // 4. Attempt to create arbitrage transaction immediately
     char l_cmd[2048];
@@ -522,7 +539,7 @@ static void test_bug_arbitrage_without_certs(void)
     
     // 6. Load wallet cache before arbitrage TX
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    sleep(2);  // Wait for async cache loading (proc thread)
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr, 50, 100);
     
     // 7. ATTEMPT arbitrage WITHOUT -certs - MUST FAIL with clear error
     log_it(L_INFO, "Attempting arbitrage WITHOUT -certs (MUST fail)...");
@@ -641,8 +658,13 @@ static void test_bug_arbitrage_arguments(void)
     // 4. Open wallet and load cache for arbitrage TX
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_args", "/tmp/reg_test_wallets", NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+    
+    dap_enc_key_t *l_wallet_key_args = dap_chain_wallet_get_key(l_wallet_opened, 0);
+    dap_chain_addr_t l_wallet_addr_args = {0};
+    dap_chain_addr_fill_from_key(&l_wallet_addr_args, l_wallet_key_args, s_net_fixture->net->pub.id);
+    
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    sleep(2);  // Wait for async cache loading (proc thread)
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_args, 50, 100);
     
     // 5. Create Arbitrage TX with specific VALUE
     // Use a specific weird value to check
@@ -924,9 +946,13 @@ static void test_arbitrage_without_fee_addr(void)
     // Verify fee_addr is indeed blank
     dap_assert_PIF(dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr), "Fee address is blank (as expected for test)");
     
-    // 4. Load wallet cache before arbitrage TX
+    // 4. Load wallet cache before arbitrage TX (even though this test will fail)
+    dap_enc_key_t *l_wallet_key_nofee = dap_chain_wallet_get_key(l_wallet, 0);
+    dap_chain_addr_t l_wallet_addr_nofee = {0};
+    dap_chain_addr_fill_from_key(&l_wallet_addr_nofee, l_wallet_key_nofee, s_net_fixture->net->pub.id);
+    
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    sleep(2);  // Wait for async cache loading (proc thread)
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_nofee, 50, 100);
     
     // 5. Attempt arbitrage WITHOUT fee_addr - should FAIL GRACEFULLY (not crash!)
     log_it(L_NOTICE, "=== 3.1: Testing arbitrage WITHOUT fee_addr (should fail gracefully) ===");
@@ -1100,8 +1126,12 @@ static void test_arbitrage_immediately_after_emission(void)
     
     // 7. CRITICAL TEST: Create arbitrage transaction IMMEDIATELY after emission
     // 11. Load wallet cache before arbitrage TX
+    dap_enc_key_t *l_wallet_key_imm = dap_chain_wallet_get_key(l_wallet, 0);
+    dap_chain_addr_t l_wallet_addr_imm = {0};
+    dap_chain_addr_fill_from_key(&l_wallet_addr_imm, l_wallet_key_imm, s_net_fixture->net->pub.id);
+    
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    sleep(2);  // Wait for async cache loading (proc thread)
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_imm, 50, 100);
     
     // 12. Test arbitrage IMMEDIATELY after emission
     // WITHOUT intermediate regular transaction (this is the bug scenario)
@@ -1217,10 +1247,9 @@ static void test_arbitrage_to_addr_behavior(void)
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", "/tmp/reg_test_wallets", NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
     
-    // Explicitly load wallet cache for network (ensures UTXOs are found)
+    // Load wallet cache and wait for completion
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    // Wait for asynchronous cache loading to complete (2 seconds for proc thread)
-    sleep(2);
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr, 50, 100);
     
     char l_cmd_with_toaddr[2048];
     snprintf(l_cmd_with_toaddr, sizeof(l_cmd_with_toaddr), 
@@ -1306,8 +1335,9 @@ static void test_arbitrage_to_addr_behavior(void)
     // Re-open wallet and reload cache for second arbitrage TX
     l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", "/tmp/reg_test_wallets", NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet re-opened for second arbitrage TX");
+    
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    sleep(2);  // Wait for async cache loading (proc thread)
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr, 50, 100);
     
     char l_cmd_without_toaddr[2048];
     snprintf(l_cmd_without_toaddr, sizeof(l_cmd_without_toaddr), 

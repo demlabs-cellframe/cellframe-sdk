@@ -117,6 +117,24 @@ dap_chain_datum_tx_t *test_wait_tx_mempool_to_ledger(
 );
 
 /**
+ * @brief Wait for wallet cache to load for specific address
+ * @param a_net Network instance
+ * @param a_addr Wallet address to wait for
+ * @param a_max_attempts Maximum number of check attempts (default: 50 if 0)
+ * @param a_delay_ms Delay between checks in milliseconds (default: 100ms if 0)
+ * @return true if cache loaded, false if timeout
+ * @note Uses dap_chain_wallet_cache_tx_find to poll cache status
+ * @note Returns true when cache becomes available (even if empty)
+ * @note Useful for waiting after dap_chain_wallet_cache_load_for_net
+ */
+bool test_wait_for_wallet_cache_loaded(
+    dap_chain_net_t *a_net,
+    const dap_chain_addr_t *a_addr,
+    int a_max_attempts,
+    int a_delay_ms
+);
+
+/**
  * @brief Wait for any datum to be processed from mempool to ledger
  * @param a_fixture Network fixture
  * @param a_datum_hash Datum hash to wait for

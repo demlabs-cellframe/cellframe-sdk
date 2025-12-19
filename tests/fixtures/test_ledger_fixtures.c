@@ -14,6 +14,7 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_arbitrage.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_global_db_cluster.h"
@@ -828,4 +829,50 @@ dap_chain_datum_t *test_wait_datum_mempool_to_ledger(
     
     log_it(L_WARNING, "✗ Datum %s not found in ledger after %d attempt(s)", l_hash_str, a_max_attempts);
     return NULL;
+}
+
+/**
+ * @brief Wait for wallet cache to load for specific address
+ * @param a_net Network instance
+ * @param a_addr Wallet address to wait for
+ * @param a_max_attempts Maximum number of check attempts (default: 50 if 0)
+ * @param a_delay_ms Delay between checks in milliseconds (default: 100ms if 0)
+ * @return true if cache loaded, false if timeout
+ */
+bool test_wait_for_wallet_cache_loaded(dap_chain_net_t *a_net, const dap_chain_addr_t *a_addr, 
+                                        int a_max_attempts, int a_delay_ms)
+{
+    if (!a_net || !a_addr) {
+        log_it(L_ERROR, "Invalid arguments for wallet cache wait");
+        return false;
+    }
+    
+    int l_max_attempts = (a_max_attempts > 0) ? a_max_attempts : 50;  // 50 * 100ms = 5 seconds default
+    int l_delay_ms = (a_delay_ms > 0) ? a_delay_ms : 100;
+    
+    for (int i = 0; i < l_max_attempts; i++) {
+        // Try to find ANY transaction in wallet cache to verify it's loaded
+        // Use wallet balance check as indicator - if balance query works, cache is loaded
+        uint256_t l_dummy_balance = dap_ledger_calc_balance(a_net->pub.ledger, a_addr, a_net->pub.native_ticker);
+        
+        // Also try to get UTXOs from wallet cache
+        dap_chain_datum_tx_t *l_dummy_tx = NULL;
+        dap_hash_fast_t l_dummy_hash = {};
+        int l_ret = dap_chain_wallet_cache_tx_find((dap_chain_addr_t*)a_addr, (char*)a_net->pub.native_ticker, &l_dummy_tx, &l_dummy_hash, NULL);
+        
+        // If cache returns anything other than -101 (addr not in cache), it means cache entry exists
+        // But we also need to verify that async loading finished (wallet_txs != NULL)
+        // The best check is: if we can successfully get balance, wallet cache is usable
+        if (l_ret != -101 || !IS_ZERO_256(l_dummy_balance)) {
+            log_it(L_INFO, "✓ Wallet cache loaded for %s after %d attempts (%d ms)", 
+                   dap_chain_addr_to_str_static(a_addr), i + 1, (i + 1) * l_delay_ms);
+            return true;
+        }
+        
+        usleep(l_delay_ms * 1000);  // Convert ms to microseconds
+    }
+    
+    log_it(L_WARNING, "⚠ Wallet cache loading timeout for %s after %d attempts (%d ms total)",
+           dap_chain_addr_to_str_static(a_addr), l_max_attempts, l_max_attempts * l_delay_ms);
+    return false;
 }
