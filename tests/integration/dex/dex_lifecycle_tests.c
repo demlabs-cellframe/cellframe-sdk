@@ -6,6 +6,7 @@
 #include "dex_test_scenarios.h"
 #include "dex_test_helpers.h"
 #include "dap_chain_net_srv_dex.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_time.h"
@@ -3227,14 +3228,21 @@ static int s_run_m07_buyer_leftover_update(dex_test_fixture_t *f, const test_pai
     uint256_t actual_delta = uint256_0;
     SUBTRACT_256_256(bob_after.quote, bob_before.quote, &actual_delta);
     
-    // Expected: refund - network_fee (1.0 for UPDATE)
+    // Expected: refund - total_fee (validator_fee + net_fee)
+    // UPDATE pays both validator fee and network fee
+    uint256_t total_fee = f->network_fee;
+    dap_chain_addr_t l_net_addr = {};
+    uint256_t l_net_fee = {};
+    if (dap_chain_net_tx_get_fee(f->net->net->pub.id, &l_net_fee, &l_net_addr))
+        SUM_256_256(total_fee, l_net_fee, &total_fee);
+    
     uint256_t expected_min = uint256_0;
-    if (compare256(refund, f->network_fee) > 0)
-        SUBTRACT_256_256(refund, f->network_fee, &expected_min);
+    if (compare256(refund, total_fee) > 0)
+        SUBTRACT_256_256(refund, total_fee, &expected_min);
     
     log_it(L_INFO, "M07: Expected refund=%s (minus fee=%s), actual QUOTE delta=%s",
            dap_uint256_to_char_ex(refund).frac,
-           dap_uint256_to_char_ex(f->network_fee).frac,
+           dap_uint256_to_char_ex(total_fee).frac,
            dap_uint256_to_char_ex(actual_delta).frac);
     
     // Verify delta >= expected_min (refund - fee)
@@ -3554,6 +3562,102 @@ static int s_run_m10_buyer_leftover_foreign_ops(dex_test_fixture_t *f, const tes
     dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
     if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
     
+    return 0;
+}
+
+// M11: Full close order with tiny leftover where fee > executed
+// Only meaningful for ABSOLUTE fee pairs (no 0x80 flag).
+// For % fee pairs, fee is always proportional to executed, so fee < executed always.
+// Test: create order, partially fill leaving residual < absolute fee, then close.
+static int s_run_m11_fee_exceeds_executed(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    // Only run for absolute fee pairs (no 0x80 flag)
+    bool is_pct_fee = (pair->fee_config & 0x80) != 0;
+    if (is_pct_fee) {
+        log_it(L_INFO, "--- M11: SKIP for %s (%% fee → always fee < executed) ---", pair->description);
+        return 0;
+    }
+    
+    // Absolute fee = (fee_config & 0x7F) × 0.01 native tokens
+    // For fee_config=2: fee = 0.02 native = 20000000000000000 wei
+    uint8_t fee_units = pair->fee_config & 0x7F;
+    log_it(L_INFO, "--- M11: Absolute fee test (fee=0.%02u native) for %s ---", fee_units, pair->description);
+    
+    // Use ASK side (seller sells BASE, buyer pays QUOTE)
+    uint8_t side = SIDE_ASK;
+    const char *sell_token = pair->base_token;
+    
+    // Carol creates order; Bob buys (pays QUOTE)
+    
+    // Step 1: Carol creates order with value = fee + small margin (0.03 for fee=0.02)
+    // Rate = 1.0 for simplicity
+    dap_hash_fast_t order_hash = {0};
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, side, MINFILL_NONE, "1.0", "0.03", &order_hash);
+    if (ret != 0) {
+        log_it(L_ERROR, "M11: Failed to create Carol's order");
+        return -1;
+    }
+    log_it(L_INFO, "M11: Carol created ASK 0.03 %s @ 1.0", sell_token);
+    
+    // Step 2: Bob buys almost all, leaving residual < fee (0.001 < 0.02)
+    // For ASK: is_budget_buy=true (budget in QUOTE)
+    uint256_t budget_almost_all = dap_chain_coins_to_balance("0.029");  // leaves ~0.001 residual
+    
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &order_hash, budget_almost_all, true, f->network_fee, f->bob, false, uint256_0, &tx1
+    );
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "M11: Bob's first purchase failed: err=%d", err1);
+        return -2;
+    }
+    
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "M11: Bob's TX1 rejected");
+        dap_chain_datum_tx_delete(tx1);
+        return -3;
+    }
+    dap_chain_datum_tx_delete(tx1);
+    log_it(L_INFO, "M11: Bob traded, leaving ~0.001 residual (< 0.02 fee)");
+    
+    // Step 3: Bob completes the remaining ~0.001
+    // This triggers: executed = 0.001, fee = 0.02 → fee > executed
+    uint256_t budget_rest = dap_chain_coins_to_balance("0.001");
+    
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &tx1_hash, budget_rest, true, f->network_fee, f->bob, false, uint256_0, &tx2
+    );
+    if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
+        log_it(L_ERROR, "M11: Bob's final purchase failed: err=%d", err2);
+        return -4;
+    }
+    
+    dap_hash_fast_t tx2_hash = {0};
+    dap_hash_fast(tx2, dap_chain_datum_tx_get_size(tx2), &tx2_hash);
+    int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx2, &tx2_hash, false, NULL);
+    if (add_ret != 0) {
+        log_it(L_ERROR, "M11: Bob's TX2 rejected (ledger ret=%d) - fee > executed not handled", add_ret);
+        dap_chain_datum_tx_delete(tx2);
+        return -5;
+    }
+    dap_chain_datum_tx_delete(tx2);
+    log_it(L_NOTICE, "✓ M11: Full close with fee > executed succeeded");
+    
+    log_it(L_NOTICE, "✓ M11: FEE > EXECUTED PASSED");
+    
+    // Rollback
+    dap_chain_datum_tx_t *tx2_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx2_hash);
+    if (tx2_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx2_ledger, &tx2_hash);
+    
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    
+    dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+    if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+    
+    log_it(L_DEBUG, "M11: Rolled back all transactions");
     return 0;
 }
 
@@ -4479,6 +4583,10 @@ static int s_run_multi_tests_for_pair(dex_test_fixture_t *f, const test_pair_con
     if (ret != 0) return ret;
     
     ret = s_run_m10_buyer_leftover_foreign_ops(f, pair);
+    if (ret != 0) return ret;
+    
+    // Edge case: fee > executed on full close (M11)
+    ret = s_run_m11_fee_exceeds_executed(f, pair);
     if (ret != 0) return ret;
     
     // Seller-leftover tampering tests (T_SL01-T_SL04)

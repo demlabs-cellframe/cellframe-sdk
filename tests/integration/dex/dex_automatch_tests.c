@@ -634,7 +634,7 @@ static const automatch_test_template_t s_group_a_tests[] = {
         .expected_match_count = 0,
         .expected_exec_sell = NULL, .expected_exec_buy = NULL,
         .expect_leftover_order = false, .expect_cashback = false,
-        .expected_error = 6,  // DEX_PURCHASE_AUTO_ERROR_NO_MATCHES
+        .expected_error = DEX_PURCHASE_AUTO_ERROR_NO_MATCHES,
         .buyer = WALLET_BOB
     },
     // ========== FEE POLICY SCENARIOS ==========
@@ -1169,7 +1169,7 @@ static const automatch_test_template_t s_group_e_tests[] = {
         .create_leftover = false, .leftover_rate = NULL,
         .expected_match_count = 0,
         .expect_cashback = false,
-        .expected_error = 7,  // DEX_PURCHASE_AUTO_ERROR_INSUFFICIENT_FUNDS
+        .expected_error = DEX_PURCHASE_ERROR_COMPOSE_TX,  // Insufficient funds
         .buyer = WALLET_DAVE
     },
     // E07: FIFO tie-break (same rate, earlier timestamp first)
@@ -1236,7 +1236,7 @@ static const automatch_test_template_t s_group_e_tests[] = {
         .create_leftover = false, .leftover_rate = NULL,
         .expected_match_count = 0,
         .expect_cashback = false,
-        .expected_error = 6,  // DEX_PURCHASE_AUTO_ERROR_NO_MATCHES
+        .expected_error = DEX_PURCHASE_AUTO_ERROR_NO_MATCHES,
         .buyer = WALLET_ALICE
     },
     // E12: Large multi-match (5+ orders matched in single TX)

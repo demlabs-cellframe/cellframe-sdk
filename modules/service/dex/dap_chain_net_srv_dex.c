@@ -4555,10 +4555,19 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         // Final conservation: refund - fees (only if sell_token is NATIVE)
         if (!strcmp(l_sell_ticker, l_native_ticker)) {
             // Native sell_token: deduct validator + network fees from refund
-            if (!IS_ZERO_256(l_fee_native))
-                SUBTRACT_256_256(l_expected_refund, l_fee_native, &l_expected_refund);
-            if (l_net_used && !IS_ZERO_256(l_net_fee_req))
-                SUBTRACT_256_256(l_expected_refund, l_net_fee_req, &l_expected_refund);
+            // Guard against underflow if refund < fees (edge case: tiny order)
+            if (!IS_ZERO_256(l_fee_native)) {
+                if (compare256(l_expected_refund, l_fee_native) >= 0)
+                    SUBTRACT_256_256(l_expected_refund, l_fee_native, &l_expected_refund);
+                else
+                    l_expected_refund = uint256_0;
+            }
+            if (l_net_used && !IS_ZERO_256(l_net_fee_req)) {
+                if (compare256(l_expected_refund, l_net_fee_req) >= 0)
+                    SUBTRACT_256_256(l_expected_refund, l_net_fee_req, &l_expected_refund);
+                else
+                    l_expected_refund = uint256_0;
+            }
         }
         // Non-native sell_token: fees paid separately in NATIVE, no deduction from refund
 
@@ -4613,8 +4622,12 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             RET_ERR(DEXV_MULTI_BUYER_DEST);
 
         uint256_t l_buyer_expected = l_executed_total;
-        if (l_srv_used && l_srv_ticker && !strcmp(l_sell_ticker, l_srv_ticker))
-            SUBTRACT_256_256(l_buyer_expected, l_srv_fee_req, &l_buyer_expected);
+        if (l_srv_used && l_srv_ticker && !strcmp(l_sell_ticker, l_srv_ticker)) {
+            if (compare256(l_executed_total, l_srv_fee_req) >= 0)
+                SUBTRACT_256_256(l_buyer_expected, l_srv_fee_req, &l_buyer_expected);
+            else
+                l_buyer_expected = uint256_0;
+        }
         if (compare256(l_buyer_received, l_buyer_expected) < 0)
             RET_ERR(DEXV_BUYER_PAYOUT_ADDR_MISMATCH);
 
@@ -4671,9 +4684,14 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         // Calculate expected buyer payout
         // Buyer receives executed_total in sell_token, MINUS service fee if sell==srv (BID + QUOTE fee)
         // Validator/network/native-service fees are separate OUTs, NOT deducted from buyer's sell_token OUT
+        // Edge case: if fee > executed, buyer pays fee entirely from inputs (expected = 0)
         uint256_t l_buyer_expected = l_executed_total;
-        if (l_srv_used && l_srv_ticker && !strcmp(l_sell_ticker, l_srv_ticker))
-            SUBTRACT_256_256(l_buyer_expected, l_srv_fee_req, &l_buyer_expected);
+        if (l_srv_used && l_srv_ticker && !strcmp(l_sell_ticker, l_srv_ticker)) {
+            if (compare256(l_executed_total, l_srv_fee_req) >= 0)
+                SUBTRACT_256_256(l_buyer_expected, l_srv_fee_req, &l_buyer_expected);
+            else
+                l_buyer_expected = uint256_0;
+        }
 
         // Critical: buyer MUST receive AT LEAST the expected amount (overpayment allowed for cashback)
         // Cashback possible in sell_token if sell_token==NATIVE (fee overpayment)
@@ -5315,10 +5333,13 @@ static dex_tx_type_t s_dex_tx_classify(dap_ledger_t *a_ledger, dap_chain_datum_t
 
     // No OUT_COND + has IN_COND: check if trade (seller payout) or cancel
     dap_chain_datum_tx_t *l_prev = dap_ledger_tx_find_by_hash(a_ledger, &l_in0->header.tx_prev_hash);
+    int l_prev_dex_idx = 0;
     dap_chain_tx_out_cond_t *l_prev_cond =
-        l_prev ? dap_chain_datum_tx_out_cond_get(l_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL) : NULL;
-    if (l_prev_cond &&
-        s_dex_verify_payout(a_tx, a_ledger->net, l_prev_cond->subtype.srv_dex.buy_token, &l_prev_cond->subtype.srv_dex.seller_addr))
+        l_prev ? dap_chain_datum_tx_out_cond_get(l_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_dex_idx) : NULL;
+    // Verify IN_COND actually spends DEX OUT
+    if (!l_prev_cond || (int)l_in0->header.tx_out_prev_idx != l_prev_dex_idx)
+        return DEX_TX_TYPE_UNDEFINED;
+    if (s_dex_verify_payout(a_tx, a_ledger->net, l_prev_cond->subtype.srv_dex.buy_token, &l_prev_cond->subtype.srv_dex.seller_addr))
         return DEX_TX_TYPE_EXCHANGE;
     return DEX_TX_TYPE_INVALIDATE;
 }
@@ -5441,6 +5462,9 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
             if (l_in_cond && s_dex_cache_enabled) {
                 const dex_order_cache_entry_t *e0 = NULL;
                 HASH_FIND(level.hh_tail, s_dex_index_by_tail, &l_in_cond->header.tx_prev_hash, sizeof(l_in_cond->header.tx_prev_hash), e0);
+                // Skip if IN_COND doesn't spend DEX OUT
+                if (e0 && e0->level.match.prev_idx >= 0 && (int)l_in_cond->header.tx_out_prev_idx != e0->level.match.prev_idx)
+                    e0 = NULL;
                 if (e0) {
                     // side=0 (ASK): seller sells BASE, buys QUOTE
                     // side=1 (BID): seller sells QUOTE, buys BASE
@@ -5468,12 +5492,16 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
             size_t sz;
             TX_ITEM_ITER_TX(it, sz, a_tx) if (*it == TX_ITEM_TYPE_IN_COND)
             {
-                dap_hash_fast_t l_prev_hash = ((dap_chain_tx_in_cond_t *)it)->header.tx_prev_hash;
+                dap_chain_tx_in_cond_t *l_in_cond_it = (dap_chain_tx_in_cond_t *)it;
+                dap_hash_fast_t l_prev_hash = l_in_cond_it->header.tx_prev_hash;
 
                 // Cache lookup by tail
                 const dex_order_cache_entry_t *e = NULL;
                 if (s_dex_cache_enabled)
                     HASH_FIND(level.hh_tail, s_dex_index_by_tail, &l_prev_hash, sizeof(l_prev_hash), e);
+                // Skip if IN_COND doesn't spend DEX OUT (e.g., FEE collection tx)
+                if (e && e->level.match.prev_idx >= 0 && (int)l_in_cond_it->header.tx_out_prev_idx != e->level.match.prev_idx)
+                    e = NULL;
 
                 // History append: prefer cache (precise data about previous order),
                 // otherwise fallback to ledger (heavier, but restores required minimum)
@@ -5596,7 +5624,8 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
             size_t sz = 0;
             TX_ITEM_ITER_TX(it, sz, a_tx) if (*it == TX_ITEM_TYPE_IN_COND)
             {
-                dap_hash_fast_t l_prev_hash = ((dap_chain_tx_in_cond_t *)it)->header.tx_prev_hash;
+                dap_chain_tx_in_cond_t *l_in_it = (dap_chain_tx_in_cond_t *)it;
+                dap_hash_fast_t l_prev_hash = l_in_it->header.tx_prev_hash;
                 dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_prev_hash);
                 if (!l_prev_tx)
                     continue;
@@ -5604,7 +5633,8 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                 int l_prev_out_idx = 0;
                 dap_chain_tx_out_cond_t *l_prev_cout =
                     dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_out_idx);
-                if (!l_prev_cout)
+                // Skip if IN_COND doesn't spend DEX OUT
+                if (!l_prev_cout || (int)l_in_it->header.tx_out_prev_idx != l_prev_out_idx)
                     continue;
 
                 const char *l_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_prev_hash);
@@ -6183,10 +6213,14 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         if (l_offset-- > 0)
                             continue;
                         json_object *o = json_object_new_object();
+                        json_object_object_add(o, "side", json_object_new_string((e->side_version & 0x1) ? "BID" : "ASK"));
                         json_object_object_add(o, "root", json_object_new_string(dap_hash_fast_to_str_static(&e->level.match.root)));
                         json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&e->level.match.tail)));
                         json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(e->level.match.rate).frac));
                         json_object_object_add(o, "value_sell", json_object_new_string(dap_uint256_to_char_ex(e->level.match.value).frac));
+                        char l_ts_str[DAP_TIME_STR_SIZE];
+                        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), e->ts_created);
+                        json_object_object_add(o, "created", json_object_new_string(l_ts_str));
                         json_object_array_add(l_arr, o);
                         if (--l_limit == 0)
                             break;
@@ -6213,6 +6247,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.rate).frac));
                         json_object_object_add(o, "value_sell",
                                                json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.value).frac));
+                        char l_ts_str[DAP_TIME_STR_SIZE];
+                        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_created);
+                        json_object_object_add(o, "created", json_object_new_string(l_ts_str));
                         json_object_array_add(l_arr, o);
                     }
                     dex_order_cache_entry_t *l_bids_last = HASH_LAST_EX(hh_pair_bucket, l_pair_bucket->bids);
@@ -6226,6 +6263,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.rate).frac));
                         json_object_object_add(o, "value_sell",
                                                json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.value).frac));
+                        char l_ts_str[DAP_TIME_STR_SIZE];
+                        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_created);
+                        json_object_object_add(o, "created", json_object_new_string(l_ts_str));
                         json_object_array_add(l_arr, o);
                     }
                 } else
@@ -6282,6 +6322,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&it->cur_hash)));
                 json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_price).frac));
                 json_object_object_add(o, "value_sell", json_object_new_string(dap_uint256_to_char_ex(l_out_cond->header.value).frac));
+                char l_ts_str[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_tx->header.ts_created);
+                json_object_object_add(o, "created", json_object_new_string(l_ts_str));
                 json_object_array_add(l_arr, o);
             }
             dap_ledger_datum_iter_delete(it);
@@ -7037,6 +7080,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             }
             dex_history_for_each_range(&l_key, l_t_from, l_t_to ? l_t_to : UINT64_MAX, l_bucket,
                                        l_seller_str ? s_hist_cb_build_volume_seller : s_hist_cb_build_volume, &l_ctx);
+            json_object_object_add(l_json_reply, "market_only", json_object_new_boolean(true));
             if (l_want_ohlc)
                 json_object_object_add(l_json_reply, "ohlc", l_arr);
             else
@@ -7074,9 +7118,11 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in->header.tx_prev_hash);
                     if (!l_prev_tx)
                         continue;
+                    int l_prev_dex_idx = 0;
                     dap_chain_tx_out_cond_t *l_prev =
-                        dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
-                    if (!l_prev)
+                        dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_dex_idx);
+                    // Skip if IN_COND doesn't spend DEX OUT
+                    if (!l_prev || (int)l_in->header.tx_out_prev_idx != l_prev_dex_idx)
                         continue;
                     if (l_seller_str && !dap_chain_addr_compare(&l_prev->subtype.srv_dex.seller_addr, &l_seller)) {
                         l_dex_in_i++;
@@ -7171,6 +7217,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 }
             }
             // Attach outputs
+            json_object_object_add(l_json_reply, "market_only", json_object_new_boolean(false));
             if (l_want_ohlc)
                 json_object_object_add(l_json_reply, "ohlc", l_arr);
             else
@@ -7184,8 +7231,6 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
     } break; // HISTORY
 
     case CMD_MARKET_RATE: {
-        if (!s_dex_cache_enabled || !s_dex_history_enabled)
-            return dap_json_rpc_error_add(*json_arr_reply, -1, "OHLCV requires both order cache and history cache enabled"), -1;
         if (!l_pair_str)
             return dap_json_rpc_error_add(*json_arr_reply, -2, "missing -pair"), -2;
         const char *l_from_str = NULL, *l_to_str = NULL, *l_bucket_str = NULL;
@@ -7212,9 +7257,10 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         dex_bucket_agg_t *l_buckets = NULL;
         uint256_t l_sum_quote = uint256_0, l_sum_base = uint256_0, l_last_price = uint256_0;
         bool l_have_spot = false;
+        bool l_market_only = s_dex_history_enabled && l_bucket;
         uint64_t l_spot_ts = 0;
         int l_trades = 0;
-        if (s_dex_history_enabled && l_bucket) {
+        if (l_market_only) {
             dex_pair_key_t l_key = (dex_pair_key_t){.net_id_quote = l_net->pub.id, .net_id_base = l_net->pub.id};
             dap_strncpy(l_key.token_quote, l_ticker_quote, sizeof(l_key.token_quote) - 1);
             dap_strncpy(l_key.token_base, l_ticker_base, sizeof(l_key.token_base) - 1);
@@ -7254,7 +7300,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         continue;
                     dap_chain_tx_out_cond_t *l_prev =
                         dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_idx);
-                    if (!l_prev)
+                    // Skip if IN_COND doesn't spend DEX OUT
+                    if (!l_prev || (int)l_in->header.tx_out_prev_idx != l_prev_idx)
                         continue;
                     const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_in->header.tx_prev_hash);
                     if (!l_sell_tok)
@@ -7326,6 +7373,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         json_object_object_add(l_json_reply, "pair", json_object_new_string(l_pair_canon_str));
         json_object_object_add(l_json_reply, "granularity_sec", json_object_new_uint64(l_bucket));
         json_object_object_add(l_json_reply, "request_ts", json_object_new_uint64(dap_time_now()));
+        json_object_object_add(l_json_reply, "market_only", json_object_new_boolean(l_market_only));
         if (l_have_spot)
             json_object_object_add(l_json_reply, "spot", json_object_new_string(dap_uint256_to_char_ex(l_last_price).frac));
         if (!IS_ZERO_256(l_sum_base)) {
@@ -7422,9 +7470,11 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in->header.tx_prev_hash);
                     if (!l_prev_tx)
                         continue;
+                    int l_prev_dex_idx = 0;
                     dap_chain_tx_out_cond_t *l_prev =
-                        dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
-                    if (!l_prev)
+                        dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_dex_idx);
+                    // Skip if IN_COND doesn't spend DEX OUT
+                    if (!l_prev || (int)l_in->header.tx_out_prev_idx != l_prev_dex_idx)
                         continue;
                     const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_in->header.tx_prev_hash);
                     if (!l_sell_tok)
