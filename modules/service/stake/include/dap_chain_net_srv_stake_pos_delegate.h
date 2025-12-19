@@ -30,30 +30,11 @@
 #include "dap_chain_net_ch.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv_stake_common.h"  // Common stake types (breaks cycles)
 
-#define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
 
-typedef struct dap_chain_net_srv_stake_item { // TODO move it to private section
-    bool is_active;
-    dap_chain_net_t *net;
-    uint256_t locked_value;
-    uint256_t value;
-    dap_chain_addr_t signing_addr;
-    union {
-        dap_chain_hash_fast_t hash;     // Transaction hash (packed)
-        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
-    } tx_hash;
-    union {
-        dap_chain_hash_fast_t hash;     // Decree hash (packed)
-        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
-    } decree_hash;
-    dap_chain_node_addr_t node_addr;
-    dap_chain_addr_t sovereign_addr;
-    uint256_t sovereign_tax;
-    dap_pkey_t *pkey;
-    UT_hash_handle hh, ht;  // hh for signing_addr hash, ht for tx_hash
-} dap_chain_net_srv_stake_item_t;
+// dap_chain_net_srv_stake_item_t moved to net-srv-stake/include/dap_chain_net_srv_stake_common.h
 
 int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();

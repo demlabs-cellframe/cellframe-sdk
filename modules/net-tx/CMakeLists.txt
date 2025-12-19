@@ -20,9 +20,8 @@ target_link_libraries(${PROJECT_NAME}
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-# Stake headers for TYPES ONLY (header-only, NOT link - breaks cycle)
-# This is acceptable: net-tx needs stake TYPES, stake needs net-tx SYMBOLS (one-way linker dependency)
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/service/stake/include)
+# Stake common types (header-only module, NO cycle)
+target_link_libraries(${PROJECT_NAME} dap_chain_net_srv_stake_common)
 
 if (INSTALL_SDK)
     set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_TX_HEADERS}")

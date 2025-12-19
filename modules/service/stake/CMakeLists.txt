@@ -9,6 +9,8 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_SRV_STAKE_SRCS} HEADERS ${DAP_SRV_ST
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+# Use common stake types
+target_link_libraries(${PROJECT_NAME} dap_chain_net_srv_stake_common)
 # Include headers for types (NOT link - breaks cycles)
 target_include_directories(${PROJECT_NAME} PRIVATE 
     ${CMAKE_SOURCE_DIR}/modules/compose/include

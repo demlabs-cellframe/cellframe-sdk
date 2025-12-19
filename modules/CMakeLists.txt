@@ -36,6 +36,7 @@ endif()
 
 # Network services
 if (CELLFRAME_MODULES MATCHES "srv")
+    add_subdirectory(net-srv-stake)  # Common stake types (must be before services)
     add_subdirectory(net-srv)
 endif()
 
