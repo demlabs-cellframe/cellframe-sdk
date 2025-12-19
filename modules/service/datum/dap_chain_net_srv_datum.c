@@ -23,11 +23,12 @@
 */
 
 #include <errno.h>
+#include "dap_cli_server.h"  // For CLI registration
 #include "dap_chain_mempool.h"
 #include "dap_config.h"
 #include "dap_file_utils.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_datum.h"
 
@@ -52,7 +53,7 @@ static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
 int dap_chain_net_srv_datum_init()
 {
-    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, NULL, "Service Datum commands", dap_chain_node_cli_cmd_id_from_str("srv_datum"),
+    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, NULL, "Service Datum commands", 0,
         "srv_datum -net <net_name> -chain <chain_name> datum save -datum <datum_hash>\n"
             "\tSaving datum from mempool to file.\n\n"
         "srv_datum -net <net_name> -chain <chain_name> datum load -datum <datum_hash>\n"
@@ -116,7 +117,7 @@ static int s_srv_datum_cli(int argc, char ** argv, dap_json_t *a_json_arr_reply,
     dap_chain_net_t * l_chain_net = NULL;
     dap_chain_t * l_chain = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_json_arr_reply,&l_chain,&l_chain_net, CHAIN_TYPE_INVALID)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply,&arg_index,argc,argv,&l_chain,&l_chain_net, CHAIN_TYPE_INVALID)) {
         return -3;
     }
 

@@ -9,8 +9,6 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_DAG_CS_POA_SRCS} ${DAP_CHAIN_DAG_
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_type_dag)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/node-cli-cmd/include)
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/node-cli-cmd/include)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_DAG_CS_POA_HEADERS}")

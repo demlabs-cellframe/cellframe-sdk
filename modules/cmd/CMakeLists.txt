@@ -4,7 +4,7 @@ project(dap_chain_node_cli_cmd)
 file(GLOB DAP_CHAIN_NODE_CLI_CMD_SRCS *.c)
 file(GLOB DAP_CHAIN_NODE_CLI_CMD_HEADERS include/*.h)
 
-message("[+] Module 'node-cli-cmd' (high-level CLI commands)")
+message("[+] Module 'cmd' (high-level CLI commands)")
 
 # Use universal Cellframe library macro
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_NODE_CLI_CMD_SRCS} HEADERS ${DAP_CHAIN_NODE_CLI_CMD_HEADERS})
@@ -43,9 +43,9 @@ endif()
 if(INSTALL_SDK)
     set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NODE_CLI_CMD_HEADERS}")
     INSTALL(TARGETS ${PROJECT_NAME}
-            LIBRARY DESTINATION lib/modules/node-cli-cmd/
-            ARCHIVE DESTINATION lib/modules/node-cli-cmd/
-            PUBLIC_HEADER DESTINATION include/modules/node-cli-cmd/
+            LIBRARY DESTINATION lib/modules/cmd/
+            ARCHIVE DESTINATION lib/modules/cmd/
+            PUBLIC_HEADER DESTINATION include/modules/cmd/
     )
 endif()
 

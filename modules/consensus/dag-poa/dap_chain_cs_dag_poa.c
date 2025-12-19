@@ -29,8 +29,7 @@
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_net.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+#include "dap_cli_server.h"  // For CLI registration (dap_cli_server_cmd_add)
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_chain_cs.h"
@@ -109,7 +108,7 @@ int dap_chain_type_dag_poa_init()
     dap_chain_cs_add("dag_poa", l_cs_callbacks);
     
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands", dap_chain_node_cli_cmd_id_from_str("dag_poa"),
+    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",  0 ,  // Auto-assign ID
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
     s_debug_more = dap_config_get_item_bool_default(g_config, "dag", "debug_more", s_debug_more);
@@ -187,7 +186,7 @@ static int s_cli_dag_poa(int argc, char ** argv, dap_json_t *a_json_arr_reply, U
         return -1;
     }
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_json_arr_reply,&l_chain,&l_chain_net,
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &arg_index, argc, argv, &l_chain, &l_chain_net,
                                                       CHAIN_TYPE_TOKEN)) {
         return -3;
     }

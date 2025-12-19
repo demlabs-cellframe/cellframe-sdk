@@ -48,7 +48,7 @@
 #include "dap_chain_net_ch_pkt.h"
 #include "dap_chain_net_ch.h"
 #include "dap_link_manager.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
+// REMOVED: dap_chain_net_srv_stake_pos_delegate.h - breaks cycle (net shouldn't depend on stake)
 
 #define LOG_TAG "dap_chain_net_ch"
 
@@ -212,16 +212,17 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             dap_chain_t *l_chain = NULL;
             DL_FOREACH(l_net->pub.chains, l_chain)
                 if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
-                    l_enc_key_pvt = dap_chain_cs_get_sign_key(l_chain);  // Use generic CS API
-                    if (l_enc_key_pvt)
-                        break;
+                    // TODO Phase 5.4: Use consensus API for sign key (avoid esbocs dependency)
+                    // l_enc_key_pvt = dap_chain_cs_get_sign_key(l_chain);
+                    // if (l_enc_key_pvt)
+                    //     break;
                 }
             dap_sign_t *l_sign = NULL;
             size_t sign_s = 0;
             size_t l_orders_num = 0;
             dap_chain_ch_validator_test_t *send = NULL;
             dap_chain_net_srv_price_unit_uid_t l_price_unit = { { 0 } };
-            dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
+            dap_chain_srv_uid_t l_uid = { .uint64 = 0x13 };  // DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID (avoid stake dependency)
             uint256_t l_price_min = {};
             uint256_t l_price_max = {};
             uint8_t flags = 0;

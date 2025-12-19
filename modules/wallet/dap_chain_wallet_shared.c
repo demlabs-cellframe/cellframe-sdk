@@ -30,11 +30,11 @@
 #include "dap_json.h"
 #include "dap_chain_mempool.h"
 #include "dap_cli_server.h"
-#include "dap_chain_net_tx.h"
+#include "dap_chain_net_fee.h"  // Fee management (moved from net-tx to net core)
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_list.h"
-#include "dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_global_db.h"

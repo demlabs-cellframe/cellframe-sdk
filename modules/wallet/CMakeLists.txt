@@ -8,7 +8,9 @@ include_directories(../../3rdparty/crc32c_adler)
 # Use universal Cellframe library macro
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_WALLET_SRCS} HEADERS ${DAP_CHAIN_WALLET_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_common dap_chain_datum dap_chain dap_chain_net dap_chain_mempool)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_common dap_chain_datum dap_chain 
+    dap_chain_net dap_chain_mempool)
+# NO net-tx - breaks wallet ↔ net-tx cycle (wallet only needs fee which is in net core)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 

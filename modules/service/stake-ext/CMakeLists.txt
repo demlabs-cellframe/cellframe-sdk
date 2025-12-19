@@ -9,9 +9,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_SRV_STAKE_EXT_SRCS} HEADERS ${DAP_SR
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/node-cli-cmd/include)
-target_include_directories(${PROJECT_NAME} PRIVATE ../../wallet/include ../../node-cli-cmd/include)
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_net_srv)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_net_srv dap_chain_net_tx)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../dap-sdk/3rdparty/json-c)
 
 if(BUILD_CELLFRAME_SDK_TESTS)

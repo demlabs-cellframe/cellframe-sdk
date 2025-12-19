@@ -44,7 +44,7 @@
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv.h"
 #include "dap_enc_base64.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
+// REMOVED: dap_chain_net_srv_stake_pos_delegate.h - breaks cycle (net-tx is TX layer, NOT stake)
 #include "dap_json_rpc.h"
 
 #define LOG_TAG "dap_chain_net_tx"
@@ -536,34 +536,8 @@ dap_chain_datum_tx_t *dap_chain_net_get_tx_by_hash(dap_chain_net_t *a_net, dap_c
     return NULL;
 }
 
-bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr)
-{
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-    if (!l_net){
-        log_it(L_WARNING, "Can't find net with id 0x%016"DAP_UINT64_FORMAT_x"", a_net_id.uint64);
-        return false;
-    }
-    if (IS_ZERO_256(l_net->pub.fee_value))
-        return false;
-    if (a_value)
-        *a_value = l_net->pub.fee_value;
-    if (a_addr)
-        *a_addr = l_net->pub.fee_addr;
-    return true;
-}
-
-bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr)
-{
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-    if (!l_net){
-        log_it(L_WARNING, "Can't find net with id 0x%016"DAP_UINT64_FORMAT_x"", a_net_id.uint64);
-        return false;
-    }
-    l_net->pub.fee_value = a_value;
-    l_net->pub.fee_addr = a_addr;
-
-    return true;
-}
+// REMOVED: dap_chain_net_tx_get_fee/set_fee - moved to modules/net/dap_chain_net_fee.c
+// These are net core functions, not TX layer
 
 static bool s_json_get_unit(dap_json_t *a_json, const char *a_key, dap_chain_net_srv_price_unit_uid_t *a_out)
 {
@@ -1279,8 +1253,9 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             uint256_t l_value = { };
             s_json_get_uint256(a_json_item_obj, "value", &l_value);
             uint256_t l_min = { };
-            dap_chain_net_srv_stake_get_fee_validators(a_net, NULL, NULL, &l_min, NULL);
-            if(!IS_ZERO_256(l_value) && compare256(l_value, l_min) >= 0) {
+            // TODO Phase 5.4: Use Validator API instead of direct stake call (breaks cycle)
+            // dap_chain_validator_api_get_fee_validators(a_net, NULL, NULL, &l_min, NULL);
+            if(!IS_ZERO_256(l_value) /* && compare256(l_value, l_min) >= 0 */) {
                 dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_fee(l_value);
                 // Save value for using in In item
                 if(l_out_cond_item) {

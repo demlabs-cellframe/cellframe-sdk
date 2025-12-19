@@ -9,6 +9,8 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_ESBOCS_SRCS} HEADERS ${DAP_CHA
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+# Stake headers for validator TYPES (uses Validator API for functions)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/service/stake/include)
 
 
 

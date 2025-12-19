@@ -7,13 +7,14 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_NET_SRV_SRCS} HEADERS ${DAP_CH
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/libmaxminddb ${CMAKE_CURRENT_BINARY_DIR}/../../3rdparty/libmaxminddb)
 
-target_link_libraries(${PROJECT_NAME} maxminddb dap_core dap_crypto dap_common dap_chain dap_chain_ledger dap_chain_mempool)
+# OBJECT library: net-srv is LOW-LEVEL service layer, should NOT depend on high-level net-tx
+target_link_libraries(${PROJECT_NAME} maxminddb dap_core dap_crypto dap_common dap_chain dap_chain_ledger 
+    dap_chain_mempool)
+# REMOVED: dap_chain_net_tx - breaks cycle (high-level TX operations don't belong in low-level srv)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/node-cli-cmd/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../dap-sdk/3rdparty/uthash/src)
-target_include_directories(${PROJECT_NAME} PRIVATE ../node-cli-cmd/include)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_SRV_HEADERS}")

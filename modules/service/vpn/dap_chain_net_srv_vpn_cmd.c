@@ -1,7 +1,9 @@
 #include "dap_common.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+#include "dap_cli_server.h"  // For CLI registration
+// REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 #include "dap_chain_net_srv_vpn_cmd.h"
+#include "dap_cli_server.h"  // For CLI registration
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client.h"
 
@@ -110,7 +112,7 @@ int com_vpn_client(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, UNU
 
     // find net
     dap_chain_net_t *l_net = NULL;
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_json_arr_reply, NULL, &l_net, CHAIN_TYPE_INVALID) < 0)
+    if(dap_chain_node_cli_cmd_values_parse_net_chain_for_json( a_json_arr_reply,&l_arg_index, a_argc, a_argv, NULL, &l_net, CHAIN_TYPE_INVALID) < 0)
         return -2;
 
     int cmd_num = CMD_NONE;

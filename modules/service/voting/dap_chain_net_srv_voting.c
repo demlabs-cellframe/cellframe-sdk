@@ -32,8 +32,8 @@
 #include "uthash.h"
 #include "dap_chain_srv.h"
 #include "dap_cli_server.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 
 #define LOG_TAG "dap_chain_net_srv_voting"
 
@@ -129,7 +129,7 @@ int dap_chain_net_srv_voting_init()
     dap_ledger_voting_verificator_add(s_voting_verificator, s_vote_verificator,
                                       s_datum_tx_voting_verification_delete_callback, dap_chain_net_srv_voting_get_expiration_time);
      dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
-                           "poll", s_cli_voting, NULL, "Voting/poll commands", dap_chain_node_cli_cmd_id_from_str("poll"),
+                           "poll", s_cli_voting, NULL, "Voting/poll commands", 0,
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>] [-max_votes_count <votes_count>]"
                                         " [-delegated_key_required] [-vote_changing_allowed] -fee <value> -w <fee_wallet_name> [-token <ticker>]\n"
                             "poll cancel -net <net_name> -hash <poll_hash> -fee <value_datoshi> -w <fee_wallet_name>\n"

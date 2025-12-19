@@ -23,6 +23,7 @@
 */
 
 #include <stdlib.h>
+#include "dap_cli_server.h"  // For CLI registration
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -37,8 +38,8 @@
 #include "dap_chain_net_srv_stake_ext.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_tx.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_datum_tx_out_cond.h"
@@ -202,7 +203,7 @@ int dap_chain_net_srv_stake_ext_init(void)
                                s_stake_ext_unlock_callback_updater, s_stake_ext_lock_callback_updater,
                                NULL, NULL);
     
-    dap_cli_server_cmd_add ("stake_ext", s_com_stake_ext, NULL, "Stake_ext commands", dap_chain_node_cli_cmd_id_from_str("stake_ext"),
+    dap_cli_server_cmd_add ("stake_ext", s_com_stake_ext, NULL, "Stake_ext commands", 0,
                 "lock -net <network> -stake_ext <stake_ext_name|tx_hash> -amount <value> -lock_period <3..24> -position <position_id> -fee <value> -w <wallet>\n"
                 "\tPlace a lock on an stake_ext for a specific position\n"
                 "\t-position: position ID (uint32) for which the lock is made\n\n"

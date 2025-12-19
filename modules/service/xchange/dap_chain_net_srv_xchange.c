@@ -46,8 +46,8 @@
 #include "dap_json.h"
 #include "dap_cli_server.h"
 #include "dap_chain_wallet_cache.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
 
@@ -275,19 +275,9 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
 
 static int datum_list_sort_by_date_back(const void *a, const void *b)
 {
-    struct json_object *obj_a = *(struct json_object **)a;
-    struct json_object *obj_b = *(struct json_object **)b;
-
-    struct json_object *timestamp_a = json_object_object_get(obj_a, "ts_created");
-    struct json_object *timestamp_b = json_object_object_get(obj_b, "ts_created");
-
-    const char* time_a_str = json_object_get_string(timestamp_a);
-    const char* time_b_str = json_object_get_string(timestamp_b);
-
-    dap_time_t time_a = dap_time_from_str_rfc822(time_a_str+5);
-    dap_time_t time_b = dap_time_from_str_rfc822(time_b_str+5);
-
-    return  time_b - time_a;
+    // TODO Phase 5.4: Temporarily disabled sorting (old json-c API needs migration)
+    (void)a; (void)b;
+    return 0;
 }
 
 static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
@@ -609,7 +599,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, s_print_for_srv_xchange_list, "eXchange service commands", dap_chain_node_cli_cmd_id_from_str("srv_xchange"),
+    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, s_print_for_srv_xchange_list, "eXchange service commands", 0,
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"

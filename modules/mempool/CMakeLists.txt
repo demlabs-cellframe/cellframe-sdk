@@ -6,8 +6,12 @@ file(GLOB DAP_CHAIN_MEMPOOL_HDR include/*.h)
 
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_MEMPOOL_SRC} HEADERS ${DAP_CHAIN_MEMPOOL_HDR})
 
-target_link_libraries(${PROJECT_NAME} dap_http_server dap_client dap_global_db dap_core dap_json_rpc dap_chain dap_chain_ledger)
+# mempool only needs net-tx header (for function signatures), NOT symbols
+# Adding target_include_directories for net-tx instead of target_link_libraries (breaks cycle)
+target_link_libraries(${PROJECT_NAME} dap_http_server dap_client dap_global_db dap_core dap_json_rpc 
+    dap_chain dap_chain_ledger)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+# REMOVED: net-tx include - creates transitive cycle (net → mempool → net_tx → wallet)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_MEMPOOL_HDR}")

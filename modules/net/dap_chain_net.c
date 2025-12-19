@@ -85,7 +85,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_cs_type.h"  // For dap_chain_cs_load/start/stop
 #include "dap_chain_net_node_list.h"
-#include "dap_chain_net_tx.h"
+#include "dap_chain_net_fee.h"  // Fee management (now in net core)
 #include "dap_chain_net_balancer.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
@@ -107,7 +107,7 @@
 #include "dap_chain_cs.h"
 // REMOVED: dap_chain_cs_esbocs.h - breaks cycle, use generic dap_chain_cs.h API
 #include "dap_chain_policy.h"
-#include "../node-cli-cmd/include/dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 #include "dap_chain_srv.h"
 #include <stdio.h>
 #include <sys/types.h>
@@ -247,7 +247,7 @@ int dap_chain_net_init()
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
-    dap_cli_server_cmd_add ("net", s_cli_net, NULL, "Network commands", dap_chain_node_cli_cmd_id_from_str("net"),
+    dap_cli_server_cmd_add ("net", s_cli_net, NULL, "Network commands", 0,
         "net list [chains -net <net_name>]\n"
             "\tList all networks or list all chains in selected network\n"
         "net -net <net_name> [-mode {update | all}] go {online | offline | sync}\n"

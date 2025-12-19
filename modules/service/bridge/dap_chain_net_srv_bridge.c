@@ -34,7 +34,7 @@
 #include "dap_time.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_node_cli.h"
+// REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_math_ops.h"

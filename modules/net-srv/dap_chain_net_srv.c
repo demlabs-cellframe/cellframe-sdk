@@ -48,7 +48,7 @@
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_policy.h"  // For policy functions from common module
-#include "dap_chain_net_tx.h"
+#include "dap_chain_net_fee.h"  // Fee management (now in net core, breaks cycle)
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_srv_ch.h"
@@ -57,7 +57,7 @@
 #include "dap_modules_dynamic_cdb.h"
 #endif
 
-#include "dap_chain_node_cli_cmd.h"
+#include "dap_cli_server.h"  // For CLI registration (dap_cli_server_cmd_add)
 
 #define LOG_TAG "chain_net_srv"
 
@@ -74,7 +74,7 @@ static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_p
 int dap_chain_net_srv_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL, NULL, s_pay_updater_callback, NULL, NULL);
-    dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, NULL, "Network services managment",  dap_chain_node_cli_cmd_id_from_str("net_srv"),
+    dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, NULL, "Network services managment",   0 ,
         "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
         " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
             "\tOrders list, all or by UID and/or class\n"

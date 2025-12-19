@@ -18,14 +18,15 @@ endif()
 
 # Node CLI Commands (high-level, depends on all modules - add last to avoid cycles)
 if (CELLFRAME_MODULES MATCHES "network")
-    add_subdirectory(node-cli-cmd)
+    add_subdirectory(cmd)
 endif()
 
 # Network
 if (CELLFRAME_MODULES MATCHES "network")
-add_subdirectory(mempool)
-# add_subdirectory(policy)  # Disabled - incompatible API (missing ledger functions)
-add_subdirectory(net)
+    add_subdirectory(mempool)
+    # add_subdirectory(policy)  # Disabled - incompatible API (missing ledger functions)
+    add_subdirectory(net)
+    add_subdirectory(net-tx)  # High-level TX operations (breaks wallet ↔ net cycle)
 endif()
 
 # Mining

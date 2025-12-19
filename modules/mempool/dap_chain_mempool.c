@@ -58,7 +58,7 @@
 #include "dap_chain.h"
 #include "../net/include/dap_chain_net.h"
 #include "dap_chain_net_utils.h"
-#include "dap_chain_net_tx.h"
+#include "dap_chain_net_fee.h"  // Fee management (now in net core, no wallet dependency)
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"

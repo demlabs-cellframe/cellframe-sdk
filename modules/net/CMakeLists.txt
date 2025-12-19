@@ -8,20 +8,16 @@ file(GLOB DAP_CHAIN_NET_HEADERS include/*.h)
 # Use universal Cellframe library macro
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_NET_SRCS} HEADERS ${DAP_CHAIN_NET_HEADERS})
 
-# OBJECT library: remove esbocs to break cycle (use consensus API instead)
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_link_manager dap_dns_server
-                                        dap_io dap_notify_srv dap_global_db dap_json_rpc
-                                        dap_chain dap_chain_datum dap_chain_cs dap_chain_ledger
-                                        dap_chain_mempool dap_chain_net_srv)
-# NO dap_chain_wallet - breaks wallet ↔ net cycle (net shouldn't depend on wallet)
+# OBJECT library: Clean net core layer (NO wallet, NO stake, NO cmd)
+target_link_libraries(${PROJECT_NAME} 
+    dap_core dap_crypto dap_client dap_link_manager dap_dns_server
+    dap_io dap_notify_srv dap_global_db dap_json_rpc
+    dap_chain dap_chain_datum dap_chain_cs dap_chain_ledger
+    dap_chain_mempool dap_chain_net_srv dap_chain_type_blocks)
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)
-target_include_directories(${PROJECT_NAME} PRIVATE 
-    ../type/blocks/include
-    ../service/stake/include
-    ../wallet/include
-)
+# NO manual includes - all propagated through target_link_libraries
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_HEADERS}")

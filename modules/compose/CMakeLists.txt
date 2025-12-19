@@ -10,6 +10,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_COMPOSE_SRCS} HEADERS ${DAP_CH
 
 # OBJECT library: compose needs wallet + net_srv (for order.h) + net (for net_tx.h)
 target_link_libraries(${PROJECT_NAME} dap_sdk dap_app_cli dap_chain dap_chain_ledger dap_client_http 
+    dap_chain_net_tx  # High-level TX operations
     dap_chain_wallet dap_chain_net_srv dap_chain_net)
 target_include_directories(${PROJECT_NAME} PUBLIC include/)
 target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)

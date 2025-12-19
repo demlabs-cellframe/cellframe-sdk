@@ -27,11 +27,12 @@
 #include "dap_chain_block_cache.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
-#include "dap_chain_net_tx.h"
+#include "dap_chain_net_fee.h"  // Fee management (moved from net-tx to net core)
 #include "../../mempool/include/dap_chain_mempool.h"
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_chain_block_callbacks.h"  // Phase 5.3: Callback API for breaking stake cycle
+#include "dap_chain_net_fee.h"  // Fee management (now in net core, NO net-tx dependency)
 
 #define LOG_TAG "dap_chain_block_tx"
 

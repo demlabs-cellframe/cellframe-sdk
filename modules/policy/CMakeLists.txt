@@ -22,7 +22,8 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/modules/chain/include)
+# Chain module provides types
+target_link_libraries(${PROJECT_NAME} dap_chain)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_POLICY_HEADERS}")

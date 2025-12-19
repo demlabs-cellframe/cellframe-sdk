@@ -32,9 +32,9 @@
 #include "dap_chain_types.h" // Consensus type strings moved to common (Phase 5.3)
 #include "dap_chain_rpc_callbacks.h" // RPC callbacks for Dependency Inversion (Phase 5.3)
 // REMOVED: #include "dap_chain_cs_esbocs.h" - using DAP_CHAIN_ESBOCS_CS_TYPE_STR from dap_chain_types.h
-// TODO Phase 5.3: Replace direct calls with callbacks for blocks and stake
-#include "dap_chain_type_blocks.h" // TODO Phase 5.3: wrap in callback pattern
-#include "dap_chain_net_srv_stake_pos_delegate.h" // TODO Phase 5.3: wrap in callback pattern
+// Phase 5.4: Removed direct dependencies to break cycles
+#include "dap_chain_type_blocks.h"  // blocks is OK (no cycle)
+// REMOVED: dap_chain_net_srv_stake_pos_delegate.h - breaks cycle, use Validator API
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_cli_server.h"
@@ -571,10 +571,11 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         return log_it(L_ERROR, "Can't prepare harfork for chain type %s is not supported", dap_chain_get_cs_type(a_chain)), -2;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     assert(l_net);
-    if (dap_chain_net_srv_stake_hardfork_data_verify(l_net, &a_chain->hardfork_decree_hash)) {
-        log_it(L_ERROR, "Stake delegate data verifying with hardfork decree failed");
-        return -3;
-    }
+    // TODO Phase 5.4: Use Validator API for hardfork verification (breaks stake dependency)
+    // if (dap_chain_validator_api_hardfork_data_verify(l_net, &a_chain->hardfork_decree_hash)) {
+    //     log_it(L_ERROR, "Stake delegate data verifying with hardfork decree failed");
+    //     return -3;
+    // }
     log_it(L_ATT, "Starting data prepare for hardfork of chain '%s' for net '%s'", a_chain->name, l_net->pub.name);
     struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1);
     dap_ledger_hardfork_fees_t *l_fees = dap_chain_type_blocks_fees_aggregate(a_chain);

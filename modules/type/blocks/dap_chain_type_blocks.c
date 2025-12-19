@@ -41,7 +41,7 @@
 #include "dap_chain_block_collect.h"  // Common block collection types (breaks esbocs cycle)
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
-#include "../../node-cli-cmd/include/dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 
 #define LOG_TAG "dap_chain_type_blocks"
 
@@ -271,7 +271,7 @@ int dap_chain_type_blocks_init()
     dap_chain_block_init();
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
-    dap_cli_server_cmd_add("block", s_cli_blocks, s_print_for_block_list, "Create and explore blockchains", dap_chain_node_cli_cmd_id_from_str("block"),
+    dap_cli_server_cmd_add("block", s_cli_blocks, s_print_for_block_list, "Create and explore blockchains", 0,
 
         "Blockchain explorer:\n"
             "block -net <net_name> [-chain <chain_name>] [-brief] dump {-hash <block_hash> | -num <block_number>}\n"
