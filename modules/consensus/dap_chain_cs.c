@@ -103,6 +103,12 @@ dap_pkey_t* dap_chain_cs_get_sign_pkey(dap_chain_t *a_chain)
     return (cbs && cbs->get_sign_pkey) ? cbs->get_sign_pkey(a_chain->net_id) : NULL;
 }
 
+dap_enc_key_t* dap_chain_cs_get_sign_key(dap_chain_t *a_chain)
+{
+    dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
+    return (cbs && cbs->get_sign_key) ? cbs->get_sign_key(a_chain) : NULL;
+}
+
 uint256_t dap_chain_cs_get_collecting_level(dap_chain_t *a_chain)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);

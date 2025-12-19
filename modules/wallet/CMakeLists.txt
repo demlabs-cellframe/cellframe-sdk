@@ -13,6 +13,7 @@ target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_common dap_chain_d
 # NO net-tx - breaks wallet ↔ net-tx cycle (wallet only needs fee which is in net core)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+# NO manual cmd includes - proper layering (wallet is low-level, cmd is high-level)
 
 
 if (INSTALL_SDK)

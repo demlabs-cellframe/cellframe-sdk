@@ -145,12 +145,12 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_full(dap_enc_key_t *a_key_from, 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
     //dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, a_value);
-    dap_chain_tx_out_ext_t *l_out = dap_chain_datum_tx_item_out_ext_create(a_addr_to, a_value, "KEL");
+    dap_chain_tx_out_ext_t *l_out = dap_chain_datum_tx_item_out_ext_create(a_addr_to, a_value, s_token_ticker);
     uint256_t l_change = {};
     if (l_tx_prev_out)
     SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_change);
     //dap_chain_tx_out_t *l_out_change = dap_chain_datum_tx_item_out_create(&l_addr, l_change);
-    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, "KEL");
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, s_token_ticker);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
@@ -176,7 +176,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, 
     uint256_t l_change = {};
     if (l_tx_prev_out)
         SUBTRACT_256_256(l_tx_prev_out->header.value, a_value, &l_change);
-    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, "KEL");
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr, l_change, s_token_ticker);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_cond);
@@ -218,7 +218,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_
     // add all items to tx
     dap_chain_addr_t l_addr_to = {0};
     dap_chain_addr_fill_from_key(&l_addr_to, a_key_to, a_ledger->net_id);
-    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, a_value, "KEL");
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, a_value, s_token_ticker);
     dap_chain_datum_tx_add_item(&l_tx, (byte_t*)l_receipt);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_cond);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
@@ -245,7 +245,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_chain_hash_
     // add all items to tx
     dap_chain_addr_t l_addr_to = {0};
     dap_chain_addr_fill_from_key(&l_addr_to, a_key_to, a_ledger->net_id);
-    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, l_tx_prev_out->header.value, "KEL");
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, l_tx_prev_out->header.value, s_token_ticker);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_cond);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_change);
     dap_chain_datum_tx_add_sign_item(&l_tx, a_key_to);
@@ -731,15 +731,15 @@ dap_hash_fast_t dap_ledger_test_double_spending(
     dap_ledger_t *a_ledger, dap_hash_fast_t *a_prev_hash, dap_enc_key_t  *a_from_key, dap_chain_addr_t a_addr_to, dap_chain_net_id_t a_net_id) {
     dap_print_module_name("dap_ledger_double_spending");
     dap_chain_datum_tx_t *l_first_tx = dap_ledger_test_create_tx(a_from_key, a_prev_hash,
-                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee),"KEL");
+                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee), s_token_ticker);
     dap_assert_PIF(l_first_tx, "Can't creating base transaction.");
     dap_chain_hash_fast_t l_first_tx_hash = {0};
     dap_hash_fast(l_first_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_first_tx_hash);
     dap_assert_PIF(!dap_ledger_tx_add(a_ledger, l_first_tx, &l_first_tx_hash, false, NULL), "Can't add first transaction on ledger");
     //uint256_t l_balance = dap_ledger_calc_balance(a_ledger, &l_addr_first, s_token_ticker);
-    // Second tx
+    // Second tx - double spending attempt (should fail)
     dap_chain_datum_tx_t *l_second_tx = dap_ledger_test_create_tx(a_from_key, a_prev_hash,
-                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee),"KEL");
+                                                                       &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee), s_token_ticker);
     dap_chain_hash_fast_t l_second_tx_hash = {0};
     dap_hash_fast(l_second_tx, dap_chain_datum_tx_get_size(l_second_tx), &l_second_tx_hash);
     dap_assert_PIF(dap_ledger_tx_add(a_ledger, l_second_tx, &l_second_tx_hash, false, NULL), "Added second transaction on ledger");
@@ -1030,6 +1030,8 @@ void dap_ledger_test_run(void){
     };
     dap_ledger_t *l_ledger = dap_ledger_create(&l_opts);
     l_net->pub.ledger = l_ledger;
+    // Set native ticker from network (required for fee output validation)
+    dap_ledger_set_native_ticker(l_ledger, l_net->pub.native_ticker);
 
     // Create zerochain with dag_poa consensus
     dap_chain_t *l_chain_zero =  dap_chain_create(l_net->pub.name, "test_chain_zerochain", l_net->pub.id, (dap_chain_id_t){.uint64 = 0});
@@ -1044,6 +1046,14 @@ void dap_ledger_test_run(void){
     dap_config_set_item_str(l_chain_main->config, "chain", "consensus", "esbocs");
     dap_assert_PIF(dap_chain_cs_create(l_chain_main, l_chain_main->config) == 0, "Chain esbocs cs creating: ");
     DL_APPEND(l_net->pub.chains, l_chain_main);
+
+    // Setup blockchain timer callbacks for both chains
+    dap_ledger_set_blockchain_timer(l_ledger, l_chain_zero);
+    dap_ledger_set_blockchain_timer(l_ledger, l_chain_main);
+    
+    // Initialize blockchain time far enough in the future to cover all test time-locks
+    // Tests use dap_time_now() + 1 for stake locks, so we set blockchain time way ahead
+    dap_ledger_set_blockchain_time(l_ledger, dap_time_now() + 3600); // +1 hour
 
     dap_ledger_decree_init(l_net->pub.ledger);
 

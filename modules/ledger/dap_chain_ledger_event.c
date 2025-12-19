@@ -167,11 +167,13 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
         pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
     dap_ledger_event_t *l_event = NULL;
     unsigned int l_hash_value = 0;
-    HASH_VALUE(a_tx_hash, sizeof(dap_hash_fast_t), l_hash_value);
-    HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->events, a_tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
-    if (l_event) {
-        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-        return -1;
+    if (!a_ledger->is_hardfork_state) {
+        HASH_VALUE(a_tx_hash, sizeof(dap_hash_fast_t), l_hash_value);
+        HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->events, a_tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
+        if (l_event) {
+            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+            return -1;
+        }
     }
     dap_chain_tx_item_event_t *l_event_item = NULL;
     dap_tsd_t *l_event_tsd = NULL;
@@ -251,17 +253,24 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
             break;
         }
     }
-    if (!l_event_item || !l_event_sign) {
-        log_it(L_WARNING, "Event item or sign not found in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
+    if (!l_event_item) {
+        log_it(L_WARNING, "Event item is not found in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-        return -7;
+        return -17;
     }
-    if (dap_chain_datum_tx_verify_sign(a_tx, 1)) {
-        log_it(L_WARNING, "Sign verification failed in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
-        pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
-        return -8;
+    if (!a_ledger->is_hardfork_state) {
+        if (!l_event_sign) {
+            log_it(L_WARNING, "Event sign is not found in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
+            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+            return -7;
+        }
+        if (dap_chain_datum_tx_verify_sign(a_tx, 1)) {
+            log_it(L_WARNING, "Sign verification failed in tx %s", dap_hash_fast_to_str_static(a_tx_hash));
+            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+            return -8;
+        }
+        dap_sign_get_pkey_hash(l_event_sign, &l_event_pkey_hash);
     }
-    dap_sign_get_pkey_hash(l_event_sign, &l_event_pkey_hash);
     // If no keys are in the allowed list, all keys are allowed by default, change comparision to != 0 to block keys with empty list
     if (dap_ledger_event_pkey_check(a_ledger, &l_event_pkey_hash) == -1) {
         log_it(L_WARNING, "Event pkey %s is not allowed in tx %s", dap_hash_fast_to_str_static(&l_event_pkey_hash),
@@ -274,7 +283,7 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         return -11;
     }
-    dap_strncpy(l_event_group_name, (char *)l_event_item->group_name, l_event_item->group_name_size);
+    dap_strncpy(l_event_group_name, (char *)l_event_item->group_name, l_event_item->group_name_size + 1);
     if (l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE) {
         DAP_DELETE(l_event_group_name);
         int ret = dap_chain_srv_decree(a_ledger->net_id, l_event_item->srv_uid, a_apply,
@@ -313,6 +322,15 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
             pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
             DAP_DEL_Z(l_event);
             return -10;
+        }
+    }
+    if (a_ledger->is_hardfork_state) {
+        dap_ledger_event_t *l_found = NULL;
+        HASH_VALUE(&l_tx_hash, sizeof(dap_hash_fast_t), l_hash_value);
+        HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->events, a_tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_found);
+        if (l_found) {
+            pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+            return -1;
         }
     }
     HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->events, tx_hash, sizeof(dap_hash_fast_t), l_hash_value, l_event);
@@ -456,6 +474,7 @@ dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(dap_ledger_t *a_ledger
 {
     dap_ledger_hardfork_events_t *ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    size_t l_events_count = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
     dap_ledger_event_t *it = NULL, *tmp = NULL;
     HASH_ITER(hh, l_ledger_pvt->events, it, tmp) {
@@ -467,10 +486,55 @@ dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(dap_ledger_t *a_ledger
         l_add->event = s_ledger_event_to_tx_event(it);
         if (!l_add->event) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            DAP_DELETE(l_add);
             break;
         }
+        debug_if(g_debug_ledger, L_NOTICE, "Aggregate event %s from group '%s' with type %u for srv_uid 0x%016" DAP_UINT64_FORMAT_x,
+                 dap_hash_fast_to_str_static(&it->tx_hash), it->group_name,
+                 it->event_type, it->srv_uid.uint64);
         DL_APPEND(ret, l_add);
+        l_events_count++;
     }
     pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+    debug_if(g_debug_ledger, L_NOTICE, "Aggregated %zu events total", l_events_count);
     return ret;
+}
+
+/**
+ * @brief Purge all events from the ledger
+ * @param a_ledger The ledger instance
+ * @details Removes all events and allowed public keys from ledger memory.
+ *          Does not affect event notifiers list.
+ */
+void dap_ledger_event_purge(dap_ledger_t *a_ledger)
+{
+    dap_return_if_fail(a_ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+
+    // Purge events hash table
+    pthread_rwlock_wrlock(&l_ledger_pvt->events_rwlock);
+    dap_ledger_event_t *l_event_current, *l_event_tmp;
+    size_t l_events_count = 0;
+    HASH_ITER(hh, l_ledger_pvt->events, l_event_current, l_event_tmp) {
+        HASH_DEL(l_ledger_pvt->events, l_event_current);
+        DAP_DEL_MULTY(l_event_current->event_data, l_event_current->group_name, l_event_current);
+        l_events_count++;
+    }
+    l_ledger_pvt->events = NULL;
+    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+
+    // Purge allowed public keys hash table
+    pthread_rwlock_wrlock(&l_ledger_pvt->event_pkeys_rwlock);
+    dap_ledger_event_pkey_item_t *l_pkey_current, *l_pkey_tmp;
+    size_t l_pkeys_count = 0;
+    HASH_ITER(hh, l_ledger_pvt->event_pkeys_allowed, l_pkey_current, l_pkey_tmp) {
+        HASH_DEL(l_ledger_pvt->event_pkeys_allowed, l_pkey_current);
+        DAP_DELETE(l_pkey_current);
+        l_pkeys_count++;
+    }
+    l_ledger_pvt->event_pkeys_allowed = NULL;
+    pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
+
+    debug_if(g_debug_ledger, L_NOTICE, "Purged %zu events and %zu allowed event pkeys from ledger",
+             l_events_count, l_pkeys_count);
 }

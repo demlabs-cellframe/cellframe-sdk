@@ -10,7 +10,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_ESBOCS_SRCS} HEADERS ${DAP_CHA
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
-# OBJECT library: esbocs needs stake for PoS consensus
+# OBJECT library: esbocs needs stake for PoS consensus (uses Validator API + stake_common types)
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_cs dap_chain_ledger dap_link_manager
     dap_chain_type_blocks dap_chain_mempool dap_chain_net dap_chain_net_srv
     dap_chain_net_srv_stake_common dap_chain_net_srv_stake)

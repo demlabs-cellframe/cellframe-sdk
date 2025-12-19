@@ -25,6 +25,8 @@
 #include "dap_chain_block_cache.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
+#include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx_tsd.h"
 
 #define LOG_TAG "dap_chain_block_cache"
 
@@ -128,8 +130,22 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
     }
 
     a_block_cache->datum_hash = DAP_NEW_Z_SIZE(dap_hash_fast_t, a_block_cache->datum_count * sizeof(dap_hash_fast_t));
-    for (size_t i = 0; i < a_block_cache->datum_count; i++)
-        dap_chain_datum_calc_hash(a_block_cache->datum[i], a_block_cache->datum_hash + i);
+    for (size_t i = 0; i < a_block_cache->datum_count; i++) {
+        dap_chain_datum_t *l_datum = a_block_cache->datum[i];
+        // For hardfork block TX, use pre-hardfork hash from TSD if present (optimization: skip hash computation)
+        if (a_block_cache->generation && l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+            dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TX_HASH);
+            if (l_tsd) {
+                dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_tsd->tsd;
+                if (l_tsd_data->size == sizeof(dap_hash_fast_t)) {
+                    a_block_cache->datum_hash[i] = *(dap_hash_fast_t *)l_tsd_data->data;
+                    continue;
+                }
+            }
+        }
+        dap_chain_datum_calc_hash(l_datum, a_block_cache->datum_hash + i);
+    }
     return 0;
 }
 

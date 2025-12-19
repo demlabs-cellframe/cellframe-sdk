@@ -12,7 +12,7 @@ if(BUILD_CELLFRAME_SDK_TESTS)
 endif()
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_global_db dap_json_rpc dap_common)
-target_include_directories(${PROJECT_NAME} PUBLIC include/)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 
 if (INSTALL_SDK)

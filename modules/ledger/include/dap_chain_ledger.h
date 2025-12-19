@@ -603,6 +603,7 @@ dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *
 void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
 void dap_ledger_tx_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
 void dap_ledger_token_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
+void dap_ledger_event_purge(dap_ledger_t *a_ledger);
 
 /**
  * Return number transactions from the cache
@@ -736,6 +737,8 @@ void dap_ledger_colour_clear_callback(void *a_list_data);
 dap_list_t *dap_ledger_decrees_get_by_type(dap_ledger_t *a_ledger, int a_type);
 
 dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger);
+void dap_ledger_set_blockchain_timer(dap_ledger_t *a_ledger, dap_chain_t *a_chain);
+void dap_ledger_set_blockchain_time(dap_ledger_t *a_ledger, dap_time_t a_time);
 
 /**
  * @brief Get list of transaction outputs from JSON array

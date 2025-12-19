@@ -41,7 +41,9 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 // REMOVED: esbocs.h - breaks cycle, use generic dap_chain_cs.h API instead
+#include "dap_chain_cs.h"
 #include "dap_chain_net_srv_order.h"
+#include "dap_chain_node.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
@@ -266,8 +268,14 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
 #if !defined(DAP_OS_IOS) && !defined(DAP_OS_ANDROID)
             auto_update = (( system("systemctl status cellframe-updater.service") == 768 ) && ( system("systemctl status cellframe-updater.timer") == 0 ));
 #endif
+            // Check if node is in nodelist
+            dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &g_node_addr);
+            bool l_in_nodelist = l_node_info != NULL;
+            DAP_DEL_Z(l_node_info);
+
             flags = auto_online ? ( flags | A_ONLN ) : ( flags & ~A_ONLN );
             flags = auto_update ? ( flags | A_UPDT ) : ( flags & ~A_UPDT );
+            flags = l_in_nodelist ? ( flags | F_NLST ) : ( flags & ~F_NLST );
             send->header.flags = flags;
             //add sign
             if(sign_s)

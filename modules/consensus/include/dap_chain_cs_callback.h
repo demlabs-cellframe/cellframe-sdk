@@ -15,6 +15,7 @@
 // Forward declarations
 typedef struct dap_chain dap_chain_t;
 typedef struct dap_chain_datum dap_chain_datum_t;
+typedef struct dap_enc_key dap_enc_key_t;
 
 /**
  * @brief Chain consensus callbacks structure 
@@ -31,6 +32,8 @@ typedef struct dap_chain_cs_callbacks {
     uint256_t (*get_fee)(dap_chain_net_id_t a_net_id);
     // Get signing public key
     dap_pkey_t* (*get_sign_pkey)(dap_chain_net_id_t a_net_id);
+    // Get signing private key (enc_key)
+    dap_enc_key_t* (*get_sign_key)(dap_chain_t *a_chain);
     // Get collecting level (returns uint256_t!)
     uint256_t (*get_collecting_level)(dap_chain_t *a_chain);
     // Add block collect operation

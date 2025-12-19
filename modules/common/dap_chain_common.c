@@ -68,6 +68,8 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
  */
 dap_chain_addr_str_t dap_chain_addr_to_str_static_(const dap_chain_addr_t *a_addr)
 {
+    if (!a_addr)
+        return (dap_chain_addr_str_t){ "null" };
     dap_return_val_if_pass(!a_addr, (dap_chain_addr_str_t){ "null" });
     dap_chain_addr_str_t res;
     if (dap_chain_addr_is_blank(a_addr))
