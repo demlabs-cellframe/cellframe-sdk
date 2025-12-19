@@ -29,6 +29,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
 #include "test_token_fixtures.h"
@@ -110,6 +111,8 @@ static void s_setup(void)
                 "debug_more=true\n\n"
                 "[ledger]\n"
                 "debug_more=true\n\n"
+                "[wallets]\n"
+                "wallets_cache=all\n\n"
                 "[global_db]\n"
                 "driver=mdbx\n"
                 "path=/tmp/reg_test_gdb\n\n"
@@ -130,6 +133,11 @@ static void s_setup(void)
     
     // Create test environment
     test_env_init("/tmp/reg_test_config", "/tmp/reg_test_gdb");
+    
+    // Init wallet cache AFTER config is loaded but BEFORE creating wallets
+    // This ensures wallet cache uses config from test.cfg
+    dap_chain_wallet_cache_init();
+    
     s_net_fixture = test_net_fixture_create("RegNet");
     dap_assert_PIF(s_net_fixture != NULL, "Network fixture created");
     
@@ -144,6 +152,7 @@ static void s_cleanup(void)
         test_net_fixture_destroy(s_net_fixture);
         s_net_fixture = NULL;
     }
+    dap_chain_wallet_cache_deinit();
     dap_chain_node_cli_delete();
     test_env_deinit();
     system("rm -rf /tmp/reg_test_gdb");
@@ -221,12 +230,52 @@ static bool s_create_token_and_emission(const char *a_ticker, dap_chain_addr_t *
     
     char *l_reply_emit = dap_cli_cmd_exec(l_json_req_emit);
     dap_assert_PIF(l_reply_emit != NULL, "Emission CLI executed");
+    
+    // Extract emission hash from reply
+    json_object *l_json_emit = json_tokener_parse(l_reply_emit);
     DAP_DELETE(l_reply_emit);
+    dap_assert_PIF(l_json_emit != NULL, "Emission JSON parsed");
+    
+    json_object *l_result_emit = NULL;
+    json_object_object_get_ex(l_json_emit, "result", &l_result_emit);
+    const char *l_emit_result_str = json_object_get_string(l_result_emit);
+    
+    // Extract emission hash (format: "Datum 0x... with 256bit emission is placed in datum pool")
+    const char *l_emission_hash_start = strstr(l_emit_result_str, "0x");
+    char l_emission_hash[67] = {0};
+    if (l_emission_hash_start) {
+        strncpy(l_emission_hash, l_emission_hash_start, 66);
+    }
+    json_object_put(l_json_emit);
+    dap_assert_PIF(strlen(l_emission_hash) > 0, "Emission hash extracted");
     
     // Process mempool to add emission to ledger
     dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
     
-    log_it(L_INFO, "✓ Token %s emission created via CLI", a_ticker);
+    log_it(L_INFO, "✓ Token %s emission created via CLI, hash=%s", a_ticker, l_emission_hash);
+    
+    // CRITICAL: Create base transaction from emission to generate UTXOs and balance
+    // Base TX is REQUIRED for balance, it cannot be created automatically
+    char l_cmd_base_tx[2048];
+    snprintf(l_cmd_base_tx, sizeof(l_cmd_base_tx),
+             "tx_create -net %s -chain %s -chain_emission %s -from_emission %s -cert %s",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name, s_net_fixture->chain_main->name,
+             l_emission_hash, a_cert_owner->name);
+    
+    char l_json_req_base_tx[4096];
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_base_tx, "tx_create", l_json_req_base_tx, sizeof(l_json_req_base_tx), 1);
+    
+    char *l_reply_base_tx = dap_cli_cmd_exec(l_json_req_base_tx);
+    dap_assert_PIF(l_reply_base_tx != NULL, "Base TX CLI executed");
+    DAP_DELETE(l_reply_base_tx);
+    
+    // Process mempool THREE times to ensure emission and base TX both processed
+    // Pass 1: emission added to ledger
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+    // Pass 2: cleanup duplicate emissions
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+    // Pass 3: base TX processed and UTXO created
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
     
     // Verify balance
     uint256_t l_balance = dap_ledger_calc_balance(s_net_fixture->ledger, a_addr_owner, a_ticker);
@@ -297,7 +346,13 @@ static void test_bug_arbitrage_availability(void)
     DAP_DELETE(l_bal_token_str);
     DAP_DELETE(l_bal_fee_str);
     
-    // 3. Attempt to create arbitrage transaction immediately
+    // 3. Open wallet and load cache for arbitrage TX
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_avail", "/tmp/reg_test_wallets", NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
+    sleep(2);  // Wait for async cache loading (proc thread)
+    
+    // 4. Attempt to create arbitrage transaction immediately
     char l_cmd[2048];
 
     // Command: tx_create -net ... -chain ... -from_wallet ... -token ... -value ... -arbitrage -certs ...
@@ -354,6 +409,7 @@ static void test_bug_arbitrage_availability(void)
     json_object_put(l_json);
     DAP_DELETE(l_reply);
     dap_chain_wallet_close(l_wallet);
+    dap_chain_wallet_close(l_wallet_opened);
 }
 
 /**
@@ -464,7 +520,11 @@ static void test_bug_arbitrage_without_certs(void)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_addr);
     
-    // 6. ATTEMPT arbitrage WITHOUT -certs - MUST FAIL with clear error
+    // 6. Load wallet cache before arbitrage TX
+    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
+    sleep(2);  // Wait for async cache loading (proc thread)
+    
+    // 7. ATTEMPT arbitrage WITHOUT -certs - MUST FAIL with clear error
     log_it(L_INFO, "Attempting arbitrage WITHOUT -certs (MUST fail)...");
     
     char l_cmd_arb[2048];
@@ -578,7 +638,13 @@ static void test_bug_arbitrage_arguments(void)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_addr);
     
-    // 4. Create Arbitrage TX with specific VALUE
+    // 4. Open wallet and load cache for arbitrage TX
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_args", "/tmp/reg_test_wallets", NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
+    sleep(2);  // Wait for async cache loading (proc thread)
+    
+    // 5. Create Arbitrage TX with specific VALUE
     // Use a specific weird value to check
     const char *l_value_check = "123.456"; 
     // Datoshi: 123456000000000000000
@@ -858,7 +924,11 @@ static void test_arbitrage_without_fee_addr(void)
     // Verify fee_addr is indeed blank
     dap_assert_PIF(dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr), "Fee address is blank (as expected for test)");
     
-    // 4. Attempt arbitrage WITHOUT fee_addr - should FAIL GRACEFULLY (not crash!)
+    // 4. Load wallet cache before arbitrage TX
+    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
+    sleep(2);  // Wait for async cache loading (proc thread)
+    
+    // 5. Attempt arbitrage WITHOUT fee_addr - should FAIL GRACEFULLY (not crash!)
     log_it(L_NOTICE, "=== 3.1: Testing arbitrage WITHOUT fee_addr (should fail gracefully) ===");
     
     char l_cmd_no_fee[2048];
@@ -1029,6 +1099,11 @@ static void test_arbitrage_immediately_after_emission(void)
     dap_assert_PIF(!IS_ZERO_256(l_balance_custom), "Balance available immediately after emission");
     
     // 7. CRITICAL TEST: Create arbitrage transaction IMMEDIATELY after emission
+    // 11. Load wallet cache before arbitrage TX
+    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
+    sleep(2);  // Wait for async cache loading (proc thread)
+    
+    // 12. Test arbitrage IMMEDIATELY after emission
     // WITHOUT intermediate regular transaction (this is the bug scenario)
     log_it(L_NOTICE, "=== 4.1: Testing arbitrage IMMEDIATELY after emission (no intermediate TX) ===");
     
@@ -1138,6 +1213,15 @@ static void test_arbitrage_to_addr_behavior(void)
     // === TEST 2.2: Arbitrage WITH -to_addr ===
     log_it(L_NOTICE, "=== 2.2: Testing arbitrage WITH -to_addr (should be IGNORED) ===");
     
+    // Open wallet and load cache (required for arbitrage TX)
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", "/tmp/reg_test_wallets", NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+    
+    // Explicitly load wallet cache for network (ensures UTXOs are found)
+    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
+    // Wait for asynchronous cache loading to complete (2 seconds for proc thread)
+    sleep(2);
+    
     char l_cmd_with_toaddr[2048];
     snprintf(l_cmd_with_toaddr, sizeof(l_cmd_with_toaddr), 
              "tx_create -net %s -chain %s -from_wallet reg_wallet_toaddr -to_addr %s -token %s -value 100.0 -arbitrage -fee %s -certs %s",
@@ -1219,6 +1303,12 @@ static void test_arbitrage_to_addr_behavior(void)
     // === TEST 2.3: Arbitrage WITHOUT -to_addr ===
     log_it(L_NOTICE, "=== 2.3: Testing arbitrage WITHOUT -to_addr ===");
     
+    // Re-open wallet and reload cache for second arbitrage TX
+    l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", "/tmp/reg_test_wallets", NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet re-opened for second arbitrage TX");
+    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
+    sleep(2);  // Wait for async cache loading (proc thread)
+    
     char l_cmd_without_toaddr[2048];
     snprintf(l_cmd_without_toaddr, sizeof(l_cmd_without_toaddr), 
              "tx_create -net %s -chain %s -from_wallet reg_wallet_toaddr -token %s -value 100.0 -arbitrage -fee %s -certs %s",
@@ -1288,6 +1378,7 @@ static void test_arbitrage_to_addr_behavior(void)
     
     // Cleanup
     dap_chain_wallet_close(l_wallet);
+    dap_chain_wallet_close(l_wallet_opened);  // Close wallet opened for arbitrage tests
     
     log_it(L_NOTICE, "=== BUG-002 TEST PASSED: Arbitrage with/without -to_addr works ===");
 }

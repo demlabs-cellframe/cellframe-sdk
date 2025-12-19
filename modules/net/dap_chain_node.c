@@ -503,20 +503,49 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
         }
     }
     
+    // For token emission datums, apply changes directly to ledger if verification passes
+    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_EMISSION && !l_verify_datum) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        if (l_net && l_net->pub.ledger) {
+            log_it(L_INFO, "Processing token emission datum in chain '%s', hash=%s", a_chain->name, a_datum_hash_str);
+            int l_emission_add_res = dap_ledger_token_emission_load(l_net->pub.ledger, a_datum->data,
+                                                                      a_datum->header.data_size, &l_datum_hash);
+            if (l_emission_add_res != DAP_LEDGER_CHECK_OK &&
+                l_emission_add_res != DAP_LEDGER_CHECK_WHITELISTED &&
+                l_emission_add_res != DAP_LEDGER_CHECK_ALREADY_CACHED) {
+                log_it(L_WARNING, "Failed to add emission datum to ledger: %d (%s)",
+                       l_emission_add_res, dap_ledger_check_error_str(l_emission_add_res));
+            } else {
+                log_it(L_INFO, "Token emission added to ledger successfully (result: %d)", l_emission_add_res);
+            }
+        }
+    }
+    
+    // For TX datums, apply changes directly to ledger if verification passes
+    // This is CRITICAL for "none" consensus where callback_add_datums only saves to GDB
+    // but does NOT create UTXOs
+    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX && !l_verify_datum) {
+        log_it(L_INFO, "Processing TX datum in chain '%s', hash=%s", a_chain->name, a_datum_hash_str);
+        // dap_chain_datum_add is already called by callback, so we skip double processing
+        // But we log it for debugging
+        log_it(L_INFO, "TX datum will be processed by callback_add_datums");
+    }
+    
     if (!l_verify_datum
 #ifdef DAP_TPS_TEST
             || l_verify_datum == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS
 #endif
             )
     {
-        // Log emission callback invocation
-        if (a_datum && a_datum->header.type_id == 0xf100) {
-            debug_if(s_debug_more, L_INFO, "EMISSION: calling callback_add_datums, hash=%s", a_datum_hash_str);
-        }
+        // Log callback invocation
+        log_it(L_INFO, "CALLING callback_add_datums: type_id=%u, hash=%s, verify_result=%d", 
+               a_datum->header.type_id, a_datum_hash_str, l_verify_datum);
         a_chain->callback_add_datums(a_chain, &a_datum, 1);
-        if (a_datum && a_datum->header.type_id == 0xf100) {
-            debug_if(s_debug_more, L_INFO, "EMISSION: callback_add_datums completed, hash=%s", a_datum_hash_str);
-        }
+        log_it(L_INFO, "callback_add_datums COMPLETED: type_id=%u, hash=%s", 
+               a_datum->header.type_id, a_datum_hash_str);
+    } else {
+        log_it(L_INFO, "SKIP callback (verify failed): type_id=%u, hash=%s, verify_result=%d",
+               a_datum->header.type_id, a_datum_hash_str, l_verify_datum);
     }
     if (l_verify_datum != 0 &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&

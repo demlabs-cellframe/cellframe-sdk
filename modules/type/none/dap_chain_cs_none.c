@@ -286,6 +286,7 @@ static void s_nonconsensus_ledger_load(dap_chain_t *a_chain)
  */
 static size_t s_nonconsensus_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count)
 {
+    size_t l_processed = 0;
     for(size_t i = 0; i < a_datums_count; i++) {
         dap_chain_datum_t *l_datum = a_datums[i];
         dap_hash_fast_t l_datum_hash;
@@ -294,13 +295,30 @@ static size_t s_nonconsensus_callback_datums_pool_proc(dap_chain_t * a_chain, da
         dap_chain_hash_fast_to_str(&l_datum_hash, l_db_key, sizeof(l_db_key));
         int l_rc = dap_chain_net_verify_datum_for_add(a_chain, l_datum, &l_datum_hash);
         if (l_rc != 0) {
-            log_it(L_ERROR, "Verified datum %s not passed the check, code %d", l_db_key, l_rc);
-            return i;
+            log_it(L_ERROR, "Verified datum %s not passed the check, code %d - continuing with next datum", l_db_key, l_rc);
+            // Continue processing rest of datums instead of stopping
+            // This allows emissions to be processed even if token_decl shows duplicate
+            continue;
         }
+        
+        // CRITICAL: Call dap_chain_datum_add to process datum and create UTXOs/balances
+        // datums_pool_proc MUST call datum_add, not just save to GDB
+        // Otherwise TX datums are saved but never processed (no UTXOs created)
+        size_t l_datum_size = dap_chain_datum_size(l_datum);
+        int l_datum_add_result = dap_chain_datum_add(a_chain, l_datum, l_datum_size, &l_datum_hash, NULL);
+        if (l_datum_add_result != 0) {
+            log_it(L_WARNING, "dap_chain_datum_add failed for datum %s (type_id=%u): result=%d",
+                   l_db_key, l_datum->header.type_id, l_datum_add_result);
+            // Continue with next datum even if this one fails
+            continue;
+        }
+        
+        // Save to GDB after successful processing
         dap_global_db_set(PVT(DAP_NONCONSENSUS(a_chain))->group_datums, l_db_key, l_datum,
-                          dap_chain_datum_size(l_datum), false, NULL, NULL);
+                          l_datum_size, false, NULL, NULL);
+        l_processed++;
     }
-    return a_datums_count;
+    return l_processed;
 }
 
 /**
@@ -321,8 +339,12 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
     dap_nonconsensus_private_t *l_nochain_priv = PVT(l_nochain);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
     dap_hash_fast_t l_datum_hash = *a_atom_hash;
-    if(dap_chain_datum_add(a_chain, l_datum, a_atom_size, &l_datum_hash, NULL))
+    int l_datum_add_result = dap_chain_datum_add(a_chain, l_datum, a_atom_size, &l_datum_hash, NULL);
+    if (l_datum_add_result != 0) {
+        log_it(L_WARNING, "dap_chain_datum_add failed for datum %s, type_id=%u, result=%d",
+               dap_chain_hash_fast_to_str_static(&l_datum_hash), l_datum->header.type_id, l_datum_add_result);
         return ATOM_REJECT;
+    }
 
     dap_nonconsensus_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_nonconsensus_datum_hash_item_t);
     if (!l_hash_item) {
