@@ -4309,6 +4309,88 @@ static int s_run_t_sl04_wrong_rate(dex_test_fixture_t *f, const test_pair_config
     return ret > 0 ? -3 : ret;
 }
 
+// T_SL05: Double-spend attack - two transactions competing for the same UTXO
+// 1. Alice creates ASK order
+// 2. Bob composes tx1 (partial purchase) - NOT added to ledger yet
+// 3. Carol composes tx2 (partial purchase) on same order - both target same UTXO
+// 4. Add tx1 to ledger → success
+// 5. Add tx2 to ledger → must fail (double-spend)
+static int s_run_t_sl05_double_spend(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- T_SL05: Double-spend attack (competing transactions) ---");
+    
+    // Create ASK order
+    dap_hash_fast_t alice_order = {0};
+    int ret = s_create_test_order(f, pair, WALLET_ALICE, SIDE_ASK, MINFILL_NONE, "2.5", "20.0", &alice_order);
+    if (ret != 0) return -1;
+    
+    uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
+    
+    // Bob composes tx1 (partial purchase) - DO NOT add to ledger yet
+    dap_chain_datum_tx_t *tx1 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+    
+    if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
+        log_it(L_ERROR, "T_SL05: Bob's purchase compose failed: %d", err1);
+        dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+        if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &alice_order);
+        return -2;
+    }
+    log_it(L_DEBUG, "T_SL05: Bob composed tx1 (not yet in ledger)");
+    
+    // Carol composes tx2 on the SAME order - both target alice_order UTXO
+    dap_chain_datum_tx_t *tx2 = NULL;
+    dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->carol, false, uint256_0, &tx2);
+    
+    if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
+        log_it(L_ERROR, "T_SL05: Carol's purchase compose failed: %d", err2);
+        dap_chain_datum_tx_delete(tx1);
+        dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+        if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &alice_order);
+        return -3;
+    }
+    log_it(L_DEBUG, "T_SL05: Carol composed tx2 (not yet in ledger)");
+    
+    // Now add tx1 to ledger - should succeed
+    dap_hash_fast_t tx1_hash = {0};
+    dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
+    int ledger_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL);
+    dap_chain_datum_tx_delete(tx1);
+    
+    if (ledger_ret != 0) {
+        log_it(L_ERROR, "T_SL05: Bob's tx1 rejected by ledger: %d", ledger_ret);
+        dap_chain_datum_tx_delete(tx2);
+        dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+        if (tx) dap_ledger_tx_remove(f->net->net->pub.ledger, tx, &alice_order);
+        return -4;
+    }
+    log_it(L_DEBUG, "T_SL05: Bob's tx1 accepted by ledger");
+    
+    // Try to add tx2 - MUST FAIL (double-spend: same alice_order UTXO already spent by tx1)
+    dap_hash_fast_t tx2_hash = {0};
+    dap_hash_fast(tx2, dap_chain_datum_tx_get_size(tx2), &tx2_hash);
+    int ledger_ret2 = dap_ledger_tx_add(f->net->net->pub.ledger, tx2, &tx2_hash, false, NULL);
+    dap_chain_datum_tx_delete(tx2);
+    
+    // Cleanup
+    dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+    if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+    dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+    if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &alice_order);
+    
+    if (ledger_ret2 == 0) {
+        log_it(L_ERROR, "T_SL05 FAILED: Carol's tx2 was accepted (double-spend not detected!)");
+        // Also remove tx2 if it was added
+        dap_chain_datum_tx_t *tx2_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx2_hash);
+        if (tx2_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx2_ledger, &tx2_hash);
+        return -5;
+    }
+    
+    log_it(L_NOTICE, "T_SL05 PASSED: Double-spend rejected by ledger (ret=%d)", ledger_ret2);
+    return 0;
+}
+
 // Run all seller-leftover tampering tests
 static int s_run_seller_leftover_tampers(dex_test_fixture_t *f, const test_pair_config_t *pair) {
     int ret;
@@ -4323,6 +4405,9 @@ static int s_run_seller_leftover_tampers(dex_test_fixture_t *f, const test_pair_
     if (ret != 0) return ret;
     
     ret = s_run_t_sl04_wrong_rate(f, pair);
+    if (ret != 0) return ret;
+    
+    ret = s_run_t_sl05_double_spend(f, pair);
     if (ret != 0) return ret;
     
     return 0;
