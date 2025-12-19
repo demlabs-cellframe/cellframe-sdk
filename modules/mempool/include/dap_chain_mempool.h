@@ -33,7 +33,69 @@
 #define DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT            -106
 #define DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_SIGN              -107
 
+// TSD type for SRV_PAY refill transaction marker
+#define DAP_CHAIN_SRV_PAY_TSD_REFILL 0x16
 
+#include "uthash.h"
+
+/**
+ * @brief SRV_PAY cache entry structure (in-memory UTHash)
+ * 
+ * Stores information about conditional transaction chain:
+ * - root_hash: first TX in chain (hold)
+ * - tail_hash: last TX in chain (after refills)
+ * - value: current remaining value
+ * - owner_pkey_hash: owner's public key hash
+ */
+typedef struct srv_pay_cache_entry {
+    dap_hash_fast_t root_hash;          // First TX hash (key for primary index)
+    dap_hash_fast_t tail_hash;          // Current tail TX hash (including remove TX)
+    dap_hash_fast_t owner_pkey_hash;    // Owner's pkey hash
+    uint256_t value;                    // Value before remove (0 after remove)
+    uint64_t srv_uid;                   // Service UID
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker
+    dap_chain_net_id_t net_id;          // Network ID
+    dap_time_t ts_created;              // Creation timestamp
+    int prev_cond_idx;                  // OUT_COND index in tail TX (-1 if removed)
+    bool is_removed;                    // True if UT was removed (spent)
+    UT_hash_handle hh;                  // Primary index by root_hash
+    UT_hash_handle hh_tail;             // Secondary index by tail_hash
+    UT_hash_handle hh_owner;            // Tertiary index by owner in owner bucket
+} srv_pay_cache_entry_t;
+
+/**
+ * @brief Owner index bucket for grouping entries by owner pkey_hash
+ */
+typedef struct srv_pay_owner_index {
+    dap_hash_fast_t owner_pkey_hash;    // Owner's pkey hash (key)
+    srv_pay_cache_entry_t *entries;     // Head of entries list (keyed by hh_owner)
+    UT_hash_handle hh;
+} srv_pay_owner_index_t;
+
+/**
+ * @brief Result structure for cache queries - list of cache entries
+ */
+typedef struct srv_pay_cache_list {
+    size_t count;
+    srv_pay_cache_entry_t **entries;    // Array of pointers to entries (do NOT free entries!)
+} srv_pay_cache_list_t;
+
+// SRV_PAY cache functions
+int dap_chain_srv_pay_cache_init(void);
+void dap_chain_srv_pay_cache_deinit(void);
+
+/**
+ * @brief Get list of SRV_PAY cache entries for owner
+ * @param a_net Network
+ * @param a_pkey_hash Owner's public key hash
+ * @return List of cache entries (caller must free the list struct but NOT the entries)
+ */
+srv_pay_cache_list_t *dap_chain_srv_pay_cache_get(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash);
+
+/**
+ * @brief Free cache list structure (entries are NOT freed)
+ */
+void dap_chain_srv_pay_cache_list_free(srv_pay_cache_list_t *a_list);
 
 // action
 enum {
@@ -89,6 +151,10 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
 
 char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
         const dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_tx_sign, dap_chain_datum_tx_receipt_t *a_receipt, const char *a_hash_out_type, int *a_ret_status);
+
+// Refill conditional SRV_PAY transaction
+char *dap_chain_mempool_tx_cond_refill(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
+        dap_hash_fast_t *a_tx_cond_hash, uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type);
 
 int dap_chain_mempool_tx_create_massive(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,

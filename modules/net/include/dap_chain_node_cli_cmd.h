@@ -213,6 +213,24 @@ typedef enum s_com_tx_cond_remove{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_FIND_DEFAULT_CHAIN_WITH_TX_FOR_NET,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OTHER_ERROR
 }s_com_tx_cond_remove_t;
+typedef enum s_com_tx_cond_refill
+{
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_INVALID_PARAMETER_H = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_W,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_VALUE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_FEE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_OPEN_WALLET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_VALUE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_FEE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_PLACE_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_NOT_OWNER
+} s_com_tx_cond_refill_t;
 typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -331,7 +349,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
 
 int com_tx_create_json(int a_argc, char **a_argv, void **reply, int a_version);
-int com_tx_cond_create(int a_argc, char **a_argv, void **reply, int a_version);
+int com_tx_cond(int a_argc, char **a_argv, void **reply, int a_version);
 
 typedef enum s_com_token_decl_err{
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK = 0,
@@ -420,9 +438,6 @@ typedef enum s_com_print_log_err{
     DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_LIMIT,
     DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS
 }s_com_print_log_err_t;
-
-int com_tx_cond_remove(int a_argc, char **a_argv, void **reply, int a_version);
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply, int a_version);
 
 /**
  * tx_verify command

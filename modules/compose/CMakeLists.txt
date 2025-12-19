@@ -12,6 +12,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..
 target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
 
 if(BUILD_CELLFRAME_SDK_TESTS)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DAP_CHAIN_TX_COMPOSE_TEST)
     add_subdirectory(tests)
 endif()
 
