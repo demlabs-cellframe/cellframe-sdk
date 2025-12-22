@@ -150,13 +150,26 @@ static void s_setup(void)
 static void s_cleanup(void)
 {
     log_it(L_NOTICE, "=== Regression Tests: Cleanup ===");
+    
+    // CRITICAL: Cleanup order to avoid MDBX errors:
+    // 1. Stop all activities (CLI, wallet cache) FIRST
+    // 2. Then destroy fixtures (chains, ledger)
+    // 3. Finally deinit GlobalDB
+    
+    // Step 1: Stop wallet cache and CLI (may try to write to GlobalDB)
+    dap_chain_wallet_cache_deinit();
+    dap_chain_node_cli_delete();
+    
+    // Step 2: Destroy network fixtures (chains, ledger)
     if (s_net_fixture) {
         test_net_fixture_destroy(s_net_fixture);
         s_net_fixture = NULL;
     }
-    dap_chain_wallet_cache_deinit();
-    dap_chain_node_cli_delete();
+    
+    // Step 3: Deinit test environment (GlobalDB, certs, events)
     test_env_deinit();
+    
+    // Step 4: Cleanup test directories
     system("rm -rf /tmp/reg_test_gdb");
     system("rm -rf /tmp/reg_test_certs");
     system("rm -rf /tmp/reg_test_config");
@@ -1088,45 +1101,66 @@ static void test_arbitrage_immediately_after_emission(void)
     
     char *l_reply_emit = dap_cli_cmd_exec(l_json_req_emit);
     dap_assert_PIF(l_reply_emit != NULL, "Emission created");
-    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
-    log_it(L_INFO, "✓ Token %s emission created via CLI", l_custom_ticker);
+    
+    // Extract emission hash from reply
+    json_object *l_json_emit = json_tokener_parse(l_reply_emit);
     DAP_DELETE(l_reply_emit);
+    dap_assert_PIF(l_json_emit != NULL, "Emission JSON parsed");
+    
+    json_object *l_result_emit = NULL;
+    json_object_object_get_ex(l_json_emit, "result", &l_result_emit);
+    const char *l_emit_result_str = json_object_get_string(l_result_emit);
+    
+    const char *l_emission_hash_start = strstr(l_emit_result_str, "0x");
+    char l_emission_hash[67] = {0};
+    if (l_emission_hash_start) {
+        strncpy(l_emission_hash, l_emission_hash_start, 66);
+    }
+    json_object_put(l_json_emit);
+    dap_assert_PIF(strlen(l_emission_hash) > 0, "Emission hash extracted");
+    
+    // Process mempool to add emission to ledger
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+    log_it(L_INFO, "✓ Token %s emission created via CLI, hash=%s", l_custom_ticker, l_emission_hash);
+    
+    // Create base TX from emission to generate UTXOs
+    char l_cmd_base_tx[2048];
+    snprintf(l_cmd_base_tx, sizeof(l_cmd_base_tx),
+             "tx_create -net %s -chain %s -chain_emission %s -from_emission %s -cert %s",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name, s_net_fixture->chain_main->name,
+             l_emission_hash, l_cert->name);
+    
+    char l_json_req_base_tx[4096];
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_base_tx, "tx_create", l_json_req_base_tx, sizeof(l_json_req_base_tx), 1);
+    
+    char *l_reply_base_tx = dap_cli_cmd_exec(l_json_req_base_tx);
+    dap_assert_PIF(l_reply_base_tx != NULL, "Base TX CLI executed");
+    DAP_DELETE(l_reply_base_tx);
+    
+    // Process mempool to add base TX and create UTXOs
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
     
     // 5. Set network fee (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     
-    // 6. Check balance - should be available immediately after emission
+    // 6. Check balance - should be available after base TX
     uint256_t l_balance_custom = dap_ledger_calc_balance(s_net_fixture->ledger, &l_wallet_addr, l_custom_ticker);
     char *l_bal_custom_str = dap_chain_balance_to_coins(l_balance_custom);
-    log_it(L_INFO, "Wallet %s balance after CLI emission: %s", l_custom_ticker, l_bal_custom_str);
+    log_it(L_INFO, "Wallet %s balance after base TX: %s", l_custom_ticker, l_bal_custom_str);
     DAP_DELETE(l_bal_custom_str);
     
-    // CRITICAL SDK BUG FOUND:
-    // CLI token_emit does NOT work correctly - emission fails validation with "0 valid aproves"
-    // This is because public key from emission signature does NOT match token's auth_pkey
-    // Root cause: token_decl and token_emit use DIFFERENT keys even with same -certs parameter
-    // This is an SDK bug in certificate/key handling for CLI commands
-    // 
-    // Expected: Balance available immediately after emission
-    // Actual: Balance is ZERO because emission never passes validation
-    // 
-    // This explains BUG-004: arbitrage is NOT available because CLI emissions are BROKEN
-    // The production workaround (regular TX first) doesn't fix emissions - it's coincidental
-    // 
-    // TODO SDK: Fix token_emit to use correct certificate/key matching token_decl
+    // Verify balance is available after emission + base TX
     if (IS_ZERO_256(l_balance_custom)) {
-        log_it(L_WARNING, "=== SDK BUG CONFIRMED: CLI token_emit does NOT work ===");
-        log_it(L_WARNING, "Emission fails validation: signature does NOT match token auth_pkey");
-        log_it(L_WARNING, "This is ROOT CAUSE of BUG-004: arbitrage unavailable = emissions broken");
-        log_it(L_NOTICE, "=== BUG-004 ROOT CAUSE FOUND: SDK bug in CLI emission validation ===");
-        
-        // Test PASSES by documenting the bug - this is a regression test that FOUND a real SDK bug
+        log_it(L_ERROR, "❌ Balance is ZERO after emission + base TX - emission/base TX failed!");
         dap_chain_wallet_close(l_wallet);
+        dap_assert_PIF(false, "Token emission + base TX creates balance");
         return;
     }
     
-    // If we reach here, emissions work correctly - continue with arbitrage test
+    log_it(L_INFO, "✓ Balance available after emission + base TX - can proceed with arbitrage test");
     dap_assert_PIF(!IS_ZERO_256(l_balance_custom), "Balance available immediately after emission");
     
     // 7. CRITICAL TEST: Create arbitrage transaction IMMEDIATELY after emission
