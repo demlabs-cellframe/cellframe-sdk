@@ -317,12 +317,12 @@ static void test_bug_arbitrage_availability(void)
     dap_cert_t *l_cert = s_create_cert_with_seed("cert_avail", "test_seed_avail");
     dap_assert_PIF(l_cert != NULL, "Certificate created");
     
-    // 2. Get address from certificate
-    dap_chain_addr_t l_addr = {0};
-    dap_chain_addr_fill_from_key(&l_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
-    log_it(L_INFO, "Token owner address: %s", dap_chain_addr_to_str(&l_addr));
+    // 2. Get cert address (for fee address)
+    dap_chain_addr_t l_cert_addr = {0};
+    dap_chain_addr_fill_from_key(&l_cert_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
+    log_it(L_INFO, "Token owner cert address: %s", dap_chain_addr_to_str(&l_cert_addr));
     
-    // 3. Create SEPARATE wallet for CLI fee payment
+    // 3. Create wallet (all tokens on wallet address)
     dap_mkdir_with_parents("/tmp/reg_test_wallets");
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_avail", "/tmp/reg_test_wallets",
                                                                       (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM}, 
@@ -335,23 +335,26 @@ static void test_bug_arbitrage_availability(void)
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
     
     // 4. Reset network fee before creating tokens
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_addr);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
-    // 5. Create token (to cert address) via CLI
-    bool l_token_created = s_create_token_and_emission("Avail", &l_addr, l_cert);
-    dap_assert_PIF(l_token_created, "Token created with balance");
+    // 5. Set native ticker for fee token
+    s_net_fixture->net->pub.native_ticker = "FeeAv";
     
-    // 6. Create fee token (to WALLET address for CLI fee payment) via CLI
+    // 6. Create fee token (emission to WALLET address)
     bool l_fee_token_created = s_create_token_and_emission("FeeAv", &l_wallet_addr, l_cert);
-    dap_assert_PIF(l_fee_token_created, "Fee token created with balance on wallet");
+    dap_assert_PIF(l_fee_token_created, "Fee token FeeAv created with balance on wallet");
     
-    // 7. Set fee for network
+    // 7. Create arbitrage token (emission to WALLET address)
+    bool l_token_created = s_create_token_and_emission("Avail", &l_wallet_addr, l_cert);
+    dap_assert_PIF(l_token_created, "Token Avail created with balance on wallet");
+    
+    // 8. Set fee for network (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_addr);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     
     // Check balances before creating transaction (for debugging)
-    uint256_t l_balance_token = dap_ledger_calc_balance(s_net_fixture->ledger, &l_addr, "Avail");
-    uint256_t l_balance_fee = dap_ledger_calc_balance(s_net_fixture->ledger, &l_addr, "FeeAv");
+    uint256_t l_balance_token = dap_ledger_calc_balance(s_net_fixture->ledger, &l_wallet_addr, "Avail");
+    uint256_t l_balance_fee = dap_ledger_calc_balance(s_net_fixture->ledger, &l_wallet_addr, "FeeAv");
     char *l_bal_token_str = dap_chain_balance_to_coins(l_balance_token);
     char *l_bal_fee_str = dap_chain_balance_to_coins(l_balance_fee);
     log_it(L_INFO, "Wallet balances: TokenAvail=%s, FeeAvail=%s", l_bal_token_str, l_bal_fee_str);
@@ -443,11 +446,11 @@ static void test_bug_arbitrage_without_certs(void)
     dap_cert_t *l_cert = s_create_cert_with_seed("cert_nocerts", "test_seed_nocerts");
     dap_assert_PIF(l_cert != NULL, "Certificate created");
     
-    // 2. Get address from certificate
-    dap_chain_addr_t l_addr = {0};
-    dap_chain_addr_fill_from_key(&l_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
+    // 2. Get cert address (for fee address)
+    dap_chain_addr_t l_cert_addr = {0};
+    dap_chain_addr_fill_from_key(&l_cert_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
     
-    // 2. Create SEPARATE wallet for CLI fee payment
+    // 3. Create wallet (all tokens on wallet address)
     dap_mkdir_with_parents("/tmp/reg_test_wallets");
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_no_certs", "/tmp/reg_test_wallets",
                                                                       (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM},
@@ -517,12 +520,12 @@ static void test_bug_arbitrage_without_certs(void)
     log_it(L_INFO, "✓ Token %s created with auth_signs_valid=%zu", l_custom_ticker, l_auth_signs);
     DAP_DELETE(l_reply_decl);
     
-    // 4. Create emission via CLI
+    // 4. Create emission via CLI (emission to WALLET address)
     char l_cmd_emit[2048];
     snprintf(l_cmd_emit, sizeof(l_cmd_emit),
              "token_emit -net %s -chain_emission %s -token %s -emission_value %s -addr %s -certs %s",
              s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
-             l_custom_ticker, TEST_TOKEN_SUPPLY, dap_chain_addr_to_str(&l_addr), l_cert->name);
+             l_custom_ticker, TEST_TOKEN_SUPPLY, dap_chain_addr_to_str(&l_wallet_addr), l_cert->name);
     
     char l_json_req_emit[4096];
     utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_emit, "token_emit", l_json_req_emit, sizeof(l_json_req_emit), 1);
@@ -533,9 +536,9 @@ static void test_bug_arbitrage_without_certs(void)
     log_it(L_INFO, "✓ Token %s emission created via CLI", l_custom_ticker);
     DAP_DELETE(l_reply_emit);
     
-    // 5. Set network fee
+    // 5. Set network fee (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_addr);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     
     // 6. Load wallet cache before arbitrage TX
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
@@ -614,12 +617,12 @@ static void test_bug_arbitrage_arguments(void)
     dap_cert_t *l_cert = s_create_cert_with_seed("cert_args", "test_seed_args");
     dap_assert_PIF(l_cert != NULL, "Certificate created");
     
-    // 2. Get address from certificate
-    dap_chain_addr_t l_addr = {0};
-    dap_chain_addr_fill_from_key(&l_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
-    log_it(L_INFO, "Token owner address: %s", dap_chain_addr_to_str(&l_addr));
+    // 2. Get cert address (for fee address)
+    dap_chain_addr_t l_cert_addr = {0};
+    dap_chain_addr_fill_from_key(&l_cert_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
+    log_it(L_INFO, "Token owner cert address: %s", dap_chain_addr_to_str(&l_cert_addr));
     
-    // 3. Create SEPARATE wallet for CLI fee payment
+    // 3. Create wallet (all tokens on wallet address)
     dap_mkdir_with_parents("/tmp/reg_test_wallets");
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_args", "/tmp/reg_test_wallets",
                                                                       (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM},
@@ -632,7 +635,7 @@ static void test_bug_arbitrage_arguments(void)
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
     
     // 4. Reset network fee before creating tokens
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_addr);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
     // Change native ticker to FeeArgs for this test
     const char *l_original_native_ticker = s_net_fixture->net->pub.native_ticker;
@@ -640,20 +643,20 @@ static void test_bug_arbitrage_arguments(void)
     
     const char *l_ticker = "Args";
     
-    // 5. Create fee token (to WALLET address for CLI fee payment)
+    // 5. Create fee token (emission to WALLET address)
     bool l_fee_created = s_create_token_and_emission("FeeAr", &l_wallet_addr, l_cert);
-    dap_assert_PIF(l_fee_created, "Fee token FeeAr created on wallet");
+    dap_assert_PIF(l_fee_created, "Fee token FeeAr created with balance on wallet");
     
-    // 6. Create custom token (to CERT address - owner)
-    bool l_token_created = s_create_token_and_emission(l_ticker, &l_addr, l_cert);
-    dap_assert_PIF(l_token_created, "Token Args created on cert address");
+    // 6. Create custom token (emission to WALLET address - same as fee token)
+    bool l_token_created = s_create_token_and_emission(l_ticker, &l_wallet_addr, l_cert);
+    dap_assert_PIF(l_token_created, "Token Args created with balance on wallet");
     
     // Certificate is already in s_certs hash
     log_it(L_INFO, "Token owner certificate: %s", l_cert->name);
     
-    // Set fee for network
+    // Set fee for network (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_addr);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     
     // 4. Open wallet and load cache for arbitrage TX
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_args", "/tmp/reg_test_wallets", NULL);
@@ -910,30 +913,32 @@ static void test_arbitrage_without_fee_addr(void)
 {
     log_it(L_NOTICE, "=== TEST: BUG-003 - Arbitrage without fee_addr ===");
     
-    // 1. Create wallet and certificate
-    dap_mkdir_with_parents("/tmp/reg_test_wallets");
-    // Create certificate for token owner
+    // 1. Create certificate for token owner
     dap_cert_t *l_cert = s_create_cert_with_seed("cert_nofee", "test_seed_nofee");
     dap_assert_PIF(l_cert != NULL, "Certificate created");
     
-    // 2. Get address from certificate
-    dap_chain_addr_t l_addr = {0};
-    dap_chain_addr_fill_from_key(&l_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
+    // 2. Get cert address (for temporary fee address)
+    dap_chain_addr_t l_cert_addr = {0};
+    dap_chain_addr_fill_from_key(&l_cert_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
     
-    // 3. Create wallet for CLI (but no fee tokens - testing graceful failure)
+    // 3. Create wallet (tokens on wallet address)
     dap_mkdir_with_parents("/tmp/reg_test_wallets");
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_nofee", "/tmp/reg_test_wallets",
                                                                       (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM},
                                                                       NULL, 0, NULL);
     dap_assert_PIF(l_wallet != NULL, "Wallet created");
     
-    // 4. Reset fee BEFORE creating tokens
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_addr);
+    dap_enc_key_t *l_wallet_key = dap_chain_wallet_get_key(l_wallet, 0);
+    dap_chain_addr_t l_wallet_addr = {0};
+    dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     
-    // 5. Create custom token with UNIQUE name
+    // 4. Reset fee BEFORE creating tokens
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
+    
+    // 5. Create custom token (emission to WALLET address)
     const char *l_custom_ticker = "NoFee";
-    bool l_token_created = s_create_token_and_emission(l_custom_ticker, &l_addr, l_cert);
-    dap_assert_PIF(l_token_created, "Token created with balance");
+    bool l_token_created = s_create_token_and_emission(l_custom_ticker, &l_wallet_addr, l_cert);
+    dap_assert_PIF(l_token_created, "Token NoFee created with balance on wallet");
     
     // NOTE: Fee token not needed for this test - we're testing graceful failure when fee_addr is blank
     // Success case is already covered by Phase 1 and Phase 2 tests
@@ -1028,11 +1033,11 @@ static void test_arbitrage_immediately_after_emission(void)
     dap_cert_t *l_cert = s_create_cert_with_seed("cert_imm", "test_seed_imm");
     dap_assert_PIF(l_cert != NULL, "Certificate created");
     
-    // 2. Get address from certificate
-    dap_chain_addr_t l_addr = {0};
-    dap_chain_addr_fill_from_key(&l_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
+    // 2. Get cert address (for fee address)
+    dap_chain_addr_t l_cert_addr = {0};
+    dap_chain_addr_fill_from_key(&l_cert_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
     
-    // 3. Create SEPARATE wallet for CLI fee payment
+    // 3. Create wallet (all tokens on wallet address)
     dap_mkdir_with_parents("/tmp/reg_test_wallets");
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_imm", "/tmp/reg_test_wallets",
                                                                       (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM},
@@ -1045,12 +1050,12 @@ static void test_arbitrage_immediately_after_emission(void)
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
     
     // 4. Reset fee before token creation
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_addr);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
-    // 5. Create fee token (to WALLET address for CLI fee payment)
+    // 5. Create fee token (emission to WALLET address)
     s_net_fixture->net->pub.native_ticker = "FeeIm";
     bool l_fee_created = s_create_token_and_emission("FeeIm", &l_wallet_addr, l_cert);
-    dap_assert_PIF(l_fee_created, "Fee token created on wallet");
+    dap_assert_PIF(l_fee_created, "Fee token FeeIm created with balance on wallet");
     
     // 3. Create custom token via CLI (reproduce production scenario)
     const char *l_custom_ticker = "Imm";
@@ -1071,12 +1076,12 @@ static void test_arbitrage_immediately_after_emission(void)
     log_it(L_INFO, "✓ Token %s declared via CLI", l_custom_ticker);
     DAP_DELETE(l_reply_decl);
     
-    // 4. Create emission via CLI
+    // 4. Create emission via CLI (emission to WALLET address)
     char l_cmd_emit[2048];
     snprintf(l_cmd_emit, sizeof(l_cmd_emit),
              "token_emit -net %s -chain_emission %s -token %s -emission_value %s -addr %s -certs %s",
              s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
-             l_custom_ticker, TEST_TOKEN_SUPPLY, dap_chain_addr_to_str(&l_addr), l_cert->name);
+             l_custom_ticker, TEST_TOKEN_SUPPLY, dap_chain_addr_to_str(&l_wallet_addr), l_cert->name);
     
     char l_json_req_emit[4096];
     utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_emit, "token_emit", l_json_req_emit, sizeof(l_json_req_emit), 1);
@@ -1087,12 +1092,12 @@ static void test_arbitrage_immediately_after_emission(void)
     log_it(L_INFO, "✓ Token %s emission created via CLI", l_custom_ticker);
     DAP_DELETE(l_reply_emit);
     
-    // 5. Set network fee
+    // 5. Set network fee (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_addr);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     
     // 6. Check balance - should be available immediately after emission
-    uint256_t l_balance_custom = dap_ledger_calc_balance(s_net_fixture->ledger, &l_addr, l_custom_ticker);
+    uint256_t l_balance_custom = dap_ledger_calc_balance(s_net_fixture->ledger, &l_wallet_addr, l_custom_ticker);
     char *l_bal_custom_str = dap_chain_balance_to_coins(l_balance_custom);
     log_it(L_INFO, "Wallet %s balance after CLI emission: %s", l_custom_ticker, l_bal_custom_str);
     DAP_DELETE(l_bal_custom_str);
@@ -1188,16 +1193,16 @@ static void test_arbitrage_to_addr_behavior(void)
 {
     log_it(L_NOTICE, "=== TEST: BUG-002 - Arbitrage with/without -to_addr ===");
     
-    // 1. Create certificate for token owner
+    // 1. Create certificate for token owner (signs token_decl and token_emit)
     dap_cert_t *l_cert = s_create_cert_with_seed("cert_toaddr", "test_seed_toaddr");
     dap_assert_PIF(l_cert != NULL, "Certificate created");
     
-    // 2. Get address from certificate
-    dap_chain_addr_t l_addr = {0};
-    dap_chain_addr_fill_from_key(&l_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
-    log_it(L_INFO, "Token owner address: %s", dap_chain_addr_to_str(&l_addr));
+    // 2. Get cert address (will be used as fee address)
+    dap_chain_addr_t l_cert_addr = {0};
+    dap_chain_addr_fill_from_key(&l_cert_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
+    log_it(L_INFO, "Token owner cert address: %s", dap_chain_addr_to_str(&l_cert_addr));
     
-    // 3. Create SEPARATE wallet for CLI fee payment
+    // 3. Create wallet (for fee payment AND arbitrage tokens - all on wallet address)
     dap_mkdir_with_parents("/tmp/reg_test_wallets");
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_toaddr", "/tmp/reg_test_wallets",
                                                                       (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM},
@@ -1210,21 +1215,21 @@ static void test_arbitrage_to_addr_behavior(void)
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
     
     // 4. Reset fee BEFORE creating tokens
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_addr);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
-    // 5. Create fee token (to WALLET address for CLI fee payment)
+    // 5. Create fee token (emission to WALLET address)
     s_net_fixture->net->pub.native_ticker = "Fee2";
     bool l_fee_created = s_create_token_and_emission("Fee2", &l_wallet_addr, l_cert);
     dap_assert_PIF(l_fee_created, "Fee token Fee2 created with balance on wallet");
     
-    // 5. Create custom token using fixtures (unique name for Phase 2)
+    // 6. Create custom token (emission to WALLET address - same as fee token)
     const char *l_custom_ticker = "TOADDR2";
-    bool l_token_created = s_create_token_and_emission(l_custom_ticker, &l_addr, l_cert);
-    dap_assert_PIF(l_token_created, "Token TOADDR2 created with balance");
+    bool l_token_created = s_create_token_and_emission(l_custom_ticker, &l_wallet_addr, l_cert);
+    dap_assert_PIF(l_token_created, "Token TOADDR2 created with balance on wallet");
     
-    // 6. Set network fee
+    // 7. Set network fee (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_addr);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     
     dap_chain_addr_t l_fee_addr = s_net_fixture->net->pub.fee_addr;
     const char *l_fee_addr_str = dap_chain_addr_to_str_static(&l_fee_addr);

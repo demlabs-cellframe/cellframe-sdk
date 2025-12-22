@@ -103,9 +103,13 @@ char *dap_chain_arbitrage_tx_create_with_signatures(
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else if (!IS_ZERO_256(l_total_fee)) {
-        if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, a_addr_from, &l_list_fee_out, l_total_fee, &l_fee_transfer) == -101)
+        // Try wallet cache first
+        int l_cache_result = dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, a_addr_from, &l_list_fee_out, l_total_fee, &l_fee_transfer);
+        // Fallback to ledger if cache not available (-101) OR if cache returned empty result (0 but no outputs)
+        if (l_cache_result == -101 || (l_cache_result == 0 && !l_list_fee_out)) {
             l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                     a_addr_from, l_total_fee, &l_fee_transfer);
+        }
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
             return NULL;
@@ -113,9 +117,13 @@ char *dap_chain_arbitrage_tx_create_with_signatures(
     }
     
     dap_list_t *l_list_used_out = NULL;
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+    // Try wallet cache first
+    int l_cache_result_main = dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer);
+    // Fallback to ledger if cache not available (-101) OR if cache returned empty result (0 but no outputs)
+    if (l_cache_result_main == -101 || (l_cache_result_main == 0 && !l_list_used_out)) {
         l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
                                             a_addr_from, l_value_need, &l_value_transfer);
+    }
     if (!l_list_used_out) {
         log_it(L_WARNING, "Not enough funds to transfer");
         if (l_list_fee_out) dap_list_free_full(l_list_fee_out, NULL);

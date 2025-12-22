@@ -6024,6 +6024,14 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
 {
     if ( !a_ledger || ( a_limit && IS_ZERO_256(*a_limit) ) ) return NULL;
     if ( a_cond_only && ( a_cond_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED || !a_addr) ) return NULL;
+    
+    // Debug: log search parameters
+    if (s_debug_more && a_addr && a_token) {
+        const char *l_limit_str = a_limit ? dap_uint256_to_char(*a_limit, NULL) : "NULL";
+        log_it(L_DEBUG, "UTXO SEARCH: addr=%s token=%s limit=%s", 
+               dap_chain_addr_to_str_static(a_addr), a_token, l_limit_str);
+    }
+    
     dap_list_t *l_ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_cur, *l_tmp;
@@ -6104,8 +6112,11 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
                 if ( !dap_sign_get_pkey_hash(l_sign, &l_sign_hash)
                     || !dap_hash_fast_compare(&l_sign_hash, &a_addr->data.hash_fast) )
                     continue;
-            } else if ( a_addr && !dap_chain_addr_compare(a_addr, &l_addr) )
+            } else if ( a_addr && !dap_chain_addr_compare(a_addr, &l_addr) ) {
+                debug_if(s_debug_more, L_DEBUG, "UTXO address mismatch: search=%s utxo=%s",
+                        dap_chain_addr_to_str_static(a_addr), dap_chain_addr_to_str_static(&l_addr));
                 continue;
+            }
             if (a_mempool_check && dap_chain_mempool_out_is_used(a_ledger->net, &l_cur->tx_hash_fast, l_out_idx))
                 continue;
             dap_chain_tx_used_out_item_t *l_utxo = DAP_NEW(dap_chain_tx_used_out_item_t);
