@@ -537,7 +537,7 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     const char *l_value_str; dap_uint256_to_char(l_stake->locked_value, &l_value_str);
     log_it(L_NOTICE, "Removed key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
-    DAP_DELETE(l_stake);
+    DAP_DEL_MULTY(l_stake->pkey, l_stake);
     s_stake_recalculate_weights(a_signing_addr->net_id);
 }
 
