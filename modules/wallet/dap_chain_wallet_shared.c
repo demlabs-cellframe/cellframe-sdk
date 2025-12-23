@@ -373,6 +373,7 @@ static int s_collect_wallet_pkey_hashes()
             }
         }
     }
+    closedir(l_dir);
     return 0;
 }
 
