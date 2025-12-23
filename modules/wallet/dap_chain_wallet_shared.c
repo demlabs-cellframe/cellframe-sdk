@@ -1518,6 +1518,15 @@ static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_h
         log_it(L_ERROR, "Failed to write pkey hash %s to group %s, error code: %d", l_pkey_hash_str, a_group, l_rc);
     } else {
         log_it(L_DEBUG, "Successfully wrote pkey hash %s to group %s (size: %zu)", l_pkey_hash_str, a_group, l_shared_hashes_size);
+        // Verify write by reading back
+        size_t l_verify_size = 0;
+        void *l_verify_data = dap_global_db_get_sync(a_group, l_pkey_hash_str, &l_verify_size, NULL, false);
+        if (!l_verify_data) {
+            log_it(L_ERROR, "VERIFY FAILED: Data not found after write! group=%s key=%s", a_group, l_pkey_hash_str);
+        } else {
+            log_it(L_DEBUG, "VERIFY OK: Read back %zu bytes from group=%s key=%s", l_verify_size, a_group, l_pkey_hash_str);
+            DAP_DELETE(l_verify_data);
+        }
     }
     DAP_DEL_MULTY(l_pkey_hash_str, l_shared_hashes);
 }
