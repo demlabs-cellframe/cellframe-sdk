@@ -360,14 +360,17 @@ static int s_collect_wallet_pkey_hashes()
                 dap_hash_fast_t l_pkey_hash;
                 if (dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash) != 0) {
                     log_it(L_WARNING, "Failed to get public key hash from wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
+                    dap_chain_wallet_close(l_wallet);
                     continue;
                 }
-                hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(hold_tx_hashes_t, sizeof(hold_tx_hashes_t), -1);
+                hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_RET_VAL_IF_FAIL(hold_tx_hashes_t, -1);
                 l_shared_hashes->type = HASH_FILE_TYPE_WALLET;
                 dap_strncpy(l_shared_hashes->name, l_dir_entry->d_name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_dir_entry->d_name) - 8));
                 log_it(L_DEBUG, "Added wallet '%s' hash: %s", l_dir_entry->d_name, dap_hash_fast_to_str_static(&l_pkey_hash));
                 dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
                     l_shared_hashes, sizeof(hold_tx_hashes_t), false);
+                DAP_DELETE(l_shared_hashes);
+                dap_chain_wallet_close(l_wallet);
             } else {
                 log_it(L_WARNING, "Cannot open wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
             }
@@ -1730,7 +1733,7 @@ int dap_chain_wallet_shared_init()
         dap_global_db_erase_table_sync(l_item->data);
     }
     
-    dap_list_free(l_groups_list);
+    dap_list_free_full(l_groups_list, NULL);
     s_collect_wallet_pkey_hashes();
     s_collect_cert_pkey_hashes();
     return 0;
