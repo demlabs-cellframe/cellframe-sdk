@@ -3002,6 +3002,16 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 if (a_addr && dap_chain_addr_compare(&l_wallet_addr, &l_addr_from))
                     l_datum_is_accepted_addr = true;
 
+                const char *l_addr_from_str = dap_chain_addr_to_str_static(&l_addr_from);
+                json_object *l_jobj_from = json_object_new_string(l_addr_from_str ? l_addr_from_str : "UNKNOWN");
+                if (!l_jobj_from) {
+                    json_object_put(l_obj_chain);
+                    dap_global_db_objs_delete(l_objs, l_objs_count);
+                    dap_json_rpc_allocation_error(a_json_arr_reply);
+                    return;
+                }
+                json_object_object_add(l_jobj_datum, "from", l_jobj_from);
+
                 json_object *l_jobj_to_list = json_object_new_array();
                 if (!l_jobj_to_list) {
                     json_object_put(l_obj_chain);
