@@ -1004,12 +1004,22 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
             dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
             l_srv_ch_vpn->usage_id = a_usage_id;
         } else{
+
             log_it(L_WARNING, "VPN channel is not open, will be no data transmission");
             return -2;
+            // Don't return error - channel may open later
+        }
+    } else {
+        // Usage already active, but channel might have opened later - enable it now
+        if ( l_srv_ch_vpn ) {
+            dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
+            dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
+            l_srv_ch_vpn->usage_id = a_usage_id;
         }
     }
 
     // set start limits
+
     if(l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL && l_usage_active->receipt){
         remain_limits_save_arg_t *l_args = DAP_NEW_Z(remain_limits_save_arg_t);
         l_args->srv = a_srv;
@@ -1047,8 +1057,14 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         }
     } else if (l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE){
         l_srv_session->last_update_ts = time(NULL);
+    } else if (l_usage_active->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
+        // Free service mode: no receipt needed, no limits
+        l_srv_session->last_update_ts = time(NULL);
     } else {
-        log_it(L_ERROR, "WRONG state");
+        log_it(L_ERROR, "WRONG state: usage_id=%u, service_state=%d, service_substate=%d",
+               a_usage_id,
+               (int)l_usage_active->service_state,
+               (int)l_usage_active->service_substate);
     }
 
     return l_ret;
@@ -1286,7 +1302,14 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
     l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
-    dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+    
+    // If usage is already active, enable channel immediately
+    if (l_srv_session->usage_active && l_srv_session->usage_active->is_active) {
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch, true);
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+    } else {
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+    }
 }
 
 
@@ -1739,35 +1762,39 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t *a_ch, dap_chain_
 static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
+
     dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t*)l_pkt->data;
-    if (l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
+    if(l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
         log_it(L_WARNING, "Data size of stream channel packet %u is lesser than size of VPN packet header %zu",
                                                               l_pkt->hdr.data_size, sizeof(l_vpn_pkt->header));
         return false;
     }
     size_t l_vpn_pkt_data_size = l_pkt->hdr.data_size - sizeof(l_vpn_pkt->header);
+
     dap_chain_net_srv_stream_session_t * l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION (a_ch->stream->session );
     // dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
-    if ( ! l_usage){
+    if(!l_usage || !l_usage->is_active){
         log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
     }
 
-    if ( !l_usage->is_active && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-        log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
-        if (l_usage->client)
-            dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return false;
-    } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return false;
+    if(l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
+        if(!l_usage->is_active && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
+            if(l_usage->client)
+                dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+            dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+            return false;
+        } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+            dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+            return false;
+        }
     }
 
     // check role
@@ -1811,7 +1838,7 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             } break;
             // for server
             case VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST: { // Client request after L3 connection the new IP address
-                log_it(L_INFO, "Received address request  ");
+                log_it(L_INFO, "Received address request");
                 if(s_raw_server){
                     s_ch_packet_in_vpn_address_request(a_ch, l_usage);
                 }else{
@@ -1898,20 +1925,22 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         return false;
     }
 
-    if (!l_usage->is_active  && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-        log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
-        if (l_usage->client)
-            dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return false;
-    } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-        return false;
+    if(l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
+        if(!l_usage->is_active  && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
+            if(l_usage->client)
+                dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+            dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+            return false;
+        } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+            dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+            return false;
+        }
     }
     
-    if ((l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (!l_usage->receipt && l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE) ){
+    if((l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE) && (!l_usage->receipt && l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE)){
         log_it(L_WARNING, "No active receipt, switching off");
         l_usage->is_active = false;
         if (l_usage->client)
@@ -2058,6 +2087,23 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
                 s_tun_send_msg_esocket_reassigned_all_inter(a_es->worker->id, l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->esocket_uuid,
                     l_vpn_info->addr_ipv4);
                 dap_events_socket_reassign_between_workers_mt(l_vpn_info->worker, l_vpn_info->esocket, a_es->worker);
+            }
+            dap_chain_net_srv_stream_session_t *l_srv_session =
+                    l_vpn_info->ch_vpn && l_vpn_info->ch_vpn->ch && l_vpn_info->ch_vpn->ch->stream ?
+                    DAP_CHAIN_NET_SRV_STREAM_SESSION(l_vpn_info->ch_vpn->ch->stream->session) : NULL;
+            dap_chain_net_srv_usage_t *l_usage = l_srv_session ? l_srv_session->usage_active : NULL;
+            if(l_usage && l_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
+                char l_str_daddr[INET_ADDRSTRLEN] = {0};
+                char l_str_saddr[INET_ADDRSTRLEN] = {0};
+#ifdef DAP_OS_LINUX
+                struct in_addr l_daddr = { .s_addr = iph->daddr };
+                struct in_addr l_saddr = { .s_addr = iph->saddr };
+#else
+                struct in_addr l_daddr = { .s_addr = iph->ip_dst.s_addr };
+                struct in_addr l_saddr = { .s_addr = iph->ip_src.s_addr };
+#endif
+                inet_ntop(AF_INET, &l_saddr, l_str_saddr, sizeof(l_str_saddr));
+                inet_ntop(AF_INET, &l_daddr, l_str_daddr, sizeof(l_str_daddr));
             }
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
         } else if(s_debug_more) {

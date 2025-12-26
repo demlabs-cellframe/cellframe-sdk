@@ -31,6 +31,7 @@
 #include "dap_chain_node_cli.h"
 #include "json.h"
 
+
 typedef enum s_com_tx_history_err{
     DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR,

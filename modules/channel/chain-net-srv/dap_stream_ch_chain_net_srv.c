@@ -615,6 +615,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         // Start service for free
         log_it( L_INFO, "Can't find a valid pricelist. Service provide for free");
         l_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE;
+        // In free mode usage is considered fully ready to serve
+        l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL;
         size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);

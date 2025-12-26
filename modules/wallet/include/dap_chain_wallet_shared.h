@@ -3,7 +3,6 @@
 #define DAP_CHAIN_WALLET_SHARED_ID 0x07
 #define DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF 0x14
 #define DAP_CHAIN_WALLET_SHARED_TSD_REFILL 0x15
-
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_mempool.h"
 
@@ -20,3 +19,5 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(json_object *a
 dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key, dap_chain_datum_tx_t *a_tx_in);
 int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_net_name);
 json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name);
+int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a_final_tx_hash, json_object *a_jobj_waiting_operations_hashes);
+int dap_chain_wallet_shared_notify_init();

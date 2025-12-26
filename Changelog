@@ -1,4 +1,56 @@
 
+Version 2.1 
+
+## New Features
+
+### UTXO Blocking Mechanism for CF20 Tokens
+ * Added per-token UTXO (Unspent Transaction Output) blocking capability
+ * UTXO blocking is ENABLED by default for all CF20 tokens (opt-out security model)
+ * New token flags (BIT 16-19):
+   - `UTXO_BLOCKING_DISABLED`: Disables UTXO blocking mechanism (opt-out)
+   - `STATIC_UTXO_BLOCKLIST`: Makes UTXO blocklist immutable after creation
+   - `DISABLE_ADDRESS_SENDER_BLOCKING`: Disables existing address-based sender blocking
+   - `DISABLE_ADDRESS_RECEIVER_BLOCKING`: Disables existing address-based receiver blocking
+ * New TSD types for token_update (0x0029-0x002B):
+   - `UTXO_BLOCKED_ADD`: Add UTXO to blocklist (immediate or delayed activation)
+   - `UTXO_BLOCKED_REMOVE`: Remove UTXO from blocklist (immediate or delayed unblocking)
+   - `UTXO_BLOCKED_CLEAR`: Clear entire UTXO blocklist
+ * Temporal semantics support:
+   - Delayed activation: UTXO blocking activates after specified blockchain time
+   - Delayed unblocking: UTXO automatically becomes spendable after expiration time
+ * Thread-safe implementation using pthread_rwlock and uthash (O(1) lookup)
+ * New error code: `DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED`
+ * CLI commands updated:
+   - `token_decl`: Accept new UTXO blocking flags
+   - `token_update`: Support `-utxo_blocked_add`, `-utxo_blocked_remove`, `-utxo_blocked_clear`
+   - `token info`: Display UTXO blocklist with activation/expiration times
+ * Comprehensive documentation:
+   - API documentation (doxygen comments) in headers
+   - CLI usage documentation
+   - Usage examples: docs/UTXO_BLOCKING_EXAMPLES.md
+ * Unit tests for UTXO blocking mechanism following DAP SDK standards
+
+## Changes
+ * Extended `dap_ledger_token_item_t` with UTXO blocklist fields
+ * Added UTXO validation in `s_ledger_tx_add_check` (transaction validation)
+ * Extended `s_token_add_check` to parse new TSD types
+ * Modified `s_token_item_to_json` to include UTXO blocklist in JSON output
+ * Updated token flag definitions in `dap_chain_datum_token.h`
+
+## Compatibility
+ * **Backward compatible**: Existing tokens automatically support UTXO blocking
+ * **Default behavior change**: UTXO blocking is now enabled by default (security enhancement)
+ * **Migration**: No migration required - existing tokens work without modifications
+ * **Opt-out available**: Use `UTXO_BLOCKING_DISABLED` flag to disable if not needed
+
+## Performance
+ * O(1) UTXO lookup using uthash
+ * Thread-safe with minimal lock contention (reader-writer locks)
+ * In-memory storage, no global database overhead
+ * Tested with 10,000+ blocked UTXOs
+
+---
+
 Version 2.0 released!
 
  *  "gdb" consensus now is "none"

@@ -74,9 +74,10 @@ json_object *dap_chain_tx_compose_xchange_create(dap_chain_net_id_t a_net_id, co
                                           dap_chain_addr_t *a_wallet_addr, const char *a_value_str, const char *a_rate_str, const char *a_fee_str);
 
 json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
-                                        uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr, const char *a_cert_str, 
-                                        const char *a_value_datoshi_str, const char *a_value_fee_str, const char *a_unit_str, const char *a_value_per_unit_max_str,
-                                        const char *a_srv_uid_str);
+                                        uint16_t a_port, const char *a_enc_cert_path, const char *a_token_ticker, dap_chain_addr_t *a_wallet_addr,
+                                        const char *a_cert_str, const char *a_value_datoshi_str, const char *a_value_fee_str,
+                                        const char *a_unit_str, const char *a_value_per_unit_max_str,
+                                        const char *a_srv_uid_str, const char *a_pkey_hash_str);
 
 json_object *dap_chain_tx_compose_stake_lock_hold(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                   uint16_t a_port, const char *a_enc_cert_path, dap_chain_id_t a_chain_id, const char *a_ticker_str, 
@@ -150,6 +151,9 @@ json_object *dap_chain_tx_compose_wallet_shared_take(dap_chain_net_id_t a_net_id
                                                     uint16_t a_port, const char *a_enc_cert_path, dap_chain_addr_t *a_owner_addr, const char *a_tx_in_hash_str, const char *a_value_str, const char *a_fee_str,
                                                     const char *a_to_addr_str);
 
+json_object *dap_chain_tx_compose_wallet_shared_without_sign(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
+                                                    uint16_t a_port, const char *a_enc_cert_path, const char *a_tx_in_hash_str);
+
 json_object *dap_chain_tx_compose_wallet_shared_sign(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                                   uint16_t a_port, const char *a_enc_cert_path, const char *a_tx_in_hash_str, const char *a_wallet_str, const char *a_wallets_path, const char *a_pass_str, const char *a_cert_str);
 
@@ -166,12 +170,12 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
                                                            dap_chain_addr_t *a_seller_addr, const char *a_native_ticker, 
                                                            compose_config_t *a_config);
 
-dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t *a_wallet_addr, dap_pkey_t *a_key_cond,
-                                                              const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-                                                              uint256_t a_value, uint256_t a_value_per_unit_max,
-                                                              dap_chain_net_srv_price_unit_uid_t a_unit, 
-                                                              dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, 
-                                                              const void *a_cond, size_t a_cond_size, compose_config_t *a_config);
+dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t *a_wallet_addr, dap_hash_fast_t *a_pkey_cond_hash,
+                                                            const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+                                                            uint256_t a_value, uint256_t a_value_per_unit_max,
+                                                            dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
+                                                            uint256_t a_value_fee, const void *a_cond,
+                                                            size_t a_cond_size, compose_config_t *a_config);
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_t *a_wallet_addr, const char *a_main_ticker,
                                                          uint256_t a_value, uint256_t a_value_fee, dap_time_t a_time_staking, 
