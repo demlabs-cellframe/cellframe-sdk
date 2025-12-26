@@ -890,7 +890,8 @@ static uint8_t *s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
                 TX_ITEM_ITER_TX(l_item, l_tx_item_size, l_prev_tx) {
                     if (*l_item == TX_ITEM_TYPE_OUT_COND) {
                         l_tx_out_cond = (dap_chain_tx_out_cond_t*)l_item;
-                        if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                        if (l_tx_out_cond && (l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK ||
+                                              l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK)) {
                             byte_t *l_prev_item = l_prev_tx ? dap_chain_datum_tx_item_get_nth(l_prev_tx, TX_ITEM_TYPE_OUT_ALL, l_out_prev_idx) : NULL;                          
                             if (l_prev_item){
                                 if (*l_prev_item == TX_ITEM_TYPE_OUT_COND){
