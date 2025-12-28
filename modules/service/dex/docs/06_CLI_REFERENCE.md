@@ -1,0 +1,818 @@
+# DEX v2 CLI Reference
+
+## Command Structure
+
+```
+srv_dex <subcommand> [options]
+```
+
+---
+
+## Order Management
+
+### Create Order
+
+```bash
+srv_dex order create \
+  -net <network_name> \
+  -token_sell <ticker> \
+  -token_buy <ticker> \
+  -w <wallet_path> \
+  -value <amount> \
+  -rate <price> \
+  -fee <validator_fee> \
+  [-fill_policy <policy>] \
+  [-min_fill_pct <0-100>] \
+  [-min_fill_value <amount>]
+```
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-net` | Network name |
+| `-token_sell` | Token to sell |
+| `-token_buy` | Token to receive |
+| `-w` | Wallet file path |
+| `-value` | Amount to sell |
+| `-rate` | Price (buy_token per sell_token) |
+| `-fee` | Validator fee in native |
+| `-fill_policy` | `AON`, `min`, or `min_from_origin` |
+| `-min_fill_pct` | Percentage for min policies (0-100) |
+| `-min_fill_value` | Absolute minimum fill in sell token (auto-sets `min_from_origin`) |
+
+**Notes:**
+- `-min_fill_pct` and `-min_fill_value` are mutually exclusive
+- `-min_fill_value` auto-computes percentage from `-value` and sets `min_from_origin` policy
+- If `-min_fill_value` >= `-value`, order becomes AON (100%)
+
+**Example:**
+```bash
+srv_dex order create -net TestNet -token_sell KEL -token_buy USDT \
+  -w /home/user/.cellframe/wallets/bob.dwallet -value 100.0 -rate 2.5 -fee 0.05
+
+# With absolute min_fill (at least 50 KEL must be filled):
+srv_dex order create -net TestNet -token_sell KEL -token_buy USDT \
+  -w /home/user/.cellframe/wallets/bob.dwallet -value 100.0 -rate 2.5 -fee 0.05 \
+  -min_fill_value 50.0
+```
+
+---
+
+### Remove Order (Invalidate)
+
+```bash
+srv_dex order remove \
+  -net <network_name> \
+  -order <order_hash> \
+  -w <wallet_path> \
+  -fee <validator_fee>
+```
+
+**Example:**
+```bash
+srv_dex order remove -net TestNet \
+  -order 0x1234...abcd \
+  -w /home/user/.cellframe/wallets/bob.dwallet \
+  -fee 0.05
+```
+
+---
+
+### Update Order
+
+```bash
+srv_dex order update \
+  -net <network_name> \
+  -order <root_hash> \
+  -w <wallet_path> \
+  -value <new_value> \
+  -fee <validator_fee>
+```
+
+**Note:** Only the order owner can update. Updates the locked value (increase or decrease).
+
+---
+
+## Purchase Operations
+
+### Single Order Purchase
+
+```bash
+srv_dex purchase \
+  -net <network_name> \
+  -order <order_hash> \
+  -w <wallet_path> \
+  -value <amount> \
+  [-unit sell|buy] \
+  -fee <validator_fee> \
+  [-create_leftover_order] \
+  [-leftover_rate <rate>]
+```
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-value` | Budget amount |
+| `-unit` | Budget denomination: `sell` (what you spend) or `buy` (what you receive) |
+| `-create_leftover_order` | Create order from unspent budget |
+| `-leftover_rate` | Rate for leftover order (default: matched price) |
+
+**Example:**
+```bash
+srv_dex purchase -net TestNet \
+  -order 0x1234...abcd \
+  -w /home/user/.cellframe/wallets/alice.dwallet \
+  -value 50.0 -unit buy -fee 0.05
+```
+
+---
+
+### Multi-Order Purchase
+
+```bash
+srv_dex purchase_multi \
+  -net <network_name> \
+  -orders <hash1,hash2,...> \
+  -w <wallet_path> \
+  -value <amount> \
+  [-unit sell|buy] \
+  -fee <validator_fee> \
+  [-create_leftover_order] \
+  [-leftover_rate <rate>]
+```
+
+**Example:**
+```bash
+srv_dex purchase_multi -net TestNet \
+  -orders 0x111...aaa,0x222...bbb,0x333...ccc \
+  -w /home/user/.cellframe/wallets/alice.dwallet \
+  -value 100.0 -unit sell -fee 0.05
+```
+
+---
+
+### Auto-Match Purchase
+
+```bash
+srv_dex purchase_auto \
+  -net <network_name> \
+  -token_sell <ticker> \
+  -token_buy <ticker> \
+  -w <wallet_path> \
+  -value <amount> \
+  [-unit sell|buy] \
+  [-min_rate <rate>] \
+  -fee <validator_fee> \
+  [-create_leftover_order] \
+  [-leftover_rate <rate>] \
+  [-dry-run]
+```
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-min_rate` | Maximum acceptable price (skip if rate > min_rate) |
+| `-dry-run` | Simulate matching without submitting TX (returns match plan in JSON) |
+
+**Example:**
+```bash
+srv_dex purchase_auto -net TestNet \
+  -token_sell USDT -token_buy KEL \
+  -w /home/user/.cellframe/wallets/alice.dwallet \
+  -value 50.0 -unit buy -min_rate 2.0 -fee 0.05
+
+# Dry-run example
+srv_dex purchase_auto -net TestNet \
+  -token_sell USDT -token_buy KEL \
+  -w /home/user/.cellframe/wallets/alice.dwallet \
+  -value 50.0 -dry-run
+```
+
+---
+
+### Bulk Cancel
+
+```bash
+srv_dex cancel_all_by_seller \
+  -net <network_name> \
+  -pair <BASE/QUOTE> \
+  -seller <address> \
+  -w <wallet_path> \
+  -fee <validator_fee> \
+  [-limit <N>] \
+  
+```
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-pair` | **Yes** | Canonical pair (e.g., `KEL/USDT`) |
+| `-seller` | **Yes** | Seller address (must match wallet) |
+| `-limit` | No | Maximum orders to cancel |
+| `-dry-run` | No | Simulate matching without submitting TX |
+
+**Example:**
+```bash
+srv_dex cancel_all_by_seller -net TestNet \
+  -pair KEL/USDT \
+  -seller Ax7y9q... \
+  -w /home/user/.cellframe/wallets/bob.dwallet \
+  -fee 0.05 -limit 10 -dry-run
+```
+
+---
+
+## Query Operations
+
+### List Orders
+
+```bash
+srv_dex orders \
+  -net <network_name> \
+  [-pair <BASE/QUOTE>] \
+  [-seller <address>] \
+  [-limit <N>] \
+  [-offset <N>]
+```
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-pair` | Filter by trading pair (optional; omit to list all pairs) |
+| `-seller` | Filter by seller address |
+| `-limit` | Maximum orders to return |
+| `-offset` | Skip first N orders |
+
+**Note:** When `-pair` is omitted, each order includes a `pair` field in the output.
+
+**Example:**
+```bash
+srv_dex orders -net TestNet -pair KEL/USDT
+srv_dex orders -net TestNet -seller Ax7y9q... -limit 100 -offset 0
+srv_dex orders -net TestNet  # All orders across all pairs
+```
+
+---
+
+### Order Book
+
+```bash
+srv_dex orderbook \
+  -net <network_name> \
+  -pair <BASE/QUOTE> \
+  [-depth <N>] \
+  [-tick_price <decimals>] \
+  [-tick <decimals>] \
+  [-cumulative]
+```
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-depth` | Number of price levels (default: 20, max: 1000) |
+| `-tick_price` | Explicit price step for level aggregation (value, not decimals) |
+| `-tick` | Decimal places to derive price step (e.g., 2 → step 0.01) |
+| `-cumulative` | Show cumulative volumes |
+
+**Example:**
+```bash
+srv_dex orderbook -net TestNet -pair KEL/USDT -depth 10 -cumulative
+```
+
+Output: Top N ASK and BID levels with prices and volumes.
+
+---
+
+### Market Status
+
+```bash
+srv_dex status \
+  -net <network_name> \
+  -pair <BASE/QUOTE> \
+  [-seller <address>]
+```
+
+Returns: Order counts, best prices, total volumes.
+
+---
+
+### List Pairs
+
+```bash
+srv_dex pairs -net <network_name>
+```
+
+Lists all whitelisted trading pairs with fee configurations.
+
+---
+
+## Analytics
+
+> **Note:** The `market_rate` and `volume` commands have been deprecated. Use `history -mode ohlc` or `history -mode volume` instead. The `history` command now includes `spot`, `vwap`, and full `totals` in its output.
+
+### Spread
+
+```bash
+srv_dex spread \
+  -net <network_name> \
+  -pair <BASE/QUOTE> \
+  [-verbose]
+```
+
+Returns: Best ASK, best BID, spread percentage.
+
+---
+
+### TVL (Total Value Locked)
+
+```bash
+srv_dex tvl \
+  -net <network_name> \
+  [-token <ticker>] \
+  [-by pair] \
+  [-top <N>]
+```
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-token` | Filter by specific token |
+| `-by pair` | Group results by trading pair |
+| `-top` | Show top N pairs by TVL |
+
+Returns: Total amount of token(s) locked in active orders.
+
+---
+
+### Slippage Estimation
+
+```bash
+srv_dex slippage \
+  -net <network_name> \
+  -pair <BASE/QUOTE> \
+  -value <amount> \
+  -side buy|sell \
+  -unit base|quote \
+  [-max_slippage_pct <percent>]
+```
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-max_slippage_pct` | Maximum acceptable slippage (0-100) |
+
+**Example:**
+```bash
+srv_dex slippage -net TestNet -pair KEL/USDT -value 1000 -side buy -unit quote -max_slippage_pct 5
+```
+
+---
+
+### Trade History
+
+```bash
+srv_dex history \
+  -net <network_name> \
+  -pair <BASE/QUOTE> \
+  [-from <timestamp>] \
+  [-to <timestamp>] \
+  [-bucket <seconds>] \
+  [-seller <address>] \
+  [-mode ohlc|volume|trades] \
+  [-fill] \
+  [-orders] \
+  [-limit <N>] \
+  [-offset <N>] \
+  [-order <hash>]
+```
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-mode` | Output mode: `ohlc` (default), `volume`, `trades` |
+| `-bucket` | Bucket size in seconds (optional for ohlc/volume; omit to get totals only) |
+| `-fill` | Fill empty buckets with previous close (requires `-bucket`) |
+| `-orders` | Show only order creations instead of trades (requires `-mode trades`) |
+| `-seller` | Filter by seller address |
+| `-buyer` | Filter by buyer address (incompatible with `-order`) |
+| `-limit` | Maximum records to return (trades mode only) |
+| `-offset` | Skip first N records (trades mode only) |
+| `-order` | Filter by specific order hash (root or tail) |
+
+**Mode Compatibility:**
+| Mode | Valid Parameters | Invalid Parameters |
+|------|------------------|-------------------|
+| `ohlc` | `-bucket`, `-fill`, `-from`, `-to`, `-seller`, `-order` | `-orders`, `-buyer` (with `-order`) |
+| `volume` | `-bucket`, `-fill`, `-from`, `-to`, `-seller`, `-order` | `-orders`, `-buyer` (with `-order`) |
+| `trades` | `-from`, `-to`, `-seller`, `-buyer`, `-orders`, `-limit`, `-offset`, `-order` | `-bucket`, `-fill` |
+
+**Notes:**
+- `-fill` requires `-bucket` (fills empty buckets with previous close price)
+- `-order` resolves the provided hash to `order_root` and matches trades by their order chain root (requires ledger access)
+- `-buyer` is incompatible with `-order` (order chain already defines the counterparty)
+- `market_only=true` means OHLC/spot are computed from `MARKET` trades only; volume totals include `MARKET|TARGETED` and exclude `ORDER` records
+- When `history_cache=false`, results are computed from ledger scan: `market_only=false`, and bucket entries include `first_ts`/`last_ts`
+
+**Mode Requirements:**
+| Mode | Requirements |
+|------|--------------|
+| `ohlc` | None (bucket optional) |
+| `volume` | None (bucket optional) |
+| `trades` | `history_cache=true` and `memcached=true` |
+
+---
+
+#### Totals Only (no bucket)
+
+When `-bucket` is omitted, returns only aggregate totals without time series:
+
+```bash
+srv_dex history -net TestNet -pair KEL/USDT -from -7d
+```
+
+```json
+{
+  "pair": "KEL/USDT",
+  "request_ts": 1703847123,
+  "market_only": true,
+  "ohlc": [],
+  "totals": {
+    "trades": 623,
+    "sum_base": "35000.861",
+    "sum_quote": "280006.888",
+    "spot": "8.0123",
+    "vwap": "8.0002"
+  }
+}
+```
+
+---
+
+#### Mode: OHLC (default)
+
+Returns OHLC candlestick data with volume and trade count per bucket.
+
+```bash
+srv_dex history -net TestNet -pair KEL/USDT -bucket 3600 -fill -from -24h
+```
+
+```json
+{
+  "pair": "KEL/USDT",
+  "market_only": true,
+  "ohlc": [
+    {
+      "ts": 1703800800,
+      "ts_str": "Thu, 28 Dec 2023 22:00:00 GMT",
+      "open": "8.0100",
+      "high": "8.0500",
+      "low": "7.9800",
+      "close": "8.0200",
+      "volume_base": "1234.5678",
+      "volume_quote": "9876.5432",
+      "trades": 42
+    }
+  ],
+  "count": 24,
+  "totals": {
+    "trades": 150,
+    "sum_base": "12345.678",
+    "sum_quote": "98765.432",
+    "spot": "8.0123",
+    "vwap": "8.0005"
+  }
+}
+```
+
+---
+
+#### Mode: Volume
+
+Returns only volume data per bucket (no OHLC prices).
+
+```bash
+srv_dex history -net TestNet -pair KEL/USDT -bucket 86400 -mode volume -from -7d
+```
+
+```json
+{
+  "pair": "KEL/USDT",
+  "market_only": true,
+  "volume": [
+    {
+      "ts": 1703721600,
+      "ts_str": "Thu, 28 Dec 2023 00:00:00 GMT",
+      "volume_base": "5000.123",
+      "volume_quote": "40000.984",
+      "trades": 89
+    }
+  ],
+  "count": 7,
+  "totals": {
+    "trades": 623,
+    "sum_base": "35000.861",
+    "sum_quote": "280006.888",
+    "spot": "8.0123",
+    "vwap": "8.0002"
+  }
+}
+```
+
+---
+
+#### Mode: Trades
+
+Returns raw trade records. Requires both `history_cache=true` and `memcached=true`.
+
+```bash
+srv_dex history -net TestNet -pair KEL/USDT -mode trades -limit 10
+```
+
+```json
+{
+  "pair": "KEL/USDT",
+  "trades": [
+    {
+      "ts": 1703847123,
+      "ts_str": "Fri, 29 Dec 2023 10:52:03 GMT",
+      "price": "8.0150",
+      "base": "100.0",
+      "quote": "801.50",
+      "tx_hash": "0x1234...abcd",
+      "prev_tail": "0x5678...efgh",
+      "seller": "mJUaYn...",
+      "buyer": "mZkPqR...",
+      "type": "market"
+    }
+  ],
+  "count": 10
+}
+```
+
+**Trade types:**
+- `market` — executed at or better than best price
+- `targeted` — executed at worse than best price (limit order match)
+
+---
+
+#### Mode: Orders (order creations only)
+
+Returns only order creation records (new orders and buyer leftovers).
+Buyer leftovers may be marked as `order+market` or `order+targeted` depending on the last trade classification.
+
+```bash
+srv_dex history -net TestNet -pair KEL/USDT -mode trades -orders -limit 10
+```
+
+```json
+{
+  "pair": "KEL/USDT",
+  "orders": [
+    {
+      "ts": 1703847000,
+      "ts_str": "Fri, 29 Dec 2023 10:50:00 GMT",
+      "price": "8.0000",
+      "base": "500.0",
+      "quote": "4000.0",
+      "tx_hash": "0xabcd...1234",
+      "prev_tail": "0x0000...0000",
+      "seller": "mJUaYn...",
+      "type": "order"
+    }
+  ],
+  "count": 10
+}
+```
+
+---
+
+#### Filter by Order Hash
+
+Find all trades related to a specific order (by root or tail hash).
+
+```bash
+srv_dex history -net TestNet -pair KEL/USDT -mode trades -order 0x1234...abcd
+```
+
+```json
+{
+  "pair": "KEL/USDT",
+  "order_root": "0x1234...abcd",
+  "trades": [...],
+  "count": 5
+}
+```
+
+**Notes:**
+- If tail hash is provided, it is automatically resolved to root via ledger lookup.
+- Filtering by `-order` uses `order_root` resolution + trade-by-trade root matching (requires ledger access).
+- Works with all modes: `trades`, `ohlc`, `volume`
+
+**Order OHLCV Example:**
+
+```bash
+srv_dex history -net TestNet -pair KEL/USDT -order 0x1234...abcd -bucket 3600
+```
+
+```json
+{
+  "pair": "KEL/USDT",
+  "order_root": "0x1234...abcd",
+  "market_only": true,
+  "ohlc": [
+    {
+      "ts": 1703844000,
+      "ts_str": "Fri, 29 Dec 2023 10:00:00 GMT",
+      "open": "8.0000",
+      "high": "8.0100",
+      "low": "7.9900",
+      "close": "8.0050",
+      "volume_base": "100.5",
+      "volume_quote": "804.0",
+      "trades": 3
+    }
+  ],
+  "count": 2,
+  "totals": {
+    "trades": 5,
+    "sum_base": "500.0",
+    "sum_quote": "4000.0",
+    "spot": "8.0050",
+    "vwap": "8.0000"
+  }
+}
+```
+
+---
+
+## Governance (Decree)
+
+### General Syntax
+
+```bash
+srv_dex decree \
+  -net <network_name> \
+  -w <wallet_path> \
+  -service_key <cert_name> \
+  -method <method_name> \
+  <method_params>
+```
+
+---
+
+### Set Global Fee
+
+```bash
+srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -method fee_set \
+  -fee_amount 0.05 \
+  -fee_addr Ax7y9q...
+```
+
+---
+
+### Add Trading Pair
+
+```bash
+srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -method pair_add \
+  -token_base KEL \
+  -token_quote USDT \
+  [-net_base TestNet] \
+  [-net_quote TestNet] \
+  [-fee_pct 2.0]
+```
+
+**Fee Options:**
+- `-fee_pct <percent>` — Percent fee (0.1% step)
+- `-fee_native <amount>` — Native fee (0.01 step)
+- `-fee_config <byte>` — Raw config byte (hex)
+
+---
+
+### Remove Trading Pair
+
+```bash
+srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -method pair_remove \
+  -token_base KEL \
+  -token_quote USDT
+```
+
+---
+
+### Set Pair Fee
+
+```bash
+srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -method pair_fee_set \
+  -token_base KEL \
+  -token_quote USDT \
+  -fee_pct 1.5
+```
+
+---
+
+### Set All Pairs Fee
+
+```bash
+srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -method pair_fee_set_all \
+  -fee_pct 2.0
+```
+
+---
+
+## Migration
+
+### Migrate Legacy Order
+
+```bash
+srv_dex migrate \
+  -net <network_name> \
+  -from <tx_hash[:out_idx]> \
+  -rate <new_rate> \
+  -fee <validator_fee> \
+  -w <wallet_path>
+```
+
+Converts legacy DEX v1 orders to v2 format.
+
+---
+
+## Output Formats
+
+### JSON Output
+
+Most commands support JSON output for programmatic access:
+
+```bash
+srv_dex orders -net TestNet -pair KEL/USDT
+```
+
+```json
+{
+  "orders": [
+    {
+      "side": "ASK",
+      "root": "0x123...",
+      "tail": "0x456...",
+      "price": "2.500000000000000000",
+      "value_sell": "100.000000000000000000",
+      "seller": "mJUUJk5RwvMCFv6gHJjRdQqLqw3MPHaNS7w9w2w3KtKjoZu4MNH64G",
+      "created": "Wed, 25 Dec 2024 12:00:00 GMT",
+      "expires": "Fri, 25 Dec 2025 12:00:00 GMT",
+      "ts": 1735128000,
+      "min_fill_pct": 50,
+      "min_fill_from_origin": false
+    },
+    {
+      "side": "BID",
+      "root": "0x789...",
+      "tail": "0xabc...",
+      "price": "2.400000000000000000",
+      "value_sell": "50.000000000000000000",
+      "seller": "mJUUJkA2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P7Q8R9S0T1U2V3W4",
+      "created": "Wed, 25 Dec 2024 11:58:20 GMT",
+      "ts": 1735127900,
+      "min_fill_pct": 0,
+      "min_fill_from_origin": false
+    }
+  ]
+}
+```
+
+**Output Fields:**
+| Field | Description |
+|-------|-------------|
+| `side` | Order direction: `ASK` (sell base) or `BID` (buy base) |
+| `root` | Root transaction hash (order origin) |
+| `tail` | Tail transaction hash (current state) |
+| `price` | Exchange rate (quote per base unit) |
+| `value_sell` | Remaining sell amount |
+| `seller` | Seller wallet address |
+| `created` | Creation timestamp (RFC822 format) |
+| `expires` | Expiration timestamp (RFC822), omitted if no expiration |
+| `ts` | Numeric timestamp (for programmatic sorting) |
+| `min_fill_pct` | Minimum fill percentage (0-100) |
+| `min_fill_from_origin` | If true, min_fill is calculated from original order value |
+
+**Note:** When `-pair` is omitted, each order includes an additional `pair` field.
+
+---
+
+## Error Handling
+
+Commands return exit codes:
+- `0` — Success
+- Non-zero — Error (with descriptive message)
+
+**Example:**
+```bash
+srv_dex purchase -net TestNet -order 0xINVALID...
+# Error: Order not found
+# Exit code: 1
+```
+
+
+

@@ -10,6 +10,8 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_time.h"
+#include "dap_cli_server.h"
+#include "json_object.h"
 
 // ============================================================================
 // CONSTANTS - Use dex_test_helpers.h
@@ -2829,6 +2831,58 @@ static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_confi
     }
     log_it(L_NOTICE, "✓ M03: Alice matched Bob's buyer-leftover order");
     
+    // Verify buyer-leftover type in history cache (must be order+market or order+targeted)
+    {
+        char l_json_request[512];
+        snprintf(l_json_request, sizeof(l_json_request),
+            "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;%s/%s;-mode;trades;-orders\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+            f->net->net->pub.name, base, quote);
+        char *l_reply = dap_cli_cmd_exec(l_json_request);
+        if (l_reply) {
+            json_object *l_json = json_tokener_parse(l_reply);
+            DAP_DELETE(l_reply);
+            if (l_json) {
+                json_object *l_result_raw = NULL;
+                if (json_object_object_get_ex(l_json, "result", &l_result_raw)) {
+                    json_object *l_result = json_object_is_type(l_result_raw, json_type_array)
+                        ? json_object_array_get_idx(l_result_raw, 0) : l_result_raw;
+                    json_object *l_orders = NULL;
+                    if (l_result && json_object_object_get_ex(l_result, "orders", &l_orders)) {
+                        const char *l_tx1_hash_str = dap_hash_fast_to_str_static(&tx1_hash);
+                        int l_arr_len = json_object_array_length(l_orders);
+                        bool l_found = false;
+                        for (int i = 0; i < l_arr_len; i++) {
+                            json_object *l_order = json_object_array_get_idx(l_orders, i);
+                            json_object *l_tx_hash = NULL, *l_type = NULL;
+                            if (json_object_object_get_ex(l_order, "tx_hash", &l_tx_hash) &&
+                                json_object_object_get_ex(l_order, "type", &l_type)) {
+                                const char *l_hash_str = json_object_get_string(l_tx_hash);
+                                if (l_hash_str && !dap_strcmp(l_hash_str, l_tx1_hash_str)) {
+                                    const char *l_type_str = json_object_get_string(l_type);
+                                    l_found = true;
+                                    if (!dap_strcmp(l_type_str, "order+market") || !dap_strcmp(l_type_str, "order+targeted")) {
+                                        log_it(L_NOTICE, "✓ M03: Buyer-leftover type verified: %s", l_type_str);
+                                    } else {
+                                        log_it(L_ERROR, "M03: Buyer-leftover has wrong type '%s', expected order+market or order+targeted", l_type_str);
+                                        json_object_put(l_json);
+                                        return -6;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        if (!l_found) {
+                            log_it(L_ERROR, "M03: Buyer-leftover %s not found in history", l_tx1_hash_str);
+                            json_object_put(l_json);
+                            return -7;
+                        }
+                    }
+                }
+                json_object_put(l_json);
+            }
+        }
+    }
+    
     log_it(L_NOTICE, "✓ M03: BUYER-LEFTOVER LIFECYCLE PASSED");
     
     // Rollback transactions
@@ -3122,6 +3176,58 @@ static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_c
         return -5;
     }
     log_it(L_NOTICE, "✓ M06: Carol matched Alice's buyer-leftover ASK order");
+    
+    // Verify buyer-leftover type in history cache (must be order+market or order+targeted)
+    {
+        char l_json_request[512];
+        snprintf(l_json_request, sizeof(l_json_request),
+            "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;%s/%s;-mode;trades;-orders\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+            f->net->net->pub.name, base, quote);
+        char *l_reply = dap_cli_cmd_exec(l_json_request);
+        if (l_reply) {
+            json_object *l_json = json_tokener_parse(l_reply);
+            DAP_DELETE(l_reply);
+            if (l_json) {
+                json_object *l_result_raw = NULL;
+                if (json_object_object_get_ex(l_json, "result", &l_result_raw)) {
+                    json_object *l_result = json_object_is_type(l_result_raw, json_type_array)
+                        ? json_object_array_get_idx(l_result_raw, 0) : l_result_raw;
+                    json_object *l_orders = NULL;
+                    if (l_result && json_object_object_get_ex(l_result, "orders", &l_orders)) {
+                        const char *l_tx1_hash_str = dap_hash_fast_to_str_static(&tx1_hash);
+                        int l_arr_len = json_object_array_length(l_orders);
+                        bool l_found = false;
+                        for (int i = 0; i < l_arr_len; i++) {
+                            json_object *l_order = json_object_array_get_idx(l_orders, i);
+                            json_object *l_tx_hash = NULL, *l_type = NULL;
+                            if (json_object_object_get_ex(l_order, "tx_hash", &l_tx_hash) &&
+                                json_object_object_get_ex(l_order, "type", &l_type)) {
+                                const char *l_hash_str = json_object_get_string(l_tx_hash);
+                                if (l_hash_str && !dap_strcmp(l_hash_str, l_tx1_hash_str)) {
+                                    const char *l_type_str = json_object_get_string(l_type);
+                                    l_found = true;
+                                    if (!dap_strcmp(l_type_str, "order+market") || !dap_strcmp(l_type_str, "order+targeted")) {
+                                        log_it(L_NOTICE, "✓ M06: Buyer-leftover type verified: %s", l_type_str);
+                                    } else {
+                                        log_it(L_ERROR, "M06: Buyer-leftover has wrong type '%s', expected order+market or order+targeted", l_type_str);
+                                        json_object_put(l_json);
+                                        return -6;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        if (!l_found) {
+                            log_it(L_ERROR, "M06: Buyer-leftover %s not found in history", l_tx1_hash_str);
+                            json_object_put(l_json);
+                            return -7;
+                        }
+                    }
+                }
+                json_object_put(l_json);
+            }
+        }
+    }
     
     log_it(L_NOTICE, "✓ M06: BID BUYER-LEFTOVER LIFECYCLE PASSED");
     
@@ -3565,52 +3671,95 @@ static int s_run_m10_buyer_leftover_foreign_ops(dex_test_fixture_t *f, const tes
     return 0;
 }
 
-// M11: Full close order with tiny leftover where fee > executed
-// Only meaningful for ABSOLUTE fee pairs (no 0x80 flag).
-// For % fee pairs, fee is always proportional to executed, so fee < executed always.
-// Test: create order, partially fill leaving residual < absolute fee, then close.
+// Forward declaration (defined in M13 section)
+static uint256_t s_calc_dust_threshold_dynamic(dex_test_fixture_t *f, const test_pair_config_t *pair, int side, uint256_t rate,
+                                               const char *sell_token, const char *buy_token);
+
+// M11: Dust threshold and fee handling tests (adaptive to pair parameters)
+// For ABSOLUTE fee pairs: fee can exceed executed when residual < service_fee
+// For % fee pairs: fee < executed always, but dust threshold (validator+network) still applies
+// Test: create order sized to dust_threshold, partial fill, then trigger dust refund
 static int s_run_m11_fee_exceeds_executed(dex_test_fixture_t *f, const test_pair_config_t *pair) {
-    // Only run for absolute fee pairs (no 0x80 flag)
     bool is_pct_fee = (pair->fee_config & 0x80) != 0;
-    if (is_pct_fee) {
-        log_it(L_INFO, "--- M11: SKIP for %s (%% fee → always fee < executed) ---", pair->description);
-        return 0;
-    }
-    
-    // Absolute fee = (fee_config & 0x7F) × 0.01 native tokens
-    // For fee_config=2: fee = 0.02 native = 20000000000000000 wei
     uint8_t fee_units = pair->fee_config & 0x7F;
-    log_it(L_INFO, "--- M11: Absolute fee test (fee=0.%02u native) for %s ---", fee_units, pair->description);
-    
+
     // Use ASK side (seller sells BASE, buyer pays QUOTE)
     uint8_t side = SIDE_ASK;
     const char *sell_token = pair->base_token;
-    
-    // Carol creates order; Bob buys (pays QUOTE)
-    
-    // Step 1: Carol creates order with value = fee + small margin (0.03 for fee=0.02)
-    // Rate = 1.0 for simplicity
+    const char *buy_token = pair->quote_token;
+    const char *rate_str = "1.0";
+    uint256_t rate = dap_chain_coins_to_balance(rate_str);
+
+    // Calculate dust threshold for this pair
+    uint256_t dust_thr = s_calc_dust_threshold_dynamic(f, pair, side, rate, sell_token, buy_token);
+
+    if (is_pct_fee)
+        log_it(L_INFO, "--- M11: %% fee test for %s; dust_thr=%s %s ---",
+               pair->description, dap_uint256_to_char_ex(dust_thr).frac, sell_token);
+    else
+        log_it(L_INFO, "--- M11: Absolute fee test (fee=0.%02u native) for %s; dust_thr=%s %s ---",
+               fee_units, pair->description, dap_uint256_to_char_ex(dust_thr).frac, sell_token);
+
+    // If dust threshold is 0, this pair doesn't have dust logic (neither token is native)
+    if (IS_ZERO_256(dust_thr)) {
+        log_it(L_NOTICE, "M11: Dust threshold is 0 for %s, skipping", pair->description);
+        return 0;
+    }
+
+    // Order size = 3 × dust_threshold + margin (ensures room for 2 partials)
+    uint256_t order_value = uint256_0, margin = dap_chain_coins_to_balance("0.1");
+    MULT_256_256(dust_thr, GET_256_FROM_64(3), &order_value);
+    SUM_256_256(order_value, margin, &order_value);
+
+    // Sanity check: order should not exceed reasonable limits
+    uint256_t max_order = dap_chain_coins_to_balance("1000.0");
+    if (compare256(order_value, max_order) > 0) {
+        log_it(L_WARNING, "M11: Calculated order %s exceeds 1000, capping",
+               dap_uint256_to_char_ex(order_value).frac);
+        order_value = max_order;
+    }
+
+    char order_value_str[64];
+    snprintf(order_value_str, sizeof(order_value_str), "%s", dap_uint256_to_char_ex(order_value).frac);
+
+    // Step 1: Carol creates order
     dap_hash_fast_t order_hash = {0};
-    int ret = s_create_test_order(f, pair, WALLET_CAROL, side, MINFILL_NONE, "1.0", "0.03", &order_hash);
+    int ret = s_create_test_order(f, pair, WALLET_CAROL, side, MINFILL_NONE, rate_str, order_value_str, &order_hash);
     if (ret != 0) {
         log_it(L_ERROR, "M11: Failed to create Carol's order");
         return -1;
     }
-    log_it(L_INFO, "M11: Carol created ASK 0.03 %s @ 1.0", sell_token);
-    
-    // Step 2: Bob buys almost all, leaving residual < fee (0.001 < 0.02)
-    // For ASK: is_budget_buy=true (budget in QUOTE)
-    uint256_t budget_almost_all = dap_chain_coins_to_balance("0.029");  // leaves ~0.001 residual
-    
+    log_it(L_INFO, "M11: Carol created ASK %s %s @ %s", order_value_str, sell_token, rate_str);
+
+    // Step 2: First purchase - leave residual > dust_threshold (order stays active)
+    // Budget = order_value - 1.5 × dust_threshold
+    uint256_t budget1 = uint256_0, residual_target = uint256_0;
+    MULT_256_256(dust_thr, GET_256_FROM_64(15), &residual_target);
+    DIV_256(residual_target, GET_256_FROM_64(10), &residual_target);  // 1.5 × dust_thr
+    SUBTRACT_256_256(order_value, residual_target, &budget1);
+
+    log_it(L_INFO, "M11: First purchase budget=%s (leaves ~1.5×dust_thr residual)",
+           dap_uint256_to_char_ex(budget1).frac);
+
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &order_hash, budget_almost_all, true, f->network_fee, f->bob, false, uint256_0, &tx1
+        f->net->net, &order_hash, budget1, true, f->network_fee, f->bob, false, uint256_0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M11: Bob's first purchase failed: err=%d", err1);
         return -2;
     }
-    
+
+    // Check that leftover OUT_COND exists (order should NOT be dust-refunded yet)
+    dap_chain_tx_out_cond_t *leftover1 = dap_chain_datum_tx_out_cond_get(tx1, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
+    if (!leftover1) {
+        log_it(L_ERROR, "M11: First purchase should create leftover (residual > dust_thr), but didn't");
+        dap_chain_datum_tx_delete(tx1);
+        return -2;
+    }
+    log_it(L_DEBUG, "M11: First TX has leftover=%s (expected > dust_thr)",
+           dap_uint256_to_char_ex(leftover1->header.value).frac);
+
     dap_hash_fast_t tx1_hash = {0};
     dap_hash_fast(tx1, dap_chain_datum_tx_get_size(tx1), &tx1_hash);
     if (dap_ledger_tx_add(f->net->net->pub.ledger, tx1, &tx1_hash, false, NULL) != 0) {
@@ -3619,45 +3768,659 @@ static int s_run_m11_fee_exceeds_executed(dex_test_fixture_t *f, const test_pair
         return -3;
     }
     dap_chain_datum_tx_delete(tx1);
-    log_it(L_INFO, "M11: Bob traded, leaving ~0.001 residual (< 0.02 fee)");
-    
-    // Step 3: Bob completes the remaining ~0.001
-    // This triggers: executed = 0.001, fee = 0.02 → fee > executed
-    uint256_t budget_rest = dap_chain_coins_to_balance("0.001");
-    
+    log_it(L_INFO, "M11: Bob's first trade accepted, order still active");
+
+    // Step 3: Second purchase - triggers dust refund (residual < dust_threshold)
+    // Budget = residual - 0.5 × dust_threshold (leaves ~0.5 × dust_thr < dust_thr)
+    uint256_t budget2 = uint256_0, half_dust = uint256_0;
+    DIV_256(dust_thr, GET_256_FROM_64(2), &half_dust);  // 0.5 × dust_thr
+    SUBTRACT_256_256(residual_target, half_dust, &budget2);  // 1.5 - 0.5 = 1.0 × dust_thr
+
+    log_it(L_INFO, "M11: Second purchase budget=%s (leaves ~0.5×dust_thr → dust refund)",
+           dap_uint256_to_char_ex(budget2).frac);
+
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &tx1_hash, budget_rest, true, f->network_fee, f->bob, false, uint256_0, &tx2
+        f->net->net, &tx1_hash, budget2, true, f->network_fee, f->bob, false, uint256_0, &tx2
     );
     if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
-        log_it(L_ERROR, "M11: Bob's final purchase failed: err=%d", err2);
+        log_it(L_ERROR, "M11: Bob's second purchase failed: err=%d", err2);
         return -4;
     }
-    
+
+    // Check that NO leftover OUT_COND exists (should be dust refund instead)
+    dap_chain_tx_out_cond_t *leftover2 = dap_chain_datum_tx_out_cond_get(tx2, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
+    if (leftover2 && !dap_hash_fast_is_blank(&leftover2->subtype.srv_dex.order_root_hash)) {
+        log_it(L_ERROR, "M11: Second TX should NOT have leftover (residual < dust_thr), but has %s",
+               dap_uint256_to_char_ex(leftover2->header.value).frac);
+        dap_chain_datum_tx_delete(tx2);
+        return -4;
+    }
+    log_it(L_DEBUG, "M11: Second TX has no leftover (dust refund triggered)");
+
     dap_hash_fast_t tx2_hash = {0};
     dap_hash_fast(tx2, dap_chain_datum_tx_get_size(tx2), &tx2_hash);
     int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx2, &tx2_hash, false, NULL);
     if (add_ret != 0) {
-        log_it(L_ERROR, "M11: Bob's TX2 rejected (ledger ret=%d) - fee > executed not handled", add_ret);
+        log_it(L_ERROR, "M11: Bob's TX2 rejected (ledger ret=%d)", add_ret);
         dap_chain_datum_tx_delete(tx2);
         return -5;
     }
     dap_chain_datum_tx_delete(tx2);
-    log_it(L_NOTICE, "✓ M11: Full close with fee > executed succeeded");
-    
-    log_it(L_NOTICE, "✓ M11: FEE > EXECUTED PASSED");
-    
+
+    log_it(L_NOTICE, "✓ M11: Dust threshold handling verified for %s", pair->description);
+
     // Rollback
     dap_chain_datum_tx_t *tx2_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx2_hash);
     if (tx2_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx2_ledger, &tx2_hash);
-    
+
     dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
     if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
-    
+
     dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
     if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
-    
+
     log_it(L_DEBUG, "M11: Rolled back all transactions");
+    return 0;
+}
+
+// M12: AON order with fractional rate causing rounding dust
+// Tests both ASK and BID with various "evil" rates (primes that don't divide evenly)
+// Verifies no spurious leftover is created that would violate AON policy
+static int s_run_m12_aon_fractional_rate(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    log_it(L_INFO, "--- M12: AON with fractional rate (rounding dust) ---");
+    
+    const char *base = pair->base_token;
+    const char *quote = pair->quote_token;
+    
+    // Test matrix: side × rate
+    // BID: buyer pays BASE → Alice has BASE tokens
+    // ASK: buyer pays QUOTE → Bob has QUOTE tokens
+    typedef struct { uint8_t side; const char *rate; const char *value; } m12_case_t;
+    static const m12_case_t cases[] = {
+        // BID cases: value/rate causes rounding (value is QUOTE, exec_sell is BASE)
+        {SIDE_BID, "3.0",  "100.0"},   // 100/3 = 33.333...
+        {SIDE_BID, "7.0",  "100.0"},   // 100/7 = 14.285...
+        {SIDE_BID, "11.0", "100.0"},   // 100/11 = 9.090...
+        // ASK cases: buyer pays QUOTE, seller receives QUOTE
+        {SIDE_ASK, "3.0",  "100.0"},   // buyer pays 300 QUOTE
+        {SIDE_ASK, "0.333333333333333333", "100.0"},  // near 1/3 rate
+        {SIDE_ASK, "0.142857142857142857", "100.0"},  // near 1/7 rate
+    };
+    const size_t n_cases = sizeof(cases) / sizeof(cases[0]);
+    
+    for (size_t i = 0; i < n_cases; i++) {
+        const m12_case_t *c = &cases[i];
+        const char *side_str = c->side == SIDE_BID ? "BID" : "ASK";
+        // BID: buyer pays BASE (Alice has BASE), ASK: buyer pays QUOTE (Bob has QUOTE)
+        dap_chain_wallet_t *buyer = (c->side == SIDE_BID) ? f->alice : f->bob;
+        const char *buyer_name = (c->side == SIDE_BID) ? "Alice" : "Bob";
+        
+        log_it(L_INFO, "M12[%zu]: %s AON rate=%s value=%s, buyer=%s", i, side_str, c->rate, c->value, buyer_name);
+        
+        // Carol creates order
+        dap_hash_fast_t order_hash = {0};
+        int ret = s_create_test_order(f, pair, WALLET_CAROL, c->side, MINFILL_AON, c->rate, c->value, &order_hash);
+        if (ret != 0) {
+            log_it(L_ERROR, "M12[%zu]: Failed to create order", i);
+            return -1;
+        }
+        
+        // Buyer purchases full order (budget=0 = unlimited)
+        dap_chain_datum_tx_t *tx = NULL;
+        dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
+            f->net->net, &order_hash, uint256_0, true, f->network_fee, buyer, false, uint256_0, &tx
+        );
+        
+        if (err != DEX_PURCHASE_ERROR_OK || !tx) {
+            log_it(L_ERROR, "M12[%zu]: Purchase failed: err=%d", i, err);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -2;
+        }
+        
+        // Check for spurious leftover BEFORE ledger add
+        dap_chain_tx_out_cond_t *leftover = dap_chain_datum_tx_out_cond_get(tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
+        if (leftover && !dap_hash_fast_is_blank(&leftover->subtype.srv_dex.order_root_hash)) {
+            log_it(L_ERROR, "M12[%zu]: Composer created dust leftover=%s (AON violation!)",
+                   i, dap_uint256_to_char_ex(leftover->header.value).frac);
+            dap_chain_datum_tx_delete(tx);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -3;
+        }
+        
+        // Add to ledger
+        dap_hash_fast_t tx_hash = {0};
+        dap_hash_fast(tx, dap_chain_datum_tx_get_size(tx), &tx_hash);
+        int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx, &tx_hash, false, NULL);
+        dap_chain_datum_tx_delete(tx);
+        
+        if (add_ret != 0) {
+            log_it(L_ERROR, "M12[%zu]: TX rejected by verifier (ret=%d)", i, add_ret);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -4;
+        }
+        
+        log_it(L_NOTICE, "✓ M12[%zu]: %s AON rate=%s OK", i, side_str, c->rate);
+        
+        // Rollback
+        dap_chain_datum_tx_t *tx_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx_hash);
+        if (tx_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx_ledger, &tx_hash);
+        dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+        if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+    }
+    
+    log_it(L_NOTICE, "✓ M12: AON FRACTIONAL RATE PASSED (%zu cases)", n_cases);
+    return 0;
+}
+
+// M13: Dust refund comprehensive tests
+// Dynamic dust threshold (0 = disabled) in sell_token units
+static uint256_t s_calc_dust_threshold_dynamic(dex_test_fixture_t *f, const test_pair_config_t *pair, int side, uint256_t rate,
+                                               const char *sell_token, const char *buy_token)
+{
+    if (!f || !pair || !sell_token || !buy_token)
+        return uint256_0;
+    const char *native = f->net->net->pub.native_ticker;
+    if (!native)
+        return uint256_0;
+
+    uint256_t l_fixed_native = f->network_fee;
+    dap_chain_addr_t l_net_addr = {};
+    uint256_t l_net_fee_req = uint256_0;
+    if (dap_chain_net_tx_get_fee(f->net->net->pub.id, &l_net_fee_req, &l_net_addr) && !IS_ZERO_256(l_net_fee_req))
+        SUM_256_256(l_fixed_native, l_net_fee_req, &l_fixed_native);
+
+    uint8_t fee_cfg = pair->fee_config;
+    if ((fee_cfg & 0x80) == 0) {
+        uint8_t mult = fee_cfg & 0x7F;
+        uint256_t srv_fee = mult > 0 ? GET_256_FROM_64((uint64_t)mult * DAP_DEX_FEE_UNIT_NATIVE) : GET_256_FROM_64(DEX_TEST_NATIVE_FEE_FALLBACK);
+        if (!IS_ZERO_256(srv_fee))
+            SUM_256_256(l_fixed_native, srv_fee, &l_fixed_native);
+    }
+    if (IS_ZERO_256(l_fixed_native))
+        return uint256_0;
+
+    uint256_t l_fixed_sell = uint256_0;
+    if (!dap_strcmp(sell_token, native))
+        l_fixed_sell = l_fixed_native;
+    else if (!dap_strcmp(buy_token, native) && !IS_ZERO_256(rate)) {
+        if (side == SIDE_BID)
+            MULT_256_COIN(l_fixed_native, rate, &l_fixed_sell); // BASE(native) → QUOTE(sell)
+        else
+            DIV_256_COIN(l_fixed_native, rate, &l_fixed_sell); // QUOTE(native) → BASE(sell)
+    } else
+        return uint256_0;
+
+    if (IS_ZERO_256(l_fixed_sell))
+        return uint256_0;
+
+    if ((fee_cfg & 0x80) != 0) {
+        uint8_t pct = fee_cfg & 0x7F;
+        if (!pct)
+            return l_fixed_sell;
+        uint256_t num = uint256_0;
+        MULT_256_256(l_fixed_sell, GET_256_FROM_64(1000), &num);
+        DIV_256(num, GET_256_FROM_64(1000 - pct), &l_fixed_sell);
+    }
+    return l_fixed_sell;
+}
+
+// Helper: tamper dust refund - redirect to wrong address
+typedef struct {
+    dap_chain_addr_t *wrong_addr;  // Redirect dust to this address
+    dap_chain_addr_t *seller_addr; // Original seller address (dust recipient)
+    const char *sell_token;
+    uint256_t threshold;
+} tamper_dust_redirect_t;
+
+static bool s_tamper_dust_redirect(dap_chain_datum_tx_t *tx, void *user_data) {
+    tamper_dust_redirect_t *ctx = (tamper_dust_redirect_t *)user_data;
+    if (!ctx || !ctx->wrong_addr || !ctx->seller_addr) return false;
+    
+    uint256_t threshold = ctx->threshold;
+    if (IS_ZERO_256(threshold)) return false;
+    int item_idx = 0;
+    byte_t *item = NULL;
+    // Try OUT_STD first
+    while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_STD, NULL))) {
+        dap_chain_tx_out_std_t *o = (dap_chain_tx_out_std_t *)item;
+        if (!dap_strcmp(o->token, ctx->sell_token) && 
+            dap_chain_addr_compare(&o->addr, ctx->seller_addr) &&
+            compare256(o->value, threshold) <= 0 && !IS_ZERO_256(o->value)) {
+            memcpy(&o->addr, ctx->wrong_addr, sizeof(dap_chain_addr_t));
+            return true;
+        }
+        item_idx++;
+    }
+    // Fallback to OUT_EXT
+    item_idx = 0;
+    while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL))) {
+        dap_chain_tx_out_ext_t *o = (dap_chain_tx_out_ext_t *)item;
+        if (!dap_strcmp(o->token, ctx->sell_token) && 
+            dap_chain_addr_compare(&o->addr, ctx->seller_addr) &&
+            compare256(o->header.value, threshold) <= 0 && !IS_ZERO_256(o->header.value)) {
+            memcpy(&o->addr, ctx->wrong_addr, sizeof(dap_chain_addr_t));
+            return true;
+        }
+        item_idx++;
+    }
+    return false;
+}
+
+// Helper: tamper dust refund - remove dust OUT entirely
+typedef struct {
+    const char *sell_token;
+    dap_chain_addr_t *seller_addr;
+    uint256_t threshold;
+} tamper_dust_remove_t;
+
+static bool s_tamper_dust_remove(dap_chain_datum_tx_t *tx, void *user_data) {
+    tamper_dust_remove_t *ctx = (tamper_dust_remove_t *)user_data;
+    if (!ctx) return false;
+    
+    uint256_t threshold = ctx->threshold;
+    if (IS_ZERO_256(threshold)) return false;
+    int item_idx = 0;
+    byte_t *item = NULL;
+    // Try OUT_STD first
+    while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_STD, NULL))) {
+        dap_chain_tx_out_std_t *o = (dap_chain_tx_out_std_t *)item;
+        if (!dap_strcmp(o->token, ctx->sell_token) && 
+            dap_chain_addr_compare(&o->addr, ctx->seller_addr) &&
+            compare256(o->value, threshold) <= 0 && !IS_ZERO_256(o->value)) {
+            o->value = uint256_0;
+            return true;
+        }
+        item_idx++;
+    }
+    // Fallback to OUT_EXT
+    item_idx = 0;
+    while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL))) {
+        dap_chain_tx_out_ext_t *o = (dap_chain_tx_out_ext_t *)item;
+        if (!dap_strcmp(o->token, ctx->sell_token) && 
+            dap_chain_addr_compare(&o->addr, ctx->seller_addr) &&
+            compare256(o->header.value, threshold) <= 0 && !IS_ZERO_256(o->header.value)) {
+            o->header.value = uint256_0;
+            return true;
+        }
+        item_idx++;
+    }
+    return false;
+}
+
+// Helper: tamper dust refund - inflate dust above threshold
+typedef struct {
+    const char *sell_token;
+    dap_chain_addr_t *seller_addr;
+    uint256_t threshold;
+} tamper_dust_inflate_t;
+
+static bool s_tamper_dust_inflate(dap_chain_datum_tx_t *tx, void *user_data) {
+    tamper_dust_inflate_t *ctx = (tamper_dust_inflate_t *)user_data;
+    if (!ctx) return false;
+    
+    uint256_t threshold = ctx->threshold;
+    if (IS_ZERO_256(threshold)) return false;
+    int item_idx = 0;
+    byte_t *item = NULL;
+    // Try OUT_STD first
+    while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_STD, NULL))) {
+        dap_chain_tx_out_std_t *o = (dap_chain_tx_out_std_t *)item;
+        if (!dap_strcmp(o->token, ctx->sell_token) && 
+            dap_chain_addr_compare(&o->addr, ctx->seller_addr) &&
+            compare256(o->value, threshold) <= 0 && !IS_ZERO_256(o->value)) {
+            SUM_256_256(threshold, GET_256_FROM_64(1), &o->value);
+            return true;
+        }
+        item_idx++;
+    }
+    // Fallback to OUT_EXT
+    item_idx = 0;
+    while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL))) {
+        dap_chain_tx_out_ext_t *o = (dap_chain_tx_out_ext_t *)item;
+        if (!dap_strcmp(o->token, ctx->sell_token) && 
+            dap_chain_addr_compare(&o->addr, ctx->seller_addr) &&
+            compare256(o->header.value, threshold) <= 0 && !IS_ZERO_256(o->header.value)) {
+            SUM_256_256(threshold, GET_256_FROM_64(1), &o->header.value);
+            return true;
+        }
+        item_idx++;
+    }
+    return false;
+}
+
+// Helper: tamper OUT_COND to make it dust-sized (try to create dust leftover)
+static bool s_tamper_out_cond_to_dust(dap_chain_datum_tx_t *tx, void *user_data) {
+    (void)user_data;
+    uint256_t dust_value = GET_256_FROM_64(100);  // 100 wei = dust
+    int item_idx = 0;
+    byte_t *item = NULL;
+    while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL))) {
+        dap_chain_tx_out_cond_t *o = (dap_chain_tx_out_cond_t *)item;
+        if (o->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+            // Replace leftover value with dust-sized value
+            o->header.value = dust_value;
+            return true;
+        }
+        item_idx++;
+    }
+    return false;
+}
+
+static int s_run_m13_dust_refund(dex_test_fixture_t *f, const test_pair_config_t *pair)
+{
+    log_it(L_INFO, "--- M13: Dust-refund tests ---");
+    
+    // T_DUST4: Try to shrink OUT_COND to dust size (must reject - no dust leftovers allowed)
+    {
+        dap_hash_fast_t order_hash = {0};
+        int ret = s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "1.0", "1.0", &order_hash);
+        if (ret != 0) {
+            log_it(L_ERROR, "T_DUST4: Failed to create order");
+            return -110;
+        }
+        
+        // Create partial fill TX (50%) - this has OUT_COND leftover
+        uint256_t partial_budget = dap_chain_coins_to_balance("0.5");
+        dap_chain_datum_tx_t *tx_partial = NULL;
+        dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
+            f->net->net, &order_hash, partial_budget, true, f->network_fee, f->bob, false, uint256_0, &tx_partial);
+        
+        if (err != DEX_PURCHASE_ERROR_OK || !tx_partial) {
+            log_it(L_ERROR, "T_DUST4: Failed to create partial TX (err=%d)", err);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -111;
+        }
+        
+        // Tamper: shrink OUT_COND to dust size
+        if (test_dex_tamper_and_verify_rejection(f, tx_partial, f->bob,
+                s_tamper_out_cond_to_dust, NULL, "T_DUST4: Create dust-sized leftover OUT_COND") != 0) {
+            dap_chain_datum_tx_delete(tx_partial);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -112;
+        }
+        log_it(L_DEBUG, "T_DUST4: Dust-sized leftover correctly rejected");
+        
+        dap_chain_datum_tx_delete(tx_partial);
+        dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+        if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+    }
+
+    // Test scenarios: [side, min_fill, rate, budget_str, is_budget_buy, dust_wei, expect_success, desc]
+    // budget_str = NULL means use artificial dust (order - dust_wei)
+    // budget_str = explicit budget for natural rounding from fractional rate
+    struct {
+        int side;
+        int min_fill;
+        const char *rate;
+        const char *budget_str;  // NULL = artificial, explicit = natural rounding
+        bool is_budget_buy;      // true = budget in buy token, false = budget in sell token
+        uint64_t dust_wei;       // expected dust for artificial, ignored for natural
+        bool expect_success;
+        const char *desc;
+    } scenarios[] = {
+        // Positive: artificial dust <= threshold, min_fill satisfied
+        {SIDE_ASK, MINFILL_NONE, "1.0", NULL, true, 100, true, "ASK no min_fill, tiny dust"},
+        {SIDE_BID, MINFILL_NONE, "1.0", NULL, true, 100, true, "BID no min_fill, tiny dust"},
+        {SIDE_ASK, MINFILL_50_CURRENT, "1.0", NULL, true, 500, true, "ASK 50% min_fill, dust OK"},
+        {SIDE_BID, MINFILL_50_CURRENT, "1.0", NULL, true, 500, true, "BID 50% min_fill, dust OK"},
+        // Negative: AON cannot have dust-refund
+        {SIDE_ASK, MINFILL_AON, "1.0", NULL, true, 100, false, "ASK AON rejects dust-refund"},
+        {SIDE_BID, MINFILL_AON, "1.0", NULL, true, 100, false, "BID AON rejects dust-refund"},
+        // Natural rounding dust from fractional rate
+        // BID: is_budget_buy=false → budget in sell token (BASE), buyer pays slightly less
+        // budget = floor(1.0/rate) - 1 wei → exec_quote < 1.0 → dust created
+        // rate=3.0: floor(1.0/3) = 0.333...333, so use 0.333...332 (1 wei less)
+        {SIDE_BID, MINFILL_NONE, "3.0", "0.333333333333333332", false, 0, true, "BID rate=3.0 rounding dust"},
+        // rate=7.0: floor(1.0/7) = 0.142857...857, so use 0.142857...856 (1 wei less)
+        {SIDE_BID, MINFILL_NONE, "7.0", "0.142857142857142856", false, 0, true, "BID rate=7.0 rounding dust"},
+        // ASK: is_budget_buy=true → budget in buy token (BASE), buyer receives 0.999... KEL
+        {SIDE_ASK, MINFILL_NONE, "3.0", "0.999999999999999999", true, 0, true, "ASK rate=3.0 rounding dust"},
+        {SIDE_ASK, MINFILL_NONE, "7.0", "0.999999999999999999", true, 0, true, "ASK rate=7.0 rounding dust"},
+    };
+    int n_scenarios = (int)(sizeof(scenarios) / sizeof(scenarios[0]));
+
+    for (int i = 0; i < n_scenarios; i++) {
+        int side = scenarios[i].side;
+        int mf = scenarios[i].min_fill;
+        const char *rate_str = scenarios[i].rate;
+        const char *budget_str = scenarios[i].budget_str;
+        bool is_budget_buy = scenarios[i].is_budget_buy;
+        uint64_t dust_wei = scenarios[i].dust_wei;
+        const char *desc = scenarios[i].desc;
+        bool use_natural_rounding = (budget_str != NULL);
+        (void)scenarios[i].expect_success; // Used implicitly via mf == MINFILL_AON check
+
+        log_it(L_INFO, "M13[%d]: %s", i, desc);
+
+        const char *sell_token, *buy_token;
+        get_order_tokens(pair, side, &sell_token, &buy_token);
+        uint256_t rate = dap_chain_coins_to_balance(rate_str);
+        uint256_t dyn_threshold = s_calc_dust_threshold_dynamic(f, pair, side, rate, sell_token, buy_token);
+
+        // Seller: Carol; Buyer: Bob (ASK) or Alice (BID)
+        dap_chain_wallet_t *buyer = (side == SIDE_ASK) ? f->bob : f->alice;
+
+        // Create order: value=1.0, rate from scenario
+        dap_hash_fast_t order_hash = {0};
+        int ret = s_create_test_order(f, pair, WALLET_CAROL, side, mf, rate_str, "1.0", &order_hash);
+        if (ret != 0) {
+            log_it(L_ERROR, "M13[%d]: Failed to create order", i);
+            return -1;
+        }
+
+        // Calculate budget
+        uint256_t order_val = dap_chain_coins_to_balance("1.0");
+        uint256_t budget = uint256_0;
+        uint256_t dust = GET_256_FROM_64(dust_wei);
+        if (use_natural_rounding) {
+            // For natural rounding dust: use explicit budget that creates 1 wei dust
+            // Example: BID rate=3.0, budget=0.333... KEL → exec_sell=0.999..., dust=1 wei
+            budget = dap_chain_coins_to_balance(budget_str);
+        } else {
+            // Artificial dust: budget = order_value - dust_wei
+            SUBTRACT_256_256(order_val, dust, &budget);
+        }
+
+        dap_chain_datum_tx_t *tx = NULL;
+        dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
+            f->net->net, &order_hash, budget, is_budget_buy, f->network_fee, buyer, false, uint256_0, &tx);
+
+        // For AON: purchase should fail at compose stage (no match possible)
+        if (mf == MINFILL_AON) {
+            if (err == DEX_PURCHASE_ERROR_OK && tx) {
+                // Composer created TX, try to add to ledger — should be rejected by verifier
+                dap_hash_fast_t tx_hash = {0};
+                dap_hash_fast(tx, dap_chain_datum_tx_get_size(tx), &tx_hash);
+                int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx, &tx_hash, false, NULL);
+                dap_chain_datum_tx_delete(tx);
+                if (add_ret == 0) {
+                    log_it(L_ERROR, "M13[%d]: AON dust-refund TX was accepted (should reject)", i);
+                    dap_chain_datum_tx_t *tx_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx_hash);
+                    if (tx_ledger)
+                        dap_ledger_tx_remove(f->net->net->pub.ledger, tx_ledger, &tx_hash);
+                    dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+                    if (order_tx)
+                        dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+                    return -2;
+                }
+                log_it(L_DEBUG, "M13[%d]: AON TX rejected by verifier as expected (ret=%d)", i, add_ret);
+            } else {
+                log_it(L_DEBUG, "M13[%d]: AON purchase failed at compose as expected (err=%d)", i, err);
+            }
+            // Cleanup order
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx)
+                dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            log_it(L_NOTICE, "✓ M13[%d]: %s", i, desc);
+            continue;
+        }
+
+        // Non-AON: expect success
+        if (err != DEX_PURCHASE_ERROR_OK || !tx) {
+            log_it(L_ERROR, "M13[%d]: Purchase failed: err=%d", i, err);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx)
+                dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -3;
+        }
+
+        bool expect_refund = !IS_ZERO_256(dyn_threshold) && (use_natural_rounding || compare256(dust, dyn_threshold) <= 0);
+
+        // Check: SRV_DEX OUT_COND presence depends on whether dust-refund is enabled for this pair
+        dap_chain_tx_out_cond_t *leftover = dap_chain_datum_tx_out_cond_get(tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
+        if (expect_refund && leftover) {
+            log_it(L_ERROR, "M13[%d]: Unexpected OUT_COND (dust-refund should have no leftover)", i);
+            dap_chain_datum_tx_delete(tx);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx)
+                dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -4;
+        } else if (!expect_refund && !use_natural_rounding && !leftover) {
+            log_it(L_ERROR, "M13[%d]: Missing OUT_COND (dust-refund disabled for this pair)", i);
+            dap_chain_datum_tx_delete(tx);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx)
+                dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -4;
+        } else if (!expect_refund && leftover && !use_natural_rounding && compare256(leftover->header.value, dust) != 0) {
+            log_it(L_ERROR, "M13[%d]: Unexpected leftover value (got=%s, expected=%s)", i, dap_uint256_to_char_ex(leftover->header.value).frac,
+                   dap_uint256_to_char_ex(dust).frac);
+            dap_chain_datum_tx_delete(tx);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx)
+                dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -4;
+        }
+
+        // Check: OUT_STD or OUT_EXT to Carol in sell_token with dust amount
+        // For natural rounding: any value <= threshold; for artificial: exact match
+        // Note: DAP_CHAIN_TX_COMPOSE_TEST mode randomly picks OUT_STD or OUT_EXT
+        uint256_t threshold = dyn_threshold;
+        uint256_t found_dust = uint256_0;
+        bool found_refund = false;
+        int item_idx = 0;
+        byte_t *item = NULL;
+        if (expect_refund) {
+            // Try OUT_STD first
+            while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_STD, NULL))) {
+                dap_chain_tx_out_std_t *o = (dap_chain_tx_out_std_t *)item;
+                if (dap_chain_addr_compare(&o->addr, &f->carol_addr) && !dap_strcmp(o->token, sell_token)) {
+                    bool match = use_natural_rounding ? (compare256(o->value, threshold) <= 0 && !IS_ZERO_256(o->value))
+                                                      : (compare256(o->value, dust) == 0);
+                    if (match) {
+                        found_refund = true;
+                        found_dust = o->value;
+                    }
+                }
+                item_idx++;
+            }
+            // Fallback to OUT_EXT (test mode)
+            if (!found_refund) {
+                item_idx = 0;
+                while ((item = dap_chain_datum_tx_item_get(tx, &item_idx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL))) {
+                    dap_chain_tx_out_ext_t *o = (dap_chain_tx_out_ext_t *)item;
+                    if (dap_chain_addr_compare(&o->addr, &f->carol_addr) && !dap_strcmp(o->token, sell_token)) {
+                        bool match = use_natural_rounding ? (compare256(o->header.value, threshold) <= 0 && !IS_ZERO_256(o->header.value))
+                                                          : (compare256(o->header.value, dust) == 0);
+                        if (match) {
+                            found_refund = true;
+                            found_dust = o->header.value;
+                        }
+                    }
+                    item_idx++;
+                }
+            }
+        }
+        if (!found_refund) {
+            if (!expect_refund) {
+                log_it(L_DEBUG, "M13[%d]: Dust refund disabled for this pair (threshold=0)", i);
+            } else if (use_natural_rounding) {
+                // For natural rounding, dust might be 0 if rate divides evenly — that's OK, no refund needed
+                log_it(L_DEBUG, "M13[%d]: No dust refund (rate divides evenly)", i);
+            } else {
+                log_it(L_ERROR, "M13[%d]: Dust refund OUT not found", i);
+                dap_chain_datum_tx_delete(tx);
+                dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+                if (order_tx)
+                    dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+                return -6;
+            }
+        } else if (use_natural_rounding) {
+            log_it(L_DEBUG, "M13[%d]: Found natural rounding dust = %s %s", i, 
+                   dap_uint256_to_char(found_dust, NULL), sell_token);
+        }
+
+        // ================================================================
+        // TAMPERING TESTS: run before ledger commit, only if dust exists
+        // ================================================================
+        if (found_refund) {
+            dap_chain_addr_t *buyer_addr = (side == SIDE_ASK) ? &f->bob_addr : &f->alice_addr;
+            
+            // T_DUST1: Redirect dust to buyer (steal attempt)
+            tamper_dust_redirect_t redirect_ctx = { 
+                .wrong_addr = buyer_addr, .seller_addr = &f->carol_addr, .sell_token = sell_token, .threshold = threshold
+            };
+            if (test_dex_tamper_and_verify_rejection_ex(f, tx, buyer,
+                    s_tamper_dust_redirect, &redirect_ctx, "T_DUST1: Redirect dust to buyer", true) != 0) {
+                dap_chain_datum_tx_delete(tx);
+                dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+                if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+                return -100;
+            }
+            
+            // T_DUST2: Remove dust refund (loss of funds)
+            tamper_dust_remove_t remove_ctx = { .sell_token = sell_token, .seller_addr = &f->carol_addr, .threshold = threshold };
+            if (test_dex_tamper_and_verify_rejection_ex(f, tx, buyer,
+                    s_tamper_dust_remove, &remove_ctx, "T_DUST2: Remove dust refund", true) != 0) {
+                dap_chain_datum_tx_delete(tx);
+                dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+                if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+                return -101;
+            }
+            
+            // T_DUST3: Inflate dust above threshold
+            tamper_dust_inflate_t inflate_ctx = { .sell_token = sell_token, .seller_addr = &f->carol_addr, .threshold = threshold };
+            if (test_dex_tamper_and_verify_rejection_ex(f, tx, buyer,
+                    s_tamper_dust_inflate, &inflate_ctx, "T_DUST3: Inflate dust above threshold", true) != 0) {
+                dap_chain_datum_tx_delete(tx);
+                dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+                if (order_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+                return -102;
+            }
+            log_it(L_DEBUG, "M13[%d]: Dust tampering tests passed", i);
+        }
+
+        // Add TX to ledger
+        dap_hash_fast_t tx_hash = {0};
+        dap_hash_fast(tx, dap_chain_datum_tx_get_size(tx), &tx_hash);
+        int add_ret = dap_ledger_tx_add(f->net->net->pub.ledger, tx, &tx_hash, false, NULL);
+        dap_chain_datum_tx_delete(tx);
+        if (add_ret != 0) {
+            log_it(L_ERROR, "M13[%d]: TX rejected by verifier (ret=%d)", i, add_ret);
+            dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+            if (order_tx)
+                dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+            return -7;
+        }
+
+        log_it(L_NOTICE, "✓ M13[%d]: %s", i, desc);
+
+        // Rollback
+        dap_chain_datum_tx_t *tx_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx_hash);
+        if (tx_ledger)
+            dap_ledger_tx_remove(f->net->net->pub.ledger, tx_ledger, &tx_hash);
+        dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &order_hash);
+        if (order_tx)
+            dap_ledger_tx_remove(f->net->net->pub.ledger, order_tx, &order_hash);
+    }
+
+    log_it(L_NOTICE, "✓ M13: All dust-refund scenarios passed (%d tests)", n_scenarios);
     return 0;
 }
 
@@ -4587,6 +5350,14 @@ static int s_run_multi_tests_for_pair(dex_test_fixture_t *f, const test_pair_con
     
     // Edge case: fee > executed on full close (M11)
     ret = s_run_m11_fee_exceeds_executed(f, pair);
+    if (ret != 0) return ret;
+    
+    // Edge case: AON with fractional rate causing rounding dust (M12)
+    ret = s_run_m12_aon_fractional_rate(f, pair);
+    if (ret != 0) return ret;
+
+    // Edge case: dust-refund on full close (M13)
+    ret = s_run_m13_dust_refund(f, pair);
     if (ret != 0) return ret;
     
     // Seller-leftover tampering tests (T_SL01-T_SL04)

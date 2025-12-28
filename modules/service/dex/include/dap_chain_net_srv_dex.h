@@ -139,6 +139,11 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(
 
 typedef struct dex_match_table_entry dex_match_table_entry_t;
 
+/**
+ * @brief Auto-match purchase against best available orders
+ * @param a_tx [out] Result TX (can be NULL for dry-run/matching only)
+ * @param a_matches [out] Optional: returns match table for inspection
+ */
 dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
         dap_chain_net_t *a_net,
         const char *a_sell_token, const char *a_buy_token,
