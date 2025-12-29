@@ -85,6 +85,9 @@ typedef struct dap_ledger_balance_change_notifier {
 // Decree operation callbacks - called from ledger when decree needs to affect net/consensus/services
 typedef int (*dap_ledger_decree_set_fee_callback_t)(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain_addr_t a_fee_addr);
 
+// Get current cell callback - returns current cell_id for decree operations
+typedef dap_chain_cell_id_t (*dap_ledger_get_cur_cell_callback_t)(dap_ledger_t *a_ledger);
+
 // Generic decree handler callback - for complex decree types that need full processing
 // Returns 0 on success, negative on error
 // Uses chain_id instead of chain pointer to avoid circular dependency
@@ -130,6 +133,7 @@ typedef struct dap_ledger {
     
     // Decree operation callbacks
     dap_ledger_decree_set_fee_callback_t decree_set_fee_callback;
+    dap_ledger_get_cur_cell_callback_t get_cur_cell_callback;  // Get current cell for decree operations
     
     // Generic decree handler - for subtypes not handled in ledger (hardfork, consensus-specific, etc)
     // This is registered by net/consensus/services modules for their specific decree subtypes
@@ -531,6 +535,9 @@ void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger,
 void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,
                                         dap_ledger_mempool_add_datum_callback_t a_add_datum_cb,
                                         dap_ledger_mempool_create_tx_callback_t a_create_tx_cb);
+
+void dap_ledger_set_get_cur_cell_callback(dap_ledger_t *a_ledger,
+                                            dap_ledger_get_cur_cell_callback_t a_get_cur_cell_cb);
 
 // Setup functions called by net module after ledger creation
 void dap_ledger_load_cache(dap_ledger_t *a_ledger);

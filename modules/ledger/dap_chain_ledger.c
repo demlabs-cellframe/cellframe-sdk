@@ -262,6 +262,14 @@ void dap_ledger_deinit()
     pthread_rwlock_destroy(&s_services_rwlock);
 }
 
+// Default callback for get_cur_cell - returns zero cell_id
+static dap_chain_cell_id_t s_default_get_cur_cell(dap_ledger_t *a_ledger)
+{
+    UNUSED(a_ledger);
+    dap_chain_cell_id_t l_zero_cell = {.uint64 = 0};
+    return l_zero_cell;
+}
+
 /**
  * @brief dap_ledger_handle_new
  * Create empty dap_ledger_t structure
@@ -283,6 +291,9 @@ static dap_ledger_t *dap_ledger_handle_new(void)
     pthread_rwlock_init(&l_ledger_pvt->event_pkeys_rwlock, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
+
+    // Set default callback for get_cur_cell (returns zero)
+    l_ledger->get_cur_cell_callback = s_default_get_cur_cell;
 
     return l_ledger;
 }
@@ -1905,4 +1916,16 @@ void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,
     a_ledger->mempool_create_tx_callback = a_create_tx_cb;
     
     log_it(L_INFO, "Ledger %s: mempool callbacks registered", a_ledger->name);
+}
+
+// Get current cell callback registration
+void dap_ledger_set_get_cur_cell_callback(dap_ledger_t *a_ledger,
+                                            dap_ledger_get_cur_cell_callback_t a_get_cur_cell_cb)
+{
+    if (!a_ledger)
+        return;
+    
+    a_ledger->get_cur_cell_callback = a_get_cur_cell_cb ? a_get_cur_cell_cb : s_default_get_cur_cell;
+    
+    log_it(L_INFO, "Ledger %s: get_cur_cell callback registered", a_ledger->name);
 }
