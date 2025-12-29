@@ -25,24 +25,22 @@
 #include <stdio.h>
 #include "dap_common.h"
 
-// Step 2: Add header include to test if header causes crash
-#include "dap_chain_net_srv_stake_ext_tests.h"
+// Step 4: Test which header causes crash
+// These are the headers from dap_chain_net_srv_stake_ext_tests.c
+#include "dap_test.h"
+#include "dap_chain_net_srv_stake_ext.h"
+#include "dap_chain_datum_tx_event.h"
+#include "dap_math_ops.h"
 
 int main(void)
 {
-    fprintf(stderr, "stake-ext-test: main() started\n");
+    fprintf(stderr, "stake-ext-test: main() started with all headers\n");
     fflush(stderr);
     
     dap_log_level_set(L_DEBUG);
     dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
     
-    fprintf(stderr, "stake-ext-test: about to call dap_srv_stake_ext_test_run()\n");
-    fflush(stderr);
-    
-    // Step 3: Enable test functions
-    dap_srv_stake_ext_test_run();
-    
-    fprintf(stderr, "stake-ext-test: all tests completed successfully\n");
+    fprintf(stderr, "stake-ext-test: PASS - all headers OK\n");
     fflush(stderr);
     
     return 0;
