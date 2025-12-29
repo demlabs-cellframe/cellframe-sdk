@@ -1890,20 +1890,36 @@ dap_chain_info_t* dap_ledger_get_chain_info_by_name(dap_ledger_t *a_ledger, cons
     return NULL;
 }
 
-// Wallet callbacks registration
+// Wallet callbacks registration - hardware wallet friendly
 void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger, 
-                                       dap_ledger_wallet_get_key_callback_t a_get_key_cb,
+                                       dap_ledger_wallet_sign_callback_t a_sign_cb,
+                                       dap_ledger_wallet_get_pkey_hash_callback_t a_get_pkey_hash_cb,
+                                       dap_ledger_wallet_get_pkey_callback_t a_get_pkey_cb,
                                        dap_ledger_wallet_get_addr_callback_t a_get_addr_cb,
                                        dap_ledger_wallet_check_sign_callback_t a_check_sign_cb)
 {
     if (!a_ledger)
         return;
     
-    a_ledger->wallet_get_key_callback = a_get_key_cb;
+    a_ledger->wallet_sign_callback = a_sign_cb;
+    a_ledger->wallet_get_pkey_hash_callback = a_get_pkey_hash_cb;
+    a_ledger->wallet_get_pkey_callback = a_get_pkey_cb;
     a_ledger->wallet_get_addr_callback = a_get_addr_cb;
     a_ledger->wallet_check_sign_callback = a_check_sign_cb;
     
-    log_it(L_INFO, "Ledger %s: wallet callbacks registered", a_ledger->name);
+    log_it(L_INFO, "Ledger %s: wallet callbacks registered (hardware wallet compatible)", a_ledger->name);
+}
+
+// DEPRECATED: Temporary wrapper for old mempool API compatibility
+// TODO: Remove when mempool is refactored to accept signatures instead of keys
+void dap_ledger_set_wallet_get_key_callback_DEPRECATED(dap_ledger_t *a_ledger, dap_ledger_wallet_get_key_callback_t a_get_key_cb)
+{
+    if (!a_ledger)
+        return;
+    
+    a_ledger->wallet_get_key_callback_DEPRECATED = a_get_key_cb;
+    
+    log_it(L_WARNING, "Ledger %s: DEPRECATED get_key callback registered - breaks hardware wallet support!", a_ledger->name);
 }
 
 // Wallet cache callbacks registration - for optimized transaction history lookups
