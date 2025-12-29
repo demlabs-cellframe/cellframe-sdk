@@ -856,6 +856,7 @@ void dap_srv_stake_ext_test_event_processing(void)
     // Manually set winners information (simulating event processing with winners)
     l_found_stake_ext = dap_stake_ext_cache_find_stake_ext_by_name(l_cache, l_group_name);
     dap_assert_PIF(l_found_stake_ext, "stake_ext should still exist after ENDED status change");
+    l_found_stake_ext->winners_cnt = l_winners_cnt;
        
     // Verify stake_ext status updated to ENDED
     dap_assert_PIF(l_found_stake_ext->status == DAP_STAKE_EXT_STATUS_ENDED, "stake_ext status should be ENDED");
