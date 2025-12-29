@@ -22,13 +22,26 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <stdio.h>
 #include "dap_common.h"
 #include "dap_chain_net_srv_stake_ext_tests.h"
 
 int main(void)
 {
+    // Early diagnostic output to detect pre-main crashes
+    fprintf(stderr, "stake-ext-test: main() started\n");
+    fflush(stderr);
+    
     dap_log_level_set(L_DEBUG);
     dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
+    
+    fprintf(stderr, "stake-ext-test: logging initialized\n");
+    fflush(stderr);
+    
     dap_srv_stake_ext_test_run();
+    
+    fprintf(stderr, "stake-ext-test: tests completed\n");
+    fflush(stderr);
+    
     return 0;
 }
