@@ -28,19 +28,8 @@
 #include "dap_chain_datum_tx.h"
 #include "uthash.h"
 #include "dap_cli_server.h"
-#include "dap_common.h"
-#include "dap_enc_base58.h"
-#include "dap_strfuncs.h"
-#include "dap_string.h"
-#include "dap_list.h"
-#include "dap_hash.h"
-#include "dap_time.h"
-#include <stdbool.h>
-#include <stddef.h>
-#include <pthread.h>
-#include "dap_chain_datum_tx.h"
-#include "uthash.h"
-#include "dap_cli_server.h"
+#include "dap_cli_error_codes.h"
+#include "dap_chain_ledger_cli_error_codes.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_strfuncs.h"
@@ -416,8 +405,12 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
             l_tx_ledger_rejected = 0;
    
     dap_hash_fast_t l_curr_tx_hash = {};
-    bool l_from_cache = dap_chain_wallet_cache_tx_find_in_history(a_addr, NULL, NULL, NULL, NULL, NULL, &l_curr_tx_hash) == 0 ? true : false;
-    if (l_from_cache && a_addr->net_id.uint64 != l_ledger->net_id.uint64){
+    // Use wallet cache callback if registered, otherwise fallback to chain iteration
+    bool l_from_cache = false;
+    if (a_ledger->wallet_cache_tx_find_in_history_callback) {
+        l_from_cache = a_ledger->wallet_cache_tx_find_in_history_callback(a_addr, NULL, NULL, NULL, NULL, NULL, &l_curr_tx_hash) == 0;
+    }
+    if (l_from_cache && a_addr->net_id.uint64 != a_ledger->net_id.uint64){
         log_it(L_WARNING, "Can't find wallet with addr %s in net", l_addr_str);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Can't find wallet with addr %s in net", l_addr_str);
         dap_json_object_free(json_obj_datum);
@@ -426,12 +419,13 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
     memset(&l_curr_tx_hash, 0, sizeof(dap_hash_fast_t));
     dap_chain_datum_tx_t *l_tx = NULL;
     
- 
+
     dap_chain_datum_iter_t *l_datum_iter = NULL;
-    dap_chain_wallet_cache_iter_t *l_wallet_cache_iter = NULL;
+    dap_ledger_wallet_cache_iter_t *l_wallet_cache_iter = NULL;
     dap_chain_datum_callback_iters  iter_begin = NULL;
     dap_chain_datum_callback_iters  iter_direc = NULL;
-    dap_chain_wallet_getting_type_t cache_iter_begin = DAP_CHAIN_WALLET_CACHE_GET_FIRST, cache_iter_direc = DAP_CHAIN_WALLET_CACHE_GET_NEXT;
+    dap_ledger_wallet_cache_direction_t cache_iter_begin = DAP_LEDGER_WALLET_CACHE_GET_FIRST, 
+                                        cache_iter_direc = DAP_LEDGER_WALLET_CACHE_GET_NEXT;
 
 
     if (!l_from_cache){
@@ -441,17 +435,27 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
         iter_direc = a_head ? a_chain->callback_datum_iter_get_next
                         : a_chain->callback_datum_iter_get_prev;         
     } else{
-        l_wallet_cache_iter = dap_chain_wallet_cache_iter_create(*a_addr);
-        cache_iter_begin = a_head ? DAP_CHAIN_WALLET_CACHE_GET_FIRST : DAP_CHAIN_WALLET_CACHE_GET_LAST;
-        cache_iter_direc = a_head ? DAP_CHAIN_WALLET_CACHE_GET_NEXT : DAP_CHAIN_WALLET_CACHE_GET_PREVIOUS;
-    }      
+        if (!a_ledger->wallet_cache_iter_create_callback) {
+            log_it(L_WARNING, "Wallet cache callbacks not registered, falling back to chain iteration");
+            l_from_cache = false;
+            l_datum_iter = a_chain->callback_datum_iter_create(a_chain);   
+            iter_begin = a_head ? a_chain->callback_datum_iter_get_first
+                            : a_chain->callback_datum_iter_get_last;
+            iter_direc = a_head ? a_chain->callback_datum_iter_get_next
+                            : a_chain->callback_datum_iter_get_prev;
+        } else {
+            l_wallet_cache_iter = a_ledger->wallet_cache_iter_create_callback(*a_addr);
+            cache_iter_begin = a_head ? DAP_LEDGER_WALLET_CACHE_GET_FIRST : DAP_LEDGER_WALLET_CACHE_GET_LAST;
+            cache_iter_direc = a_head ? DAP_LEDGER_WALLET_CACHE_GET_NEXT : DAP_LEDGER_WALLET_CACHE_GET_PREVIOUS;
+        }
+    }
 
     dap_chain_datum_t *l_datum = NULL;
     dap_chain_datum_tx_t *l_cur_tx_cache = NULL;
     if (!l_from_cache)
         l_datum = iter_begin(l_datum_iter);
     else
-        l_cur_tx_cache = dap_chain_wallet_cache_iter_get(l_wallet_cache_iter, cache_iter_begin);
+        l_cur_tx_cache = a_ledger->wallet_cache_iter_get_callback(l_wallet_cache_iter, cache_iter_begin);
 
     while (l_datum || l_cur_tx_cache){
         
@@ -806,13 +810,13 @@ next_step:
         if (!l_from_cache)
             l_datum = iter_direc(l_datum_iter);
         else
-            l_cur_tx_cache = dap_chain_wallet_cache_iter_get(l_wallet_cache_iter, cache_iter_direc);
+            l_cur_tx_cache = a_ledger->wallet_cache_iter_get_callback(l_wallet_cache_iter, cache_iter_direc);
     }
     if (l_datum_iter)
         a_chain->callback_datum_iter_delete(l_datum_iter);
 
-    if (l_wallet_cache_iter)
-        dap_chain_wallet_cache_iter_delete(l_wallet_cache_iter);
+    if (l_wallet_cache_iter && a_ledger->wallet_cache_iter_delete_callback)
+        a_ledger->wallet_cache_iter_delete_callback(l_wallet_cache_iter);
 
     // delete hashes
     s_tx_hash_processed_ht_free(&l_tx_data_ht);
@@ -1314,7 +1318,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             }
             
             // Get ledger by net name instead of net
-            dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
+            dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_str);
             if (!l_ledger) {
                 dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_NET_FIND_ERR"), "Can't find net %s", l_net_str);
                 return dap_cli_error_code_get("LEDGER_NET_FIND_ERR");
@@ -1367,20 +1371,18 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str);
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str ? l_fee_str : "0");
             
-            // Открываем кошелек и получаем из него ключ
-            unsigned int l_wallet_stat = 0;
-            const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallets_path, &l_wallet_stat);
-            if (!l_wallet) {
-                dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_PARAM_ERR"), "Can't open wallet %s, error %u", l_wallet_name, l_wallet_stat);
-                return dap_cli_error_code_get("LEDGER_PARAM_ERR");
+            // Get key from wallet using callback
+            if (!a_ledger->wallet_get_key_callback) {
+                dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC), 
+                    "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC));
+                return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC);
             }
             
-            dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
-            dap_chain_wallet_close(l_wallet);
+            dap_enc_key_t *l_key_from = a_ledger->wallet_get_key_callback(l_wallet_name, 0);
             if (!l_key_from) {
-                dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_PARAM_ERR"), "Can't get key from wallet %s", l_wallet_name);
-                return dap_cli_error_code_get("LEDGER_PARAM_ERR");
+                dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC), 
+                    "Can't get key from wallet %s", l_wallet_name);
+                return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC);
             }
             
             dap_cert_t *l_service_key = dap_cert_find_by_name(l_service_key_str);
@@ -1493,7 +1495,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 return dap_cli_error_code_get("LEDGER_NET_PARAM_ERR");
             }
             
-            dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
+            dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_str);
             if (l_ledger == NULL) {
                 dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_LACK_ERR"), "Can't get ledger for net %s", l_net_str);
                 return dap_cli_error_code_get("LEDGER_LACK_ERR");
@@ -1682,7 +1684,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 return dap_cli_error_code_get("LEDGER_NET_PARAM_ERR");
             }
             
-            dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
+            dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_str);
             if (l_ledger == NULL) {
                 dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_LACK_ERR"), "Can't get ledger for net %s", l_net_str);
                 return dap_cli_error_code_get("LEDGER_LACK_ERR");
@@ -1726,7 +1728,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 return dap_cli_error_code_get("LEDGER_PARAM_ERR");
             }
             
-            dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
+            dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_str);
             if (l_ledger == NULL) {
                 dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_LACK_ERR"), "Can't get ledger for net %s", l_net_str);
                 return dap_cli_error_code_get("LEDGER_LACK_ERR");
@@ -1809,7 +1811,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             return dap_cli_error_code_get("LEDGER_NET_PARAM_ERR");
         }
         // Get ledger
-        dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
+        dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_str);
         if (!l_ledger) {
             dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_LACK_ERR"), 
                                   "Can't get ledger for net %s", l_net_str);
@@ -1857,7 +1859,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_NET_PARAM_ERR"), "Command 'list' requires key -net");
             return dap_cli_error_code_get("LEDGER_NET_PARAM_ERR");
         }
-        dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
+        dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_str);
         if (l_ledger == NULL){
             dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_LACK_ERR"), "Can't get ledger for net %s", l_net_str);
             return dap_cli_error_code_get("LEDGER_LACK_ERR");
@@ -1907,7 +1909,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             return dap_cli_error_code_get("LEDGER_NET_PARAM_ERR");
         }
         // Get ledger by net name instead of net
-        dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
+        dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_str);
         if (!l_ledger) {
             dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_NET_FIND_ERR"), "Can't find net %s", l_net_str);
             return dap_cli_error_code_get("LEDGER_NET_FIND_ERR");
@@ -2015,7 +2017,7 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
         return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
     } else {
         // Get ledger by net name
-        l_ledger = dap_ledger_by_net_name(l_net_str);
+        l_ledger = dap_ledger_find_by_name(l_net_str);
         if(l_ledger == NULL) { // Can't find such network
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR,
                     "command requires parameter '-net' to be valid chain network name");            
@@ -2115,7 +2117,7 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
                 // only selected net
                 if(l_net->pub.id.uint64 == l_chain_cur->net_id.uint64) {
                     long l_chain_datum = l_cur_datum;
-                    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
+                    dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_str);
                     char *l_datum_list_str = dap_db_history_filter(l_chain_cur, l_ledger, l_token_name_str, NULL,
                                                                    l_hash_out_type, l_page_start * l_page_size, (l_page_start+l_page)*l_page_size, &l_chain_datum, l_list_tx_hash_processd);
                     if(l_datum_list_str) {
@@ -2144,14 +2146,20 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
                 l_addr_base58 = dap_chain_addr_from_str(l_addr_base58_str);
             }
             else if(l_wallet_name) {
-                const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-                dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
-                if(l_wallet) {
-                    dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet,
-                                                                                                  l_net->pub.id);
-                    l_addr_base58 = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
-                    memcpy(l_addr_base58, l_addr_tmp, sizeof(dap_chain_addr_t));
-                    dap_chain_wallet_close(l_wallet);
+                // Use wallet get_addr callback if registered
+                if (!a_ledger->wallet_get_addr_callback) {
+                    dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC),
+                        "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC));
+                    return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC);
+                }
+                dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *)a_ledger->wallet_get_addr_callback(l_wallet_name, a_ledger->net_id);
+                if (!l_addr_tmp) {
+                    dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC),
+                        "Can't get addr from wallet %s", l_wallet_name);
+                    return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC);
+                }
+                l_addr_base58 = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
+                memcpy(l_addr_base58, l_addr_tmp, sizeof(dap_chain_addr_t));
                     char *ffl_addr_base58 = dap_chain_addr_to_str_static(l_addr_base58);
                     ffl_addr_base58 = 0;
                 }
@@ -2270,7 +2278,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
             return DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET;
         }
     }
-    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_name);
+    dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_name);
     if(!l_ledger) {
         dap_json_rpc_error_add(a_json_arr_reply,
                                DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME,
@@ -2431,7 +2439,7 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
     }
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
-    dap_ledger_t * l_ledger = dap_ledger_by_net_name(l_net_name);
+    dap_ledger_t * l_ledger = dap_ledger_find_by_name(l_net_name);
     if (l_ledger == NULL) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND, "not found net by name '%s'", l_net_name);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NET_NOT_FOUND;
@@ -2509,13 +2517,18 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         }
 
         if (l_wallet_fee_name){
-            l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path, NULL);
-            if (!l_wallet_fee) {
+            // Use wallet get_key callback
+            if (!a_ledger->wallet_get_key_callback) {
+                dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC),
+                    "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC));
+                return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC);
+            }
+            l_priv_key = a_ledger->wallet_get_key_callback(l_wallet_fee_name, 0);
+            if (!l_priv_key) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_WALLET_FEE,
-                                       "Wallet %s does not exist", l_wallet_fee_name);
+                                       "Can't get key from wallet %s", l_wallet_fee_name);
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_WALLET_FEE;
             }
-            l_priv_key = dap_chain_wallet_get_key(l_wallet_fee, 0);
         } else if (l_cert_str) {
             l_cert = dap_cert_find_by_name(l_cert_str);
             if (!l_cert) {
@@ -2644,34 +2657,53 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         dap_json_array_add(a_json_arr_reply, l_jobj_emission);
         DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
         DAP_DEL_MULTY(l_addr_to, l_value);
-        if (l_wallet_fee) {
-            dap_chain_wallet_close(l_wallet_fee);
+        // Wallet callback - no need to close wallet
+        if (l_priv_key && l_wallet_fee_name) {
             dap_enc_key_delete(l_priv_key);
         }
         return l_ret;        
     }
 
-    dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_from_wallet_name, c_wallets_path, NULL);
-    dap_json_t *l_jobj_result = dap_json_object_new();
-
-    if(!l_wallet) {
+    // Check wallet using callback
+    if (!a_ledger->wallet_check_sign_callback) {
+        dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC),
+            "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC));
+        DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+        DAP_DEL_MULTY(l_addr_to, l_value);
+        return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC);
+    }
+    const char *l_wallet_check_str = a_ledger->wallet_check_sign_callback(l_from_wallet_name);
+    if (!l_wallet_check_str) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST,
                                "wallet %s does not exist", l_from_wallet_name);
         DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
         DAP_DEL_MULTY(l_addr_to, l_value);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST;
-    } else {
-        const char *l_wallet_check_str = dap_chain_wallet_check_sign(l_wallet);
-        if (dap_strcmp(l_wallet_check_str, "") != 0) {
+    }
+    
+    dap_json_t *l_jobj_result = dap_json_object_new();
+    if (dap_strcmp(l_wallet_check_str, "") != 0) {
             dap_json_t *l_obj_wgn_str = dap_json_object_new_string(l_wallet_check_str);
             dap_json_object_add_object(l_jobj_result, "warning", l_obj_wgn_str);
         }
     }
-    dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+    
+    // Get addr from wallet using callback
+    if (!a_ledger->wallet_get_addr_callback) {
+        dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC),
+            "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC));
+        dap_json_object_free(l_jobj_result);
+        DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+        DAP_DEL_MULTY(l_addr_to, l_value);
+        return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC);
+    }
+    dap_chain_addr_t *l_addr_from = (dap_chain_addr_t *)a_ledger->wallet_get_addr_callback(l_from_wallet_name, a_ledger->net_id);
 
     if(!l_addr_from) {
-        dap_chain_wallet_close(l_wallet);
-        dap_enc_key_delete(l_priv_key);
+        // Wallet callback - no need to close wallet
+        if (l_priv_key && l_wallet_fee_name) {
+            dap_enc_key_delete(l_priv_key);
+        }
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID, "source address is invalid");
         dap_json_object_free(l_jobj_result);
         DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
@@ -2681,8 +2713,10 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
 
     for (size_t i = 0; i < l_addr_el_count; ++i) {
         if (dap_chain_addr_compare(l_addr_to[i], l_addr_from)) {
-            dap_chain_wallet_close(l_wallet);
-            dap_enc_key_delete(l_priv_key);
+            // Wallet callback - no need to close wallet
+            if (l_priv_key && l_wallet_fee_name) {
+                dap_enc_key_delete(l_priv_key);
+            }
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS, "The transaction cannot be directed to the same address as the source.");
             dap_json_object_free(l_jobj_result);
             DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
@@ -2754,7 +2788,24 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
     dap_json_t *l_jobj_transfer_status = NULL;
     dap_json_t *l_jobj_tx_hash = NULL;
 
-    l_priv_key = dap_chain_wallet_get_key(l_wallet, 0);
+    // Get key from wallet using callback
+    if (!a_ledger->wallet_get_key_callback) {
+        dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC),
+            "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC));
+        dap_json_object_free(l_jobj_result);
+        DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+        DAP_DEL_MULTY(l_addr_to, l_value);
+        return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC);
+    }
+    l_priv_key = a_ledger->wallet_get_key_callback(l_from_wallet_name, 0);
+    if (!l_priv_key) {
+        dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC),
+            "Can't get key from wallet %s", l_from_wallet_name);
+        dap_json_object_free(l_jobj_result);
+        DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+        DAP_DEL_MULTY(l_addr_to, l_value);
+        return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC);
+    }
     if(l_tx_num){
         l_ret = dap_chain_mempool_tx_create_massive(l_chain, l_priv_key, l_addr_from,
                                                   l_addr_to[0], l_token_ticker, l_value[0], l_value_fee, l_tx_num);
@@ -2779,7 +2830,7 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
 
     DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
     DAP_DEL_MULTY(l_addr_from, l_addr_to, l_value);
-    dap_chain_wallet_close(l_wallet);
+    // Wallet callback - no need to close wallet
     dap_enc_key_delete(l_priv_key);
     return l_ret;
 }
@@ -2851,7 +2902,7 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
             return DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET;
         }
     }
-    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_name);
+    dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net_name);
     if(!l_ledger) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME, "Not found net by name '%s'", l_net_name);
         dap_json_object_free(l_json);
@@ -3094,7 +3145,7 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
 
     // Select chain network
     if (!l_addr_base58 && l_net_str) {
-        l_net = dap_ledger_by_net_name(l_net_str);
+        l_net = dap_ledger_find_by_name(l_net_str);
         if (!l_net) { // Can't find such network
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_NET_PARAM_ERR,
                                     "tx_history requires parameter '-net' to be valid chain network name");
@@ -3126,13 +3177,25 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
             l_net = dap_chain_net_by_id(l_addr->net_id);
     }
     if (l_wallet_name) {
-        const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
-        if (l_wallet) {
-            const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
-            //TODO add warning about deprecated signs
-            dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-            if (l_addr) {
+        // Check wallet using callback
+        if (!a_ledger->wallet_check_sign_callback) {
+            dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC),
+                "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC));
+            if (l_addr) DAP_DELETE(l_addr);
+            return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC);
+        }
+        const char *l_sign_str = a_ledger->wallet_check_sign_callback(l_wallet_name);
+        //TODO add warning about deprecated signs
+        
+        // Get addr from wallet using callback
+        if (!a_ledger->wallet_get_addr_callback) {
+            dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC),
+                "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC));
+            if (l_addr) DAP_DELETE(l_addr);
+            return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC);
+        }
+        dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *)a_ledger->wallet_get_addr_callback(l_wallet_name, a_ledger->net_id);
+        if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_ADDR_WALLET_DIF_ERR,
                                             "Address with '-addr' param and address with '-w' param are different");
@@ -3143,7 +3206,7 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
                 DAP_DELETE(l_addr_tmp);
             } else
                 l_addr = l_addr_tmp;
-            dap_chain_wallet_close(l_wallet);
+            // Wallet callback - no need to close wallet
         } else {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_WALLET_ERR,
                                     "The wallet %s is not activated or it doesn't exist", l_wallet_name);
@@ -3346,7 +3409,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_RECOGNIZE_VALUE_FEE;
     }
 
-    dap_ledger_t * l_ledger = l_net_name ? dap_ledger_by_net_name(l_net_name) : NULL;
+    dap_ledger_t * l_ledger = l_net_name ? dap_ledger_find_by_name(l_net_name) : NULL;
     if(!l_net) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET, "Can't find net '%s'", l_net_name);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET;
@@ -3368,19 +3431,18 @@ int com_tx_cond_create(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT;
     }
 
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
-//    const char* l_sign_str = "";
-    if(!l_wallet) {
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_OPEN_WALLET, "Can't open wallet '%s'", l_wallet_str);
-        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_OPEN_WALLET;
-    } else {
-//        l_sign_str = dap_chain_wallet_check_sign(l_wallet);
+    // Get key from wallet using callback
+    if (!a_ledger->wallet_get_key_callback) {
+        dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC),
+            "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC));
+        return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC);
     }
-
-
-
-    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
-    dap_chain_wallet_close(l_wallet);
+    dap_enc_key_t *l_key_from = a_ledger->wallet_get_key_callback(l_wallet_str, 0);
+    if (!l_key_from) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_OPEN_WALLET, 
+            "Can't get key from wallet '%s'", l_wallet_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_OPEN_WALLET;
+    }
 
     uint256_t l_value_per_unit_max = {};
     char *l_hash_str = dap_chain_mempool_tx_create_cond(l_net, l_key_from, &l_pkey_cond_hash, l_token_ticker,
@@ -3485,19 +3547,25 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_SERVICE_UID;
     }
 
-    dap_ledger_t * l_ledger = l_net_name ? dap_ledger_by_net_name(l_net_name) : NULL;
+    dap_ledger_t * l_ledger = l_net_name ? dap_ledger_find_by_name(l_net_name) : NULL;
     if(!l_net) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NET, "Can't find net '%s'", l_net_name);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NET;
     }
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
-//    const char* l_sign_str = "";
-    if(!l_wallet) {
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_OPEN_WALLET, "Can't open wallet '%s'", l_wallet_str);
+    
+    // Get key from wallet using callback
+    if (!a_ledger->wallet_get_key_callback) {
+        dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC),
+            "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC));
+        return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC);
+    }
+    dap_enc_key_t *l_key_from = a_ledger->wallet_get_key_callback(l_wallet_str, 0);
+    if (!l_key_from) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_OPEN_WALLET, 
+            "Can't get key from wallet '%s'", l_wallet_str);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_OPEN_WALLET;
     }
 
-    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
     dap_pkey_t *l_wallet_pkey = dap_pkey_from_enc_key(l_key_from);
 
     l_value_fee = dap_chain_balance_scan(l_value_fee_str);
@@ -3511,7 +3579,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NATIVE_TICKER_IN_NET, "Can't find native ticker for net %s", l_net->pub.name);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_NATIVE_TICKER_IN_NET;
     }
-    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
+    dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net->pub.name);
     if (!l_ledger){
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_LEDGER_FOR_NET, "Can't find ledger for net %s", l_net->pub.name);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_FIND_LEDGER_FOR_NET;
@@ -3616,7 +3684,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_UNSPENT_COND_TX_IN_HASH_LIST_FOR_WALLET,
                                "No unspent conditional transactions in hashes list for wallet %s. Check input parameters.", l_wallet_str);
         dap_chain_datum_tx_delete(l_tx);
-        dap_chain_wallet_close(l_wallet);
+        // Wallet callback - no need to close wallet
         DAP_DEL_Z(l_wallet_pkey);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_UNSPENT_COND_TX_IN_HASH_LIST_FOR_WALLET;
     }
@@ -3632,7 +3700,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_SUM_COND_OUTPUTS_MUST_GREATER_THAN_FEES_SUM,
                                "Sum of conditional outputs must be greater than fees sum.");
         dap_chain_datum_tx_delete(l_tx);
-        dap_chain_wallet_close(l_wallet);
+        // Wallet callback - no need to close wallet
         DAP_DEL_Z(l_wallet_pkey);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_SUM_COND_OUTPUTS_MUST_GREATER_THAN_FEES_SUM;
     }
@@ -3647,7 +3715,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
                                "Can't create new TX. Something went wrong.\n");
         log_it(L_ERROR, "Can't add returning coins output");
         DAP_DELETE(l_wallet_addr);
-        dap_chain_wallet_close(l_wallet);
+        // Wallet callback - no need to close wallet
         DAP_DEL_Z(l_wallet_pkey);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_RETURNING_COINS_OUTPUT-22;
     }
@@ -3656,7 +3724,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
     if (l_net_fee_used &&
             dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
         dap_chain_datum_tx_delete(l_tx);
-        dap_chain_wallet_close(l_wallet);
+        // Wallet callback - no need to close wallet
         DAP_DEL_Z(l_wallet_pkey);
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_NETWORK_FEE_OUTPUT, "Can't create new TX. Something went wrong.\n");
         log_it(L_ERROR, "Cant add network fee output");
@@ -3665,7 +3733,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
     // Validator's fee
     if (dap_chain_datum_tx_add_fee_item(&l_tx, l_value_fee) == -1) {
         dap_chain_datum_tx_delete(l_tx);
-        dap_chain_wallet_close(l_wallet);
+        // Wallet callback - no need to close wallet
         DAP_DEL_Z(l_wallet_pkey);
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_VALIDATORS_FEE_OUTPUT, "Can't create new TX. Something went wrong.\n");
         log_it(L_ERROR, "Cant add validator's fee output");
@@ -3673,16 +3741,16 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
     }
 
     // add 'sign' items
-    dap_enc_key_t *l_owner_key = dap_chain_wallet_get_key(l_wallet, 0);
-    if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
+    // l_key_from already obtained via callback above
+    if(dap_chain_datum_tx_add_sign_item(&l_tx, l_key_from) != 1) {
         dap_chain_datum_tx_delete(l_tx);
-        dap_enc_key_delete(l_owner_key);
+        dap_enc_key_delete(l_key_from);
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_SIGN_OUTPUT, "Can't create new TX. Something went wrong.\n");
         log_it( L_ERROR, "Can't add sign output");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_ADD_SIGN_OUTPUT;
     }
 
-    dap_chain_wallet_close(l_wallet);
+    // Wallet callback - no need to close wallet
     DAP_DEL_Z(l_wallet_pkey);
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
@@ -3781,20 +3849,26 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_r
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_SERVICE_UID;
     }
 
-    dap_ledger_t * l_ledger = l_net_name ? dap_ledger_by_net_name(l_net_name) : NULL;
+    dap_ledger_t * l_ledger = l_net_name ? dap_ledger_find_by_name(l_net_name) : NULL;
     if(!l_net) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_NET,
                                "Can't find net '%s'", l_net_name);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_NET;
     }
 
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
-    if(!l_wallet) {
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_OPEN_WALLET, "Can't open wallet '%s'", l_wallet_str);
+    // Get key from wallet using callback
+    if (!a_ledger->wallet_get_key_callback) {
+        dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC),
+            "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC));
+        return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_KEY_FUNC);
+    }
+    dap_enc_key_t *l_key_from = a_ledger->wallet_get_key_callback(l_wallet_str, 0);
+    if (!l_key_from) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_OPEN_WALLET,
+            "Can't get key from wallet '%s'", l_wallet_str);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_OPEN_WALLET;
     }
 
-    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
     dap_pkey_t *l_wallet_pkey = dap_pkey_from_enc_key(l_key_from);
 
     const char *l_native_ticker = l_net->pub.native_ticker;
@@ -3803,7 +3877,7 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_r
                                "Can't find native ticker for net %s", l_net->pub.name);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_NATIVE_TICKER_IN_NET;
     }
-    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
+    dap_ledger_t *l_ledger = dap_ledger_find_by_name(l_net->pub.name);
     if (!l_ledger){
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_LEDGER_FOR_NET, "Can't find ledger for net %s", l_net->pub.name);
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_LEDGER_FOR_NET;
@@ -3889,6 +3963,6 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_r
     dap_list_free_full(l_tx_list, NULL);
     dap_json_array_add(a_json_arr_reply, l_jobj_ret);
     DAP_DEL_Z(l_wallet_pkey);
-    dap_chain_wallet_close(l_wallet);
+    // Wallet callback - no need to close wallet
     return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK;
 }

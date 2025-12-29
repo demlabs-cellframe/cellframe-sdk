@@ -99,12 +99,37 @@ typedef int (*dap_ledger_decree_handler_callback_t)(dap_ledger_t *a_ledger, dap_
 // Returns signed data or NULL on error
 typedef dap_enc_key_t* (*dap_ledger_wallet_get_key_callback_t)(const char *a_wallet_name, uint32_t a_key_idx);
 typedef void* (*dap_ledger_wallet_get_addr_callback_t)(const char *a_wallet_name, dap_chain_net_id_t a_net_id);
+typedef const char* (*dap_ledger_wallet_check_sign_callback_t)(const char *a_wallet_name);
 
 // Mempool callbacks - ledger calls these to add/check mempool
 typedef char* (*dap_ledger_mempool_add_datum_callback_t)(void *a_datum, void *a_chain, const char *a_hash_out_type);
 typedef char* (*dap_ledger_mempool_create_tx_callback_t)(void *a_chain, dap_enc_key_t *a_key, void *a_from, 
                                                           const void **a_to, uint256_t *a_value, uint256_t *a_fee, 
                                                           const char *a_token, const char *a_hash_out_type);
+
+// Wallet cache callbacks - for optimized transaction history lookups
+// These are opaque types - wallet module implementation details
+typedef void* dap_ledger_wallet_cache_iter_t;
+
+// Wallet cache iteration direction enum
+typedef enum dap_ledger_wallet_cache_direction {
+    DAP_LEDGER_WALLET_CACHE_GET_FIRST = 0,
+    DAP_LEDGER_WALLET_CACHE_GET_LAST,
+    DAP_LEDGER_WALLET_CACHE_GET_NEXT,
+    DAP_LEDGER_WALLET_CACHE_GET_PREVIOUS
+} dap_ledger_wallet_cache_direction_t;
+
+// Wallet cache callbacks
+typedef int (*dap_ledger_wallet_cache_tx_find_in_history_callback_t)(
+    dap_chain_addr_t *a_addr, void *a_ledger, dap_chain_hash_fast_t *a_tx_hash,
+    dap_chain_datum_tx_t **a_tx_out, dap_time_t *a_tx_time_out, void **a_main_ticker_out, dap_hash_fast_t *a_tx_hash_out);
+
+typedef dap_ledger_wallet_cache_iter_t* (*dap_ledger_wallet_cache_iter_create_callback_t)(dap_chain_addr_t a_addr);
+
+typedef dap_chain_datum_tx_t* (*dap_ledger_wallet_cache_iter_get_callback_t)(
+    dap_ledger_wallet_cache_iter_t *a_iter, dap_ledger_wallet_cache_direction_t a_direction);
+
+typedef void (*dap_ledger_wallet_cache_iter_delete_callback_t)(dap_ledger_wallet_cache_iter_t *a_iter);
 
 typedef struct dap_ledger {
     // Ledger identification
@@ -145,6 +170,13 @@ typedef struct dap_ledger {
     // Wallet callbacks - for signing operations
     dap_ledger_wallet_get_key_callback_t wallet_get_key_callback;
     dap_ledger_wallet_get_addr_callback_t wallet_get_addr_callback;
+    dap_ledger_wallet_check_sign_callback_t wallet_check_sign_callback;
+    
+    // Wallet cache callbacks - for optimized tx history lookups
+    dap_ledger_wallet_cache_tx_find_in_history_callback_t wallet_cache_tx_find_in_history_callback;
+    dap_ledger_wallet_cache_iter_create_callback_t wallet_cache_iter_create_callback;
+    dap_ledger_wallet_cache_iter_get_callback_t wallet_cache_iter_get_callback;
+    dap_ledger_wallet_cache_iter_delete_callback_t wallet_cache_iter_delete_callback;
     
     // Mempool callbacks - for adding datums/tx to mempool
     dap_ledger_mempool_add_datum_callback_t mempool_add_datum_callback;
@@ -529,7 +561,15 @@ dap_chain_info_t* dap_ledger_get_chain_info_by_name(dap_ledger_t *a_ledger, cons
 // Wallet callbacks registration - called by wallet module during init
 void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger, 
                                        dap_ledger_wallet_get_key_callback_t a_get_key_cb,
-                                       dap_ledger_wallet_get_addr_callback_t a_get_addr_cb);
+                                       dap_ledger_wallet_get_addr_callback_t a_get_addr_cb,
+                                       dap_ledger_wallet_check_sign_callback_t a_check_sign_cb);
+
+// Wallet cache callbacks registration - called by wallet module during init for optimized lookups
+void dap_ledger_set_wallet_cache_callbacks(dap_ledger_t *a_ledger,
+                                            dap_ledger_wallet_cache_tx_find_in_history_callback_t a_tx_find_in_history_cb,
+                                            dap_ledger_wallet_cache_iter_create_callback_t a_iter_create_cb,
+                                            dap_ledger_wallet_cache_iter_get_callback_t a_iter_get_cb,
+                                            dap_ledger_wallet_cache_iter_delete_callback_t a_iter_delete_cb);
 
 // Mempool callbacks registration - called by mempool module during init
 void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,

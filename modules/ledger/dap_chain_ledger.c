@@ -1893,15 +1893,35 @@ dap_chain_info_t* dap_ledger_get_chain_info_by_name(dap_ledger_t *a_ledger, cons
 // Wallet callbacks registration
 void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger, 
                                        dap_ledger_wallet_get_key_callback_t a_get_key_cb,
-                                       dap_ledger_wallet_get_addr_callback_t a_get_addr_cb)
+                                       dap_ledger_wallet_get_addr_callback_t a_get_addr_cb,
+                                       dap_ledger_wallet_check_sign_callback_t a_check_sign_cb)
 {
     if (!a_ledger)
         return;
     
     a_ledger->wallet_get_key_callback = a_get_key_cb;
     a_ledger->wallet_get_addr_callback = a_get_addr_cb;
+    a_ledger->wallet_check_sign_callback = a_check_sign_cb;
     
     log_it(L_INFO, "Ledger %s: wallet callbacks registered", a_ledger->name);
+}
+
+// Wallet cache callbacks registration - for optimized transaction history lookups
+void dap_ledger_set_wallet_cache_callbacks(dap_ledger_t *a_ledger,
+                                            dap_ledger_wallet_cache_tx_find_in_history_callback_t a_tx_find_in_history_cb,
+                                            dap_ledger_wallet_cache_iter_create_callback_t a_iter_create_cb,
+                                            dap_ledger_wallet_cache_iter_get_callback_t a_iter_get_cb,
+                                            dap_ledger_wallet_cache_iter_delete_callback_t a_iter_delete_cb)
+{
+    if (!a_ledger)
+        return;
+    
+    a_ledger->wallet_cache_tx_find_in_history_callback = a_tx_find_in_history_cb;
+    a_ledger->wallet_cache_iter_create_callback = a_iter_create_cb;
+    a_ledger->wallet_cache_iter_get_callback = a_iter_get_cb;
+    a_ledger->wallet_cache_iter_delete_callback = a_iter_delete_cb;
+    
+    log_it(L_INFO, "Ledger %s: wallet cache callbacks registered", a_ledger->name);
 }
 
 // Mempool callbacks registration
