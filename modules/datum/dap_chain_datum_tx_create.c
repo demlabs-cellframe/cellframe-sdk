@@ -244,8 +244,125 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_transfer(
     return l_tx;
 }
 
+/**
+ * @brief Create multi-output transfer transaction WITHOUT signature
+ */
+dap_chain_datum_tx_t *dap_chain_datum_tx_create_multi_transfer(
+    dap_chain_net_id_t a_net_id,
+    dap_pkey_t *a_pkey_from,
+    const dap_chain_addr_t *a_addr_from,
+    const dap_chain_addr_t **a_addr_to,
+    uint256_t *a_values,
+    const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+    uint256_t a_value_fee,
+    size_t a_outputs_count,
+    dap_time_t *a_time_unlock
+)
+{
+    // Validate parameters
+    if (!a_pkey_from || !a_addr_from || !a_addr_to || !a_values || 
+        !a_token_ticker || !a_outputs_count) {
+        log_it(L_ERROR, "Invalid parameters for tx_create_multi_transfer");
+        return NULL;
+    }
+    
+    // Get network and ledger
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (!l_net || !l_net->pub.ledger) {
+        log_it(L_ERROR, "Network or ledger not found");
+        return NULL;
+    }
+    
+    dap_ledger_t *l_ledger = l_net->pub.ledger;
+    
+    // Calculate total needed
+    uint256_t l_total_need = a_value_fee;
+    for (size_t i = 0; i < a_outputs_count; i++) {
+        if (!a_addr_to[i] || IS_ZERO_256(a_values[i])) {
+            log_it(L_ERROR, "Invalid output %zu", i);
+            return NULL;
+        }
+        SUM_256_256(l_total_need, a_values[i], &l_total_need);
+    }
+    
+    // Find outputs to cover the value
+    uint256_t l_value_found = {};
+    dap_list_t *l_list_outs = _find_outs_to_cover_value(
+        l_ledger, a_addr_from, a_token_ticker, l_total_need, &l_value_found
+    );
+    
+    if (!l_list_outs) {
+        log_it(L_ERROR, "Insufficient funds for multi-transfer");
+        return NULL;
+    }
+    
+    // Create transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to create transaction");
+        dap_list_free_full(l_list_outs, NULL);
+        return NULL;
+    }
+    
+    // Add inputs
+    if (_add_inputs_from_outs_list(&l_tx, l_list_outs) != 0) {
+        log_it(L_ERROR, "Failed to add inputs");
+        dap_chain_datum_tx_delete(l_tx);
+        dap_list_free_full(l_list_outs, NULL);
+        return NULL;
+    }
+    
+    // Add outputs to recipients
+    for (size_t i = 0; i < a_outputs_count; i++) {
+        if (a_time_unlock && a_time_unlock[i]) {
+            // Add time-locked output
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_values[i], a_time_unlock[i]) != 1) {
+                log_it(L_ERROR, "Failed to add time-locked output %zu", i);
+                dap_chain_datum_tx_delete(l_tx);
+                dap_list_free_full(l_list_outs, NULL);
+                return NULL;
+            }
+        } else {
+            // Add regular output
+            if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to[i], a_values[i]) != 1) {
+                log_it(L_ERROR, "Failed to add output %zu", i);
+                dap_chain_datum_tx_delete(l_tx);
+                dap_list_free_full(l_list_outs, NULL);
+                return NULL;
+            }
+        }
+    }
+    
+    // Add change if needed
+    uint256_t l_change = {};
+    SUBTRACT_256_256(l_value_found, l_total_need, &l_change);
+    if (!IS_ZERO_256(l_change)) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_change) != 1) {
+            log_it(L_ERROR, "Failed to add change output");
+            dap_chain_datum_tx_delete(l_tx);
+            dap_list_free_full(l_list_outs, NULL);
+            return NULL;
+        }
+    }
+    
+    // Add fee if needed
+    if (!IS_ZERO_256(a_value_fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) != 1) {
+            log_it(L_ERROR, "Failed to add fee");
+            dap_chain_datum_tx_delete(l_tx);
+            dap_list_free_full(l_list_outs, NULL);
+            return NULL;
+        }
+    }
+    
+    dap_list_free_full(l_list_outs, NULL);
+    
+    log_it(L_NOTICE, "Created unsigned multi-transfer transaction: %zu outputs", a_outputs_count);
+    
+    return l_tx;
+}
+
 // TODO: Implement remaining functions:
-// - dap_chain_datum_tx_create_multi_transfer
 // - dap_chain_datum_tx_create_cond_output  
 // - dap_chain_datum_tx_create_event
 // - dap_chain_datum_tx_create_from_emission

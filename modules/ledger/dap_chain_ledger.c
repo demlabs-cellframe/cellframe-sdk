@@ -1995,6 +1995,26 @@ dap_hash_fast_t *dap_ledger_get_pkey_hash(dap_ledger_t *a_ledger,
     return a_ledger->wallet_get_pkey_hash_callback(a_wallet_name, a_key_idx);
 }
 
+// INTERNAL ONLY: Temporary bridge to old wallet API for legacy code
+// TODO: Remove when all code is refactored to use dap_ledger_sign_data
+// This BREAKS hardware wallet support and should NOT be exported!
+static dap_enc_key_t *_dap_ledger_get_enc_key_internal(dap_ledger_t *a_ledger,
+                                                         const char *a_wallet_name,
+                                                         uint32_t a_key_idx)
+{
+    // This is a HACK for backward compatibility with old wallet module
+    // It requires direct access to wallet internals which breaks hardware wallet support
+    // The proper way is to refactor all code to use dap_ledger_sign_data
+    
+    log_it(L_WARNING, "INTERNAL: Using legacy wallet API - breaks hardware wallet support!");
+    
+    // We need to call old wallet_open/get_key functions directly
+    // This is NOT exported and should only be used internally during transition
+    
+    // TODO: Replace all uses of this function with proper sign API
+    return NULL; // Stub for now - will be implemented when wallet module is connected
+}
+
 // Mempool callbacks registration
 void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,
                                         dap_ledger_mempool_add_datum_callback_t a_add_datum_cb,
