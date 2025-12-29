@@ -114,10 +114,6 @@ typedef void* (*dap_ledger_wallet_get_addr_callback_t)(const char *a_wallet_name
 // Check wallet signature type/status
 typedef const char* (*dap_ledger_wallet_check_sign_callback_t)(const char *a_wallet_name);
 
-// DEPRECATED: For old mempool API compatibility - breaks hardware wallet support!
-// TODO: Remove when mempool API is refactored to accept signatures instead of keys
-typedef dap_enc_key_t* (*dap_ledger_wallet_get_key_callback_t)(const char *a_wallet_name, uint32_t a_key_idx);
-
 // Mempool callbacks - ledger calls these to add/check mempool
 typedef char* (*dap_ledger_mempool_add_datum_callback_t)(void *a_datum, void *a_chain, const char *a_hash_out_type);
 typedef char* (*dap_ledger_mempool_create_tx_callback_t)(void *a_chain, dap_enc_key_t *a_key, void *a_from, 
@@ -190,9 +186,6 @@ typedef struct dap_ledger {
     dap_ledger_wallet_get_pkey_callback_t wallet_get_pkey_callback;
     dap_ledger_wallet_get_addr_callback_t wallet_get_addr_callback;
     dap_ledger_wallet_check_sign_callback_t wallet_check_sign_callback;
-    
-    // DEPRECATED: For old mempool API compatibility - breaks hardware wallet support!
-    dap_ledger_wallet_get_key_callback_t wallet_get_key_callback_DEPRECATED;
     
     // Wallet cache callbacks - for optimized tx history lookups
     dap_ledger_wallet_cache_tx_find_in_history_callback_t wallet_cache_tx_find_in_history_callback;
@@ -596,11 +589,6 @@ void dap_ledger_set_wallet_cache_callbacks(dap_ledger_t *a_ledger,
                                             dap_ledger_wallet_cache_iter_get_callback_t a_iter_get_cb,
                                             dap_ledger_wallet_cache_iter_delete_callback_t a_iter_delete_cb);
 
-// DEPRECATED: Temporary wrapper to get enc_key for old API compatibility
-// TODO: Remove when mempool API is refactored to accept signatures instead of keys
-// This breaks hardware wallet support! Use wallet_sign_callback directly when possible.
-void dap_ledger_set_wallet_get_key_callback_DEPRECATED(dap_ledger_t *a_ledger, dap_ledger_wallet_get_key_callback_t a_get_key_cb);
-
 // Mempool callbacks registration - called by mempool module during init
 void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,
                                         dap_ledger_mempool_add_datum_callback_t a_add_datum_cb,
@@ -608,6 +596,25 @@ void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,
 
 void dap_ledger_set_get_cur_cell_callback(dap_ledger_t *a_ledger,
                                             dap_ledger_get_cur_cell_callback_t a_get_cur_cell_cb);
+
+// Universal data signing API - hardware wallet friendly
+// Signs ANY data using wallet's sign callback, may wait up to 30 seconds for hardware wallets
+// Returns signature or NULL on error/timeout. Signature must be freed by caller.
+dap_sign_t *dap_ledger_sign_data(dap_ledger_t *a_ledger, 
+                                   const char *a_wallet_name,
+                                   const void *a_data, 
+                                   size_t a_data_size,
+                                   uint32_t a_key_idx);
+
+// Get public key from wallet via callback
+dap_pkey_t *dap_ledger_get_pkey(dap_ledger_t *a_ledger,
+                                  const char *a_wallet_name,
+                                  uint32_t a_key_idx);
+
+// Get public key hash from wallet via callback
+dap_hash_fast_t *dap_ledger_get_pkey_hash(dap_ledger_t *a_ledger,
+                                            const char *a_wallet_name,
+                                            uint32_t a_key_idx);
 
 // Setup functions called by net module after ledger creation
 void dap_ledger_load_cache(dap_ledger_t *a_ledger);

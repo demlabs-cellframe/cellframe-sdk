@@ -1910,18 +1910,6 @@ void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger,
     log_it(L_INFO, "Ledger %s: wallet callbacks registered (hardware wallet compatible)", a_ledger->name);
 }
 
-// DEPRECATED: Temporary wrapper for old mempool API compatibility
-// TODO: Remove when mempool is refactored to accept signatures instead of keys
-void dap_ledger_set_wallet_get_key_callback_DEPRECATED(dap_ledger_t *a_ledger, dap_ledger_wallet_get_key_callback_t a_get_key_cb)
-{
-    if (!a_ledger)
-        return;
-    
-    a_ledger->wallet_get_key_callback_DEPRECATED = a_get_key_cb;
-    
-    log_it(L_WARNING, "Ledger %s: DEPRECATED get_key callback registered - breaks hardware wallet support!", a_ledger->name);
-}
-
 // Wallet cache callbacks registration - for optimized transaction history lookups
 void dap_ledger_set_wallet_cache_callbacks(dap_ledger_t *a_ledger,
                                             dap_ledger_wallet_cache_tx_find_in_history_callback_t a_tx_find_in_history_cb,
@@ -1938,6 +1926,73 @@ void dap_ledger_set_wallet_cache_callbacks(dap_ledger_t *a_ledger,
     a_ledger->wallet_cache_iter_delete_callback = a_iter_delete_cb;
     
     log_it(L_INFO, "Ledger %s: wallet cache callbacks registered", a_ledger->name);
+}
+
+// Universal data signing API - hardware wallet friendly
+// May wait up to 30 seconds for hardware wallets
+dap_sign_t *dap_ledger_sign_data(dap_ledger_t *a_ledger, 
+                                   const char *a_wallet_name,
+                                   const void *a_data, 
+                                   size_t a_data_size,
+                                   uint32_t a_key_idx)
+{
+    if (!a_ledger || !a_wallet_name || !a_data || !a_data_size) {
+        log_it(L_ERROR, "Invalid parameters for dap_ledger_sign_data");
+        return NULL;
+    }
+    
+    if (!a_ledger->wallet_sign_callback) {
+        log_it(L_ERROR, "Ledger %s: wallet sign callback not registered", a_ledger->name);
+        return NULL;
+    }
+    
+    // Call wallet sign callback - may wait up to 30 seconds for hardware wallet
+    log_it(L_DEBUG, "Ledger %s: signing %zu bytes with wallet '%s' (may take up to 30s for hardware wallet)",
+           a_ledger->name, a_data_size, a_wallet_name);
+    
+    dap_sign_t *l_sign = a_ledger->wallet_sign_callback(a_wallet_name, a_data, a_data_size, a_key_idx);
+    
+    if (!l_sign) {
+        log_it(L_WARNING, "Ledger %s: failed to sign data with wallet '%s'", a_ledger->name, a_wallet_name);
+    }
+    
+    return l_sign;
+}
+
+// Get public key from wallet via callback
+dap_pkey_t *dap_ledger_get_pkey(dap_ledger_t *a_ledger,
+                                  const char *a_wallet_name,
+                                  uint32_t a_key_idx)
+{
+    if (!a_ledger || !a_wallet_name) {
+        log_it(L_ERROR, "Invalid parameters for dap_ledger_get_pkey");
+        return NULL;
+    }
+    
+    if (!a_ledger->wallet_get_pkey_callback) {
+        log_it(L_ERROR, "Ledger %s: wallet get_pkey callback not registered", a_ledger->name);
+        return NULL;
+    }
+    
+    return a_ledger->wallet_get_pkey_callback(a_wallet_name, a_key_idx);
+}
+
+// Get public key hash from wallet via callback
+dap_hash_fast_t *dap_ledger_get_pkey_hash(dap_ledger_t *a_ledger,
+                                            const char *a_wallet_name,
+                                            uint32_t a_key_idx)
+{
+    if (!a_ledger || !a_wallet_name) {
+        log_it(L_ERROR, "Invalid parameters for dap_ledger_get_pkey_hash");
+        return NULL;
+    }
+    
+    if (!a_ledger->wallet_get_pkey_hash_callback) {
+        log_it(L_ERROR, "Ledger %s: wallet get_pkey_hash callback not registered", a_ledger->name);
+        return NULL;
+    }
+    
+    return a_ledger->wallet_get_pkey_hash_callback(a_wallet_name, a_key_idx);
 }
 
 // Mempool callbacks registration
