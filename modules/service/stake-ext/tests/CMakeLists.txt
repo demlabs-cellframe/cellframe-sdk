@@ -2,17 +2,24 @@ cmake_minimum_required(VERSION 3.10)
 
 project(stake-ext-test)
 
-file(GLOB DAP_STAKE_EXT_TESTS_HEADERS include/*.h)
-file(GLOB DAP_STAKE_EXT_TESTS_SRC *.c)
+# Minimal test mode: only compile main.c to isolate pre-main crash
+# file(GLOB DAP_STAKE_EXT_TESTS_HEADERS include/*.h)
+# file(GLOB DAP_STAKE_EXT_TESTS_SRC *.c)
+# add_executable(${PROJECT_NAME} ${DAP_STAKE_EXT_TESTS_SRC} ${DAP_STAKE_EXT_TESTS_HEADERS})
 
-add_executable(${PROJECT_NAME} ${DAP_STAKE_EXT_TESTS_SRC} ${DAP_STAKE_EXT_TESTS_HEADERS})
+add_executable(${PROJECT_NAME} main.c)
 
 target_link_libraries(${PROJECT_NAME} 
     PRIVATE
         dap_chain_net_srv_stake_ext
+        dap_chain_net_srv
+        dap_chain_net
+        dap_chain
+        dap_chain_common
         dap_test
         dap_core
         dap_crypto
+        dap_json-c
 )
 
 if (DARWIN)
