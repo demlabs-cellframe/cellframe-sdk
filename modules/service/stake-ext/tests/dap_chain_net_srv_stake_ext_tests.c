@@ -125,13 +125,26 @@ static void generate_test_amount(uint32_t a_seed, uint256_t *a_amount)
  */
 void dap_srv_stake_ext_test_run(void)
 {
+    printf("DEBUG: Entering dap_srv_stake_ext_test_run\n");
+    fflush(stdout);
+    
     dap_print_module_name("DAP_CHAIN_NET_SRV_stake_extS_TESTS");
+    
+    printf("DEBUG: After dap_print_module_name\n");
+    fflush(stdout);
     
     // Initialize test framework
     dap_test_msg("Starting stake_ext service tests...");
     
+    printf("DEBUG: After first dap_test_msg\n");
+    fflush(stdout);
+    
     // Run test suites by category
     dap_test_msg("=== 1. stake_ext CACHE TESTS ===");
+    
+    printf("DEBUG: Calling dap_srv_stake_ext_test_cache_init\n");
+    fflush(stdout);
+    
     dap_srv_stake_ext_test_cache_init();
     dap_srv_stake_ext_test_cache_stake_ext_management();
     dap_srv_stake_ext_test_cache_lock_management();
@@ -169,11 +182,20 @@ void dap_srv_stake_ext_test_run(void)
  */
 void dap_srv_stake_ext_test_cache_init(void)
 {
+    printf("DEBUG: Entering dap_srv_stake_ext_test_cache_init\n");
+    fflush(stdout);
+    
     dap_test_msg("Testing stake_ext cache initialization...");
+    
+    printf("DEBUG: Before creating cache\n");
+    fflush(stdout);
     
     // Test 1: Basic cache creation
     dap_test_msg("Test 1: Basic cache creation");
     dap_stake_ext_cache_t *l_cache = dap_chain_net_srv_stake_ext_service_create();
+    
+    printf("DEBUG: After creating cache, l_cache=%p\n", (void*)l_cache);
+    fflush(stdout);
     dap_assert_PIF(l_cache != NULL, "Cache creation should succeed");
     dap_assert_PIF(l_cache->stake_ext == NULL, "Initial stake_ext hash table should be NULL");
     dap_assert_PIF(l_cache->stake_ext_by_hash == NULL, "Initial stake_ext_by_hash should be NULL");
