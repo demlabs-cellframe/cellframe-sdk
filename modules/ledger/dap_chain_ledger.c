@@ -1820,3 +1820,89 @@ void dap_ledger_set_fee_callback(dap_ledger_t *a_ledger, dap_ledger_set_fee_call
         a_ledger->set_fee_callback = a_callback;
     }
 }
+// Chain registration implementation
+int dap_ledger_register_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id, const char *a_chain_name, 
+                                uint16_t a_chain_type, void *a_chain_ptr)
+{
+    if (!a_ledger || !a_chain_name)
+        return -1;
+    
+    dap_chain_info_t *l_info = DAP_NEW_Z(dap_chain_info_t);
+    if (!l_info)
+        return -2;
+    
+    l_info->chain_id = a_chain_id;
+    dap_strncpy(l_info->chain_name, a_chain_name, sizeof(l_info->chain_name) - 1);
+    l_info->chain_type = a_chain_type;
+    l_info->chain_ptr = a_chain_ptr;
+    
+    HASH_ADD(hh, a_ledger->chains_registry, chain_id, sizeof(dap_chain_id_t), l_info);
+    
+    log_it(L_INFO, "Ledger %s: registered chain '%s' (id=%llu, type=%u)", 
+           a_ledger->name, a_chain_name, a_chain_id.uint64, a_chain_type);
+    return 0;
+}
+
+void dap_ledger_unregister_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
+{
+    if (!a_ledger)
+        return;
+    
+    dap_chain_info_t *l_info = NULL;
+    HASH_FIND(hh, a_ledger->chains_registry, &a_chain_id, sizeof(dap_chain_id_t), l_info);
+    if (l_info) {
+        HASH_DEL(a_ledger->chains_registry, l_info);
+        DAP_DELETE(l_info);
+    }
+}
+
+dap_chain_info_t* dap_ledger_get_chain_info(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
+{
+    if (!a_ledger)
+        return NULL;
+    
+    dap_chain_info_t *l_info = NULL;
+    HASH_FIND(hh, a_ledger->chains_registry, &a_chain_id, sizeof(dap_chain_id_t), l_info);
+    return l_info;
+}
+
+dap_chain_info_t* dap_ledger_get_chain_info_by_name(dap_ledger_t *a_ledger, const char *a_chain_name)
+{
+    if (!a_ledger || !a_chain_name)
+        return NULL;
+    
+    dap_chain_info_t *l_info, *l_tmp;
+    HASH_ITER(hh, a_ledger->chains_registry, l_info, l_tmp) {
+        if (strcmp(l_info->chain_name, a_chain_name) == 0)
+            return l_info;
+    }
+    return NULL;
+}
+
+// Wallet callbacks registration
+void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger, 
+                                       dap_ledger_wallet_get_key_callback_t a_get_key_cb,
+                                       dap_ledger_wallet_get_addr_callback_t a_get_addr_cb)
+{
+    if (!a_ledger)
+        return;
+    
+    a_ledger->wallet_get_key_callback = a_get_key_cb;
+    a_ledger->wallet_get_addr_callback = a_get_addr_cb;
+    
+    log_it(L_INFO, "Ledger %s: wallet callbacks registered", a_ledger->name);
+}
+
+// Mempool callbacks registration
+void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,
+                                        dap_ledger_mempool_add_datum_callback_t a_add_datum_cb,
+                                        dap_ledger_mempool_create_tx_callback_t a_create_tx_cb)
+{
+    if (!a_ledger)
+        return;
+    
+    a_ledger->mempool_add_datum_callback = a_add_datum_cb;
+    a_ledger->mempool_create_tx_callback = a_create_tx_cb;
+    
+    log_it(L_INFO, "Ledger %s: mempool callbacks registered", a_ledger->name);
+}

@@ -30,17 +30,17 @@
 #include "dap_chain_type_blocks.h"
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
+#include "dap_chain_block_tx.h"  // Direct block TX functions (no mempool wrapper)
 #include "dap_cli_server.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_decree.h"
-// Phase 5.3: Use network API layer instead of full net module to break cycles
 #include "dap_chain_net_api.h"  // Core net API (lookup, getters) - replaces dap_chain_net.h
-#include "dap_chain_mempool.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_type.h"  // For old consensus class registration
 #include "dap_chain_block_collect.h"  // Common block collection types (breaks esbocs cycle)
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
+#include "dap_chain_blocks_decree.h"  // Blocks decree handlers (empty_blockgen)
 // REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 
 #define LOG_TAG "dap_chain_type_blocks"
@@ -269,6 +269,10 @@ int dap_chain_type_blocks_init()
     dap_chain_type_add("blocks", l_callbacks);
 
     dap_chain_block_init();
+    
+    // Register blocks decree handlers (empty_blockgen)
+    dap_chain_blocks_decree_init();
+    
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add("block", s_cli_blocks, s_print_for_block_list, "Create and explore blockchains", 0,
@@ -539,7 +543,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
 
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, l_decree, l_decree_size);
     // Processing will be made according to autoprocess policy
-    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain_decree, "hex");
+    char *l_ret = dap_chain_net_api_datum_add_to_mempool(l_datum, l_chain_decree, "hex");
     DAP_DELETE(l_datum);
     DAP_DEL_Z(l_decree);
     return l_ret;
@@ -732,7 +736,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
     dap_chain_net_t * l_net = NULL;
 
     // Parse default values
-    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TX))
+    if (dap_chain_net_parse_net_chain(a_json_arr_reply, &arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TX))
         return -DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
 
     const char *l_chain_type = dap_chain_get_cs_type(l_chain);
@@ -1362,11 +1366,22 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                                                 "Block fee collection requires at least one hash to create a transaction");
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
                 }
+                // Get net context for direct block_tx calls (avoiding deprecated mempool wrappers)
+                dap_chain_net_t *l_net_ctx = dap_chain_net_api_by_id(l_chain->net_id);
                 char *l_hash_tx = l_subcmd == SUBCMD_FEE
-                    ? dap_chain_mempool_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type)
-                    : dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
-            } else
-                l_hash_tx = dap_chain_mempool_tx_coll_fee_stack_create(l_blocks, l_cert->enc_key, l_addr, l_fee_value, l_hash_out_type);
+                    ? dap_chain_block_tx_coll_fee_create(l_blocks, l_cert->enc_key, l_addr, l_block_list,
+                                                         l_net_ctx->pub.ledger, l_net_ctx->pub.native_ticker,
+                                                         l_chain->net_id, l_fee_value, l_hash_out_type)
+                    : dap_chain_block_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list,
+                                                       l_net_ctx->pub.ledger, l_net_ctx->pub.native_ticker,
+                                                       l_chain->net_id, l_fee_value, l_hash_out_type);
+            } else {
+                // Get net context for direct block_tx calls (avoiding deprecated mempool wrappers)
+                dap_chain_net_t *l_net_ctx = dap_chain_net_api_by_id(l_chain->net_id);
+                l_hash_tx = dap_chain_block_tx_coll_fee_stack_create(l_blocks, l_cert->enc_key, l_addr,
+                                                                     l_net_ctx->pub.ledger, l_net_ctx->pub.native_ticker,
+                                                                     l_chain->net_id, l_fee_value, l_hash_out_type);
+            }
             
             if (l_hash_tx) {
                 dap_json_t *json_obj_out = dap_json_object_new();
@@ -2097,7 +2112,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_chain_hash_fast_t *a_atom_hash)
 {
     dap_return_val_if_fail(a_chain && a_atom && a_atom_size && a_atom_hash, ATOM_REJECT);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     bool l_load_mode = l_net ? dap_chain_net_api_get_load_mode(l_net) : false;
     dap_chain_type_blocks_t * l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     assert(l_blocks);
@@ -2766,7 +2781,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 {
     dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_chain_type_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
-    // dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    // dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
 
     size_t l_datum_processed = 0;
     int err = pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
@@ -2895,7 +2910,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     size_t l_block_size = l_block_cache->block_size;
     if (!dap_chain_block_sign_match_pkey(l_block, l_block_size, a_block_sign_pkey))
         return l_ret;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     if (!l_net) {
         log_it(L_ERROR, "Invalid chain object");
         return l_ret;
@@ -2946,7 +2961,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
 static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
                                       dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner, bool UNUSED_ARG a_from_mempool)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_ledger->net_id);
     assert(l_net);
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
@@ -3034,7 +3049,7 @@ dap_ledger_hardfork_fees_t *dap_chain_type_blocks_fees_aggregate(dap_chain_t *a_
 {
     dap_ledger_hardfork_fees_t *ret = NULL;
     dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
         dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
         for (size_t i = 0; i < l_block_cache->sign_count; i++) {

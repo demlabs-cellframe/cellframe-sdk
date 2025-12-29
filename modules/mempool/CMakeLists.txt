@@ -6,12 +6,19 @@ file(GLOB DAP_CHAIN_MEMPOOL_HDR include/*.h)
 
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_MEMPOOL_SRC} HEADERS ${DAP_CHAIN_MEMPOOL_HDR})
 
-# mempool only needs net-tx header (for function signatures), NOT symbols
-# Adding target_include_directories for net-tx instead of target_link_libraries (breaks cycle)
-target_link_libraries(${PROJECT_NAME} dap_http_server dap_client dap_global_db dap_core dap_json_rpc 
-    dap_chain dap_chain_ledger)
+# Mid-level module: mempool depends ONLY on lower layers (ledger, net_core)
+# TODO: Remove direct calls to wallet/net_tx functions, use callbacks instead
+target_link_libraries(${PROJECT_NAME} 
+    dap_http_server dap_client dap_global_db dap_core dap_json_rpc dap_cli_server
+    dap_chain dap_chain_datum dap_common dap_chain_net_core dap_chain_ledger)
+# REMOVED dap_chain_net - creates cycle (net ↔ mempool)
+# TEMPORARY: mempool still uses dap_chain_wallet_get_list_tx_outs_with_val and dap_chain_net_tx_get_fee
+# These create cycles and must be replaced with callbacks
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-# REMOVED: net-tx include - creates transitive cycle (net → mempool → net_tx → wallet)
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../wallet/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../net/tx/include)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_MEMPOOL_HDR}")

@@ -71,3 +71,4 @@ dap_chain_sovereign_tax_info_t* dap_chain_block_callbacks_get_sovereign_tax(
     return l_callback(a_net_id, a_pkey_hash);
 }
 
+

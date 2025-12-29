@@ -55,6 +55,9 @@
 extern "C" {
 #endif
 
+// Forward declarations (avoid circular dependencies with datum module)
+typedef struct dap_chain_datum dap_chain_datum_t;
+
 /**
  * @brief Core network lookup function types
  * @details These function pointers will be set by net module at initialization
@@ -68,6 +71,7 @@ typedef dap_chain_cell_id_t *(*dap_chain_net_get_cur_cell_func_t)(dap_chain_net_
 typedef bool (*dap_chain_net_get_load_mode_func_t)(dap_chain_net_t *a_net);
 typedef uint256_t (*dap_chain_net_get_reward_func_t)(dap_chain_net_t *a_net, uint64_t a_block_num);
 typedef int (*dap_chain_net_add_reward_func_t)(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num);
+typedef char *(*dap_chain_net_datum_add_to_mempool_func_t)(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
 
 /**
  * @brief Network API function registry
@@ -83,6 +87,7 @@ typedef struct dap_chain_net_api_registry {
     dap_chain_net_get_load_mode_func_t get_load_mode;
     dap_chain_net_get_reward_func_t get_reward;
     dap_chain_net_add_reward_func_t add_reward;
+    dap_chain_net_datum_add_to_mempool_func_t datum_add_to_mempool;
 } dap_chain_net_api_registry_t;
 
 /**
@@ -186,6 +191,15 @@ uint256_t dap_chain_net_api_get_reward(dap_chain_net_t *a_net, uint64_t a_block_
  * @return 0 on success, negative error code otherwise
  */
 int dap_chain_net_api_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num);
+
+/**
+ * @brief Add datum to mempool
+ * @param a_datum Datum to add
+ * @param a_chain Chain to add to
+ * @param a_hash_out_type Hash output type
+ * @return Hash string on success, NULL on error
+ */
+char *dap_chain_net_api_datum_add_to_mempool(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
 
 /**
  * @brief Direct accessors for public network fields

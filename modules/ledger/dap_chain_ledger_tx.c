@@ -1439,7 +1439,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             }
             // For event TX without ticker TSD, use native ticker (events always use native ticker)
             if (*l_item == TX_ITEM_TYPE_EVENT && !*l_main_token_ticker)
-                dap_strncpy(l_main_token_ticker, a_ledger->net->pub.native_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                dap_strncpy(l_main_token_ticker, a_ledger->native_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
             if (*l_item != TX_ITEM_TYPE_TSD)
                 continue;
             dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)l_item)->tsd;

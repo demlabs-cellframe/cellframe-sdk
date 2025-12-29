@@ -6,10 +6,11 @@
  * All rights reserved.
  *
  * Network fee management functions
- * Moved from net-tx to break cycles (fee management is core net responsibility)
+ * Moved to net/core to break mempool ↔ net-tx cycle
  */
 
-#include "dap_chain_net.h"
+#include "dap_chain_net_core.h"  // For dap_chain_net_by_id
+#include "dap_chain_net_fee.h"
 #include "dap_common.h"
 
 #define LOG_TAG "dap_chain_net_fee"

@@ -134,3 +134,4 @@ Merge `net + net-tx + net-srv` → single `dap_chain_network_services` module.
 5. ✅ СЛК compliance: временный компромисс с чётким решением (НЕ "грязный хак")
 
 **Что делать?**
+

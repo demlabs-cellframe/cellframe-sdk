@@ -1,0 +1,196 @@
+{
+  "analysis_title": "Анализ зависимостей модуля LEDGER",
+  "timestamp": "2025-12-22",
+  "summary": {
+    "total_files": 7,
+    "total_lines": 11818,
+    "dependencies_found": {
+      "wallet": "ТОЛЬКО в CLI (dap_chain_ledger_cli.c)",
+      "mempool": "ТОЛЬКО в CLI (dap_chain_ledger_cli.c)",
+      "net": "1 CORE + CLI"
+    }
+  },
+
+  "detailed_analysis": {
+    "wallet_dependency": {
+      "location": "dap_chain_ledger_cli.c ONLY",
+      "usage_count": 63,
+      "functions_used": [
+        "dap_chain_wallet_get_path() - получить путь к кошелькам",
+        "dap_chain_wallet_open() - открыть кошелёк",
+        "dap_chain_wallet_close() - закрыть кошелёк",
+        "dap_chain_wallet_get_key() - получить ключ",
+        "dap_chain_wallet_get_addr() - получить адрес",
+        "dap_chain_wallet_check_sign() - проверить подпись",
+        "dap_chain_wallet_cache_iter_create() - создать итератор по истории",
+        "dap_chain_wallet_cache_iter_get() - получить TX из истории",
+        "dap_chain_wallet_cache_iter_delete() - удалить итератор",
+        "dap_chain_wallet_cache_tx_find_in_history() - поиск TX в истории"
+      ],
+      "resolution": "CALLBACK PATTERN",
+      "rationale": "CLI команды используют wallet для tx_history и создания транзакций. Это высокоуровневая логика."
+    },
+
+    "mempool_dependency": {
+      "location": "dap_chain_ledger_cli.c ONLY",
+      "usage_count": 8,
+      "functions_used": [
+        "dap_chain_mempool_tx_create() - создать TX",
+        "dap_chain_mempool_tx_create_massive() - массовое создание TX",
+        "dap_chain_mempool_tx_create_event() - создать TX event",
+        "dap_chain_mempool_tx_create_cond() - создать условный TX",
+        "dap_chain_mempool_base_tx_create() - создать базовый TX",
+        "dap_chain_mempool_datum_add() - добавить datum в mempool",
+        "dap_chain_mempool_group_new() - получить имя группы mempool"
+      ],
+      "resolution": "CALLBACK PATTERN",
+      "rationale": "CLI команды создают TX через mempool. Ledger CORE не создаёт TX, только валидирует!"
+    },
+
+    "net_dependency": {
+      "core_files": {
+        "dap_chain_ledger.c": {
+          "includes": ["dap_chain_net_decree_ledger_handlers.h"],
+          "functions": [
+            "dap_chain_net_decree_ledger_handlers_init() - инициализация обработчиков декретов",
+            "dap_chain_net_decree_ledger_handlers_deinit() - деинициализация"
+          ],
+          "problem": "Ledger инициализирует handlers для decree из модуля NET!",
+          "resolution_options": [
+            "OPTION 1: Перенести decree handlers из net в ledger",
+            "OPTION 2: Использовать registry pattern - net сам регает handlers в ledger",
+            "OPTION 3: Создать отдельный модуль decree/handlers (промежуточный слой)"
+          ]
+        },
+        "dap_chain_ledger_cli.c": {
+          "includes": ["dap_chain_net_core.h", "dap_chain_net.h", "dap_chain_net_tx.h", "dap_chain_net_utils.h", "dap_chain_net_srv.h"],
+          "functions_from_net": [
+            "dap_chain_net_by_id() - 9 вызовов",
+            "dap_chain_net_by_name() - 9 вызовов",
+            "dap_chain_net_get_chain_by_name() - 7 вызовов",
+            "dap_chain_net_get_chain_by_id() - 1 вызов",
+            "dap_chain_net_get_chain_by_chain_type() - 6 вызовов",
+            "dap_chain_net_get_default_chain_by_chain_type() - 4 вызова",
+            "dap_chain_net_get_cur_cell() - 1 вызов",
+            "dap_chain_net_get_tx_by_hash() - 1 вызов",
+            "dap_chain_net_get_gdb_group_nochain_new() - 1 вызов",
+            "dap_chain_net_tx_get_fee() - использование в CLI",
+            "dap_ledger_by_net_name() - 6 вызовов"
+          ],
+          "functions_from_net_core": [
+            "GOOD: Уже используются из net/core!"
+          ],
+          "resolution": "ВСЕ функции УЖЕ в net/core! CLI правильно зависит от net/core."
+        }
+      }
+    }
+  },
+
+  "cycle_breakdown": {
+    "current_cycle": "ledger ↔ net (через decree handlers)",
+    "cycle_path": [
+      "1. ledger/dap_chain_ledger.c включает dap_chain_net_decree_ledger_handlers.h",
+      "2. ledger/dap_chain_ledger.c вызывает dap_chain_net_decree_ledger_handlers_init()",
+      "3. Это создаёт зависимость ledger → net",
+      "4. Но net → ledger уже есть (net использует ledger для валидации TX)",
+      "5. Результат: цикл!"
+    ]
+  },
+
+  "proposed_resolution": {
+    "step_1_callbacks_for_wallet_mempool": {
+      "title": "Добавить callback интерфейсы в ledger",
+      "files_to_modify": [
+        "modules/ledger/include/dap_chain_ledger.h - добавить typedef для callbacks",
+        "modules/ledger/dap_chain_ledger.c - добавить регистрацию callbacks"
+      ],
+      "callbacks_needed": {
+        "wallet_callbacks": [
+          "dap_ledger_wallet_open_cb_t",
+          "dap_ledger_wallet_close_cb_t",
+          "dap_ledger_wallet_get_key_cb_t",
+          "dap_ledger_wallet_get_addr_cb_t"
+        ],
+        "mempool_callbacks": [
+          "dap_ledger_mempool_tx_create_cb_t",
+          "dap_ledger_mempool_datum_add_cb_t"
+        ]
+      },
+      "registration": "wallet/mempool модули регистрируют callbacks в ledger при инициализации"
+    },
+
+    "step_2_decree_handlers_resolution": {
+      "title": "Разорвать цикл ledger ↔ net через decree handlers",
+      "recommended_option": "OPTION 2 - Registry Pattern",
+      "implementation": {
+        "action": "Убрать прямые вызовы из ledger",
+        "details": [
+          "1. Ledger НЕ вызывает dap_chain_net_decree_ledger_handlers_init()",
+          "2. Net сам регистрирует decree handlers в ledger через registry",
+          "3. Ledger предоставляет API: dap_ledger_decree_handler_register()",
+          "4. Net при инициализации вызывает: dap_ledger_decree_handler_register(ledger_handler)"
+        ],
+        "benefits": [
+          "Ledger не знает о net",
+          "Net знает о ledger (это нормально - высокоуровневый → низкоуровневый)",
+          "Цикл разорван!"
+        ]
+      }
+    },
+
+    "step_3_net_cli_keep_as_is": {
+      "title": "CLI зависимость от net/core - ОСТАВИТЬ",
+      "rationale": "CLI модули МОГУТ зависеть от высокоуровневых модулей",
+      "validation": "net/core УЖЕ содержит все нужные функции"
+    }
+  },
+
+  "architecture_after_fix": {
+    "layer_1_base": ["common", "datum", "chain"],
+    "layer_2_core": ["ledger", "net/core"],
+    "layer_3_mid": ["wallet", "mempool", "rpc"],
+    "layer_4_high": ["net", "net/tx", "net/srv"],
+    "layer_5_cli": ["ledger CLI", "wallet CLI", "mempool CLI", "net CLI"],
+    "dependencies": {
+      "ledger": "chain, datum, common, net/core (БЕЗ wallet, БЕЗ mempool, БЕЗ net)",
+      "ledger_CLI": "ledger + wallet (через callbacks) + mempool (через callbacks) + net/core",
+      "net": "ledger, net/core, mempool (для добавления TX)",
+      "mempool": "ledger (для валидации TX)",
+      "wallet": "chain, common (БЕЗ ledger!)"
+    }
+  },
+
+  "implementation_priority": {
+    "phase_1": {
+      "title": "Decree handlers registry",
+      "estimated_time": "1 час",
+      "files": [
+        "modules/ledger/include/dap_chain_ledger.h - добавить dap_ledger_decree_handler_register()",
+        "modules/ledger/dap_chain_ledger.c - убрать прямой вызов handlers_init()",
+        "modules/net/dap_chain_net_decree_ledger_handlers.c - зарегистрировать через ledger API"
+      ]
+    },
+    "phase_2": {
+      "title": "Wallet callbacks для CLI",
+      "estimated_time": "1.5 часа",
+      "complexity": "MEDIUM - много функций wallet используется в CLI"
+    },
+    "phase_3": {
+      "title": "Mempool callbacks для CLI",
+      "estimated_time": "1 час",
+      "complexity": "LOW - всего 8 функций"
+    }
+  },
+
+  "validation": {
+    "success_criteria": [
+      "ledger компилируется БЕЗ dap_chain_wallet в target_link_libraries",
+      "ledger компилируется БЕЗ dap_chain_mempool в target_link_libraries",
+      "ledger компилируется БЕЗ dap_chain_net в target_link_libraries",
+      "ledger_cli.c использует callbacks вместо прямых вызовов",
+      "CMake БЕЗ cyclic dependency errors",
+      "Все тесты проходят"
+    ]
+  }
+}
+

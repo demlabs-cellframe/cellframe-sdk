@@ -223,3 +223,20 @@ int dap_chain_net_api_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uin
     return result;
 }
 
+char *dap_chain_net_api_datum_add_to_mempool(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type)
+{
+    pthread_mutex_lock(&s_api_mutex);
+    if (!s_api_registered || !s_api_registry.datum_add_to_mempool) {
+        log_it(L_ERROR, "Network API function 'datum_add_to_mempool' not registered");
+        pthread_mutex_unlock(&s_api_mutex);
+        return NULL;
+    }
+    char *result = s_api_registry.datum_add_to_mempool(a_datum, a_chain, a_hash_out_type);
+    pthread_mutex_unlock(&s_api_mutex);
+    return result;
+}
+
+
+
+
+

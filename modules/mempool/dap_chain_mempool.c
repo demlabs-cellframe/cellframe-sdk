@@ -44,7 +44,7 @@
 #include "dap_enc_http.h"
 #include "dap_http_status_code.h"
 #include "dap_chain_common.h"
-#include "dap_chain_node.h"
+// REMOVED: dap_chain_node.h - dead include, not used
 #include "dap_global_db.h"
 #include "dap_global_db_cluster.h"
 #include "dap_enc.h"
@@ -56,15 +56,20 @@
 #include "dap_common.h"
 #include "dap_list.h"
 #include "dap_chain.h"
-#include "../net/include/dap_chain_net.h"
-#include "dap_chain_net_utils.h"
-#include "dap_chain_net_fee.h"  // Fee management (now in net core, no wallet dependency)
+#include "dap_chain_net_core.h"  // All net API through core (no direct net dependency)
+#include "dap_chain_net_types.h"  // For access to net->pub fields
+#include "dap_chain_net.h"  // Headers OK (no CMake link dependency = no cycle)
+// REMOVED target_link_libraries dependency on dap_chain_net in CMakeLists - that creates cycle
+// But headers can be included safely for declarations
+#include "dap_chain_net_tx.h"  // For dap_chain_net_tx_get_fee
+#include "dap_chain_wallet.h"  // For dap_chain_wallet_get_list_tx_outs_with_val
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
-#include "../type/blocks/include/dap_chain_block_tx.h"
-#include "../wallet/include/dap_chain_wallet.h"
-#include "dap_chain_ledger.h"
+// REMOVED: dap_chain_block_tx.h - deprecated wrapper functions removed to break mempool <-> blocks cycle
+// REMOVED: dap_chain_wallet.h - dead include, not used
+#include "dap_chain_ledger.h"  // Normal dependency: mempool (high) → ledger (mid)
+#include "dap_chain_mempool_cli.h"
 
 #define LOG_TAG "dap_chain_mempool"
 
@@ -190,6 +195,13 @@ int dap_chain_mempool_delete_callback_init()
 int dap_datum_mempool_init(void)
 {
     dap_chain_mempool_delete_callback_init();
+    
+    // Register mempool CLI commands
+    int l_cli_res = dap_chain_mempool_cli_init();
+    if (l_cli_res != 0) {
+        log_it(L_WARNING, "Failed to initialize mempool CLI commands: %d", l_cli_res);
+    }
+    
     return 0;
 }
 
@@ -389,65 +401,10 @@ char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_fro
     return l_ret;
 }
 
-/**
- * @brief Wrapper for dap_chain_block_tx_coll_fee_create with net resolution
- * @deprecated Use dap_chain_block_tx_coll_fee_create directly from blocks module
- * @details This function is kept for backward compatibility and will delegate to blocks module
- */
-char *dap_chain_mempool_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
-                                           const dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
-                                           uint256_t a_value_fee, const char *a_hash_out_type)
-{
-    dap_return_val_if_fail(a_blocks, NULL);
-    dap_chain_t *l_chain = a_blocks->chain;
-    dap_return_val_if_fail(l_chain, NULL);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
-    dap_return_val_if_fail(l_net && l_net->pub.ledger, NULL);
-    
-    return dap_chain_block_tx_coll_fee_create(a_blocks, a_key_from, a_addr_to, a_block_list,
-                                             l_net->pub.ledger, l_net->pub.native_ticker, 
-                                             l_chain->net_id, a_value_fee, a_hash_out_type);
-}
-
-
-/**
- * @brief Wrapper for dap_chain_block_tx_reward_create with net resolution
- * @deprecated Use dap_chain_block_tx_reward_create directly from blocks module
- * @details This function is kept for backward compatibility and will delegate to blocks module
- */
-char *dap_chain_mempool_tx_reward_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_sign_key,
-                                         dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
-                                         uint256_t a_value_fee, const char *a_hash_out_type)
-{
-    dap_return_val_if_fail(a_blocks, NULL);
-    dap_chain_t *l_chain = a_blocks->chain;
-    dap_return_val_if_fail(l_chain, NULL);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
-    dap_return_val_if_fail(l_net && l_net->pub.ledger, NULL);
-    
-    return dap_chain_block_tx_reward_create(a_blocks, a_sign_key, a_addr_to, a_block_list,
-                                           l_net->pub.ledger, l_net->pub.native_ticker,
-                                           l_chain->net_id, a_value_fee, a_hash_out_type);
-}
-
-/**
- * @brief Wrapper for dap_chain_block_tx_coll_fee_stack_create with net resolution
- * @deprecated Use dap_chain_block_tx_coll_fee_stack_create directly from blocks module
- * @details This function is kept for backward compatibility and will delegate to blocks module
- */
-char *dap_chain_mempool_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks, dap_enc_key_t *a_key_from,
-                                           const dap_chain_addr_t *a_addr_to, uint256_t a_value_fee, const char *a_hash_out_type)
-{
-    dap_return_val_if_fail(a_blocks, NULL);
-    dap_chain_t *l_chain = a_blocks->chain;
-    dap_return_val_if_fail(l_chain, NULL);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
-    dap_return_val_if_fail(l_net && l_net->pub.ledger, NULL);
-    
-    return dap_chain_block_tx_coll_fee_stack_create(a_blocks, a_key_from, a_addr_to,
-                                                    l_net->pub.ledger, l_net->pub.native_ticker,
-                                                    l_chain->net_id, a_value_fee, a_hash_out_type);
-}
+// NOTE: dap_chain_mempool_tx_coll_fee_create, dap_chain_mempool_tx_reward_create,
+// dap_chain_mempool_tx_coll_fee_stack_create were REMOVED - they were deprecated wrappers 
+// that created cyclic dependency mempool <-> blocks. Use dap_chain_block_tx_* functions 
+// directly from type/blocks module instead.
 
 /**
  * Make transfer transaction & insert to cache
@@ -1421,3 +1378,16 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
     return dap_chain_mempool_tx_create_event(a_chain, a_key_from, a_service_key, a_srv_uid, "SERVICE_DECREE", DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE,
                                              a_service_decree_data, a_service_decree_data_size, a_fee_value, a_hash_out_type);
 }
+/**
+ * @brief Get mempool group name for chain
+ * @param a_chain Chain pointer
+ * @return Group name string (must be freed by caller) or NULL on error
+ */
+char *dap_chain_mempool_group_new(dap_chain_t *a_chain)
+{
+    dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
+    return l_net
+            ? dap_chain_mempool_group_name(l_net->pub.gdb_groups_prefix, a_chain->name)
+            : NULL;
+}
+

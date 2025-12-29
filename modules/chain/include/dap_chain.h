@@ -85,6 +85,15 @@ typedef enum dap_chain_sync_state {
     CHAIN_SYNC_STATE_ERROR = 2 // have a error
 } dap_chain_sync_state_t;
 
+// Chain info for ledger registration - minimal metadata for ledger to track chains
+typedef struct dap_chain_info {
+    dap_chain_id_t chain_id;
+    char chain_name[64];
+    uint16_t chain_type;  // CHAIN_TYPE_TX, CHAIN_TYPE_EMISSION, etc
+    void *chain_ptr;      // Opaque pointer to chain (for callbacks)
+    UT_hash_handle hh;    // Hash table handle for ledger registry
+} dap_chain_info_t;
+
 typedef struct dap_chain {
     pthread_rwlock_t rwlock; // Common rwlock for the whole structure
 

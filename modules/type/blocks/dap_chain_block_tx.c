@@ -28,7 +28,7 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net_fee.h"  // Fee management (moved from net-tx to net core)
-#include "../../mempool/include/dap_chain_mempool.h"
+#include "dap_chain_net_api.h"  // Use net API for mempool (breaks blocks -> mempool cycle)
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_chain_block_callbacks.h"  // Phase 5.3: Callback API for breaking stake cycle
@@ -198,7 +198,7 @@ char *dap_chain_block_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks,
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     DAP_DELETE(l_tx);
-    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    char *l_ret = dap_chain_net_api_datum_add_to_mempool(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
     return l_ret;
 }
@@ -347,7 +347,7 @@ char *dap_chain_block_tx_reward_create(dap_chain_type_blocks_t *a_blocks,
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     DAP_DELETE(l_tx);
-    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    char *l_ret = dap_chain_net_api_datum_add_to_mempool(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
     return l_ret;
 }
@@ -493,7 +493,7 @@ char *dap_chain_block_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     DAP_DELETE(l_tx);
-    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    char *l_ret = dap_chain_net_api_datum_add_to_mempool(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
     return l_ret;
 }

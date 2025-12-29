@@ -90,6 +90,19 @@ typedef int (*dap_ledger_decree_set_fee_callback_t)(dap_ledger_t *a_ledger, uint
 // Uses chain_id instead of chain pointer to avoid circular dependency
 typedef int (*dap_ledger_decree_handler_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_decree, dap_chain_id_t a_chain_id, bool a_apply, bool a_anchored);
 
+// Chain info is defined in dap_chain.h (dap_chain_info_t) - for ledger chain registry
+
+// Wallet signing callback - ledger calls this to sign data using wallet
+// Returns signed data or NULL on error
+typedef dap_enc_key_t* (*dap_ledger_wallet_get_key_callback_t)(const char *a_wallet_name, uint32_t a_key_idx);
+typedef void* (*dap_ledger_wallet_get_addr_callback_t)(const char *a_wallet_name, dap_chain_net_id_t a_net_id);
+
+// Mempool callbacks - ledger calls these to add/check mempool
+typedef char* (*dap_ledger_mempool_add_datum_callback_t)(void *a_datum, void *a_chain, const char *a_hash_out_type);
+typedef char* (*dap_ledger_mempool_create_tx_callback_t)(void *a_chain, dap_enc_key_t *a_key, void *a_from, 
+                                                          const void **a_to, uint256_t *a_value, uint256_t *a_fee, 
+                                                          const char *a_token, const char *a_hash_out_type);
+
 typedef struct dap_ledger {
     // Ledger identification
     char name[256];                    // Ledger name
@@ -121,6 +134,17 @@ typedef struct dap_ledger {
     // Generic decree handler - for subtypes not handled in ledger (hardfork, consensus-specific, etc)
     // This is registered by net/consensus/services modules for their specific decree subtypes
     dap_ledger_decree_handler_callback_t decree_generic_callback;
+    
+    // Chain registry - chains register themselves with ledger
+    dap_chain_info_t *chains_registry;  // Hash table of registered chains (from dap_chain.h)
+    
+    // Wallet callbacks - for signing operations
+    dap_ledger_wallet_get_key_callback_t wallet_get_key_callback;
+    dap_ledger_wallet_get_addr_callback_t wallet_get_addr_callback;
+    
+    // Mempool callbacks - for adding datums/tx to mempool
+    dap_ledger_mempool_add_datum_callback_t mempool_add_datum_callback;
+    dap_ledger_mempool_create_tx_callback_t mempool_create_tx_callback;
     
     // Private data
     void *_internal;
@@ -490,6 +514,23 @@ void dap_ledger_set_reward_removed_callback(dap_ledger_t *a_ledger, dap_ledger_r
 // Decree callback registration - modules register handlers for decree operations
 void dap_ledger_set_decree_set_fee_callback(dap_ledger_t *a_ledger, dap_ledger_decree_set_fee_callback_t a_callback);
 void dap_ledger_set_decree_generic_callback(dap_ledger_t *a_ledger, dap_ledger_decree_handler_callback_t a_callback);
+
+// Chain registration API - called by net module during chain initialization
+int dap_ledger_register_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id, const char *a_chain_name, 
+                                uint16_t a_chain_type, void *a_chain_ptr);
+void dap_ledger_unregister_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
+dap_chain_info_t* dap_ledger_get_chain_info(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
+dap_chain_info_t* dap_ledger_get_chain_info_by_name(dap_ledger_t *a_ledger, const char *a_chain_name);
+
+// Wallet callbacks registration - called by wallet module during init
+void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger, 
+                                       dap_ledger_wallet_get_key_callback_t a_get_key_cb,
+                                       dap_ledger_wallet_get_addr_callback_t a_get_addr_cb);
+
+// Mempool callbacks registration - called by mempool module during init
+void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,
+                                        dap_ledger_mempool_add_datum_callback_t a_add_datum_cb,
+                                        dap_ledger_mempool_create_tx_callback_t a_create_tx_cb);
 
 // Setup functions called by net module after ledger creation
 void dap_ledger_load_cache(dap_ledger_t *a_ledger);

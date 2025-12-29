@@ -8,12 +8,22 @@ file(GLOB DAP_CHAIN_LEDGER_HEADERS include/*.h)
 # Use universal Cellframe library macro
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_LEDGER_SRCS} HEADERS ${DAP_CHAIN_LEDGER_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_notify_srv dap_chain dap_global_db dap_json_rpc dap_common)
+# OBJECT library: ledger
+# TODO: Убрать прямые зависимости на wallet/mempool, использовать коллбэки
+target_link_libraries(${PROJECT_NAME} 
+    dap_core dap_crypto dap_notify_srv dap_chain dap_global_db dap_json_rpc dap_common
+    dap_http_server dap_chain_datum dap_cli_server dap_chain_net_core)
+# Ledger is LOW-LEVEL independent module - NO dependencies on higher layers
+# REMOVED dap_chain_wallet - creates cycle (wallet ↔ ledger) - use callbacks
+# REMOVED dap_chain_mempool - creates cycle (mempool ↔ ledger) - use callbacks
+# REMOVED dap_chain_net - creates cycle (net depends on ledger) - ledger is independent
+# REMOVED dap_chain_net_tx - creates cycle (net-tx ↔ ledger) - use callbacks
+# REMOVED blocks includes - creates cycle (blocks → ledger, ledger → blocks)
+# REMOVED esbocs includes - creates cycle (esbocs → ledger, ledger → esbocs)
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../net/include)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../consensus/include)
+# Ledger uses ONLY: callbacks, forward declarations, and types passed as parameters
+# NO PRIVATE includes to higher-level modules - ledger is foundation layer
 
 # Add tests subdirectory if testing is enabled
 if(BUILD_CELLFRAME_SDK_TESTS)
