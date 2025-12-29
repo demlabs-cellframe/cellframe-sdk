@@ -36,13 +36,13 @@ int main(void)
     dap_log_level_set(L_DEBUG);
     dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
     
-    fprintf(stderr, "stake-ext-test: header included OK, test PASS (header-only mode)\n");
+    fprintf(stderr, "stake-ext-test: about to call dap_srv_stake_ext_test_run()\n");
     fflush(stderr);
     
-    // Step 3: Uncomment to test if actual test functions cause crash
-    // dap_srv_stake_ext_test_run();
+    // Step 3: Enable test functions
+    dap_srv_stake_ext_test_run();
     
-    fprintf(stderr, "stake-ext-test: completed successfully\n");
+    fprintf(stderr, "stake-ext-test: all tests completed successfully\n");
     fflush(stderr);
     
     return 0;
