@@ -25,22 +25,21 @@
 #include <stdio.h>
 #include "dap_common.h"
 
-// Temporarily disable full tests to isolate pre-main crash
-// #include "dap_chain_net_srv_stake_ext_tests.h"
+// Step 2: Add header include to test if header causes crash
+#include "dap_chain_net_srv_stake_ext_tests.h"
 
 int main(void)
 {
-    // Minimal test to check if we can reach main()
     fprintf(stderr, "stake-ext-test: main() started\n");
     fflush(stderr);
     
     dap_log_level_set(L_DEBUG);
     dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
     
-    fprintf(stderr, "stake-ext-test: logging initialized, test PASS (minimal mode)\n");
+    fprintf(stderr, "stake-ext-test: header included OK, test PASS (header-only mode)\n");
     fflush(stderr);
     
-    // Skip actual tests for now to isolate the crash
+    // Step 3: Uncomment to test if actual test functions cause crash
     // dap_srv_stake_ext_test_run();
     
     fprintf(stderr, "stake-ext-test: completed successfully\n");

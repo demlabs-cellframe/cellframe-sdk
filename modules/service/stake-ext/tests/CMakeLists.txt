@@ -2,12 +2,11 @@ cmake_minimum_required(VERSION 3.10)
 
 project(stake-ext-test)
 
-# Minimal test mode: only compile main.c to isolate pre-main crash
-# file(GLOB DAP_STAKE_EXT_TESTS_HEADERS include/*.h)
-# file(GLOB DAP_STAKE_EXT_TESTS_SRC *.c)
-# add_executable(${PROJECT_NAME} ${DAP_STAKE_EXT_TESTS_SRC} ${DAP_STAKE_EXT_TESTS_HEADERS})
+# Step 2: Compile all test files but don't call test functions
+file(GLOB DAP_STAKE_EXT_TESTS_HEADERS include/*.h)
+file(GLOB DAP_STAKE_EXT_TESTS_SRC *.c)
 
-add_executable(${PROJECT_NAME} main.c)
+add_executable(${PROJECT_NAME} ${DAP_STAKE_EXT_TESTS_SRC} ${DAP_STAKE_EXT_TESTS_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} 
     PRIVATE
