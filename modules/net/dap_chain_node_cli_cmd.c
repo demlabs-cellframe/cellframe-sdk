@@ -9030,35 +9030,25 @@ int com_file(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         // Check if log retrieval failed
         if (!l_res) {
             const char *l_operation = l_num_line ? "retrieve last lines from" : "read log entries from";
-            if (l_num_line && l_num_line <= 0) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR, 
-                    "Invalid line number specified: %d. Line number must be greater than 0", l_num_line);
-                return DAP_CHAIN_NODE_CLI_COM_FILE_NUM_ERR;
-            } else {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, 
-                    "Failed to %s file '%s'. The file may not exist, be inaccessible, or contain no data matching your criteria", 
-                    l_operation, l_file_full_path);
-                return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
-            }
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, 
+                "Failed to %s file '%s'. The file may not exist, be inaccessible, or contain no data matching your criteria", 
+                l_operation, l_file_full_path);
+            return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
         }
     }
     
     switch(l_cmd_num) {
         case CMD_PRINT : {
-            if (l_res) {
-                json_object_array_add(*a_json_arr_reply, json_object_new_string(l_res));
-                DAP_DELETE(l_res);
-            } else {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR, "Can't open source file %s or wrong line number %d", l_file_full_path, l_num_line);
-                return DAP_CHAIN_NODE_CLI_COM_FILE_SOURCE_FILE_ERR;
-            }
+            json_object_array_add(*a_json_arr_reply, json_object_new_string(l_res));
+            DAP_DELETE(l_res);
             break;
         }
         case CMD_EXPORT: {
             const char * l_dest_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-dest", &l_dest_str);
             if (!l_dest_str) {
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command file require -log or -path arguments");
+                DAP_DELETE(l_res);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR, "Command 'file export' requires '-dest' argument");
                 return DAP_CHAIN_NODE_CLI_COM_FILE_PARAM_ERR;
             }
             int res = dap_log_export_string_to_file(l_res, l_dest_str);
