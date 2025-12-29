@@ -22,6 +22,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_config.h"
 #include "json-c/json.h"
 #include "json_object.h"

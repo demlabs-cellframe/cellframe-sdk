@@ -28,7 +28,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_datum_tx_event.h"
-#include "dap_chain_wallet_cache.h"
 #include "dap_chain_ledger.h"
 #include "uthash.h"
 

@@ -15,7 +15,6 @@ target_link_libraries(${PROJECT_NAME}
     dap_chain_net 
     dap_chain_net_srv 
     dap_chain_net_srv_stake_ext
-    dap_chain_wallet
 )
 
 if (DARWIN)
