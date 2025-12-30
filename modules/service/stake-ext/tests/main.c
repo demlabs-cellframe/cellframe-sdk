@@ -24,9 +24,7 @@
 
 #include <stdio.h>
 #include "dap_common.h"
-
-// Declare minimal test function
-extern void minimal_test_run(void);
+#include "dap_chain_net_srv_stake_ext_tests.h"
 
 int main(void)
 {
@@ -36,10 +34,11 @@ int main(void)
     dap_log_level_set(L_DEBUG);
     dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
     
-    fprintf(stderr, "stake-ext-test: calling minimal_test_run()\n");
+    fprintf(stderr, "stake-ext-test: calling dap_srv_stake_ext_test_cache_init() only\n");
     fflush(stderr);
     
-    minimal_test_run();
+    // Call only the first test to isolate the problem
+    dap_srv_stake_ext_test_cache_init();
     
     fprintf(stderr, "stake-ext-test: PASS\n");
     fflush(stderr);
