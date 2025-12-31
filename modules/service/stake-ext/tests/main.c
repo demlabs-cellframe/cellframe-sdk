@@ -34,11 +34,14 @@ int main(void)
     dap_log_level_set(L_DEBUG);
     dap_log_set_external_output(LOGGER_OUTPUT_STDOUT, NULL);
     
-    fprintf(stderr, "stake-ext-test: calling dap_srv_stake_ext_test_cache_init() only\n");
+    fprintf(stderr, "stake-ext-test: running cache tests (1-4)\n");
     fflush(stderr);
     
-    // Call only the first test to isolate the problem
+    // Tests 1-4: Cache tests
     dap_srv_stake_ext_test_cache_init();
+    dap_srv_stake_ext_test_cache_stake_ext_management();
+    dap_srv_stake_ext_test_cache_lock_management();
+    dap_srv_stake_ext_test_cache_statistics();
     
     fprintf(stderr, "stake-ext-test: PASS\n");
     fflush(stderr);
