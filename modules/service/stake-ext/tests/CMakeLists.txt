@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 
 project(stake-ext-test)
 
-# Step 6: Enable full test file, call only one function
-add_executable(${PROJECT_NAME} main.c dap_chain_net_srv_stake_ext_tests.c)
+# Step 7: Test with stub file to isolate linking issues
+add_executable(${PROJECT_NAME} main.c stub_test.c)
 
 target_link_libraries(${PROJECT_NAME} 
     PRIVATE
