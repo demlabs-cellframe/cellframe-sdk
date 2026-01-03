@@ -126,7 +126,7 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
                                               bool a_append_prev_hash, bool a_print_status, bool a_print_ts, int a_version);
 
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, dap_hash_fast_t *a_order_hash, uint256_t *a_fee, bool a_ret_is_invalid);
-static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
+static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode, dap_hash_fast_t *a_atom_hash);
 
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = false;
@@ -3750,7 +3750,8 @@ static dap_hash_fast_t s_get_order_from_cache(xchange_tx_cache_t *a_cache_head, 
 }
 
 
-static void s_ledger_tx_add_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode)
+static void s_ledger_tx_add_notify(void *UNUSED_ARG a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                   dap_chan_ledger_notify_opcodes_t a_opcode, dap_hash_fast_t *UNUSED_ARG a_atom_hash)
 {
     if (a_opcode == 'a'){
         // check and add tx into cache

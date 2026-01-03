@@ -41,6 +41,7 @@
 #include "dap_common.h"
 #include <stddef.h>
 #include <string.h>
+#include "dap_math_convert.h"
 #include "dap_math_ops.h"
 #include "dap_hash.h"
 #include "dap_chain_wallet.h"
@@ -55,6 +56,7 @@
 #include "uthash.h"
 #include "dap_time.h"
 #include "utlist.h"
+#include "utarray.h"
 #include "json-c/arraylist.h"
 
 #define LOG_TAG "dap_chain_net_srv_dex"
@@ -123,6 +125,7 @@ static bool s_dex_cache_enabled = false, s_debug_more = false; // global switch 
 typedef struct dex_pair_index {
     dex_pair_key_t key;
     dex_order_cache_entry_t *asks, *bids; // heads keyed by hh_pair_bucket; best = head->rate
+    uint256_t snapshot_best_ask, snapshot_best_bid; // snapshot of best prices BEFORE current block
     UT_hash_handle hh;
 } dex_pair_index_t;
 
@@ -267,7 +270,7 @@ static void s_add_units(json_object *a_obj, const char *a_base, const char *a_qu
 }
 
 static void s_ledger_tx_add_notify_dex(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
-                                       dap_chan_ledger_notify_opcodes_t a_opcode);
+                                       dap_chan_ledger_notify_opcodes_t a_opcode, dap_hash_fast_t *a_atom_hash);
 static dex_tx_type_t s_dex_tx_classify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_in_cond_t **a_in_cond,
                                        dap_chain_tx_out_cond_t **a_out_cond, int *a_out_idx);
 static char *s_dex_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net);
@@ -567,11 +570,20 @@ _Static_assert(offsetof(dex_seller_index_t, seller_addr) == 0, "dex_seller_index
 #define DEX_TRADE_FLAG_TARGETED 0x02 // off-market (direct hash purchase)
 #define DEX_TRADE_FLAG_ORDER 0x04    // order creation (not a trade)
 
-// Classify trade: market (at best price) or targeted (off-market)
-static inline uint8_t s_trade_classify(uint256_t a_price, uint256_t a_best_price)
+// Classify trade: market (at best price or better) or targeted (off-market)
+static inline uint8_t s_trade_classify(uint256_t a_price, uint256_t a_best, uint8_t a_side)
 {
-    // Empty book (best=0) or exact match → market
-    return (IS_ZERO_256(a_best_price) || !compare256(a_price, a_best_price)) ? DEX_TRADE_FLAG_MARKET : DEX_TRADE_FLAG_TARGETED;
+    // Empty book (best=0) → market (first trade)
+    if (IS_ZERO_256(a_best))
+        return DEX_TRADE_FLAG_MARKET;
+    
+    if (a_side == DEX_SIDE_ASK) {
+        // ASK side: buyer wants MIN price. MARKET if trade_price <= best_ask
+        return compare256(a_price, a_best) <= 0 ? DEX_TRADE_FLAG_MARKET : DEX_TRADE_FLAG_TARGETED;
+    } else {
+        // BID side: seller wants MAX price. MARKET if trade_price >= best_bid
+        return compare256(a_price, a_best) >= 0 ? DEX_TRADE_FLAG_MARKET : DEX_TRADE_FLAG_TARGETED;
+    }
 }
 
 static int s_token_tuple_cmp(dap_chain_net_id_t a_net, const char *a_tok, dap_chain_net_id_t b_net, const char *b_tok)
@@ -722,21 +734,42 @@ static inline int s_cmp_entries_ts(dex_order_cache_entry_t *a, dex_order_cache_e
 {
     return a->ts_created < b->ts_created   ? -1
            : a->ts_created > b->ts_created ? 1
-                                           : /* memcmp(&a->level.match.root, &b->level.match.root, sizeof(a->level.match.root)) */ 0;
+                                           : 0;
 }
 
-// Comparator for ASK bucket: rate ASC, ts_created ASC, root ASC
+// Strict version with deterministic tie-break by root hash
+static inline int s_cmp_entries_ts_strict(dex_order_cache_entry_t *a, dex_order_cache_entry_t *b)
+{
+    int l_rc = a->ts_created < b->ts_created ? -1 : (a->ts_created > b->ts_created ? 1 : 0);
+    return l_rc ? l_rc : memcmp(&a->level.match.root, &b->level.match.root, sizeof(a->level.match.root));
+}
+
+// Comparator for ASK bucket: rate ASC, ts_created ASC
 static int s_cmp_entries_ask(dex_order_cache_entry_t *a, dex_order_cache_entry_t *b)
 {
     int l_rc = compare256(a->level.match.rate, b->level.match.rate);
     return l_rc ? l_rc : s_cmp_entries_ts(a, b);
 }
 
-// Comparator for BID bucket: rate DESC, ts_created ASC, root ASC
+// Strict comparator for ASK bucket: rate ASC, ts_created ASC, root ASC (deterministic)
+static int s_cmp_entries_ask_strict(dex_order_cache_entry_t *a, dex_order_cache_entry_t *b)
+{
+    int l_rc = compare256(a->level.match.rate, b->level.match.rate);
+    return l_rc ? l_rc : s_cmp_entries_ts_strict(a, b);
+}
+
+// Comparator for BID bucket: rate DESC, ts_created ASC
 static int s_cmp_entries_bid(dex_order_cache_entry_t *a, dex_order_cache_entry_t *b)
 {
     int l_rc = compare256(b->level.match.rate, a->level.match.rate); // DESC!
     return l_rc ? l_rc : s_cmp_entries_ts(a, b);
+}
+
+// Strict comparator for BID bucket: rate DESC, ts_created ASC, root ASC (deterministic)
+static int s_cmp_entries_bid_strict(dex_order_cache_entry_t *a, dex_order_cache_entry_t *b)
+{
+    int l_rc = compare256(b->level.match.rate, a->level.match.rate); // DESC!
+    return l_rc ? l_rc : s_cmp_entries_ts_strict(a, b);
 }
 
 // Comparator for JSON order objects by "ts" field (for array_list_sort)
@@ -761,9 +794,9 @@ static void s_dex_pair_bucket_sort(dex_pair_index_t *a_bucket)
 {
     dap_ret_if_any(!a_bucket);
     if (a_bucket->asks)
-        HASH_SRT(hh_pair_bucket, a_bucket->asks, s_cmp_entries_ask);
+        HASH_SRT(hh_pair_bucket, a_bucket->asks, s_cmp_entries_ask_strict);
     if (a_bucket->bids)
-        HASH_SRT(hh_pair_bucket, a_bucket->bids, s_cmp_entries_bid);
+        HASH_SRT(hh_pair_bucket, a_bucket->bids, s_cmp_entries_bid_strict);
 }
 
 // -------- Transient order set based on dex_order_cache_entry_t --------
@@ -3631,10 +3664,10 @@ static void s_dex_indexes_insert(dex_order_cache_entry_t *a_entry)
     a_entry->pair_key_ptr = &l_pb->key;
     a_entry->seller_addr_ptr = &l_sb->seller_addr;
     if ((a_entry->side_version & 0x1) == DEX_SIDE_ASK)
-        HASH_ADD_INORDER(hh_pair_bucket, l_pb->asks, level.match.root, sizeof(a_entry->level.match.root), a_entry, s_cmp_entries_ask);
+        HASH_ADD_INORDER(hh_pair_bucket, l_pb->asks, level.match.root, sizeof(a_entry->level.match.root), a_entry, s_cmp_entries_ask_strict);
     else
-        HASH_ADD_INORDER(hh_pair_bucket, l_pb->bids, level.match.root, sizeof(a_entry->level.match.root), a_entry, s_cmp_entries_bid);
-    HASH_ADD_INORDER(hh_seller_bucket, l_sb->entries, level.match.root, sizeof(a_entry->level.match.root), a_entry, s_cmp_entries_ts);
+        HASH_ADD_INORDER(hh_pair_bucket, l_pb->bids, level.match.root, sizeof(a_entry->level.match.root), a_entry, s_cmp_entries_bid_strict);
+    HASH_ADD_INORDER(hh_seller_bucket, l_sb->entries, level.match.root, sizeof(a_entry->level.match.root), a_entry, s_cmp_entries_ts_strict);
 }
 
 /*
@@ -5690,8 +5723,9 @@ int dap_chain_net_srv_dex_init()
     for (dap_chain_net_t *net = dap_chain_net_iter_start(); net; net = dap_chain_net_iter_next(net)) {
         dap_ledger_srv_callback_decree_add(net->pub.ledger, (dap_chain_net_srv_uid_t){.uint64 = DAP_CHAIN_NET_SRV_DEX_ID},
                                            dap_chain_net_srv_dex_decree_callback);
-        if (s_dex_cache_enabled || s_dex_history_enabled)
+        if (s_dex_cache_enabled || s_dex_history_enabled) {
             dap_ledger_tx_add_notify(net->pub.ledger, s_ledger_tx_add_notify_dex, NULL);
+        }
     }
 
     // CLI: register handler
@@ -5934,7 +5968,8 @@ static inline void s_append_trade_history(dap_ledger_t *a_ledger, const dex_pair
  *  - When history is enabled but cache is disabled/missed, derive previous order state from ledger
  */
 static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
-                                       dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode)
+                                       dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode,
+                                       dap_hash_fast_t *a_atom_hash)
 {
     if (a_opcode != 'a' && a_opcode != 'd')
         return;
@@ -5942,9 +5977,37 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
     dap_chain_tx_out_cond_t *l_out_cond = NULL;
     int l_out_idx = 0;
     dex_tx_type_t l_tx_type = s_dex_tx_classify(a_ledger, a_tx, &l_in_cond, &l_out_cond, &l_out_idx);
-    switch (l_tx_type) {
-    case DEX_TX_TYPE_UNDEFINED:
+    if (l_tx_type == DEX_TX_TYPE_UNDEFINED)
         return;
+    // Block-aware snapshot: update snapshots when atom changes (for accurate market/targeted classification)
+    // Thread-local to avoid cross-net interference in multi-threaded scenarios
+    static _Thread_local struct { dap_hash_fast_t atom; dap_chain_net_id_t net_id; } s_current_block = {};
+    dap_chain_net_id_t l_net_id = a_ledger->net->pub.id;
+    bool l_new_block = a_atom_hash && !dap_hash_fast_is_blank(a_atom_hash) &&
+                       (!dap_hash_fast_compare(&s_current_block.atom, a_atom_hash) || s_current_block.net_id.uint64 != l_net_id.uint64);
+    if (l_new_block) {
+        // New block detected: snapshot current best prices for all pairs BEFORE processing this block's transactions
+        pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+        dex_pair_index_t *l_pair, *l_tmp;
+        int l_snap_count = 0;
+        HASH_ITER(hh, s_dex_pair_index, l_pair, l_tmp) {
+            l_pair->snapshot_best_ask = l_pair->asks ? l_pair->asks->level.match.rate : uint256_0;
+            l_pair->snapshot_best_bid = l_pair->bids ? l_pair->bids->level.match.rate : uint256_0;
+            l_snap_count++;
+            debug_if(s_debug_more, L_DEBUG, "Snapshot pair %s/%s: best_ask=%s best_bid=%s",
+                     l_pair->key.token_base, l_pair->key.token_quote,
+                     dap_uint256_to_char_ex(l_pair->snapshot_best_ask).frac,
+                     dap_uint256_to_char_ex(l_pair->snapshot_best_bid).frac);
+        }
+        pthread_rwlock_unlock(&s_dex_cache_rwlock);
+        s_current_block.atom = *a_atom_hash;
+        s_current_block.net_id = l_net_id;
+        debug_if(s_debug_more, L_DEBUG, "DEX snapshot updated for new block %s (%d pairs)",
+                 dap_hash_fast_to_str_static(a_atom_hash), l_snap_count);
+    }
+    
+    
+    switch (l_tx_type) {
     case DEX_TX_TYPE_ORDER: {
         // Get pair info for best price update
         const char *l_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
@@ -6000,8 +6063,78 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
             // l_prev0_* will be filled on first IN iteration (no separate lookup needed)
             int l_in_idx = 0;
             uint8_t l_last_trade_flags = 0;  // for buyer-leftover history
+            // Snapshot best prices BEFORE processing: for market/targeted classification in multi-purchase
+            // All trades in same TX should be classified against the ORIGINAL orderbook state
+            uint256_t l_best_ask = uint256_0, l_best_bid = uint256_0;
+            dex_pair_index_t *l_pair_idx = NULL;  // will be set on first IN
+            
+            // Pre-scan: count DEX IN_CONDs per side and compute ranks for strict position-based classification
+            // For multi-purchase MARKET: each order must be in top-N of orderbook (N = count of same-side INs)
+            // Ranks are computed here BEFORE any orders are removed from cache during main loop
+            typedef struct { dap_hash_fast_t tail; int rank; } dex_order_rank_t;
+            static const UT_icd s_order_rank_icd = { sizeof(dex_order_rank_t), NULL, NULL, NULL };
+            UT_array *l_order_ranks = NULL;
+            utarray_new(l_order_ranks, &s_order_rank_icd);
+            int l_ask_in_count = 0, l_bid_in_count = 0;
             byte_t *it;
             size_t sz;
+            TX_ITEM_ITER_TX(it, sz, a_tx) if (*it == TX_ITEM_TYPE_IN_COND) {
+                dap_chain_tx_in_cond_t *l_pre_in = (dap_chain_tx_in_cond_t *)it;
+                // Verify this IN_COND spends a DEX OUT_COND (not FEE or other service)
+                dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_pre_in->header.tx_prev_hash);
+                if (!l_prev_tx)
+                    continue;
+                dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get_nth(
+                    l_prev_tx, TX_ITEM_TYPE_OUT_COND, l_pre_in->header.tx_out_prev_idx);
+                if (!l_prev_out || l_prev_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX)
+                    continue;
+                // Determine side from prev OUT_COND for counting
+                const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_pre_in->header.tx_prev_hash);
+                dex_pair_key_t l_pre_key = {};
+                uint8_t l_pre_side = 0;
+                uint256_t l_pre_price = {};
+                if (l_sell_tok)
+                    s_pair_normalize(l_sell_tok, l_prev_out->subtype.srv_dex.sell_net_id, l_prev_out->subtype.srv_dex.buy_token,
+                                     l_prev_out->subtype.srv_dex.buy_net_id, l_prev_out->subtype.srv_dex.rate, &l_pre_key, &l_pre_side, &l_pre_price);
+                else
+                    continue;  // can't determine side without sell token
+                // Count by side
+                if (l_pre_side == DEX_SIDE_ASK)
+                    l_ask_in_count++;
+                else
+                    l_bid_in_count++;
+                // Cache lookup for rank computation (rank requires orderbook from cache)
+                const dex_order_cache_entry_t *l_pre_e = NULL;
+                if (s_dex_cache_enabled)
+                    HASH_FIND(level.hh_tail, s_dex_index_by_tail, &l_pre_in->header.tx_prev_hash, sizeof(dap_hash_fast_t), l_pre_e);
+                if (l_pre_e && l_pre_e->level.match.prev_idx >= 0 && 
+                    (int)l_pre_in->header.tx_out_prev_idx == l_pre_e->level.match.prev_idx) {
+                    if (!l_pair_idx) {
+                        l_pair_idx = (dex_pair_index_t *)l_pre_e->pair_key_ptr;
+                        l_best_ask = l_pair_idx->snapshot_best_ask;
+                        l_best_bid = l_pair_idx->snapshot_best_bid;
+                    }
+                    // Compute rank (position in orderbook) for this order
+                    if (l_pair_idx) {
+                        dex_order_cache_entry_t *l_ob_head = (l_pre_side == DEX_SIDE_ASK) ? l_pair_idx->asks : l_pair_idx->bids;
+                        int l_rank = 0;
+                        for (dex_order_cache_entry_t *l_it = l_ob_head; l_it; l_it = (dex_order_cache_entry_t *)l_it->hh_pair_bucket.next) {
+                            l_rank++;
+                            if (dap_hash_fast_compare(&l_it->level.match.tail, &l_pre_in->header.tx_prev_hash)) {
+                                dex_order_rank_t l_rank_entry = { .tail = l_pre_in->header.tx_prev_hash, .rank = l_rank };
+                                utarray_push_back(l_order_ranks, &l_rank_entry);
+                                debug_if(s_debug_more, L_DEBUG, "Pre-scan rank: tail=%s side=%s rank=%d",
+                                         dap_hash_fast_to_str_static(&l_pre_in->header.tx_prev_hash),
+                                         l_pre_side == DEX_SIDE_ASK ? "ASK" : "BID", l_rank);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            debug_if(s_debug_more && (l_ask_in_count + l_bid_in_count) > 1, L_DEBUG, 
+                     "Multi-purchase tx=%s: %d ASK INs, %d BID INs",
+                     dap_hash_fast_to_str_static(a_tx_hash), l_ask_in_count, l_bid_in_count);
             TX_ITEM_ITER_TX(it, sz, a_tx) if (*it == TX_ITEM_TYPE_IN_COND)
             {
                 dap_chain_tx_in_cond_t *l_in_cond_it = (dap_chain_tx_in_cond_t *)it;
@@ -6024,6 +6157,13 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                         l_prev0_sell_token = e->pair_key_ptr->token_base;
                         l_prev0_buy_token = e->pair_key_ptr->token_quote;
                     }
+                    debug_if(s_debug_more, L_DEBUG, "Trade snapshot [cache]: tx=%s pair=%s/%s snap_ask=%s snap_bid=%s ask_ins=%d bid_ins=%d",
+                             dap_hash_fast_to_str_static(a_tx_hash),
+                             l_pair_idx ? l_pair_idx->key.token_base : "?",
+                             l_pair_idx ? l_pair_idx->key.token_quote : "?",
+                             dap_uint256_to_char_ex(l_best_ask).frac,
+                             dap_uint256_to_char_ex(l_best_bid).frac,
+                             l_ask_in_count, l_bid_in_count);
                 }
 
                 // History append: prefer cache (precise data about previous order),
@@ -6052,11 +6192,35 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                                 s_adjust_exec_for_dust_refund(a_tx, e->seller_addr_ptr, l_sell_tok, l_srv_addr_ptr, l_srv_fee_req, &l_executed_i);
                             }
                             dex_bq_t l_bq = s_exec_to_canon_base_quote(l_executed_i, e->level.match.rate, l_side);
-                            // Classify trade: market or targeted (best = head of sorted bucket)
-                            // pair_key_ptr points to dex_pair_index_t.key (first field), direct cast avoids hash lookup
-                            dex_pair_index_t *l_pi = (dex_pair_index_t *)e->pair_key_ptr;
-                            dex_order_cache_entry_t *l_head = (l_side == DEX_SIDE_ASK) ? l_pi->asks : l_pi->bids;
-                            uint8_t l_flags = s_trade_classify(e->level.match.rate, l_head ? l_head->level.match.rate : uint256_0);
+                            // Strict classification: for multi-purchase, use pre-computed ranks
+                            // MARKET only if order is in top-N (N = count of same-side INs in this tx)
+                            uint256_t l_best = (l_side == DEX_SIDE_ASK) ? l_best_ask : l_best_bid;
+                            int l_side_in_count = (l_side == DEX_SIDE_ASK) ? l_ask_in_count : l_bid_in_count;
+                            uint8_t l_flags = DEX_TRADE_FLAG_TARGETED;
+                            if (l_side_in_count <= 1) {
+                                // Single purchase: standard classification
+                                l_flags = s_trade_classify(e->level.match.rate, l_best, l_side);
+                            } else {
+                                // Multi-purchase: lookup pre-computed rank from pre-scan
+                                int l_found_rank = 0;
+                                for (unsigned i = 0; i < utarray_len(l_order_ranks); i++) {
+                                    dex_order_rank_t *l_r = (dex_order_rank_t *)utarray_eltptr(l_order_ranks, i);
+                                    if (dap_hash_fast_compare(&l_r->tail, &l_prev_hash)) {
+                                        l_found_rank = l_r->rank;
+                                        l_flags = (l_found_rank <= l_side_in_count) ? DEX_TRADE_FLAG_MARKET : DEX_TRADE_FLAG_TARGETED;
+                                        break;
+                                    }
+                                }
+                                debug_if(s_debug_more, L_DEBUG, "Trade classify [cache] multi: tail=%s rank=%d in_count=%d → %s",
+                                         dap_hash_fast_to_str_static(&l_prev_hash), l_found_rank, l_side_in_count,
+                                         (l_flags & DEX_TRADE_FLAG_MARKET) ? "MARKET" : "TARGETED");
+                            }
+                            debug_if(s_debug_more, L_DEBUG, "Trade classify [cache]: tx=%s side=%s price=%s snap_best=%s in_count=%d → %s",
+                                     dap_hash_fast_to_str_static(a_tx_hash),
+                                     l_side == DEX_SIDE_ASK ? "ASK" : "BID",
+                                     dap_uint256_to_char_ex(e->level.match.rate).frac,
+                                     dap_uint256_to_char_ex(l_best).frac, l_side_in_count,
+                                     (l_flags & DEX_TRADE_FLAG_MARKET) ? "MARKET" : "TARGETED");
                             dap_chain_addr_t l_buyer = s_extract_buyer_addr(a_tx, a_ledger->net->pub.id);
                             s_append_trade_history(a_ledger, e->pair_key_ptr, a_tx->header.ts_created, e->level.match.rate,
                                                    l_bq.base, l_bq.quote, a_tx_hash, &l_prev_hash, &e->level.match.root,
@@ -6086,6 +6250,17 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                                              prev_cond_i->subtype.srv_dex.buy_token, prev_cond_i->subtype.srv_dex.buy_net_id,
                                              prev_cond_i->subtype.srv_dex.rate, &l_key, &l_side, &l_price_canon);
                             dex_pair_index_t *l_pi = s_dex_pair_index_get(&l_key);
+                            // First IN via ledger fallback: use SNAPSHOT of best prices for consistent classification
+                            if (!l_pair_idx && l_pi && l_in_idx == 0) {
+                                l_pair_idx = l_pi;
+                                l_best_ask = l_pi->snapshot_best_ask;
+                                l_best_bid = l_pi->snapshot_best_bid;
+                                debug_if(s_debug_more, L_DEBUG, "Trade snapshot [ledger]: tx=%s pair=%s/%s snap_ask=%s snap_bid=%s",
+                                         dap_hash_fast_to_str_static(a_tx_hash),
+                                         l_pi->key.token_base, l_pi->key.token_quote,
+                                         dap_uint256_to_char_ex(l_best_ask).frac,
+                                         dap_uint256_to_char_ex(l_best_bid).frac);
+                            }
                             // Dust refund: OUT_STD/EXT to seller in sell_token on full-close
                             if (!l_out_cond && l_in_idx == 0) {
                                 uint256_t l_srv_fee_req = uint256_0;
@@ -6100,12 +6275,37 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                                                               l_srv_addr_ptr, l_srv_fee_req, &executed_i);
                             }
                             dex_bq_t l_bq = s_exec_to_canon_base_quote(executed_i, l_price_canon, l_side);
-                            // Classify trade: market or targeted (best = head of sorted bucket)
-                            // If order cache disabled (l_pi == NULL), conservatively mark as TARGETED
+                            // Strict classification: for multi-purchase, check order's position in orderbook
                             uint8_t l_flags = DEX_TRADE_FLAG_TARGETED;
-                            if (l_pi) {
-                                dex_order_cache_entry_t *l_head = (l_side == DEX_SIDE_ASK) ? l_pi->asks : l_pi->bids;
-                                l_flags = s_trade_classify(l_price_canon, l_head ? l_head->level.match.rate : uint256_0);
+                            int l_side_in_count = (l_side == DEX_SIDE_ASK) ? l_ask_in_count : l_bid_in_count;
+                            if (l_pair_idx) {
+                                uint256_t l_best_snap = (l_side == DEX_SIDE_ASK) ? l_best_ask : l_best_bid;
+                                if (l_side_in_count <= 1) {
+                                    l_flags = s_trade_classify(l_price_canon, l_best_snap, l_side);
+                                } else {
+                                    // Multi-purchase: lookup pre-computed rank from pre-scan
+                                    int l_found_rank = 0;
+                                    for (unsigned i = 0; i < utarray_len(l_order_ranks); i++) {
+                                        dex_order_rank_t *l_r = (dex_order_rank_t *)utarray_eltptr(l_order_ranks, i);
+                                        if (dap_hash_fast_compare(&l_r->tail, &l_prev_hash)) {
+                                            l_found_rank = l_r->rank;
+                                            l_flags = (l_found_rank <= l_side_in_count) ? DEX_TRADE_FLAG_MARKET : DEX_TRADE_FLAG_TARGETED;
+                                            break;
+                                        }
+                                    }
+                                    debug_if(s_debug_more, L_DEBUG, "Trade classify [ledger] multi: tail=%s rank=%d in_count=%d → %s",
+                                             dap_hash_fast_to_str_static(&l_prev_hash), l_found_rank, l_side_in_count,
+                                             (l_flags & DEX_TRADE_FLAG_MARKET) ? "MARKET" : "TARGETED");
+                                }
+                                debug_if(s_debug_more, L_DEBUG, "Trade classify [ledger]: tx=%s side=%s price=%s snap_best=%s in_count=%d → %s",
+                                         dap_hash_fast_to_str_static(a_tx_hash),
+                                         l_side == DEX_SIDE_ASK ? "ASK" : "BID",
+                                         dap_uint256_to_char_ex(l_price_canon).frac,
+                                         dap_uint256_to_char_ex(l_best_snap).frac, l_side_in_count,
+                                         (l_flags & DEX_TRADE_FLAG_MARKET) ? "MARKET" : "TARGETED");
+                            } else {
+                                debug_if(s_debug_more, L_DEBUG, "Trade classify [ledger]: tx=%s → TARGETED (no snapshot)",
+                                         dap_hash_fast_to_str_static(a_tx_hash));
                             }
                             dap_chain_addr_t l_buyer = s_extract_buyer_addr(a_tx, a_ledger->net->pub.id);
                             dap_hash_fast_t l_order_root = dap_hash_fast_is_blank(&prev_cond_i->subtype.srv_dex.order_root_hash)
@@ -6211,6 +6411,7 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                 } else
                     log_it(L_ERROR, "Failed to determine sell token for buyer-leftover!");
             }
+            utarray_free(l_order_ranks);
         } else { // 'd' reorg
             if (l_out_cond && dap_hash_fast_is_blank(&l_out_cond->subtype.srv_dex.order_root_hash)) {
                 // Reorg handling: remove buyer-leftover (if any), restore all prev_tail into cache and adjust history
@@ -6861,7 +7062,6 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     if (l_seller_str && !dap_chain_addr_compare(l_entry->seller_addr_ptr, &l_seller_addr))
                         continue;
                     if (l_offset > 0) { --l_offset; continue; }
-                    if (!--l_limit) goto cache_limit_reached;
                     json_object *o = json_object_new_object();
                     if (!l_pair_str)
                         json_object_object_add(o, "pair", json_object_new_string(l_pair_buf));
@@ -6885,6 +7085,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
                     }
                     json_object_array_add(l_arr, o);
+                    if (l_limit > 0 && !--l_limit) goto cache_limit_reached;
                 }
                 HASH_ITER(hh_pair_bucket, l_pi->bids, l_entry, l_tmp)
                 {
@@ -6893,7 +7094,6 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     if (l_seller_str && !dap_chain_addr_compare(l_entry->seller_addr_ptr, &l_seller_addr))
                         continue;
                     if (l_offset > 0) { --l_offset; continue; }
-                    if (!--l_limit) goto cache_limit_reached;
                     json_object *o = json_object_new_object();
                     if (!l_pair_str)
                         json_object_object_add(o, "pair", json_object_new_string(l_pair_buf));
@@ -6917,6 +7117,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
                     }
                     json_object_array_add(l_arr, o);
+                    if (l_limit > 0 && !--l_limit) goto cache_limit_reached;
                 }
             }
 cache_limit_reached:
@@ -6964,7 +7165,6 @@ cache_limit_reached:
                     l_key_o.net_id_quote.uint64 != l_net->pub.id.uint64 || l_key_o.net_id_base.uint64 != l_net->pub.id.uint64))
                     continue;
                 if (l_offset > 0) { --l_offset; continue; }
-                if (!--l_limit) break;
                 json_object *o = json_object_new_object();
                 if (!l_pair_str) {
                     char l_pair_buf[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 2];
@@ -6995,6 +7195,7 @@ cache_limit_reached:
                     json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
                 }
                 json_object_array_add(l_arr, o);
+                if (l_limit > 0 && !--l_limit) break;
             }
             dap_ledger_datum_iter_delete(it);
         }
@@ -7819,130 +8020,246 @@ cache_limit_reached:
             // Ledger fallback: aggregate OHLC/volume over time window
             dex_bucket_agg_t *l_buckets = NULL;
             uint64_t l_spot_ts = 0;
-            dap_ledger_datum_iter_t *it = dap_ledger_datum_iter_create(l_net);
-            if (!it)
-                return dap_json_rpc_error_add(*json_arr_reply, -3, "ledger iterator failed"), -3;
-            for (dap_chain_datum_tx_t *l_tx = dap_ledger_datum_iter_get_first(it); l_tx; l_tx = dap_ledger_datum_iter_get_next(it)) {
-                if (l_t_from && l_tx->header.ts_created < (dap_time_t)l_t_from)
-                    continue;
-                if (l_t_to && l_tx->header.ts_created > (dap_time_t)l_t_to)
-                    continue;
-                if (!dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL))
-                    continue;
-                if (l_buyer_str) {
-                    dap_chain_addr_t l_buyer_tx = s_extract_buyer_addr(l_tx, l_net->pub.id);
-                    if (!dap_chain_addr_compare(&l_buyer_tx, &l_buyer_addr))
-                        continue;
-                }
-                dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
-                byte_t *l_it_in;
-                size_t l_sz_in = 0;
-                int l_dex_in_i = 0;
-                TX_ITEM_ITER_TX(l_it_in, l_sz_in, l_tx) if (*l_it_in == TX_ITEM_TYPE_IN_COND)
-                {
-                    dap_chain_tx_in_cond_t *l_in = (dap_chain_tx_in_cond_t *)l_it_in;
-                    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in->header.tx_prev_hash);
-                    if (!l_prev_tx)
-                        continue;
-                    int l_prev_dex_idx = 0;
-                    dap_chain_tx_out_cond_t *l_prev =
-                        dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_dex_idx);
-                    // Skip if IN_COND doesn't spend DEX OUT
-                    if (!l_prev || (int)l_in->header.tx_out_prev_idx != l_prev_dex_idx)
-                        continue;
-                    if (l_seller_str && !dap_chain_addr_compare(&l_prev->subtype.srv_dex.seller_addr, &l_seller_addr)) {
-                        l_dex_in_i++;
-                        continue;
+            // Fast path for -order: walk spenders chain instead of scanning whole ledger
+            if (l_order_hash_str) do {
+                // Find root TX and its DEX OUT_COND
+                dap_chain_datum_tx_t *l_root_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order_root);
+                if (!l_root_tx)
+                    break;  // Order not found, empty result
+                int l_out_idx = 0;
+                dap_chain_tx_out_cond_t *l_prev_out = dap_chain_datum_tx_out_cond_get(l_root_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_out_idx);
+                if (!l_prev_out)
+                    break;
+                const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_order_root);
+                if (!l_sell_tok)
+                    break;
+                // Normalize pair once (all events in chain have same pair)
+                dex_pair_key_t l_key = {};
+                uint8_t l_side = 0;
+                uint256_t l_price_canon = uint256_0;
+                s_pair_normalize(l_sell_tok, l_prev_out->subtype.srv_dex.sell_net_id, l_prev_out->subtype.srv_dex.buy_token,
+                                 l_prev_out->subtype.srv_dex.buy_net_id, l_prev_out->subtype.srv_dex.rate, &l_key, &l_side, &l_price_canon);
+                if (dap_strcmp(l_key.token_quote, l_ticker_quote) || dap_strcmp(l_key.token_base, l_ticker_base))
+                    break;  // Pair mismatch, empty result
+                // Walk the chain
+                dap_hash_fast_t l_cur_hash = l_order_root;
+                while (true) {
+                    dap_hash_fast_t l_spender_hash = {};
+                    if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_cur_hash, l_out_idx, &l_spender_hash) ||
+                        dap_hash_fast_is_blank(&l_spender_hash))
+                        break;  // Not spent = order still open
+                    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_spender_hash);
+                    if (!l_tx)
+                        break;
+                    // Find our residual (same order_root) - key check FIRST
+                    dap_chain_tx_out_cond_t *l_residual = NULL;
+                    int l_res_idx = 0;
+                    while ((l_residual = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_res_idx)) != NULL) {
+                        if (dap_hash_fast_compare(&l_residual->subtype.srv_dex.order_root_hash, &l_order_root))
+                            break;
+                        l_res_idx++;
                     }
-                    if (l_order_hash_str) {
-                        dap_hash_fast_t l_root_hash = dap_hash_fast_is_blank(&l_prev->subtype.srv_dex.order_root_hash)
-                            ? l_in->header.tx_prev_hash
-                            : l_prev->subtype.srv_dex.order_root_hash;
-                        if (!dap_hash_fast_compare(&l_root_hash, &l_order_root)) {
+                    // Determine event type and compute executed amount
+                    dap_time_t l_ts = l_tx->header.ts_created;
+                    bool l_in_range = (!l_t_from || l_ts >= (dap_time_t)l_t_from) && (!l_t_to || l_ts <= (dap_time_t)l_t_to);
+                    bool l_is_trade = false;
+                    uint256_t l_executed = uint256_0;
+                    if (l_residual) {
+                        // Has our residual: partial EXCHANGE or UPDATE
+                        if ((dex_tx_type_t)l_residual->subtype.srv_dex.tx_type == DEX_TX_TYPE_EXCHANGE) {
+                            // Partial EXCHANGE: executed = prev - residual
+                            if (compare256(l_prev_out->header.value, l_residual->header.value) <= 0) {
+                                log_it(L_CRITICAL, "Chain walk: residual %s >= prev value %s (data corruption?)",
+                                    dap_uint256_to_char_ex(l_residual->header.value).frac, dap_uint256_to_char_ex(l_prev_out->header.value).frac);
+                                break;
+                            }
+                            SUBTRACT_256_256(l_prev_out->header.value, l_residual->header.value, &l_executed);
+                            l_is_trade = true;
+                        }
+                        // Continue chain
+                        l_cur_hash = l_spender_hash;
+                        l_out_idx = l_res_idx;
+                        l_prev_out = l_residual;
+                    } else {
+                        // No our residual: full EXCHANGE or INVALIDATE
+                        if (s_dex_verify_payout(l_tx, l_net, l_prev_out->subtype.srv_dex.buy_token, &l_prev_out->subtype.srv_dex.seller_addr)) {
+                            l_executed = l_prev_out->header.value;
+                            // Dust refund adjustment for full execution
+                            uint256_t l_srv_fee_req = uint256_0;
+                            const dap_chain_addr_t *l_srv_addr_ptr = NULL;
+                            if (!dap_strcmp(l_sell_tok, l_net->pub.native_ticker) &&
+                                dap_chain_addr_compare(&l_prev_out->subtype.srv_dex.seller_addr, &s_dex_service_fee_addr)) {
+                                pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+                                dex_pair_index_t *l_pi_fee = s_dex_pair_index_get(&l_key);
+                                uint8_t l_fee_cfg = l_pi_fee ? l_pi_fee->key.fee_config : 0;
+                                l_srv_fee_req = s_get_srv_fee(l_fee_cfg);
+                                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                                if (!IS_ZERO_256(l_srv_fee_req))
+                                    l_srv_addr_ptr = &s_dex_service_fee_addr;
+                            }
+                            s_adjust_exec_for_dust_refund(l_tx, &l_prev_out->subtype.srv_dex.seller_addr, l_sell_tok,
+                                                          l_srv_addr_ptr, l_srv_fee_req, &l_executed);
+                            l_is_trade = true;
+                        }
+                        // End of chain (full execution or INVALIDATE)
+                    }
+                    // Accumulate volume for trades
+                    if (l_is_trade && l_in_range && (!l_seller_str || dap_chain_addr_compare(&l_prev_out->subtype.srv_dex.seller_addr, &l_seller_addr))) {
+                        dex_bq_t l_bq = s_exec_to_canon_base_quote(l_executed, l_price_canon, l_side);
+                        SUM_256_256(l_sum_base, l_bq.base, &l_sum_base);
+                        SUM_256_256(l_sum_quote, l_bq.quote, &l_sum_quote);
+                        if (l_ts >= l_spot_ts) { l_spot_ts = l_ts; l_spot_price = l_price_canon; }
+                        l_trades_count++;
+                        if (l_bucket) {
+                            uint64_t l_ts_bucket = s_hist_bucket_ts(l_ts, l_bucket);
+                            dex_bucket_agg_t *l_ba = NULL;
+                            HASH_FIND(hh, l_buckets, &l_ts_bucket, sizeof(l_ts_bucket), l_ba);
+                            if (!l_ba && (l_ba = DAP_NEW_Z(dex_bucket_agg_t))) {
+                                l_ba->ohlcv.ts = l_ts_bucket;
+                                l_ba->first_ts = l_ba->last_ts = l_ts;
+                                l_ba->ohlcv.open = l_ba->ohlcv.high = l_ba->ohlcv.low = l_ba->ohlcv.close = l_price_canon;
+                                HASH_ADD(hh, l_buckets, ohlcv.ts, sizeof(l_ba->ohlcv.ts), l_ba);
+                            }
+                            if (l_ba) {
+                                if (l_ts < l_ba->first_ts) { l_ba->first_ts = l_ts; l_ba->ohlcv.open = l_price_canon; }
+                                if (l_ts >= l_ba->last_ts) { l_ba->last_ts = l_ts; l_ba->ohlcv.close = l_price_canon; }
+                                if (compare256(l_price_canon, l_ba->ohlcv.high) > 0) l_ba->ohlcv.high = l_price_canon;
+                                if (compare256(l_price_canon, l_ba->ohlcv.low) < 0) l_ba->ohlcv.low = l_price_canon;
+                                SUM_256_256(l_ba->ohlcv.volume_base, l_bq.base, &l_ba->ohlcv.volume_base);
+                                SUM_256_256(l_ba->ohlcv.volume_quote, l_bq.quote, &l_ba->ohlcv.volume_quote);
+                                l_ba->ohlcv.trades++;
+                            }
+                        }
+                    }
+                    if (!l_residual)
+                        break;
+                }
+            } while (0);
+            else {
+                dap_ledger_datum_iter_t *it = dap_ledger_datum_iter_create(l_net);
+                if (!it)
+                    return dap_json_rpc_error_add(*json_arr_reply, -3, "ledger iterator failed"), -3;
+                for (dap_chain_datum_tx_t *l_tx = dap_ledger_datum_iter_get_first(it); l_tx; l_tx = dap_ledger_datum_iter_get_next(it)) {
+                    if (l_t_from && l_tx->header.ts_created < (dap_time_t)l_t_from)
+                        continue;
+                    if (l_t_to && l_tx->header.ts_created > (dap_time_t)l_t_to)
+                        continue;
+                    if (!dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL))
+                        continue;
+                    if (l_buyer_str) {
+                        dap_chain_addr_t l_buyer_tx = s_extract_buyer_addr(l_tx, l_net->pub.id);
+                        if (!dap_chain_addr_compare(&l_buyer_tx, &l_buyer_addr))
+                            continue;
+                    }
+                    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
+                    byte_t *l_it_in;
+                    size_t l_sz_in = 0;
+                    int l_dex_in_i = 0;
+                    TX_ITEM_ITER_TX(l_it_in, l_sz_in, l_tx) if (*l_it_in == TX_ITEM_TYPE_IN_COND)
+                    {
+                        dap_chain_tx_in_cond_t *l_in = (dap_chain_tx_in_cond_t *)l_it_in;
+                        dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in->header.tx_prev_hash);
+                        if (!l_prev_tx)
+                            continue;
+                        int l_prev_dex_idx = 0;
+                        dap_chain_tx_out_cond_t *l_prev =
+                            dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_dex_idx);
+                        // Skip if IN_COND doesn't spend DEX OUT
+                        if (!l_prev || (int)l_in->header.tx_out_prev_idx != l_prev_dex_idx)
+                            continue;
+                        if (l_seller_str && !dap_chain_addr_compare(&l_prev->subtype.srv_dex.seller_addr, &l_seller_addr)) {
                             l_dex_in_i++;
                             continue;
                         }
-                    }
-                    const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_in->header.tx_prev_hash);
-                    if (!l_sell_tok)
-                        continue;
-                    dex_pair_key_t l_key = {};
-                    uint8_t l_side = 0;
-                    uint256_t l_price_canon = uint256_0;
-                    s_pair_normalize(l_sell_tok, l_prev->subtype.srv_dex.sell_net_id, l_prev->subtype.srv_dex.buy_token,
-                                     l_prev->subtype.srv_dex.buy_net_id, l_prev->subtype.srv_dex.rate, &l_key, &l_side, &l_price_canon);
-                    if (dap_strcmp(l_key.token_quote, l_ticker_quote) || dap_strcmp(l_key.token_base, l_ticker_base)) {
-                        l_dex_in_i++;
-                        continue;
-                    }
-                    if ((l_key.net_id_quote.uint64 != l_net->pub.id.uint64 || l_key.net_id_base.uint64 != l_net->pub.id.uint64)) {
-                        if (s_cross_net_policy == CROSS_NET_REJECT) {
+                        if (l_order_hash_str) {
+                            dap_hash_fast_t l_root_hash = dap_hash_fast_is_blank(&l_prev->subtype.srv_dex.order_root_hash)
+                                ? l_in->header.tx_prev_hash
+                                : l_prev->subtype.srv_dex.order_root_hash;
+                            if (!dap_hash_fast_compare(&l_root_hash, &l_order_root)) {
+                                l_dex_in_i++;
+                                continue;
+                            }
+                        }
+                        const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_in->header.tx_prev_hash);
+                        if (!l_sell_tok)
+                            continue;
+                        dex_pair_key_t l_key = {};
+                        uint8_t l_side = 0;
+                        uint256_t l_price_canon = uint256_0;
+                        s_pair_normalize(l_sell_tok, l_prev->subtype.srv_dex.sell_net_id, l_prev->subtype.srv_dex.buy_token,
+                                        l_prev->subtype.srv_dex.buy_net_id, l_prev->subtype.srv_dex.rate, &l_key, &l_side, &l_price_canon);
+                        if (dap_strcmp(l_key.token_quote, l_ticker_quote) || dap_strcmp(l_key.token_base, l_ticker_base)) {
                             l_dex_in_i++;
                             continue;
-                        } else if (s_cross_net_policy == CROSS_NET_WARN)
-                            log_it(L_WARNING, "Cross-net trade met in history scan: %s/%s", l_ticker_base, l_ticker_quote);
-                    }
-                    if (!s_dex_verify_payout(l_tx, l_net, l_prev->subtype.srv_dex.buy_token, &l_prev->subtype.srv_dex.seller_addr)) {
+                        }
+                        if ((l_key.net_id_quote.uint64 != l_net->pub.id.uint64 || l_key.net_id_base.uint64 != l_net->pub.id.uint64)) {
+                            if (s_cross_net_policy == CROSS_NET_REJECT) {
+                                l_dex_in_i++;
+                                continue;
+                            } else if (s_cross_net_policy == CROSS_NET_WARN)
+                                log_it(L_WARNING, "Cross-net trade met in history scan: %s/%s", l_ticker_base, l_ticker_quote);
+                        }
+                        if (!s_dex_verify_payout(l_tx, l_net, l_prev->subtype.srv_dex.buy_token, &l_prev->subtype.srv_dex.seller_addr)) {
+                            l_dex_in_i++;
+                            continue;
+                        }
+                        uint256_t l_executed_i = s_dex_calc_executed_amount(l_prev, l_out_cond, l_dex_in_i, l_prev_tx, &l_in->header.tx_prev_hash, l_net->pub.ledger);
+                        if (!l_out_cond && l_dex_in_i == 0 && l_sell_tok && *l_sell_tok) {
+                            uint256_t l_srv_fee_req = uint256_0;
+                            const dap_chain_addr_t *l_srv_addr_ptr = NULL;
+                            if (!dap_strcmp(l_sell_tok, l_net->pub.native_ticker) &&
+                                dap_chain_addr_compare(&l_prev->subtype.srv_dex.seller_addr, &s_dex_service_fee_addr)) {
+                                pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+                                dex_pair_index_t *l_pi_fee = s_dex_pair_index_get(&l_key);
+                                uint8_t l_fee_cfg = l_pi_fee ? l_pi_fee->key.fee_config : 0;
+                                l_srv_fee_req = s_get_srv_fee(l_fee_cfg);
+                                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                                if (!IS_ZERO_256(l_srv_fee_req))
+                                    l_srv_addr_ptr = &s_dex_service_fee_addr;
+                            }
+                            s_adjust_exec_for_dust_refund(l_tx, &l_prev->subtype.srv_dex.seller_addr, l_sell_tok, l_srv_addr_ptr,
+                                                        l_srv_fee_req, &l_executed_i);
+                        }
+                        dex_bq_t l_bq = s_exec_to_canon_base_quote(l_executed_i, l_price_canon, l_side);
+                        SUM_256_256(l_sum_base, l_bq.base, &l_sum_base);
+                        SUM_256_256(l_sum_quote, l_bq.quote, &l_sum_quote);
+                        if (l_tx->header.ts_created >= l_spot_ts) {
+                            l_spot_ts = l_tx->header.ts_created;
+                            l_spot_price = l_price_canon;
+                        }
+                        l_trades_count++;
+                        if (l_bucket) {
+                            uint64_t l_ts_bucket = s_hist_bucket_ts(l_tx->header.ts_created, l_bucket);
+                            dex_bucket_agg_t *l_ba = NULL;
+                            HASH_FIND(hh, l_buckets, &l_ts_bucket, sizeof(l_ts_bucket), l_ba);
+                            if (!l_ba) {
+                                l_ba = DAP_NEW_Z(dex_bucket_agg_t);
+                                l_ba->ohlcv.ts = l_ts_bucket;
+                                l_ba->first_ts = l_ba->last_ts = l_tx->header.ts_created;
+                                l_ba->ohlcv.open = l_ba->ohlcv.high = l_ba->ohlcv.low = l_ba->ohlcv.close = l_price_canon;
+                                HASH_ADD(hh, l_buckets, ohlcv.ts, sizeof(l_ba->ohlcv.ts), l_ba);
+                            }
+                            if (l_tx->header.ts_created < l_ba->first_ts) {
+                                l_ba->first_ts = l_tx->header.ts_created;
+                                l_ba->ohlcv.open = l_price_canon;
+                            }
+                            if (l_tx->header.ts_created >= l_ba->last_ts) {
+                                l_ba->last_ts = l_tx->header.ts_created;
+                                l_ba->ohlcv.close = l_price_canon;
+                            }
+                            if (compare256(l_price_canon, l_ba->ohlcv.high) > 0)
+                                l_ba->ohlcv.high = l_price_canon;
+                            if (compare256(l_price_canon, l_ba->ohlcv.low) < 0)
+                                l_ba->ohlcv.low = l_price_canon;
+                            SUM_256_256(l_ba->ohlcv.volume_base, l_bq.base, &l_ba->ohlcv.volume_base);
+                            SUM_256_256(l_ba->ohlcv.volume_quote, l_bq.quote, &l_ba->ohlcv.volume_quote);
+                            l_ba->ohlcv.trades++;
+                        }
                         l_dex_in_i++;
-                        continue;
                     }
-                    uint256_t l_executed_i = s_dex_calc_executed_amount(l_prev, l_out_cond, l_dex_in_i, l_prev_tx, &l_in->header.tx_prev_hash, l_net->pub.ledger);
-                    if (!l_out_cond && l_dex_in_i == 0 && l_sell_tok && *l_sell_tok) {
-                        uint256_t l_srv_fee_req = uint256_0;
-                        const dap_chain_addr_t *l_srv_addr_ptr = NULL;
-                        if (!dap_strcmp(l_sell_tok, l_net->pub.native_ticker) &&
-                            dap_chain_addr_compare(&l_prev->subtype.srv_dex.seller_addr, &s_dex_service_fee_addr)) {
-                            pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-                            dex_pair_index_t *l_pi_fee = s_dex_pair_index_get(&l_key);
-                            uint8_t l_fee_cfg = l_pi_fee ? l_pi_fee->key.fee_config : 0;
-                            l_srv_fee_req = s_get_srv_fee(l_fee_cfg);
-                            pthread_rwlock_unlock(&s_dex_cache_rwlock);
-                            if (!IS_ZERO_256(l_srv_fee_req))
-                                l_srv_addr_ptr = &s_dex_service_fee_addr;
-                        }
-                        s_adjust_exec_for_dust_refund(l_tx, &l_prev->subtype.srv_dex.seller_addr, l_sell_tok, l_srv_addr_ptr,
-                                                      l_srv_fee_req, &l_executed_i);
-                    }
-                    dex_bq_t l_bq = s_exec_to_canon_base_quote(l_executed_i, l_price_canon, l_side);
-                    SUM_256_256(l_sum_base, l_bq.base, &l_sum_base);
-                    SUM_256_256(l_sum_quote, l_bq.quote, &l_sum_quote);
-                    if (l_tx->header.ts_created >= l_spot_ts) {
-                        l_spot_ts = l_tx->header.ts_created;
-                        l_spot_price = l_price_canon;
-                    }
-                    l_trades_count++;
-                    if (l_bucket) {
-                        uint64_t l_ts_bucket = s_hist_bucket_ts(l_tx->header.ts_created, l_bucket);
-                        dex_bucket_agg_t *l_ba = NULL;
-                        HASH_FIND(hh, l_buckets, &l_ts_bucket, sizeof(l_ts_bucket), l_ba);
-                        if (!l_ba) {
-                            l_ba = DAP_NEW_Z(dex_bucket_agg_t);
-                            l_ba->ohlcv.ts = l_ts_bucket;
-                            l_ba->first_ts = l_ba->last_ts = l_tx->header.ts_created;
-                            l_ba->ohlcv.open = l_ba->ohlcv.high = l_ba->ohlcv.low = l_ba->ohlcv.close = l_price_canon;
-                            HASH_ADD(hh, l_buckets, ohlcv.ts, sizeof(l_ba->ohlcv.ts), l_ba);
-                        }
-                        if (l_tx->header.ts_created < l_ba->first_ts) {
-                            l_ba->first_ts = l_tx->header.ts_created;
-                            l_ba->ohlcv.open = l_price_canon;
-                        }
-                        if (l_tx->header.ts_created >= l_ba->last_ts) {
-                            l_ba->last_ts = l_tx->header.ts_created;
-                            l_ba->ohlcv.close = l_price_canon;
-                        }
-                        if (compare256(l_price_canon, l_ba->ohlcv.high) > 0)
-                            l_ba->ohlcv.high = l_price_canon;
-                        if (compare256(l_price_canon, l_ba->ohlcv.low) < 0)
-                            l_ba->ohlcv.low = l_price_canon;
-                        SUM_256_256(l_ba->ohlcv.volume_base, l_bq.base, &l_ba->ohlcv.volume_base);
-                        SUM_256_256(l_ba->ohlcv.volume_quote, l_bq.quote, &l_ba->ohlcv.volume_quote);
-                        l_ba->ohlcv.trades++;
-                    }
-                    l_dex_in_i++;
                 }
+                dap_ledger_datum_iter_delete(it);
             }
-            dap_ledger_datum_iter_delete(it);
-
             // Unified emit: always volume; OHLC optionally
             json_object *l_arr = json_object_new_array();
             if (l_bucket && l_buckets) {

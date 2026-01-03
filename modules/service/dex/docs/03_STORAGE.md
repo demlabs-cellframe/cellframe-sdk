@@ -285,6 +285,7 @@ Default bucket size: 86400 seconds (1 day) — aligns to calendar day boundaries
 ```c
 typedef struct dex_trade_rec {
     dex_trade_key_t key;                          // (tx_hash, prev_tail)
+    const dap_hash_fast_t *order_root_ptr;        // pointer to order root hash (in order_idx)
     const dap_chain_addr_t *seller_addr_ptr;      // pointer to seller addr (in seller_idx)
     const dap_chain_addr_t *buyer_addr_ptr;       // pointer to buyer addr (in buyer_idx)
     uint64_t ts;                                  // trade timestamp
@@ -293,6 +294,7 @@ typedef struct dex_trade_rec {
     uint8_t side;                                 // DEX_SIDE_ASK or DEX_SIDE_BID
     struct dex_trade_rec *next, *prev;            // utlist DL for seller index
     struct dex_trade_rec *buyer_next, *buyer_prev; // utlist DL for buyer index
+    struct dex_trade_rec *order_next, *order_prev; // utlist DL for order index
     UT_hash_handle hh;                            // uthash in bucket
 } dex_trade_rec_t;
 ```
@@ -317,7 +319,38 @@ typedef struct dex_hist_trader_idx {
 } dex_hist_trader_idx_t;
 ```
 
-Maintains per-address trade lists for both roles (currently used for dump/debug; query path still iterates bucket trade records and applies filters).
+Maintains per-address trade lists for both roles.
+
+### Order Index (by order_root)
+
+```c
+typedef struct dex_hist_order_idx {
+    dap_hash_fast_t order_root;     // order root hash (key)
+    dex_trade_rec_t *trades;        // DL head for trades (via order_next/prev)
+    UT_hash_handle hh;
+} dex_hist_order_idx_t;
+```
+
+Enables O(1) lookup of all trades for a specific order by its root hash.
+
+**Usage:** `srv_dex history -order <hash>` uses this index for efficient filtering when `history_cache=true`.
+
+**Structure in `dex_hist_pair_t`:**
+```c
+typedef struct dex_hist_pair {
+    dex_pair_key_t key;
+    dex_hist_bucket_t *buckets;
+    dex_hist_trader_idx_t *seller_idx;
+    dex_hist_trader_idx_t *buyer_idx;
+    dex_hist_order_idx_t *order_idx;   // uthash by order_root
+    UT_hash_handle hh;
+} dex_hist_pair_t;
+```
+
+**Index Operations:**
+- `s_order_idx_get_or_create()` — get or create entry by order_root
+- Trades linked via `order_next`/`order_prev` pointers in `dex_trade_rec_t`
+- Entry removed when last trade deleted (empty DL head)
 
 ### OHLCV Computation
 

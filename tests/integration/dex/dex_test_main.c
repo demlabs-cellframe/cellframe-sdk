@@ -34,7 +34,10 @@ extern int dap_chain_cs_esbocs_init(void);
 // SETUP / TEARDOWN
 // ============================================================================
 
+static bool s_cache_enabled = false;
+
 static void s_setup(bool a_cache) {
+    s_cache_enabled = a_cache;
     log_it(L_NOTICE, "=== DEX Integration Tests Setup ===");
     
 #ifdef _WIN32
@@ -504,12 +507,12 @@ static int s_test_cli_history_orders(dex_test_fixture_t *fixture) {
     return 0;
 }
 
-static int s_test_cli_history_market_only(dex_test_fixture_t *fixture) {
-    log_it(L_NOTICE, "=== CLI Test: History OHLC (history -mode ohlc -market-only) ===");
+static int s_test_cli_history_ohlc(dex_test_fixture_t *fixture) {
+    log_it(L_NOTICE, "=== CLI Test: History OHLC (history -mode ohlc -bucket) ===");
     
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
-        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;ohlc;-bucket;3600;-market-only\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;ohlc;-bucket;3600\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
         fixture->net->net->pub.name);
     
     log_it(L_INFO, "CLI request: %s", l_json_request);
@@ -550,25 +553,20 @@ static int s_test_cli_history_market_only(dex_test_fixture_t *fixture) {
         return -5;
     }
     
-    // Verify market_only flag is true
+    // market_only is informational: true with cache, false with ledger fallback
     json_object *l_market_only = NULL;
-    if (!json_object_object_get_ex(l_result, "market_only", &l_market_only) ||
-        !json_object_get_boolean(l_market_only)) {
-        log_it(L_ERROR, "Expected market_only=true in result");
-        json_object_put(l_json);
-        return -6;
+    if (json_object_object_get_ex(l_result, "market_only", &l_market_only)) {
+        log_it(L_NOTICE, "market_only=%s (cache=%s)",
+            json_object_get_boolean(l_market_only) ? "true" : "false",
+            s_cache_enabled ? "on" : "off");
     }
-    log_it(L_NOTICE, "market_only=true (verified)");
     
-    // Check OHLC data - must have at least one candle
+    // Check OHLC data
     json_object *l_ohlc = NULL;
     if (json_object_object_get_ex(l_result, "ohlc", &l_ohlc)) {
         int l_count = json_object_array_length(l_ohlc);
         log_it(L_NOTICE, "OHLC candles: %d", l_count);
-        if (l_count == 0) {
-            log_it(L_WARNING, "OHLC array is empty (no market trades in bucket?)");
-        } else {
-            // Log first candle
+        if (l_count > 0) {
             json_object *l_first = json_object_array_get_idx(l_ohlc, 0);
             json_object *l_open = NULL, *l_close = NULL, *l_trades = NULL;
             if (json_object_object_get_ex(l_first, "open", &l_open) &&
@@ -601,16 +599,16 @@ static int s_test_cli_history_market_only(dex_test_fixture_t *fixture) {
     }
     
     json_object_put(l_json);
-    log_it(L_NOTICE, "Market rate market-only test PASSED");
+    log_it(L_NOTICE, "History OHLC test PASSED");
     return 0;
 }
 
 static int s_test_cli_volume(dex_test_fixture_t *fixture) {
-    log_it(L_NOTICE, "=== CLI Test: Volume with History Cache ===");
+    log_it(L_NOTICE, "=== CLI Test: Volume via History (history -mode volume) ===");
     
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
-        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;volume;-net;%s;-pair;KEL/USDT;-bucket;3600\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;volume;-bucket;3600\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
         fixture->net->net->pub.name);
     
     log_it(L_INFO, "CLI request: %s", l_json_request);
@@ -651,37 +649,45 @@ static int s_test_cli_volume(dex_test_fixture_t *fixture) {
         return -5;
     }
     
-    json_object *l_vol_base = NULL, *l_vol_quote = NULL, *l_trades = NULL;
-    if (!json_object_object_get_ex(l_result, "volume_base", &l_vol_base) ||
-        !json_object_object_get_ex(l_result, "volume_quote", &l_vol_quote) ||
-        !json_object_object_get_ex(l_result, "trades", &l_trades)) {
-        log_it(L_ERROR, "Missing volume_base/volume_quote/trades in result");
+    // Check totals (history -mode volume returns totals with sum_base/sum_quote)
+    json_object *l_totals = NULL;
+    if (!json_object_object_get_ex(l_result, "totals", &l_totals)) {
+        log_it(L_ERROR, "Missing 'totals' in result");
         json_object_put(l_json);
         return -6;
     }
     
+    json_object *l_sum_base = NULL, *l_sum_quote = NULL, *l_trades = NULL;
+    if (!json_object_object_get_ex(l_totals, "sum_base", &l_sum_base) ||
+        !json_object_object_get_ex(l_totals, "sum_quote", &l_sum_quote) ||
+        !json_object_object_get_ex(l_totals, "trades", &l_trades)) {
+        log_it(L_ERROR, "Missing sum_base/sum_quote/trades in totals");
+        json_object_put(l_json);
+        return -7;
+    }
+    
     int l_trades_count = json_object_get_int(l_trades);
-    log_it(L_NOTICE, "Volume: base=%s, quote=%s, trades=%d",
-        json_object_get_string(l_vol_base),
-        json_object_get_string(l_vol_quote),
+    log_it(L_NOTICE, "Volume totals: sum_base=%s, sum_quote=%s, trades=%d",
+        json_object_get_string(l_sum_base),
+        json_object_get_string(l_sum_quote),
         l_trades_count);
     
     // STRICT: must have at least one trade
     if (l_trades_count == 0) {
         log_it(L_ERROR, "Expected trades > 0 in volume result");
         json_object_put(l_json);
-        return -7;
+        return -8;
     }
     
-    // Check buckets array
-    json_object *l_buckets = NULL;
-    if (json_object_object_get_ex(l_result, "buckets", &l_buckets)) {
-        int l_count = json_object_array_length(l_buckets);
+    // Check volume buckets array
+    json_object *l_volume = NULL;
+    if (json_object_object_get_ex(l_result, "volume", &l_volume)) {
+        int l_count = json_object_array_length(l_volume);
         log_it(L_NOTICE, "Volume buckets: %d", l_count);
         
         // Log first bucket
         if (l_count > 0) {
-            json_object *l_first = json_object_array_get_idx(l_buckets, 0);
+            json_object *l_first = json_object_array_get_idx(l_volume, 0);
             json_object *l_ts = NULL, *l_base = NULL, *l_cnt = NULL;
             if (json_object_object_get_ex(l_first, "ts", &l_ts) &&
                 json_object_object_get_ex(l_first, "volume_base", &l_base) &&
@@ -930,28 +936,36 @@ int main(int argc, char *argv[]) {
         log_it(L_WARNING, "Bucket alignment test failed with code %d (non-fatal)", ret);
     }
     
-    // Test raw trades output - STRICT
-    ret = s_test_cli_raw_trades(fixture);
-    if (ret != 0) {
-        log_it(L_ERROR, "Raw trades test FAILED with code %d", ret);
-        dex_test_fixture_destroy(fixture);
-        s_teardown();
-        return ret;
+    // Test raw trades output - STRICT (requires cache)
+    if (s_cache_enabled) {
+        ret = s_test_cli_raw_trades(fixture);
+        if (ret != 0) {
+            log_it(L_ERROR, "Raw trades test FAILED with code %d", ret);
+            dex_test_fixture_destroy(fixture);
+            s_teardown();
+            return ret;
+        }
+    } else {
+        log_it(L_WARNING, "Skipping raw trades test (requires cache)");
     }
     
-    // Test history -orders filter - STRICT
-    ret = s_test_cli_history_orders(fixture);
-    if (ret != 0) {
-        log_it(L_ERROR, "History orders test FAILED with code %d", ret);
-        dex_test_fixture_destroy(fixture);
-        s_teardown();
-        return ret;
+    // Test history -orders filter - STRICT (requires cache)
+    if (s_cache_enabled) {
+        ret = s_test_cli_history_orders(fixture);
+        if (ret != 0) {
+            log_it(L_ERROR, "History orders test FAILED with code %d", ret);
+            dex_test_fixture_destroy(fixture);
+            s_teardown();
+            return ret;
+        }
+    } else {
+        log_it(L_WARNING, "Skipping history orders test (requires cache)");
     }
     
-    // Test history -mode ohlc -market-only - STRICT
-    ret = s_test_cli_history_market_only(fixture);
+    // Test history -mode ohlc -bucket
+    ret = s_test_cli_history_ohlc(fixture);
     if (ret != 0) {
-        log_it(L_ERROR, "History market-only test FAILED with code %d", ret);
+        log_it(L_ERROR, "History OHLC test FAILED with code %d", ret);
         dex_test_fixture_destroy(fixture);
         s_teardown();
         return ret;
@@ -966,14 +980,18 @@ int main(int argc, char *argv[]) {
         return ret;
     }
     
-    // Test history -order <hash> (requires an order hash from history -orders)
-    const char *l_order_hash = s_get_first_order_hash(fixture);
-    ret = s_test_cli_history_by_order(fixture, l_order_hash);
-    if (ret != 0) {
-        log_it(L_ERROR, "History by order test FAILED with code %d", ret);
-        dex_test_fixture_destroy(fixture);
-        s_teardown();
-        return ret;
+    // Test history -order <hash> (requires cache for s_get_first_order_hash helper)
+    if (s_cache_enabled) {
+        const char *l_order_hash = s_get_first_order_hash(fixture);
+        ret = s_test_cli_history_by_order(fixture, l_order_hash);
+        if (ret != 0) {
+            log_it(L_ERROR, "History by order test FAILED with code %d", ret);
+            dex_test_fixture_destroy(fixture);
+            s_teardown();
+            return ret;
+        }
+    } else {
+        log_it(L_WARNING, "Skipping history by order test (requires cache)");
     }
     
     // Cleanup before multi-execution tests

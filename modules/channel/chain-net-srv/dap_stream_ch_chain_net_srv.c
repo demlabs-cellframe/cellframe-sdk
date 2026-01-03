@@ -410,7 +410,8 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt(void *a_arg)
 
 
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED_ARG dap_ledger_t *a_ledger,
-                                                    dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode)
+                                                    dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                                    dap_chan_ledger_notify_opcodes_t a_opcode, UNUSED_ARG dap_hash_fast_t *a_atom_hash)
 {
 // sanity check
     dap_return_if_pass(!a_tx);

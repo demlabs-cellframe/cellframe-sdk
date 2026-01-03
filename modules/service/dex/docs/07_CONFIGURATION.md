@@ -57,8 +57,9 @@ debug_more=true
 **Default:** `false`
 
 **Commands affected:**
-- `srv_dex volume`
-- `srv_dex history`
+- `srv_dex history -mode volume`
+- `srv_dex history -mode ohlc`
+- `srv_dex history -mode trades`
 
 ---
 
