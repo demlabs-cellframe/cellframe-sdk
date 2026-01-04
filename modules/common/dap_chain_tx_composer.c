@@ -109,7 +109,7 @@ dap_chain_datum_t *dap_chain_tx_compose_transfer(
     log_it(L_INFO, "Transaction signed successfully");
     
     // STEP 5: Add signature (LAYER 2: TX Signer)
-    if (dap_chain_tx_sign(&l_tx, l_sign) != 0) {
+    if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
         log_it(L_ERROR, "Failed to add signature");
         DAP_DELETE(l_sign);
         dap_chain_datum_tx_delete(l_tx);
@@ -194,7 +194,7 @@ dap_chain_datum_t *dap_chain_tx_compose_multi_transfer(
     
     log_it(L_INFO, "Multi-transfer signed successfully");
     
-    if (dap_chain_tx_sign(&l_tx, l_sign) != 0) {
+    if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
         log_it(L_ERROR, "Failed to add signature");
         DAP_DELETE(l_sign);
         dap_chain_datum_tx_delete(l_tx);
@@ -276,7 +276,7 @@ dap_chain_datum_t *dap_chain_tx_compose_cond_output(
     
     log_it(L_INFO, "Conditional output signed successfully");
     
-    if (dap_chain_tx_sign(&l_tx, l_sign) != 0) {
+    if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
         log_it(L_ERROR, "Failed to add signature");
         DAP_DELETE(l_sign);
         dap_chain_datum_tx_delete(l_tx);
@@ -361,7 +361,7 @@ dap_chain_datum_t *dap_chain_tx_compose_event(
     
     log_it(L_INFO, "Event signed successfully");
     
-    if (dap_chain_tx_sign(&l_tx, l_sign) != 0) {
+    if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
         log_it(L_ERROR, "Failed to add signature");
         DAP_DELETE(l_sign);
         dap_chain_datum_tx_delete(l_tx);
@@ -441,7 +441,7 @@ dap_chain_datum_t *dap_chain_tx_compose_from_emission(
     
     log_it(L_INFO, "Base transaction signed successfully");
     
-    if (dap_chain_tx_sign(&l_tx, l_sign) != 0) {
+    if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
         log_it(L_ERROR, "Failed to add signature");
         DAP_DELETE(l_sign);
         dap_chain_datum_tx_delete(l_tx);

@@ -27,14 +27,14 @@
 #define LOG_TAG "dap_chain_tx_sign"
 
 /**
- * @brief Sign transaction by adding signature
+ * @brief Add signature to transaction
  * 
  * Pure signing function - no side effects
  */
-int dap_chain_tx_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
+int dap_chain_tx_sign_add(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
 {
     if (!a_tx || !*a_tx || !a_sign) {
-        log_it(L_ERROR, "Invalid parameters for tx_sign");
+        log_it(L_ERROR, "Invalid parameters for tx_sign_add");
         return -1;
     }
     
@@ -42,7 +42,7 @@ int dap_chain_tx_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
     int l_result = dap_chain_datum_tx_add_sign(a_tx, a_sign);
     
     if (l_result != 1) {
-        log_it(L_ERROR, "Failed to sign transaction");
+        log_it(L_ERROR, "Failed to add signature to transaction");
         return -1;
     }
     

@@ -480,12 +480,13 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
         bool l_base_tx = false, l_reward_collect = false;
         const char *l_noaddr_token = NULL;
 
-        dap_hash_fast_t l_tx_hash = l_from_cache ? *l_wallet_cache_iter->cur_hash : *l_datum_iter->cur_hash;
-        const char *l_src_token = l_from_cache ? l_wallet_cache_iter->token_ticker : l_datum_iter->token_ticker;
-        int l_ret_code = l_from_cache ? l_wallet_cache_iter->ret_code : l_datum_iter->ret_code;
-        uint32_t l_action = l_from_cache ? l_wallet_cache_iter->action : l_datum_iter->action;
-         dap_hash_fast_t l_atom_hash = l_from_cache ? *l_wallet_cache_iter->cur_atom_hash : *l_datum_iter->cur_atom_hash;
-        dap_chain_srv_uid_t l_uid = l_from_cache ? l_wallet_cache_iter->uid : l_datum_iter->uid;
+        // Always get data from datum iterator (wallet cache is just for filtering)
+        dap_hash_fast_t l_tx_hash = *l_datum_iter->cur_hash;
+        const char *l_src_token = l_datum_iter->token_ticker;
+        int l_ret_code = l_datum_iter->ret_code;
+        uint32_t l_action = l_datum_iter->action;
+        dap_hash_fast_t l_atom_hash = *l_datum_iter->cur_atom_hash;
+        dap_chain_srv_uid_t l_uid = l_datum_iter->uid;
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         uint8_t *l_tx_item = NULL;
@@ -1372,13 +1373,13 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str ? l_fee_str : "0");
             
             // Get key from wallet using callback
-            if (!a_ledger->wallet_get_key_callback_DEPRECATED) {
+            if (!l_ledger->wallet_get_key_callback_DEPRECATED) {
                 dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_SIGN_FUNC), 
                     "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_SIGN_FUNC));
                 return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_SIGN_FUNC);
             }
             
-            dap_enc_key_t *l_key_from = a_ledger->wallet_get_key_callback_DEPRECATED(l_wallet_name, 0);
+            dap_enc_key_t *l_key_from = l_ledger->wallet_get_key_callback_DEPRECATED(l_wallet_name, 0);
             if (!l_key_from) {
                 dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC), 
                     "Can't get key from wallet %s", l_wallet_name);
