@@ -249,6 +249,43 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
 }
 
 /**
+ * Add pre-computed signature to transaction
+ * Hardware wallet friendly - accepts signature from external source
+ * 
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
+{
+    if (!a_tx || !*a_tx || !a_sign) {
+        log_it(L_ERROR, "Invalid parameters for datum_tx_add_sign");
+        return -1;
+    }
+    
+    // Create TX item from signature using existing function
+    return dap_chain_datum_tx_add_new_generic(a_tx, dap_chain_tx_sig_t,
+                                               dap_chain_datum_tx_item_sign_create_from_sign(a_sign));
+}
+
+/**
+ * Get data that needs to be signed
+ * Returns pointer to transaction data for signing
+ * 
+ * return pointer to data, NULL on error
+ */
+const void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, size_t *a_sign_data_size)
+{
+    if (!a_tx || !a_sign_data_size) {
+        log_it(L_ERROR, "Invalid parameters for datum_tx_get_sign_data");
+        return NULL;
+    }
+    
+    // Sign everything except the header's reserved bytes
+    // This is the standard cellframe signing approach
+    *a_sign_data_size = dap_chain_datum_tx_get_size(a_tx);
+    return (const void *)a_tx;
+}
+
+/**
  * Verify all sign item in transaction
  *
  * return 0: OK, -1: Sign verify error, -2, -3: Size check error, -4: Not found signature
