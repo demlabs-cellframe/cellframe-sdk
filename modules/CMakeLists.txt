@@ -9,7 +9,6 @@ if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(wallet)
     add_subdirectory(chain)
     add_subdirectory(ledger)
-    add_subdirectory(compose)     # TX Factory (Builder + Orchestrator)
     add_subdirectory(governance)   # High-level governance (decree, policies)
 endif()
 
