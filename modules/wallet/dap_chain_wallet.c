@@ -52,6 +52,7 @@
 #include "dap_common.h"
 #include "dap_cert_file.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_tx.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_wallet_cache.h"
@@ -401,6 +402,12 @@ int dap_chain_wallet_init()
 
     closedir(l_dir);
 
+    // Register wallet TX builders in TX Compose API
+    if (dap_wallet_tx_builders_register() != 0) {
+        log_it(L_ERROR, "Failed to register wallet TX builders");
+        return -1;
+    }
+
     return dap_chain_wallet_shared_init();
 }
 
@@ -409,6 +416,9 @@ int dap_chain_wallet_init()
  */
 void dap_chain_wallet_deinit(void)
 {
+    // Unregister wallet TX builders
+    dap_wallet_tx_builders_unregister();
+    
     DAP_DELETE(s_wallets_path);
 }
 
