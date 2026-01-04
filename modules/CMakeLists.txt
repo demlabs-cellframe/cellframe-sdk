@@ -10,6 +10,7 @@ if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(chain)
     add_subdirectory(ledger)
     add_subdirectory(governance)  # High-level governance (decree, policies)
+    add_subdirectory(services)    # High-level services (composer, etc)
 endif()
 
 # Distributed Hash Tables (DHT)
