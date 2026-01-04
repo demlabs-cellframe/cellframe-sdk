@@ -186,7 +186,7 @@ typedef struct dap_chain_net_pvt {
 #define PVT(a) ((dap_chain_net_pvt_t *)a->pvt)
 #define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
-static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
+dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
 
 // Exported state names array for external use (CLI, etc.)
 const char *c_net_states[] = {
