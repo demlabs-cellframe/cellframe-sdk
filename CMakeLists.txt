@@ -79,7 +79,7 @@ macro(cellframe_add_library TARGET_NAME)
     list(APPEND CELLFRAME_INTERNAL_MODULES ${TARGET_NAME})
     set(CELLFRAME_INTERNAL_MODULES ${CELLFRAME_INTERNAL_MODULES} CACHE INTERNAL "List of internal modules")
     
-    message("[+] Cellframe Internal Module: ${TARGET_NAME} (STATIC - TEMPORARY FIX)")
+    message("[+] Cellframe Internal Module: ${TARGET_NAME} (OBJECT)")
 endmacro()
 
 # =========================================
