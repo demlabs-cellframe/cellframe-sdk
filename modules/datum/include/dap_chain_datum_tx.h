@@ -228,6 +228,19 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
 int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign);
 
 /**
+ * Add event item to transaction
+ * 
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx, 
+                                      dap_pkey_t *a_pkey_service,
+                                      dap_chain_srv_uid_t a_srv_uid,
+                                      const char *a_group_name,
+                                      uint16_t a_event_type,
+                                      const void *a_event_data,
+                                      size_t a_event_data_size);
+
+/**
  * Get data that needs to be signed
  * Returns pointer to transaction data for signing
  * 

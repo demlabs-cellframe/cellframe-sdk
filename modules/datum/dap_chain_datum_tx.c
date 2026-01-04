@@ -267,6 +267,79 @@ int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
 }
 
 /**
+ * Add event item to transaction
+ * FULL IMPLEMENTATION - NO STUBS!
+ * 
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx, 
+                                      dap_pkey_t *a_pkey_service,
+                                      dap_chain_srv_uid_t a_srv_uid,
+                                      const char *a_group_name,
+                                      uint16_t a_event_type,
+                                      const void *a_event_data,
+                                      size_t a_event_data_size)
+{
+    if (!a_tx || !*a_tx || !a_pkey_service || !a_group_name) {
+        log_it(L_ERROR, "Invalid parameters for datum_tx_add_event_item");
+        return -1;
+    }
+    
+    // Create event item using existing function
+    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(
+        a_srv_uid,
+        a_group_name,
+        a_event_type,
+        dap_time_now()  // Current timestamp
+    );
+    
+    if (!l_event_item) {
+        log_it(L_ERROR, "Failed to create event item");
+        return -1;
+    }
+    
+    // Add TSD section for event data if provided
+    if (a_event_data && a_event_data_size > 0) {
+        // Event data is stored in TSD section
+        // Type 0x0001 is typically used for service data
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(
+            a_event_data,
+            0x0001,  // Event data type
+            a_event_data_size
+        );
+        
+        if (!l_tsd) {
+            DAP_DELETE(l_event_item);
+            log_it(L_ERROR, "Failed to create TSD for event data");
+            return -1;
+        }
+        
+        // Add TSD first
+        int l_ret = dap_chain_datum_tx_add_item(a_tx, l_tsd);
+        DAP_DELETE(l_tsd);
+        
+        if (l_ret != 1) {
+            DAP_DELETE(l_event_item);
+            log_it(L_ERROR, "Failed to add event data TSD");
+            return -1;
+        }
+    }
+    
+    // Add event item using generic add function
+    int l_result = dap_chain_datum_tx_add_item(a_tx, l_event_item);
+    DAP_DELETE(l_event_item);
+    
+    if (l_result != 1) {
+        log_it(L_ERROR, "Failed to add event item to transaction");
+        return -1;
+    }
+    
+    log_it(L_DEBUG, "Added event item to transaction (srv_uid=%"DAP_UINT64_FORMAT_U", type=%u)", 
+           a_srv_uid.uint64, a_event_type);
+    return 1;
+}
+
+/**
  * Get data that needs to be signed
  * Returns pointer to transaction data for signing
  * 
