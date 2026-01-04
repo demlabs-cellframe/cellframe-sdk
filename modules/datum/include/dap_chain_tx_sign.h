@@ -44,7 +44,7 @@
  */
 
 /**
- * @brief Add signature to transaction
+ * @brief Sign transaction by adding signature
  * 
  * Pure function: takes unsigned TX, adds signature, returns signed TX
  * 
@@ -52,7 +52,7 @@
  * @param a_sign Signature to add
  * @return 0 on success, -1 on error
  */
-int dap_chain_tx_add_signature(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign);
+int dap_chain_tx_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign);
 
 /**
  * @brief Get data that needs to be signed
