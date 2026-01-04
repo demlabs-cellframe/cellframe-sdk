@@ -25,8 +25,8 @@
 
 
 #include "dap_common.h"
-#include "dap_chain_tx_compose.h"
-#include "dap_chain_tx_compose_callbacks.h"
+#include "dap_chain_compose.h"
+#include "dap_chain_compose_callbacks.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_token.h"

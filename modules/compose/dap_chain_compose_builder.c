@@ -21,14 +21,14 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_chain_tx_builder.h"
+#include "dap_chain_compose_builder.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
 
-#define LOG_TAG "dap_chain_tx_builder"
+#define LOG_TAG "dap_chain_compose_builder"
 
 /**
  * @brief Get transaction data for signing
@@ -138,7 +138,7 @@ static int _add_inputs_from_outs_list(
 /**
  * @brief Create simple transfer transaction WITHOUT signature
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_transfer(
+dap_chain_datum_tx_t *dap_chain_compose_tx_transfer(
     dap_chain_net_id_t a_net_id,
     dap_pkey_t *a_pkey_from,
     const dap_chain_addr_t *a_addr_from,
@@ -247,7 +247,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_transfer(
 /**
  * @brief Create multi-output transfer transaction WITHOUT signature
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_multi_transfer(
+dap_chain_datum_tx_t *dap_chain_compose_tx_multi_transfer(
     dap_chain_net_id_t a_net_id,
     dap_pkey_t *a_pkey_from,
     const dap_chain_addr_t *a_addr_from,
@@ -365,7 +365,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_multi_transfer(
 /**
  * @brief Create conditional output transaction WITHOUT signature
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_cond_output(
+dap_chain_datum_tx_t *dap_chain_compose_tx_cond_output(
     dap_chain_net_id_t a_net_id,
     dap_pkey_t *a_pkey_from,
     const dap_chain_addr_t *a_addr_from,
@@ -474,7 +474,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_cond_output(
 /**
  * @brief Create event transaction WITHOUT signature
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_event(
+dap_chain_datum_tx_t *dap_chain_compose_tx_event(
     dap_chain_net_id_t a_net_id,
     dap_pkey_t *a_pkey_from,
     dap_pkey_t *a_pkey_service,
@@ -604,7 +604,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_event(
 /**
  * @brief Create base transaction from emission WITHOUT signature
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_from_emission(
+dap_chain_datum_tx_t *dap_chain_compose_tx_from_emission(
     dap_chain_net_id_t a_net_id,
     dap_chain_hash_fast_t *a_emission_hash,
     dap_chain_id_t a_emission_chain_id,

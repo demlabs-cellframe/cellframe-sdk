@@ -47,3 +47,4 @@
  */
 dap_chain_datum_t *dap_chain_datum_from_tx(const dap_chain_datum_tx_t *a_tx);
 
+

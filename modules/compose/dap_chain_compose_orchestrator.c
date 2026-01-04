@@ -21,10 +21,11 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_chain_tx_composer.h"
+#include "dap_chain_compose_builder.h"
+#include "dap_chain_compose.h"
 #include "dap_common.h"
 
-#define LOG_TAG "dap_chain_tx_composer"
+#define LOG_TAG "dap_chain_compose_orchestrator"
 
 /**
  * @brief Compose transfer transaction
@@ -64,7 +65,7 @@ dap_chain_datum_t *dap_chain_tx_compose_transfer(
     
     // STEP 2: Build unsigned TX (LAYER 1: TX Builder)
     log_it(L_INFO, "Building unsigned transfer transaction...");
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create_transfer(
+    dap_chain_datum_tx_t *l_tx = dap_chain_compose_tx_transfer(
         a_chain->net_id,
         l_pkey,
         a_addr_from,
@@ -165,7 +166,7 @@ dap_chain_datum_t *dap_chain_tx_compose_multi_transfer(
     }
     
     log_it(L_INFO, "Building unsigned multi-transfer transaction (%zu outputs)...", a_outputs_count);
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create_multi_transfer(
+    dap_chain_datum_tx_t *l_tx = dap_chain_compose_tx_multi_transfer(
         a_chain->net_id, l_pkey, a_addr_from, a_addr_to, a_values,
         a_token_ticker, a_value_fee, a_outputs_count, a_time_unlock
     );
@@ -247,7 +248,7 @@ dap_chain_datum_t *dap_chain_tx_compose_cond_output(
     
     log_it(L_INFO, "Building unsigned conditional output (service 0x%016"DAP_UINT64_FORMAT_x")...",
            a_srv_uid.uint64);
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create_cond_output(
+    dap_chain_datum_tx_t *l_tx = dap_chain_compose_tx_cond_output(
         a_chain->net_id, l_pkey, a_addr_from, a_pkey_cond_hash, a_token_ticker,
         a_value, a_value_per_unit_max, a_unit, a_srv_uid, a_value_fee, a_cond, a_cond_size
     );
@@ -332,7 +333,7 @@ dap_chain_datum_t *dap_chain_tx_compose_event(
     }
     
     log_it(L_INFO, "Building unsigned event (group '%s', type %u)...", a_group_name, a_event_type);
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create_event(
+    dap_chain_datum_tx_t *l_tx = dap_chain_compose_tx_event(
         a_chain->net_id, l_pkey_from, l_pkey_service, a_srv_uid,
         a_group_name, a_event_type, a_event_data, a_event_data_size, a_value_fee
     );
@@ -412,7 +413,7 @@ dap_chain_datum_t *dap_chain_tx_compose_from_emission(
     dap_chain_hash_fast_to_str(a_emission_hash, l_emission_hash_str, sizeof(l_emission_hash_str));
     
     log_it(L_INFO, "Building unsigned base transaction from emission %s...", l_emission_hash_str);
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create_from_emission(
+    dap_chain_datum_tx_t *l_tx = dap_chain_compose_tx_from_emission(
         a_chain->net_id, a_emission_hash, a_emission_chain_id,
         a_emission_value, a_ticker, a_addr_to, a_value_fee
     );

@@ -161,3 +161,4 @@ uint256_t dap_chain_validator_api_get_value(dap_chain_validator_item_t a_item)
 }
 
 
+

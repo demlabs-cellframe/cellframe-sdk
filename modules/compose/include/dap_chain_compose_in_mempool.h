@@ -8,7 +8,7 @@
 
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
-#include "dap_chain_tx_compose.h"
+#include "dap_chain_compose.h"
 
 // Forward declarations
 typedef struct dap_chain_tx_compose_config dap_chain_tx_compose_config_t;

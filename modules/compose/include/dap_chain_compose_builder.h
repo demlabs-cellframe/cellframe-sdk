@@ -58,7 +58,7 @@
  * @param a_value_fee Fee
  * @return Unsigned TX or NULL
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_transfer(
+dap_chain_datum_tx_t *dap_chain_compose_tx_transfer(
     dap_list_t *a_list_used_outs,
     const dap_chain_addr_t *a_addr_to,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -69,7 +69,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_transfer(
 /**
  * @brief Create multi-transfer transaction (PURE)
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_multi_transfer(
+dap_chain_datum_tx_t *dap_chain_compose_tx_multi_transfer(
     dap_list_t *a_list_used_outs,
     const dap_chain_addr_t **a_addr_to,
     uint256_t *a_values,
@@ -82,7 +82,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_multi_transfer(
 /**
  * @brief Create conditional output transaction (PURE)
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_cond_output(
+dap_chain_datum_tx_t *dap_chain_compose_tx_cond_output(
     dap_list_t *a_list_used_outs,
     dap_hash_fast_t *a_pkey_cond_hash,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -98,7 +98,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_cond_output(
 /**
  * @brief Create event transaction (PURE)
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_event(
+dap_chain_datum_tx_t *dap_chain_compose_tx_event(
     dap_list_t *a_list_used_outs,
     dap_pkey_t *a_pkey_service,
     dap_chain_srv_uid_t a_srv_uid,
@@ -112,7 +112,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_event(
 /**
  * @brief Create base transaction from emission (PURE)
  */
-dap_chain_datum_tx_t *dap_chain_datum_tx_create_from_emission(
+dap_chain_datum_tx_t *dap_chain_compose_tx_from_emission(
     dap_chain_hash_fast_t *a_emission_hash,
     dap_chain_id_t a_emission_chain_id,
     uint256_t a_emission_value,
