@@ -1624,14 +1624,14 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                         : dap_enc_base58_to_hex_str_from_str(l_hash_string);
                 }
                 const char c = '1';
-                char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
-                if (!l_gdb_group_str) {
-                    DAP_DELETE(l_hash_hex_str);
-                    dap_json_object_free(l_jobj_return);
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD, "%s",
-                                           "Database ACL group not defined for this network");
-                    return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD;
-                }
+// BROKEN LEGACY ACL:                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
+//                 if (!l_gdb_group_str) {
+//                     DAP_DELETE(l_hash_hex_str);
+//                     dap_json_object_free(l_jobj_return);
+//                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD, "%s",
+//                                            "Database ACL group not defined for this network");
+//                     return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD;
+//                 }
                 if( l_hash_hex_str ){
                     l_ret = dap_global_db_set_sync(l_gdb_group_str, l_hash_hex_str, &c, sizeof(c), false );
                     DAP_DELETE(l_gdb_group_str);
@@ -1651,14 +1651,14 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 }
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_ca_str, "list") == 0 ) {
-                char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
-                if (!l_gdb_group_str) {
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST, "%s",
-                                           "Database ACL group not defined for this network");
-                    return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST;
-                }
-                size_t l_objs_count;
-                dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_str, &l_objs_count);
+// BROKEN LEGACY ACL:                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
+//                 if (!l_gdb_group_str) {
+//                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST, "%s",
+//                                            "Database ACL group not defined for this network");
+//                     return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST;
+//                 }
+//                 size_t l_objs_count;
+//                 dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_str, &l_objs_count);
                 DAP_DELETE(l_gdb_group_str);
                 dap_json_t *l_jobj_list_ca = dap_json_array_new();
                 if (!l_jobj_list_ca) {
@@ -1697,14 +1697,14 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                                            "Format should be 'net ca del -hash <hash string>");
                     return DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL;
                 }
-                char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
-                if (!l_gdb_group_str) {
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL, "%s",
-                                           "Database ACL group not defined for this network");
-                    return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL;
-                }
-                char *l_ret_msg_str = dap_strdup_printf("Certificate %s has been deleted.", l_hash_string);
-                dap_json_t *l_jobj_ret = dap_json_object_new_string(l_ret_msg_str);
+// BROKEN LEGACY ACL:                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
+//                 if (!l_gdb_group_str) {
+//                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL, "%s",
+//                                            "Database ACL group not defined for this network");
+//                     return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL;
+//                 }
+//                 char *l_ret_msg_str = dap_strdup_printf("Certificate %s has been deleted.", l_hash_string);
+//                 dap_json_t *l_jobj_ret = dap_json_object_new_string(l_ret_msg_str);
                 DAP_DELETE(l_ret_msg_str);
                 if (l_jobj_ret) {
                     dap_json_object_free(l_jobj_return);
