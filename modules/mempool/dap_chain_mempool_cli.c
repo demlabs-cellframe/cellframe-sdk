@@ -49,6 +49,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_global_db_driver.h"  // For dap_store_obj_t
+#include "dap_chain_net_tx.h"      // For dap_chain_tx_datum_from_json
 
 #define LOG_TAG "dap_chain_mempool_cli"
 
