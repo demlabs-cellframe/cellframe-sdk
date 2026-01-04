@@ -54,6 +54,7 @@
 
 // Forward declarations for types from higher-level modules
 typedef struct dap_chain_net dap_chain_net_t;
+typedef struct dap_chain_wallet dap_chain_wallet_t;
 
 // Forward declarations for functions from net/tx module (higher-level)
 // These are temporary - CLI should be refactored to use TX Compose API
@@ -78,6 +79,29 @@ typedef enum {
 extern int dap_chain_net_get_tx_all(dap_chain_net_t *a_net, tx_search_type_t a_search_type, 
                                      bool (*a_filter_callback)(tx_check_args_t *), dap_list_t **a_list_out);
 extern bool s_tx_is_srv_pay_check(tx_check_args_t *a_args);
+
+// Forward declarations for net functions
+extern dap_chain_t* dap_chain_net_get_chain_by_name(dap_chain_net_t *a_net, const char *a_chain_name);
+extern dap_chain_t* dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_chain_type);
+extern dap_chain_net_t* dap_chain_net_by_name(const char *a_name);
+extern bool dap_chain_net_is_bridged(dap_chain_net_t *a_net);
+extern const char* dap_chain_net_verify_datum_err_code_to_str(int a_code);
+
+// Forward declarations for wallet functions
+extern const char* dap_chain_wallet_get_path(dap_chain_wallet_t *a_wallet);
+
+// Forward declarations for mempool functions
+extern char* dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_datum_tx_t *a_datum,
+                                               const char *a_hash_out_type);
+extern char* dap_chain_mempool_group_new(dap_chain_t *a_chain);
+
+// Forward declarations for global_db functions (legacy, will be removed)
+extern int dap_global_db_set(const char *a_group, const char *a_key, const void *a_value, 
+                             size_t a_value_size, bool a_is_pinned, void *a_arg);
+
+// JSON util function (legacy)
+extern const char* json_util_get_last_err(void);
+
 
 
 #define LOG_TAG "chain_ledger_cli"
@@ -2218,7 +2242,11 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
  * @param arg_func
  * @param str_reply
  * @return int
+ * 
+ * TODO: This function needs full refactoring to use TX Compose API
+ *       Temporarily disabled to allow SDK compilation
  */
+#if 0  // DISABLED - requires TX Compose API migration
 int com_tx_create_json(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
     int l_arg_index = 1;
@@ -2392,6 +2420,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
     dap_json_array_add(a_json_arr_reply, l_jobj_ret);
     return DAP_CHAIN_NET_TX_CREATE_JSON_OK;
 }
+#endif  // End of com_tx_create_json - DISABLED
 
 /**
  * @brief Create transaction
@@ -2401,7 +2430,11 @@ int com_tx_create_json(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
  * @param arg_func
  * @param str_reply
  * @return int
+ * 
+ * TODO: This function needs full refactoring to use TX Compose API
+ *       Temporarily disabled to allow SDK compilation
  */
+#if 0  // DISABLED - requires TX Compose API migration
 int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
     int arg_index = 1;
