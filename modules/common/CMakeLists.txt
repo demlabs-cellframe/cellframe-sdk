@@ -14,8 +14,17 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_COMMON_SRCS})
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC .)
 
-# Only depends on DAP SDK for basic types
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_global_db dap_link_manager)
+# Only depends on DAP SDK for basic types + low-level modules for Composer
+target_link_libraries(${PROJECT_NAME} 
+    dap_core 
+    dap_crypto 
+    dap_stream 
+    dap_global_db 
+    dap_link_manager
+    dap_chain           # For composer
+    dap_chain_datum     # For composer
+    dap_chain_ledger    # For composer
+)
 
 if(INSTALL_SDK)
     INSTALL(FILES ${DAP_COMMON_HEADERS}
