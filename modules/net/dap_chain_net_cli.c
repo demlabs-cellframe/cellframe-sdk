@@ -104,7 +104,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
 
     dap_global_db_objs_delete(l_objs, l_nodes_count);
 
-    if (l_matched == 0) {
+    if (l_count == 0) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR,
                               "No nodes match the specified criteria");
         return -DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR;
@@ -932,13 +932,15 @@ int dap_chain_net_cli_init(void)
     dap_chain_net_cli_error_codes_init();
     
     // Register node command
-    dap_cli_server_cmd_add("node", com_node,
+    dap_cli_server_cmd_add("node", com_node, NULL,
                            "Node operations",
+                           -1, // auto ID
                            "node { add | del | link | alias | connect | list | dump | connections | balancer }\n");
 
     // Register net command (if exists)
-    dap_cli_server_cmd_add("net", com_net,
+    dap_cli_server_cmd_add("net", com_net, NULL,
                            "Network operations",
+                           -1, // auto ID
                            "net { list | get | go | stats | sync }\n");
 
     log_it(L_NOTICE, "Net CLI commands registered (with error codes)");
