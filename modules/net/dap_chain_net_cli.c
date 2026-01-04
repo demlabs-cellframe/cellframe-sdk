@@ -62,6 +62,7 @@ static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
     if (l_ledger) {
         // Get chain count and processed atoms count
         uint64_t l_atoms_count = 0;
+        dap_chain_t *l_chain = NULL;
         DL_FOREACH(a_net->pub.chains, l_chain) {
             if (l_chain && l_chain->callback_count_atom) {
                 l_atoms_count += l_chain->callback_count_atom(l_chain);
@@ -1137,7 +1138,8 @@ void _s_print_chains(dap_json_t *a_obj_chain, dap_chain_t *a_chain) {
     if (!a_obj_chain || !a_chain)
         return;
     dap_json_object_add_string(a_obj_chain, "name", a_chain->name);
-    dap_json_object_add_object(a_obj_chain, "consensus", dap_json_object_new_string(a_chain->cs_name));
+    dap_json_object_add_object(a_obj_chain, "consensus", 
+                              dap_json_object_new_string(DAP_CHAIN_PVT(a_chain)->cs_name));
 
     if (a_chain->default_datum_types_count) {
         dap_json_t *l_jobj_default_types = dap_json_array_new();
