@@ -787,6 +787,28 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
 dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_subtype, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from);
 bool dap_ledger_check_condition_owner(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_tx_out_cond_subtype_t a_cond_subtype, int a_out_idx, dap_sign_t *a_owner_sign);
 
+/**
+ * @brief Find unspent outputs (UTXO) that cover the specified value
+ * 
+ * PUBLIC API для TX Compose - поиск UTXO для создания транзакций
+ * 
+ * @param a_ledger Ledger context
+ * @param a_token_ticker Token ticker
+ * @param a_addr_from Source address
+ * @param a_value_need Total value needed (включая fee)
+ * @param a_value_found OUT: Total value found (может быть больше чем нужно)
+ * @return List of dap_chain_tx_used_out_t* or NULL if insufficient funds
+ * 
+ * NOTE: Caller must free the returned list and its elements
+ */
+dap_list_t *dap_ledger_get_utxo_for_value(
+    dap_ledger_t *a_ledger,
+    const char *a_token_ticker,
+    const dap_chain_addr_t *a_addr_from,
+    uint256_t a_value_need,
+    uint256_t *a_value_found
+);
+
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
 int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
                                dap_ledger_cond_in_verify_callback_t a_callback_in_verify, dap_ledger_cond_out_verify_callback_t a_callback_out_verify,

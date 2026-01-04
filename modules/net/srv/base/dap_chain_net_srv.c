@@ -52,6 +52,7 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_srv_ch.h"
+#include "dap_chain_net_srv_tx.h"
 
 #ifdef DAP_MODULES_DYNAMIC
 #include "dap_modules_dynamic_cdb.h"
@@ -73,6 +74,12 @@ static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_p
  */
 int dap_chain_net_srv_init()
 {
+    // Register net/srv TX builders in TX Compose API
+    if (dap_net_srv_tx_builders_register() != 0) {
+        log_it(L_ERROR, "Failed to register net/srv TX builders");
+        return -1;
+    }
+    
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL, NULL, s_pay_updater_callback, NULL, NULL);
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, NULL, "Network services managment",   0 ,
         "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
@@ -104,7 +111,7 @@ int dap_chain_net_srv_init()
  */
 void dap_chain_net_srv_deinit(void)
 {
-
+    dap_net_srv_tx_builders_unregister();
 }
 
 /**

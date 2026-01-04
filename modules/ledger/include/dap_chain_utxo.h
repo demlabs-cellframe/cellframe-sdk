@@ -25,7 +25,7 @@
 
 #include "dap_chain_common.h"
 #include "dap_hash.h"
-#include "uint256.h"
+#include "dap_math_ops.h"
 
 /**
  * @brief UTXO (Unspent Transaction Output) descriptor

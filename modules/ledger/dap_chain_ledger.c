@@ -38,6 +38,7 @@
 #include "dap_strfuncs.h"
 #include "dap_json.h"
 #include "dap_config.h"
+#include "dap_chain_ledger_tx.h"
 #include "dap_chain_datum_token.h"
 #include "dap_global_db.h"
 #include "dap_chain_ledger.h"
@@ -239,6 +240,12 @@ int dap_ledger_init()
 {
     g_debug_ledger = dap_config_get_item_bool_default(g_config, "ledger", "debug_more",false);
     
+    // Register ledger TX builders in TX Compose API
+    if (dap_ledger_tx_builders_register() != 0) {
+        log_it(L_ERROR, "Failed to register ledger TX builders");
+        return -1;
+    }
+    
     //register native ledger services
     dap_chain_srv_uid_t l_uid_transfer = { .uint64 = DAP_CHAIN_NET_SRV_TRANSFER_ID };
     dap_ledger_service_add(l_uid_transfer, "transfer", s_tag_check_transfer);
@@ -259,6 +266,7 @@ int dap_ledger_init()
  */
 void dap_ledger_deinit()
 {
+    dap_ledger_tx_builders_unregister();
     pthread_rwlock_destroy(&s_services_rwlock);
 }
 
@@ -2039,4 +2047,116 @@ void dap_ledger_set_get_cur_cell_callback(dap_ledger_t *a_ledger,
     a_ledger->get_cur_cell_callback = a_get_cur_cell_cb ? a_get_cur_cell_cb : s_default_get_cur_cell;
     
     log_it(L_INFO, "Ledger %s: get_cur_cell callback registered", a_ledger->name);
+}
+
+/**
+ * @brief Find unspent outputs (UTXO) that cover the specified value
+ * 
+ * PUBLIC API для TX Compose - поиск UTXO для создания транзакций
+ */
+dap_list_t *dap_ledger_get_utxo_for_value(
+    dap_ledger_t *a_ledger,
+    const char *a_token_ticker,
+    const dap_chain_addr_t *a_addr_from,
+    uint256_t a_value_need,
+    uint256_t *a_value_found
+)
+{
+    if (!a_ledger || !a_token_ticker || !a_addr_from || !a_value_found) {
+        log_it(L_ERROR, "Invalid parameters for dap_ledger_get_utxo_for_value");
+        return NULL;
+    }
+    
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_list_t *l_list_used_outs = NULL;
+    uint256_t l_value_transfer = {};
+    
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    
+    dap_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
+    HASH_ITER(hh, l_ledger_pvt->ledger_items, l_tx_item, l_tx_tmp) {
+        // Skip spent transactions
+        if (l_tx_item->cache_data.ts_spent) {
+            continue;
+        }
+        
+        dap_chain_datum_tx_t *l_tx = l_tx_item->tx;
+        bool l_tx_has_outs_for_addr = false;
+        
+        // Iterate through all outputs in the transaction
+        byte_t *l_tx_item_ptr = NULL;
+        size_t l_tx_item_size = 0;
+        TX_ITEM_ITER_TX(l_tx_item_ptr, l_tx_item_size, l_tx) {
+            if (*l_tx_item_ptr != TX_ITEM_TYPE_OUT && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_EXT) {
+                continue;
+            }
+            
+            // Get output address and value
+            dap_chain_addr_t l_out_addr = {};
+            uint256_t l_out_value = {};
+            const char *l_out_token = NULL;
+            
+            if (*l_tx_item_ptr == TX_ITEM_TYPE_OUT) {
+                dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_tx_item_ptr;
+                l_out_addr = l_out->addr;
+                l_out_value = l_out->header.value;
+                l_out_token = l_tx_item->cache_data.token_ticker;
+            } else { // TX_ITEM_TYPE_OUT_EXT
+                dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_tx_item_ptr;
+                l_out_addr = l_out_ext->addr;
+                l_out_value = l_out_ext->header.value;
+                l_out_token = l_out_ext->token;
+            }
+            
+            // Check if output matches our criteria
+            if (!dap_chain_addr_compare(&l_out_addr, a_addr_from)) {
+                continue;
+            }
+            
+            if (dap_strcmp(l_out_token, a_token_ticker) != 0) {
+                continue;
+            }
+            
+            // Found matching output - add to list
+            dap_chain_tx_used_out_t *l_used_out = DAP_NEW_Z(dap_chain_tx_used_out_t);
+            if (!l_used_out) {
+                log_it(L_ERROR, "Memory allocation failed");
+                break;
+            }
+            
+            l_used_out->tx_prev_hash = l_tx_item->tx_hash_fast;
+            l_used_out->tx_out_prev_idx = (l_tx_item_ptr - (byte_t *)l_tx) / sizeof(void *); // Simplified index calculation
+            l_used_out->value = l_out_value;
+            l_used_out->addr = l_out_addr;
+            
+            l_list_used_outs = dap_list_append(l_list_used_outs, l_used_out);
+            SUM_256_256(l_value_transfer, l_out_value, &l_value_transfer);
+            
+            l_tx_has_outs_for_addr = true;
+            
+            // Check if we have enough
+            if (compare256(l_value_transfer, a_value_need) >= 0) {
+                *a_value_found = l_value_transfer;
+                pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+                log_it(L_INFO, "Found sufficient UTXO for value");
+                return l_list_used_outs;
+            }
+        }
+    }
+    
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    
+    // Insufficient funds - cleanup and return NULL
+    if (compare256(l_value_transfer, a_value_need) < 0) {
+        log_it(L_WARNING, "Insufficient UTXO: needed %s, found %s %s",
+               dap_uint256_to_char(a_value_need, NULL),
+               dap_uint256_to_char(l_value_transfer, NULL),
+               a_token_ticker);
+        
+        dap_list_free_full(l_list_used_outs, NULL);
+        return NULL;
+    }
+    
+    *a_value_found = l_value_transfer;
+    return l_list_used_outs;
 }

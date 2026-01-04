@@ -18,6 +18,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 # Dependencies: только базовые datum типы и uthash
 target_link_libraries(${PROJECT_NAME} 
     dap_core
+    dap_chain
+    dap_chain_datum
 )
 
 # Export headers for other modules
