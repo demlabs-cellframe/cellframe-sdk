@@ -36,7 +36,91 @@
 #define LOG_TAG "dap_chain_net_cli"
 
 // Forward declarations
+// Forward declarations for legacy static functions
+static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, int a_arg_start, int a_argc,
+                                                                   dap_json_t *a_json_arr_reply, const char *a_cmd_name);
+static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version);
+
 static int com_node(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+static int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+
+/**
+ * @brief s_net_sync_status - Creates JSON object with network sync status information
+ * @param a_net Network object
+ * @param a_version API version
+ * @return dap_json_t* JSON object with sync status
+ */
+static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
+{
+    UNUSED(a_version);
+    dap_json_t *l_json_status = dap_json_object_new();
+    if (!l_json_status || !a_net)
+        return l_json_status;
+
+    // Add basic sync information
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
+    if (l_ledger) {
+        // Get chain count and processed atoms count
+        uint64_t l_atoms_count = 0;
+        DL_FOREACH(a_net->pub.chains, l_chain) {
+            if (l_chain && l_chain->callback_count_atom) {
+                l_atoms_count += l_chain->callback_count_atom(l_chain);
+            }
+        }
+        
+        dap_json_object_add_object(l_json_status, "atoms_processed", 
+                                    dap_json_object_new_uint64(l_atoms_count));
+    }
+
+    return l_json_status;
+}
+
+/**
+ * @brief s_chain_node_cli_com_node_create_tsd_addr_json - Creates TSD item from address parameters
+ * @param a_argv Arguments array
+ * @param a_arg_start Start index for parsing
+ * @param a_argc Total argument count
+ * @param a_json_arr_reply JSON reply array for errors
+ * @param a_cmd_name Command name for error messages
+ * @return dap_tsd_t* Created TSD item or NULL on error
+ */
+static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, int a_arg_start, int a_argc,
+                                                                   dap_json_t *a_json_arr_reply, const char *a_cmd_name)
+{
+    // Find -addr parameter
+    const char *l_addr_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_argc, "-addr", &l_addr_str);
+    
+    if (!l_addr_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, -1, 
+                              "%s requires -addr parameter", a_cmd_name);
+        return NULL;
+    }
+
+    // Parse address
+    dap_chain_node_addr_t l_node_addr = {};
+    if (dap_chain_node_addr_from_str(&l_node_addr, l_addr_str) != 0) {
+        dap_json_rpc_error_add(a_json_arr_reply, -1,
+                              "Invalid node address format: %s", l_addr_str);
+        return NULL;
+    }
+
+    // Create TSD item with address
+    size_t l_tsd_size = sizeof(dap_tsd_t) + sizeof(dap_chain_node_addr_t);
+    dap_tsd_t *l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_tsd_size);
+    if (!l_tsd) {
+        dap_json_rpc_error_add(a_json_arr_reply, -1,
+                              "Memory allocation failed for TSD");
+        return NULL;
+    }
+
+    l_tsd->type = 0; // TSD type for node address
+    l_tsd->size = sizeof(dap_chain_node_addr_t);
+    memcpy(l_tsd->data, &l_node_addr, sizeof(dap_chain_node_addr_t));
+
+    return l_tsd;
+}
+
 static int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 // Helper function to list nodes with full reply  
