@@ -7,6 +7,9 @@ file(GLOB DAP_CHAIN_DATUM_HEADERS include/*.h)
 # Use universal Cellframe library macro
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_DATUM_SRCS})
 
+# TX Compose API submodule
+add_subdirectory(tx)
+
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
 endif()
