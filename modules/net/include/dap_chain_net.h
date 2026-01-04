@@ -116,6 +116,9 @@ dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 const char *dap_chain_net_state_to_str(dap_chain_net_state_t a_state);
 const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net);
 
+// Exported state names array (for CLI and external use)
+extern const char *c_net_states[];
+
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
 bool dap_chain_net_stop(dap_chain_net_t *a_net);
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
