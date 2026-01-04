@@ -30,14 +30,18 @@
 #include "dap_sign.h"
 #include "dap_pkey.h"
 #include "dap_chain_common.h"
-#include "dap_chain_net.h"
+// REMOVED: #include "dap_chain_net.h" - creates cycle, use callbacks
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_cs_esbocs.h"
-#include "dap_chain_net_tx.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
+// REMOVED: #include "dap_chain_net_tx.h" - creates cycle, use callbacks
+// REMOVED: #include "dap_chain_net_srv_stake_pos_delegate.h" - creates cycle, use callbacks
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_policy.h"
 #include "dap_json.h"
+
+// Forward declarations for types we need but don't include
+typedef struct dap_chain_net dap_chain_net_t;
+typedef struct dap_chain_net_srv_stake_item dap_chain_net_srv_stake_item_t;
 #include "dap_chain_srv.h"
 
 #define LOG_TAG "dap_ledger_decree"
