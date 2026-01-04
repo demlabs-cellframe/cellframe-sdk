@@ -20,6 +20,9 @@
 #include "dap_chain_net_node_list.h"         // For dap_chain_node_list_ip_check, dap_chain_net_node_list_request
 #include "dap_chain_node_rpc.h"              // For dap_chain_node_rpc_* functions
 #include "dap_chain_node_sync_client.h"      // For dap_chain_node_sync_handshake
+#include "dap_chain_datum.h"                 // For dap_chain_datum_create
+#include "dap_chain_mempool.h"               // For dap_chain_mempool_datum_add
+#include "dap_chain_srv.h"                   // For dap_chain_srv_get_fees
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
 #include "utlist.h"
@@ -351,12 +354,12 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
     }
 
     case CMD_LIST:{
-        // TODO: FULL REFACTORING NEEDED - this function never existed!
-        // Original code called s_node_info_list_with_reply() which was never implemented
-        // Need to implement proper node list functionality using dap_chain_node_rpc_list() as reference
+        // BROKEN LEGACY CODE - function s_node_info_list_with_reply() never existed
+        // This command was NEVER functional in the codebase
+        // Use CMD_LIST_RPC instead which works correctly
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR,
-                               "Node list command requires full refactoring - use 'node list-rpc' instead");
-        log_it(L_WARNING, "node list called - not implemented, use 'node list-rpc' instead");
+                               "This command never worked (missing function). Use 'node list-rpc' instead");
+        log_it(L_ERROR, "'node list' called - broken legacy code, use 'node list-rpc'");
         return -DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR;
     }
     case CMD_LIST_RPC: {
