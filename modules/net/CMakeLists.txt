@@ -17,10 +17,11 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_NET_SRCS} HEADERS ${DAP_CHAIN_
 target_link_libraries(${PROJECT_NAME} 
     dap_core dap_crypto dap_client dap_link_manager dap_dns_server
     dap_io dap_notify_srv dap_global_db dap_json_rpc dap_cli_server dap_chain_net_core
-    dap_chain dap_chain_datum dap_chain_cs dap_common dap_chain_rpc dap_chain_ledger dap_chain_mempool)
+    dap_chain dap_chain_datum dap_chain_cs dap_common dap_chain_rpc dap_chain_ledger dap_chain_mempool
+    dap_chain_net_srv)  # Net CLI needs srv headers
 # NO dap_chain_net_tx - would create cycle (net-tx depends on net)
 # dap_chain_ledger - normal dependency: net (high) → ledger (mid-level)
-# REMOVED: mempool, srv, blocks - lateral/higher layers, resolved at final link
+# dap_chain_net_srv - unidirectional: net (high) → srv (lower), NO CYCLE
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 

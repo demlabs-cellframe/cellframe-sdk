@@ -43,8 +43,8 @@
 // REMOVED: esbocs.h - breaks cycle, use generic dap_chain_cs.h API instead
 #include "dap_chain_cs.h"
 // #include "dap_chain_net_callbacks.h"  // TODO: Create this header for callback types  // Order validation callback (Dependency Inversion)
-#include "../net/srv/base/include/dap_chain_net_srv.h"  // For dap_chain_net_srv_t
-#include "../net/srv/base/include/dap_chain_net_srv_order.h"  // For dap_chain_net_srv_order_find_all_by
+#include "dap_chain_net_srv.h"        // srv/base exports include/
+#include "dap_chain_net_srv_order.h"  // srv/base exports include/
 #include "dap_chain_node.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"

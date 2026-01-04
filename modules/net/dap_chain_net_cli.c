@@ -14,11 +14,12 @@
 #include "dap_chain_net.h"
 #include "dap_chain_net_core.h"
 #include "dap_chain_ledger.h"
-#include "tx/include/dap_chain_net_tx.h"
-#include "srv/base/include/dap_chain_net_srv.h"
+#include "dap_chain_net_tx.h"                // tx module exports include/
+#include "dap_chain_net_srv.h"               // srv/base exports include/
 #include "dap_chain_net_cli_error_codes.h"  // Error codes registration
 #include "dap_chain_net_node_list.h"         // For dap_chain_node_list_ip_check, dap_chain_net_node_list_request
 #include "dap_chain_node_rpc.h"              // For dap_chain_node_rpc_* functions
+#include "dap_chain_node_sync_client.h"      // For dap_chain_node_sync_handshake
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
 #include "utlist.h"
