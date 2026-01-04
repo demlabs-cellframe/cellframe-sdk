@@ -32,14 +32,6 @@
 
 #define LOG_TAG "dap_chain_net_cli"
 
-// Forward declarations for missing/broken functions
-char *dap_http_ban_list_client_dump(void);  // Ban list function (if exists)
-int s_net_sync_status(void);                 // Sync status (broken legacy)
-void *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, int a_idx, int a_argc, void *a_reply, const char *a_type);  // Broken legacy
-int PVT(void);                                // Unknown function
-int dap_link_manager_links_count(void);      // Link manager
-int dap_link_manager_required_links_count(void);  // Link manager
-
 // Forward declarations
 static int com_node(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 static int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
