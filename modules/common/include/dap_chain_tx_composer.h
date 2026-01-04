@@ -24,39 +24,34 @@
 #pragma once
 
 #include "dap_chain.h"
-#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum.h"
 #include "dap_chain_datum_tx_create.h"
+#include "dap_chain_tx_sign.h"
+#include "dap_chain_datum_converter.h"
 #include "dap_chain_ledger.h"
 
 /**
- * @brief Mempool Builder API - high-level transaction creation with ledger integration
+ * @brief TX Composer API - high-level composition layer
  * 
- * This is the top layer that combines:
- * - TX Builder (creates unsigned transactions)
- * - Ledger Sign API (signs transactions via wallet callbacks)
- * - Mempool (accepts signed transactions)
+ * LAYER 4: Composition layer (uses all lower layers)
  * 
- * Architecture:
- * 1. Create unsigned TX via TX Builder
- * 2. Sign TX via Ledger Sign API (wallet callback)
- * 3. Add signature to TX
- * 4. Submit to mempool
+ * Responsibility: Orchestrate TX creation flow
+ * - Create unsigned TX (via TX Builder)
+ * - Sign TX (via TX Signer + Ledger callbacks)
+ * - Convert to Datum (via Converter)
+ * 
+ * Does NOT submit to mempool - that's caller's responsibility!
  * 
  * Hardware wallet friendly:
- * - Signing happens via wallet callback (may wait up to 30s)
- * - No direct access to private keys
- * - Clean separation of concerns
+ * - Uses ledger callbacks for signing (may wait 30s)
+ * - No direct key access
+ * - Clean error handling
  */
 
 /**
- * @brief Create and submit transfer transaction
+ * @brief Compose transfer transaction (create + sign + convert)
  * 
- * High-level function that:
- * 1. Creates unsigned transfer TX
- * 2. Signs it via ledger wallet callback
- * 3. Submits to mempool
- * 
- * @param a_ledger Ledger instance
+ * @param a_ledger Ledger instance (for signing callback)
  * @param a_wallet_name Wallet name for signing
  * @param a_chain Target chain
  * @param a_addr_from Source address
@@ -64,10 +59,9 @@
  * @param a_token_ticker Token ticker
  * @param a_value Transfer amount
  * @param a_value_fee Fee amount
- * @param a_hash_out_type Hash output format
- * @return Transaction hash string or NULL on error
+ * @return Signed datum ready for mempool, or NULL on error (caller must free)
  */
-char *dap_chain_mempool_tx_create_and_submit_transfer(
+dap_chain_datum_t *dap_chain_tx_compose_transfer(
     dap_ledger_t *a_ledger,
     const char *a_wallet_name,
     dap_chain_t *a_chain,
@@ -75,14 +69,13 @@ char *dap_chain_mempool_tx_create_and_submit_transfer(
     const dap_chain_addr_t *a_addr_to,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     uint256_t a_value,
-    uint256_t a_value_fee,
-    const char *a_hash_out_type
+    uint256_t a_value_fee
 );
 
 /**
- * @brief Create and submit multi-transfer transaction
+ * @brief Compose multi-transfer transaction
  */
-char *dap_chain_mempool_tx_create_and_submit_multi_transfer(
+dap_chain_datum_t *dap_chain_tx_compose_multi_transfer(
     dap_ledger_t *a_ledger,
     const char *a_wallet_name,
     dap_chain_t *a_chain,
@@ -92,14 +85,13 @@ char *dap_chain_mempool_tx_create_and_submit_multi_transfer(
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     uint256_t a_value_fee,
     size_t a_outputs_count,
-    dap_time_t *a_time_unlock,
-    const char *a_hash_out_type
+    dap_time_t *a_time_unlock
 );
 
 /**
- * @brief Create and submit conditional output transaction
+ * @brief Compose conditional output transaction
  */
-char *dap_chain_mempool_tx_create_and_submit_cond_output(
+dap_chain_datum_t *dap_chain_tx_compose_cond_output(
     dap_ledger_t *a_ledger,
     const char *a_wallet_name,
     dap_chain_t *a_chain,
@@ -112,14 +104,13 @@ char *dap_chain_mempool_tx_create_and_submit_cond_output(
     dap_chain_srv_uid_t a_srv_uid,
     uint256_t a_value_fee,
     const void *a_cond,
-    size_t a_cond_size,
-    const char *a_hash_out_type
+    size_t a_cond_size
 );
 
 /**
- * @brief Create and submit event transaction
+ * @brief Compose event transaction
  */
-char *dap_chain_mempool_tx_create_and_submit_event(
+dap_chain_datum_t *dap_chain_tx_compose_event(
     dap_ledger_t *a_ledger,
     const char *a_wallet_name,
     const char *a_service_wallet_name,
@@ -129,14 +120,13 @@ char *dap_chain_mempool_tx_create_and_submit_event(
     uint16_t a_event_type,
     const void *a_event_data,
     size_t a_event_data_size,
-    uint256_t a_value_fee,
-    const char *a_hash_out_type
+    uint256_t a_value_fee
 );
 
 /**
- * @brief Create and submit base transaction from emission
+ * @brief Compose base transaction from emission
  */
-char *dap_chain_mempool_tx_create_and_submit_from_emission(
+dap_chain_datum_t *dap_chain_tx_compose_from_emission(
     dap_ledger_t *a_ledger,
     const char *a_wallet_name,
     dap_chain_t *a_chain,
@@ -145,7 +135,6 @@ char *dap_chain_mempool_tx_create_and_submit_from_emission(
     uint256_t a_emission_value,
     const char *a_ticker,
     dap_chain_addr_t *a_addr_to,
-    uint256_t a_value_fee,
-    const char *a_hash_out_type
+    uint256_t a_value_fee
 );
 
