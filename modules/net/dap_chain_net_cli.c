@@ -27,6 +27,8 @@
 #include "dap_chain_mempool.h"               // For dap_chain_mempool_datum_add
 #include "dap_chain_srv.h"                   // For dap_chain_srv_get_fees
 #include "dap_chain_net_balancer.h"          // For dap_chain_net_balancer_get_node_str
+#include "dap_http_ban_list_client.h"        // For dap_http_ban_list_client_dump
+#include "dap_link_manager.h"                // For dap_link_manager_* functions
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
 #include "utlist.h"

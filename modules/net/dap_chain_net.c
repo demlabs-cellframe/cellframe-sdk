@@ -188,7 +188,8 @@ typedef struct dap_chain_net_pvt {
 
 static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
 
-static const char *c_net_states[] = {
+// Exported state names array for external use (CLI, etc.)
+const char *c_net_states[] = {
     [NET_STATE_LOADING]             = "NET_STATE_LOADING",
     [NET_STATE_OFFLINE]             = "NET_STATE_OFFLINE",
     [NET_STATE_LINKS_PREPARE ]      = "NET_STATE_LINKS_PREPARE",
