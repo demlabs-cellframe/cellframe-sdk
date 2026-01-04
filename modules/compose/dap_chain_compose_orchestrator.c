@@ -23,6 +23,9 @@
 
 #include "dap_chain_compose_builder.h"
 #include "dap_chain_compose.h"
+#include "dap_chain_ledger.h"
+#include "dap_chain_tx_sign.h"
+#include "dap_chain_datum_converter.h"
 #include "dap_common.h"
 
 #define LOG_TAG "dap_chain_compose_orchestrator"
