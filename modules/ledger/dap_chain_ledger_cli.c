@@ -30,6 +30,7 @@
 #include "dap_cli_server.h"
 #include "dap_cli_error_codes.h"
 #include "dap_chain_ledger_cli_error_codes.h"
+#include "dap_chain_ledger_cli_compat.h"  // Compatibility layer for old error codes
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_strfuncs.h"
@@ -62,6 +63,22 @@ extern int dap_chain_net_tx_create_by_json(dap_json_t *a_json, dap_chain_net_t *
                                             size_t *a_items_count, size_t *a_items_ready);
 extern bool dap_chain_net_tx_get_fee(dap_chain_id_t a_chain_id, uint256_t *a_fee, dap_chain_addr_t *a_addr);
 extern char* dap_chain_mempool_datum_add(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
+
+// Forward declarations for problematic functions from net module
+// TODO: Remove after full CLI refactoring  
+typedef struct tx_check_args {
+    dap_chain_datum_tx_t *tx;
+    dap_chain_hash_fast_t tx_hash;
+} tx_check_args_t;
+
+typedef enum {
+    TX_SEARCH_TYPE_NET = 0
+} tx_search_type_t;
+
+extern int dap_chain_net_get_tx_all(dap_chain_net_t *a_net, tx_search_type_t a_search_type, 
+                                     bool (*a_filter_callback)(tx_check_args_t *), dap_list_t **a_list_out);
+extern bool s_tx_is_srv_pay_check(tx_check_args_t *a_args);
+
 
 #define LOG_TAG "chain_ledger_cli"
 
