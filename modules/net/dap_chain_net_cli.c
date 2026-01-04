@@ -36,8 +36,83 @@
 static int com_node(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 static int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
-#include "dap_chain_net_core.h"
-#include "dap_chain_net_core.h"
+// Helper function to list nodes with full reply  
+// Implementation based on dap_chain_node_rpc_list logic
+static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_node_addr,
+                                       bool a_is_full, const char *a_alias, dap_json_t *a_json_arr_reply)
+{
+    // Get nodes from global_db (same as rpc_list does)
+    char l_group_name[128];
+    snprintf(l_group_name, sizeof(l_group_name), "node-info.%s", a_net->pub.gdb_groups_prefix);
+    
+    size_t l_nodes_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group_name, &l_nodes_count);
+
+    if (!l_nodes_count || !l_objs) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR,
+                              "No nodes found in network");
+        return -DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR;
+    }
+
+    size_t l_matched = 0;
+    for (size_t i = 0; i < l_nodes_count; i++) {
+        dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
+        if (!l_node_info || dap_chain_node_addr_is_blank(&l_node_info->address))
+            continue;
+
+        // Filter by address if specified
+        if (a_node_addr && !dap_chain_node_addr_is_blank(a_node_addr)) {
+            if (memcmp(&l_node_info->address, a_node_addr, sizeof(dap_chain_node_addr_t)) != 0)
+                continue;
+        }
+
+        // Filter by alias if specified
+        if (a_alias && *a_alias) {
+            if (!l_node_info->alias || strcmp(l_node_info->alias, a_alias) != 0)
+                continue;
+        }
+
+        // Build JSON object for this node
+        dap_json_t *l_json_node = dap_json_object_new();
+        if (!l_json_node)
+            continue;
+
+        // Add node address (using NODE_ADDR_FP_STR format like rpc_list does)
+        char *l_addr_str = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_info->address));
+        dap_json_object_add_string(l_json_node, "address", l_addr_str);
+        DAP_DELETE(l_addr_str);
+
+        // Add alias if exists
+        if (l_node_info->alias && *l_node_info->alias)
+            dap_json_object_add_string(l_json_node, "alias", l_node_info->alias);
+
+        // Add host/port info (always, or only if full?)
+        if (l_node_info->ext_host && *l_node_info->ext_host)
+            dap_json_object_add_string(l_json_node, "IPv4", l_node_info->ext_host);
+        dap_json_object_add_uint64(l_json_node, "port", l_node_info->ext_port);
+
+        // Add full info if requested
+        if (a_is_full) {
+            char l_ts[DAP_TIME_STR_SIZE] = {'\0'};
+            dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
+            dap_json_object_add_string(l_json_node, "timestamp", l_ts);
+        }
+
+        dap_json_array_add(a_json_arr_reply, l_json_node);
+        l_matched++;
+    }
+
+    dap_global_db_objs_delete(l_objs, l_nodes_count);
+
+    if (l_matched == 0) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR,
+                              "No nodes match the specified criteria");
+        return -DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR;
+    }
+
+    return 0;
+}
+
 int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
     enum {
@@ -357,13 +432,9 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
     }
 
     case CMD_LIST:{
-        // BROKEN LEGACY CODE - function s_node_info_list_with_reply() never existed
-        // This command was NEVER functional in the codebase
-        // Use CMD_LIST_RPC instead which works correctly
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR,
-                               "This command never worked (missing function). Use 'node list-rpc' instead");
-        log_it(L_ERROR, "'node list' called - broken legacy code, use 'node list-rpc'");
-        return -DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR;
+        // handler of command 'node dump'
+        bool l_is_full = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
+        return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_json_arr_reply);
     }
     case CMD_LIST_RPC: {
         dap_json_t *json_obj_out = dap_chain_node_rpc_list();
