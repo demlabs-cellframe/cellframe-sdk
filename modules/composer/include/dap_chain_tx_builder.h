@@ -28,7 +28,7 @@
 #include "dap_sign.h"
 #include "dap_pkey.h"
 #include "dap_list.h"
-#include "dap_chain_ledger_utxo.h"  // UTXO from ledger!
+#include "dap_chain_utxo.h"  // UTXO from ledger!
 
 /**
  * @brief TX Builder API - creates UNSIGNED transactions (PURE FUNCTIONS!)
