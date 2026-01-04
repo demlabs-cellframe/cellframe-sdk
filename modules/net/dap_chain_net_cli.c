@@ -7,9 +7,10 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #define _XOPEN_SOURCE
+#define __USE_XOPEN
 #include <time.h>
+#include <errno.h>
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_net_cli.h"
