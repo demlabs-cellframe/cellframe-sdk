@@ -12,8 +12,9 @@ cellframe_add_library(${PROJECT_NAME} ${TX_COMPOSER_SRCS} HEADERS ${TX_COMPOSER_
 target_link_libraries(${PROJECT_NAME}
     dap_core
     dap_chain
-    dap_chain_datum      # For TX Builder, Signer, Converter
+    dap_chain_datum      # For Signer, Converter
     dap_chain_ledger     # For sign callbacks
+    dap_chain_tx_builder # For TX building
 )
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)

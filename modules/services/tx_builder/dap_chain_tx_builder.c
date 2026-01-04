@@ -21,14 +21,14 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_chain_datum_tx_create.h"
+#include "dap_chain_tx_builder.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
 
-#define LOG_TAG "dap_chain_datum_tx_create"
+#define LOG_TAG "dap_chain_tx_builder"
 
 /**
  * @brief Get transaction data for signing

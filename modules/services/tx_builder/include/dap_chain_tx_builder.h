@@ -28,38 +28,25 @@
 #include "dap_sign.h"
 #include "dap_pkey.h"
 #include "dap_list.h"
+#include "dap_chain_ledger_utxo.h"  // UTXO from ledger!
 
 /**
  * @brief TX Builder API - creates UNSIGNED transactions (PURE FUNCTIONS!)
  * 
- * LAYER 1: Foundation - pure transaction building
+ * SERVICE LAYER: Builds transactions from UTXO
  * 
  * PRINCIPLES:
  * - PURE FUNCTIONS - no side effects
  * - NO network access
- * - NO ledger queries
- * - NO database access
+ * - NO ledger queries (uses pre-found UTXO)
  * - Accept ALL data as parameters
  * - Zero coupling!
  * 
- * Caller (Composer) finds inputs and provides them.
- * Builder just assembles TX structure.
+ * Caller (Composer) finds UTXO via ledger and provides them.
+ * Builder just assembles TX structure from UTXO.
  * 
  * Hardware wallet friendly: Returns unsigned TX
  */
-
-/**
- * @brief Unspent output descriptor
- * 
- * Pre-found unspent output to use as TX input.
- * Composer finds these via ledger queries.
- */
-typedef struct dap_chain_tx_used_out {
-    dap_chain_hash_fast_t tx_prev_hash;  // Previous TX hash
-    uint32_t tx_out_prev_idx;             // Output index
-    uint256_t value;                      // Output value
-    dap_chain_addr_t addr;                // Address (for validation)
-} dap_chain_tx_used_out_t;
 
 /**
  * @brief Create transfer transaction (PURE)
