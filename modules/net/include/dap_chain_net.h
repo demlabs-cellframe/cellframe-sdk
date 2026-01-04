@@ -112,6 +112,10 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
+// State to string conversion
+const char *dap_chain_net_state_to_str(dap_chain_net_state_t a_state);
+const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net);
+
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
 bool dap_chain_net_stop(dap_chain_net_t *a_net);
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }

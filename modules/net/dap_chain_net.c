@@ -198,7 +198,8 @@ static const char *c_net_states[] = {
     [NET_STATE_ONLINE]              = "NET_STATE_ONLINE"
 };
 
-static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
+// Exported state to string conversion (no longer static inline)
+const char *dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
     return a_state < NET_STATE_LOADING || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
 }
 
@@ -210,7 +211,7 @@ static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_st
  * @param a_net Network object
  * @return State string for user display
  */
-static inline const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net)
+const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     dap_chain_net_state_t l_state = l_net_pvt->state;
