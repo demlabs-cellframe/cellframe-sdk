@@ -3996,3 +3996,5 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_r
     // Wallet callback - no need to close wallet
     return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK;
 }
+#endif  // End of com_tx_create - DISABLED
+

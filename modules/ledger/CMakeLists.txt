@@ -5,7 +5,14 @@ project (dap_chain_ledger)
 # Add CLI subdirectory FIRST (creates OBJECT library)
 add_subdirectory(cli)
 
-file(GLOB DAP_CHAIN_LEDGER_SRCS *.c)
+# Ledger source files - EXCLUDING old CLI and decree (decree -> future governance module)
+file(GLOB DAP_CHAIN_LEDGER_SRCS 
+    dap_chain_ledger.c
+    dap_chain_ledger_tx.c  
+    # dap_chain_ledger_decree.c  # DISABLED - requires decree datum and should be in governance module
+    dap_chain_ledger_cli_error_codes.c
+    # OLD CLI dap_chain_ledger_cli.c is DISABLED - using new modular CLI in cli/ subdirectory
+)
 file(GLOB DAP_CHAIN_LEDGER_HEADERS include/*.h)
 
 # Use universal Cellframe library macro

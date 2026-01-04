@@ -88,7 +88,7 @@ dap_chain_datum_tx_t *dap_ledger_tx_create_event(
         dap_chain_tx_used_out_t *l_used_out = (dap_chain_tx_used_out_t *)l_iter->data;
         if (!l_used_out) continue;
         
-        if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_hash, l_used_out->out_idx) != 1) {
+        if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_prev_hash, l_used_out->tx_out_prev_idx) != 1) {
             log_it(L_ERROR, "Failed to add input item");
             dap_chain_datum_tx_delete(l_tx);
             return NULL;

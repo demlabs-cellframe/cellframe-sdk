@@ -135,57 +135,5 @@ void dap_chain_ledger_cli_error_codes_init(void)
     
     log_it(L_INFO, "Ledger CLI error codes registered");
 }
-    
-    // TX Create errors
-    dap_cli_error_code_register("LEDGER_TX_CREATE_MEMPOOL_ADD_FAILED", -400, "Cannot add datum to mempool");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_FAILED", -401, "Cannot create transaction");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_CERT_INVALID", -402, "Certificate is invalid");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_DEST_ADDR_INVALID", -403, "Destination address invalid");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_DEST_NET_UNREACHABLE", -404, "Destination network unreachable");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_SRC_DEST_EQUAL", -405, "Source and destination address are equal");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_HASH_INVALID", -406, "Invalid hash");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_MEMORY_ERR", -407, "Memory error");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_NO_PRIVATE_KEY", -408, "No private key defined");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_FEE_REQUIRED", -409, "Fee required");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_FEE_INVALID", -410, "Fee must be uint256");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_CERT_OR_WALLET_REQUIRED", -411, "Certificate or wallet parameter required");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_FROM_EMISSION_REQUIRED", -412, "From emission parameter required");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_FROM_WALLET_OR_EMISSION", -413, "From wallet or emission parameter required");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_TO_ADDR_REQUIRED", -414, "To address parameter required");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_VALUE_INVALID", -415, "Value parameter required or invalid format");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_WALLET_FEE_REQUIRED", -416, "Wallet fee parameter required");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_TOKEN_REQUIRED", -417, "Token required");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_SRC_ADDR_INVALID", -418, "Source address invalid");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_TOKEN_NOT_DECLARED", -419, "Token not declared in network");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_WALLET_NOT_EXIST", -420, "Wallet does not exist");
-    dap_cli_error_code_register("LEDGER_TX_CREATE_TIME_FORMAT_INVALID", -421, "Wrong time format");
-    
-    // TX History errors
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_ADDR_WALLET_DIF_ERR", -450, "Address wallet differ");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_CHAIN_PARAM_ERR", -451, "Chain parameter error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR", -452, "DB history address error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR", -453, "DB history all error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_TX_ERR", -454, "DB history TX error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_HASH_REC_ERR", -455, "Hash recognition error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_ID_NET_ADDR_DIF_ERR", -456, "ID net address differ");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_INCOMPATIBLE_PARAMS_ERR", -457, "Incompatible parameters");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR", -458, "Memory error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_NET_ERR", -459, "Network error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_NET_PARAM_ERR", -460, "Network parameter error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK", 0, "TX history OK");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_PARAM_ERR", -461, "Parameter error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_WALLET_ADDR_ERR", -462, "Wallet address error");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_WALLET_ERR", -463, "Wallet error");
-    
-    // TX Verify errors
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH", -470, "Hash is not TX hash");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_INVALID_TX_HASH", -471, "Invalid TX hash");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_NET_CHAIN_UNDEFINED", -472, "Network or chain undefined");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_OK", 0, "TX verify OK");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_REQUIRE_PARAMETER_TX", -473, "TX parameter required");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_SPECIFIED_TX_NOT_FOUND", -474, "Specified TX not found");
-    dap_cli_error_code_register("DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_TX_NOT_VERIFY", -475, "TX not verified");
-    
-    log_it(L_INFO, "Ledger CLI error codes registered (%d codes)", 150);
-}
+
 

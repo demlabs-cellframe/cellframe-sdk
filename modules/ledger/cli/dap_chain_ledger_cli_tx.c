@@ -8,6 +8,7 @@
 
 #include "dap_chain_ledger_cli_tx.h"
 #include "dap_chain_ledger_cli_internal.h"
+#include "dap_chain_ledger_cli_cmd_registry.h"  // For command registration
 #include "dap_cli_error_codes.h"
 #include "dap_chain_ledger_cli_error_codes.h"
 #include "dap_json_rpc_errors.h"
@@ -279,11 +280,24 @@ int ledger_cli_tx_history(int a_argc, char **a_argv, dap_json_t *a_json_arr_repl
 
 /**
  * @brief Initialize TX commands module
+ * 
+ * Registers all TX commands in CLI registry
  */
 int dap_chain_ledger_cli_tx_init(void)
 {
     log_it(L_INFO, "Initializing ledger TX CLI commands");
-    // Registration will be done in main dispatcher
+    
+    // Register TX commands via registry - plugin pattern!
+    dap_ledger_cli_cmd_register("tx", "create", ledger_cli_tx_create, 
+                                 "Create transaction using TX Compose API");
+    dap_ledger_cli_cmd_register("tx", "create_json", ledger_cli_tx_create_json, 
+                                 "Create transaction from JSON file");
+    dap_ledger_cli_cmd_register("tx", "verify", ledger_cli_tx_verify, 
+                                 "Verify transaction");
+    dap_ledger_cli_cmd_register("tx", "history", ledger_cli_tx_history, 
+                                 "Show transaction history");
+    
+    log_it(L_NOTICE, "TX CLI commands registered successfully");
     return 0;
 }
 
@@ -293,5 +307,11 @@ int dap_chain_ledger_cli_tx_init(void)
 void dap_chain_ledger_cli_tx_deinit(void)
 {
     log_it(L_INFO, "Deinitializing ledger TX CLI commands");
+    
+    // Unregister commands
+    dap_ledger_cli_cmd_unregister("tx", "create");
+    dap_ledger_cli_cmd_unregister("tx", "create_json");
+    dap_ledger_cli_cmd_unregister("tx", "verify");
+    dap_ledger_cli_cmd_unregister("tx", "history");
 }
 
