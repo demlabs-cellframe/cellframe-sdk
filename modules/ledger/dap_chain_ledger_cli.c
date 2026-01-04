@@ -2555,8 +2555,8 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
 
         l_value = DAP_NEW_Z_COUNT(uint256_t, l_value_el_count);
         if (!l_value) {
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
-            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
+            dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_MEMORY_ERR"), c_error_memory_alloc);
+            return dap_cli_error_code_get("LEDGER_MEMORY_ERR");
         }
         char **l_value_array = dap_strsplit(l_value_str, ",", l_value_el_count);
         if (!l_value_array) {
@@ -2578,8 +2578,8 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         if (!l_addr_to) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             DAP_DELETE(l_value);
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
-            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
+            dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_MEMORY_ERR"), c_error_memory_alloc);
+            return dap_cli_error_code_get("LEDGER_MEMORY_ERR");
         }
         char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
         if (!l_addr_base58_to_array) {

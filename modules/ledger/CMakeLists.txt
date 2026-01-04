@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.10)
 
 project (dap_chain_ledger)
 
+# Add CLI subdirectory FIRST (creates OBJECT library)
+add_subdirectory(cli)
+
 file(GLOB DAP_CHAIN_LEDGER_SRCS *.c)
 file(GLOB DAP_CHAIN_LEDGER_HEADERS include/*.h)
 
@@ -9,11 +12,11 @@ file(GLOB DAP_CHAIN_LEDGER_HEADERS include/*.h)
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_LEDGER_SRCS} HEADERS ${DAP_CHAIN_LEDGER_HEADERS})
 
 # OBJECT library: ledger
-# TODO: Убрать прямые зависимости на wallet/mempool, использовать коллбэки
 target_link_libraries(${PROJECT_NAME} 
     dap_core dap_crypto dap_notify_srv dap_chain dap_global_db dap_json_rpc dap_common
     dap_http_server dap_chain_datum dap_cli_server dap_chain_net_core
-    dap_chain_datum_tx dap_chain_tx_sign dap_chain_tx_compose)
+    dap_chain_datum_tx dap_chain_tx_sign dap_chain_tx_compose
+    dap_chain_ledger_cli)  # New modular CLI
 # Ledger is LOW-LEVEL independent module - NO dependencies on higher layers
 # REMOVED dap_chain_wallet - creates cycle (wallet ↔ ledger) - use callbacks
 # REMOVED dap_chain_mempool - creates cycle (mempool ↔ ledger) - use callbacks
