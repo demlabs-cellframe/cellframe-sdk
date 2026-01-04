@@ -16,6 +16,9 @@
 #include "dap_chain_ledger.h"
 #include "tx/include/dap_chain_net_tx.h"
 #include "srv/base/include/dap_chain_net_srv.h"
+#include "dap_chain_net_cli_error_codes.h"  // Error codes registration
+#include "dap_chain_net_node_list.h"         // For dap_chain_node_list_ip_check, dap_chain_net_node_list_request
+#include "dap_chain_node_rpc.h"              // For dap_chain_node_rpc_* functions
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
 #include "utlist.h"
@@ -347,9 +350,13 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
     }
 
     case CMD_LIST:{
-        // handler of command 'node dump'
-        bool l_is_full = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-full", NULL);
-        return s_node_info_list_with_reply(l_net, &l_node_addr, l_is_full, alias_str, a_json_arr_reply);
+        // TODO: FULL REFACTORING NEEDED - this function never existed!
+        // Original code called s_node_info_list_with_reply() which was never implemented
+        // Need to implement proper node list functionality using dap_chain_node_rpc_list() as reference
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR,
+                               "Node list command requires full refactoring - use 'node list-rpc' instead");
+        log_it(L_WARNING, "node list called - not implemented, use 'node list-rpc' instead");
+        return -DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR;
     }
     case CMD_LIST_RPC: {
         dap_json_t *json_obj_out = dap_chain_node_rpc_list();
@@ -458,8 +465,11 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
         dap_chain_node_client_t *l_node_client;
         int res;
         do {
-            l_remote_node_info = node_info_read_and_reply(l_net, &l_node_addr, a_json_arr_reply);
+            // Fixed: use existing dap_chain_node_info_read instead of non-existent node_info_read_and_reply
+            l_remote_node_info = dap_chain_node_info_read(l_net, &l_node_addr);
             if(!l_remote_node_info) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR,
+                                       "Node info not found for specified address");
                 return -1;
             }
             // start connect
@@ -608,9 +618,13 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
             return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR;
         }
 
-        dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, a_json_arr_reply);
-        if (!node_info)
+        // Fixed: use existing dap_chain_node_info_read instead of non-existent node_info_read_and_reply
+        dap_chain_node_info_t *node_info = dap_chain_node_info_read(l_net, &l_node_addr);
+        if (!node_info) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_FOUND_ADDR_ERR,
+                                   "Node info not found for specified address");
             return -6;
+        }
         
         int timeout_ms = 5000;
         int res = dap_chain_node_sync_handshake(l_net, node_info, "CN", timeout_ms);
@@ -836,6 +850,9 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
  */
 int dap_chain_net_cli_init(void)
 {
+    // Register error codes FIRST
+    dap_chain_net_cli_error_codes_init();
+    
     // Register node command
     dap_cli_server_cmd_add("node", com_node,
                            "Node operations",
@@ -846,7 +863,7 @@ int dap_chain_net_cli_init(void)
                            "Network operations",
                            "net { list | get | go | stats | sync }\n");
 
-    log_it(L_INFO, "Net CLI commands registered");
+    log_it(L_NOTICE, "Net CLI commands registered (with error codes)");
     return 0;
 }
 
