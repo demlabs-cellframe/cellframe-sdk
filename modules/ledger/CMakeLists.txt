@@ -13,7 +13,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_LEDGER_SRCS} HEADERS ${DAP_CHA
 target_link_libraries(${PROJECT_NAME} 
     dap_core dap_crypto dap_notify_srv dap_chain dap_global_db dap_json_rpc dap_common
     dap_http_server dap_chain_datum dap_cli_server dap_chain_net_core
-    dap_chain_datum_tx dap_chain_tx_sign)
+    dap_chain_datum_tx dap_chain_tx_sign dap_chain_tx_compose)
 # Ledger is LOW-LEVEL independent module - NO dependencies on higher layers
 # REMOVED dap_chain_wallet - creates cycle (wallet ↔ ledger) - use callbacks
 # REMOVED dap_chain_mempool - creates cycle (mempool ↔ ledger) - use callbacks

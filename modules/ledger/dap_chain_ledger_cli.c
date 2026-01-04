@@ -49,6 +49,19 @@
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_enc_base64.h"
+#include "dap_chain_tx_compose_api.h"
+
+// Forward declarations for types from higher-level modules
+typedef struct dap_chain_net dap_chain_net_t;
+
+// Forward declarations for functions from net/tx module (higher-level)
+// These are temporary - CLI should be refactored to use TX Compose API
+extern void dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_json);
+extern int dap_chain_net_tx_create_by_json(dap_json_t *a_json, dap_chain_net_t *a_net, 
+                                            dap_json_t *a_errors, dap_chain_datum_tx_t **a_tx,
+                                            size_t *a_items_count, size_t *a_items_ready);
+extern bool dap_chain_net_tx_get_fee(dap_chain_id_t a_chain_id, uint256_t *a_fee, dap_chain_addr_t *a_addr);
+extern char* dap_chain_mempool_datum_add(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
 
 #define LOG_TAG "chain_ledger_cli"
 
@@ -1372,20 +1385,6 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str);
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str ? l_fee_str : "0");
             
-            // Get key from wallet using callback
-            if (!l_ledger->wallet_get_key_callback_DEPRECATED) {
-                dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_SIGN_FUNC), 
-                    "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_SIGN_FUNC));
-                return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_SIGN_FUNC);
-            }
-            
-            dap_enc_key_t *l_key_from = l_ledger->wallet_get_key_callback_DEPRECATED(l_wallet_name, 0);
-            if (!l_key_from) {
-                dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC), 
-                    "Can't get key from wallet %s", l_wallet_name);
-                return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC);
-            }
-            
             dap_cert_t *l_service_key = dap_cert_find_by_name(l_service_key_str);
             if (!l_service_key) {
                 dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_PARAM_ERR"), "Can't find cert %s", l_service_key_str);
@@ -1439,37 +1438,17 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 l_event_data_size = strlen(l_event_data_str) + 1;
             }
             
-            // Создаем транзакцию с событием
-            char *l_tx_hash_str = dap_chain_mempool_tx_create_event(
-                l_chain,
-                l_key_from,
-                l_service_key->enc_key,
-                l_srv_uid,
-                l_group_str,
-                l_event_type,
-                l_event_data,
-                l_event_data_size,
-                l_fee,
-                l_hash_out_type
-            );
+            // TODO: Migrate to new TX Compose API
+            // This requires:
+            // 1. Find UTXO via dap_ledger_get_utxo_for_value()
+            // 2. Prepare event params structure
+            // 3. Call dap_chain_tx_compose_create("event", ...)
+            // 4. Add result datum to mempool via ledger callback
             
-            // Освобождаем ресурсы
+            dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
+                                  "Event TX creation temporarily disabled - migration to TX Compose API in progress");
             DAP_DEL_Z(l_event_data);
-            
-            if (l_tx_hash_str) {
-                dap_json_t *l_json_obj = dap_json_object_new();
-                dap_json_object_add_string(l_json_obj, "status", "success");
-                dap_json_object_add_string(l_json_obj, "tx_hash", l_tx_hash_str);
-                dap_json_array_add(a_json_arr_reply, l_json_obj);
-                DAP_DEL_Z(l_tx_hash_str);
-                return 0;
-            } else {
-                dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
-                                      "Failed to create event transaction");
-                return dap_cli_error_code_get("LEDGER_PARAM_ERR");
-            }
-            
-            return 0;
+            return dap_cli_error_code_get("LEDGER_PARAM_ERR");
         }
         
         if (l_subcmd == SUBCMD_KEY) {

@@ -32,7 +32,7 @@
 #include "dap_chain_common.h"
 // REMOVED: #include "dap_chain_net.h" - creates cycle, use callbacks
 #include "dap_chain_ledger_pvt.h"
-#include "dap_chain_cs_esbocs.h"
+// REMOVED: #include "dap_chain_cs_esbocs.h" - decree should be in governance module
 // REMOVED: #include "dap_chain_net_tx.h" - creates cycle, use callbacks
 // REMOVED: #include "dap_chain_net_srv_stake_pos_delegate.h" - creates cycle, use callbacks
 #include "dap_http_ban_list_client.h"
