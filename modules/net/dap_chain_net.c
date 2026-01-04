@@ -199,8 +199,7 @@ const char *c_net_states[] = {
     [NET_STATE_ONLINE]              = "NET_STATE_ONLINE"
 };
 
-// Exported state to string conversion (no longer static inline)
-const char *dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
+static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
     return a_state < NET_STATE_LOADING || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
 }
 
