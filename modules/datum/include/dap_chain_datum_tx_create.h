@@ -27,40 +27,52 @@
 #include "dap_chain_common.h"
 #include "dap_sign.h"
 #include "dap_pkey.h"
+#include "dap_list.h"
 
 /**
- * @brief TX Builder API - creates transactions WITHOUT signatures
+ * @brief TX Builder API - creates UNSIGNED transactions (PURE FUNCTIONS!)
  * 
- * This is the foundation layer for hardware wallet support.
- * All functions create transaction structures without signing them.
- * Signatures are added separately via dap_chain_datum_tx_add_sign().
+ * LAYER 1: Foundation - pure transaction building
  * 
- * Architecture:
- * 1. Create TX structure (this API)
- * 2. Sign TX data (via ledger sign API or hardware wallet)
- * 3. Add signature to TX
- * 4. Submit to mempool
+ * PRINCIPLES:
+ * - PURE FUNCTIONS - no side effects
+ * - NO network access
+ * - NO ledger queries
+ * - NO database access
+ * - Accept ALL data as parameters
+ * - Zero coupling!
+ * 
+ * Caller (Composer) finds inputs and provides them.
+ * Builder just assembles TX structure.
+ * 
+ * Hardware wallet friendly: Returns unsigned TX
  */
 
 /**
- * @brief Create simple transfer transaction WITHOUT signature
+ * @brief Unspent output descriptor
  * 
- * Creates an unsigned transaction for transferring tokens.
- * Caller must add signature(s) using dap_chain_datum_tx_add_sign_item() before submitting to mempool.
+ * Pre-found unspent output to use as TX input.
+ * Composer finds these via ledger queries.
+ */
+typedef struct dap_chain_tx_used_out {
+    dap_chain_hash_fast_t tx_prev_hash;  // Previous TX hash
+    uint32_t tx_out_prev_idx;             // Output index
+    uint256_t value;                      // Output value
+    dap_chain_addr_t addr;                // Address (for validation)
+} dap_chain_tx_used_out_t;
+
+/**
+ * @brief Create transfer transaction (PURE)
  * 
- * @param a_net_id Network ID
- * @param a_pkey_from Public key of sender (for address calculation)
- * @param a_addr_from Source address
- * @param a_addr_to Destination address
- * @param a_token_ticker Token ticker
- * @param a_value Transfer amount
- * @param a_value_fee Fee amount
- * @return Transaction pointer (unsigned) or NULL on error. Must be freed by caller.
+ * @param a_list_used_outs Pre-found inputs (dap_chain_tx_used_out_t*)
+ * @param a_addr_to Destination
+ * @param a_token_ticker Token
+ * @param a_value Amount
+ * @param a_value_fee Fee
+ * @return Unsigned TX or NULL
  */
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_transfer(
-    dap_chain_net_id_t a_net_id,
-    dap_pkey_t *a_pkey_from,
-    const dap_chain_addr_t *a_addr_from,
+    dap_list_t *a_list_used_outs,
     const dap_chain_addr_t *a_addr_to,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     uint256_t a_value,
@@ -68,23 +80,10 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_transfer(
 );
 
 /**
- * @brief Create multi-output transfer transaction WITHOUT signature
- * 
- * @param a_net_id Network ID
- * @param a_pkey_from Public key of sender
- * @param a_addr_from Source address
- * @param a_addr_to Array of destination addresses
- * @param a_values Array of transfer amounts
- * @param a_token_ticker Token ticker
- * @param a_value_fee Fee amount
- * @param a_outputs_count Number of outputs
- * @param a_time_unlock Optional unlock time for outputs (can be NULL)
- * @return Transaction pointer (unsigned) or NULL on error
+ * @brief Create multi-transfer transaction (PURE)
  */
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_multi_transfer(
-    dap_chain_net_id_t a_net_id,
-    dap_pkey_t *a_pkey_from,
-    const dap_chain_addr_t *a_addr_from,
+    dap_list_t *a_list_used_outs,
     const dap_chain_addr_t **a_addr_to,
     uint256_t *a_values,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -94,26 +93,10 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_multi_transfer(
 );
 
 /**
- * @brief Create conditional output transaction WITHOUT signature
- * 
- * @param a_net_id Network ID
- * @param a_pkey_from Public key of sender
- * @param a_addr_from Source address
- * @param a_pkey_cond_hash Public key hash for condition
- * @param a_token_ticker Token ticker
- * @param a_value Value to lock
- * @param a_value_per_unit_max Max value per unit
- * @param a_unit Price unit
- * @param a_srv_uid Service UID
- * @param a_value_fee Fee amount
- * @param a_cond Custom condition data (optional)
- * @param a_cond_size Condition data size
- * @return Transaction pointer (unsigned) or NULL on error
+ * @brief Create conditional output transaction (PURE)
  */
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_cond_output(
-    dap_chain_net_id_t a_net_id,
-    dap_pkey_t *a_pkey_from,
-    const dap_chain_addr_t *a_addr_from,
+    dap_list_t *a_list_used_outs,
     dap_hash_fast_t *a_pkey_cond_hash,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     uint256_t a_value,
@@ -126,22 +109,10 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_cond_output(
 );
 
 /**
- * @brief Create event transaction WITHOUT signature
- * 
- * @param a_net_id Network ID
- * @param a_pkey_from Public key of sender
- * @param a_pkey_service Public key of service
- * @param a_srv_uid Service UID
- * @param a_group_name Event group name
- * @param a_event_type Event type
- * @param a_event_data Event data
- * @param a_event_data_size Event data size
- * @param a_value_fee Fee amount
- * @return Transaction pointer (unsigned) or NULL on error
+ * @brief Create event transaction (PURE)
  */
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_event(
-    dap_chain_net_id_t a_net_id,
-    dap_pkey_t *a_pkey_from,
+    dap_list_t *a_list_used_outs,
     dap_pkey_t *a_pkey_service,
     dap_chain_srv_uid_t a_srv_uid,
     const char *a_group_name,
@@ -152,19 +123,9 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_event(
 );
 
 /**
- * @brief Create base transaction from emission WITHOUT signature
- * 
- * @param a_net_id Network ID
- * @param a_emission_hash Emission hash
- * @param a_emission_chain_id Emission chain ID
- * @param a_emission_value Emission value
- * @param a_ticker Token ticker
- * @param a_addr_to Destination address
- * @param a_value_fee Fee amount
- * @return Transaction pointer (unsigned) or NULL on error
+ * @brief Create base transaction from emission (PURE)
  */
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_from_emission(
-    dap_chain_net_id_t a_net_id,
     dap_chain_hash_fast_t *a_emission_hash,
     dap_chain_id_t a_emission_chain_id,
     uint256_t a_emission_value,
@@ -172,29 +133,3 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_from_emission(
     dap_chain_addr_t *a_addr_to,
     uint256_t a_value_fee
 );
-
-/**
- * @brief Add signature to unsigned transaction
- * 
- * This function adds a signature item to the transaction.
- * For hardware wallet support, the signature is obtained externally
- * (via dap_ledger_sign_data) and then added to the transaction.
- * 
- * @param a_tx Transaction pointer (will be reallocated)
- * @param a_sign Signature to add
- * @return 1 on success, 0 on error
- */
-int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign);
-
-/**
- * @brief Get transaction data for signing
- * 
- * Extracts the exact data that needs to be signed.
- * This data should be passed to dap_ledger_sign_data().
- * 
- * @param a_tx Transaction pointer
- * @param a_data_size Output: size of data to sign
- * @return Pointer to data buffer (must NOT be freed by caller, it's part of TX)
- */
-const void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, size_t *a_data_size);
-
