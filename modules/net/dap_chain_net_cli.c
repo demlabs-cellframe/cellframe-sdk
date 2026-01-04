@@ -55,7 +55,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
         return -DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR;
     }
 
-    size_t l_matched = 0;
+    size_t l_count = 0;  // Counter for matched nodes
     for (size_t i = 0; i < l_nodes_count; i++) {
         dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
         if (!l_node_info || dap_chain_node_addr_is_blank(&l_node_info->address))
@@ -100,7 +100,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
         }
 
         dap_json_array_add(a_json_arr_reply, l_json_node);
-        l_matched++;
+        l_count++;
     }
 
     dap_global_db_objs_delete(l_objs, l_nodes_count);
