@@ -1677,6 +1677,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                         }
                         DAP_DELETE(l_tx_hash);
                     }else{
+                        json_object_put(l_json_obj_order);
+                        l_json_obj_order = NULL;
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NO_HISTORY_ERR, "No history");
                     }
                 } else {
@@ -1685,9 +1687,13 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                     l_cache = s_get_xchange_cache_by_net_id(l_net->pub.id);
                     xchange_tx_cache_t* l_item = NULL;
                     dap_hash_fast_t l_cur_hash = l_order_tx_hash;
+                    if (l_json_obj_order) {
+                        json_object_put(l_json_obj_order);
+                    }
                     l_json_obj_order = json_object_new_object();
                     HASH_FIND(hh, l_cache->cache, &l_cur_hash, sizeof(dap_hash_fast_t), l_item);
                     if (!l_item){
+                        json_object_put(l_json_obj_order);
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NO_HISTORY_ERR, "No history");
                         return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_HIST_DOES_NO_HISTORY_ERR;
                     }
@@ -1717,7 +1723,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                     json_object_object_add(l_json_obj_order, a_version == 1 ? "history for order" : "history_for_order", l_json_obj_tx_arr);
                 }
             }
-            json_object_array_add(*a_json_arr_reply, l_json_obj_order);
+            if (l_json_obj_order)
+                json_object_array_add(*a_json_arr_reply, l_json_obj_order);
         } break;
 
         case CMD_REMOVE:
@@ -2782,8 +2789,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                         continue;
                     }
 
-                    if(l_addr && dap_chain_addr_compare(&l_price->creator_addr, l_addr) == 0)
+                    if(l_addr && dap_chain_addr_compare(&l_price->creator_addr, l_addr) == 0) {
+                        DAP_DELETE(l_price);
                         continue;
+                    }
 
                     memcpy(l_buy_token, l_price->token_buy, strlen(l_price->token_buy));
                     memcpy(l_sell_token, l_price->token_sell, strlen(l_price->token_sell));
@@ -2793,23 +2802,29 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                     dap_hash_fast_t l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash, false);
                     if ( dap_hash_fast_is_blank(&l_last_tx_hash) ) {
                         log_it(L_WARNING,"Can't get last tx cond hash from order");
+                        DAP_DELETE(l_price);
                         continue;
                     }
 
                     dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_last_tx_hash);
                     if(!l_last_tx){
                         log_it(L_WARNING,"Can't find last tx");
+                        DAP_DELETE(l_price);
                         continue;
                     }
 
                     dap_chain_tx_out_cond_t *l_out_cond_last_tx = dap_chain_datum_tx_out_cond_get(l_last_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
                     if (!l_out_cond_last_tx || IS_ZERO_256(l_out_cond_last_tx->header.value)){
-                        if (l_opt_status == 1)
+                        if (l_opt_status == 1) {
+                            DAP_DELETE(l_price);
                             continue;
+                        }
                         l_order_status  = XCHANGE_ORDER_STATUS_CLOSED;
                     } else {
-                        if (l_opt_status == 2)
+                        if (l_opt_status == 2) {
+                            DAP_DELETE(l_price);
                             continue;
+                        }
                         l_order_status = XCHANGE_ORDER_STATUS_OPENED;
                     }
 
@@ -2821,30 +2836,41 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                     DAP_DEL_Z(l_price);
                 }
 
-                if (l_token_from_str && strcmp(l_sell_token, l_token_from_str))
+                if (l_token_from_str && strcmp(l_sell_token, l_token_from_str)) {
+                    DAP_DEL_Z(l_owner_addr);
                     continue;
+                }
 
-                if (l_token_to_str && strcmp(l_buy_token, l_token_to_str))
+                if (l_token_to_str && strcmp(l_buy_token, l_token_to_str)) {
+                    DAP_DEL_Z(l_owner_addr);
                     continue;
+                }
 
                 if (l_order_status == XCHANGE_ORDER_STATUS_OPENED){
-                    if (l_opt_status == 2)
+                    if (l_opt_status == 2) {
+                        DAP_DEL_Z(l_owner_addr);
                         continue;
+                    }
                     l_status_order_str = "OPENED";
                 } else if (l_order_status == XCHANGE_ORDER_STATUS_CLOSED) {
-                    if (l_opt_status == 1)
+                    if (l_opt_status == 1) {
+                        DAP_DEL_Z(l_owner_addr);
                         continue;
+                    }
                     l_status_order_str = "CLOSED";
                 } else {
+                    DAP_DEL_Z(l_owner_addr);
                     continue;
                 }
 
                 if (i_tmp < l_arr_start) {
                     i_tmp++;
+                    DAP_DEL_Z(l_owner_addr);
                     continue;
                 }
 
                 if (i_tmp >= l_arr_end) {
+                    DAP_DEL_Z(l_owner_addr);
                     break;
                 }
                 i_tmp++;
@@ -3656,9 +3682,12 @@ dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_ch
     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
     char* l_ret = NULL;
     if(!(l_ret = s_xchange_tx_put(l_tx, a_net))) {
+        dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_price);
         return XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL;
     }
+    dap_chain_datum_tx_delete(l_tx);
+    DAP_DELETE(l_price);
     // To avoid confusion, the term "order" will apply to the original conditional exchange offer transactions.
     *a_out_tx_hash = l_ret;
     return XCHANGE_CREATE_ERROR_OK;
