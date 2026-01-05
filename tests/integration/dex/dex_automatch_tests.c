@@ -1598,7 +1598,6 @@ int run_automatch_test(dex_test_fixture_t *f, const automatch_test_template_t *t
     
     // Execute purchase_auto
     dap_chain_datum_tx_t *l_tx = NULL;
-    dex_match_table_entry_t *l_matches = NULL;
     
     int l_ret = dap_chain_net_srv_dex_purchase_auto(
         f->net->net,
@@ -1611,8 +1610,7 @@ int run_automatch_test(dex_test_fixture_t *f, const automatch_test_template_t *t
         l_wallet,
         tmpl->create_leftover,
         l_leftover_rate,
-        &l_tx,
-        &l_matches
+        &l_tx
     );
     
     // Check expected error
@@ -2126,7 +2124,6 @@ static int s_run_tamper_test(dex_test_fixture_t *f, const tamper_test_template_t
     }
     
     dap_chain_datum_tx_t *l_tx = NULL;
-    dex_match_table_entry_t *l_matches = NULL;
     
     int l_ret = dap_chain_net_srv_dex_purchase_auto(
         f->net->net,
@@ -2139,8 +2136,7 @@ static int s_run_tamper_test(dex_test_fixture_t *f, const tamper_test_template_t
         l_wallet,
         tmpl->create_leftover,
         l_leftover_rate,
-        &l_tx,
-        &l_matches
+        &l_tx
     );
     
     if (l_ret != 0 || !l_tx) {

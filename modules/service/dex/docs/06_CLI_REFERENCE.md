@@ -110,12 +110,16 @@ srv_dex purchase \
 ```
 
 **Parameters:**
-| Parameter | Description |
-|-----------|-------------|
-| `-value` | Budget amount |
-| `-unit` | Budget denomination: `sell` (what you spend) or `buy` (what you receive) |
-| `-create_leftover_order` | Create order from unspent budget |
-| `-leftover_rate` | Rate for leftover order (default: matched price) |
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-net` | Yes | Network name |
+| `-order` | Yes | Order hash to purchase against |
+| `-w` | Yes | Wallet file path |
+| `-value` | Yes | Budget amount |
+| `-fee` | Yes | Validator fee in native token |
+| `-unit` | No | Budget denomination: `sell` (default) or `buy` |
+| `-create_leftover_order` | No | Create order from unspent budget |
+| `-leftover_rate` | Conditional | Rate for leftover order (required if `-create_leftover_order` is set) |
 
 **Example:**
 ```bash
@@ -135,11 +139,23 @@ srv_dex purchase_multi \
   -orders <hash1,hash2,...> \
   -w <wallet_path> \
   -value <amount> \
-  [-unit sell|buy] \
   -fee <validator_fee> \
+  [-unit sell|buy] \
   [-create_leftover_order] \
   [-leftover_rate <rate>]
 ```
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-net` | Yes | Network name |
+| `-orders` | Yes | Comma-separated list of order hashes |
+| `-w` | Yes | Wallet file path |
+| `-value` | Yes | Budget amount |
+| `-fee` | Yes | Validator fee in native token |
+| `-unit` | No | Budget denomination: `sell` (default) or `buy` |
+| `-create_leftover_order` | No | Create order from unspent budget |
+| `-leftover_rate` | Conditional | Rate for leftover order (required if `-create_leftover_order`; forbidden otherwise) |
 
 **Example:**
 ```bash
@@ -169,10 +185,19 @@ srv_dex purchase_auto \
 ```
 
 **Parameters:**
-| Parameter | Description |
-|-----------|-------------|
-| `-min_rate` | Maximum acceptable price (skip if rate > min_rate) |
-| `-dry-run` | Simulate matching without submitting TX (returns match plan in JSON) |
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-net` | Yes | Network name |
+| `-token_sell` | Yes | Token to sell (spend) |
+| `-token_buy` | Yes | Token to buy (receive) |
+| `-w` | Yes | Wallet file path |
+| `-value` | Yes | Budget amount |
+| `-fee` | Yes | Validator fee in native token |
+| `-unit` | No | Budget denomination: `sell` (default) or `buy` |
+| `-min_rate` | No | Maximum acceptable price (skip orders with rate > min_rate) |
+| `-create_leftover_order` | No | Create order from unspent budget |
+| `-leftover_rate` | Conditional | Rate for leftover order (required if `-create_leftover_order`; forbidden otherwise) |
+| `-dry-run` | No | Simulate matching without submitting TX (returns match plan in JSON) |
 
 **Example:**
 ```bash
@@ -185,7 +210,7 @@ srv_dex purchase_auto -net TestNet \
 srv_dex purchase_auto -net TestNet \
   -token_sell USDT -token_buy KEL \
   -w /home/user/.cellframe/wallets/alice.dwallet \
-  -value 50.0 -dry-run
+  -value 50.0 -fee 0.05 -dry-run
 ```
 
 ---
@@ -200,16 +225,19 @@ srv_dex cancel_all_by_seller \
   -w <wallet_path> \
   -fee <validator_fee> \
   [-limit <N>] \
-  
+  [-dry-run]
 ```
 
 **Parameters:**
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `-pair` | **Yes** | Canonical pair (e.g., `KEL/USDT`) |
-| `-seller` | **Yes** | Seller address (must match wallet) |
-| `-limit` | No | Maximum orders to cancel |
-| `-dry-run` | No | Simulate matching without submitting TX |
+| `-net` | Yes | Network name |
+| `-pair` | Yes | Canonical pair (e.g., `KEL/USDT`) |
+| `-seller` | Yes | Seller address (must match wallet) |
+| `-w` | Yes | Wallet file path |
+| `-fee` | Yes | Validator fee in native token |
+| `-limit` | No | Maximum orders to cancel (default: unlimited) |
+| `-dry-run` | No | Report candidates only, don't create TX |
 
 **Example:**
 ```bash
@@ -654,9 +682,19 @@ srv_dex decree \
   -net <network_name> \
   -w <wallet_path> \
   -service_key <cert_name> \
+  -fee <validator_fee> \
   -method <method_name> \
   <method_params>
 ```
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-net` | Yes | Network name |
+| `-w` | Yes | Wallet file path |
+| `-service_key` | Yes | Service certificate name for decree signing |
+| `-fee` | Yes | Validator fee in native token |
+| `-method` | Yes | Decree method (see below) |
 
 ---
 
@@ -664,10 +702,19 @@ srv_dex decree \
 
 ```bash
 srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -fee 0.01 \
   -method fee_set \
   -fee_amount 0.05 \
   -fee_addr Ax7y9q...
 ```
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-fee_amount` | Yes | Service fee amount in native tokens |
+| `-fee_addr` | Yes | Address to receive service fees |
+
+**Note:** This sets the global native fee fallback used when pair-specific fee is not configured.
 
 ---
 
@@ -675,6 +722,7 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 
 ```bash
 srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -fee 0.01 \
   -method pair_add \
   -token_base KEL \
   -token_quote USDT \
@@ -683,10 +731,21 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
   [-fee_pct 2.0]
 ```
 
-**Fee Options:**
-- `-fee_pct <percent>` — Percent fee (0.1% step)
-- `-fee_native <amount>` — Native fee (0.01 step)
-- `-fee_config <byte>` — Raw config byte (hex)
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-token_base` | Yes | Base token ticker |
+| `-token_quote` | Yes | Quote token ticker |
+| `-net_base` | No | Base token network (default: `-net`) |
+| `-net_quote` | No | Quote token network (default: `-net`) |
+| `-fee_pct` | No | Percent fee (0.1% step) |
+| `-fee_native` | No | Native fee per trade (0.01 step) |
+| `-fee_config` | No | Raw config byte (hex) |
+
+**Fee Options (mutually exclusive):**
+- `-fee_pct <percent>` — Percent fee from INPUT token (e.g., `2.0` = 2%)
+- `-fee_native <amount>` — Fixed native token fee per trade
+- `-fee_config <byte>` — Raw config byte (for advanced use)
 
 ---
 
@@ -694,10 +753,21 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 
 ```bash
 srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -fee 0.01 \
   -method pair_remove \
   -token_base KEL \
   -token_quote USDT
 ```
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-token_base` | Yes | Base token ticker |
+| `-token_quote` | Yes | Quote token ticker |
+| `-net_base` | No | Base token network (default: `-net`) |
+| `-net_quote` | No | Quote token network (default: `-net`) |
+
+**Note:** Fee parameters (`-fee_pct`, `-fee_native`, `-fee_config`) are not allowed for `pair_remove`.
 
 ---
 
@@ -705,11 +775,25 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 
 ```bash
 srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -fee 0.01 \
   -method pair_fee_set \
   -token_base KEL \
   -token_quote USDT \
   -fee_pct 1.5
 ```
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-token_base` | Yes | Base token ticker |
+| `-token_quote` | Yes | Quote token ticker |
+| `-net_base` | No | Base token network (default: `-net`) |
+| `-net_quote` | No | Quote token network (default: `-net`) |
+| `-fee_pct` | One of | Percent fee (0.1% step) |
+| `-fee_native` | One of | Native fee per trade (0.01 step) |
+| `-fee_config` | One of | Raw config byte (hex) |
+
+**Note:** Exactly one of `-fee_pct`, `-fee_native`, or `-fee_config` is required.
 
 ---
 
@@ -717,9 +801,19 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 
 ```bash
 srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
+  -fee 0.01 \
   -method pair_fee_set_all \
   -fee_pct 2.0
 ```
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-fee_pct` | One of | Percent fee for all pairs (0.1% step) |
+| `-fee_native` | One of | Native fee for all pairs (0.01 step) |
+| `-fee_config` | One of | Raw config byte (hex) |
+
+**Note:** Exactly one of `-fee_pct`, `-fee_native`, or `-fee_config` is required. Parameters `-fee_amount` and `-fee_addr` are not allowed for this method.
 
 ---
 

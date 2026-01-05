@@ -685,10 +685,9 @@ int test_dex_order_purchase_auto(
     uint256_t network_fee = fixture->network_fee;
     
     dap_chain_datum_tx_t *tx = NULL;
-    dex_match_table_entry_t *matches = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase_auto(
         fixture->net->net, token_sell, token_buy, budget, !use_sell_budget, network_fee, uint256_0,
-        buyer, create_buyer_leftover, uint256_0, &tx, &matches
+        buyer, create_buyer_leftover, uint256_0, &tx
     );
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx) {

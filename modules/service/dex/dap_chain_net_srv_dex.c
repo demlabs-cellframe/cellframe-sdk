@@ -5774,11 +5774,11 @@ int dap_chain_net_srv_dex_init()
         "[-create_leftover_order] [-leftover_rate <rate>]\n"
         "srv_dex purchase_multi -net <net_name> -orders <hash1,hash2,...> -w <wallet> -value <value> [-unit sell|buy] -fee <fee> "
         "[-create_leftover_order] [-leftover_rate <rate>]\n"
-        "srv_dex purchase_auto -net <net_name> -token_sell <ticker> -token_buy <ticker> -w <wallet> -value <value> [-unit sell|buy] "
-        "[-min_rate <r>] [-fee <value>] [-create_leftover_order] [-leftover_rate <rate>] [-dry-run]\n"
+        "srv_dex purchase_auto -net <net_name> -token_sell <ticker> -token_buy <ticker> -w <wallet> -value <value> -fee <fee> "
+        "[-unit sell|buy] [-min_rate <r>] [-create_leftover_order] [-leftover_rate <rate>] [-dry-run]\n"
         "srv_dex cancel_all_by_seller -net <net_name> -pair <BASE/QUOTE> -seller <addr> -w <wallet> -fee <fee> [-limit <N>] [-dry-run]\n"
         "srv_dex pairs -net <net_name>\n"
-        "srv_dex decree -net <net_name> -w <wallet> -service_key <cert_name> -method "
+        "srv_dex decree -net <net_name> -w <wallet> -service_key <cert_name> -fee <fee> -method "
         "<fee_set|pair_add|pair_remove|pair_fee_set|pair_fee_set_all> <params>\n"
         "  fee_set: -fee_amount <amount> -fee_addr <addr> (set global native fee fallback)\n"
         "  pair_add: -token_base <ticker> -token_quote <ticker> [-net_base <net>] [-net_quote <net>] [-fee_pct <pct>|-fee_native "
@@ -5926,6 +5926,21 @@ static inline dex_bq_t s_exec_to_canon_base_quote(uint256_t a_exec, uint256_t a_
         DIV_256_COIN(l_bq.quote, a_rate, &l_bq.base);
     }
     return l_bq;
+}
+
+static char *s_dex_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
+{
+    char *l_ret = NULL;
+    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
+    DAP_DELETE(a_tx);
+    if (!l_datum)
+        return log_it(L_ERROR, "Failed to create datum"), NULL;
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if (l_chain)
+        l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+    DAP_DELETE(l_datum);
+    return l_ret;
 }
 
 /*
@@ -6758,6 +6773,731 @@ static int s_parse_fee_config_cli(int a_argc, char **a_argv, int a_arg_idx, uint
         return 1;
     }
     return 0;
+}
+
+
+
+dap_chain_net_srv_dex_create_error_t dap_chain_net_srv_dex_create(dap_chain_net_t *a_net, const char *a_token_buy, const char *a_token_sell,
+                                                                  uint256_t a_value_sell, uint256_t a_rate, uint8_t a_min_fill_combined,
+                                                                  uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                                                  dap_chain_datum_tx_t **a_tx)
+{
+    dap_ret_val_if_any(DEX_CREATE_ERROR_INVALID_ARGUMENT, !a_net, !a_token_buy, !a_token_sell, !a_wallet, !a_tx);
+    *a_tx = NULL;
+    if (!dap_ledger_token_ticker_check(a_net->pub.ledger, a_token_sell))
+        return DEX_CREATE_ERROR_TOKEN_TICKER_SELL_NOT_FOUND;
+    if (!dap_ledger_token_ticker_check(a_net->pub.ledger, a_token_buy))
+        return DEX_CREATE_ERROR_TOKEN_TICKER_BUY_NOT_FOUND;
+    if (s_debug_more) {
+        uint8_t l_min_pct = a_min_fill_combined & 0x7F;
+        ;
+        const char *l_min_policy = l_min_pct == 0                      ? "PARTIAL_OK"
+                                   : l_min_pct == 100                  ? "AON (all-or-none)"
+                                   : (a_min_fill_combined & 0x80) != 0 ? "MIN_FROM_ORIGIN"
+                                                                       : "MIN_FROM_CURRENT";
+        log_it(L_DEBUG,
+               "{ %s } Args; sell = %s; buy = %s; value_sell = %s; rate = %s; "
+               "min_fill: pct = %u, %s policy; fee = %s %s",
+               __FUNCTION__, a_token_sell, a_token_buy, dap_uint256_to_char_ex(a_value_sell).frac, dap_uint256_to_char_ex(a_rate).frac,
+               (unsigned)l_min_pct, l_min_policy, dap_uint256_to_char_ex(a_fee).frac, a_net->pub.native_ticker);
+    }
+
+    // Whitelist check: pair must be whitelisted via decree
+    // Rate is expected in canonical form (QUOTE/BASE) for both ASK and BID
+    dex_pair_key_t l_pair_check = {};
+    s_pair_normalize(a_token_sell, a_net->pub.id, a_token_buy, a_net->pub.id, a_rate, &l_pair_check, NULL, NULL);
+    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+    dex_pair_index_t *l_pair_whitelist = s_dex_pair_index_get(&l_pair_check);
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    if (!l_pair_whitelist)
+        return DEX_CREATE_ERROR_PAIR_NOT_ALLOWED;
+
+    if (IS_ZERO_256(a_rate))
+        return DEX_CREATE_ERROR_RATE_IS_ZERO;
+    if (IS_ZERO_256(a_fee))
+        return DEX_CREATE_ERROR_FEE_IS_ZERO;
+    if (IS_ZERO_256(a_value_sell))
+        return DEX_CREATE_ERROR_VALUE_SELL_IS_ZERO;
+
+    const char *l_native = a_net->pub.native_ticker;
+    bool l_sell_native = !dap_strcmp(a_token_sell, l_native);
+    uint256_t l_balance_sell = dap_chain_wallet_get_balance(a_wallet, a_net->pub.id, a_token_sell), l_need_sell = a_value_sell;
+    if (l_sell_native) {
+        if (SUM_256_256(l_need_sell, a_fee, &l_need_sell))
+            return DEX_CREATE_ERROR_INTEGER_OVERFLOW;
+    } else {
+        if (compare256(dap_chain_wallet_get_balance(a_wallet, a_net->pub.id, l_native), a_fee) < 0)
+            return DEX_CREATE_ERROR_NOT_ENOUGH_CASH_FOR_FEE;
+    }
+    if (compare256(l_balance_sell, l_need_sell) < 0)
+        return DEX_CREATE_ERROR_NOT_ENOUGH_CASH;
+    // Network fee
+    uint256_t l_net_fee = uint256_0, l_total_native_fee = a_fee;
+    dap_chain_addr_t l_net_addr;
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_addr);
+    if (l_net_fee_used)
+        SUM_256_256(l_total_native_fee, l_net_fee, &l_total_native_fee);
+
+    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
+    if (!l_wallet_addr)
+        return DEX_CREATE_ERROR_COMPOSE_TX;
+    dap_chain_addr_t l_owner_addr = *l_wallet_addr;
+    DAP_DELETE(l_wallet_addr);
+
+    // Collect inputs
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    int l_err = DEX_CREATE_ERROR_OK, l_err_line = 0;
+#define RET_ERR(_err)                                                                                                                      \
+    do {                                                                                                                                   \
+        l_err = _err;                                                                                                                      \
+        l_err_line = __LINE__;                                                                                                             \
+        goto dex_create_ret;                                                                                                               \
+    } while (0)
+    uint256_t l_sell_transfer = uint256_0, l_fee_transfer = uint256_0;
+    if (l_sell_native) {
+        // Single channel: native sell covers both value and fees
+        uint256_t l_need = a_value_sell;
+        if (!IS_ZERO_256(l_total_native_fee))
+            SUM_256_256(l_need, l_total_native_fee, &l_need);
+        if (s_dex_collect_utxo_for_ticker(a_net, l_native, &l_owner_addr, l_need, &l_tx, &l_sell_transfer) < 0)
+            RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
+    } else {
+        // Dual channel: collect sell token + native for fees
+        if (s_dex_collect_utxo_for_ticker(a_net, a_token_sell, &l_owner_addr, a_value_sell, &l_tx, &l_sell_transfer) < 0)
+            RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
+        if (!IS_ZERO_256(l_total_native_fee)) {
+            if (s_dex_collect_utxo_for_ticker(a_net, l_native, &l_owner_addr, l_total_native_fee, &l_tx, &l_fee_transfer) < 0)
+                RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
+        }
+    }
+
+    // Add SRV_DEX out (locks sell funds)
+    // Rate is stored in canonical form (QUOTE/BASE) for both ASK and BID
+    uint8_t l_min_fill = a_min_fill_combined, l_version = 1;
+    uint32_t l_flags = 0;
+    dap_chain_tx_out_cond_t *l_out = dap_chain_datum_tx_item_out_cond_create_srv_dex(
+        (dap_chain_net_srv_uid_t){.uint64 = DAP_CHAIN_NET_SRV_DEX_ID}, a_net->pub.id, a_value_sell, a_net->pub.id, a_token_buy, a_rate,
+        &l_owner_addr, NULL, l_min_fill, l_version, l_flags, DEX_TX_TYPE_ORDER, NULL, 0);
+    if (!l_out)
+        RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
+    dap_chain_datum_tx_add_item(&l_tx, l_out);
+    DAP_DELETE(l_out);
+
+    // Add fees
+    if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_net_addr, l_native) < 0)
+        RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
+
+    // Add cashback
+    if (l_sell_native) {
+        // Single channel: cashback in native
+        uint256_t l_needed = a_value_sell;
+        if (!IS_ZERO_256(l_total_native_fee))
+            SUM_256_256(l_needed, l_total_native_fee, &l_needed);
+        if (s_dex_add_cashback(&l_tx, l_sell_transfer, l_needed, &l_owner_addr, l_native) < 0)
+            RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
+    } else {
+        // Dual channel: cashback in sell token + native
+        if (s_dex_add_cashback(&l_tx, l_sell_transfer, a_value_sell, &l_owner_addr, a_token_sell) < 0)
+            RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
+        if (!IS_ZERO_256(l_total_native_fee)) {
+            if (s_dex_add_cashback(&l_tx, l_fee_transfer, l_total_native_fee, &l_owner_addr, l_native) < 0)
+                RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
+        }
+    }
+
+    // Sign TX
+    if (s_dex_sign_tx(&l_tx, a_wallet) < 0)
+        RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
+#undef RET_ERR
+dex_create_ret:
+    if (l_err) {
+        log_it(L_ERROR, "{ %s } Error %d at line %d", __FUNCTION__, l_err, l_err_line);
+        dap_chain_datum_tx_delete(l_tx);
+        l_tx = NULL;
+    }
+    *a_tx = l_tx;
+    return l_err;
+}
+
+/*
+ * Update existing order by owner (seller-leftover update):
+ * - Finds the current tail of the order chain via the ledger (source of truth)
+ * - Verifies that wallet addr matches order's seller_addr
+ * - Composes 1-TX update: IN_COND(tail[idx]) + OUT_COND(SRV_DEX new state) with tx_type=UPDATE
+ * - Pays native network fee (and optionally validator fee) from wallet UTXOs
+ * - Signs and submits to mempool
+ */
+dap_chain_net_srv_dex_update_error_t dap_chain_net_srv_dex_update(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_root,
+                                                                  bool a_has_new_value, uint256_t a_new_value, uint256_t a_fee,
+                                                                  dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx)
+{
+    // Parameter validation: must have net, order root, wallet, out ptr, and new value flag
+    dap_ret_val_if_any(DEX_UPDATE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_root, !a_wallet, !a_tx, !a_has_new_value);
+    *a_tx = NULL;
+    // Find actual tail in the ledger (canonical). For SRV_DEX: blank => current tx is owner; non-blank => use stored root.
+    dap_hash_fast_t l_tail =
+        dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, a_order_root, false);
+    if (dap_hash_fast_is_blank(&l_tail))
+        l_tail = *a_order_root;
+
+    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tail);
+    if (!l_prev_tx)
+        return DEX_UPDATE_ERROR_NOT_FOUND;
+
+    int l_prev_idx = 0;
+    dap_chain_tx_out_cond_t *l_prev = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_idx);
+    if (!l_prev)
+        return DEX_UPDATE_ERROR_NOT_FOUND;
+
+    // Determine correct order_root_hash: if l_prev has blank root, it's the ORDER (use l_tail as root); otherwise use l_prev's root
+    dap_hash_fast_t l_order_root =
+        dap_hash_fast_is_blank(&l_prev->subtype.srv_dex.order_root_hash) ? l_tail : l_prev->subtype.srv_dex.order_root_hash;
+
+    const char *l_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tail);
+    if (!l_sell_ticker)
+        return DEX_UPDATE_ERROR_NOT_FOUND;
+
+    const char *l_buy_ticker = l_prev->subtype.srv_dex.buy_token;
+
+    // Owner check: wallet addr must be equal to order's seller_addr
+    dap_chain_addr_t l_wallet_addr;
+    {
+        dap_chain_addr_t *l_tmp = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
+        if (!l_tmp)
+            return DEX_UPDATE_ERROR_COMPOSE_TX;
+        l_wallet_addr = *l_tmp;
+        DAP_DELETE(l_tmp);
+    }
+
+    if (!dap_chain_addr_compare(&l_wallet_addr, &l_prev->subtype.srv_dex.seller_addr))
+        return DEX_UPDATE_ERROR_NOT_OWNER;
+
+    // New parameters: rate is immutable, value can change
+    uint256_t l_new_rate = l_prev->subtype.srv_dex.rate, l_new_value = a_has_new_value ? a_new_value : l_prev->header.value;
+
+    // Validate new parameters: value must be non-zero
+    // UPDATE with value=0 is not allowed (use INVALIDATE for full closure)
+    dap_ret_val_if_any(DEX_UPDATE_ERROR_INVALID_ARGUMENT, IS_ZERO_256(l_new_value));
+
+    dap_chain_net_srv_dex_update_error_t l_err = DEX_UPDATE_ERROR_OK;
+    int l_err_line = 0;
+#define RET_ERR(_err)                                                                                                                      \
+    do {                                                                                                                                   \
+        l_err = (_err);                                                                                                                    \
+        l_err_line = __LINE__;                                                                                                             \
+        goto update_ret;                                                                                                                   \
+    } while (0)
+
+    // Compose 1-TX update: IN_COND(l_tail[idx]) + OUT_COND(SRV_DEX new state)
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx)
+        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tail, l_prev_idx, 0) != 1)
+        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+    dap_chain_net_srv_uid_t l_uid = {.uint64 = DAP_CHAIN_NET_SRV_DEX_ID};
+    dap_chain_tx_out_cond_t *l_out = dap_chain_datum_tx_item_out_cond_create_srv_dex(
+        l_uid, a_net->pub.id, l_new_value, a_net->pub.id, l_buy_ticker, l_new_rate, &l_wallet_addr, &l_order_root,
+        l_prev->subtype.srv_dex.min_fill, l_prev->subtype.srv_dex.version, l_prev->subtype.srv_dex.flags, DEX_TX_TYPE_UPDATE, NULL, 0);
+    if (!l_out)
+        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+    // Explicitly mark composer-declared type to be verified later by the verificator
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out);
+    DAP_DELETE(l_out);
+
+    // Fees: pay validator/network in native token
+    uint256_t l_net_fee = {}, l_total_native_fee = a_fee;
+    dap_chain_addr_t l_net_addr = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_addr);
+    if (l_net_fee_used)
+        SUM_256_256(l_total_native_fee, l_net_fee, &l_total_native_fee);
+
+    // Delta handling: lock additional sell if increased, or return surplus if decreased
+    uint256_t l_delta = uint256_0, l_sell_transfer = uint256_0, l_fee_transfer = uint256_0;
+    int l_cmp = compare256(l_new_value, l_prev->header.value);
+    bool l_sell_native = !strcmp(l_sell_ticker, a_net->pub.native_ticker);
+
+    if (l_cmp > 0) {
+        // Increase: need extra inputs in sell token
+        SUBTRACT_256_256(l_new_value, l_prev->header.value, &l_delta);
+        if (l_sell_native) {
+            // Single channel: collect delta + fees together to avoid double-spend
+            uint256_t l_need = l_delta;
+            if (!IS_ZERO_256(l_total_native_fee))
+                SUM_256_256(l_need, l_total_native_fee, &l_need);
+            if (s_dex_collect_utxo_for_ticker(a_net, l_sell_ticker, &l_wallet_addr, l_need, &l_tx, &l_sell_transfer) < 0)
+                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+        } else {
+            // Dual channel: collect delta and fees separately
+            if (s_dex_collect_utxo_for_ticker(a_net, l_sell_ticker, &l_wallet_addr, l_delta, &l_tx, &l_sell_transfer) < 0)
+                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+            if (!IS_ZERO_256(l_total_native_fee)) {
+                if (s_dex_collect_utxo_for_ticker(a_net, a_net->pub.native_ticker, &l_wallet_addr, l_total_native_fee, &l_tx,
+                                                  &l_fee_transfer) < 0)
+                    RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+            }
+        }
+    } else if (l_cmp < 0) {
+        // Decrease: refund delta = prev - new in sell token to seller
+        SUBTRACT_256_256(l_prev->header.value, l_new_value, &l_delta);
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_wallet_addr, l_delta, l_sell_ticker, 0) == -1)
+            RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+        // Still need to collect fees
+        if (!IS_ZERO_256(l_total_native_fee)) {
+            if (s_dex_collect_utxo_for_ticker(a_net, a_net->pub.native_ticker, &l_wallet_addr, l_total_native_fee, &l_tx, &l_fee_transfer) <
+                0)
+                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+        }
+    } else {
+        // No value change, just collect fees
+        if (!IS_ZERO_256(l_total_native_fee)) {
+            if (s_dex_collect_utxo_for_ticker(a_net, a_net->pub.native_ticker, &l_wallet_addr, l_total_native_fee, &l_tx, &l_fee_transfer) <
+                0)
+                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+        }
+    }
+
+    // Add fee items
+    if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_net_addr, a_net->pub.native_ticker) < 0)
+        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+
+    // Cashback handling
+    if (l_sell_native && l_cmp > 0) {
+        // Single channel: combined cashback for delta + fees
+        uint256_t l_needed = l_delta;
+        if (!IS_ZERO_256(l_total_native_fee))
+            SUM_256_256(l_needed, l_total_native_fee, &l_needed);
+        if (s_dex_add_cashback(&l_tx, l_sell_transfer, l_needed, &l_wallet_addr, l_sell_ticker) < 0)
+            RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+    } else {
+        // Dual channel or decrease: separate cashbacks
+        if (l_cmp > 0 && !IS_ZERO_256(l_sell_transfer)) {
+            if (s_dex_add_cashback(&l_tx, l_sell_transfer, l_delta, &l_wallet_addr, l_sell_ticker) < 0)
+                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+        }
+        if (!IS_ZERO_256(l_total_native_fee) && !IS_ZERO_256(l_fee_transfer)) {
+            if (s_dex_add_cashback(&l_tx, l_fee_transfer, l_total_native_fee, &l_wallet_addr, a_net->pub.native_ticker) < 0)
+                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+        }
+    }
+
+    // Sign TX
+    if (s_dex_sign_tx(&l_tx, a_wallet) < 0)
+        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
+#undef RET_ERR
+update_ret:
+    if (l_err != DEX_UPDATE_ERROR_OK) {
+        log_it(L_ERROR, "{ %s } Error %d at line %d", __FUNCTION__, l_err, l_err_line);
+        dap_chain_datum_tx_delete(l_tx);
+        l_tx = NULL;
+    }
+    *a_tx = l_tx;
+    return l_err;
+}
+
+// Single order purchase: build single-entry match table and delegate to universal composer (supports leftover orders)
+static dap_chain_datum_tx_t *s_dex_tx_create_exchange(dap_chain_net_t *a_net, dap_chain_wallet_t *a_wallet,
+                                                      const dap_chain_addr_t *a_buyer_addr, dap_hash_fast_t *a_prev_hash, uint256_t a_value,
+                                                      bool a_is_budget_buy, uint256_t a_fee, bool a_create_buyer_order_on_leftover,
+                                                      uint256_t a_leftover_rate)
+{
+    dap_ret_val_if_any(NULL, !a_net, !a_wallet, !a_prev_hash);
+
+    // Build single-entry match table with self-purchase filter
+    dap_chain_net_srv_dex_purchase_error_t l_err = DEX_PURCHASE_ERROR_OK;
+    uint256_t l_leftover_quote = uint256_0;
+    dex_match_table_entry_t *l_matches =
+        s_dex_matches_build_by_hashes(a_net, a_prev_hash, 1, a_value, a_is_budget_buy, a_buyer_addr, &l_err, &l_leftover_quote);
+    if (!l_matches)
+        return NULL;
+
+    debug_if(s_debug_more, L_DEBUG, "{ %s } After match found, leftover in Q: %s; Budget in %s token%s%s", __FUNCTION__,
+             dap_uint256_to_char_ex(l_leftover_quote).str, a_is_budget_buy ? "buy" : "sell",
+             a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
+             a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "");
+
+    // Use universal composer with leftover parameters
+    dap_chain_datum_tx_t *l_tx = s_dex_compose_from_match_table(a_net, a_wallet, a_fee, l_leftover_quote, a_is_budget_buy,
+                                                                a_create_buyer_order_on_leftover, a_leftover_rate, l_matches);
+    s_dex_match_pair_index_clear(&l_matches);
+    return l_tx;
+}
+
+dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash,
+                                                                      uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee,
+                                                                      dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover,
+                                                                      uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx)
+{
+    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_hash || dap_hash_fast_is_blank(a_order_hash), !a_wallet,
+                       !a_tx);
+    *a_tx = NULL;
+    debug_if(s_debug_more, L_DEBUG, "{ %s } Args: order_hash = %s; budget = %s in %s tokens; fee = %s %s%s%s", __FUNCTION__,
+             dap_chain_hash_fast_to_str_static(a_order_hash), dap_uint256_to_char_ex(a_value).frac, a_is_budget_buy ? "buy" : "sell",
+             dap_uint256_to_char_ex(a_fee).frac, a_net->pub.native_ticker,
+             a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
+             a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "");
+
+    // Get buyer address for self-purchase filter
+    dap_chain_addr_t *l_buyer_addr = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
+    if (!l_buyer_addr)
+        return DEX_PURCHASE_ERROR_INVALID_ARGUMENT;
+
+    // Find tail: try cache first (hot path), then ledger
+    dap_hash_fast_t l_tail = {};
+    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+    dex_order_cache_entry_t *l_cached = NULL;
+    unsigned l_hashv;
+    HASH_VALUE(a_order_hash, sizeof(*a_order_hash), l_hashv);
+    HASH_FIND_BYHASHVALUE(level.hh, s_dex_orders_cache, a_order_hash, sizeof(*a_order_hash), l_hashv, l_cached);
+    if (!l_cached)
+        HASH_FIND_BYHASHVALUE(level.hh_tail, s_dex_index_by_tail, a_order_hash, sizeof(*a_order_hash), l_hashv, l_cached);
+    if (l_cached)
+        l_tail = l_cached->level.match.tail;
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+
+    debug_if(s_debug_more, L_DEBUG, "{ %s } Cache %s: %s", __FUNCTION__, l_cached ? "hit" : "miss",
+             dap_chain_hash_fast_to_str_static(l_cached ? &l_tail : a_order_hash));
+
+    if (dap_hash_fast_is_blank(&l_tail)) {
+        l_tail = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, a_order_hash, false);
+        if (dap_hash_fast_is_blank(&l_tail))
+            l_tail = *a_order_hash;
+    }
+
+    debug_if(s_debug_more, L_DEBUG, "{ %s } Resolved purchase tail: %s", __FUNCTION__, dap_chain_hash_fast_to_str_static(&l_tail));
+
+    // Self-purchase check inside s_dex_matches_build_by_hashes (called by s_dex_tx_create_exchange)
+    dap_chain_datum_tx_t *l_tx = s_dex_tx_create_exchange(a_net, a_wallet, l_buyer_addr, &l_tail, a_value, a_is_budget_buy, a_fee,
+                                                          a_create_buyer_order_on_leftover, a_leftover_rate);
+    DAP_DELETE(l_buyer_addr);
+    *a_tx = l_tx;
+    debug_if(s_debug_more, L_DEBUG, "{ %s } Purchase %s; Tail: %s", __FUNCTION__, l_tx ? "composed" : "failed",
+             dap_chain_hash_fast_to_str_static(&l_tail));
+    return l_tx ? DEX_PURCHASE_ERROR_OK : DEX_PURCHASE_ERROR_COMPOSE_TX;
+}
+
+dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hashes,
+                                                                            size_t a_orders_count, uint256_t a_value, bool a_is_budget_buy,
+                                                                            uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                                                            bool a_create_buyer_order_on_leftover,
+                                                                            uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx)
+{
+    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_hashes, !a_orders_count, !a_wallet, !a_tx);
+    *a_tx = NULL;
+    if (a_orders_count == 0)
+        return DEX_PURCHASE_MULTI_ERROR_ORDERS_EMPTY;
+    if (s_debug_more) {
+        log_it(L_DEBUG, "{ %s } Args: orders count = %zu; budget = %s in %s tokens; fee = %s %s%s%s", __FUNCTION__, a_orders_count,
+               dap_uint256_to_char_ex(a_value).frac, a_is_budget_buy ? "buy" : "sell", dap_uint256_to_char_ex(a_fee).frac,
+               a_net->pub.native_ticker, a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
+               a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "");
+        for (size_t i = 0; i < a_orders_count; ++i) {
+            log_it(L_DEBUG, "{ %s }   order[%zu/%zu]: %s", __FUNCTION__, i + 1, a_orders_count,
+                   dap_chain_hash_fast_to_str_static(&a_order_hashes[i]));
+        }
+    }
+    // Get buyer address for self-purchase filter
+    dap_chain_addr_t *l_buyer_addr = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
+    if (!l_buyer_addr)
+        return DEX_PURCHASE_ERROR_INVALID_ARGUMENT;
+
+    // Build matches directly from hashes (cache-first, then ledger)
+    dap_chain_net_srv_dex_purchase_error_t l_err = DEX_PURCHASE_ERROR_OK;
+    uint256_t l_leftover_quote = uint256_0;
+    dex_match_table_entry_t *l_matches = s_dex_matches_build_by_hashes(a_net, a_order_hashes, a_orders_count, a_value, a_is_budget_buy,
+                                                                       l_buyer_addr, &l_err, &l_leftover_quote);
+    DAP_DELETE(l_buyer_addr);
+    if (!l_matches)
+        return l_err ? l_err : DEX_PURCHASE_ERROR_COMPOSE_TX;
+    dap_chain_datum_tx_t *l_tx = s_dex_compose_from_match_table(a_net, a_wallet, a_fee, l_leftover_quote, a_is_budget_buy,
+                                                                a_create_buyer_order_on_leftover, a_leftover_rate, l_matches);
+    debug_if(s_debug_more, L_DEBUG, "{ %s } Purchase %s; Orders count: %zu; Matches: %u; Leftover in Q: %s", __FUNCTION__,
+             l_tx ? "composed" : "failed", a_orders_count, HASH_CNT(hh, l_matches), dap_uint256_to_char_ex(l_leftover_quote).frac);
+    s_dex_match_pair_index_clear(&l_matches);
+    *a_tx = l_tx;
+    return l_tx ? DEX_PURCHASE_ERROR_OK : DEX_PURCHASE_ERROR_COMPOSE_TX;
+}
+
+static dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto_ex(dap_chain_net_t *a_net, const char *a_sell_token,
+                                                                           const char *a_buy_token, uint256_t a_value, bool a_is_budget_buy,
+                                                                           uint256_t a_fee, uint256_t a_min_rate,
+                                                                           dap_chain_wallet_t *a_wallet,
+                                                                           bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
+                                                                           dap_chain_datum_tx_t **a_tx, dex_match_table_entry_t **a_matches)
+{
+    // a_tx == NULL is allowed for dry-run mode (matching only, no TX composition)
+    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_sell_token, !a_buy_token, !a_wallet, IS_ZERO_256(a_fee));
+    if (a_tx)
+        *a_tx = NULL;
+    if (a_matches)
+        *a_matches = NULL;
+    debug_if(s_debug_more, L_DEBUG, "{ %s } Args: sell = %s; buy = %s; min_rate = %s; budget = %s in %s tokens; fee = %s %s%s%s%s",
+             __FUNCTION__, a_sell_token, a_buy_token, dap_uint256_to_char_ex(a_min_rate).frac, dap_uint256_to_char_ex(a_value).frac,
+             a_is_budget_buy ? "buy" : "sell", dap_uint256_to_char_ex(a_fee).frac, a_net->pub.native_ticker,
+             a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
+             a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "", a_tx ? "" : " [DRY-RUN]");
+    dap_chain_addr_t *l_buyer_addr = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
+    if (!l_buyer_addr)
+        return DEX_PURCHASE_ERROR_INVALID_ARGUMENT;
+    dex_match_criteria_t l_crit = {a_sell_token, a_buy_token, a_net->pub.id,   a_net->pub.id,
+                                   a_min_rate,   a_value,     a_is_budget_buy, l_buyer_addr};
+    uint256_t l_leftover_quote = uint256_0;
+    dex_match_table_entry_t *l_matches = s_dex_matches_build_by_criteria(a_net, &l_crit, &l_leftover_quote);
+    DAP_DELETE(l_buyer_addr);
+    dap_chain_datum_tx_t *l_tx = NULL;
+
+    if (!l_matches) {
+        if (!a_create_buyer_order_on_leftover || IS_ZERO_256(a_leftover_rate))
+            return DEX_PURCHASE_AUTO_ERROR_NO_MATCHES;
+        // No matches found but leftover order requested: create fresh ORDER with full budget
+        if (!a_tx)
+            return DEX_PURCHASE_ERROR_OK; // Dry-run: just report success (would create order)
+        uint256_t l_value_sell = uint256_0;
+        if (a_is_budget_buy)
+            DIV_256_COIN(a_value, a_leftover_rate, &l_value_sell);
+        else
+            l_value_sell = a_value;
+        uint8_t l_min_fill_combined = 0; // default PARTIAL_OK policy
+        dap_chain_net_srv_dex_create_error_t l_err = dap_chain_net_srv_dex_create(
+            a_net, a_buy_token, a_sell_token, l_value_sell, a_leftover_rate, l_min_fill_combined, a_fee, a_wallet, &l_tx);
+        if (!l_tx)
+            log_it(L_ERROR, "{ %s } Leftover order creation failed, err %d", __FUNCTION__, l_err);
+        *a_tx = l_tx;
+        return l_err ? DEX_PURCHASE_ERROR_COMPOSE_TX : DEX_PURCHASE_ERROR_OK;
+    }
+
+    if (a_tx)
+        *a_tx = l_tx = s_dex_compose_from_match_table(a_net, a_wallet, a_fee, l_leftover_quote, a_is_budget_buy,
+                                                      a_create_buyer_order_on_leftover, a_leftover_rate, l_matches);
+    if (a_matches)
+        *a_matches = l_matches;
+    else
+        s_dex_matches_clear(&l_matches);
+    return (a_tx && !l_tx) ? DEX_PURCHASE_ERROR_COMPOSE_TX : DEX_PURCHASE_ERROR_OK;
+}
+
+dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(dap_chain_net_t *a_net, const char *a_sell_token,
+    const char *a_buy_token, uint256_t a_value, bool a_is_budget_buy,
+    uint256_t a_fee, uint256_t a_min_rate,
+    dap_chain_wallet_t *a_wallet,
+    bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
+    dap_chain_datum_tx_t **a_tx)
+{
+    return dap_chain_net_srv_dex_purchase_auto_ex(a_net, a_sell_token, a_buy_token, a_value, a_is_budget_buy, a_fee, a_min_rate, a_wallet,
+                                                  a_create_buyer_order_on_leftover, a_leftover_rate, a_tx, NULL);
+}
+
+dap_chain_net_srv_dex_remove_error_t dap_chain_net_srv_dex_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_fee,
+                                                                  dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx)
+{
+    dap_ret_val_if_any(DEX_REMOVE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_hash, !a_wallet, !a_tx);
+    *a_tx = NULL;
+    if (IS_ZERO_256(a_fee))
+        return DEX_REMOVE_ERROR_FEE_IS_ZERO;
+    const char *l_native_ticker = a_net->pub.native_ticker;
+    dap_ledger_t *l_ledger = a_net->pub.ledger;
+    dap_hash_fast_t l_tail = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, a_order_hash, false);
+    if (dap_hash_fast_is_blank(&l_tail))
+        l_tail = *a_order_hash;
+    dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_tail);
+    if (!l_cond_tx)
+        return DEX_REMOVE_ERROR_TX_NOT_FOUND;
+    int l_prev_cond_idx = 0;
+    dap_chain_tx_out_cond_t *l_prev_cond =
+        dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_cond_idx);
+    if (!l_prev_cond || dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_tail, l_prev_cond_idx, NULL))
+        return DEX_REMOVE_ERROR_INVALID_OUT;
+    // Owner check via address compare
+    dap_chain_addr_t *l_wallet_addr_tmp = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id), l_wallet_addr;
+    if (!l_wallet_addr_tmp)
+        return DEX_REMOVE_ERROR_COMPOSE_TX;
+    l_wallet_addr = *l_wallet_addr_tmp;
+    DAP_DELETE(l_wallet_addr_tmp);
+    bool l_is_owner = dap_chain_addr_compare(&l_wallet_addr, &l_prev_cond->subtype.srv_dex.seller_addr);
+    if (!l_is_owner)
+        return DEX_REMOVE_ERROR_NOT_OWNER;
+
+    // Fees
+    uint256_t l_net_fee = {}, l_total_fee = a_fee, l_fee_transfer = {}, l_value_transfer = {};
+    dap_chain_addr_t l_addr_fee = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
+    if (l_net_fee_used)
+        SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
+    const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tail);
+    bool l_single_channel = l_tx_ticker && !dap_strcmp(l_tx_ticker, l_native_ticker);
+
+    dap_chain_net_srv_dex_remove_error_t l_err = DEX_REMOVE_ERROR_OK;
+    int l_err_line = 0;
+#define RET_ERR(_err)                                                                                                                      \
+    do {                                                                                                                                   \
+        l_err = (_err);                                                                                                                    \
+        l_err_line = __LINE__;                                                                                                             \
+        goto remove_ret;                                                                                                                   \
+    } while (0)
+
+    // Create tx
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx)
+        RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+
+    // IN_COND (spend previous order)
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tail, l_prev_cond_idx, 0) != 1)
+        RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+
+    if (!l_single_channel) {
+        // Dual channel: collect native for fees
+        if (s_dex_collect_utxo_for_ticker(l_ledger->net, l_native_ticker, &l_wallet_addr, l_total_fee, &l_tx, &l_value_transfer) < 0)
+            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+
+        // Add fees
+        if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_addr_fee, l_native_ticker) < 0)
+            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+
+        // Return locked coins to owner
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_wallet_addr, l_prev_cond->header.value, l_tx_ticker, 0) == -1)
+            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+
+        // Fee cashback
+        if (s_dex_add_cashback(&l_tx, l_value_transfer, l_total_fee, &l_wallet_addr, l_native_ticker) < 0)
+            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+    } else {
+        // Single channel: fee deducted from locked value
+        if (compare256(l_prev_cond->header.value, l_total_fee) <= 0)
+            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+
+        // Add fees
+        if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_addr_fee, l_native_ticker) < 0)
+            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+
+        // Return remainder to owner
+        uint256_t l_coin_back = {};
+        SUBTRACT_256_256(l_prev_cond->header.value, l_total_fee, &l_coin_back);
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_wallet_addr, l_coin_back, l_native_ticker, 0) == -1)
+            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+    }
+
+    // Sign TX
+    if (s_dex_sign_tx(&l_tx, a_wallet) < 0)
+        RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+#undef RET_ERR
+remove_ret:
+    if (l_err != DEX_REMOVE_ERROR_OK) {
+        log_it(L_ERROR, "{ %s } Error %d at line %d", __FUNCTION__, l_err, l_err_line);
+        dap_chain_datum_tx_delete(l_tx);
+        l_tx = NULL;
+    }
+    *a_tx = l_tx;
+    return l_err;
+}
+
+// Compose migration TX: IN_COND on SRV_XCHANGE prev + OUT_COND(SRV_DEX)
+dap_chain_net_srv_dex_migrate_error_t dap_chain_net_srv_dex_migrate(dap_chain_net_t *a_net, dap_hash_fast_t *a_prev_hash,
+                                                                    uint256_t a_rate_new, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                                                    dap_chain_datum_tx_t **a_tx)
+{
+    dap_ret_val_if_any(DEX_MIGRATE_ERROR_INVALID_ARGUMENT, !a_net, !a_prev_hash, !a_wallet, !a_tx, IS_ZERO_256(a_rate_new),
+                       IS_ZERO_256(a_fee));
+    *a_tx = NULL;
+    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_prev_hash);
+    if (!l_prev_tx)
+        return DEX_MIGRATE_ERROR_PREV_NOT_FOUND;
+    int l_prev_idx = 0;
+    dap_chain_tx_out_cond_t *l_prev_out =
+        dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_prev_idx);
+    if (!l_prev_out)
+        return DEX_MIGRATE_ERROR_PREV_NOT_XCHANGE;
+    // seller and tokens
+    const char *sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, a_prev_hash);
+    if (!sell_ticker)
+        return DEX_MIGRATE_ERROR_PREV_NOT_FOUND;
+    const char *buy_ticker = l_prev_out->subtype.srv_xchange.buy_token;
+    // owner wallet addr
+    dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
+    if (!l_addr_tmp)
+        return DEX_MIGRATE_ERROR_COMPOSE_TX;
+    dap_chain_addr_t l_addr = *l_addr_tmp;
+    DAP_DELETE(l_addr_tmp);
+    bool l_is_owner = dap_chain_addr_compare(&l_addr, &l_prev_out->subtype.srv_xchange.seller_addr);
+    if (!l_is_owner)
+        return DEX_MIGRATE_ERROR_NOT_OWNER;
+
+    dap_chain_net_srv_dex_migrate_error_t l_err = DEX_MIGRATE_ERROR_OK;
+    int l_err_line = 0;
+#define RET_ERR(_err)                                                                                                                      \
+    do {                                                                                                                                   \
+        l_err = (_err);                                                                                                                    \
+        l_err_line = __LINE__;                                                                                                             \
+        goto migrate_ret;                                                                                                                  \
+    } while (0)
+
+    // Compose TX with proper fee inputs from wallet (no funds appear from nowhere)
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx)
+        RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
+    // 1) Spend previous SRV_XCHANGE conditional out
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_prev_hash, l_prev_idx, 0) != 1)
+        RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
+
+    // 2) Collect native inputs for fees (validator + optional network)
+    const char *l_native = a_net->pub.native_ticker;
+    uint256_t l_net_fee = uint256_0, l_total_native_fee = a_fee, l_fee_transfer = uint256_0;
+    dap_chain_addr_t l_net_addr = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_addr);
+    if (l_net_fee_used)
+        SUM_256_256(l_total_native_fee, l_net_fee, &l_total_native_fee);
+    dap_list_t *l_list_fee_in = NULL;
+    if (!IS_ZERO_256(l_total_native_fee)) {
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native, &l_addr, &l_list_fee_in, l_total_native_fee, &l_fee_transfer) ==
+            -101)
+            l_list_fee_in = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native, &l_addr, l_total_native_fee, &l_fee_transfer);
+        if (!l_list_fee_in)
+            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
+        uint256_t l_added_fee = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_in);
+        dap_list_free_full(l_list_fee_in, NULL);
+        if (!EQUAL_256(l_added_fee, l_fee_transfer))
+            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
+    }
+
+    // 3) Add SRV_DEX out (lock XCHANGE sell amount with new rate)
+    dap_chain_tx_out_cond_t *l_out = dap_chain_datum_tx_item_out_cond_create_srv_dex(
+        (dap_chain_net_srv_uid_t){.uint64 = DAP_CHAIN_NET_SRV_DEX_ID}, l_prev_out->subtype.srv_xchange.sell_net_id,
+        l_prev_out->header.value, l_prev_out->subtype.srv_xchange.buy_net_id, buy_ticker, a_rate_new, &l_addr, NULL, 0, 1, 0,
+        DEX_TX_TYPE_ORDER, NULL, 0);
+    if (!l_out)
+        RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out);
+    DAP_DELETE(l_out);
+
+    // 4) Add validator fee item and optional network fee output
+    if (!IS_ZERO_256(a_fee))
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1)
+            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
+    if (l_net_fee_used)
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_net_addr, l_net_fee, l_native, 0) == -1)
+            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
+    // 5) Native cashback (change) back to wallet if fee inputs exceed required total
+    if (!IS_ZERO_256(l_fee_transfer) && compare256(l_fee_transfer, l_total_native_fee) == 1) {
+        uint256_t l_cashback = uint256_0;
+        SUBTRACT_256_256(l_fee_transfer, l_total_native_fee, &l_cashback);
+        if (!IS_ZERO_256(l_cashback) && (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_addr, l_cashback, l_native, 0) == -1))
+            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
+    }
+
+    // 6) Sign and submit
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(a_wallet, 0);
+    int l_sign_res = dap_chain_datum_tx_add_sign_item(&l_tx, l_key);
+    dap_enc_key_delete(l_key);
+    if (l_sign_res != 1)
+        RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
+#undef RET_ERR
+migrate_ret:
+    if (l_err != DEX_MIGRATE_ERROR_OK) {
+        log_it(L_ERROR, "{ %s } Error %d at line %d", __FUNCTION__, l_err, l_err_line);
+        dap_chain_datum_tx_delete(l_tx);
+        l_tx = NULL;
+    }
+    *a_tx = l_tx;
+    return l_err;
 }
 
 // ---------------- CLI ----------------
@@ -8615,7 +9355,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
 
         dex_match_table_entry_t *l_matches = NULL;
         dap_chain_net_srv_dex_purchase_error_t l_ret =
-            dap_chain_net_srv_dex_purchase_auto(l_net, l_sell_tok, l_buy_tok, l_value, l_is_budget_buy, l_fee, l_min_rate, l_wallet,
+            dap_chain_net_srv_dex_purchase_auto_ex(l_net, l_sell_tok, l_buy_tok, l_value, l_is_budget_buy, l_fee, l_min_rate, l_wallet,
                                                 l_create_leftover, l_leftover_rate, l_dry_run ? NULL : &l_datum, &l_matches);
         dap_chain_wallet_close(l_wallet);
 
@@ -9251,731 +9991,4 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         dap_json_rpc_error_add(*json_arr_reply, l_ret, "error %d", l_ret);
     json_object_array_add(*json_arr_reply, l_json_reply);
     return l_ret;
-}
-
-static char *s_dex_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
-{
-    char *l_ret = NULL;
-    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
-    DAP_DELETE(a_tx);
-    if (!l_datum)
-        return log_it(L_ERROR, "Failed to create datum"), NULL;
-    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
-    if (l_chain)
-        l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
-    DAP_DELETE(l_datum);
-    return l_ret;
-}
-
-dap_chain_net_srv_dex_create_error_t dap_chain_net_srv_dex_create(dap_chain_net_t *a_net, const char *a_token_buy, const char *a_token_sell,
-                                                                  uint256_t a_value_sell, uint256_t a_rate, uint8_t a_min_fill_combined,
-                                                                  uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-                                                                  dap_chain_datum_tx_t **a_tx)
-{
-    dap_ret_val_if_any(DEX_CREATE_ERROR_INVALID_ARGUMENT, !a_net, !a_token_buy, !a_token_sell, !a_wallet, !a_tx);
-    *a_tx = NULL;
-    if (!dap_ledger_token_ticker_check(a_net->pub.ledger, a_token_sell))
-        return DEX_CREATE_ERROR_TOKEN_TICKER_SELL_NOT_FOUND;
-    if (!dap_ledger_token_ticker_check(a_net->pub.ledger, a_token_buy))
-        return DEX_CREATE_ERROR_TOKEN_TICKER_BUY_NOT_FOUND;
-    if (s_debug_more) {
-        uint8_t l_min_pct = a_min_fill_combined & 0x7F;
-        ;
-        const char *l_min_policy = l_min_pct == 0                      ? "PARTIAL_OK"
-                                   : l_min_pct == 100                  ? "AON (all-or-none)"
-                                   : (a_min_fill_combined & 0x80) != 0 ? "MIN_FROM_ORIGIN"
-                                                                       : "MIN_FROM_CURRENT";
-        log_it(L_DEBUG,
-               "{ %s } Args; sell = %s; buy = %s; value_sell = %s; rate = %s; "
-               "min_fill: pct = %u, %s policy; fee = %s %s",
-               __FUNCTION__, a_token_sell, a_token_buy, dap_uint256_to_char_ex(a_value_sell).frac, dap_uint256_to_char_ex(a_rate).frac,
-               (unsigned)l_min_pct, l_min_policy, dap_uint256_to_char_ex(a_fee).frac, a_net->pub.native_ticker);
-    }
-
-    // Whitelist check: pair must be whitelisted via decree
-    // Rate is expected in canonical form (QUOTE/BASE) for both ASK and BID
-    dex_pair_key_t l_pair_check = {};
-    s_pair_normalize(a_token_sell, a_net->pub.id, a_token_buy, a_net->pub.id, a_rate, &l_pair_check, NULL, NULL);
-    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-    dex_pair_index_t *l_pair_whitelist = s_dex_pair_index_get(&l_pair_check);
-    pthread_rwlock_unlock(&s_dex_cache_rwlock);
-    if (!l_pair_whitelist)
-        return DEX_CREATE_ERROR_PAIR_NOT_ALLOWED;
-
-    if (IS_ZERO_256(a_rate))
-        return DEX_CREATE_ERROR_RATE_IS_ZERO;
-    if (IS_ZERO_256(a_fee))
-        return DEX_CREATE_ERROR_FEE_IS_ZERO;
-    if (IS_ZERO_256(a_value_sell))
-        return DEX_CREATE_ERROR_VALUE_SELL_IS_ZERO;
-
-    const char *l_native = a_net->pub.native_ticker;
-    bool l_sell_native = !dap_strcmp(a_token_sell, l_native);
-    uint256_t l_balance_sell = dap_chain_wallet_get_balance(a_wallet, a_net->pub.id, a_token_sell), l_need_sell = a_value_sell;
-    if (l_sell_native) {
-        if (SUM_256_256(l_need_sell, a_fee, &l_need_sell))
-            return DEX_CREATE_ERROR_INTEGER_OVERFLOW;
-    } else {
-        if (compare256(dap_chain_wallet_get_balance(a_wallet, a_net->pub.id, l_native), a_fee) < 0)
-            return DEX_CREATE_ERROR_NOT_ENOUGH_CASH_FOR_FEE;
-    }
-    if (compare256(l_balance_sell, l_need_sell) < 0)
-        return DEX_CREATE_ERROR_NOT_ENOUGH_CASH;
-    // Network fee
-    uint256_t l_net_fee = uint256_0, l_total_native_fee = a_fee;
-    dap_chain_addr_t l_net_addr;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_addr);
-    if (l_net_fee_used)
-        SUM_256_256(l_total_native_fee, l_net_fee, &l_total_native_fee);
-
-    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
-    if (!l_wallet_addr)
-        return DEX_CREATE_ERROR_COMPOSE_TX;
-    dap_chain_addr_t l_owner_addr = *l_wallet_addr;
-    DAP_DELETE(l_wallet_addr);
-
-    // Collect inputs
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    int l_err = DEX_CREATE_ERROR_OK, l_err_line = 0;
-#define RET_ERR(_err)                                                                                                                      \
-    do {                                                                                                                                   \
-        l_err = _err;                                                                                                                      \
-        l_err_line = __LINE__;                                                                                                             \
-        goto dex_create_ret;                                                                                                               \
-    } while (0)
-    uint256_t l_sell_transfer = uint256_0, l_fee_transfer = uint256_0;
-    if (l_sell_native) {
-        // Single channel: native sell covers both value and fees
-        uint256_t l_need = a_value_sell;
-        if (!IS_ZERO_256(l_total_native_fee))
-            SUM_256_256(l_need, l_total_native_fee, &l_need);
-        if (s_dex_collect_utxo_for_ticker(a_net, l_native, &l_owner_addr, l_need, &l_tx, &l_sell_transfer) < 0)
-            RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
-    } else {
-        // Dual channel: collect sell token + native for fees
-        if (s_dex_collect_utxo_for_ticker(a_net, a_token_sell, &l_owner_addr, a_value_sell, &l_tx, &l_sell_transfer) < 0)
-            RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
-        if (!IS_ZERO_256(l_total_native_fee)) {
-            if (s_dex_collect_utxo_for_ticker(a_net, l_native, &l_owner_addr, l_total_native_fee, &l_tx, &l_fee_transfer) < 0)
-                RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
-        }
-    }
-
-    // Add SRV_DEX out (locks sell funds)
-    // Rate is stored in canonical form (QUOTE/BASE) for both ASK and BID
-    uint8_t l_min_fill = a_min_fill_combined, l_version = 1;
-    uint32_t l_flags = 0;
-    dap_chain_tx_out_cond_t *l_out = dap_chain_datum_tx_item_out_cond_create_srv_dex(
-        (dap_chain_net_srv_uid_t){.uint64 = DAP_CHAIN_NET_SRV_DEX_ID}, a_net->pub.id, a_value_sell, a_net->pub.id, a_token_buy, a_rate,
-        &l_owner_addr, NULL, l_min_fill, l_version, l_flags, DEX_TX_TYPE_ORDER, NULL, 0);
-    if (!l_out)
-        RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
-    dap_chain_datum_tx_add_item(&l_tx, l_out);
-    DAP_DELETE(l_out);
-
-    // Add fees
-    if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_net_addr, l_native) < 0)
-        RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
-
-    // Add cashback
-    if (l_sell_native) {
-        // Single channel: cashback in native
-        uint256_t l_needed = a_value_sell;
-        if (!IS_ZERO_256(l_total_native_fee))
-            SUM_256_256(l_needed, l_total_native_fee, &l_needed);
-        if (s_dex_add_cashback(&l_tx, l_sell_transfer, l_needed, &l_owner_addr, l_native) < 0)
-            RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
-    } else {
-        // Dual channel: cashback in sell token + native
-        if (s_dex_add_cashback(&l_tx, l_sell_transfer, a_value_sell, &l_owner_addr, a_token_sell) < 0)
-            RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
-        if (!IS_ZERO_256(l_total_native_fee)) {
-            if (s_dex_add_cashback(&l_tx, l_fee_transfer, l_total_native_fee, &l_owner_addr, l_native) < 0)
-                RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
-        }
-    }
-
-    // Sign TX
-    if (s_dex_sign_tx(&l_tx, a_wallet) < 0)
-        RET_ERR(DEX_CREATE_ERROR_COMPOSE_TX);
-#undef RET_ERR
-dex_create_ret:
-    if (l_err) {
-        log_it(L_ERROR, "{ %s } Error %d at line %d", __FUNCTION__, l_err, l_err_line);
-        dap_chain_datum_tx_delete(l_tx);
-        l_tx = NULL;
-    }
-    *a_tx = l_tx;
-    return l_err;
-}
-
-/*
- * Update existing order by owner (seller-leftover update):
- * - Finds the current tail of the order chain via the ledger (source of truth)
- * - Verifies that wallet addr matches order's seller_addr
- * - Composes 1-TX update: IN_COND(tail[idx]) + OUT_COND(SRV_DEX new state) with tx_type=UPDATE
- * - Pays native network fee (and optionally validator fee) from wallet UTXOs
- * - Signs and submits to mempool
- */
-dap_chain_net_srv_dex_update_error_t dap_chain_net_srv_dex_update(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_root,
-                                                                  bool a_has_new_value, uint256_t a_new_value, uint256_t a_fee,
-                                                                  dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx)
-{
-    // Parameter validation: must have net, order root, wallet, out ptr, and new value flag
-    dap_ret_val_if_any(DEX_UPDATE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_root, !a_wallet, !a_tx, !a_has_new_value);
-    *a_tx = NULL;
-    // Find actual tail in the ledger (canonical). For SRV_DEX: blank => current tx is owner; non-blank => use stored root.
-    dap_hash_fast_t l_tail =
-        dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, a_order_root, false);
-    if (dap_hash_fast_is_blank(&l_tail))
-        l_tail = *a_order_root;
-
-    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tail);
-    if (!l_prev_tx)
-        return DEX_UPDATE_ERROR_NOT_FOUND;
-
-    int l_prev_idx = 0;
-    dap_chain_tx_out_cond_t *l_prev = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_idx);
-    if (!l_prev)
-        return DEX_UPDATE_ERROR_NOT_FOUND;
-
-    // Determine correct order_root_hash: if l_prev has blank root, it's the ORDER (use l_tail as root); otherwise use l_prev's root
-    dap_hash_fast_t l_order_root =
-        dap_hash_fast_is_blank(&l_prev->subtype.srv_dex.order_root_hash) ? l_tail : l_prev->subtype.srv_dex.order_root_hash;
-
-    const char *l_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tail);
-    if (!l_sell_ticker)
-        return DEX_UPDATE_ERROR_NOT_FOUND;
-
-    const char *l_buy_ticker = l_prev->subtype.srv_dex.buy_token;
-
-    // Owner check: wallet addr must be equal to order's seller_addr
-    dap_chain_addr_t l_wallet_addr;
-    {
-        dap_chain_addr_t *l_tmp = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
-        if (!l_tmp)
-            return DEX_UPDATE_ERROR_COMPOSE_TX;
-        l_wallet_addr = *l_tmp;
-        DAP_DELETE(l_tmp);
-    }
-
-    if (!dap_chain_addr_compare(&l_wallet_addr, &l_prev->subtype.srv_dex.seller_addr))
-        return DEX_UPDATE_ERROR_NOT_OWNER;
-
-    // New parameters: rate is immutable, value can change
-    uint256_t l_new_rate = l_prev->subtype.srv_dex.rate, l_new_value = a_has_new_value ? a_new_value : l_prev->header.value;
-
-    // Validate new parameters: value must be non-zero
-    // UPDATE with value=0 is not allowed (use INVALIDATE for full closure)
-    dap_ret_val_if_any(DEX_UPDATE_ERROR_INVALID_ARGUMENT, IS_ZERO_256(l_new_value));
-
-    dap_chain_net_srv_dex_update_error_t l_err = DEX_UPDATE_ERROR_OK;
-    int l_err_line = 0;
-#define RET_ERR(_err)                                                                                                                      \
-    do {                                                                                                                                   \
-        l_err = (_err);                                                                                                                    \
-        l_err_line = __LINE__;                                                                                                             \
-        goto update_ret;                                                                                                                   \
-    } while (0)
-
-    // Compose 1-TX update: IN_COND(l_tail[idx]) + OUT_COND(SRV_DEX new state)
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    if (!l_tx)
-        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tail, l_prev_idx, 0) != 1)
-        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-    dap_chain_net_srv_uid_t l_uid = {.uint64 = DAP_CHAIN_NET_SRV_DEX_ID};
-    dap_chain_tx_out_cond_t *l_out = dap_chain_datum_tx_item_out_cond_create_srv_dex(
-        l_uid, a_net->pub.id, l_new_value, a_net->pub.id, l_buy_ticker, l_new_rate, &l_wallet_addr, &l_order_root,
-        l_prev->subtype.srv_dex.min_fill, l_prev->subtype.srv_dex.version, l_prev->subtype.srv_dex.flags, DEX_TX_TYPE_UPDATE, NULL, 0);
-    if (!l_out)
-        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-    // Explicitly mark composer-declared type to be verified later by the verificator
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out);
-    DAP_DELETE(l_out);
-
-    // Fees: pay validator/network in native token
-    uint256_t l_net_fee = {}, l_total_native_fee = a_fee;
-    dap_chain_addr_t l_net_addr = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_addr);
-    if (l_net_fee_used)
-        SUM_256_256(l_total_native_fee, l_net_fee, &l_total_native_fee);
-
-    // Delta handling: lock additional sell if increased, or return surplus if decreased
-    uint256_t l_delta = uint256_0, l_sell_transfer = uint256_0, l_fee_transfer = uint256_0;
-    int l_cmp = compare256(l_new_value, l_prev->header.value);
-    bool l_sell_native = !strcmp(l_sell_ticker, a_net->pub.native_ticker);
-
-    if (l_cmp > 0) {
-        // Increase: need extra inputs in sell token
-        SUBTRACT_256_256(l_new_value, l_prev->header.value, &l_delta);
-        if (l_sell_native) {
-            // Single channel: collect delta + fees together to avoid double-spend
-            uint256_t l_need = l_delta;
-            if (!IS_ZERO_256(l_total_native_fee))
-                SUM_256_256(l_need, l_total_native_fee, &l_need);
-            if (s_dex_collect_utxo_for_ticker(a_net, l_sell_ticker, &l_wallet_addr, l_need, &l_tx, &l_sell_transfer) < 0)
-                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-        } else {
-            // Dual channel: collect delta and fees separately
-            if (s_dex_collect_utxo_for_ticker(a_net, l_sell_ticker, &l_wallet_addr, l_delta, &l_tx, &l_sell_transfer) < 0)
-                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-            if (!IS_ZERO_256(l_total_native_fee)) {
-                if (s_dex_collect_utxo_for_ticker(a_net, a_net->pub.native_ticker, &l_wallet_addr, l_total_native_fee, &l_tx,
-                                                  &l_fee_transfer) < 0)
-                    RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-            }
-        }
-    } else if (l_cmp < 0) {
-        // Decrease: refund delta = prev - new in sell token to seller
-        SUBTRACT_256_256(l_prev->header.value, l_new_value, &l_delta);
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_wallet_addr, l_delta, l_sell_ticker, 0) == -1)
-            RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-        // Still need to collect fees
-        if (!IS_ZERO_256(l_total_native_fee)) {
-            if (s_dex_collect_utxo_for_ticker(a_net, a_net->pub.native_ticker, &l_wallet_addr, l_total_native_fee, &l_tx, &l_fee_transfer) <
-                0)
-                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-        }
-    } else {
-        // No value change, just collect fees
-        if (!IS_ZERO_256(l_total_native_fee)) {
-            if (s_dex_collect_utxo_for_ticker(a_net, a_net->pub.native_ticker, &l_wallet_addr, l_total_native_fee, &l_tx, &l_fee_transfer) <
-                0)
-                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-        }
-    }
-
-    // Add fee items
-    if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_net_addr, a_net->pub.native_ticker) < 0)
-        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-
-    // Cashback handling
-    if (l_sell_native && l_cmp > 0) {
-        // Single channel: combined cashback for delta + fees
-        uint256_t l_needed = l_delta;
-        if (!IS_ZERO_256(l_total_native_fee))
-            SUM_256_256(l_needed, l_total_native_fee, &l_needed);
-        if (s_dex_add_cashback(&l_tx, l_sell_transfer, l_needed, &l_wallet_addr, l_sell_ticker) < 0)
-            RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-    } else {
-        // Dual channel or decrease: separate cashbacks
-        if (l_cmp > 0 && !IS_ZERO_256(l_sell_transfer)) {
-            if (s_dex_add_cashback(&l_tx, l_sell_transfer, l_delta, &l_wallet_addr, l_sell_ticker) < 0)
-                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-        }
-        if (!IS_ZERO_256(l_total_native_fee) && !IS_ZERO_256(l_fee_transfer)) {
-            if (s_dex_add_cashback(&l_tx, l_fee_transfer, l_total_native_fee, &l_wallet_addr, a_net->pub.native_ticker) < 0)
-                RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-        }
-    }
-
-    // Sign TX
-    if (s_dex_sign_tx(&l_tx, a_wallet) < 0)
-        RET_ERR(DEX_UPDATE_ERROR_COMPOSE_TX);
-#undef RET_ERR
-update_ret:
-    if (l_err != DEX_UPDATE_ERROR_OK) {
-        log_it(L_ERROR, "{ %s } Error %d at line %d", __FUNCTION__, l_err, l_err_line);
-        dap_chain_datum_tx_delete(l_tx);
-        l_tx = NULL;
-    }
-    *a_tx = l_tx;
-    return l_err;
-}
-
-// Single order purchase: build single-entry match table and delegate to universal composer (supports leftover orders)
-static dap_chain_datum_tx_t *s_dex_tx_create_exchange(dap_chain_net_t *a_net, dap_chain_wallet_t *a_wallet,
-                                                      const dap_chain_addr_t *a_buyer_addr, dap_hash_fast_t *a_prev_hash, uint256_t a_value,
-                                                      bool a_is_budget_buy, uint256_t a_fee, bool a_create_buyer_order_on_leftover,
-                                                      uint256_t a_leftover_rate)
-{
-    dap_ret_val_if_any(NULL, !a_net, !a_wallet, !a_prev_hash);
-
-    // Build single-entry match table with self-purchase filter
-    dap_chain_net_srv_dex_purchase_error_t l_err = DEX_PURCHASE_ERROR_OK;
-    uint256_t l_leftover_quote = uint256_0;
-    dex_match_table_entry_t *l_matches =
-        s_dex_matches_build_by_hashes(a_net, a_prev_hash, 1, a_value, a_is_budget_buy, a_buyer_addr, &l_err, &l_leftover_quote);
-    if (!l_matches)
-        return NULL;
-
-    debug_if(s_debug_more, L_DEBUG, "{ %s } After match found, leftover in Q: %s; Budget in %s token%s%s", __FUNCTION__,
-             dap_uint256_to_char_ex(l_leftover_quote).str, a_is_budget_buy ? "buy" : "sell",
-             a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
-             a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "");
-
-    // Use universal composer with leftover parameters
-    dap_chain_datum_tx_t *l_tx = s_dex_compose_from_match_table(a_net, a_wallet, a_fee, l_leftover_quote, a_is_budget_buy,
-                                                                a_create_buyer_order_on_leftover, a_leftover_rate, l_matches);
-    s_dex_match_pair_index_clear(&l_matches);
-    return l_tx;
-}
-
-dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash,
-                                                                      uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee,
-                                                                      dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover,
-                                                                      uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx)
-{
-    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_hash || dap_hash_fast_is_blank(a_order_hash), !a_wallet,
-                       !a_tx);
-    *a_tx = NULL;
-    debug_if(s_debug_more, L_DEBUG, "{ %s } Args: order_hash = %s; budget = %s in %s tokens; fee = %s %s%s%s", __FUNCTION__,
-             dap_chain_hash_fast_to_str_static(a_order_hash), dap_uint256_to_char_ex(a_value).frac, a_is_budget_buy ? "buy" : "sell",
-             dap_uint256_to_char_ex(a_fee).frac, a_net->pub.native_ticker,
-             a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
-             a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "");
-
-    // Get buyer address for self-purchase filter
-    dap_chain_addr_t *l_buyer_addr = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
-    if (!l_buyer_addr)
-        return DEX_PURCHASE_ERROR_INVALID_ARGUMENT;
-
-    // Find tail: try cache first (hot path), then ledger
-    dap_hash_fast_t l_tail = {};
-    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-    dex_order_cache_entry_t *l_cached = NULL;
-    unsigned l_hashv;
-    HASH_VALUE(a_order_hash, sizeof(*a_order_hash), l_hashv);
-    HASH_FIND_BYHASHVALUE(level.hh, s_dex_orders_cache, a_order_hash, sizeof(*a_order_hash), l_hashv, l_cached);
-    if (!l_cached)
-        HASH_FIND_BYHASHVALUE(level.hh_tail, s_dex_index_by_tail, a_order_hash, sizeof(*a_order_hash), l_hashv, l_cached);
-    if (l_cached)
-        l_tail = l_cached->level.match.tail;
-    pthread_rwlock_unlock(&s_dex_cache_rwlock);
-
-    debug_if(s_debug_more, L_DEBUG, "{ %s } Cache %s: %s", __FUNCTION__, l_cached ? "hit" : "miss",
-             dap_chain_hash_fast_to_str_static(l_cached ? &l_tail : a_order_hash));
-
-    if (dap_hash_fast_is_blank(&l_tail)) {
-        l_tail = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, a_order_hash, false);
-        if (dap_hash_fast_is_blank(&l_tail))
-            l_tail = *a_order_hash;
-    }
-
-    debug_if(s_debug_more, L_DEBUG, "{ %s } Resolved purchase tail: %s", __FUNCTION__, dap_chain_hash_fast_to_str_static(&l_tail));
-
-    // Self-purchase check inside s_dex_matches_build_by_hashes (called by s_dex_tx_create_exchange)
-    dap_chain_datum_tx_t *l_tx = s_dex_tx_create_exchange(a_net, a_wallet, l_buyer_addr, &l_tail, a_value, a_is_budget_buy, a_fee,
-                                                          a_create_buyer_order_on_leftover, a_leftover_rate);
-    DAP_DELETE(l_buyer_addr);
-    *a_tx = l_tx;
-    debug_if(s_debug_more, L_DEBUG, "{ %s } Purchase %s; Tail: %s", __FUNCTION__, l_tx ? "composed" : "failed",
-             dap_chain_hash_fast_to_str_static(&l_tail));
-    return l_tx ? DEX_PURCHASE_ERROR_OK : DEX_PURCHASE_ERROR_COMPOSE_TX;
-}
-
-dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hashes,
-                                                                            size_t a_orders_count, uint256_t a_value, bool a_is_budget_buy,
-                                                                            uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-                                                                            bool a_create_buyer_order_on_leftover,
-                                                                            uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx)
-{
-    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_hashes, !a_orders_count, !a_wallet, !a_tx);
-    *a_tx = NULL;
-    if (a_orders_count == 0)
-        return DEX_PURCHASE_MULTI_ERROR_ORDERS_EMPTY;
-    if (s_debug_more) {
-        log_it(L_DEBUG, "{ %s } Args: orders count = %zu; budget = %s in %s tokens; fee = %s %s%s%s", __FUNCTION__, a_orders_count,
-               dap_uint256_to_char_ex(a_value).frac, a_is_budget_buy ? "buy" : "sell", dap_uint256_to_char_ex(a_fee).frac,
-               a_net->pub.native_ticker, a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
-               a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "");
-        for (size_t i = 0; i < a_orders_count; ++i) {
-            log_it(L_DEBUG, "{ %s }   order[%zu/%zu]: %s", __FUNCTION__, i + 1, a_orders_count,
-                   dap_chain_hash_fast_to_str_static(&a_order_hashes[i]));
-        }
-    }
-    // Get buyer address for self-purchase filter
-    dap_chain_addr_t *l_buyer_addr = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
-    if (!l_buyer_addr)
-        return DEX_PURCHASE_ERROR_INVALID_ARGUMENT;
-
-    // Build matches directly from hashes (cache-first, then ledger)
-    dap_chain_net_srv_dex_purchase_error_t l_err = DEX_PURCHASE_ERROR_OK;
-    uint256_t l_leftover_quote = uint256_0;
-    dex_match_table_entry_t *l_matches = s_dex_matches_build_by_hashes(a_net, a_order_hashes, a_orders_count, a_value, a_is_budget_buy,
-                                                                       l_buyer_addr, &l_err, &l_leftover_quote);
-    DAP_DELETE(l_buyer_addr);
-    if (!l_matches)
-        return l_err ? l_err : DEX_PURCHASE_ERROR_COMPOSE_TX;
-    dap_chain_datum_tx_t *l_tx = s_dex_compose_from_match_table(a_net, a_wallet, a_fee, l_leftover_quote, a_is_budget_buy,
-                                                                a_create_buyer_order_on_leftover, a_leftover_rate, l_matches);
-    debug_if(s_debug_more, L_DEBUG, "{ %s } Purchase %s; Orders count: %zu; Matches: %u; Leftover in Q: %s", __FUNCTION__,
-             l_tx ? "composed" : "failed", a_orders_count, HASH_CNT(hh, l_matches), dap_uint256_to_char_ex(l_leftover_quote).frac);
-    s_dex_match_pair_index_clear(&l_matches);
-    *a_tx = l_tx;
-    return l_tx ? DEX_PURCHASE_ERROR_OK : DEX_PURCHASE_ERROR_COMPOSE_TX;
-}
-
-dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(dap_chain_net_t *a_net, const char *a_sell_token,
-                                                                           const char *a_buy_token, uint256_t a_value, bool a_is_budget_buy,
-                                                                           uint256_t a_fee, uint256_t a_min_rate,
-                                                                           dap_chain_wallet_t *a_wallet,
-                                                                           bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
-                                                                           dap_chain_datum_tx_t **a_tx, dex_match_table_entry_t **a_matches)
-{
-    // a_tx == NULL is allowed for dry-run mode (matching only, no TX composition)
-    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_sell_token, !a_buy_token, !a_wallet, IS_ZERO_256(a_fee));
-    if (a_tx)
-        *a_tx = NULL;
-    if (a_matches)
-        *a_matches = NULL;
-    debug_if(s_debug_more, L_DEBUG, "{ %s } Args: sell = %s; buy = %s; min_rate = %s; budget = %s in %s tokens; fee = %s %s%s%s%s",
-             __FUNCTION__, a_sell_token, a_buy_token, dap_uint256_to_char_ex(a_min_rate).frac, dap_uint256_to_char_ex(a_value).frac,
-             a_is_budget_buy ? "buy" : "sell", dap_uint256_to_char_ex(a_fee).frac, a_net->pub.native_ticker,
-             a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
-             a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "", a_tx ? "" : " [DRY-RUN]");
-    dap_chain_addr_t *l_buyer_addr = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
-    if (!l_buyer_addr)
-        return DEX_PURCHASE_ERROR_INVALID_ARGUMENT;
-    dex_match_criteria_t l_crit = {a_sell_token, a_buy_token, a_net->pub.id,   a_net->pub.id,
-                                   a_min_rate,   a_value,     a_is_budget_buy, l_buyer_addr};
-    uint256_t l_leftover_quote = uint256_0;
-    dex_match_table_entry_t *l_matches = s_dex_matches_build_by_criteria(a_net, &l_crit, &l_leftover_quote);
-    DAP_DELETE(l_buyer_addr);
-    dap_chain_datum_tx_t *l_tx = NULL;
-
-    if (!l_matches) {
-        if (!a_create_buyer_order_on_leftover || IS_ZERO_256(a_leftover_rate))
-            return DEX_PURCHASE_AUTO_ERROR_NO_MATCHES;
-        // No matches found but leftover order requested: create fresh ORDER with full budget
-        if (!a_tx)
-            return DEX_PURCHASE_ERROR_OK; // Dry-run: just report success (would create order)
-        uint256_t l_value_sell = uint256_0;
-        if (a_is_budget_buy)
-            DIV_256_COIN(a_value, a_leftover_rate, &l_value_sell);
-        else
-            l_value_sell = a_value;
-        uint8_t l_min_fill_combined = 0; // default PARTIAL_OK policy
-        dap_chain_net_srv_dex_create_error_t l_err = dap_chain_net_srv_dex_create(
-            a_net, a_buy_token, a_sell_token, l_value_sell, a_leftover_rate, l_min_fill_combined, a_fee, a_wallet, &l_tx);
-        if (!l_tx)
-            log_it(L_ERROR, "{ %s } Leftover order creation failed, err %d", __FUNCTION__, l_err);
-        *a_tx = l_tx;
-        return l_err ? DEX_PURCHASE_ERROR_COMPOSE_TX : DEX_PURCHASE_ERROR_OK;
-    }
-
-    if (a_tx)
-        *a_tx = l_tx = s_dex_compose_from_match_table(a_net, a_wallet, a_fee, l_leftover_quote, a_is_budget_buy,
-                                                      a_create_buyer_order_on_leftover, a_leftover_rate, l_matches);
-    if (a_matches)
-        *a_matches = l_matches;
-    else
-        s_dex_matches_clear(&l_matches);
-    return (a_tx && !l_tx) ? DEX_PURCHASE_ERROR_COMPOSE_TX : DEX_PURCHASE_ERROR_OK;
-}
-
-dap_chain_net_srv_dex_remove_error_t dap_chain_net_srv_dex_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_fee,
-                                                                  dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx)
-{
-    dap_ret_val_if_any(DEX_REMOVE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_hash, !a_wallet, !a_tx);
-    *a_tx = NULL;
-    if (IS_ZERO_256(a_fee))
-        return DEX_REMOVE_ERROR_FEE_IS_ZERO;
-    const char *l_native_ticker = a_net->pub.native_ticker;
-    dap_ledger_t *l_ledger = a_net->pub.ledger;
-    dap_hash_fast_t l_tail = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, a_order_hash, false);
-    if (dap_hash_fast_is_blank(&l_tail))
-        l_tail = *a_order_hash;
-    dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_tail);
-    if (!l_cond_tx)
-        return DEX_REMOVE_ERROR_TX_NOT_FOUND;
-    int l_prev_cond_idx = 0;
-    dap_chain_tx_out_cond_t *l_prev_cond =
-        dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_cond_idx);
-    if (!l_prev_cond || dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_tail, l_prev_cond_idx, NULL))
-        return DEX_REMOVE_ERROR_INVALID_OUT;
-    // Owner check via address compare
-    dap_chain_addr_t *l_wallet_addr_tmp = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id), l_wallet_addr;
-    if (!l_wallet_addr_tmp)
-        return DEX_REMOVE_ERROR_COMPOSE_TX;
-    l_wallet_addr = *l_wallet_addr_tmp;
-    DAP_DELETE(l_wallet_addr_tmp);
-    bool l_is_owner = dap_chain_addr_compare(&l_wallet_addr, &l_prev_cond->subtype.srv_dex.seller_addr);
-    if (!l_is_owner)
-        return DEX_REMOVE_ERROR_NOT_OWNER;
-
-    // Fees
-    uint256_t l_net_fee = {}, l_total_fee = a_fee, l_fee_transfer = {}, l_value_transfer = {};
-    dap_chain_addr_t l_addr_fee = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
-    if (l_net_fee_used)
-        SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
-    const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tail);
-    bool l_single_channel = l_tx_ticker && !dap_strcmp(l_tx_ticker, l_native_ticker);
-
-    dap_chain_net_srv_dex_remove_error_t l_err = DEX_REMOVE_ERROR_OK;
-    int l_err_line = 0;
-#define RET_ERR(_err)                                                                                                                      \
-    do {                                                                                                                                   \
-        l_err = (_err);                                                                                                                    \
-        l_err_line = __LINE__;                                                                                                             \
-        goto remove_ret;                                                                                                                   \
-    } while (0)
-
-    // Create tx
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    if (!l_tx)
-        RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-
-    // IN_COND (spend previous order)
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tail, l_prev_cond_idx, 0) != 1)
-        RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-
-    if (!l_single_channel) {
-        // Dual channel: collect native for fees
-        if (s_dex_collect_utxo_for_ticker(l_ledger->net, l_native_ticker, &l_wallet_addr, l_total_fee, &l_tx, &l_value_transfer) < 0)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-
-        // Add fees
-        if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_addr_fee, l_native_ticker) < 0)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-
-        // Return locked coins to owner
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_wallet_addr, l_prev_cond->header.value, l_tx_ticker, 0) == -1)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-
-        // Fee cashback
-        if (s_dex_add_cashback(&l_tx, l_value_transfer, l_total_fee, &l_wallet_addr, l_native_ticker) < 0)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-    } else {
-        // Single channel: fee deducted from locked value
-        if (compare256(l_prev_cond->header.value, l_total_fee) <= 0)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-
-        // Add fees
-        if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_addr_fee, l_native_ticker) < 0)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-
-        // Return remainder to owner
-        uint256_t l_coin_back = {};
-        SUBTRACT_256_256(l_prev_cond->header.value, l_total_fee, &l_coin_back);
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_wallet_addr, l_coin_back, l_native_ticker, 0) == -1)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-    }
-
-    // Sign TX
-    if (s_dex_sign_tx(&l_tx, a_wallet) < 0)
-        RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
-#undef RET_ERR
-remove_ret:
-    if (l_err != DEX_REMOVE_ERROR_OK) {
-        log_it(L_ERROR, "{ %s } Error %d at line %d", __FUNCTION__, l_err, l_err_line);
-        dap_chain_datum_tx_delete(l_tx);
-        l_tx = NULL;
-    }
-    *a_tx = l_tx;
-    return l_err;
-}
-
-// Compose migration TX: IN_COND on SRV_XCHANGE prev + OUT_COND(SRV_DEX)
-dap_chain_net_srv_dex_migrate_error_t dap_chain_net_srv_dex_migrate(dap_chain_net_t *a_net, dap_hash_fast_t *a_prev_hash,
-                                                                    uint256_t a_rate_new, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-                                                                    dap_chain_datum_tx_t **a_tx)
-{
-    dap_ret_val_if_any(DEX_MIGRATE_ERROR_INVALID_ARGUMENT, !a_net, !a_prev_hash, !a_wallet, !a_tx, IS_ZERO_256(a_rate_new),
-                       IS_ZERO_256(a_fee));
-    *a_tx = NULL;
-    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_prev_hash);
-    if (!l_prev_tx)
-        return DEX_MIGRATE_ERROR_PREV_NOT_FOUND;
-    int l_prev_idx = 0;
-    dap_chain_tx_out_cond_t *l_prev_out =
-        dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_prev_idx);
-    if (!l_prev_out)
-        return DEX_MIGRATE_ERROR_PREV_NOT_XCHANGE;
-    // seller and tokens
-    const char *sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, a_prev_hash);
-    if (!sell_ticker)
-        return DEX_MIGRATE_ERROR_PREV_NOT_FOUND;
-    const char *buy_ticker = l_prev_out->subtype.srv_xchange.buy_token;
-    // owner wallet addr
-    dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
-    if (!l_addr_tmp)
-        return DEX_MIGRATE_ERROR_COMPOSE_TX;
-    dap_chain_addr_t l_addr = *l_addr_tmp;
-    DAP_DELETE(l_addr_tmp);
-    bool l_is_owner = dap_chain_addr_compare(&l_addr, &l_prev_out->subtype.srv_xchange.seller_addr);
-    if (!l_is_owner)
-        return DEX_MIGRATE_ERROR_NOT_OWNER;
-
-    dap_chain_net_srv_dex_migrate_error_t l_err = DEX_MIGRATE_ERROR_OK;
-    int l_err_line = 0;
-#define RET_ERR(_err)                                                                                                                      \
-    do {                                                                                                                                   \
-        l_err = (_err);                                                                                                                    \
-        l_err_line = __LINE__;                                                                                                             \
-        goto migrate_ret;                                                                                                                  \
-    } while (0)
-
-    // Compose TX with proper fee inputs from wallet (no funds appear from nowhere)
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    if (!l_tx)
-        RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
-    // 1) Spend previous SRV_XCHANGE conditional out
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_prev_hash, l_prev_idx, 0) != 1)
-        RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
-
-    // 2) Collect native inputs for fees (validator + optional network)
-    const char *l_native = a_net->pub.native_ticker;
-    uint256_t l_net_fee = uint256_0, l_total_native_fee = a_fee, l_fee_transfer = uint256_0;
-    dap_chain_addr_t l_net_addr = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_addr);
-    if (l_net_fee_used)
-        SUM_256_256(l_total_native_fee, l_net_fee, &l_total_native_fee);
-    dap_list_t *l_list_fee_in = NULL;
-    if (!IS_ZERO_256(l_total_native_fee)) {
-        if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native, &l_addr, &l_list_fee_in, l_total_native_fee, &l_fee_transfer) ==
-            -101)
-            l_list_fee_in = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native, &l_addr, l_total_native_fee, &l_fee_transfer);
-        if (!l_list_fee_in)
-            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
-        uint256_t l_added_fee = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_in);
-        dap_list_free_full(l_list_fee_in, NULL);
-        if (!EQUAL_256(l_added_fee, l_fee_transfer))
-            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
-    }
-
-    // 3) Add SRV_DEX out (lock XCHANGE sell amount with new rate)
-    dap_chain_tx_out_cond_t *l_out = dap_chain_datum_tx_item_out_cond_create_srv_dex(
-        (dap_chain_net_srv_uid_t){.uint64 = DAP_CHAIN_NET_SRV_DEX_ID}, l_prev_out->subtype.srv_xchange.sell_net_id,
-        l_prev_out->header.value, l_prev_out->subtype.srv_xchange.buy_net_id, buy_ticker, a_rate_new, &l_addr, NULL, 0, 1, 0,
-        DEX_TX_TYPE_ORDER, NULL, 0);
-    if (!l_out)
-        RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out);
-    DAP_DELETE(l_out);
-
-    // 4) Add validator fee item and optional network fee output
-    if (!IS_ZERO_256(a_fee))
-        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1)
-            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
-    if (l_net_fee_used)
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_net_addr, l_net_fee, l_native, 0) == -1)
-            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
-    // 5) Native cashback (change) back to wallet if fee inputs exceed required total
-    if (!IS_ZERO_256(l_fee_transfer) && compare256(l_fee_transfer, l_total_native_fee) == 1) {
-        uint256_t l_cashback = uint256_0;
-        SUBTRACT_256_256(l_fee_transfer, l_total_native_fee, &l_cashback);
-        if (!IS_ZERO_256(l_cashback) && (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_addr, l_cashback, l_native, 0) == -1))
-            RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
-    }
-
-    // 6) Sign and submit
-    dap_enc_key_t *l_key = dap_chain_wallet_get_key(a_wallet, 0);
-    int l_sign_res = dap_chain_datum_tx_add_sign_item(&l_tx, l_key);
-    dap_enc_key_delete(l_key);
-    if (l_sign_res != 1)
-        RET_ERR(DEX_MIGRATE_ERROR_COMPOSE_TX);
-#undef RET_ERR
-migrate_ret:
-    if (l_err != DEX_MIGRATE_ERROR_OK) {
-        log_it(L_ERROR, "{ %s } Error %d at line %d", __FUNCTION__, l_err, l_err_line);
-        dap_chain_datum_tx_delete(l_tx);
-        l_tx = NULL;
-    }
-    *a_tx = l_tx;
-    return l_err;
 }

@@ -137,19 +137,16 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(
     dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
     dap_chain_datum_tx_t **a_tx);
 
-typedef struct dex_match_table_entry dex_match_table_entry_t;
-
 /**
  * @brief Auto-match purchase against best available orders
  * @param a_tx [out] Result TX (can be NULL for dry-run/matching only)
- * @param a_matches [out] Optional: returns match table for inspection
  */
 dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
         dap_chain_net_t *a_net,
         const char *a_sell_token, const char *a_buy_token,
         uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee, uint256_t a_min_rate,
         dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
-        dap_chain_datum_tx_t **a_tx, dex_match_table_entry_t **a_matches);
+        dap_chain_datum_tx_t **a_tx);
 
 // Legacy migration from SRV_XCHANGE to SRV_DEX (owner-only bridge)
 typedef enum dap_chain_net_srv_dex_migrate_error_list{

@@ -203,7 +203,6 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
     dap_chain_datum_tx_t **a_tx,        // Can be NULL for dry-run
-    dex_match_table_entry_t **a_matches // Optional: return matches
 );
 ```
 
