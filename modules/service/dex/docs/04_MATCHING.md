@@ -25,6 +25,42 @@ typedef struct dex_match_criteria {
 
 If `min_rate` is non-zero, orders with canonical rate `> min_rate` are skipped.
 
+### Taker Side Determination
+
+Taker's side is derived from token ordering via `s_pair_normalize`:
+
+```c
+if (strcmp(a_sell_tok, a_buy_tok) < 0) {
+    // sell < buy lexicographically: BASE=sell, QUOTE=buy → ASK
+    *a_side = DEX_SIDE_ASK;
+} else {
+    // sell >= buy: BASE=buy, QUOTE=sell → BID
+    *a_side = DEX_SIDE_BID;
+}
+```
+
+| `token_sell` | `token_buy` | Canonical Pair | Taker Side | Matches Against |
+|--------------|-------------|----------------|------------|-----------------|
+| KEL | USDT | KEL/USDT | ASK | BID orders |
+| USDT | KEL | KEL/USDT | BID | ASK orders |
+
+**Note:** Taker always matches against **opposite** side orders.
+
+### Budget Canonical Translation
+
+```c
+// Unified semantics: is_budget_buy=true means budget in token buyer wants to buy
+// Formula: budget_in_base = is_budget_buy == (taker_side == BID)
+bool l_budget_in_base = a_criteria->is_budget_buy == (l_side == DEX_SIDE_BID);
+```
+
+| Taker Side | `is_budget_buy` | Budget Token | `budget_in_base` |
+|------------|-----------------|--------------|------------------|
+| BID | `false` | QUOTE | `false` |
+| BID | `true` | BASE | `true` |
+| ASK | `false` | BASE | `true` |
+| ASK | `true` | QUOTE | `false` |
+
 ---
 
 ## Match Table Entry
@@ -291,7 +327,18 @@ HASH_ITER(hh, a_matches, l_cur_match, l_tmp) {
 
 ## Buyer Leftover Order
 
-Created when budget not exhausted and flag is set:
+Created when budget not exhausted and `a_create_buyer_order_on_leftover` flag is set.
+
+### Requirements
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `a_create_buyer_order_on_leftover` | Yes | Enable leftover order creation |
+| `a_leftover_rate` | Yes | Rate for the new order (canonical QUOTE/BASE) |
+
+If `a_leftover_rate` is zero when flag is set, TX composition fails.
+
+### Creation Logic
 
 ```c
 if (!IS_ZERO_256(a_leftover_budget) && a_create_buyer_order_on_leftover) {
@@ -303,10 +350,77 @@ if (!IS_ZERO_256(a_leftover_budget) && a_create_buyer_order_on_leftover) {
 
 ### Side Continuation
 
-| Matched Side | Buyer Leftover Side | Sells | Buys |
-|--------------|---------------------|-------|------|
-| ASK | BID | QUOTE | BASE |
-| BID | ASK | BASE | QUOTE |
+Leftover order **continues taker's intent** by creating an order on the opposite side:
+
+| Matched Orders | Taker Action | Leftover Side | Leftover Action |
+|----------------|--------------|---------------|-----------------|
+| ASK | Buys BASE | **BID** | Sells QUOTE, buys BASE |
+| BID | Sells BASE | **ASK** | Sells BASE, buys QUOTE |
+
+```c
+if (l_reqs.side == DEX_SIDE_ASK) {
+    // Matched ASK → create BID: sell QUOTE, buy BASE
+    l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_dex(...,
+        l_key0->net_id_quote, l_leftover_sell_value,  // sell QUOTE
+        l_key0->net_id_base, l_token_base, ...);      // buy BASE
+} else {
+    // Matched BID → create ASK: sell BASE, buy QUOTE
+    l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_dex(...,
+        l_key0->net_id_base, l_leftover_sell_value,   // sell BASE
+        l_key0->net_id_quote, l_token_quote, ...);    // buy QUOTE
+}
+```
+
+### Budget Token Translation
+
+Leftover budget may need conversion depending on `is_budget_buy`:
+
+```c
+bool l_leftover_in_quote = (l_reqs.side == DEX_SIDE_ASK) != a_is_budget_buy;
+```
+
+| Taker Side | `is_budget_buy` | Leftover Token | Conversion |
+|------------|-----------------|----------------|------------|
+| ASK (buys BASE) | `false` | QUOTE | Direct |
+| ASK (buys BASE) | `true` | BASE | `BASE * rate → QUOTE` |
+| BID (sells BASE) | `false` | BASE | Direct |
+| BID (sells BASE) | `true` | QUOTE | `QUOTE / rate → BASE` |
+
+**Example for KEL/USDT (BASE=KEL, QUOTE=USDT):**
+
+| Command | Matched | Leftover Budget | Leftover Order |
+|---------|---------|-----------------|----------------|
+| Buy KEL, `-unit sell` | ASK | 30 USDT | BID: sell 30 USDT |
+| Buy KEL, `-unit buy` | ASK | 10 KEL | BID: sell `10 * rate` USDT |
+| Sell KEL, `-unit sell` | BID | 20 KEL | ASK: sell 20 KEL |
+| Sell KEL, `-unit buy` | BID | 50 USDT | ASK: sell `50 / rate` KEL |
+
+### No Matches Scenario
+
+When no orders match criteria but leftover creation is requested:
+
+```c
+if (!l_matches) {
+    if (!a_create_buyer_order_on_leftover || IS_ZERO_256(a_leftover_rate))
+        return DEX_PURCHASE_AUTO_ERROR_NO_MATCHES;
+    // Create fresh ORDER with full budget (not EXCHANGE)
+    dap_chain_net_srv_dex_create(a_net, a_buy_token, a_sell_token,
+                                  l_value_sell, a_leftover_rate, ...);
+}
+```
+
+This creates a new order using the entire budget at the specified rate.
+
+### Dust Threshold
+
+Leftover orders below dust threshold are silently skipped:
+
+```c
+uint256_t l_leftover_thr = s_dex_dust_threshold_calc(...);
+if (!IS_ZERO_256(l_leftover_thr) && compare256(l_leftover_sell_amount, l_leftover_thr) <= 0) {
+    l_create_buyer_leftover = false;  // Skip, don't collect tokens
+}
+```
 
 ---
 
