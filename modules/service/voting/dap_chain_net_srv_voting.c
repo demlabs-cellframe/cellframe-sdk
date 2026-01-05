@@ -1282,6 +1282,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash);
         dap_chain_datum_tx_t *l_voting_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_voting_hash);
         if (!l_voting_tx) {
+            json_object_put(l_json_arr_vote_list);
+            json_object_put(json_vote_out);
             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE, "Can't find poll with hash %s", l_hash_str);
             return -DAP_CHAIN_NET_VOTE_DUMP_CAN_NOT_FIND_VOTE;
         }
@@ -1372,8 +1374,11 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             if (json_object_array_length(l_json_arr_vote_list) > 0 ) {
                 json_object_object_add(json_vote_out, "votes_list", l_json_arr_vote_list);
             } else {
+                json_object_put(l_json_arr_vote_list);
                 json_object_object_add(json_vote_out, "votes_list", json_object_new_string("empty"));
             }
+        } else {
+            json_object_put(l_json_arr_vote_list);
         }
         json_object_array_add(*json_arr_reply, json_vote_out);
     } break;

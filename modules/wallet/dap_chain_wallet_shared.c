@@ -414,6 +414,7 @@ static int s_collect_cert_pkey_hashes()
         dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
                     l_shared_hashes, sizeof(hold_tx_hashes_t), false);
         log_it(L_DEBUG, "Added certificate '%s' hash: %s", l_cert->name, dap_hash_fast_to_str_static(&l_pkey_hash));
+        DAP_DELETE(l_shared_hashes);
     }  
     dap_list_free(l_certs_list);
     return 0;
@@ -808,6 +809,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
 
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey_hashes", &l_pkeys_str);
     if (!l_pkeys_str) {
+        dap_enc_key_delete(l_enc_key);
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -pkey_hashes");
         return ERROR_PARAM;
     }
@@ -1539,13 +1541,12 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
 
 json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name)
 {
-    json_object *l_json_ret = json_object_new_array();
     char *l_group = dap_strdup_printf("%s.%s", s_wallet_shared_gdb_group, a_net_name);
     hold_tx_hashes_t *l_item = (hold_tx_hashes_t *)dap_global_db_get_sync(l_group, dap_hash_fast_to_str_static(a_pkey_hash), NULL, NULL, false);
     DAP_DELETE(l_group);
-    if (!l_item) {
+    if (!l_item)
         return NULL;
-    }
+    json_object *l_json_ret = json_object_new_array();
     for (size_t i = 0; i < l_item->tx_count; i++) {
         if (l_item->tx[i].role == TX_ROLE_OWNER) {
             json_object_array_add(l_json_ret, json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx[i].hash)));
