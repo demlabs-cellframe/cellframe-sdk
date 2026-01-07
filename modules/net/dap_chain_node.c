@@ -609,6 +609,7 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     l_states->main_iterator = l_states->anchors;
     return 0;
 }
+#endif // DISABLED: dap_chain_node_hardfork_prepare
 
 static int s_tx_trackers_add(dap_chain_datum_tx_t **a_tx, dap_list_t *a_trackers)
 {
@@ -734,7 +735,6 @@ static dap_chain_datum_t *s_event_tx_create(dap_chain_tx_event_t *a_event)
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
-#endif // DISABLED: dap_chain_node_hardfork_prepare
         if (dap_chain_datum_tx_add_item(&l_tx, l_event_tsd) != 1) {
             DAP_DELETE(l_event_tsd);
             dap_chain_datum_tx_delete(l_tx);
