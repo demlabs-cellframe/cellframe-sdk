@@ -28,6 +28,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_wallet_shared.h"
+#include "dap_chain_wallet_cli_error_codes.h"
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
 #include "dap_chain_net.h"
