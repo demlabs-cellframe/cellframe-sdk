@@ -2294,13 +2294,8 @@ dap_chain_net_t *dap_chain_net_iter_next(dap_chain_net_t *a_it) {
  * @param a_name
  * @return
  */
-dap_chain_net_t *dap_chain_net_by_name(const char *a_name)
-{
-    dap_chain_net_t *l_net = NULL;
-    if (a_name)
-        HASH_FIND_STR(s_nets_by_name, a_name, l_net);
-    return l_net;
-}
+// REMOVED: dap_chain_net_by_name() - moved to modules/net/core/dap_chain_net_core.c
+// This function is part of core network registry and belongs in net_core module
 
 /**
  * @brief Iterate through networks (replaces direct s_nets_by_name access)
@@ -2330,12 +2325,8 @@ dap_ledger_t * dap_ledger_by_net_name( const char * a_net_name)
  * @param a_id
  * @return
  */
-dap_chain_net_t *dap_chain_net_by_id(dap_chain_net_id_t a_id)
-{
-    dap_chain_net_t *l_net = NULL;
-    HASH_FIND(hh2, s_nets_by_id, &a_id, sizeof(a_id), l_net);
-    return l_net;
-}
+// REMOVED: dap_chain_net_by_id() - moved to modules/net/core/dap_chain_net_core.c
+// This function is part of core network registry and belongs in net_core module
 
 /**
  * @brief dap_chain_net_by_id

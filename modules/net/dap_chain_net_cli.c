@@ -42,7 +42,7 @@ static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
 static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version);
 
 static int com_node(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-static int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version); // Non-static for shared library linkage
 
 /**
  * @brief s_net_sync_status - Creates JSON object with network sync status information
@@ -122,7 +122,7 @@ static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
     return l_tsd;
 }
 
-static int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version); // Non-static for shared library linkage
 
 // Helper function to list nodes with full reply  
 // Implementation based on dap_chain_node_rpc_list logic
