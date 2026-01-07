@@ -58,6 +58,9 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
  */
 int dap_chain_wallet_cli_init(void)
 {
+    // Register wallet CLI error codes
+    dap_chain_wallet_cli_error_codes_init();
+    
     // Register wallet command
     dap_cli_server_cmd_add("wallet", com_tx_wallet, NULL,
                            "Wallet operations",
