@@ -26,7 +26,7 @@
 
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
-#include "dap_chain_tx_compose.h"
+#include "dap_chain_tx_compose_api.h"
 #include "dap_json.h"
 #include "dap_hash.h"
 

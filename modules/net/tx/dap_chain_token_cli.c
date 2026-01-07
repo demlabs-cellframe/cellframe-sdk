@@ -69,8 +69,8 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
-
-#define LOG_TAG "chain_node_cli_cmd_tx"
+#include "dap_chain_mempool_cli.h"
+#include "dap_cert_file.h"
 
 /**
  * @brief Local utility: Parse -net and -chain arguments
@@ -1610,39 +1610,39 @@ int dap_chain_token_cli_init(void)
     // Register token CLI error codes
     dap_chain_token_cli_error_codes_init();
     
-    // Register token command
-    dap_cli_server_cmd_add("token", com_token, NULL,
-                           "Token operations",
-                           -1, // auto ID
-                           "token { decl | update | emit | sign | list }\n");
-
     // Register token_decl command
-    dap_cli_server_cmd_add("token_decl", com_token_decl,
+    dap_cli_server_cmd_add("token_decl", com_token_decl, NULL,
                            "Declare new token",
+                           -1, // auto ID
                            "token_decl ...\n");
 
     // Register token_update command
-    dap_cli_server_cmd_add("token_update", com_token_update,
+    dap_cli_server_cmd_add("token_update", com_token_update, NULL,
                            "Update token",
+                           -1, // auto ID
                            "token_update ...\n");
 
     // Register token_emit command
-    dap_cli_server_cmd_add("token_emit", com_token_emit,
+    dap_cli_server_cmd_add("token_emit", com_token_emit, NULL,
                            "Emit tokens",
+                           -1, // auto ID
                            "token_emit ...\n");
 
     // Register token_decl_sign command
-    dap_cli_server_cmd_add("token_decl_sign", com_token_decl_sign,
+    dap_cli_server_cmd_add("token_decl_sign", com_token_decl_sign, NULL,
                            "Sign token declaration",
+                           -1, // auto ID
                            "token_decl_sign ...\n");
 
     // Register chain CA commands
-    dap_cli_server_cmd_add("chain_ca_copy", com_chain_ca_copy,
+    dap_cli_server_cmd_add("chain_ca_copy", com_chain_ca_copy, NULL,
                            "Copy CA certificate",
+                           -1, // auto ID
                            "chain_ca_copy ...\n");
 
-    dap_cli_server_cmd_add("chain_ca_pub", com_chain_ca_pub,
+    dap_cli_server_cmd_add("chain_ca_pub", com_chain_ca_pub, NULL,
                            "Publish CA certificate",
+                           -1, // auto ID
                            "chain_ca_pub ...\n");
 
     log_it(L_INFO, "Chain/Token CLI commands registered");

@@ -24,7 +24,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_decree_registry.h"
 #include "dap_chain_net.h"
-#include "dap_chain_cs_esbocs.h"
+// REMOVED: #include "dap_chain_cs_esbocs.h" - TODO: resolve esbocs dependency
 #include "dap_common.h"
 #include "dap_hash.h"
 

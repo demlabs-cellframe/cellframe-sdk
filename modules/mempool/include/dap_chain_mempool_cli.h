@@ -42,6 +42,21 @@ extern "C" {
 int dap_chain_mempool_cli_init(void);
 
 /**
+ * @brief Main mempool CLI command handler
+ * @details Main entry point for mempool commands. Can be called from other modules.
+ * This function is also exposed as `dap_chain_mempool_cli_command` for API consistency.
+ * @param a_argc Argument count
+ * @param a_argv Argument vector
+ * @param a_json_arr_reply JSON response array
+ * @param a_version RPC version
+ * @return 0 on success, negative error code on failure
+ */
+int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+
+// Alias for API consistency
+#define dap_chain_mempool_cli_command com_mempool
+
+/**
  * @brief Cleanup mempool CLI
  */
 void dap_chain_mempool_cli_deinit(void);

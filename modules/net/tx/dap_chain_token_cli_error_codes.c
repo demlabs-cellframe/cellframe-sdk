@@ -65,6 +65,8 @@ int dap_chain_token_cli_error_codes_init(void)
     dap_cli_error_code_register("TOKEN_EMIT_REQUIRES_PARAMETER_EMISSION_VAL", -325, "Emission value parameter required");
     dap_cli_error_code_register("TOKEN_EMIT_REQUIRES_PARAMETER_ADDR", -326, "Address parameter required for token emission");
     dap_cli_error_code_register("TOKEN_EMIT_REQUIRES_PARAMETER_TOKEN", -327, "Token parameter required for emission");
+    dap_cli_error_code_register("TOKEN_EMIT_REQUIRES_PARAMETER_CHAIN_EMISSION", -328, "Chain emission parameter required");
+    dap_cli_error_code_register("TOKEN_EMIT_REQUIRES_PARAMETER_EMISSION", -329, "Emission parameter required");
     
     // Token update errors
     dap_cli_error_code_register("TOKEN_UPDATE_NOT_VALID_CERT_ERR", -340, "Certificate not valid for token update");
@@ -77,6 +79,8 @@ int dap_chain_token_cli_error_codes_init(void)
     dap_cli_error_code_register("CHAIN_CA_PUB_CANT_PRODUCE_CERT_ERR", -331, "Cannot produce certificate");
     dap_cli_error_code_register("CHAIN_CA_PUB_OK", 0, "Chain CA publication successful");
     dap_cli_error_code_register("CHAIN_CA_PUB_CANT_PLACE_CERT_ERR", -332, "Cannot place certificate");
+    dap_cli_error_code_register("CHAIN_CA_PUB_CANT_FIND_CERT_ERR", -333, "Cannot find certificate");
+    dap_cli_error_code_register("CHAIN_CA_PUB_CORRUPTED_CERT_ERR", -334, "Certificate is corrupted");
     
     log_it(L_NOTICE, "Token CLI error codes registered");
     return 0;

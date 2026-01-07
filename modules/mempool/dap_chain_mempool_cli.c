@@ -54,7 +54,7 @@
 #define LOG_TAG "dap_chain_mempool_cli"
 
 // Forward declarations
-static int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 // Helper function
 dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_hash) {

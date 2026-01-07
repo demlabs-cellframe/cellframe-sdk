@@ -34,7 +34,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_cs_esbocs.h"
+// REMOVED: #include "dap_chain_cs_esbocs.h" - TODO: resolve esbocs dependency
 #include "dap_chain_net_utils.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_node_sync_client.h"
