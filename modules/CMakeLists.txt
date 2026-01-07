@@ -67,7 +67,9 @@ if (CELLFRAME_MODULES MATCHES "cs-")
 endif()
 
 # ESBOCS
-if (CELLFRAME_MODULES MATCHES "cs-esbocs")
+if (FALSE AND CELLFRAME_MODULES MATCHES "cs-esbocs")
+    # TODO: Temporarily disabled - requires stake module refactoring
+    # ESBOCS heavily depends on stake service functions which are temporarily disabled
     add_subdirectory(consensus/esbocs)
 endif()
 
@@ -97,17 +99,23 @@ if (CELLFRAME_MODULES MATCHES "srv-vpn")
 endif()
 
 # Service eXchange
-if (CELLFRAME_MODULES MATCHES "srv-xchange")
+# TODO: Temporarily disabled - requires migration to new TX Compose API
+# Uses deprecated dap_chain_tx_compose_config_t structure  
+if (FALSE AND CELLFRAME_MODULES MATCHES "srv-xchange")
     add_subdirectory(service/xchange)
 endif()
 
 # Service for token staking and PoS delegation
-if (CELLFRAME_MODULES MATCHES "srv-stake")
+# TODO: Temporarily disabled - requires migration to new TX Compose API
+# Uses deprecated dap_chain_tx_compose_config_t structure
+if (FALSE AND CELLFRAME_MODULES MATCHES "srv-stake")
     add_subdirectory(service/stake)
 endif()
 
 # Service for polls and voting
-if (CELLFRAME_MODULES MATCHES "srv-voting")
+# TODO: Temporarily disabled - requires migration to new TX Compose API
+# Uses deprecated dap_chain_tx_compose_config_t structure
+if (FALSE AND CELLFRAME_MODULES MATCHES "srv-voting")
     add_subdirectory(service/voting)
 endif()
 

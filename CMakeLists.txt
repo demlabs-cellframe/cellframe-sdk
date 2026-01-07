@@ -226,13 +226,15 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool dap_chain_node_cli_cmd)
+        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
+        # REMOVED: dap_chain_node_cli_cmd - module was refactored and split
 endif()
 
 # Compose
 if (CELLFRAME_MODULES MATCHES "compose")
     message("[+] Module 'compose'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_compose dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
+        # REMOVED: dap_compose - module was replaced with dap_chain_tx_compose
         dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
 endif()
 
@@ -265,7 +267,8 @@ set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_type_blocks)
 # ESBOCS consensus for blocks
 if (CELLFRAME_MODULES MATCHES "cs-esbocs")
     message("[+] Module 'cs-esbocs'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_esbocs)
+    # TODO: Temporarily disabled - requires stake module refactoring
+    # set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_esbocs)
 endif()
 
 # PoW consensus for blocks
@@ -308,13 +311,15 @@ endif()
 # Enable service eXchange
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
     message("[+] Module 'srv-xchange'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange)
+    # TODO: Temporarily disabled - requires TX Compose API migration
+    # set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange)
 endif()
 
 # Enable service of stake token
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     message("[+] Module 'srv-stake'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake)
+    # TODO: Temporarily disabled - requires TX Compose API migration
+    # set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake)
 endif()
 
 # Enable service bridge
@@ -326,7 +331,8 @@ endif()
 # Enable service voting
 if (CELLFRAME_MODULES MATCHES "srv-voting")
     message("[+] Module 'srv-voting'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
+    # TODO: Temporarily disabled services - require TX Compose API migration
+    # set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
 endif()
 
 # Enable service stake-ext

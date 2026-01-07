@@ -36,7 +36,40 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_policy.h"   // For policy functions from common module
 #include "dap_chain_cs_esbocs.h"
 #include "dap_json.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
+// REMOVED: #include "dap_chain_net_srv_stake_pos_delegate.h" - stake module temporarily disabled
+// Forward declarations for temporarily disabled stake functions
+typedef struct dap_chain_net_srv_stake_item {
+    dap_stream_node_addr_t node_addr;
+    dap_chain_addr_t signing_addr;
+    uint256_t value;
+    // ... other fields as needed
+} dap_chain_net_srv_stake_item_t;
+
+// Stub declarations - TODO: restore when stake module is refactored
+static inline dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hash) { 
+    UNUSED(a_net_id); UNUSED(a_hash); return NULL; 
+}
+static inline uint256_t dap_chain_net_srv_stake_get_allowed_min_value(dap_chain_net_id_t a_net_id) { 
+    UNUSED(a_net_id); return uint256_0; 
+}
+static inline int dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_addr, void *p1, void *p2, uint256_t a_value, void *p3, void *p4) {
+    UNUSED(a_net); UNUSED(a_addr); UNUSED(p1); UNUSED(p2); UNUSED(a_value); UNUSED(p3); UNUSED(p4); return -1;
+}
+static inline dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_flag, void *p) {
+    UNUSED(a_net_id); UNUSED(a_flag); UNUSED(p); return NULL;
+}
+static inline int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr) {
+    UNUSED(a_addr); return -1;
+}
+static inline void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net) {
+    UNUSED(a_net);
+}
+static inline int dap_chain_net_srv_stake_mark_validator_active(void *a_addr, bool a_active) {
+    UNUSED(a_addr); UNUSED(a_active); return 0;
+}
+static inline void* dap_chain_net_srv_stake_switch_table(void) { return NULL; }
+static inline void* dap_chain_net_srv_stake_hardfork_data_import(void) { return NULL; }
+
 #include "dap_chain_ledger.h"
 #include "dap_cli_server.h"
 // REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
