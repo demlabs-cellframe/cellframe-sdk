@@ -51,6 +51,9 @@ int dap_chain_decree_callbacks_register(const dap_chain_decree_callbacks_t *a_ca
     if (a_callbacks->net_get_name)
         s_decree_callbacks.net_get_name = a_callbacks->net_get_name;
     
+    if (a_callbacks->net_set_fee)
+        s_decree_callbacks.net_set_fee = a_callbacks->net_set_fee;
+    
     if (a_callbacks->stake_set_percent_max)
         s_decree_callbacks.stake_set_percent_max = a_callbacks->stake_set_percent_max;
     

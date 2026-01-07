@@ -27,9 +27,12 @@
 #include "dap_chain_common.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
+#include "dap_list.h"
 
+// Forward declarations
 typedef struct dap_chain dap_chain_t;
 typedef struct dap_chain_net dap_chain_net_t;
+typedef struct dap_ledger dap_ledger_t;
 
 /**
  * @brief Decree callbacks API for breaking circular dependencies
@@ -44,6 +47,7 @@ typedef struct dap_chain_decree_callbacks {
     dap_ledger_t *(*net_get_ledger)(dap_chain_net_id_t a_net_id);  // Get ledger for network
     dap_chain_addr_t (*net_get_fee_addr)(dap_chain_net_id_t a_net_id);  // Get fee address for network
     const char *(*net_get_name)(dap_chain_net_id_t a_net_id);  // Get network name
+    bool (*net_set_fee)(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr);  // Set network fee
     
     // Stake service callbacks
     void (*stake_set_percent_max)(dap_chain_net_id_t a_net_id, uint256_t a_value);
