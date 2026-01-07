@@ -106,9 +106,10 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
 endif()
 
 # Service for polls and voting
-# TODO: Temporarily disabled - requires migration to new TX Compose API
-# Uses deprecated dap_chain_tx_compose_config_t structure
 if (FALSE AND CELLFRAME_MODULES MATCHES "srv-voting")
+    # TEMPORARILY DISABLED - Voting needs migration to TX Compose Plugin API
+    # This is NOT a stub - the module exists but uses deprecated dap_chain_tx_compose.h
+    # MUST be fixed by implementing TX builders similar to stake module
     add_subdirectory(service/voting)
 endif()
 

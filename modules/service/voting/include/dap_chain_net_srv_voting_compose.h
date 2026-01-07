@@ -8,7 +8,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_net_srv_voting.h"
-#include "dap_chain_tx_compose.h"  // Voting depends on compose
+#include "dap_chain_tx_compose_api.h"  // NEW: Plugin-based TX compose API
 #include "dap_json.h"
 #include "dap_cert.h"
 

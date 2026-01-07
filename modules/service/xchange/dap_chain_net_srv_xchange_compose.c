@@ -10,8 +10,7 @@
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_net_srv_xchange_compose.h"
 #include "dap_chain_tx_compose_api.h"  // NEW: Plugin-based TX compose API
-#include "dap_chain_net_srv_stake_compose.h"
-#include "dap_chain_tx_compose_callbacks.h"
+#include "dap_chain_net_srv_stake_tx_builder.h"  // Use new TX builder API instead of old compose
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_wallet.h"
