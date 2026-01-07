@@ -40,7 +40,7 @@
 #include "dap_chain_block_collect.h"  // Common block collection types (breaks esbocs cycle)
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
-#include "dap_chain_blocks_decree.h"  // Blocks decree handlers (empty_blockgen)
+#include "dap_chain_blocks_decree.h"  // Blocks decree handlers
 // REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 
 #define LOG_TAG "dap_chain_type_blocks"
