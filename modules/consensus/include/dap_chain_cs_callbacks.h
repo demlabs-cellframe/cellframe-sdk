@@ -13,8 +13,9 @@
 #include "dap_pkey.h"
 #include "dap_enc_key.h"
 
-// Forward declarations to avoid circular dependencies
-typedef struct dap_chain_node_addr dap_chain_node_addr_t;
+// dap_chain_node_addr_t and dap_list_t already defined in dap_chain_common.h and dap_list.h
+// Forward declaration for dap_json_t
+typedef struct dap_json dap_json_t;
 
 /**
  * @file dap_chain_cs_callbacks.h
@@ -179,6 +180,24 @@ typedef int (*dap_chain_cs_callback_set_hardfork_state_t)(dap_chain_t *a_chain, 
  */
 typedef bool (*dap_chain_cs_callback_hardfork_engaged_t)(dap_chain_t *a_chain);
 
+/**
+ * @brief Prepare hardfork with parameters
+ * @param a_chain Chain instance
+ * @param a_generation New generation number
+ * @param a_start_atom Starting atom number
+ * @param a_addrs List of addresses
+ * @param a_params JSON parameters
+ * @return 0 on success, negative on error
+ */
+typedef int (*dap_chain_cs_callback_set_hardfork_prepare_t)(dap_chain_t *a_chain, uint16_t a_generation, uint64_t a_start_atom, dap_list_t *a_addrs, dap_json_t *a_params);
+
+/**
+ * @brief Complete hardfork process
+ * @param a_chain Chain instance
+ * @return 0 on success, negative on error
+ */
+typedef int (*dap_chain_cs_callback_set_hardfork_complete_t)(dap_chain_t *a_chain);
+
 // ============================================================================
 // STAKE SERVICE CALLBACKS
 // ============================================================================
@@ -262,6 +281,8 @@ typedef struct dap_chain_cs_callbacks {
     // Hardfork
     dap_chain_cs_callback_set_hardfork_state_t set_hardfork_state;
     dap_chain_cs_callback_hardfork_engaged_t hardfork_engaged;
+    dap_chain_cs_callback_set_hardfork_prepare_t set_hardfork_prepare;
+    dap_chain_cs_callback_set_hardfork_complete_t set_hardfork_complete;
     
     // Stake service
     dap_chain_cs_callback_stake_check_pkey_hash_t stake_check_pkey_hash;

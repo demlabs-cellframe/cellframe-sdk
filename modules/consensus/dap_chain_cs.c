@@ -82,44 +82,63 @@ dap_chain_cs_callbacks_t* dap_chain_cs_get_callbacks(dap_chain_t *a_chain)
 char* dap_chain_cs_get_fee_group(dap_chain_t *a_chain, const char *a_net_name)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
-    return (cbs && cbs->get_fee_group) ? cbs->get_fee_group(a_net_name) : NULL;
+    if (cbs && cbs->get_fee_group) {
+        return cbs->get_fee_group(a_chain, a_net_name);
+    }
+    return NULL;
 }
 
 char* dap_chain_cs_get_reward_group(dap_chain_t *a_chain, const char *a_net_name)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
-    return (cbs && cbs->get_reward_group) ? cbs->get_reward_group(a_net_name) : NULL;
+    if (cbs && cbs->get_reward_group) {
+        return cbs->get_reward_group(a_chain, a_net_name);
+    }
+    return NULL;
 }
 
 uint256_t dap_chain_cs_get_fee(dap_chain_t *a_chain)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
-    return (cbs && cbs->get_fee) ? cbs->get_fee(a_chain->net_id) : uint256_0;
+    if (cbs && cbs->get_fee) {
+        return cbs->get_fee(a_chain);
+    }
+    return uint256_0;
 }
 
 dap_pkey_t* dap_chain_cs_get_sign_pkey(dap_chain_t *a_chain)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
-    return (cbs && cbs->get_sign_pkey) ? cbs->get_sign_pkey(a_chain->net_id) : NULL;
+    if (cbs && cbs->get_sign_pkey) {
+        return cbs->get_sign_pkey(a_chain);
+    }
+    return NULL;
 }
 
 dap_enc_key_t* dap_chain_cs_get_sign_key(dap_chain_t *a_chain)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
-    return (cbs && cbs->get_sign_key) ? cbs->get_sign_key(a_chain) : NULL;
+    if (cbs && cbs->get_sign_key) {
+        return cbs->get_sign_key(a_chain);
+    }
+    return NULL;
 }
 
 uint256_t dap_chain_cs_get_collecting_level(dap_chain_t *a_chain)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
-    return (cbs && cbs->get_collecting_level) ? cbs->get_collecting_level(a_chain) : uint256_0;
+    if (cbs && cbs->get_collecting_level) {
+        return cbs->get_collecting_level(a_chain);
+    }
+    return uint256_0;
 }
 
 void dap_chain_cs_add_block_collect(dap_chain_t *a_chain, void *a_block_cache, void *a_params, int a_type)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
-    if (cbs && cbs->add_block_collect)
-        cbs->add_block_collect(a_block_cache, a_params, a_type);
+    if (cbs && cbs->add_block_collect) {
+        cbs->add_block_collect(a_chain, a_block_cache, a_params, a_type);
+    }
 }
 
 bool dap_chain_cs_get_autocollect_status(dap_chain_t *a_chain)
@@ -175,7 +194,10 @@ int dap_chain_cs_stake_switch_table(dap_chain_t *a_chain, bool a_to_sandbox)
 char* dap_chain_cs_mempool_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_hash_out_type)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
-    return (cbs && cbs->mempool_datum_add) ? cbs->mempool_datum_add(a_datum, a_chain, a_hash_out_type) : NULL;
+    if (cbs && cbs->mempool_datum_add) {
+        return cbs->mempool_datum_add(a_chain, a_datum, a_hash_out_type);
+    }
+    return NULL;
 }
 
 // ===== Consensus registration and lifecycle =====

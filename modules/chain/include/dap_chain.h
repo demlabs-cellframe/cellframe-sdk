@@ -31,7 +31,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_atom.h"  // Atom types and callbacks from common module
 #include "dap_chain_callback.h"  // General callback typedefs from common module
-#include "dap_chain_cs_callback.h"  // Consensus callback structures from consensus module
+#include "dap_chain_cs_callbacks.h"  // Consensus callback structures from consensus module
 // Forward declaration instead of include to avoid circular dependency
 typedef struct dap_chain_datum dap_chain_datum_t;
 
