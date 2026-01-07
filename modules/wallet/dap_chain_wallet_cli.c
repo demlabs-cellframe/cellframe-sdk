@@ -59,8 +59,9 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
 int dap_chain_wallet_cli_init(void)
 {
     // Register wallet command
-    dap_cli_server_cmd_add("wallet", com_tx_wallet,
+    dap_cli_server_cmd_add("wallet", com_tx_wallet, NULL,
                            "Wallet operations",
+                           -1, // auto ID
                            "wallet { new -w <wallet_name> | list | info | activate | deactivate | convert | outputs | find | shared }\n"
                            "Create, list, and manage wallets\n"
                            "\nExamples:\n"
