@@ -1,10 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Network Services - srv (contains base + stake + other services)
+# Network Services - srv (contains base + stake common types + other services)
 # Base MUST be first
 add_subdirectory(base)
 
-# Other services
-# TODO: Fix stake after decree refactoring
-#add_subdirectory(stake)
+# Stake common types (header-only library with common stake types)
+add_subdirectory(stake)
 
