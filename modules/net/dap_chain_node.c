@@ -20,7 +20,6 @@
  */
 
  #include "dap_common.h"
-#include "dap_chain_block.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_hash.h"
