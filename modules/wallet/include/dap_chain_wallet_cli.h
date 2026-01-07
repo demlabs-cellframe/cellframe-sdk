@@ -43,7 +43,6 @@ extern "C" {
  * @param a_version API version
  * @return 0 on success, error code otherwise
  */
-int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 #ifdef __cplusplus
 }
