@@ -7,6 +7,9 @@ file(GLOB DAP_CHAIN_TYPE_BLOCKS_HEADERS include/*.h)
 # Use universal Cellframe library macro (OBJECT library)
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_TYPE_BLOCKS_SRCS} HEADERS ${DAP_CHAIN_TYPE_BLOCKS_HEADERS})
 
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../net/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../governance/include)
+
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
 endif()

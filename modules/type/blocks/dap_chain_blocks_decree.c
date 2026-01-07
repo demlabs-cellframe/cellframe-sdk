@@ -33,7 +33,7 @@ static int s_decree_empty_blockgen_handler(
         log_it(L_WARNING, "Specified chain not found");
         return -106;
     }
-    l_chain->block_gen_period = l_blockgen_period;
+    DAP_CHAIN_PVT(l_chain)->block_gen_period = l_blockgen_period;
     log_it(L_NOTICE, "Empty block generation period set to %hu for chain %s", l_blockgen_period, l_chain->name);
     return 0;
 }

@@ -212,6 +212,7 @@ typedef struct dap_chain_pvt {
     char *cs_name, *cs_type;
     bool cs_started;
     dap_list_t *generation_banlist;
+    uint16_t block_gen_period;  // Empty block generation period (for decree control)
 } dap_chain_pvt_t;
 
 #define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *)a->_pvt)
