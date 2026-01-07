@@ -1290,7 +1290,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
             }
             // show list of nets
-            for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
+            for (dap_chain_net_t *l_net = dap_chain_net_iterate(NULL); l_net; l_net = dap_chain_net_iterate(l_net)) {
                 dap_json_t *l_jobj_network_name = dap_json_object_new_string(l_net->pub.name);
                 dap_json_array_add(l_jobj_networks, l_jobj_network_name);
             }
