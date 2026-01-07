@@ -59,6 +59,18 @@ int dap_chain_token_cli_error_codes_init(void)
     // Token emission errors
     dap_cli_error_code_register("TOKEN_EMIT_ADDR_INVALID_ERR", -320, "Invalid address for token emission");
     dap_cli_error_code_register("TOKEN_EMIT_CANT_FIND_EMI_ERR", -321, "Cannot find emission for token");
+    dap_cli_error_code_register("TOKEN_EMIT_H_PARAM_ERR", -322, "Invalid -H parameter for token emission");
+    dap_cli_error_code_register("TOKEN_EMIT_REQUIRES_PARAMETER_CERTS", -323, "Certificate parameter required for token emission");
+    dap_cli_error_code_register("TOKEN_EMIT_NOT_VALID_CERT_ERRS", -324, "Certificate not valid for token emission");
+    dap_cli_error_code_register("TOKEN_EMIT_REQUIRES_PARAMETER_EMISSION_VAL", -325, "Emission value parameter required");
+    dap_cli_error_code_register("TOKEN_EMIT_REQUIRES_PARAMETER_ADDR", -326, "Address parameter required for token emission");
+    dap_cli_error_code_register("TOKEN_EMIT_REQUIRES_PARAMETER_TOKEN", -327, "Token parameter required for emission");
+    
+    // Token update errors
+    dap_cli_error_code_register("TOKEN_UPDATE_NOT_VALID_CERT_ERR", -340, "Certificate not valid for token update");
+    dap_cli_error_code_register("TOKEN_UPDATE_UNKNOWN_TOKEN_TYPE", -341, "Unknown token type for update");
+    dap_cli_error_code_register("TOKEN_UPDATE_NO_SUITABLE_CHAIN", -342, "No suitable chain for token update");
+    dap_cli_error_code_register("TOKEN_UPDATE_OK", 0, "Token update successful");
     
     // Chain CA publication errors
     dap_cli_error_code_register("CHAIN_CA_PUB_CANT_SERIALIZE_MEMORY_CERT_ERR", -330, "Cannot serialize certificate to memory");
