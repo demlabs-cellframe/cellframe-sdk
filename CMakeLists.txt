@@ -214,7 +214,8 @@ endif()
 # General chain libs
 if (CELLFRAME_MODULES MATCHES "chains")
     message("[+] Module 'chains'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_datum dap_chain_ledger dap_chain dap_global_db dap_chain_wallet)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_datum dap_chain_tx_compose dap_chain_ledger dap_chain dap_global_db dap_chain_wallet)
+    # dap_chain_tx_compose - TX Compose Plugin API from modules/datum/tx
 endif()
 
 if (CELLFRAME_MODULES MATCHES "ledger")
