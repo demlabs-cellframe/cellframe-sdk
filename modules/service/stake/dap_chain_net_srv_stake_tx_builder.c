@@ -23,6 +23,7 @@
  */
 dap_chain_datum_tx_t *dap_stake_tx_create_lock(
     dap_list_t *a_list_used_outs,
+    const dap_chain_addr_t *a_wallet_addr,
     const char *a_main_ticker,
     uint256_t a_value,
     uint256_t a_value_fee,
@@ -33,7 +34,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_lock(
     dap_chain_id_t a_chain_id,
     dap_chain_srv_uid_t a_srv_uid
 ) {
-    dap_return_val_if_fail(a_list_used_outs && a_main_ticker, NULL);
+    dap_return_val_if_fail(a_list_used_outs && a_wallet_addr && a_main_ticker, NULL);
     
     // Calculate total input value
     uint256_t l_value_found = {};
@@ -97,13 +98,15 @@ dap_chain_datum_tx_t *dap_stake_tx_create_lock(
     }
     DAP_DELETE(l_tx_out_cond);
     
-    // Add change if needed
+    // Add change output if needed
     uint256_t l_change = {};
     SUBTRACT_256_256(l_value_found, l_total_need, &l_change);
     if (!IS_ZERO_256(l_change)) {
-        // TODO: Need wallet address for change - this should come from params
-        log_it(L_WARNING, "Change output needed but wallet address not provided");
-        // For now, skip change - caller must provide exact amount
+        if (dap_chain_datum_tx_add_out_item(&l_tx, a_wallet_addr, l_change) != 1) {
+            log_it(L_ERROR, "Failed to add change output");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
     }
     
     // Add fee
@@ -199,6 +202,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_invalidate(
  * @brief Parameters for stake lock compose callback
  */
 typedef struct {
+    const dap_chain_addr_t *wallet_addr;  // For change output
     const char *main_ticker;
     uint256_t value;
     uint256_t fee;
@@ -221,7 +225,7 @@ static dap_chain_datum_t* s_stake_lock_compose_cb(
 )
 {
     stake_lock_params_t *l_params = (stake_lock_params_t *)a_params;
-    if (!l_params || !l_params->wallet_name) {
+    if (!l_params || !l_params->wallet_name || !l_params->wallet_addr) {
         log_it(L_ERROR, "Invalid stake lock parameters");
         return NULL;
     }
@@ -229,6 +233,7 @@ static dap_chain_datum_t* s_stake_lock_compose_cb(
     // 1. Build unsigned TX
     dap_chain_datum_tx_t *l_tx = dap_stake_tx_create_lock(
         a_list_used_outs,
+        l_params->wallet_addr,
         l_params->main_ticker,
         l_params->value,
         l_params->fee,

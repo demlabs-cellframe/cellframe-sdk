@@ -34,6 +34,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_cs.h" // For consensus-agnostic API
 // REMOVED: #include "dap_chain_cs_esbocs.h" - TODO: resolve esbocs dependency
 #include "dap_chain_net_utils.h"
 #include "rand/dap_rand.h"
@@ -1157,7 +1158,11 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
         if (!l_chain || !l_chain->generation)
             s_stake_add_tx(a_net, l_stake);
     }
-    dap_chain_esbocs_add_validator_to_clusters(a_net->pub.id, a_node_addr);
+    // Consensus-agnostic: Add validator to consensus clusters (ESBOCS/DAG/etc)
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if (l_chain) {
+        dap_chain_cs_add_validator(l_chain, a_node_addr);
+    }
     const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
     log_it(L_NOTICE, "Added key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
@@ -1180,7 +1185,14 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
         return;
     }
     dap_return_if_fail(l_stake);
-    dap_chain_esbocs_remove_validator_from_clusters(l_stake->signing_addr.net_id, &l_stake->node_addr);
+    // Consensus-agnostic: Remove validator from consensus clusters
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_stake->signing_addr.net_id);
+    if (l_net) {
+        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        if (l_chain) {
+            dap_chain_cs_remove_validator(l_chain, &l_stake->node_addr);
+        }
+    }
     HASH_DEL(l_srv_stake->itemlist, l_stake);
     HASH_DELETE(ht, l_srv_stake->tx_itemlist, l_stake);
     const char *l_value_str; dap_uint256_to_char(l_stake->locked_value, &l_value_str);
@@ -3672,8 +3684,14 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
         dap_json_object_add_string(l_json_obj_stake, "pkey_full", a_stake->pkey ? "true" : "false");
         dap_json_object_add_string(l_json_obj_stake, "decree_hash", dap_hash_fast_to_str_static(&a_stake->decree_hash.hash));
     }
-    if (dap_chain_esbocs_started(a_stake->signing_addr.net_id))
-        dap_json_object_add_string(l_json_obj_stake, "active", a_stake->is_active ? "true" : "false");
+    // Consensus-agnostic: Check if consensus is started
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_stake->signing_addr.net_id);
+    if (l_net) {
+        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        if (l_chain && dap_chain_cs_is_started(l_chain)) {
+            dap_json_object_add_string(l_json_obj_stake, "active", a_stake->is_active ? "true" : "false");
+        }
+    }
     dap_json_array_add(a_json_arr, l_json_obj_stake);
     DAP_DELETE(l_balance);
     DAP_DELETE(l_effective_weight);
@@ -4222,9 +4240,11 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, dap_json_t *a_json_arr_rep
                 } else {
                     if (!l_cert_str && !l_pkey_hash_str)
                         dap_json_object_add_int(l_json_obj_keys_count, "total_keys", l_total_count);
-                    if (dap_chain_esbocs_started(l_net->pub.id))
+                    // Consensus-agnostic: Check if consensus is started
+                    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+                    if (l_chain && dap_chain_cs_is_started(l_chain)) {
                         dap_json_object_add_int(l_json_obj_keys_count, "inactive_keys", l_inactive_count);
-
+                    }
 
                     const char *l_total_weight_coins, *l_total_weight_str = dap_uint256_to_char(l_total_locked_weight, &l_total_weight_coins);
                     dap_json_object_add_string(l_json_obj_keys_count, "total_weight_coins", l_total_weight_coins);
@@ -4815,7 +4835,13 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         l_average = t;
     }
 
-    uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
+    // Consensus-agnostic: Get minimum validators count
+    uint16_t l_min_count = 0;
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if (l_chain) {
+        l_min_count = dap_chain_cs_get_min_validators_count(l_chain);
+    }
+    
     uint256_t l_min_tmp = uint256_0;
     uint16_t l_min_tmp_count = 0;
     bool l_found = false;
@@ -5263,8 +5289,17 @@ static int s_stake_decree_callback(dap_ledger_t *a_ledger, dap_chain_datum_decre
         }
         if (!a_anchored)
             break;
-        uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
-        if ( dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL) == l_min_count ) {
+        
+        // Consensus-agnostic: Check minimum validators count
+        // Note: Minimum validators count check is consensus responsibility
+        // Stake validates we won't go below minimum, actual check done by consensus layer
+        dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+        uint16_t l_min_count = 0;
+        if (l_chain) {
+            l_min_count = dap_chain_cs_get_min_validators_count(l_chain);
+        }
+        
+        if ( l_min_count > 0 && dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL) == l_min_count ) {
             log_it(L_WARNING, "Can't invalidate stake in net %s: results in minimum validators count %hu underflow",
                                a_net->pub.name, l_min_count);
             return -116;
@@ -5310,7 +5345,12 @@ static int s_stake_decree_callback(dap_ledger_t *a_ledger, dap_chain_datum_decre
         }
         if (!a_apply)
             break;
-        dap_chain_esbocs_set_min_validators_count(l_chain, l_decree_count);
+        // Consensus-agnostic: Set minimum validators count
+        if (l_chain) {
+            dap_chain_cs_set_min_validators_count(l_chain, l_decree_count);
+        } else {
+            log_it(L_WARNING, "Cannot set min validators count: chain not found for net %s", a_net->pub.name);
+        }
     } break;
     
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT: {

@@ -26,6 +26,7 @@
  * @brief Create unsigned stake lock transaction from used outputs
  * 
  * @param a_list_used_outs List of used outputs (dap_chain_tx_used_out_t*)
+ * @param a_wallet_addr Wallet address (for change output)
  * @param a_main_ticker Token ticker to stake
  * @param a_value Amount to stake
  * @param a_value_fee Fee amount
@@ -39,6 +40,7 @@
  */
 dap_chain_datum_tx_t *dap_stake_tx_create_lock(
     dap_list_t *a_list_used_outs,
+    const dap_chain_addr_t *a_wallet_addr,
     const char *a_main_ticker,
     uint256_t a_value,
     uint256_t a_value_fee,

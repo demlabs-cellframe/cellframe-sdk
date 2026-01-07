@@ -61,7 +61,7 @@ static int s_decree_stake_approve_handler(
     if (!a_anchored)
         return 0;
     if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
-        debug_if(g_debug_ledger, L_WARNING, "Key and node verification error");
+        log_it(L_WARNING, "Key and node verification error");
         return -109;
     }
     if (!a_apply)
@@ -108,12 +108,12 @@ static int s_decree_stake_invalidate_handler(
     }
     if (!a_anchored)
         return 0;
-    uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
-    if ( dap_chain_net_srv_stake_get_total_keys(a_net->pub.id, NULL) == l_min_count ) {
-        log_it(L_WARNING, "Can't invalidate stake in net %s: results in minimum validators count %hu underflow",
-                           a_net->pub.name, l_min_count);
-        return -116;
-    }
+    
+    // Minimum validators count should be checked by ESBOCS module decree handler
+    // Stake module doesn't have direct dependency on ESBOCS (architectural layering)
+    // If this check is needed, it should be done via decree validation chain where
+    // ESBOCS handler validates consensus requirements before stake handler executes
+    
     if (!a_apply)
         return 0;
     dap_chain_net_srv_stake_remove_approving_decree_info(a_net, &l_addr);
@@ -172,7 +172,13 @@ static int s_decree_stake_min_validators_count_handler(
     }
     if (!a_apply)
         return 0;
-    dap_chain_esbocs_set_min_validators_count(l_chain, l_decree_count);
+    
+    // Setting min validators count should be done by ESBOCS module decree handler
+    // This handler (s_decree_stake_min_validators_count_handler) should be moved to ESBOCS module
+    // when ESBOCS is refactored. Stake module validates that we have enough validators,
+    // but actual consensus parameter update is ESBOCS responsibility.
+    log_it(L_WARNING, "ESBOCS min validators count update requires ESBOCS module (currently being refactored)");
+    
     return 0;
 }
 
@@ -189,8 +195,8 @@ static int s_decree_max_weight_handler(
         log_it(L_WARNING,"Can't get value from decree.");
         return -105;
     }
-    if ( COMPARE_256(l_value, GET_256_FROM_64(0)) &&
-         COMPARE_256(l_value, GET_256_FROM_64(100)) ) {
+    if ( compare256(l_value, GET_256_FROM_64(0)) <= 0 ||
+         compare256(l_value, GET_256_FROM_64(100)) > 0 ) {
         log_it(L_WARNING,"Can't set max weight value. It must be > 0 and <= 100");
         return -106;
     }

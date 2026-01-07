@@ -2,7 +2,7 @@
  * @file dap_chain_cs.h
  * @brief Chain callbacks helper functions
  * 
- * Callback structure dap_chain_cs_callbacks_t defined in dap_chain.h
+ * Callback structure dap_chain_cs_callbacks_t defined in dap_chain_cs_callbacks.h
  * This file provides registration and retrieval functions
  */
 
@@ -10,6 +10,7 @@
 
 #include "dap_chain.h"
 #include "dap_config.h"
+#include "dap_chain_cs_callbacks.h"
 
 // Consensus lifecycle callbacks
 typedef int (*dap_chain_callback_new_cfg_t)(dap_chain_t *, dap_config_t *);
@@ -65,6 +66,46 @@ int dap_chain_cs_stake_switch_table(dap_chain_t *a_chain, bool a_to_sandbox);
 
 // Mempool wrappers
 char* dap_chain_cs_mempool_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
+
+// ===== NEW: Consensus-agnostic validator management wrappers =====
+
+/**
+ * @brief Check if consensus is started/running
+ * @param a_chain Chain instance
+ * @return true if consensus is active, false if not or callback not registered
+ */
+bool dap_chain_cs_is_started(dap_chain_t *a_chain);
+
+/**
+ * @brief Get minimum validators count required by consensus
+ * @param a_chain Chain instance
+ * @return Minimum count (0 if not applicable or callback not registered)
+ */
+uint16_t dap_chain_cs_get_min_validators_count(dap_chain_t *a_chain);
+
+/**
+ * @brief Set minimum validators count for consensus
+ * @param a_chain Chain instance
+ * @param a_count New minimum count
+ * @return 0 on success, negative on error or if callback not registered
+ */
+int dap_chain_cs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_count);
+
+/**
+ * @brief Add validator to consensus clusters/pools
+ * @param a_chain Chain instance
+ * @param a_node_addr Node address to add
+ * @return 0 on success, negative on error or if callback not registered
+ */
+int dap_chain_cs_add_validator(dap_chain_t *a_chain, const dap_chain_node_addr_t *a_node_addr);
+
+/**
+ * @brief Remove validator from consensus clusters/pools
+ * @param a_chain Chain instance
+ * @param a_node_addr Node address to remove
+ * @return 0 on success, negative on error or if callback not registered
+ */
+int dap_chain_cs_remove_validator(dap_chain_t *a_chain, const dap_chain_node_addr_t *a_node_addr);
 
 // ===== Consensus registration and lifecycle =====
 
