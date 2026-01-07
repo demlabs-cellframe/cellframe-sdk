@@ -2370,6 +2370,18 @@ dap_chain_net_t *dap_chain_net_by_name(const char *a_name)
 }
 
 /**
+ * @brief Iterate through networks (replaces direct s_nets_by_name access)
+ * @param a_net Current network, or NULL to get first network
+ * @return Next network or NULL if no more networks
+ */
+dap_chain_net_t *dap_chain_net_iterate(dap_chain_net_t *a_net)
+{
+    if (!a_net)
+        return s_nets_by_name; // Return first network
+    return a_net->hh.next;     // Return next network
+}
+
+/**
  * @brief dap_ledger_by_net_name
  * @param a_net_name
  * @return

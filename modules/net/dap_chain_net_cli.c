@@ -1117,8 +1117,8 @@ void s_set_reply_text_node_status(dap_json_t *a_json_arr_reply, dap_chain_net_t 
         l_sync_current_link_text_block = dap_strdup_printf(", active links %zu from %u",
                                                            dap_link_manager_links_count(a_net->pub.id.uint64), 0);
     char *l_reply_str = dap_strdup_printf("Network \"%s\" has state %s (target state %s)%s%s",
-                                      a_net->pub.name, c_net_states[dap_chain_net_get_state(a_net)],
-                                      c_net_states[dap_chain_net_get_target_state(a_net)],
+                                      a_net->pub.name, dap_chain_net_get_state_name(dap_chain_net_get_state(a_net)),
+                                      dap_chain_net_get_state_name(dap_chain_net_get_target_state(a_net)),
                                       (l_sync_current_link_text_block)? l_sync_current_link_text_block: "",
                                       l_node_address_text_block
                                       );
@@ -1239,7 +1239,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 dap_json_object_add_object(l_jobj_return, "chains", l_jobj_chains);
             }else{
                 dap_json_t *l_jobj_networks = dap_json_array_new();
-                for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
+                for (dap_chain_net_t *l_net = dap_chain_net_iterate(NULL); l_net; l_net = dap_chain_net_iterate(l_net)) {
                     dap_json_t *l_jobj_network = dap_json_object_new();
                     dap_json_t *l_jobj_chains = dap_json_array_new();
                     dap_json_t *l_jobj_network_name = dap_json_object_new_string(l_net->pub.name);
@@ -1423,7 +1423,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
             }
         } else if ( l_go_str){
             dap_json_t *l_jobj_net = dap_json_object_new_string(l_net->pub.name);
-            dap_json_t *l_jobj_current_status = dap_json_object_new_string(c_net_states[dap_chain_net_get_state(l_net)]);
+            dap_json_t *l_jobj_current_status = dap_json_object_new_string(dap_chain_net_get_state_name(dap_chain_net_get_state(l_net)));
             if (!l_jobj_net || !l_jobj_current_status) {
                 dap_json_object_free(l_jobj_return);
                 dap_json_object_free(l_jobj_net);
@@ -1434,7 +1434,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
             dap_json_object_add_object(l_jobj_return, "net", l_jobj_net);
             dap_json_object_add_object(l_jobj_return, "current", l_jobj_current_status);
             if ( strcmp(l_go_str,"online") == 0 ) {
-                dap_json_t *l_jobj_to = dap_json_object_new_string(c_net_states[NET_STATE_ONLINE]);
+                dap_json_t *l_jobj_to = dap_json_object_new_string(dap_chain_net_get_state_name(NET_STATE_ONLINE));
                 if (!l_jobj_to) {
                     dap_json_object_free(l_jobj_return);
                     dap_json_rpc_allocation_error(a_json_arr_reply);
@@ -1449,7 +1449,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 }
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
-                dap_json_t *l_jobj_to = dap_json_object_new_string(c_net_states[NET_STATE_OFFLINE]);
+                dap_json_t *l_jobj_to = dap_json_object_new_string(dap_chain_net_get_state_name(NET_STATE_OFFLINE));
                 if (!l_jobj_to) {
                     dap_json_object_free(l_jobj_return);
                     dap_json_rpc_allocation_error(a_json_arr_reply);
@@ -1642,7 +1642,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
         } else if( l_sync_str) {
             dap_json_t *l_jobj_state_machine = dap_json_object_new();
             dap_json_t *l_jobj_requested = dap_json_object_new_string("SYNC_ALL");
-            dap_json_t *l_jobj_current = dap_json_object_new_string(c_net_states[dap_chain_net_get_state(l_net)]);
+            dap_json_t *l_jobj_current = dap_json_object_new_string(dap_chain_net_get_state_name(dap_chain_net_get_state(l_net)));
             if (!l_jobj_state_machine || !l_jobj_current) {
                 dap_json_object_free(l_jobj_state_machine);
                 dap_json_object_free(l_jobj_current);

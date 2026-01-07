@@ -117,14 +117,16 @@ dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 const char *dap_chain_net_state_to_str(dap_chain_net_state_t a_state);
 const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net);
 
-// Exported state names array (for CLI and external use)
-extern const char *c_net_states[];
+// Network state names array accessor (instead of direct export)
+const char *dap_chain_net_get_state_name(dap_chain_net_state_t a_state);
 
 // ACL functions
 char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net);
 
-// Internal hash table (exported for CLI compatibility, should be refactored)
-extern dap_chain_net_t *s_nets_by_name;
+// Network registry functions (instead of direct s_nets_by_name export)
+dap_chain_net_t *dap_chain_net_by_name(const char *a_name);
+dap_chain_net_t *dap_chain_net_iterate(dap_chain_net_t *a_net);
+
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
 bool dap_chain_net_stop(dap_chain_net_t *a_net);
