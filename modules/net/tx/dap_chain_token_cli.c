@@ -15,6 +15,7 @@
 #include "dap_chain_datum_token.h"
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
+#include "dap_chain_token_cli_error_codes.h"
 char *dap_chain_mempool_group_new(dap_chain_t *a_chain);
 #include "dap_cert.h"
 
@@ -1606,9 +1607,13 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
  */
 int dap_chain_token_cli_init(void)
 {
+    // Register token CLI error codes
+    dap_chain_token_cli_error_codes_init();
+    
     // Register token command
-    dap_cli_server_cmd_add("token", com_token,
+    dap_cli_server_cmd_add("token", com_token, NULL,
                            "Token operations",
+                           -1, // auto ID
                            "token { decl | update | emit | sign | list }\n");
 
     // Register token_decl command
