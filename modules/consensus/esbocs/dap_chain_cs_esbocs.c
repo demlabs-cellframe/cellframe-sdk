@@ -36,44 +36,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_cs_type.h"  // For old consensus registration system
 #include "dap_chain_policy.h"   // For policy functions from common module
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_block_tx.h"  // For dap_chain_block_tx_coll_fee_create, dap_chain_block_tx_reward_create
 #include "dap_json.h"
-// REMOVED: #include "dap_chain_net_srv_stake_pos_delegate.h" - stake module temporarily disabled
-// Forward declarations for temporarily disabled stake functions
-typedef struct dap_chain_net_srv_stake_item {
-    dap_stream_node_addr_t node_addr;
-    dap_chain_addr_t signing_addr;
-    uint256_t value;
-    // ... other fields as needed
-} dap_chain_net_srv_stake_item_t;
-
-// Stub declarations - TODO: restore when stake module is refactored
-static inline dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hash) { 
-    UNUSED(a_net_id); UNUSED(a_hash); return NULL; 
-}
-static inline uint256_t dap_chain_net_srv_stake_get_allowed_min_value(dap_chain_net_id_t a_net_id) { 
-    UNUSED(a_net_id); return uint256_0; 
-}
-static inline int dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_addr, void *p1, void *p2, uint256_t a_value, void *p3, void *p4) {
-    UNUSED(a_net); UNUSED(a_addr); UNUSED(p1); UNUSED(p2); UNUSED(a_value); UNUSED(p3); UNUSED(p4); return -1;
-}
-static inline dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_flag, void *p) {
-    UNUSED(a_net_id); UNUSED(a_flag); UNUSED(p); return NULL;
-}
-static inline int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr) {
-    UNUSED(a_addr); return -1;
-}
-static inline void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net) {
-    UNUSED(a_net);
-}
-static inline int dap_chain_net_srv_stake_mark_validator_active(void *a_addr, bool a_active) {
-    UNUSED(a_addr); UNUSED(a_active); return 0;
-}
-static inline void* dap_chain_net_srv_stake_switch_table(void) { return NULL; }
-static inline void* dap_chain_net_srv_stake_hardfork_data_import(void) { return NULL; }
-
+#include "dap_chain_net_srv_stake_pos_delegate.h"  // Stake module is now compiled and working!
 #include "dap_chain_ledger.h"
 #include "dap_cli_server.h"
-// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 #include "dap_sign.h"
 #include "dap_link_manager.h"
 #include "dap_chain_node.h"
@@ -434,30 +401,66 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
                 dap_chain_net_api_add_reward(l_net, l_preset_reward, 0);
         }
         
-        // Adapter wrappers for old ESBOCS functions to new callback signatures
+        // ========== Adapter wrappers for ALL ESBOCS callbacks to match new signatures ==========
+        
+        // Consensus → Chain callbacks (get_fee_group, get_reward_group need wrappers)
+        static char* s_esbocs_get_fee_group_wrapper(dap_chain_t *a_chain, const char *a_net_name) {
+            return dap_chain_cs_blocks_get_fee_group(a_net_name);
+        }
+        
+        static char* s_esbocs_get_reward_group_wrapper(dap_chain_t *a_chain, const char *a_net_name) {
+            return dap_chain_cs_blocks_get_reward_group(a_net_name);
+        }
+        
+        // Chain → Consensus callbacks (most need wrappers - old take net_id, new take chain_t*)
+        static uint256_t s_esbocs_get_fee_wrapper(dap_chain_t *a_chain) {
+            return dap_chain_esbocs_get_fee(a_chain->net_id);
+        }
+        
+        static dap_pkey_t* s_esbocs_get_sign_pkey_wrapper(dap_chain_t *a_chain) {
+            return dap_chain_esbocs_get_sign_pkey(a_chain->net_id);
+        }
+        
+        // get_sign_key, get_collecting_level - already match signature (take dap_chain_net_id_t = chain->net_id compatible)
+        
+        static void s_esbocs_add_block_collect_wrapper(dap_chain_t *a_chain, void *a_block_cache, void *a_params, int a_type) {
+            s_add_block_collect_callback_wrapper(a_block_cache, a_params, a_type);
+        }
+        
         static bool s_esbocs_get_autocollect_status_wrapper(dap_chain_t *a_chain) {
             return dap_chain_esbocs_get_autocollect_status(a_chain->net_id);
         }
         
+        // Hardfork callbacks - already match signature (take dap_chain_net_id_t)
+        
+        // Stake service callback wrappers
+        static int s_stake_switch_table_wrapper(dap_chain_t *a_chain, bool a_to_sandbox) {
+            return dap_chain_net_srv_stake_switch_table(a_chain->net_id, a_to_sandbox);
+        }
+        
+        static int s_stake_hardfork_data_import_wrapper(dap_chain_t *a_chain, dap_hash_fast_t *a_decree_hash) {
+            return dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, a_decree_hash);
+        }
+        
         // Register consensus callbacks for this chain (non-static for dynamic wrapper)
         dap_chain_cs_callbacks_t l_cs_callbacks = {
-            // Consensus → Chain callbacks
-            .get_fee_group = dap_chain_cs_blocks_get_fee_group,
-            .get_reward_group = dap_chain_cs_blocks_get_reward_group,
-            // Chain → Consensus callbacks
-            .get_fee = dap_chain_esbocs_get_fee,
-            .get_sign_pkey = dap_chain_esbocs_get_sign_pkey,
-            .get_sign_key = dap_chain_esbocs_get_sign_key,
-            .get_collecting_level = dap_chain_esbocs_get_collecting_level,
-            .add_block_collect = s_add_block_collect_callback_wrapper,
+            // Consensus → Chain callbacks (WITH WRAPPERS)
+            .get_fee_group = s_esbocs_get_fee_group_wrapper,
+            .get_reward_group = s_esbocs_get_reward_group_wrapper,
+            // Chain → Consensus callbacks (WITH WRAPPERS)
+            .get_fee = s_esbocs_get_fee_wrapper,
+            .get_sign_pkey = s_esbocs_get_sign_pkey_wrapper,
+            .get_sign_key = dap_chain_esbocs_get_sign_key,  // Already compatible
+            .get_collecting_level = dap_chain_esbocs_get_collecting_level,  // Already compatible
+            .add_block_collect = s_esbocs_add_block_collect_wrapper,
             .get_autocollect_status = s_esbocs_get_autocollect_status_wrapper,
-            .set_hardfork_state = dap_chain_esbocs_set_hardfork_state,
-            .hardfork_engaged = dap_chain_esbocs_hardfork_engaged,
-            .set_hardfork_prepare = dap_chain_esbocs_set_hardfork_prepare,
-            .set_hardfork_complete = dap_chain_esbocs_set_hardfork_complete,
-            // Stake service callbacks - REMOVED (wrong signatures, will be fixed separately)
-            .stake_switch_table = NULL,  // TODO: Implement proper wrapper
-            .stake_hardfork_data_import = NULL  // TODO: Implement proper wrapper
+            .set_hardfork_state = dap_chain_esbocs_set_hardfork_state,  // Already compatible
+            .hardfork_engaged = dap_chain_esbocs_hardfork_engaged,  // Already compatible
+            .set_hardfork_prepare = dap_chain_esbocs_set_hardfork_prepare,  // Already compatible
+            .set_hardfork_complete = dap_chain_esbocs_set_hardfork_complete,  // Already compatible
+            // Stake service callbacks - REAL implementations via wrappers!
+            .stake_switch_table = s_stake_switch_table_wrapper,
+            .stake_hardfork_data_import = s_stake_hardfork_data_import_wrapper
         };
         
         // Allocate persistent copy of callbacks
@@ -521,12 +524,38 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
             l_block_list = dap_list_append(l_block_list, DAP_DUP(&block_hash));
         }
         dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(l_block_collect_params->chain);
+        dap_chain_net_t *l_net = dap_chain_net_api_by_id(l_block_collect_params->chain->net_id);
+        dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+        const char *l_native_ticker = l_net ? l_net->pub.native_ticker : NULL;
+        
+        if (!l_ledger || !l_native_ticker) {
+            log_it(L_ERROR, "Can't create collect TX: ledger or native ticker is NULL");
+            pthread_rwlock_unlock(&s_collecting_lock);
+            DAP_DELETE(l_block_collect_params);
+            dap_global_db_objs_delete(l_objs, l_objs_count);
+            return;
+        }
+        
         char *l_tx_hash_str = l_fee_collect ?
-                    dap_chain_mempool_tx_coll_fee_create(l_blocks, l_block_collect_params->blocks_sign_key,
-                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex")
+                    dap_chain_block_tx_coll_fee_create(l_blocks, 
+                                     l_block_collect_params->blocks_sign_key,
+                                     l_block_collect_params->collecting_addr, 
+                                     l_block_list,
+                                     l_ledger,
+                                     l_native_ticker,
+                                     l_block_collect_params->chain->net_id,
+                                     l_block_collect_params->minimum_fee,
+                                     "hex")
                   :
-                    dap_chain_mempool_tx_reward_create(l_blocks, l_block_collect_params->blocks_sign_key,
-                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex");
+                    dap_chain_block_tx_reward_create(l_blocks, 
+                                     l_block_collect_params->blocks_sign_key,
+                                     l_block_collect_params->collecting_addr, 
+                                     l_block_list,
+                                     l_ledger,
+                                     l_native_ticker,
+                                     l_block_collect_params->chain->net_id,
+                                     l_block_collect_params->minimum_fee,
+                                     "hex");
         if (l_tx_hash_str) {
             log_it(L_NOTICE, "%s collect transaction successfully created, hash = %s",
                             l_fee_collect ? "Fee" : "Reward", l_tx_hash_str);
