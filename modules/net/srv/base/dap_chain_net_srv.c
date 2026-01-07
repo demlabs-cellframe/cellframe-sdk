@@ -36,6 +36,7 @@
 #include "uthash.h"
 
 #include "dap_chain_net.h"
+#include "dap_chain_net_core.h"
 #include "dap_chain_ledger.h"
 #include "dap_hash.h"
 #include "dap_common.h"
