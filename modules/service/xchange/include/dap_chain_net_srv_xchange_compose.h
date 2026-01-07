@@ -8,7 +8,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_net_srv_xchange.h"
-#include "dap_chain_tx_compose.h"  // Xchange depends on compose, not vice versa
+#include "dap_chain_tx_compose_api.h"  // NEW: Plugin-based TX compose API
 #include "dap_json.h"
 
 // Error codes for xchange purchase compose operations
