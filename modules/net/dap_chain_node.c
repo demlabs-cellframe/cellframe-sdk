@@ -830,6 +830,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         for (dap_chain_srv_hardfork_state_t *it = l_states->main_iterator; it; it = it->next) {
             if (it->uid.uint64 >= (uint64_t)INT64_MIN)       // MSB is set
                 continue;
+#if 0 // DISABLED: calls s_service_state_datums_create which is disabled
             bool l_break = false;
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
@@ -844,6 +845,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                     break;
                 }
 
+#endif // DISABLED: s_service_state_datums_create usage
             }
             for (size_t i = 0; i < l_datums_count; i++)
                 DAP_DELETE(l_datums[i]);
