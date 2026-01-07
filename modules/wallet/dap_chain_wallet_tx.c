@@ -212,11 +212,13 @@ dap_chain_datum_tx_t *dap_wallet_tx_create_multi_transfer(
         dap_time_t l_time_unlock = a_time_unlock ? a_time_unlock[i] : 0;
         
         if (l_time_unlock > 0) {
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_values[i], NULL, l_time_unlock) != 1) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to[i], a_values[i], NULL) != 1) {
                 log_it(L_ERROR, "Failed to add output with unlock time");
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
+            // TODO: Unlock time support needs to be added to dap_chain_datum_tx_add_out_ext_item
+            log_it(L_WARNING, "Time-locked outputs not yet supported in new API (time_unlock=%"DAP_UINT64_FORMAT_U")", l_time_unlock);
         } else {
             if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to[i], a_values[i]) != 1) {
                 log_it(L_ERROR, "Failed to add output");
