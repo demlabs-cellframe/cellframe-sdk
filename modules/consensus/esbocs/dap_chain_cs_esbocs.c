@@ -298,6 +298,45 @@ int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
     return 0;
 }
 
+// ========== ESBOCS Callback Adapters (old signatures → new signatures) ==========
+// These wrappers adapt old ESBOCS functions taking dap_chain_net_id_t to new callback 
+// signatures taking dap_chain_t* as required by dap_chain_cs_callbacks_t
+
+static char* s_esbocs_get_fee_group_wrapper(dap_chain_t *a_chain, const char *a_net_name) {
+    UNUSED(a_chain);  // Old function only needs net_name
+    return dap_chain_cs_blocks_get_fee_group(a_net_name);
+}
+
+static char* s_esbocs_get_reward_group_wrapper(dap_chain_t *a_chain, const char *a_net_name) {
+    UNUSED(a_chain);  // Old function only needs net_name
+    return dap_chain_cs_blocks_get_reward_group(a_net_name);
+}
+
+static uint256_t s_esbocs_get_fee_wrapper(dap_chain_t *a_chain) {
+    return dap_chain_esbocs_get_fee(a_chain->net_id);
+}
+
+static dap_pkey_t* s_esbocs_get_sign_pkey_wrapper(dap_chain_t *a_chain) {
+    return dap_chain_esbocs_get_sign_pkey(a_chain->net_id);
+}
+
+static void s_esbocs_add_block_collect_wrapper(dap_chain_t *a_chain, void *a_block_cache, void *a_params, int a_type) {
+    UNUSED(a_chain);  // Old function doesn't need chain
+    s_add_block_collect_callback_wrapper(a_block_cache, a_params, a_type);
+}
+
+static bool s_esbocs_get_autocollect_status_wrapper(dap_chain_t *a_chain) {
+    return dap_chain_esbocs_get_autocollect_status(a_chain->net_id);
+}
+
+static int s_stake_switch_table_wrapper(dap_chain_t *a_chain, bool a_to_sandbox) {
+    return dap_chain_net_srv_stake_switch_table(a_chain->net_id, a_to_sandbox);
+}
+
+static int s_stake_hardfork_data_import_wrapper(dap_chain_t *a_chain, dap_hash_fast_t *a_decree_hash) {
+    return dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, a_decree_hash);
+}
+
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_set_cs_type(a_chain, "blocks");
@@ -401,48 +440,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
                 dap_chain_net_api_add_reward(l_net, l_preset_reward, 0);
         }
         
-        // ========== Adapter wrappers for ALL ESBOCS callbacks to match new signatures ==========
-        
-        // Consensus → Chain callbacks (get_fee_group, get_reward_group need wrappers)
-        static char* s_esbocs_get_fee_group_wrapper(dap_chain_t *a_chain, const char *a_net_name) {
-            return dap_chain_cs_blocks_get_fee_group(a_net_name);
-        }
-        
-        static char* s_esbocs_get_reward_group_wrapper(dap_chain_t *a_chain, const char *a_net_name) {
-            return dap_chain_cs_blocks_get_reward_group(a_net_name);
-        }
-        
-        // Chain → Consensus callbacks (most need wrappers - old take net_id, new take chain_t*)
-        static uint256_t s_esbocs_get_fee_wrapper(dap_chain_t *a_chain) {
-            return dap_chain_esbocs_get_fee(a_chain->net_id);
-        }
-        
-        static dap_pkey_t* s_esbocs_get_sign_pkey_wrapper(dap_chain_t *a_chain) {
-            return dap_chain_esbocs_get_sign_pkey(a_chain->net_id);
-        }
-        
-        // get_sign_key, get_collecting_level - already match signature (take dap_chain_net_id_t = chain->net_id compatible)
-        
-        static void s_esbocs_add_block_collect_wrapper(dap_chain_t *a_chain, void *a_block_cache, void *a_params, int a_type) {
-            s_add_block_collect_callback_wrapper(a_block_cache, a_params, a_type);
-        }
-        
-        static bool s_esbocs_get_autocollect_status_wrapper(dap_chain_t *a_chain) {
-            return dap_chain_esbocs_get_autocollect_status(a_chain->net_id);
-        }
-        
-        // Hardfork callbacks - already match signature (take dap_chain_net_id_t)
-        
-        // Stake service callback wrappers
-        static int s_stake_switch_table_wrapper(dap_chain_t *a_chain, bool a_to_sandbox) {
-            return dap_chain_net_srv_stake_switch_table(a_chain->net_id, a_to_sandbox);
-        }
-        
-        static int s_stake_hardfork_data_import_wrapper(dap_chain_t *a_chain, dap_hash_fast_t *a_decree_hash) {
-            return dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, a_decree_hash);
-        }
-        
-        // Register consensus callbacks for this chain (non-static for dynamic wrapper)
+        // Register consensus callbacks for this chain (uses wrappers defined above)
         dap_chain_cs_callbacks_t l_cs_callbacks = {
             // Consensus → Chain callbacks (WITH WRAPPERS)
             .get_fee_group = s_esbocs_get_fee_group_wrapper,
