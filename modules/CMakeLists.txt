@@ -106,10 +106,7 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
 endif()
 
 # Service for polls and voting
-if (FALSE AND CELLFRAME_MODULES MATCHES "srv-voting")
-    # TEMPORARILY DISABLED - Voting needs migration to TX Compose Plugin API
-    # This is NOT a stub - the module exists but uses deprecated dap_chain_tx_compose.h
-    # MUST be fixed by implementing TX builders similar to stake module
+if (CELLFRAME_MODULES MATCHES "srv-voting")
     add_subdirectory(service/voting)
 endif()
 
