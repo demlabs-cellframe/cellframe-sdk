@@ -256,7 +256,7 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
 static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx);
 static void *s_net_load(void *a_arg);
 static int s_net_try_online(dap_chain_net_t *a_net);
-static int s_cli_net(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a_version);
+// CLI command handler moved to dap_chain_net_cli.c
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_sync_timer_callback(void *a_arg);
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version);
@@ -276,31 +276,8 @@ int dap_chain_net_init()
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
-    dap_cli_server_cmd_add ("net", s_cli_net, NULL, "Network commands", 0,
-        "net list [chains -net <net_name>]\n"
-            "\tList all networks or list all chains in selected network\n"
-        "net -net <net_name> [-mode {update | all}] go {online | offline | sync}\n"
-            "\tFind and establish links and stay online. \n"
-            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <net_name> get {status | fee | id}\n"
-            "\tDisplays the current current status, current fee or net id.\n"
-        "net -net <net_name> stats {tx | tps} [-from <from_time>] [-to <to_time>] [-prev_sec <seconds>] \n"
-            "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
-        "net -net <net_name> [-mode {update | all}] sync {all | gdb | chains}\n"
-            "\tSyncronyze gdb, chains or everything\n"
-            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <net_name> link {list | add | del | info [-addr]| disconnect_all}\n"
-            "\tList, add, del, dump or establish links\n"
-        "net -net <net_name> ca add {-cert <cert_name> | -hash <cert_hash>}\n"
-            "\tAdd certificate to list of authority cetificates in GDB group\n"
-        "net -net <net_name> ca list\n"
-            "\tPrint list of authority cetificates from GDB group\n"
-        "net -net <net_name> ca del -hash <cert_hash> [-H {hex | base58(default)}]\n"
-            "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
-        "net -net <net_name> ledger reload\n"
-            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
-        "net -net <net_name> poa_certs list\n"
-            "\tPrint list of PoA cerificates for this network\n");
+    
+    // CLI command registration moved to dap_chain_net_cli.c
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
     char l_path[MAX_PATH + 1], *l_end = NULL;
