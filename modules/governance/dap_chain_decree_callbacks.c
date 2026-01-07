@@ -5,89 +5,84 @@
  * DeM Labs Inc.   https://demlabs.net
  * Copyright  (c) 2025
  * All rights reserved.
- *
- This file is part of CellFrame SDK the open source project
-
-    CellFrame SDK is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    CellFrame SDK is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #include "dap_chain_decree_callbacks.h"
-#include <string.h>
+#include "dap_common.h"
+#include "uthash.h"
 
-// Global callbacks registry (initialized to all NULLs)
-static dap_chain_decree_callbacks_t s_decree_callbacks = {0};
+#define LOG_TAG "dap_chain_decree_callbacks"
 
-int dap_chain_decree_callbacks_register(const dap_chain_decree_callbacks_t *a_callbacks) {
-    if (!a_callbacks)
+// Decree handler registry entry
+typedef struct dap_chain_decree_handler_item {
+    uint32_t key;  // Combined type+subtype as key
+    dap_chain_decree_handler_t handler;
+    UT_hash_handle hh;
+} dap_chain_decree_handler_item_t;
+
+// Global handler registry
+static dap_chain_decree_handler_item_t *s_handlers = NULL;
+
+// Helper: create combined key from type+subtype
+static inline uint32_t s_make_key(uint16_t a_type, uint16_t a_subtype) {
+    return ((uint32_t)a_type << 16) | a_subtype;
+}
+
+// Register decree handler
+int dap_chain_decree_handler_register(uint16_t a_decree_type, 
+                                      uint16_t a_decree_subtype,
+                                      dap_chain_decree_handler_t a_handler) {
+    if (!a_handler) {
+        log_it(L_ERROR, "NULL handler provided");
         return -1;
+    }
     
-    // Register each non-NULL callback
-    if (a_callbacks->net_get_poa_keys)
-        s_decree_callbacks.net_get_poa_keys = a_callbacks->net_get_poa_keys;
+    uint32_t l_key = s_make_key(a_decree_type, a_decree_subtype);
     
-    if (a_callbacks->net_get_poa_keys_min_count)
-        s_decree_callbacks.net_get_poa_keys_min_count = a_callbacks->net_get_poa_keys_min_count;
+    // Check if already registered
+    dap_chain_decree_handler_item_t *l_item = NULL;
+    HASH_FIND_INT(s_handlers, &l_key, l_item);
     
-    if (a_callbacks->net_get_chains)
-        s_decree_callbacks.net_get_chains = a_callbacks->net_get_chains;
+    if (l_item) {
+        log_it(L_WARNING, "Handler for decree type=%u subtype=%u already registered, replacing",
+               a_decree_type, a_decree_subtype);
+        l_item->handler = a_handler;
+        return 0;
+    }
     
-    if (a_callbacks->net_get_ledger)
-        s_decree_callbacks.net_get_ledger = a_callbacks->net_get_ledger;
+    // Create new entry
+    l_item = DAP_NEW_Z(dap_chain_decree_handler_item_t);
+    if (!l_item) {
+        log_it(L_CRITICAL, "Memory allocation failed");
+        return -2;
+    }
     
-    if (a_callbacks->net_get_fee_addr)
-        s_decree_callbacks.net_get_fee_addr = a_callbacks->net_get_fee_addr;
+    l_item->key = l_key;
+    l_item->handler = a_handler;
     
-    if (a_callbacks->net_get_name)
-        s_decree_callbacks.net_get_name = a_callbacks->net_get_name;
+    HASH_ADD_INT(s_handlers, key, l_item);
     
-    if (a_callbacks->net_set_fee)
-        s_decree_callbacks.net_set_fee = a_callbacks->net_set_fee;
-    
-    if (a_callbacks->stake_set_percent_max)
-        s_decree_callbacks.stake_set_percent_max = a_callbacks->stake_set_percent_max;
-    
-    if (a_callbacks->stake_set_allowed_min_value)
-        s_decree_callbacks.stake_set_allowed_min_value = a_callbacks->stake_set_allowed_min_value;
-    
-    if (a_callbacks->stake_get_total_keys)
-        s_decree_callbacks.stake_get_total_keys = a_callbacks->stake_get_total_keys;
-    
-    if (a_callbacks->esbocs_set_signs_struct_check)
-        s_decree_callbacks.esbocs_set_signs_struct_check = a_callbacks->esbocs_set_signs_struct_check;
-    
-    if (a_callbacks->esbocs_set_emergency_validator)
-        s_decree_callbacks.esbocs_set_emergency_validator = a_callbacks->esbocs_set_emergency_validator;
-    
-    if (a_callbacks->esbocs_set_hardfork_prepare)
-        s_decree_callbacks.esbocs_set_hardfork_prepare = a_callbacks->esbocs_set_hardfork_prepare;
-    
-    if (a_callbacks->esbocs_hardfork_engaged)
-        s_decree_callbacks.esbocs_hardfork_engaged = a_callbacks->esbocs_hardfork_engaged;
-    
-    if (a_callbacks->esbocs_set_hardfork_complete)
-        s_decree_callbacks.esbocs_set_hardfork_complete = a_callbacks->esbocs_set_hardfork_complete;
-    
-    if (a_callbacks->esbocs_set_empty_block_every_times)
-        s_decree_callbacks.esbocs_set_empty_block_every_times = a_callbacks->esbocs_set_empty_block_every_times;
-    
-    if (a_callbacks->esbocs_get_min_validators_count)
-        s_decree_callbacks.esbocs_get_min_validators_count = a_callbacks->esbocs_get_min_validators_count;
-    
+    log_it(L_INFO, "Registered decree handler for type=%u subtype=%u", a_decree_type, a_decree_subtype);
     return 0;
 }
 
-const dap_chain_decree_callbacks_t *dap_chain_decree_callbacks_get(void) {
-    return &s_decree_callbacks;
+// Call registered handler
+int dap_chain_decree_handler_call(uint16_t a_decree_type,
+                                  uint16_t a_decree_subtype,
+                                  dap_chain_datum_decree_t *a_decree,
+                                  dap_ledger_t *a_ledger,
+                                  dap_chain_t *a_chain,
+                                  bool a_apply) {
+    uint32_t l_key = s_make_key(a_decree_type, a_decree_subtype);
+    
+    dap_chain_decree_handler_item_t *l_item = NULL;
+    HASH_FIND_INT(s_handlers, &l_key, l_item);
+    
+    if (!l_item || !l_item->handler) {
+        log_it(L_WARNING, "No handler registered for decree type=%u subtype=%u", 
+               a_decree_type, a_decree_subtype);
+        return -1;
+    }
+    
+    return l_item->handler(a_decree, a_ledger, a_chain, a_apply);
 }
-

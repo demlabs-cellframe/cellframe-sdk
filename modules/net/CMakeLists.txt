@@ -5,6 +5,7 @@ project (dap_chain_net)
 
 # Core submodule MUST be first (contains network registry)
 add_subdirectory(core)
+add_subdirectory(decree)
 
 # Main net sources (after core)
 file(GLOB DAP_CHAIN_NET_SRCS *.c)

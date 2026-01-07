@@ -25,55 +25,49 @@
 #pragma once
 
 #include "dap_chain_common.h"
-#include "dap_sign.h"
-#include "dap_hash.h"
-#include "dap_list.h"
+#include "dap_chain_datum_decree.h"
 
 // Forward declarations
 typedef struct dap_chain dap_chain_t;
-typedef struct dap_chain_net dap_chain_net_t;
 typedef struct dap_ledger dap_ledger_t;
 
 /**
- * @brief Decree callbacks API for breaking circular dependencies
- * @details Governance module doesn't depend directly on stake/esbocs/net modules.
- *          Instead, those modules register their callbacks when they initialize.
- */
-typedef struct dap_chain_decree_callbacks {
-    // Network configuration callbacks (to get PoA keys from net config)
-    dap_list_t *(*net_get_poa_keys)(dap_chain_net_id_t a_net_id);  // Get list of PoA cert keys
-    uint16_t (*net_get_poa_keys_min_count)(dap_chain_net_id_t a_net_id);  // Get minimum PoA signers count
-    dap_chain_t *(*net_get_chains)(dap_chain_net_id_t a_net_id);  // Get chain list for network
-    dap_ledger_t *(*net_get_ledger)(dap_chain_net_id_t a_net_id);  // Get ledger for network
-    dap_chain_addr_t (*net_get_fee_addr)(dap_chain_net_id_t a_net_id);  // Get fee address for network
-    const char *(*net_get_name)(dap_chain_net_id_t a_net_id);  // Get network name
-    bool (*net_set_fee)(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr);  // Set network fee
-    
-    // Stake service callbacks
-    void (*stake_set_percent_max)(dap_chain_net_id_t a_net_id, uint256_t a_value);
-    void (*stake_set_allowed_min_value)(dap_chain_net_id_t a_net_id, uint256_t a_value);
-    uint16_t (*stake_get_total_keys)(dap_chain_net_id_t a_net_id, uint256_t *a_total_weight);
-    
-    // ESBOCS consensus callbacks  
-    int (*esbocs_set_signs_struct_check)(dap_chain_t *a_chain, bool a_enabled);
-    int (*esbocs_set_emergency_validator)(dap_chain_t *a_chain, bool a_action, dap_sign_type_t a_sign_type, dap_hash_fast_t *a_hash);
-    int (*esbocs_set_hardfork_prepare)(dap_chain_t *a_chain, uint64_t a_hardfork_gen, uint64_t a_block_num, void *a_addrs, void *a_changed_addrs_json);
-    bool (*esbocs_hardfork_engaged)(dap_chain_t *a_chain);
-    int (*esbocs_set_hardfork_complete)(dap_chain_t *a_chain);
-    int (*esbocs_set_empty_block_every_times)(dap_chain_t *a_chain, uint256_t a_blockgen_period);
-    uint16_t (*esbocs_get_min_validators_count)(dap_chain_net_id_t a_net_id);
-} dap_chain_decree_callbacks_t;
-
-/**
- * @brief Register decree callbacks from stake/esbocs modules
- * @param a_callbacks Pointer to callbacks structure (may contain NULL for unavailable callbacks)
+ * @brief Universal decree handler callback
+ * @details Each module (net, stake, esbocs, etc.) registers handlers for decree types it processes.
+ *          Handler has access to all context it needs via a_decree, a_ledger, a_chain.
+ * 
+ * @param a_decree The decree to process
+ * @param a_ledger Ledger where decree is being applied
+ * @param a_chain Chain where decree is applied (may be NULL for network-wide decrees)
+ * @param a_apply If true - apply changes, if false - verify only
  * @return 0 on success, negative error code otherwise
  */
-int dap_chain_decree_callbacks_register(const dap_chain_decree_callbacks_t *a_callbacks);
+typedef int (*dap_chain_decree_handler_t)(dap_chain_datum_decree_t *a_decree, 
+                                          dap_ledger_t *a_ledger,
+                                          dap_chain_t *a_chain,
+                                          bool a_apply);
 
 /**
- * @brief Get current registered callbacks
- * @return Pointer to callbacks structure (never NULL, but callbacks inside may be NULL)
+ * @brief Register decree handler for specific type/subtype
+ * @details Each module (stake, esbocs, etc.) registers handlers for decree types it processes.
+ *          Multiple modules can register for different types/subtypes.
+ * 
+ * @param a_decree_type Main decree type (COMMON or SERVICE)
+ * @param a_decree_subtype Specific subtype within that type
+ * @param a_handler Callback to handle this decree type/subtype
+ * @return 0 on success, negative error code otherwise
  */
-const dap_chain_decree_callbacks_t *dap_chain_decree_callbacks_get(void);
+int dap_chain_decree_handler_register(uint16_t a_decree_type, 
+                                      uint16_t a_decree_subtype,
+                                      dap_chain_decree_handler_t a_handler);
 
+/**
+ * @brief Find and call registered handler for given decree type/subtype
+ * @return 0 on success, -1 if no handler found, or handler's error code
+ */
+int dap_chain_decree_handler_call(uint16_t a_decree_type,
+                                  uint16_t a_decree_subtype,
+                                  dap_chain_datum_decree_t *a_decree,
+                                  dap_ledger_t *a_ledger,
+                                  dap_chain_t *a_chain,
+                                  bool a_apply);

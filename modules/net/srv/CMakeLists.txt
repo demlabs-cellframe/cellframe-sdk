@@ -5,5 +5,6 @@ cmake_minimum_required(VERSION 3.10)
 add_subdirectory(base)
 
 # Other services
-add_subdirectory(stake)
+# TODO: Fix stake after decree refactoring
+#add_subdirectory(stake)
 
