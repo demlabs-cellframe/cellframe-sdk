@@ -14,7 +14,7 @@ target_link_libraries(${PROJECT_NAME}
     dap_core dap_crypto
     dap_chain dap_chain_datum dap_chain_ledger
     dap_chain_net dap_chain_wallet dap_chain_mempool
-    dap_chain_type_blocks dap_chain_net_srv
+    dap_chain_type_blocks dap_chain_net_srv dap_cli_error_codes
 )
 # NO dap_chain_net_srv_stake - breaks net-tx ↔ stake cycle
 
