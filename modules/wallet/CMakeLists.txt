@@ -9,7 +9,7 @@ include_directories(../../3rdparty/crc32c_adler)
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_WALLET_SRCS} HEADERS ${DAP_CHAIN_WALLET_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_common dap_chain_datum dap_chain_tx_compose dap_chain 
-    dap_chain_net dap_chain_mempool dap_chain_ledger)
+    dap_chain_net dap_chain_mempool dap_chain_ledger dap_cli_error_codes)
 # datum/tx - TX Compose API для регистрации builders
 # ledger - для dap_ledger_sign_data() и dap_chain_utxo.h
 target_include_directories(${PROJECT_NAME} INTERFACE .)
