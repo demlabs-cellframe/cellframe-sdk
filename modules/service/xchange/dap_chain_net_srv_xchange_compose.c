@@ -9,7 +9,7 @@
 #include "dap_common.h"
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_net_srv_xchange_compose.h"
-#include "dap_chain_tx_compose.h"
+#include "dap_chain_tx_compose_api.h"  // NEW: Plugin-based TX compose API
 #include "dap_chain_net_srv_stake_compose.h"
 #include "dap_chain_tx_compose_callbacks.h"
 #include "dap_chain_datum_tx_items.h"

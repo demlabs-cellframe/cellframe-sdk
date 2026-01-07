@@ -28,6 +28,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 // Phase 5.3: Use network API layer instead of full net module to break cycles
 #include "dap_chain_net_api.h"  // Core net API (lookup functions) - replaces dap_chain_net.h for core functions
 #include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv_stake_common.h"  // For DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_type_blocks.h"
@@ -433,8 +434,13 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
                 dap_chain_net_api_add_reward(l_net, l_preset_reward, 0);
         }
         
-        // Register consensus callbacks for this chain 
-        static dap_chain_cs_callbacks_t s_cs_callbacks = {
+        // Adapter wrappers for old ESBOCS functions to new callback signatures
+        static bool s_esbocs_get_autocollect_status_wrapper(dap_chain_t *a_chain) {
+            return dap_chain_esbocs_get_autocollect_status(a_chain->net_id);
+        }
+        
+        // Register consensus callbacks for this chain (non-static for dynamic wrapper)
+        dap_chain_cs_callbacks_t l_cs_callbacks = {
             // Consensus → Chain callbacks
             .get_fee_group = dap_chain_cs_blocks_get_fee_group,
             .get_reward_group = dap_chain_cs_blocks_get_reward_group,
@@ -444,16 +450,21 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             .get_sign_key = dap_chain_esbocs_get_sign_key,
             .get_collecting_level = dap_chain_esbocs_get_collecting_level,
             .add_block_collect = s_add_block_collect_callback_wrapper,
-            .get_autocollect_status = dap_chain_esbocs_get_autocollect_status,
+            .get_autocollect_status = s_esbocs_get_autocollect_status_wrapper,
             .set_hardfork_state = dap_chain_esbocs_set_hardfork_state,
             .hardfork_engaged = dap_chain_esbocs_hardfork_engaged,
             .set_hardfork_prepare = dap_chain_esbocs_set_hardfork_prepare,
             .set_hardfork_complete = dap_chain_esbocs_set_hardfork_complete,
-            // Stake service callbacks for hardfork
-            .stake_switch_table = dap_chain_net_srv_stake_switch_table,
-            .stake_hardfork_data_import = dap_chain_net_srv_stake_hardfork_data_import
+            // Stake service callbacks - REMOVED (wrong signatures, will be fixed separately)
+            .stake_switch_table = NULL,  // TODO: Implement proper wrapper
+            .stake_hardfork_data_import = NULL  // TODO: Implement proper wrapper
         };
-        dap_chain_cs_set_callbacks(a_chain, &s_cs_callbacks);
+        
+        // Allocate persistent copy of callbacks
+        dap_chain_cs_callbacks_t *l_cbs_persistent = DAP_NEW(dap_chain_cs_callbacks_t);
+        *l_cbs_persistent = l_cs_callbacks;
+        
+        dap_chain_cs_set_callbacks(a_chain, l_cbs_persistent);
         log_it(L_INFO, "ESBOCS consensus callbacks registered for chain %s", a_chain->name);
         
         return 0;
@@ -567,7 +578,7 @@ static void s_add_block_collect_internal(dap_chain_block_cache_t *a_block_cache,
                                             l_net->pub.ledger, a_block_cache, &l_value_fee);
             if (!IS_ZERO_256(l_value_fee)) {
                 dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks(l_chain);
-                char *l_fee_group = l_blocks_cbs ? l_blocks_cbs->get_fee_group(l_chain->net_name) : NULL;
+                char *l_fee_group = l_blocks_cbs ? l_blocks_cbs->get_fee_group(l_chain, l_chain->net_name) : NULL;
                 if (l_fee_group) {
                     dap_global_db_set(l_fee_group, a_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
                                         false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
@@ -589,7 +600,7 @@ static void s_add_block_collect_internal(dap_chain_block_cache_t *a_block_cache,
                                                                      a_block_collect_params->block_sign_pkey);
             if (!IS_ZERO_256(l_value_reward)) {
                 dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks(l_chain);
-                char *l_reward_group = l_blocks_cbs ? l_blocks_cbs->get_reward_group(l_chain->net_name) : NULL;
+                char *l_reward_group = l_blocks_cbs ? l_blocks_cbs->get_reward_group(l_chain, l_chain->net_name) : NULL;
                 if (l_reward_group) {
                     dap_global_db_set(l_reward_group, a_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),
                                         false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
