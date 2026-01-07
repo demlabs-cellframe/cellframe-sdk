@@ -113,7 +113,8 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 // State to string conversion (inline functions are in .c file, not exported)
-// Use dap_chain_net_state_to_str_user() for external usage
+// Use dap_chain_net_state_to_str() and dap_chain_net_state_to_str_user() for external usage
+const char *dap_chain_net_state_to_str(dap_chain_net_state_t a_state);
 const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net);
 
 // Exported state names array (for CLI and external use)
