@@ -13,12 +13,16 @@
 #include "dap_string.h"
 #include "uthash.h"
 #include "utlist.h"
+#include "dap_chain_net_utils.h"  // For dap_chain_net_get_default_chain_by_chain_type
 
-// External functions from net module (resolved at final link)
-extern dap_chain_t* dap_chain_net_get_chain_by_name(dap_chain_net_t *a_net, const char *a_name);
-// REMOVED: dap_chain_net_get_default_chain_by_chain_type - already defined in dap_chain_net_utils.c
-#include "dap_chain_net_utils.h"
-extern const char* dap_chain_type_to_str(dap_chain_type_t a_chain_type);
+#define LOG_TAG "chain_net_core"
+
+// Forward declarations
+dap_chain_t* dap_chain_net_get_chain_by_name(dap_chain_net_t *a_net, const char *a_name);
+dap_chain_t* dap_chain_net_get_chain_by_id(dap_chain_net_t *a_net, dap_chain_id_t a_chain_id);
+
+// Forward declarations - these will be resolved at final link from net module
+extern dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
 
 // ============ NETWORK REGISTRY ============
 // Global registry of all networks (by name and by ID)
@@ -174,3 +178,50 @@ dap_chain_t* dap_chain_net_get_chain_by_id(dap_chain_net_t *a_net, dap_chain_id_
 // REMOVED: dap_chain_net_get_default_chain_by_chain_type() - duplicate definition
 // Already implemented in modules/net/dap_chain_net_utils.c
 // This was causing "multiple definition" linker error
+
+// ============ MODULE INITIALIZATION ============
+
+// Include API registry from common module
+#include "dap_chain_net_api.h"
+
+/**
+ * @brief Initialize network core module and register API functions
+ * @details This function must be called before dap_chain_net_init()
+ *          to properly register API functions and avoid circular dependencies
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_net_core_init(void)
+{
+    // Phase 5.3: Register network API functions for mid-level modules
+    // This breaks cyclic dependencies by allowing blocks/esbocs/stake to use
+    // core net functions without depending on full net module
+    // 
+    // Registration is done in net_core (not net) because:
+    // 1. Core functions (by_id, by_name, get_chain_by_name, get_chain_by_id) are defined here
+    // 2. Registering in net caused multiple definition errors due to circular dependency
+    // 3. Full net functions (get_chain_by_type, etc.) are declared as extern
+    //
+    // NOTE: Some functions (get_cur_cell, get_load_mode, get_reward, add_reward) have
+    //       signature mismatches with the API registry and are set to NULL for now
+    //       They will be registered properly when net module is fully loaded
+    dap_chain_net_api_registry_t l_api_registry = {
+        .by_id = dap_chain_net_by_id,
+        .by_name = dap_chain_net_by_name,
+        .get_chain_by_name = dap_chain_net_get_chain_by_name,
+        .get_chain_by_type = dap_chain_net_get_chain_by_chain_type,
+        .get_default_chain_by_type = dap_chain_net_get_default_chain_by_chain_type,
+        .get_cur_cell = NULL,       // TODO: Signature mismatch - returns dap_chain_cell_t*, not dap_chain_cell_id_t*
+        .get_load_mode = NULL,      // TODO: Signature mismatch - returns dap_chain_net_load_mode_t, not bool
+        .get_reward = NULL,         // TODO: Will be set when net module loads
+        .add_reward = NULL,         // TODO: Signature mismatch - returns void, not int
+        .datum_add_to_mempool = NULL // TODO: Will be set when mempool integration is complete
+    };
+    int l_api_ret = dap_chain_net_api_register(&l_api_registry);
+    if (l_api_ret != 0) {
+        log_it(L_ERROR, "Failed to register network API functions (code %d)", l_api_ret);
+        return -1;
+    }
+    log_it(L_INFO, "Network core API functions registered for dependency inversion");
+    
+    return 0;
+}

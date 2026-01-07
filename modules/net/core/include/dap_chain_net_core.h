@@ -72,6 +72,16 @@ int dap_chain_net_parse_net_chain(dap_json_t *a_json_arr_reply, int *a_arg_index
 // Compatibility alias for old name
 #define dap_chain_node_cli_cmd_values_parse_net_chain_for_json dap_chain_net_parse_net_chain
 
+// ============ MODULE INITIALIZATION ============
+
+/**
+ * @brief Initialize network core module and register API functions
+ * @details This function must be called before dap_chain_net_init()
+ *          to properly register API functions and avoid circular dependencies
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_net_core_init(void);
+
 #ifdef __cplusplus
 }
 #endif

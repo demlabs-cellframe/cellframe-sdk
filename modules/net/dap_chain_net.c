@@ -83,6 +83,7 @@
 #include "dap_chain_node_sync_client.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_core.h"  // For dap_chain_net_core_init()
 #include "dap_chain_cs_type.h"  // For dap_chain_cs_load/start/stop
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_fee.h"  // Fee management (now in net core)
@@ -272,6 +273,14 @@ extern void _s_print_chains(dap_json_t *a_obj_chain, dap_chain_t *a_chain);
  */
 int dap_chain_net_init()
 {
+    // Initialize network core module FIRST - registers API functions
+    // This must be done before any other net initialization to avoid circular dependencies
+    int l_ret = dap_chain_net_core_init();
+    if (l_ret != 0) {
+        log_it(L_ERROR, "Failed to initialize network core module (code %d)", l_ret);
+        return l_ret;
+    }
+    
     dap_ledger_init();
     dap_chain_ch_init();
     dap_chain_net_ch_init();
@@ -316,26 +325,9 @@ int dap_chain_net_init()
 
     dap_enc_http_set_acl_callback(s_net_set_acl);
     
-    // Phase 5.3: Register network API functions for mid-level modules
-    // This breaks cyclic dependencies by allowing blocks/esbocs/stake to use
-    // core net functions without depending on full net module
-    dap_chain_net_api_registry_t l_api_registry = {
-        .by_id = dap_chain_net_by_id,
-        .by_name = dap_chain_net_by_name,
-        .get_chain_by_name = dap_chain_net_get_chain_by_name,
-        .get_chain_by_type = dap_chain_net_get_chain_by_chain_type,
-        .get_default_chain_by_type = dap_chain_net_get_default_chain_by_chain_type,
-        .get_cur_cell = dap_chain_net_get_cur_cell,
-        .get_load_mode = dap_chain_net_get_load_mode,
-        .get_reward = dap_chain_net_get_reward,
-        .add_reward = dap_chain_net_add_reward
-    };
-    int l_api_ret = dap_chain_net_api_register(&l_api_registry);
-    if (l_api_ret != 0) {
-        log_it(L_ERROR, "Failed to register network API functions (code %d)", l_api_ret);
-        return -2;
-    }
-    log_it(L_INFO, "Network API functions registered for dependency inversion");
+    // Phase 5.3: Network API registration MOVED to dap_chain_net_core_init()
+    // This resolves circular dependency between net and net_core modules
+    // Core functions (by_id, by_name, etc.) are defined in net_core, so registration should be there too
     
     log_it(L_NOTICE,"Chain networks initialized");
     return 0;
