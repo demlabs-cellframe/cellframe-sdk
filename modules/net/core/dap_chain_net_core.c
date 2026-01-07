@@ -16,7 +16,8 @@
 
 // External functions from net module (resolved at final link)
 extern dap_chain_t* dap_chain_net_get_chain_by_name(dap_chain_net_t *a_net, const char *a_name);
-extern dap_chain_t* dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_chain_type);
+// REMOVED: dap_chain_net_get_default_chain_by_chain_type - already defined in dap_chain_net_utils.c
+#include "dap_chain_net_utils.h"
 extern const char* dap_chain_type_to_str(dap_chain_type_t a_chain_type);
 
 // ============ NETWORK REGISTRY ============
@@ -170,25 +171,6 @@ dap_chain_t* dap_chain_net_get_chain_by_id(dap_chain_net_t *a_net, dap_chain_id_
    return NULL;
 }
 
-/**
- * @brief Get default chain by type in network
- * @param a_net Network
- * @param a_datum_type Chain/datum type
- * @return Chain pointer or NULL if not found
- */
-dap_chain_t* dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type)
-{
-    dap_chain_t *l_chain;
-
-    if (!a_net)
-        return NULL;
-
-    DL_FOREACH(a_net->pub.chains, l_chain)
-    {
-        for(int i = 0; i < l_chain->default_datum_types_count; i++) {
-            if(l_chain->default_datum_types[i] == a_datum_type)
-                return l_chain;
-        }
-    }
-    return NULL;
-}
+// REMOVED: dap_chain_net_get_default_chain_by_chain_type() - duplicate definition
+// Already implemented in modules/net/dap_chain_net_utils.c
+// This was causing "multiple definition" linker error

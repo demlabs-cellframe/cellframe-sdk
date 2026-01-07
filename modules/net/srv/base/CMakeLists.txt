@@ -10,8 +10,9 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../3rdparty/libmaxminddb $
 # OBJECT library: net-srv is high-level service, depends on net/ledger/mempool
 target_link_libraries(${PROJECT_NAME} 
     maxminddb dap_core dap_crypto dap_common dap_chain dap_chain_datum
-    dap_chain_net dap_chain_ledger dap_chain_mempool
-    dap_chain_datum_tx dap_chain_tx_sign)  # Service layer can depend on all lower layers + TX API
+    dap_chain_net dap_chain_ledger dap_chain_mempool)
+# REMOVED: dap_chain_datum_tx, dap_chain_tx_sign - these are now part of dap_chain_datum module
+# Service layer can depend on all lower layers + TX API through dap_chain_datum
 # These are unidirectional dependencies: srv → net, srv → ledger, srv → mempool
 # No cycles because net/ledger/mempool don't depend on srv
 

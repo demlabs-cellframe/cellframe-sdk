@@ -260,6 +260,9 @@ static int s_net_try_online(dap_chain_net_t *a_net);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_sync_timer_callback(void *a_arg);
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version);
+// Forward declarations for CLI helper functions from dap_chain_net_cli.c
+extern void s_set_reply_text_node_status(dap_json_t *a_json_arr_reply, dap_chain_net_t * a_net);
+extern void _s_print_chains(dap_json_t *a_obj_chain, dap_chain_t *a_chain);
 
 /**
  * @brief
@@ -973,30 +976,9 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
     dap_json_object_add_object(a_json_out, "states", l_jobj_states);
 }
 
-void s_set_reply_text_node_status(dap_json_t *a_json_arr_reply, dap_chain_net_t * a_net){
-    char* l_node_address_text_block = NULL;
-    dap_chain_node_addr_t l_cur_node_addr = { 0 };
-    l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
-    if(!l_cur_node_addr.uint64)
-        l_node_address_text_block = dap_strdup_printf(", cur node address not defined");
-    else
-        l_node_address_text_block = dap_strdup_printf(", cur node address " NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_cur_node_addr));
-
-    char* l_sync_current_link_text_block = NULL;
-    if (PVT(a_net)->state != NET_STATE_OFFLINE)
-        l_sync_current_link_text_block = dap_strdup_printf(", active links %zu from %u",
-                                                           dap_link_manager_links_count(a_net->pub.id.uint64), 0);
-    char *l_reply_str = dap_strdup_printf("Network \"%s\" has state %s (target state %s)%s%s",
-                                      a_net->pub.name, c_net_states[PVT(a_net)->state],
-                                      c_net_states[PVT(a_net)->state_target],
-                                      (l_sync_current_link_text_block)? l_sync_current_link_text_block: "",
-                                      l_node_address_text_block
-                                      );
-    dap_json_rpc_error_add(a_json_arr_reply, -1, l_reply_str);
-    DAP_DELETE(l_reply_str);
-    DAP_DELETE(l_sync_current_link_text_block);
-    DAP_DELETE(l_node_address_text_block);
-}
+// REMOVED: s_set_reply_text_node_status() - duplicate CLI helper function
+// Already implemented in modules/net/dap_chain_net_cli.c
+// This was causing "multiple definition" linker error
 /**
  * @brief reload ledger
  * command cellframe-node-cli net -net <network_name> ledger reload
@@ -1072,27 +1054,9 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 }
 
 
-void _s_print_chains(dap_json_t *a_obj_chain, dap_chain_t *a_chain) {
-    if (!a_obj_chain || !a_chain)
-        return;
-    dap_json_object_add_string(a_obj_chain, "name", a_chain->name);
-    dap_json_object_add_object(a_obj_chain, "consensus", dap_json_object_new_string(DAP_CHAIN_PVT(a_chain)->cs_name));
-
-    if (a_chain->default_datum_types_count) {
-        dap_json_t *l_jobj_default_types = dap_json_array_new();
-        if (!l_jobj_default_types) return;
-        for (uint16_t i = 0; i < a_chain->default_datum_types_count; i++) {
-            dap_json_t *l_jobj_type_str = dap_json_object_new_string(dap_chain_type_to_str(
-                    a_chain->default_datum_types[i]));
-            if (!l_jobj_type_str) {
-                dap_json_object_free(l_jobj_default_types);
-                return;
-            }
-            dap_json_array_add(l_jobj_default_types, l_jobj_type_str);
-        }
-        dap_json_object_add_object(a_obj_chain, "default_types", l_jobj_default_types);
-    }
-}
+// REMOVED: _s_print_chains() - duplicate CLI helper function
+// Already implemented in modules/net/dap_chain_net_cli.c
+// This was causing "multiple definition" linker error
 
 /**
  * @brief
@@ -2411,15 +2375,9 @@ dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name)
  * @param a_name
  * @return
  */
-dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name)
-{
-   dap_chain_t * l_chain;
-   DL_FOREACH(l_net->pub.chains, l_chain){
-        if(dap_strcmp(l_chain->name, a_name) == 0)
-            return  l_chain;
-   }
-   return NULL;
-}
+// REMOVED: dap_chain_net_get_chain_by_name() - duplicate definition
+// Already implemented in modules/net/core/dap_chain_net_core.c
+// This was causing "multiple definition" linker error
 
 /**
  * @brief dap_chain_net_get_chain_by_id
@@ -2427,14 +2385,9 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
  * @param a_name
  * @return
  */
-dap_chain_t *dap_chain_net_get_chain_by_id(dap_chain_net_t *l_net, dap_chain_id_t a_chain_id)
-{
-   dap_chain_t *l_chain;
-   DL_FOREACH(l_net->pub.chains, l_chain)
-        if (l_chain->id.uint64 == a_chain_id.uint64)
-            return l_chain;
-   return NULL;
-}
+// REMOVED: dap_chain_net_get_chain_by_id() - duplicate definition
+// Already implemented in modules/net/core/dap_chain_net_core.c
+// This was causing "multiple definition" linker error
 
 /**
  * @brief dap_chain_net_get_chain_by_chain_type

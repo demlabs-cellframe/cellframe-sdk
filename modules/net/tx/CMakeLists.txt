@@ -14,8 +14,9 @@ target_link_libraries(${PROJECT_NAME}
     dap_core dap_crypto
     dap_chain dap_chain_datum dap_chain_ledger
     dap_chain_net dap_chain_wallet dap_chain_mempool
-    dap_chain_type_blocks dap_chain_net_srv dap_cli_error_codes
+    dap_chain_type_blocks dap_chain_net_srv
 )
+# REMOVED: dap_cli_error_codes - error codes are now part of specific CLI modules
 # NO dap_chain_net_srv_stake - breaks net-tx ↔ stake cycle
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
