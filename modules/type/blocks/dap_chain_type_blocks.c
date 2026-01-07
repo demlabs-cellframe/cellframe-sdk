@@ -41,6 +41,7 @@
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_blocks_decree.h"  // Blocks decree handlers
+#include "dap_chain_net_core.h"        // For dap_chain_net_parse_net_chain
 // REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 
 #define LOG_TAG "dap_chain_type_blocks"
