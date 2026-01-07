@@ -939,6 +939,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
     // No default here
     }
     return 0;
+}
 
 /**
  * @brief Cleanup hardfork data from chain structure
