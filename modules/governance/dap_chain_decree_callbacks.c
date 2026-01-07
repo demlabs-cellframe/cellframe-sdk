@@ -45,8 +45,20 @@ int dap_chain_decree_callbacks_register(const dap_chain_decree_callbacks_t *a_ca
     if (a_callbacks->net_get_ledger)
         s_decree_callbacks.net_get_ledger = a_callbacks->net_get_ledger;
     
+    if (a_callbacks->net_get_fee_addr)
+        s_decree_callbacks.net_get_fee_addr = a_callbacks->net_get_fee_addr;
+    
+    if (a_callbacks->net_get_name)
+        s_decree_callbacks.net_get_name = a_callbacks->net_get_name;
+    
     if (a_callbacks->stake_set_percent_max)
         s_decree_callbacks.stake_set_percent_max = a_callbacks->stake_set_percent_max;
+    
+    if (a_callbacks->stake_set_allowed_min_value)
+        s_decree_callbacks.stake_set_allowed_min_value = a_callbacks->stake_set_allowed_min_value;
+    
+    if (a_callbacks->stake_get_total_keys)
+        s_decree_callbacks.stake_get_total_keys = a_callbacks->stake_get_total_keys;
     
     if (a_callbacks->esbocs_set_signs_struct_check)
         s_decree_callbacks.esbocs_set_signs_struct_check = a_callbacks->esbocs_set_signs_struct_check;
@@ -65,6 +77,9 @@ int dap_chain_decree_callbacks_register(const dap_chain_decree_callbacks_t *a_ca
     
     if (a_callbacks->esbocs_set_empty_block_every_times)
         s_decree_callbacks.esbocs_set_empty_block_every_times = a_callbacks->esbocs_set_empty_block_every_times;
+    
+    if (a_callbacks->esbocs_get_min_validators_count)
+        s_decree_callbacks.esbocs_get_min_validators_count = a_callbacks->esbocs_get_min_validators_count;
     
     return 0;
 }

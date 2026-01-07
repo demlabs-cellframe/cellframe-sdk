@@ -42,9 +42,13 @@ typedef struct dap_chain_decree_callbacks {
     uint16_t (*net_get_poa_keys_min_count)(dap_chain_net_id_t a_net_id);  // Get minimum PoA signers count
     dap_chain_t *(*net_get_chains)(dap_chain_net_id_t a_net_id);  // Get chain list for network
     dap_ledger_t *(*net_get_ledger)(dap_chain_net_id_t a_net_id);  // Get ledger for network
+    dap_chain_addr_t (*net_get_fee_addr)(dap_chain_net_id_t a_net_id);  // Get fee address for network
+    const char *(*net_get_name)(dap_chain_net_id_t a_net_id);  // Get network name
     
     // Stake service callbacks
     void (*stake_set_percent_max)(dap_chain_net_id_t a_net_id, uint256_t a_value);
+    void (*stake_set_allowed_min_value)(dap_chain_net_id_t a_net_id, uint256_t a_value);
+    uint16_t (*stake_get_total_keys)(dap_chain_net_id_t a_net_id, uint256_t *a_total_weight);
     
     // ESBOCS consensus callbacks  
     int (*esbocs_set_signs_struct_check)(dap_chain_t *a_chain, bool a_enabled);
@@ -53,6 +57,7 @@ typedef struct dap_chain_decree_callbacks {
     bool (*esbocs_hardfork_engaged)(dap_chain_t *a_chain);
     int (*esbocs_set_hardfork_complete)(dap_chain_t *a_chain);
     int (*esbocs_set_empty_block_every_times)(dap_chain_t *a_chain, uint256_t a_blockgen_period);
+    uint16_t (*esbocs_get_min_validators_count)(dap_chain_net_id_t a_net_id);
 } dap_chain_decree_callbacks_t;
 
 /**

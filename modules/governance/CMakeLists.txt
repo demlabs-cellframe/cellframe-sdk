@@ -5,18 +5,17 @@ project(dap_chain_governance)
 file(GLOB DAP_CHAIN_GOVERNANCE_SRCS *.c)
 file(GLOB DAP_CHAIN_GOVERNANCE_HEADERS include/*.h)
 
-# Governance module - high-level management (decrees, policies, etc)
+# Governance module - CORE-LEVEL management (decrees, policies)
+# Uses Dependency Inversion - doesn't depend on net/stake/esbocs directly
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_GOVERNANCE_SRCS} HEADERS ${DAP_CHAIN_GOVERNANCE_HEADERS})
 
-# Governance is HIGH-LEVEL module - CAN depend on net, stake, etc
+# Governance is LOW-LEVEL module - only depends on ledger and chain
 target_link_libraries(${PROJECT_NAME}
     dap_core
     dap_crypto
     dap_chain
     dap_chain_datum
     dap_chain_ledger
-    dap_chain_net
-    dap_chain_net_tx
     dap_global_db
     dap_http_server
 )
