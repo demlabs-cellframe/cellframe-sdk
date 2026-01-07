@@ -32,7 +32,6 @@
 #include "dap_chain_rpc_callbacks.h" // RPC callbacks for Dependency Inversion (Phase 5.3)
 // REMOVED: #include "dap_chain_cs_esbocs.h" - using DAP_CHAIN_ESBOCS_CS_TYPE_STR from dap_chain_types.h
 // Phase 5.4: Removed direct dependencies to break cycles
-#include "dap_chain_type_blocks.h"  // blocks is OK (no cycle)
 // REMOVED: dap_chain_net_srv_stake_pos_delegate.h - breaks cycle, use Validator API
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_balancer.h"
