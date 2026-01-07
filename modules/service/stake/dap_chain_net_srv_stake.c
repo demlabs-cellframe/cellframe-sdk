@@ -29,6 +29,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_stake.h"
+#include "dap_chain_net_srv_stake_tx_builder.h"
 #include "dap_chain_net_utils.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_wallet.h"
@@ -257,6 +258,12 @@ static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
  */
 int dap_chain_net_srv_stake_init()
 {
+    // Register TX builders in TX Compose Plugin API
+    if (dap_stake_tx_builders_register() != 0) {
+        log_it(L_ERROR, "Failed to register stake TX builders");
+        return -1;
+    }
+    
     dap_chain_net_srv_stake_pos_delegate_init();
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, NULL, NULL, s_stake_lock_callback_updater, NULL, NULL);
     dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, NULL, "Stake lock service commands", 0,
