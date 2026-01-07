@@ -9,8 +9,7 @@ if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(wallet)
     add_subdirectory(chain)
     add_subdirectory(ledger)
-    # TODO: Temporarily disabled - requires refactoring for new architecture
-    # add_subdirectory(governance)   # High-level governance (decree, policies)
+    add_subdirectory(governance)   # High-level governance (decree, policies)
 endif()
 
 # Distributed Hash Tables (DHT)
@@ -67,9 +66,7 @@ if (CELLFRAME_MODULES MATCHES "cs-")
 endif()
 
 # ESBOCS
-if (FALSE AND CELLFRAME_MODULES MATCHES "cs-esbocs")
-    # TODO: Temporarily disabled - requires stake module refactoring
-    # ESBOCS heavily depends on stake service functions which are temporarily disabled
+if (CELLFRAME_MODULES MATCHES "cs-esbocs")
     add_subdirectory(consensus/esbocs)
 endif()
 
@@ -99,16 +96,12 @@ if (CELLFRAME_MODULES MATCHES "srv-vpn")
 endif()
 
 # Service eXchange
-# TODO: Temporarily disabled - requires migration to new TX Compose API
-# Uses deprecated dap_chain_tx_compose_config_t structure  
-if (FALSE AND CELLFRAME_MODULES MATCHES "srv-xchange")
+if (CELLFRAME_MODULES MATCHES "srv-xchange")
     add_subdirectory(service/xchange)
 endif()
 
 # Service for token staking and PoS delegation
-# TODO: Temporarily disabled - requires migration to new TX Compose API
-# Uses deprecated dap_chain_tx_compose_config_t structure
-if (FALSE AND CELLFRAME_MODULES MATCHES "srv-stake")
+if (CELLFRAME_MODULES MATCHES "srv-stake")
     add_subdirectory(service/stake)
 endif()
 
