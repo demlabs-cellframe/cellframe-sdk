@@ -16,7 +16,7 @@
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
 #include "dap_chain_token_cli_error_codes.h"
-char *dap_chain_mempool_group_new(dap_chain_t *a_chain);
+#include "dap_chain_mempool.h"
 #include "dap_cert.h"
 
 #define LOG_TAG "dap_chain_cli"

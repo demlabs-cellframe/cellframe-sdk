@@ -60,6 +60,12 @@ int dap_chain_token_cli_error_codes_init(void)
     dap_cli_error_code_register("TOKEN_EMIT_ADDR_INVALID_ERR", -320, "Invalid address for token emission");
     dap_cli_error_code_register("TOKEN_EMIT_CANT_FIND_EMI_ERR", -321, "Cannot find emission for token");
     
+    // Chain CA publication errors
+    dap_cli_error_code_register("CHAIN_CA_PUB_CANT_SERIALIZE_MEMORY_CERT_ERR", -330, "Cannot serialize certificate to memory");
+    dap_cli_error_code_register("CHAIN_CA_PUB_CANT_PRODUCE_CERT_ERR", -331, "Cannot produce certificate");
+    dap_cli_error_code_register("CHAIN_CA_PUB_OK", 0, "Chain CA publication successful");
+    dap_cli_error_code_register("CHAIN_CA_PUB_CANT_PLACE_CERT_ERR", -332, "Cannot place certificate");
+    
     log_it(L_NOTICE, "Token CLI error codes registered");
     return 0;
 }

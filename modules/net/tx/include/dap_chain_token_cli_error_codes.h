@@ -53,6 +53,12 @@
 #define DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_ADDR_INVALID_ERR               dap_cli_error_code_get("TOKEN_EMIT_ADDR_INVALID_ERR")
 #define DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_CANT_FIND_EMI_ERR              dap_cli_error_code_get("TOKEN_EMIT_CANT_FIND_EMI_ERR")
 
+// Chain CA publication errors
+#define DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_SERIALIZE_MEMORY_CERT_ERR dap_cli_error_code_get("CHAIN_CA_PUB_CANT_SERIALIZE_MEMORY_CERT_ERR")
+#define DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PRODUCE_CERT_ERR          dap_cli_error_code_get("CHAIN_CA_PUB_CANT_PRODUCE_CERT_ERR")
+#define DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_OK                              dap_cli_error_code_get("CHAIN_CA_PUB_OK")
+#define DAP_CHAIN_NODE_CLI_COM_CHAIN_CA_PUB_CANT_PLACE_CERT_ERR             dap_cli_error_code_get("CHAIN_CA_PUB_CANT_PLACE_CERT_ERR")
+
 // Initialization and cleanup functions
 int dap_chain_token_cli_error_codes_init(void);
 void dap_chain_token_cli_error_codes_deinit(void);
