@@ -21,6 +21,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "dap_common.h"
 #include "dap_cli_error_codes.h"
 #include "dap_chain_wallet_cli_error_codes.h"
 

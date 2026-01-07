@@ -1097,7 +1097,7 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
 
     dap_json_t *l_jobj_states = dap_json_object_new();
     dap_json_t *l_jobj_current_states = dap_json_object_new_string(dap_chain_net_state_to_str_user(a_net));
-    dap_json_t *l_jobj_target_states = dap_json_object_new_string(c_net_states[dap_chain_net_get_target_state(a_net)]);
+    dap_json_t *l_jobj_target_states = dap_json_object_new_string(dap_chain_net_state_to_str(dap_chain_net_get_target_state(a_net)));
     dap_json_object_add_object(l_jobj_states, "current", l_jobj_current_states);
     dap_json_object_add_object(l_jobj_states, "target", l_jobj_target_states);
     dap_json_object_add_object(a_json_out, "states", l_jobj_states);
