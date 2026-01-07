@@ -10,6 +10,9 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_tx_compose_api.h"
 #include "dap_chain_datum.h"
+#include "dap_chain_ledger.h"      // For dap_ledger_sign_data
+#include "dap_chain_tx_sign.h"     // For dap_chain_tx_sign_add
+#include "dap_chain_utxo.h"        // For dap_chain_tx_used_out_t
 #include "dap_common.h"
 
 #define LOG_TAG "dap_stake_tx_builder"
@@ -73,15 +76,18 @@ dap_chain_datum_tx_t *dap_stake_tx_create_lock(
     }
     
     // Create stake lock conditional output
+    // TODO: Add ticker and delegated parameters support
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
         a_srv_uid,
         a_value,
-        a_time_staking,
-        a_reinvest_percent,
-        (void*)a_main_ticker,
-        a_delegated_ticker ? (void*)a_delegated_ticker : NULL,
-        a_delegated_value
+        a_time_staking,  // time_unlock
+        a_reinvest_percent
     );
+    
+    UNUSED(a_main_ticker);
+    UNUSED(a_delegated_ticker);
+    UNUSED(a_delegated_value);
+    UNUSED(a_chain_id);
     
     if (!l_tx_out_cond) {
         log_it(L_ERROR, "Failed to create stake lock conditional output");
