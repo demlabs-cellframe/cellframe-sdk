@@ -531,6 +531,8 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     DAP_DELETE(l_gdb_group_mempool);
 }
 
+// DISABLED: requires dap_chain_type_blocks.h (DAP_CHAIN_CANDIDATE_MAX_SIZE, dap_chain_block_t)
+#if 0
 static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t *a_state, size_t *a_datums_count)
 {
     dap_chain_datum_t **ret = NULL;
@@ -562,6 +564,10 @@ static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_
         *a_datums_count = l_datums_count;
     return ret;
 }
+#endif // DISABLED: requires dap_chain_type_blocks.h
+
+// DISABLED: requires dap_chain_type_blocks_fees_aggregate
+#if 0
 
 int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs)
 {
@@ -728,6 +734,7 @@ static dap_chain_datum_t *s_event_tx_create(dap_chain_tx_event_t *a_event)
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
+#endif // DISABLED: dap_chain_node_hardfork_prepare
         if (dap_chain_datum_tx_add_item(&l_tx, l_event_tsd) != 1) {
             DAP_DELETE(l_event_tsd);
             dap_chain_datum_tx_delete(l_tx);
