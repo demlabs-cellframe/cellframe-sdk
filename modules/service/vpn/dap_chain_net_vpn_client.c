@@ -60,6 +60,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_tx_compose_api.h"  // For Plugin API dap_chain_tx_compose_create
 // REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
 #include "dap_chain_node_sync_client.h"
 #include "dap_chain_net_srv_order.h"
@@ -333,9 +334,41 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
             log_it(L_ERROR, "Can't get pkey hash");
             return NULL;
         }
-        char *l_tx_cond_hash_str = dap_chain_mempool_tx_create_cond(a_net, l_enc_key, &l_pkey_hash, a_token_ticker,
-                                                          l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0, "hex");
+        // TODO: REFACTOR THIS - VPN needs proper TX compose with UTXO selection!
+        // For now, this is temporarily disabled until VPN refactoring is complete.
+        // The old dap_chain_mempool_tx_create_cond() was removed as part of legacy cleanup.
+        // 
+        // Proper solution requires:
+        // 1. Using wallet_cache API for UTXO selection
+        // 2. Calling dap_net_srv_tx_create_cond_output() pure builder
+        // 3. Adding signing logic
+        // 4. Adding datum to mempool
+        //
+        // This is a CLI function for VPN client, low priority for now.
+        log_it(L_WARNING, "VPN TX creation temporarily disabled - needs refactoring to new Plugin API");
+        char *l_tx_cond_hash_str = NULL;  // TEMPORARY: disabled
+        /*
+        // Create TX using Plugin API (returns datum, not hash string)
+        dap_chain_datum_t *l_tx_cond_datum = dap_chain_tx_compose_create("cond_output", a_net, l_enc_key, &l_pkey_hash, a_token_ticker,
+                                                          l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0);
         DAP_DELETE(l_addr_from);
+        
+        char *l_tx_cond_hash_str = NULL;
+        if (!l_tx_cond_datum) {
+            log_it(L_ERROR, "Can't create condition for user");
+        } else {
+            // Add datum to mempool and get hash string
+            dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+            if (l_chain) {
+                l_tx_cond_hash_str = dap_chain_mempool_datum_add(l_tx_cond_datum, l_chain, "hex");
+                DAP_DELETE(l_tx_cond_datum);
+            } else {
+                log_it(L_ERROR, "Can't find TX chain for network %s", a_net->pub.name);
+                DAP_DELETE(l_tx_cond_datum);
+            }
+        }
+        */
+        
         if(!l_tx_cond_hash_str) {
             log_it(L_ERROR, "Can't create condition for user");
         } else {
