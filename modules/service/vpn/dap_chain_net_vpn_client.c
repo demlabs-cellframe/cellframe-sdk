@@ -60,7 +60,10 @@
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_tx.h"
-#include "dap_chain_tx_compose_api.h"  // For Plugin API dap_chain_tx_compose_create
+#include "dap_chain_wallet_cache.h"  // For UTXO selection
+#include "dap_chain_net_srv_tx.h"    // For dap_net_srv_tx_create_cond_output
+#include "dap_chain_tx_sign.h"       // For TX signing
+#include "dap_sign.h"                 // For dap_sign_create
 // REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
 #include "dap_chain_node_sync_client.h"
 #include "dap_chain_net_srv_order.h"
@@ -334,40 +337,104 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
             log_it(L_ERROR, "Can't get pkey hash");
             return NULL;
         }
-        // TODO: REFACTOR THIS - VPN needs proper TX compose with UTXO selection!
-        // For now, this is temporarily disabled until VPN refactoring is complete.
-        // The old dap_chain_mempool_tx_create_cond() was removed as part of legacy cleanup.
-        // 
-        // Proper solution requires:
-        // 1. Using wallet_cache API for UTXO selection
-        // 2. Calling dap_net_srv_tx_create_cond_output() pure builder
-        // 3. Adding signing logic
-        // 4. Adding datum to mempool
-        //
-        // This is a CLI function for VPN client, low priority for now.
-        log_it(L_WARNING, "VPN TX creation temporarily disabled - needs refactoring to new Plugin API");
-        char *l_tx_cond_hash_str = NULL;  // TEMPORARY: disabled
-        /*
-        // Create TX using Plugin API (returns datum, not hash string)
-        dap_chain_datum_t *l_tx_cond_datum = dap_chain_tx_compose_create("cond_output", a_net, l_enc_key, &l_pkey_hash, a_token_ticker,
-                                                          l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0);
-        DAP_DELETE(l_addr_from);
+        // FULL REFACTOR: VPN TX creation using new Plugin API
+        // Step 1: Get wallet address (already have l_addr_from pointer from above)
+        
+        // Step 2: Calculate total value needed (value + fee)
+        uint256_t l_value_total = l_value;
+        uint256_t l_net_fee;
+        dap_chain_addr_t l_net_fee_addr;
+        if (dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr)) {
+            SUM_256_256(l_value_total, l_net_fee, &l_value_total);
+        }
+        
+        // Step 3: Find UTXOs using wallet_cache API
+        dap_list_t *l_list_used_outs = NULL;
+        uint256_t l_value_transfer = {};
+        int l_utxo_res = dap_chain_wallet_cache_tx_find_outs_with_val(
+            a_net, a_token_ticker, l_addr_from,  // Use existing l_addr_from pointer
+            &l_list_used_outs, l_value_total, &l_value_transfer
+        );
         
         char *l_tx_cond_hash_str = NULL;
-        if (!l_tx_cond_datum) {
-            log_it(L_ERROR, "Can't create condition for user");
+        if (l_utxo_res != 0 || !l_list_used_outs) {
+            log_it(L_ERROR, "Not enough funds for VPN conditional TX (ticker: %s)", a_token_ticker);
         } else {
-            // Add datum to mempool and get hash string
-            dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
-            if (l_chain) {
-                l_tx_cond_hash_str = dap_chain_mempool_datum_add(l_tx_cond_datum, l_chain, "hex");
-                DAP_DELETE(l_tx_cond_datum);
+            // Step 4: Create unsigned TX using pure builder
+            dap_chain_datum_tx_t *l_tx = dap_net_srv_tx_create_cond_output(
+                l_list_used_outs,
+                &l_pkey_hash,
+                a_token_ticker,
+                l_value,
+                l_zero,  // value_per_unit_max
+                l_price_unit,
+                l_srv_uid,
+                l_net_fee,  // fee
+                NULL,  // cond data
+                0      // cond size
+            );
+            
+            if (!l_tx) {
+                log_it(L_ERROR, "Failed to build VPN conditional TX");
+                dap_list_free_full(l_list_used_outs, NULL);
             } else {
-                log_it(L_ERROR, "Can't find TX chain for network %s", a_net->pub.name);
-                DAP_DELETE(l_tx_cond_datum);
+                // Step 5: Get signing data and create signature
+                size_t l_sign_data_size = 0;
+                const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
+                if (!l_sign_data) {
+                    log_it(L_ERROR, "Failed to get signing data for VPN TX");
+                    DAP_DELETE(l_tx);
+                    dap_list_free_full(l_list_used_outs, NULL);
+                } else {
+                    // Create signature using wallet key
+                    dap_sign_t *l_sign = dap_sign_create(l_enc_key, l_sign_data, l_sign_data_size);
+                    if (!l_sign) {
+                        log_it(L_ERROR, "Failed to create signature for VPN TX");
+                        DAP_DELETE(l_tx);
+                        dap_list_free_full(l_list_used_outs, NULL);
+                    } else {
+                        // Add signature to TX
+                        if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
+                            log_it(L_ERROR, "Failed to add signature to VPN TX");
+                            DAP_DELETE(l_sign);
+                            DAP_DELETE(l_tx);
+                            dap_list_free_full(l_list_used_outs, NULL);
+                        } else {
+                            DAP_DELETE(l_sign);
+                            // Step 6: Create datum and add to mempool
+                            size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+                            dap_chain_datum_t *l_datum = dap_chain_datum_create(
+                                DAP_CHAIN_DATUM_TX,
+                                l_tx,
+                                l_tx_size
+                            );
+                            DAP_DELETE(l_tx);
+                            dap_list_free_full(l_list_used_outs, NULL);
+                            
+                            if (!l_datum) {
+                                log_it(L_ERROR, "Failed to create datum for VPN conditional TX");
+                            } else {
+                                // Step 7: Add to mempool and get hash
+                                dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+                                if (!l_chain) {
+                                    log_it(L_ERROR, "Can't find TX chain for network %s", a_net->pub.name);
+                                    DAP_DELETE(l_datum);
+                                } else {
+                                    l_tx_cond_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+                                    DAP_DELETE(l_datum);
+                                    
+                                    if (!l_tx_cond_hash_str) {
+                                        log_it(L_ERROR, "Failed to add VPN conditional TX to mempool");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
-        */
+        
+        DAP_DELETE(l_addr_from);
         
         if(!l_tx_cond_hash_str) {
             log_it(L_ERROR, "Can't create condition for user");
