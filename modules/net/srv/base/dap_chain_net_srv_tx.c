@@ -221,6 +221,129 @@ static dap_chain_datum_t* s_net_srv_cond_output_compose_cb(
     return l_datum;
 }
 
+// ============================================================================
+// COND INPUT TX Builder (for spending conditional outputs with receipt)
+// ============================================================================
+
+/**
+ * @brief Create conditional input transaction (spend conditional output)
+ * 
+ * This creates a TX that spends a conditional output using a receipt
+ */
+dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_input(
+    dap_hash_fast_t *a_tx_prev_hash,
+    uint32_t a_tx_out_prev_idx,
+    dap_chain_datum_tx_receipt_t *a_receipt,
+    const dap_chain_addr_t *a_addr_to,
+    uint256_t a_value,
+    const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX]
+)
+{
+    if (!a_tx_prev_hash || !a_receipt || !a_addr_to || !a_token_ticker) {
+        log_it(L_ERROR, "Invalid parameters for cond_input TX");
+        return NULL;
+    }
+    
+    // Create transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to create transaction");
+        return NULL;
+    }
+    
+    // Add conditional input (spending previous conditional output)
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_prev_hash, a_tx_out_prev_idx, a_receipt->receipt_idx) != 1) {
+        log_it(L_ERROR, "Failed to add conditional input");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    // Add receipt
+    size_t l_receipt_size = dap_chain_datum_tx_receipt_size(a_receipt);
+    if (dap_chain_datum_tx_add_receipt_item(&l_tx, a_receipt, l_receipt_size) != 1) {
+        log_it(L_ERROR, "Failed to add receipt");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    // Add output to destination
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, a_value, a_token_ticker) != 1) {
+        log_it(L_ERROR, "Failed to add output");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    log_it(L_INFO, "Created unsigned conditional input transaction");
+    return l_tx;
+}
+
+/**
+ * @brief Parameters for cond_input compose callback
+ */
+typedef struct {
+    dap_hash_fast_t *tx_prev_hash;
+    uint32_t tx_out_prev_idx;
+    dap_chain_datum_tx_receipt_t *receipt;
+    const dap_chain_addr_t *addr_to;
+    uint256_t value;
+    const char *ticker;
+    const char *wallet_name;
+} net_srv_cond_input_params_t;
+
+/**
+ * @brief Compose callback for cond_input TX
+ */
+static dap_chain_datum_t* s_net_srv_cond_input_compose_cb(
+    dap_ledger_t *a_ledger,
+    dap_list_t *a_list_used_outs,
+    void *a_params
+)
+{
+    (void)a_list_used_outs;  // Not used for cond_input - it spends specific cond output
+    
+    net_srv_cond_input_params_t *l_params = (net_srv_cond_input_params_t *)a_params;
+    if (!l_params || !l_params->wallet_name) {
+        log_it(L_ERROR, "Invalid cond_input parameters");
+        return NULL;
+    }
+    
+    // 1. Build unsigned TX
+    dap_chain_datum_tx_t *l_tx = dap_net_srv_tx_create_cond_input(
+        l_params->tx_prev_hash,
+        l_params->tx_out_prev_idx,
+        l_params->receipt,
+        l_params->addr_to,
+        l_params->value,
+        l_params->ticker
+    );
+    
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to create cond_input TX");
+        return NULL;
+    }
+    
+    // 2. Sign with wallet
+    if (dap_ledger_sign_data(a_ledger, l_params->wallet_name, l_tx, 
+                             dap_chain_datum_tx_get_size(l_tx), &l_tx) != 0) {
+        log_it(L_ERROR, "Failed to sign cond_input TX");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    // 3. Convert to datum
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    DAP_DELETE(l_tx);
+    
+    if (!l_datum) {
+        log_it(L_ERROR, "Failed to create datum for cond_input TX");
+        return NULL;
+    }
+    
+    log_it(L_INFO, "Created and signed cond_input TX datum (net/srv)");
+    return l_datum;
+}
+
 /**
  * @brief Register net/srv TX builders in TX Compose API
  */
@@ -234,7 +357,13 @@ int dap_net_srv_tx_builders_register(void)
         return l_ret;
     }
     
-    log_it(L_NOTICE, "Net/srv TX builders registered successfully");
+    l_ret = dap_chain_tx_compose_register("cond_input", s_net_srv_cond_input_compose_cb, NULL);
+    if (l_ret != 0) {
+        log_it(L_ERROR, "Failed to register 'cond_input' builder");
+        return l_ret;
+    }
+    
+    log_it(L_NOTICE, "Net/srv TX builders registered successfully (cond_output, cond_input)");
     return 0;
 }
 
@@ -245,6 +374,7 @@ void dap_net_srv_tx_builders_unregister(void)
 {
     log_it(L_INFO, "Unregistering net/srv TX builders...");
     dap_chain_tx_compose_unregister("cond_output");
+    dap_chain_tx_compose_unregister("cond_input");
     log_it(L_NOTICE, "Net/srv TX builders unregistered");
 }
 

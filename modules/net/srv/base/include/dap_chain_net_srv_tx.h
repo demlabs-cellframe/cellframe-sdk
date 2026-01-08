@@ -72,6 +72,26 @@ dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_output(
 );
 
 /**
+ * @brief Create conditional input transaction (spend conditional output)
+ * 
+ * @param a_tx_prev_hash Hash of TX with conditional output
+ * @param a_tx_out_prev_idx Output index in previous TX
+ * @param a_receipt Receipt for spending
+ * @param a_addr_to Destination address
+ * @param a_value Value to transfer
+ * @param a_token_ticker Token ticker
+ * @return Unsigned TX or NULL on error
+ */
+dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_input(
+    dap_hash_fast_t *a_tx_prev_hash,
+    uint32_t a_tx_out_prev_idx,
+    dap_chain_datum_tx_receipt_t *a_receipt,
+    const dap_chain_addr_t *a_addr_to,
+    uint256_t a_value,
+    const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX]
+);
+
+/**
  * @brief Register net/srv TX builders in TX Compose API
  * 
  * Called automatically during net/srv module initialization
