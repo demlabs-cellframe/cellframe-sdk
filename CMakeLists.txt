@@ -34,6 +34,7 @@ add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 # Option to build Cellframe SDK tests (can be overridden from command line)
 option(BUILD_CELLFRAME_SDK_TESTS "Build Cellframe SDK tests" OFF)
+option(BUILD_PERFORMANCE_TESTS "Build performance tests (TPS, load testing)" OFF)
 # Configure DAP SDK modules
 # Default modules are set in dap-sdk/CMakeLists.txt: crypto plugin io network-* global-db
 if(BUILD_CELLFRAME_SDK_TESTS)
@@ -429,4 +430,12 @@ if(INSTALL_CELLFRAME_SDK)
     endif()
 else()
     message(STATUS "[Cellframe-SDK] Installation disabled (build-time dependency only)")
+endif()
+
+# =========================================
+# TESTS
+# =========================================
+# Performance tests (optional, not run by default)
+if(BUILD_PERFORMANCE_TESTS)
+    add_subdirectory(tests/performance)
 endif()
