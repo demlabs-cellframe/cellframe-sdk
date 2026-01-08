@@ -31,7 +31,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"  // For wallet_cache TX outs API
 #include "dap_chain_mempool.h"  // For dap_chain_mempool_group_new
-#include "dap_global_db_driver.h"  // For GDB read
+#include "dap_global_db_driver.h"  // For GDB read (includes dap_store_obj_t)
 #include "dap_json.h"
 #include "dap_chain_mempool.h"
 #include "dap_cli_server.h"
@@ -1120,15 +1120,24 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, dap_json_t *a_
         return ERROR_PARAM;
     }
     
-    size_t l_datum_size = 0;
-    dap_chain_datum_t *l_tx_in = (dap_chain_datum_t *)dap_global_db_driver_read(l_mempool_group, l_tx_in_hash_str, &l_datum_size);
+    size_t l_objs_count = 0;
+    dap_store_obj_t *l_store_obj = dap_global_db_driver_read(l_mempool_group, l_tx_in_hash_str, &l_objs_count, false);
     DAP_DELETE(l_mempool_group);
     
-    if (!l_tx_in || l_tx_in->header.type_id != DAP_CHAIN_DATUM_TX) {
-        DAP_DELETE(l_tx_in);
+    if (!l_store_obj || !l_store_obj->value) {
+        dap_store_obj_free_one(l_store_obj);
         dap_json_rpc_error_add(a_json_arr_reply, ERROR_VALUE, "TX %s not found in mempool", l_tx_in_hash_str);
         return ERROR_VALUE;
     }
+    
+    dap_chain_datum_t *l_tx_in = (dap_chain_datum_t *)l_store_obj->value;
+    if (l_tx_in->header.type_id != DAP_CHAIN_DATUM_TX) {
+        dap_store_obj_free_one(l_store_obj);
+        dap_json_rpc_error_add(a_json_arr_reply, ERROR_VALUE, "Datum %s is not a transaction", l_tx_in_hash_str);
+        return ERROR_VALUE;
+    }
+    
+    // Note: l_tx_in points to memory inside l_store_obj, must be freed later!
 
     dap_enc_key_t *l_enc_key = NULL;
     const char *l_sign_str = NULL;
