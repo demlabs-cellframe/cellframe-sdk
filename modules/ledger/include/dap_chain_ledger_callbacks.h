@@ -24,7 +24,8 @@
 #pragma once
 
 #include "dap_chain_common.h"
-#include "dap_json_rpc.h"
+// Forward declaration for dap_json_rpc types
+typedef struct dap_json dap_json_object_t;
 
 /**
  * @file dap_chain_ledger_callbacks.h

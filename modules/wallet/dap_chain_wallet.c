@@ -222,7 +222,7 @@ char *c_wallets_path;
         dap_json_t *l_json = dap_json_object_new();
         dap_json_object_add_string(l_json, "class", "WalletInfo");
         dap_json_t *l_wallet_info = dap_json_object_new();
-        dap_json_object_add_object(l_wallet_info, a_name, dap_chain_wallet_info_to_json(a_name, c_wallets_path));
+        // MOVED_TO_WALLET_CACHE: dap_json_object_add_object(l_wallet_info, a_name, dap_chain_wallet_info_to_json(a_name, c_wallets_path));
         dap_json_object_add_string(l_wallet_info, "name", a_name);
         dap_json_object_add_object(l_json, "wallet", l_wallet_info);
         char *l_json_str = dap_json_to_string(l_json);
@@ -402,13 +402,14 @@ int dap_chain_wallet_init()
 
     closedir(l_dir);
 
-    // Register wallet TX builders in TX Compose API
-    if (dap_wallet_tx_builders_register() != 0) {
-        log_it(L_ERROR, "Failed to register wallet TX builders");
-        return -1;
-    }
+    // MOVED_TO_WALLET_TX: Register wallet TX builders in TX Compose API
+    // MOVED_TO_WALLET_TX: if (dap_wallet_tx_builders_register() != 0) {
+    // MOVED_TO_WALLET_TX:     log_it(L_ERROR, "Failed to register wallet TX builders");
+    // MOVED_TO_WALLET_TX:     return -1;
+    // MOVED_TO_WALLET_TX: }
 
-    return dap_chain_wallet_shared_init();
+    // MOVED_TO_WALLET_SHARED: return dap_chain_wallet_shared_init();
+    return 0;
 }
 
 /**
@@ -416,8 +417,8 @@ int dap_chain_wallet_init()
  */
 void dap_chain_wallet_deinit(void)
 {
-    // Unregister wallet TX builders
-    dap_wallet_tx_builders_unregister();
+    // MOVED_TO_WALLET_TX: Unregister wallet TX builders
+    // MOVED_TO_WALLET_TX: dap_wallet_tx_builders_unregister();
     
     DAP_DELETE(s_wallets_path);
 }
