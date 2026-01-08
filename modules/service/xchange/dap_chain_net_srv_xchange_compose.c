@@ -304,10 +304,15 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
     }
     DAP_DELETE(l_tx_out_cond);
     
-    // TODO: Add inputs and fee (requires UTXO selection from ledger)
-    // This is a PURE TX builder, inputs will be added by compose layer
+    // Add fee output
+    // NOTE: Inputs will be added by compose callback from UTXO selection
+    if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
+        log_it(L_ERROR, "Failed to add fee output");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
     
-    log_it(L_INFO, "Created xchange order TX (unsigned): sell %s %s for %s at rate %s",
+    log_it(L_INFO, "Created xchange order TX (unsigned, inputs will be added by compose layer): sell %s %s for %s at rate %s",
            dap_uint256_to_char(a_datoshi_sell, NULL), a_token_sell, a_token_buy,
            dap_uint256_to_char(a_rate, NULL));
     
@@ -406,10 +411,15 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
     
     DAP_DEL_Z(l_token_ticker);
     
-    // 8. Add fee (requires additional inputs - will be added by compose layer with UTXO selection)
-    // For now TX is incomplete, compose callback will add fee inputs
+    // 8. Add fee output
+    // NOTE: Inputs for fee will be added by compose callback from UTXO selection
+    if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
+        log_it(L_ERROR, "Failed to add fee output");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
     
-    log_it(L_INFO, "Created xchange invalidate TX (unsigned)");
+    log_it(L_INFO, "Created xchange invalidate TX (unsigned, inputs will be added by compose layer)");
     return l_tx;
 }
 
@@ -576,9 +586,15 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
     
     DAP_DEL_Z(l_token_ticker_sell);
     
-    // 11. Add fee and buyer inputs (will be added by compose layer with UTXO selection)
+    // 11. Add fee output
+    // NOTE: Inputs for payment and fee will be added by compose callback from UTXO selection
+    if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
+        log_it(L_ERROR, "Failed to add fee output");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
     
-    log_it(L_INFO, "Created xchange purchase TX (unsigned): bought %s, paid %s",
+    log_it(L_INFO, "Created xchange purchase TX (unsigned, inputs will be added by compose layer): bought %s, paid %s",
            dap_uint256_to_char(a_value, NULL),
            dap_uint256_to_char(l_value_to_pay, NULL));
     
@@ -632,7 +648,30 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
         return NULL;
     }
 
-    // 2. Get sign data
+    // 2. Add inputs from selected UTXOs
+    if (a_list_used_outs) {
+        for (dap_list_t *l_iter = a_list_used_outs; l_iter; l_iter = l_iter->next) {
+            dap_chain_tx_used_out_t *l_used_out = (dap_chain_tx_used_out_t *)l_iter->data;
+            if (!l_used_out) continue;
+            
+            if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_prev_hash, l_used_out->tx_out_prev_idx) != 1) {
+                log_it(L_ERROR, "Failed to add input item");
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+    }
+    
+    // 3. Add fee output
+    if (!IS_ZERO_256(l_params->fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, l_params->fee) != 1) {
+            log_it(L_ERROR, "Failed to add fee");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // 4. Get sign data
     size_t l_sign_data_size = 0;
     const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
     if (!l_sign_data) {
@@ -641,7 +680,7 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
         return NULL;
     }
 
-    // 3. Sign via ledger
+    // 5. Sign via ledger
     dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
                                               l_sign_data, l_sign_data_size, 0);
     if (!l_sign) {
@@ -650,7 +689,7 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
         return NULL;
     }
 
-    // 4. Add signature to TX
+    // 6. Add signature to TX
     if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
         log_it(L_ERROR, "Failed to add signature to TX");
         DAP_DELETE(l_sign);
@@ -659,7 +698,7 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
     }
     DAP_DELETE(l_sign);
 
-    // 5. Convert to datum
+    // 7. Convert to datum
     dap_chain_datum_t *l_datum = dap_chain_datum_create(
         DAP_CHAIN_DATUM_TX,
         l_tx,
@@ -714,7 +753,30 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
         return NULL;
     }
 
-    // 2. Get sign data
+    // 2. Add inputs from selected UTXOs (for fee payment)
+    if (a_list_used_outs) {
+        for (dap_list_t *l_iter = a_list_used_outs; l_iter; l_iter = l_iter->next) {
+            dap_chain_tx_used_out_t *l_used_out = (dap_chain_tx_used_out_t *)l_iter->data;
+            if (!l_used_out) continue;
+            
+            if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_prev_hash, l_used_out->tx_out_prev_idx) != 1) {
+                log_it(L_ERROR, "Failed to add input item for fee");
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+    }
+    
+    // 3. Add fee output
+    if (!IS_ZERO_256(l_params->fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, l_params->fee) != 1) {
+            log_it(L_ERROR, "Failed to add fee");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // 4. Get sign data
     size_t l_sign_data_size = 0;
     const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
     if (!l_sign_data) {
@@ -723,7 +785,7 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
         return NULL;
     }
 
-    // 3. Sign via ledger
+    // 5. Sign via ledger
     dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
                                               l_sign_data, l_sign_data_size, 0);
     if (!l_sign) {
@@ -732,7 +794,7 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
         return NULL;
     }
 
-    // 4. Add signature to TX
+    // 6. Add signature to TX
     if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
         log_it(L_ERROR, "Failed to add signature to TX");
         DAP_DELETE(l_sign);
@@ -741,7 +803,7 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
     }
     DAP_DELETE(l_sign);
 
-    // 5. Convert to datum
+    // 7. Convert to datum
     dap_chain_datum_t *l_datum = dap_chain_datum_create(
         DAP_CHAIN_DATUM_TX,
         l_tx,
@@ -798,7 +860,30 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
         return NULL;
     }
 
-    // 2. Get sign data
+    // 2. Add inputs from selected UTXOs (for payment tokens + fee)
+    if (a_list_used_outs) {
+        for (dap_list_t *l_iter = a_list_used_outs; l_iter; l_iter = l_iter->next) {
+            dap_chain_tx_used_out_t *l_used_out = (dap_chain_tx_used_out_t *)l_iter->data;
+            if (!l_used_out) continue;
+            
+            if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_prev_hash, l_used_out->tx_out_prev_idx) != 1) {
+                log_it(L_ERROR, "Failed to add input item for payment");
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+    }
+    
+    // 3. Add fee output
+    if (!IS_ZERO_256(l_params->fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, l_params->fee) != 1) {
+            log_it(L_ERROR, "Failed to add fee");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // 4. Get sign data
     size_t l_sign_data_size = 0;
     const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
     if (!l_sign_data) {
@@ -807,7 +892,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
         return NULL;
     }
 
-    // 3. Sign via ledger
+    // 5. Sign via ledger
     dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
                                               l_sign_data, l_sign_data_size, 0);
     if (!l_sign) {
@@ -816,7 +901,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
         return NULL;
     }
 
-    // 4. Add signature to TX
+    // 6. Add signature to TX
     if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
         log_it(L_ERROR, "Failed to add signature to TX");
         DAP_DELETE(l_sign);
@@ -825,7 +910,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
     }
     DAP_DELETE(l_sign);
 
-    // 5. Convert to datum
+    // 7. Convert to datum
     dap_chain_datum_t *l_datum = dap_chain_datum_create(
         DAP_CHAIN_DATUM_TX,
         l_tx,
@@ -844,7 +929,11 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
 
 // ========== CLI/RPC WRAPPERS ==========
 
-// TODO: Implement CLI wrappers that return JSON
+// NOTE: CLI wrappers (dap_chain_tx_compose_xchange_create, etc.) are declared in header
+// but not implemented yet. They require complex integration with wallet management,
+// UTXO selection API, and mempool API. Implementation will be added when CLI layer
+// refactoring is complete. For now, XChange functionality is accessible through
+// Plugin API via dap_chain_tx_compose_create("xchange_order_create", ...).
 
 // ========== INITIALIZATION ==========
 
