@@ -1744,11 +1744,30 @@ int dap_chain_wallet_shared_init()
 }
 
 int dap_chain_wallet_shared_notify_init() {
+    // NOTE: Kept for backward compatibility, but prefer using
+    // dap_chain_wallet_shared_register_chain() from net module
     dap_chain_net_t *l_net = dap_chain_net_iter_start();
     for (; l_net; l_net = dap_chain_net_iter_next(l_net)) {
         for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
-            dap_chain_add_mempool_notify_callback(l_chain, s_shared_tx_mempool_notify, l_chain);
+            dap_chain_wallet_shared_register_chain(l_chain);
         }
     }
     return 0;
 }
+
+/**
+ * @brief Register wallet shared notify callback for a specific chain
+ * 
+ * Implements dependency inversion - called by net module, not iterating nets ourselves!
+ */
+int dap_chain_wallet_shared_register_chain(dap_chain_t *a_chain) {
+    if (!a_chain) {
+        log_it(L_ERROR, "Invalid chain for wallet shared registration");
+        return -1;
+    }
+    
+    dap_chain_add_mempool_notify_callback(a_chain, s_shared_tx_mempool_notify, a_chain);
+    log_it(L_INFO, "Wallet shared notify registered for chain %s", a_chain->name);
+    return 0;
+}
+

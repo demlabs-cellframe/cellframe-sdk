@@ -21,3 +21,14 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
 dap_json_t*dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name);
 int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a_final_tx_hash, dap_json_t*a_jobj_waiting_operations_hashes);
 int dap_chain_wallet_shared_notify_init();
+
+/**
+ * @brief Register wallet shared notify callback for a specific chain
+ * 
+ * This should be called by net module for each chain.
+ * Implements dependency inversion - wallet-shared doesn't iterate nets!
+ * 
+ * @param a_chain Chain to register callback for
+ * @return 0 on success, negative on error
+ */
+int dap_chain_wallet_shared_register_chain(struct dap_chain *a_chain);

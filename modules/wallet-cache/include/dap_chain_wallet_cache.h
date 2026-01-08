@@ -53,6 +53,18 @@ extern "C" {
 int dap_chain_wallet_cache_init();
 int dap_chain_wallet_cache_deinit();
 
+/**
+ * @brief Register wallet cache callbacks for a specific chain
+ * 
+ * This function should be called by net module for each chain with TX support.
+ * Wallet-cache module should NOT iterate networks itself.
+ * 
+ * @param a_chain Chain to register callbacks for
+ * @param a_net Network context (stored in callback arg)
+ * @return 0 on success, negative on error
+ */
+int dap_chain_wallet_cache_register_chain(struct dap_chain *a_chain, void *a_net);
+
 
 /**
  * @brief Find next transactions after l_tx_hash_curr for wallet addr and save pointer to datum into a_tx. If l_tx_hash_curr is NULL then function find first tx for addr.

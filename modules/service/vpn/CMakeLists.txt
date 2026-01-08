@@ -14,8 +14,7 @@ add_definitions("-DDAP_TUN_IN_WORKER")
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-target_include_directories(${PROJECT_NAME} PRIVATE 
-    ${CMAKE_SOURCE_DIR}/modules/net/tx/include)
+# NOTE: net/tx includes propagated through dap_chain_net_tx dependency!
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_SRV_VPN_HEADERS}")

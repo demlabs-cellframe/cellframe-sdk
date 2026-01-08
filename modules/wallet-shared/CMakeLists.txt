@@ -9,15 +9,14 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_WALLET_SHARED_SRCS} HEADERS ${
 target_link_libraries(${PROJECT_NAME} 
     dap_core dap_crypto dap_common dap_chain
     dap_chain_ledger    # Uses ledger for TX tracking
-    dap_chain_mempool   # Uses mempool for TX status
+    dap_chain_mempool   # Uses mempool for TX status and notify
     dap_chain_wallet    # Uses wallet types
     dap_chain_wallet_cache)  # Uses cache for address lookups
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
+target_include_directories(${PROJECT_NAME} INTERFACE include)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-target_include_directories(${PROJECT_NAME} PRIVATE 
-    ${CMAKE_SOURCE_DIR}/modules/wallet-cache/include
-    ${CMAKE_SOURCE_DIR}/modules/net/include)
+# NOTE: All other includes propagated through dependencies!
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_WALLET_SHARED_HEADERS}")

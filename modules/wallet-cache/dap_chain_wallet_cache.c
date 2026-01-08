@@ -42,7 +42,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum.h"  // For full dap_chain_datum_t structure
 #include "dap_chain.h"
-#include "dap_chain_net.h"     // For dap_chain_net_t and iteration functions
+#include "dap_chain_net.h"     // TODO: Remove when callbacks refactored
 #include "dap_proc_thread.h"   // For dap_proc_thread_get_auto
 #include "dap_common.h"
 #include "dap_chain_mempool.h"
@@ -163,25 +163,9 @@ int dap_chain_wallet_cache_init()
 
     pthread_rwlock_init(&s_wallet_cache_rwlock, NULL);
 
-    // Add notify callback for all chain with transactions in all nets
-    for(dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net=dap_chain_net_iter_next(l_net)){
-        // Find chain with transactions
-        dap_chain_t *l_chain = l_net->pub.chains;
-        while (l_chain){
-            for(int i = 0; i < l_chain->datum_types_count; i++) {
-                if(l_chain->datum_types[i] == CHAIN_TYPE_TX){
-                    dap_atom_notify_arg_t *l_arg = DAP_NEW_Z(dap_atom_notify_arg_t);
-                    l_arg->chain = l_chain;
-                    l_arg->net = l_net;
-                    dap_proc_thread_t *l_pt = dap_proc_thread_get_auto();
-                    dap_chain_add_callback_datum_index_notify(l_chain, s_callback_datum_notify, l_pt, l_arg);
-                    dap_chain_add_callback_datum_removed_from_index_notify(l_chain, s_callback_datum_removed_notify, l_pt, l_arg);
-                }
-            }
-            l_chain=l_chain->next;
-        }
-        
-    }
+    // NOTE: Chain callbacks registration moved to dap_chain_wallet_cache_register_chain()
+    // This function should be called by net module for each chain, NOT here!
+    // Wallet-cache should NOT know about net iteration - that's a dependency inversion!
 
     dap_list_t *l_local_addr_list = dap_chain_wallet_get_local_addr();
     pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
@@ -1035,4 +1019,56 @@ dap_chain_datum_tx_t *dap_chain_wallet_cache_iter_get(dap_chain_wallet_cache_ite
     }
 
     return a_iter->cur_tx;
+}
+
+/**
+ * @brief Register wallet cache callbacks for a specific chain
+ * 
+ * This is called by net module during initialization for each chain with TX support.
+ * Implements dependency inversion - wallet-cache doesn't iterate nets, net calls us!
+ * 
+ * @param a_chain Chain to register callbacks for
+ * @param a_net Network context (opaque pointer, stored in callback arg)
+ * @return 0 on success, negative on error
+ */
+int dap_chain_wallet_cache_register_chain(dap_chain_t *a_chain, void *a_net)
+{
+    if (!a_chain) {
+        log_it(L_ERROR, "Invalid chain for wallet cache registration");
+        return -1;
+    }
+    
+    // Check if chain supports transactions
+    bool l_has_tx = false;
+    for (int i = 0; i < a_chain->datum_types_count; i++) {
+        if (a_chain->datum_types[i] == CHAIN_TYPE_TX) {
+            l_has_tx = true;
+            break;
+        }
+    }
+    
+    if (!l_has_tx) {
+        // Chain doesn't support TX, nothing to register
+        return 0;
+    }
+    
+    // Create callback arg
+    dap_atom_notify_arg_t *l_arg = DAP_NEW_Z(dap_atom_notify_arg_t);
+    if (!l_arg) {
+        log_it(L_ERROR, "Memory allocation failed for wallet cache callback arg");
+        return -2;
+    }
+    
+    l_arg->chain = a_chain;
+    l_arg->net = a_net;  // Opaque pointer, we don't dereference it
+    
+    // Get proc thread for callbacks
+    dap_proc_thread_t *l_pt = dap_proc_thread_get_auto();
+    
+    // Register notify callbacks
+    dap_chain_add_callback_datum_index_notify(a_chain, s_callback_datum_notify, l_pt, l_arg);
+    dap_chain_add_callback_datum_removed_from_index_notify(a_chain, s_callback_datum_removed_notify, l_pt, l_arg);
+    
+    log_it(L_INFO, "Wallet cache callbacks registered for chain %s", a_chain->name);
+    return 0;
 }
