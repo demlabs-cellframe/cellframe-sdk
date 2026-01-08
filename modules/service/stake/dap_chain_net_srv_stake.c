@@ -1180,16 +1180,17 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         }
     }
     else if (!IS_ZERO_256(l_total_fee)) {
-        l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
-                                                                    &l_addr, l_total_fee, &l_fee_transfer);
+        dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker,
+                                                                    &l_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             *res = 1;
             return log_it(L_WARNING, "Not enough funds to pay fee"), NULL;
         }
     }
     // list of transaction with 'out' items
-    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_main_ticker,
-                                                                             &l_addr, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_main_ticker,
+                                                                             &l_addr, &l_list_used_out, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         dap_list_free_full(l_list_fee_out, NULL);
         *res = 2;
@@ -1358,8 +1359,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
     }
     if (!IS_ZERO_256(l_total_fee)) {
         if (!l_main_native) {
-            l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
-                                                                        &l_addr, l_total_fee, &l_fee_transfer);
+            dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker,
+                                                                     &l_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer);
             if (!l_list_fee_out) {
                 log_it(L_WARNING, "Not enough funds to pay fee");
                 *result = -2;
@@ -1372,8 +1373,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         }
     }
     if (!IS_ZERO_256(a_delegated_value)) {
-        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, a_delegated_ticker_str,
-                                                                     &l_addr, a_delegated_value, &l_value_transfer);
+        dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_delegated_ticker_str,
+                                                                     &l_addr, &l_list_used_out, a_delegated_value, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");
             dap_list_free_full(l_list_fee_out, NULL);

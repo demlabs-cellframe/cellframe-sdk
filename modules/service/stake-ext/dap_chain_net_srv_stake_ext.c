@@ -1812,8 +1812,8 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
     dap_chain_addr_fill_from_key(&l_addr, a_key_to, a_net->pub.id);
 
     if (!IS_ZERO_256(l_value_delegated)) {
-        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker_str,
-                                                                                &l_addr, l_value_delegated, &l_value_transfer);
+        dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_delegated_ticker_str,
+                                                                                &l_addr, &l_list_used_out, l_value_delegated, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");
             set_ret_code(a_ret_code, -111);
@@ -1850,7 +1850,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
     if (compare256(l_fee_pack, l_out_cond->header.value) == 1) {
         uint256_t l_value_shortage = {};
         SUBTRACT_256_256(l_fee_pack, l_out_cond->header.value, &l_value_shortage);
-        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_ticker_str, &l_addr, l_value_shortage, &l_fee_transfer);
+        dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_ticker_str, &l_addr, &l_list_used_out, l_value_shortage, &l_fee_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough coins)");
             set_ret_code(a_ret_code, -111);
@@ -2060,7 +2060,7 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
     // 2. Find UTXOs to cover the total cost (native tokens)
     dap_list_t *l_list_used_out = NULL;
     uint256_t l_value_transfer = {};
-    l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+    l_list_used_out = dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_native_ticker,
                                                               &l_addr_from, l_total_cost, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_ERROR, "Not enough funds to place lock");
