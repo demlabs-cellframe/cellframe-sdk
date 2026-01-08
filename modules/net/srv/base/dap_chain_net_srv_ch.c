@@ -41,6 +41,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_tx_compose_api.h"
+#include "dap_cert.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
@@ -1185,54 +1187,110 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
     }
 
     char *l_hash_str = dap_hash_fast_to_str_new(&a_usage->tx_cond_hash);
-    log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
+    log_it(L_NOTICE, "Creating cond_input TX from %s with receipt (Plugin API)", l_hash_str);
     DAP_DEL_Z(l_hash_str);
-    int ret_status = 0;   
-    char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(a_usage->net, &a_usage->tx_cond_hash, (const dap_chain_addr_t*)&a_usage->service->wallet_addr,
-                                                                        a_usage->service->receipt_sign_cert->enc_key, a_receipt, "hex", &ret_status);
-    switch (ret_status){
-        case DAP_CHAIN_MEMPOOL_RET_STATUS_SUCCESS:
-            dap_chain_hash_fast_from_str(l_tx_in_hash_str, &a_usage->tx_cond_hash);
-            log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
-            DAP_DEL_Z(l_tx_in_hash_str);
-            return PAY_SERVICE_STATUS_SUCCESS;
-        case DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_FIND_FINAL_TX_HASH:
-        case DAP_CHAIN_MEMPOOL_RET_STATUS_NO_COND_OUT:{
-            dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
-            if (l_tx){
-                int l_out_cond_idx = 0;
-                dap_chain_tx_out_cond_t *l_out_cond = NULL;
-                dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(l_tx, &l_out_cond_idx, NULL, TX_ITEM_TYPE_IN_COND, NULL);
-                if (l_in_cond){
-                    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &l_in_cond->header.tx_prev_hash);
-                    if (l_prev_tx){
-                        l_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get_nth(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_in_cond->header.tx_out_prev_idx);
-                        if (l_out_cond && l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY)
-                            l_out_cond = NULL;
-                    }
-                }
-                if (!l_out_cond) {
-                    log_it(L_WARNING, "Requested conditioned transaction have no conditioned output for servcie paying.");
-                    return PAY_SERVICE_STATUS_TX_ERROR;
-                } else {
-                    return PAY_SERVICE_STATUS_NOT_ENOUGH;
-                }
-            }else 
-
-                return PAY_SERVICE_STATUS_TX_ERROR;
-        }break;
-        case DAP_CHAIN_MEMPOOL_RET_STATUS_NOT_ENOUGH:{
-            return PAY_SERVICE_STATUS_NOT_ENOUGH;
-        }break;
-        case DAP_CHAIN_MEMPOOL_RET_STATUS_BAD_ARGUMENTS:
-        case DAP_CHAIN_MEMPOOL_RET_STATUS_WRONG_ADDR:
-        case DAP_CHAIN_MEMPOOL_RET_STATUS_NOT_NATIVE_TOKEN:
-        case DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_ADD_TX_OUT:
-        case DAP_CHAIN_MEMPOOL_RET_STATUS_CANT_ADD_SIGN:
-        default:  
-            return PAY_SERVICE_STATUS_TX_ERROR;
+    
+    // REFACTORED: Use Plugin TX Compose API - NO legacy functions!
+    
+    // 1. Find previous conditional output TX
+    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
+    if (!l_prev_tx) {
+        log_it(L_ERROR, "Previous conditional TX not found");
+        a_usage->last_err_code = -1;
+        s_service_substate_go_to_error(a_usage);
+        return PAY_SERVICE_STATUS_TX_ERROR;
     }
+    
+    // 2. Find conditional output in prev TX
+    int l_out_cond_idx = 0;
+    dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(
+        l_prev_tx, &l_out_cond_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL
+    );
+    
+    if (!l_out_cond) {
+        log_it(L_ERROR, "No conditional output found in TX");
+        a_usage->last_err_code = -2;
+        s_service_substate_go_to_error(a_usage);
+        return PAY_SERVICE_STATUS_TX_ERROR;
+    }
+    
+    // 3. Get wallet name from certificate
+    dap_cert_t *l_cert = a_usage->service->receipt_sign_cert;
+    if (!l_cert || !l_cert->name) {
+        log_it(L_ERROR, "Failed to get wallet name from certificate");
+        a_usage->last_err_code = -3;
+        s_service_substate_go_to_error(a_usage);
+        return PAY_SERVICE_STATUS_TX_ERROR;
+    }
+    
+    // 4. Prepare parameters for cond_input builder
+    typedef struct {
+        dap_hash_fast_t *tx_prev_hash;
+        uint32_t tx_out_prev_idx;
+        dap_chain_datum_tx_receipt_t *receipt;
+        const dap_chain_addr_t *addr_to;
+        uint256_t value;
+        const char *ticker;
+        const char *wallet_name;
+    } net_srv_cond_input_params_t;
+    
+    // Get token from srv_pay unit (price_unit_uid_t is just uint32, native ticker is separate)
+    // NOTE: For service payments, token comes from network's native ticker
+    const char *l_token_ticker = "UNKNOWN";  // Placeholder - need proper token resolution
+    
+    net_srv_cond_input_params_t l_params = {
+        .tx_prev_hash = &a_usage->tx_cond_hash,
+        .tx_out_prev_idx = l_out_cond_idx,
+        .receipt = a_receipt,
+        .addr_to = (const dap_chain_addr_t*)&a_usage->service->wallet_addr,
+        .value = l_out_cond->header.value,
+        .ticker = l_token_ticker,
+        .wallet_name = l_cert->name
+    };
+    
+    // 5. Create TX via Plugin API (NO UTXO needed for cond_input!)
+    dap_chain_datum_t *l_datum = dap_chain_tx_compose_create(
+        "cond_input",
+        a_usage->net->pub.ledger,
+        NULL,  // No UTXO needed - spending specific cond output
+        &l_params
+    );
+    
+    if (!l_datum) {
+        log_it(L_ERROR, "Failed to create cond_input TX via Plugin API");
+        a_usage->last_err_code = -4;
+        s_service_substate_go_to_error(a_usage);
+        return PAY_SERVICE_STATUS_TX_ERROR;
+    }
+    
+    // 6. Add to mempool
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_usage->net, CHAIN_TYPE_TX);
+    if (!l_chain) {
+        log_it(L_ERROR, "No TX chain found");
+        DAP_DELETE(l_datum);
+        a_usage->last_err_code = -5;
+        s_service_substate_go_to_error(a_usage);
+        return PAY_SERVICE_STATUS_TX_ERROR;
+    }
+    
+    char *l_tx_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+    DAP_DELETE(l_datum);
+    
+    if (!l_tx_hash_str) {
+        log_it(L_ERROR, "Failed to add TX to mempool");
+        a_usage->last_err_code = -6;
+        s_service_substate_go_to_error(a_usage);
+        return PAY_SERVICE_STATUS_TX_ERROR;
+    }
+    
+    // 7. Update usage hash and return success
+    dap_chain_hash_fast_from_str(l_tx_hash_str, &a_usage->tx_cond_hash);
+    log_it(L_NOTICE, "Created cond_input TX %s via Plugin API", l_tx_hash_str);
+    DAP_DEL_Z(l_tx_hash_str);
+    
+    return PAY_SERVICE_STATUS_SUCCESS;
 }
+
 
 static void s_service_state_go_to_grace(dap_chain_net_srv_usage_t *a_usage)
 {

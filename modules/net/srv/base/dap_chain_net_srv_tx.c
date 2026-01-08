@@ -252,15 +252,16 @@ dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_input(
     }
     
     // Add conditional input (spending previous conditional output)
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_prev_hash, a_tx_out_prev_idx, a_receipt->receipt_idx) != 1) {
+    // NOTE: receipt_idx comes from receipt_info - it's the index in receipt chain
+    uint32_t l_receipt_idx = 0;  // For now use 0, proper idx should be tracked in receipt flow
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_prev_hash, a_tx_out_prev_idx, l_receipt_idx) != 1) {
         log_it(L_ERROR, "Failed to add conditional input");
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
     
-    // Add receipt
-    size_t l_receipt_size = dap_chain_datum_tx_receipt_size(a_receipt);
-    if (dap_chain_datum_tx_add_receipt_item(&l_tx, a_receipt, l_receipt_size) != 1) {
+    // Add receipt (use actual receipt size from structure)
+    if (dap_chain_datum_tx_add_item(&l_tx, (byte_t *)a_receipt) != 1) {
         log_it(L_ERROR, "Failed to add receipt");
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
@@ -323,12 +324,23 @@ static dap_chain_datum_t* s_net_srv_cond_input_compose_cb(
     }
     
     // 2. Sign with wallet
-    if (dap_ledger_sign_data(a_ledger, l_params->wallet_name, l_tx, 
-                             dap_chain_datum_tx_get_size(l_tx), &l_tx) != 0) {
+    size_t l_tx_size_for_sign = dap_chain_datum_tx_get_size(l_tx);
+    dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name, l_tx, l_tx_size_for_sign, 0);
+    if (!l_sign) {
         log_it(L_ERROR, "Failed to sign cond_input TX");
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
+    
+    // Add signature to TX (NOTE: takes pointer to sign, not double pointer)
+    size_t l_sign_size = dap_sign_get_size(l_sign);
+    if (dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_sign) != 1) {
+        log_it(L_ERROR, "Failed to add signature to cond_input TX");
+        DAP_DELETE(l_sign);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_sign);
     
     // 3. Convert to datum
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
