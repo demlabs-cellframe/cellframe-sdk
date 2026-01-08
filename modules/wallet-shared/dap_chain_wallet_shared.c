@@ -27,7 +27,11 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"      // For dap_chain_net_t and iteration
+#include "dap_chain_net_fee.h"  // For dap_chain_net_tx_get_fee
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_cache.h"  // For wallet_cache TX outs API
+#include "dap_chain_mempool.h"  // For dap_chain_mempool_group_new
+#include "dap_global_db_driver.h"  // For GDB read
 #include "dap_json.h"
 #include "dap_chain_mempool.h"
 #include "dap_cli_server.h"
@@ -270,9 +274,10 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(dap_json_t *a_json_arr_reply, 
     // list of transaction with 'out' items to sell
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                       &l_owner_addr, l_value, &l_value_transfer);
-    if (!l_list_used_out)
+    dap_list_t *l_list_used_out = NULL;
+    int l_ret = dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_token_ticker,
+                                                                       &l_owner_addr, &l_list_used_out, l_value, &l_value_transfer);
+    if (l_ret != 0 || !l_list_used_out)
         m_tx_fail(ERROR_FUNDS, "Nothing to pay for share (not enough funds)");
 
     // add 'in' items to pay for share
@@ -282,9 +287,10 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(dap_json_t *a_json_arr_reply, 
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction input");
 
     if (!l_share_native) {
-        dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                          &l_owner_addr, l_fee_total, &l_fee_transfer);
-        if (!l_list_fee_out)
+        dap_list_t *l_list_fee_out = NULL;
+        l_ret = dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker,
+                                                                          &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer);
+        if (l_ret != 0 || !l_list_fee_out)
             m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
         // add 'in' items to pay fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
@@ -439,9 +445,10 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(dap_json_t *a_
     // list of transaction with 'out' items to sell
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_tx_ticker,
-                                                                       &l_owner_addr, l_value, &l_value_transfer);
-    if (!l_list_used_out)
+    dap_list_t *l_list_used_out = NULL;
+    int l_ret = dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_tx_ticker,
+                                                                       &l_owner_addr, &l_list_used_out, l_value, &l_value_transfer);
+    if (l_ret != 0 || !l_list_used_out)
         m_tx_fail(ERROR_FUNDS, "Nothing to pay for refill (not enough funds)");
 
     // add 'in' items to pay for share
@@ -451,9 +458,10 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(dap_json_t *a_
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction input");
 
     if (!l_refill_native) {
-        dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
-                                                                          &l_owner_addr, l_fee_total, &l_fee_transfer);
-        if (!l_list_fee_out)
+        dap_list_t *l_list_fee_out = NULL;
+        l_ret = dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_net->pub.native_ticker,
+                                                                          &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer);
+        if (l_ret != 0 || !l_list_fee_out)
             m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
         // add 'in' items to pay fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
@@ -593,8 +601,9 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_create(dap_json_t *a_jso
 
     dap_chain_addr_t l_owner_addr;
     dap_chain_addr_fill_from_key(&l_owner_addr, a_enc_key, a_net->pub.id);
-    dap_list_t *l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
-                                                                            &l_owner_addr, l_fee_total, &l_fee_transfer);
+    dap_list_t *l_list_fee_out = NULL;
+    int l_ret = dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_net->pub.native_ticker,
+                                                                            &l_owner_addr, &l_list_fee_out, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out)
         m_tx_fail(ERROR_FUNDS, "Nothing to pay for fee (not enough funds)");
     // add 'in' items to pay fee
@@ -1103,8 +1112,20 @@ static int s_cli_sign(int a_argc, char **a_argv, int a_arg_index, dap_json_t *a_
         dap_json_rpc_error_add(a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_in_hash_str);
         return ERROR_VALUE;
     }
-    dap_chain_datum_t *l_tx_in = dap_chain_mempool_datum_get(a_chain, l_tx_in_hash_str);
+    
+    // Get datum from mempool using GDB
+    char *l_mempool_group = dap_chain_mempool_group_new(a_chain);
+    if (!l_mempool_group) {
+        dap_json_rpc_error_add(a_json_arr_reply, ERROR_PARAM, "Can't get mempool group for chain %s", a_chain->name);
+        return ERROR_PARAM;
+    }
+    
+    size_t l_datum_size = 0;
+    dap_chain_datum_t *l_tx_in = (dap_chain_datum_t *)dap_global_db_driver_read(l_mempool_group, l_tx_in_hash_str, &l_datum_size);
+    DAP_DELETE(l_mempool_group);
+    
     if (!l_tx_in || l_tx_in->header.type_id != DAP_CHAIN_DATUM_TX) {
+        DAP_DELETE(l_tx_in);
         dap_json_rpc_error_add(a_json_arr_reply, ERROR_VALUE, "TX %s not found in mempool", l_tx_in_hash_str);
         return ERROR_VALUE;
     }
