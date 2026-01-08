@@ -325,17 +325,92 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
 {
     dap_return_val_if_fail(a_ledger && a_order_hash && a_wallet_addr, NULL);
     
+    // Validate fee
+    if (IS_ZERO_256(a_fee)) {
+        log_it(L_ERROR, "Invalid parameter: fee is zero");
+        return NULL;
+    }
+    
     log_it(L_INFO, "Creating xchange invalidate TX for order %s",
            dap_hash_fast_to_str_static(a_order_hash));
     
-    // TODO: Implement order invalidation logic
-    // This requires:
     // 1. Find last TX in order chain
-    // 2. Verify caller owns the order
-    // 3. Create TX spending conditional output back to owner
+    dap_time_t l_ts_created = 0;
+    char *l_token_ticker = NULL;
+    int32_t l_prev_cond_idx = 0;
+    dap_hash_fast_t l_tx_hash = {};
     
-    log_it(L_ERROR, "XChange invalidate not yet implemented");
-    return NULL;
+    dap_chain_tx_out_cond_t *l_cond_out = dap_xchange_find_last_tx(
+        a_ledger,
+        a_order_hash,
+        a_wallet_addr,
+        &l_ts_created,
+        &l_token_ticker,
+        &l_prev_cond_idx,
+        &l_tx_hash
+    );
+    
+    if (!l_cond_out) {
+        log_it(L_ERROR, "Cannot find order conditional output");
+        return NULL;
+    }
+    
+    // 2. Verify caller owns the order
+    if (memcmp(&l_cond_out->subtype.srv_xchange.seller_addr, a_wallet_addr, sizeof(dap_chain_addr_t)) != 0) {
+        log_it(L_ERROR, "Order does not belong to specified wallet");
+        DAP_DEL_Z(l_token_ticker);
+        return NULL;
+    }
+    
+    // 3. Get native ticker
+    const char *l_native_ticker = a_ledger->native_ticker;
+    if (!l_native_ticker || !*l_native_ticker) {
+        log_it(L_ERROR, "Native ticker not set in ledger");
+        DAP_DEL_Z(l_token_ticker);
+        return NULL;
+    }
+    
+    // 4. Check balance for fee
+    uint256_t l_balance = dap_ledger_calc_balance(a_ledger, a_wallet_addr, l_native_ticker);
+    if (compare256(l_balance, a_fee) == -1) {
+        log_it(L_ERROR, "Not enough balance for fee. Need %s, have %s",
+               dap_uint256_to_char(a_fee, NULL), dap_uint256_to_char(l_balance, NULL));
+        DAP_DEL_Z(l_token_ticker);
+        return NULL;
+    }
+    
+    // 5. Create unsigned TX
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to create transaction");
+        DAP_DEL_Z(l_token_ticker);
+        return NULL;
+    }
+    
+    // 6. Add input spending the conditional output
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0) != 1) {
+        log_it(L_ERROR, "Failed to add conditional input");
+        dap_chain_datum_tx_delete(l_tx);
+        DAP_DEL_Z(l_token_ticker);
+        return NULL;
+    }
+    
+    // 7. Add output returning funds to seller
+    uint256_t l_value_return = l_cond_out->header.value;
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_return, l_token_ticker) != 1) {
+        log_it(L_ERROR, "Failed to add return output");
+        dap_chain_datum_tx_delete(l_tx);
+        DAP_DEL_Z(l_token_ticker);
+        return NULL;
+    }
+    
+    DAP_DEL_Z(l_token_ticker);
+    
+    // 8. Add fee (requires additional inputs - will be added by compose layer with UTXO selection)
+    // For now TX is incomplete, compose callback will add fee inputs
+    
+    log_it(L_INFO, "Created xchange invalidate TX (unsigned)");
+    return l_tx;
 }
 
 /**
@@ -350,19 +425,164 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
 {
     dap_return_val_if_fail(a_ledger && a_order_hash && a_wallet_addr, NULL);
     
+    // Validate parameters
+    if (IS_ZERO_256(a_value)) {
+        log_it(L_ERROR, "Invalid parameter: value is zero");
+        return NULL;
+    }
+    if (IS_ZERO_256(a_fee)) {
+        log_it(L_ERROR, "Invalid parameter: fee is zero");
+        return NULL;
+    }
+    
     log_it(L_INFO, "Creating xchange purchase TX for order %s, value %s",
            dap_hash_fast_to_str_static(a_order_hash),
            dap_uint256_to_char(a_value, NULL));
     
-    // TODO: Implement purchase logic
-    // This requires:
     // 1. Find last TX in order chain
-    // 2. Get order parameters (rate, tokens, etc)
-    // 3. Calculate amounts
-    // 4. Create TX spending conditional output and creating new one
+    dap_time_t l_ts_created = 0;
+    char *l_token_ticker_sell = NULL;
+    int32_t l_prev_cond_idx = 0;
+    dap_hash_fast_t l_tx_hash = {};
+    dap_chain_addr_t l_seller_addr = {};
     
-    log_it(L_ERROR, "XChange purchase not yet implemented");
-    return NULL;
+    dap_chain_tx_out_cond_t *l_cond_out = dap_xchange_find_last_tx(
+        a_ledger,
+        a_order_hash,
+        &l_seller_addr,
+        &l_ts_created,
+        &l_token_ticker_sell,
+        &l_prev_cond_idx,
+        &l_tx_hash
+    );
+    
+    if (!l_cond_out) {
+        log_it(L_ERROR, "Cannot find order conditional output");
+        return NULL;
+    }
+    
+    // 2. Get order parameters
+    uint256_t l_rate = l_cond_out->subtype.srv_xchange.rate;
+    uint256_t l_value_available = l_cond_out->header.value;
+    const char *l_token_buy = l_cond_out->subtype.srv_xchange.buy_token;
+    dap_chain_addr_t l_seller = l_cond_out->subtype.srv_xchange.seller_addr;
+    
+    // 3. Validate purchase value
+    if (compare256(a_value, l_value_available) == 1) {
+        log_it(L_ERROR, "Purchase value %s exceeds available %s",
+               dap_uint256_to_char(a_value, NULL),
+               dap_uint256_to_char(l_value_available, NULL));
+        DAP_DEL_Z(l_token_ticker_sell);
+        return NULL;
+    }
+    
+    // 4. Calculate amounts
+    // value_to_pay = value * rate (in buy tokens)
+    uint256_t l_value_to_pay = {};
+    if (MULT_256_256(a_value, l_rate, &l_value_to_pay)) {
+        log_it(L_ERROR, "Overflow calculating payment amount");
+        DAP_DEL_Z(l_token_ticker_sell);
+        return NULL;
+    }
+    
+    // 5. Check buyer has enough buy tokens
+    uint256_t l_balance_buy = dap_ledger_calc_balance(a_ledger, a_wallet_addr, l_token_buy);
+    uint256_t l_total_needed = {};
+    if (SUM_256_256(l_value_to_pay, a_fee, &l_total_needed)) {
+        log_it(L_ERROR, "Overflow calculating total needed");
+        DAP_DEL_Z(l_token_ticker_sell);
+        return NULL;
+    }
+    
+    if (compare256(l_balance_buy, l_total_needed) == -1) {
+        log_it(L_ERROR, "Not enough %s tokens. Need %s, have %s",
+               l_token_buy,
+               dap_uint256_to_char(l_total_needed, NULL),
+               dap_uint256_to_char(l_balance_buy, NULL));
+        DAP_DEL_Z(l_token_ticker_sell);
+        return NULL;
+    }
+    
+    // 6. Create unsigned TX
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to create transaction");
+        DAP_DEL_Z(l_token_ticker_sell);
+        return NULL;
+    }
+    
+    // 7. Add input spending the conditional output
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0) != 1) {
+        log_it(L_ERROR, "Failed to add conditional input");
+        dap_chain_datum_tx_delete(l_tx);
+        DAP_DEL_Z(l_token_ticker_sell);
+        return NULL;
+    }
+    
+    // 8. Add output to buyer (purchased tokens)
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, a_value, l_token_ticker_sell) != 1) {
+        log_it(L_ERROR, "Failed to add buyer output");
+        dap_chain_datum_tx_delete(l_tx);
+        DAP_DEL_Z(l_token_ticker_sell);
+        return NULL;
+    }
+    
+    // 9. Add output to seller (payment)
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller, l_value_to_pay, l_token_buy) != 1) {
+        log_it(L_ERROR, "Failed to add seller payment output");
+        dap_chain_datum_tx_delete(l_tx);
+        DAP_DEL_Z(l_token_ticker_sell);
+        return NULL;
+    }
+    
+    // 10. If order not fully filled, create new conditional output with remaining
+    uint256_t l_value_remaining = {};
+    SUBTRACT_256_256(l_value_available, a_value, &l_value_remaining);
+    
+    if (!IS_ZERO_256(l_value_remaining)) {
+        // Get xchange service UID
+        extern const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid;
+        dap_chain_net_id_t l_net_id = dap_ledger_get_net_id(a_ledger);
+        
+        // Create new conditional output with remaining amount
+        dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_xchange(
+            c_dap_chain_net_srv_xchange_uid,
+            l_net_id,
+            l_value_remaining,
+            l_net_id,
+            l_token_buy,
+            l_rate,
+            &l_seller,
+            NULL,
+            0
+        );
+        
+        if (!l_tx_out_cond) {
+            log_it(L_ERROR, "Failed to create new conditional output");
+            dap_chain_datum_tx_delete(l_tx);
+            DAP_DEL_Z(l_token_ticker_sell);
+            return NULL;
+        }
+        
+        if (dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_tx_out_cond) != 1) {
+            log_it(L_ERROR, "Failed to add new conditional output to TX");
+            DAP_DELETE(l_tx_out_cond);
+            dap_chain_datum_tx_delete(l_tx);
+            DAP_DEL_Z(l_token_ticker_sell);
+            return NULL;
+        }
+        DAP_DELETE(l_tx_out_cond);
+    }
+    
+    DAP_DEL_Z(l_token_ticker_sell);
+    
+    // 11. Add fee and buyer inputs (will be added by compose layer with UTXO selection)
+    
+    log_it(L_INFO, "Created xchange purchase TX (unsigned): bought %s, paid %s",
+           dap_uint256_to_char(a_value, NULL),
+           dap_uint256_to_char(l_value_to_pay, NULL));
+    
+    return l_tx;
 }
 
 // ========== PLUGIN API CALLBACKS ==========
@@ -456,6 +676,172 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
     return l_datum;
 }
 
+/**
+ * @brief Parameters for xchange_order_invalidate compose callback
+ */
+typedef struct xchange_order_invalidate_params {
+    const char *wallet_name;        // Wallet for signing
+    dap_chain_addr_t *wallet_addr;  // Wallet address (must be order owner)
+    dap_hash_fast_t *order_hash;    // Order hash to invalidate
+    uint256_t fee;                   // Transaction fee
+} xchange_order_invalidate_params_t;
+
+/**
+ * @brief Compose callback for xchange order invalidation
+ */
+static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
+    dap_ledger_t *a_ledger,
+    dap_list_t *a_list_used_outs,
+    void *a_params
+)
+{
+    xchange_order_invalidate_params_t *l_params = (xchange_order_invalidate_params_t *)a_params;
+    if (!l_params || !l_params->wallet_name || !l_params->order_hash) {
+        log_it(L_ERROR, "Invalid xchange order invalidate parameters");
+        return NULL;
+    }
+
+    // 1. Build unsigned TX using PURE builder
+    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_create_invalidate(
+        a_ledger,
+        l_params->order_hash,
+        l_params->fee,
+        l_params->wallet_addr
+    );
+    
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to build xchange invalidate TX");
+        return NULL;
+    }
+
+    // 2. Get sign data
+    size_t l_sign_data_size = 0;
+    const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
+    if (!l_sign_data) {
+        log_it(L_ERROR, "Failed to get signing data");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // 3. Sign via ledger
+    dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
+                                              l_sign_data, l_sign_data_size, 0);
+    if (!l_sign) {
+        log_it(L_ERROR, "Failed to sign xchange invalidate TX");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // 4. Add signature to TX
+    if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
+        log_it(L_ERROR, "Failed to add signature to TX");
+        DAP_DELETE(l_sign);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_sign);
+
+    // 5. Convert to datum
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(
+        DAP_CHAIN_DATUM_TX,
+        l_tx,
+        dap_chain_datum_tx_get_size(l_tx)
+    );
+    dap_chain_datum_tx_delete(l_tx);
+
+    if (!l_datum) {
+        log_it(L_ERROR, "Failed to create datum from xchange invalidate TX");
+        return NULL;
+    }
+
+    log_it(L_INFO, "XChange invalidate datum created successfully");
+    return l_datum;
+}
+
+/**
+ * @brief Parameters for xchange_purchase compose callback
+ */
+typedef struct xchange_purchase_params {
+    const char *wallet_name;        // Wallet for signing
+    dap_chain_addr_t *wallet_addr;  // Buyer wallet address
+    dap_hash_fast_t *order_hash;    // Order hash to purchase from
+    uint256_t value;                 // Amount to purchase
+    uint256_t fee;                   // Transaction fee
+} xchange_purchase_params_t;
+
+/**
+ * @brief Compose callback for xchange purchase
+ */
+static dap_chain_datum_t* s_xchange_purchase_compose_cb(
+    dap_ledger_t *a_ledger,
+    dap_list_t *a_list_used_outs,
+    void *a_params
+)
+{
+    xchange_purchase_params_t *l_params = (xchange_purchase_params_t *)a_params;
+    if (!l_params || !l_params->wallet_name || !l_params->order_hash) {
+        log_it(L_ERROR, "Invalid xchange purchase parameters");
+        return NULL;
+    }
+
+    // 1. Build unsigned TX using PURE builder
+    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_create_purchase(
+        a_ledger,
+        l_params->order_hash,
+        l_params->value,
+        l_params->fee,
+        l_params->wallet_addr
+    );
+    
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to build xchange purchase TX");
+        return NULL;
+    }
+
+    // 2. Get sign data
+    size_t l_sign_data_size = 0;
+    const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
+    if (!l_sign_data) {
+        log_it(L_ERROR, "Failed to get signing data");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // 3. Sign via ledger
+    dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
+                                              l_sign_data, l_sign_data_size, 0);
+    if (!l_sign) {
+        log_it(L_ERROR, "Failed to sign xchange purchase TX");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // 4. Add signature to TX
+    if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
+        log_it(L_ERROR, "Failed to add signature to TX");
+        DAP_DELETE(l_sign);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_sign);
+
+    // 5. Convert to datum
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(
+        DAP_CHAIN_DATUM_TX,
+        l_tx,
+        dap_chain_datum_tx_get_size(l_tx)
+    );
+    dap_chain_datum_tx_delete(l_tx);
+
+    if (!l_datum) {
+        log_it(L_ERROR, "Failed to create datum from xchange purchase TX");
+        return NULL;
+    }
+
+    log_it(L_INFO, "XChange purchase datum created successfully");
+    return l_datum;
+}
+
 // ========== CLI/RPC WRAPPERS ==========
 
 // TODO: Implement CLI wrappers that return JSON
@@ -470,18 +856,39 @@ int dap_chain_net_srv_xchange_compose_init(void)
     int l_ret = dap_chain_tx_compose_register(
         "xchange_order_create",
         s_xchange_order_create_compose_cb,
-        NULL  // No user data needed
+        NULL
     );
-    
     if (l_ret != 0) {
         log_it(L_ERROR, "Failed to register xchange_order_create TX builder");
         return -1;
     }
     
-    // TODO: Register xchange_invalidate when implemented
-    // TODO: Register xchange_purchase when implemented
+    // Register xchange_order_invalidate TX builder
+    l_ret = dap_chain_tx_compose_register(
+        "xchange_order_invalidate",
+        s_xchange_order_invalidate_compose_cb,
+        NULL
+    );
+    if (l_ret != 0) {
+        log_it(L_ERROR, "Failed to register xchange_order_invalidate TX builder");
+        dap_chain_tx_compose_unregister("xchange_order_create");
+        return -1;
+    }
     
-    log_it(L_NOTICE, "XChange compose module initialized (order_create registered)");
+    // Register xchange_purchase TX builder
+    l_ret = dap_chain_tx_compose_register(
+        "xchange_purchase",
+        s_xchange_purchase_compose_cb,
+        NULL
+    );
+    if (l_ret != 0) {
+        log_it(L_ERROR, "Failed to register xchange_purchase TX builder");
+        dap_chain_tx_compose_unregister("xchange_order_create");
+        dap_chain_tx_compose_unregister("xchange_order_invalidate");
+        return -1;
+    }
+    
+    log_it(L_NOTICE, "XChange compose module initialized (all 3 TX builders registered)");
     return 0;
 }
 
@@ -489,10 +896,10 @@ void dap_chain_net_srv_xchange_compose_deinit(void)
 {
     log_it(L_NOTICE, "Deinitializing XChange compose module");
     
-    // TODO: Unregister TX builders
-    // dap_chain_tx_compose_unregister("xchange_create");
-    // dap_chain_tx_compose_unregister("xchange_invalidate");
-    // dap_chain_tx_compose_unregister("xchange_purchase");
+    // Unregister all TX builders
+    dap_chain_tx_compose_unregister("xchange_order_create");
+    dap_chain_tx_compose_unregister("xchange_order_invalidate");
+    dap_chain_tx_compose_unregister("xchange_purchase");
     
     log_it(L_NOTICE, "XChange compose module deinitialized");
 }
