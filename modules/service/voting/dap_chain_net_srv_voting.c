@@ -30,6 +30,7 @@
 #include "dap_chain_net_utils.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_wallet_cache.h"  // For wallet_cache TX outs API
 #include "uthash.h"
 #include "dap_chain_srv.h"
 #include "dap_cli_server.h"
@@ -1235,8 +1236,9 @@ int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_option
     SUM_256_256(l_net_fee, a_fee, &l_total_fee);
 
     dap_ledger_t* l_ledger = a_net->pub.ledger;
-    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                             l_addr_from, l_total_fee, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker,
+                                                                             l_addr_from, &l_list_used_out, l_total_fee, &l_value_transfer);
     if (!l_list_used_out) {
         return DAP_CHAIN_NET_VOTE_CREATE_NOT_ENOUGH_FUNDS_TO_TRANSFER;
     }
@@ -1439,7 +1441,11 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
 
     bool l_native_tx = !dap_strcmp(l_token_ticker, a_net->pub.native_ticker);
     dap_ledger_t *l_ledger = a_net->pub.ledger;
-    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs(l_ledger, l_token_ticker, l_addr_from, &l_value_transfer);
+    
+    // Get ALL UTXOs for address (use MAX value)
+    dap_list_t *l_list_used_out = NULL;
+    uint256_t l_max_value = uint256_max;
+    dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_token_ticker, l_addr_from, &l_list_used_out, l_max_value, &l_value_transfer);
     if (!l_list_used_out || (l_native_tx && compare256(l_value_transfer, l_total_fee) < 0)) {
         dap_list_free_full(l_list_used_out, NULL);
         return DAP_CHAIN_NET_VOTE_VOTING_NOT_ENOUGH_FUNDS_TO_TRANSFER;
@@ -1472,8 +1478,9 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
     // add 'in' items for fee
     uint256_t l_value_back = l_value_transfer, l_fee_back = {};
     if (!l_native_tx) {
-        dap_list_t *l_list_fee_outs = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker,
-                                                                                 l_addr_from, l_total_fee, &l_fee_transfer);
+        dap_list_t *l_list_fee_outs = NULL;
+        dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_net->pub.native_ticker,
+                                                                                 l_addr_from, &l_list_fee_outs, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_outs) {
             dap_chain_datum_tx_delete(l_tx);
             return DAP_CHAIN_NET_VOTE_VOTING_NOT_ENOUGH_FUNDS_TO_TRANSFER;
@@ -1894,7 +1901,7 @@ int dap_chain_net_vote_cancel(dap_json_t *a_json_arr_reply, uint256_t a_fee, dap
     uint256_t l_value_transfer;
     dap_list_t *l_list_used_out = NULL;
     
-    l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker, l_addr_from, l_total_fee, &l_value_transfer);
+    dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker, l_addr_from, &l_list_used_out, l_total_fee, &l_value_transfer);
     
     if (!l_list_used_out) {
         return DAP_CHAIN_NET_VOTE_CANCEL_NOT_ENOUGH_FUNDS;

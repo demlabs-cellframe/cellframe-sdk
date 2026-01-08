@@ -921,8 +921,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else {
-        l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                    &l_seller_addr, l_total_fee, &l_fee_transfer);
+        l_list_fee_out = NULL;
+        dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, l_native_ticker,
+                                                                    &l_seller_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
             return NULL;
@@ -930,8 +931,8 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     }
     // list of transaction with 'out' items to sell
     dap_list_t *l_list_used_out = NULL;
-    l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
-                                                                 &l_seller_addr, l_value_need, &l_value_transfer);
+    dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, a_price->token_sell,
+                                                                        &l_seller_addr, &l_list_used_out, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
                dap_chain_addr_to_str_static( &l_seller_addr), a_price->token_sell, dap_chain_balance_datoshi_print(l_value_need));
@@ -1075,8 +1076,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     DAP_DELETE(l_wallet_addr);
 
     // list of transaction with 'out' items to sell
-    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_price->token_buy,
-                                                                             &l_buyer_addr, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, a_price->token_buy,
+                                                                             &l_buyer_addr, &l_list_used_out, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
                dap_chain_addr_to_str_static( &l_buyer_addr), a_price->token_buy, dap_chain_balance_datoshi_print(l_value_need));
@@ -1088,8 +1090,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         if (l_buy_with_native)
             SUM_256_256(l_value_need, l_total_fee, &l_value_need);
         else {
-            l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                        &l_buyer_addr, l_total_fee, &l_fee_transfer);
+            l_list_fee_out = NULL;
+            dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, l_native_ticker,
+                                                                        &l_buyer_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer);
             if (!l_list_fee_out) {
                 dap_list_free_full(l_list_used_out, NULL);
                 log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1489,8 +1492,9 @@ static char* s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price,
     if (!l_single_channel) {
         uint256_t l_transfer_fee = {}, l_fee_back = {};
         // list of transaction with 'out' items to get net fee
-        dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                                 &l_seller_addr, l_total_fee, &l_transfer_fee);
+        dap_list_t *l_list_used_out = NULL;
+        dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, l_native_ticker,
+                                                                                 &l_seller_addr, &l_list_used_out, l_total_fee, &l_transfer_fee);
         if (!l_list_used_out) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_WARNING, "Nothing to pay for network fee (not enough funds)");

@@ -433,7 +433,16 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         dap_string_append(output_line, dap_chain_wallet_check_sign(l_wallet));
     }
 
-    if (compare256(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_ticker_str), l_value) == -1) {
+    // Check balance using ledger API (wallet API doesn't have balance anymore)
+    dap_chain_addr_t *l_check_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+    if (!l_check_addr) {
+        dap_chain_wallet_close(l_wallet);
+        return NO_MONEY_ERROR;
+    }
+    uint256_t l_balance = dap_ledger_calc_balance_full(l_net->pub.ledger, l_check_addr, l_ticker_str);
+    DAP_DELETE(l_check_addr);
+    
+    if (compare256(l_balance, l_value) == -1) {
         dap_chain_wallet_close(l_wallet);
         return NO_MONEY_ERROR;
     }
