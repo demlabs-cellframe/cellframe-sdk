@@ -10,7 +10,7 @@
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_tx_compose_api.h"  // NEW: Plugin-based TX compose API
 #include "dap_json.h"
-#include "dap_ledger.h"  // For ledger access
+#include "dap_chain_ledger.h"  // For ledger access
 
 // Forward declarations
 typedef struct dap_ledger dap_ledger_t;
