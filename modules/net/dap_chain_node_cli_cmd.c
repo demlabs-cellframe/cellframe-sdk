@@ -6522,7 +6522,13 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
             json_object_object_add(l_jobj_tx, "status",
                 json_object_new_string(l_is_spent ? "spent" : "unspent"));
 
-            // Add cond_pkey_hash and ts_expires from first TX (already fetched for filter)
+            // Add cond_pkey_hash, ts_expires and ts_created from first TX (already fetched for filter)
+            if(l_first_tx)
+            {
+                char l_ts_str[DAP_TIME_STR_SIZE] = {};
+                dap_time_to_str_rfc822(l_ts_str, DAP_TIME_STR_SIZE, l_first_tx->header.ts_created);
+                json_object_object_add(l_jobj_tx, "ts_created", json_object_new_string(l_ts_str));
+            }
             if(l_first_cond)
             {
                 json_object_object_add(l_jobj_tx, "cond_pkey_hash",
@@ -6666,7 +6672,13 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
                 json_object_object_add(l_jobj_tx, "status",
                     json_object_new_string(l_is_spent ? "spent" : "unspent"));
 
-                // Add cond_pkey_hash and ts_expires from root TX (already fetched for filter)
+                // Add cond_pkey_hash, ts_expires and ts_created from root TX (already fetched for filter)
+                if(l_root_tx)
+                {
+                    char l_ts_str[DAP_TIME_STR_SIZE] = {};
+                    dap_time_to_str_rfc822(l_ts_str, DAP_TIME_STR_SIZE, l_root_tx->header.ts_created);
+                    json_object_object_add(l_jobj_tx, "ts_created", json_object_new_string(l_ts_str));
+                }
                 if(l_root_cond)
                 {
                     json_object_object_add(l_jobj_tx, "cond_pkey_hash",
