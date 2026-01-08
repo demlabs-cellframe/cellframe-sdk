@@ -18,6 +18,7 @@
 #include "dap_chain_token_cli_error_codes.h"
 #include "dap_chain_mempool.h"
 #include "dap_cert.h"
+#include "dap_global_db_driver.h"  // For GDB read (dap_store_obj_t)
 
 #define LOG_TAG "dap_chain_cli"
 
@@ -1366,10 +1367,25 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     } else {
         if (l_emission_hash_str) {
             DL_FOREACH(l_net->pub.chains, l_chain_emission) {
-                l_emission = dap_chain_mempool_emission_get(l_chain_emission, l_emission_hash_str);
-                if (l_emission){
-                    l_emission_hash_str_remove = l_emission_hash_str;
-                    break;
+                // Get emission datum from mempool using GDB
+                char *l_mempool_group = dap_chain_mempool_group_new(l_chain_emission);
+                if (!l_mempool_group)
+                    continue;
+                
+                size_t l_objs_count = 0;
+                dap_store_obj_t *l_store_obj = dap_global_db_driver_read(l_mempool_group, l_emission_hash_str, &l_objs_count, false);
+                DAP_DELETE(l_mempool_group);
+                
+                if (l_store_obj && l_store_obj->value) {
+                    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_store_obj->value;
+                    if (l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_EMISSION) {
+                        // Extract emission from datum
+                        l_emission = (dap_chain_datum_token_emission_t *)l_datum->data;
+                        l_emission_hash_str_remove = l_emission_hash_str;
+                        dap_store_obj_free_one(l_store_obj);
+                        break;
+                    }
+                    dap_store_obj_free_one(l_store_obj);
                 }
             }
             if (!l_emission){

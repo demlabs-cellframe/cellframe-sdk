@@ -1617,8 +1617,7 @@ static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net
         if (!dap_strcmp(a_net->pub.native_ticker, l_json_item_token)) {
             SUM_256_256(l_value_need_check, a_value_need, &l_value_need_check);
             SUM_256_256(l_value_need_check, a_value_need_fee, &l_value_need_check);
-            l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
-                                                                                        l_addr_from, l_value_need_check, &l_value_transfer);
+            dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need_check, &l_value_transfer);
             if(!l_list_used_out) {
                 log_it(L_WARNING, "Not enough funds in previous tx to transfer");
                 dap_json_rpc_error_add(a_jobj_errors, -2, "Can't create in transaction. Not enough funds in previous tx "
@@ -1627,8 +1626,7 @@ static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net
             }
         } else {
             //CHECK value need
-            l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
-                                                                                        l_addr_from, a_value_need, &l_value_transfer);
+            dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_json_item_token, l_addr_from, &l_list_used_out, a_value_need, &l_value_transfer);
             if(!l_list_used_out) {
                 log_it(L_WARNING, "Not enough funds in previous tx to transfer");
                 dap_json_rpc_error_add(a_jobj_errors, -1, "Can't create in transaction. Not enough funds "
@@ -1636,8 +1634,7 @@ static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net
                 continue;
             }
             //CHECK value fee
-            l_list_used_out_fee = dap_chain_wallet_get_list_tx_outs_with_val(a_net->pub.ledger, a_net->pub.native_ticker,
-                                                                                l_addr_from, a_value_need_fee, &l_value_transfer_fee);
+            dap_chain_wallet_cache_tx_find_outs_with_val(a_net, a_net->pub.native_ticker, l_addr_from, &l_list_used_out_fee, a_value_need_fee, &l_value_transfer_fee);
             if(!l_list_used_out_fee) {
                 log_it(L_WARNING, "Not enough funds in previous tx to transfer");
                 dap_json_rpc_error_add(a_jobj_errors, -7, "Can't create in transaction. Not enough funds "

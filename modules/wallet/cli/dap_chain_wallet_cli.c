@@ -28,6 +28,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_wallet_shared.h"
+#include "dap_chain_wallet_cache.h"  // For wallet_cache TX outs API
 #include "dap_chain_wallet_cli_error_codes.h"
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
@@ -207,6 +208,40 @@ static dap_json_t *wallet_list_json_collect(int a_version)
 }
 
 /**
+ * @brief Helper function to create wallet info JSON (simplified for notifications)
+ * 
+ * NOTE: This is a simplified version - full wallet info with balances should use
+ * wallet-cache and ledger APIs. This is just for wallet opened/created notifications.
+ */
+static dap_json_t *s_wallet_info_to_json_simple(const char *a_name, const char *a_path)
+{
+    if (!a_name || !a_path)
+        return NULL;
+    
+    unsigned int l_res = 0;
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_name, a_path, &l_res);
+    if (!l_wallet)
+        return NULL;
+    
+    dap_json_t *l_json_ret = dap_json_object_new();
+    if (!l_json_ret) {
+        dap_chain_wallet_close(l_wallet);
+        return NULL;
+    }
+    
+    // Add basic wallet info
+    dap_json_object_add_string(l_json_ret, "name", a_name);
+    dap_json_object_add_string(l_json_ret, "path", a_path);
+    
+    const char *l_check_sign = dap_chain_wallet_check_sign(l_wallet);
+    const char *l_correct_str = (l_check_sign && strlen(l_check_sign) != 0) ? l_check_sign : "correct";
+    dap_json_object_add_string(l_json_ret, "check", l_correct_str);
+    
+    dap_chain_wallet_close(l_wallet);
+    return l_json_ret;
+}
+
+/**
  * @brief Helper function to notify about new wallet info
  */
 static void s_new_wallet_info_notify(const char *a_wallet_name)
@@ -214,7 +249,14 @@ static void s_new_wallet_info_notify(const char *a_wallet_name)
     dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", "WalletInfo");
     dap_json_t *l_json_wallet_info = dap_json_object_new();
-    dap_json_object_add_object(l_json_wallet_info, a_wallet_name, dap_chain_wallet_info_to_json(a_wallet_name, dap_chain_wallet_get_path(g_config)));
+    
+    dap_json_t *l_wallet_info = s_wallet_info_to_json_simple(a_wallet_name, dap_chain_wallet_get_path(g_config));
+    if (l_wallet_info) {
+        dap_json_object_add_object(l_json_wallet_info, a_wallet_name, l_wallet_info);
+    } else {
+        dap_json_object_add_string(l_json_wallet_info, a_wallet_name, "error");
+    }
+    
     dap_json_object_add_object(l_json, "wallet", l_json_wallet_info);
     char *l_json_str = dap_json_to_string(l_json);
     dap_notify_server_send(l_json_str);
@@ -539,9 +581,9 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
             if (l_cond_outs)
                 l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, l_cond_type, l_token_tiker, l_addr);
             else if (l_value_str) {
-                l_outs_list = dap_chain_wallet_get_list_tx_outs_with_val_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum, l_check_mempool); 
+                dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool);
             } else {
-                l_outs_list = dap_chain_wallet_get_list_tx_outs_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum, l_check_mempool);
+                dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool);
             }
             dap_json_object_add_string(json_obj_wall, "wallet_addr", dap_chain_addr_to_str_static(l_addr));
             dap_json_t *l_json_outs_arr = dap_json_array_new();
