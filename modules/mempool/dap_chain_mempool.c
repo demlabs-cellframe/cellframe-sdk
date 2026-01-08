@@ -8,7 +8,6 @@
  * All rights reserved.
 
  This file is part of DAP (Distributed Applications Platform) the open source project
-#include "dap_chain_net_tx_legacy.h"  // For TX creation (moved from mempool)
 
  DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
