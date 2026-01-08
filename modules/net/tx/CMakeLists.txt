@@ -4,6 +4,9 @@ project(dap_chain_wallet_tx)
 file(GLOB DAP_CHAIN_WALLET_TX_SRCS *.c)
 file(GLOB DAP_CHAIN_WALLET_TX_HEADERS include/*.h wallet-tx/include/*.h)
 
+# Legacy TX creation functions moved from mempool (dap_chain_net_tx_legacy.c)
+# These functions create transactions and should NOT be in mempool module
+
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_WALLET_TX_SRCS} HEADERS ${DAP_CHAIN_WALLET_TX_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} 

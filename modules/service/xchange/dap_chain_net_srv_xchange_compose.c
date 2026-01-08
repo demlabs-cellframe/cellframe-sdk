@@ -929,11 +929,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
 
 // ========== CLI/RPC WRAPPERS ==========
 
-// NOTE: CLI wrappers (dap_chain_tx_compose_xchange_create, etc.) are declared in header
-// but not implemented yet. They require complex integration with wallet management,
-// UTXO selection API, and mempool API. Implementation will be added when CLI layer
-// refactoring is complete. For now, XChange functionality is accessible through
-// Plugin API via dap_chain_tx_compose_create("xchange_order_create", ...).
+// TODO: Implement CLI wrappers that return JSON
 
 // ========== INITIALIZATION ==========
 
