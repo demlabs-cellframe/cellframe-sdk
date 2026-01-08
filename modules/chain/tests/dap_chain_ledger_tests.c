@@ -1026,12 +1026,11 @@ void dap_ledger_test_run(void){
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_iddn);
     dap_ledger_create_options_t l_opts = {
         .net_id = l_net->pub.id,
-        .flags = l_flags
+        .flags = l_flags,
+        .native_ticker = l_net->pub.native_ticker
     };
     dap_ledger_t *l_ledger = dap_ledger_create(&l_opts);
     l_net->pub.ledger = l_ledger;
-    // Set native ticker from network (required for fee output validation)
-    dap_ledger_set_native_ticker(l_ledger, l_net->pub.native_ticker);
 
     // Create zerochain with dag_poa consensus
     dap_chain_t *l_chain_zero =  dap_chain_create(l_net->pub.name, "test_chain_zerochain", l_net->pub.id, (dap_chain_id_t){.uint64 = 0});

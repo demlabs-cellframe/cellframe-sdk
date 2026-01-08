@@ -1955,6 +1955,7 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
         dap_strncpy(l_opts->name, a_net->pub.name, sizeof(l_opts->name));
         l_opts->net_id = a_net->pub.id;
         l_opts->flags = l_ledger_flags;
+        l_opts->native_ticker = a_net->pub.native_ticker;
         
         // Create ledger
         a_net->pub.ledger = dap_ledger_create(l_opts);

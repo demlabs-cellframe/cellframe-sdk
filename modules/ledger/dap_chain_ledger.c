@@ -919,6 +919,11 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
     dap_strncpy(l_ledger->name, a_options->name, sizeof(l_ledger->name));
     l_ledger->net_id = a_options->net_id;
     
+    // Set native ticker if provided
+    if (a_options->native_ticker && *a_options->native_ticker) {
+        dap_strncpy(l_ledger->native_ticker, a_options->native_ticker, sizeof(l_ledger->native_ticker));
+    }
+    
     // Copy chain IDs
     if (a_options->chain_ids_count > 0 && a_options->chain_ids) {
         l_ledger->chain_ids = DAP_NEW_Z_COUNT(dap_chain_id_t, a_options->chain_ids_count);

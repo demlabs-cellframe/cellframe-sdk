@@ -57,6 +57,7 @@ typedef struct dap_ledger_create_options {
     dap_chain_id_t *chain_ids;         // Array of chain IDs for this ledger
     size_t chain_ids_count;            // Number of chain IDs (default: 1, with chain_id=0)
     uint16_t flags;                    // Ledger flags
+    const char *native_ticker;         // Native token ticker (default: NULL, must be set)
 } dap_ledger_create_options_t;
 
 // Callback typedefs
