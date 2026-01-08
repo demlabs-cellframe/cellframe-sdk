@@ -1868,7 +1868,7 @@ int dap_ledger_register_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id,
     
     HASH_ADD(hh, a_ledger->chains_registry, chain_id, sizeof(dap_chain_id_t), l_info);
     
-    log_it(L_INFO, "Ledger %s: registered chain '%s' (id=%llu, type=%u)", 
+    log_it(L_INFO, "Ledger %s: registered chain '%s' (id=%"PRIu64", type=%u)", 
            a_ledger->name, a_chain_name, a_chain_id.uint64, a_chain_type);
     return 0;
 }
@@ -2092,7 +2092,6 @@ dap_list_t *dap_ledger_get_utxo_for_value(
         }
         
         dap_chain_datum_tx_t *l_tx = l_tx_item->tx;
-        bool l_tx_has_outs_for_addr = false;
         
         // Iterate through all outputs in the transaction
         byte_t *l_tx_item_ptr = NULL;
@@ -2142,8 +2141,6 @@ dap_list_t *dap_ledger_get_utxo_for_value(
             
             l_list_used_outs = dap_list_append(l_list_used_outs, l_used_out);
             SUM_256_256(l_value_transfer, l_out_value, &l_value_transfer);
-            
-            l_tx_has_outs_for_addr = true;
             
             // Check if we have enough
             if (compare256(l_value_transfer, a_value_need) >= 0) {

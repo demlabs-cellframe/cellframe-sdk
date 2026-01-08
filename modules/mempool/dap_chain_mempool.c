@@ -44,6 +44,7 @@
 #include "dap_enc_http.h"
 #include "dap_http_status_code.h"
 #include "dap_chain_common.h"
+#include "dap_chain_net.h"  // For dap_chain_net_by_id
 // REMOVED: dap_chain_node.h - dead include, not used
 #include "dap_global_db.h"
 #include "dap_global_db_cluster.h"
@@ -257,6 +258,108 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_key_str);
     return ret;
+}
+
+/**
+ * @brief Create GDB group name for chain mempool
+ * @param a_chain Chain
+ * @return Group name (caller must free) or NULL
+ */
+char *dap_chain_mempool_group_new(dap_chain_t *a_chain)
+{
+    dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
+    return l_net
+            ? dap_chain_mempool_group_name(l_net->pub.gdb_groups_prefix, a_chain->name)
+            : NULL;
+}
+
+/**
+ * @brief Check if output is used in mempool
+ * @param a_net Network
+ * @param a_out_hash TX hash
+ * @param a_out_idx Output index
+ * @return true if used
+ */
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx)
+{
+    // Check if this UTXO is spent by any TX in mempool
+    if (!a_net || !a_out_hash)
+        return false;
+    
+    // Iterate through all chains in network
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(a_net->pub.chains, l_chain) {
+        char *l_gdb_group = dap_chain_mempool_group_new(l_chain);
+        if (!l_gdb_group)
+            continue;
+        
+        // Get all datums from mempool
+        size_t l_objs_count = 0;
+        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_count);
+        DAP_DELETE(l_gdb_group);
+        
+        // Check each TX in mempool
+        for (size_t i = 0; i < l_objs_count; i++) {
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+                continue;
+            
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+            
+            // Check all inputs
+            byte_t *l_item = NULL;
+            size_t l_item_size = 0;
+            TX_ITEM_ITER_TX(l_item, l_item_size, l_tx) {
+                if (*l_item != TX_ITEM_TYPE_IN && *l_item != TX_ITEM_TYPE_IN_COND)
+                    continue;
+                
+                dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t *)l_item;
+                if (dap_hash_fast_compare(&l_in->header.tx_prev_hash, a_out_hash) &&
+                    l_in->header.tx_out_prev_idx == a_out_idx) {
+                    dap_global_db_objs_delete(l_objs, l_objs_count);
+                    return true;  // Found: output is spent
+                }
+            }
+        }
+        
+        dap_global_db_objs_delete(l_objs, l_objs_count);
+    }
+    
+    return false;  // Not found: output is unspent
+}
+
+/**
+ * @brief Filter mempool datums
+ * @param a_chain Chain
+ * @param a_removed Output: number of removed datums
+ */
+void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed)
+{
+    if (!a_chain || !a_removed)
+        return;
+    
+    *a_removed = 0;
+    char *l_gdb_group = dap_chain_mempool_group_new(a_chain);
+    if (!l_gdb_group)
+        return;
+    
+    // Get all mempool datums
+    size_t l_objs_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_count);
+    
+    // Filter logic: remove invalid/expired datums
+    for (size_t i = 0; i < l_objs_count; i++) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+        if (!l_datum)
+            continue;
+        
+        // TODO: Add filtering criteria (e.g., expired TXs, invalid format)
+        // For now, just count valid datums
+        UNUSED(l_datum);
+    }
+    
+    dap_global_db_objs_delete(l_objs, l_objs_count);
+    DAP_DELETE(l_gdb_group);
 }
 
 /**

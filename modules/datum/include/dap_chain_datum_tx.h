@@ -120,7 +120,7 @@ void dap_chain_datum_tx_delete(dap_chain_datum_tx_t *a_tx);
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx);
+size_t dap_chain_datum_tx_get_size(const dap_chain_datum_tx_t *a_tx);
 
 /**
  * Insert item to transaction

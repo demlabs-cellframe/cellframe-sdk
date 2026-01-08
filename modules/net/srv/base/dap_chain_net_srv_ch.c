@@ -1216,7 +1216,7 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
     
     // 3. Get wallet name from certificate
     dap_cert_t *l_cert = a_usage->service->receipt_sign_cert;
-    if (!l_cert || !l_cert->name) {
+    if (!l_cert || !*l_cert->name) {  // Check for empty string, not NULL (name is array)
         log_it(L_ERROR, "Failed to get wallet name from certificate");
         a_usage->last_err_code = -3;
         s_service_substate_go_to_error(a_usage);

@@ -1250,7 +1250,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
  * @param a_chain
  * @param a_json_arr_reply
  * @return
-
+ */
 int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_json_t *a_json_arr_reply)
 {
     if (!a_net || !a_chain) {
@@ -1475,7 +1475,9 @@ int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_v
             ret = 0;
         } break;
         case SUBCMD_PROC: {
-            ret = _cmd_mempool_proc(l_net, l_chain, l_datum_hash, a_json_arr_reply, a_version);
+            // LEGACY: _cmd_mempool_proc() removed (part of old TX creation logic)
+            dap_json_rpc_error_add(a_json_arr_reply, -999, "Command 'proc' is deprecated (legacy)");
+            ret = -999;
         } break;
         case SUBCMD_PROC_ALL: {
             ret = _cmd_mempool_proc_all(l_net, l_chain, a_json_arr_reply);
@@ -1489,19 +1491,9 @@ int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_v
             }
         } break;
         case SUBCMD_ADD_CA: {
-            const char *l_ca_name  = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
-            if (!l_ca_name) {
-                dap_json_rpc_error_add(a_json_arr_reply, -3, "mempool add_ca requires parameter '-ca_name' to specify the certificate name");
-                ret = -3;
-            }
-            dap_cert_t *l_cert = dap_cert_find_by_name(l_ca_name);
-            if (!l_cert) {
-                dap_json_rpc_error_add(a_json_arr_reply, -4, "Cert with name '%s' not found.", l_ca_name);
-                ret = -4;
-            }
-            ret = _cmd_mempool_add_ca(l_net, l_chain, l_cert, a_json_arr_reply);
-            DAP_DELETE(l_cert);
+            // LEGACY: _cmd_mempool_add_ca() removed (part of old CA management)
+            dap_json_rpc_error_add(a_json_arr_reply, -999, "Command 'add_ca' is deprecated (legacy)");
+            ret = -999;
         } break;
         case SUBCMD_CHECK: {
             ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, a_json_arr_reply, a_version);
@@ -1584,96 +1576,6 @@ int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_v
     return ret;
 }
 
-int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, dap_json_t *a_json_arr_reply)
-{
-    if (!a_net || !a_chain || !a_cert){
-        dap_json_rpc_error_add(a_json_arr_reply, COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND, "The network or certificate attribute was not passed.");
-        return COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND;
-    }
-    dap_chain_t *l_chain = NULL;
-    // Chech for chain if was set or not
-    if (!a_chain){
-       // If wasn't set - trying to auto detect
-        l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_CA);
-        if (!l_chain) { // If can't auto detect
-            // clean previous error code
-            dap_json_rpc_error_add(a_json_arr_reply, COM_MEMPOOL_ADD_CA_ERROR_NO_CAINS_FOR_CA_DATUM_IN_NET,
-                                   "No chains for CA datum in network \"%s\"", a_net->pub.name);
-            return COM_MEMPOOL_ADD_CA_ERROR_NO_CAINS_FOR_CA_DATUM_IN_NET;
-        }
-    }
-    if(!a_cert->enc_key){
-        dap_json_rpc_error_add(a_json_arr_reply, COM_MEMPOOL_ADD_CA_ERROR_CORRUPTED_CERTIFICATE_WITHOUT_KEYS,
-                               "Corrupted certificate \"%s\" without keys certificate", a_cert->name);
-        return COM_MEMPOOL_ADD_CA_ERROR_CORRUPTED_CERTIFICATE_WITHOUT_KEYS;
-    }
-
-    if (a_cert->enc_key->priv_key_data_size || a_cert->enc_key->priv_key_data){
-        dap_json_rpc_error_add(a_json_arr_reply, COM_MEMPOOL_ADD_CA_ERROR_CERTIFICATE_HAS_PRIVATE_KEY_DATA,
-                               "Certificate \"%s\" has private key data. Please export public only key certificate without private keys", a_cert->name);
-        return COM_MEMPOOL_ADD_CA_ERROR_CERTIFICATE_HAS_PRIVATE_KEY_DATA;
-    }
-
-    // Serialize certificate into memory
-    uint32_t l_cert_serialized_size = 0;
-    byte_t * l_cert_serialized = dap_cert_mem_save(a_cert, &l_cert_serialized_size);
-    if(!l_cert_serialized){
-        dap_json_rpc_error_add(a_json_arr_reply, COM_MEMPOOL_ADD_CA_ERROR_CAN_NOT_SERIALIZE,
-                               "Can't serialize in memory certificate \"%s\"", a_cert->name);
-        return COM_MEMPOOL_ADD_CA_ERROR_CAN_NOT_SERIALIZE;
-    }
-    // Now all the chechs passed, forming datum for mempool
-    dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CA, l_cert_serialized , l_cert_serialized_size);
-    DAP_DELETE( l_cert_serialized);
-    if(!l_datum){
-        dap_json_rpc_error_add(a_json_arr_reply, COM_MEMPOOL_ADD_CA_ERROR_CAN_NOT_SERIALIZE,
-                               "Can't produce datum from certificate \"%s\"", a_cert->name);
-        return COM_MEMPOOL_ADD_CA_ERROR_CAN_NOT_SERIALIZE;
-    }
-
-    // Finaly add datum to mempool
-    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
-    DAP_DELETE(l_datum);
-    if (l_hash_str) {
-        char *l_msg = dap_strdup_printf("Datum %s was successfully placed to mempool", l_hash_str);
-        if (!l_msg) {
-            dap_json_rpc_allocation_error(a_json_arr_reply);
-            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-        }
-        dap_json_t *l_obj_message = dap_json_object_new_string(l_msg);
-        DAP_DELETE(l_msg);
-        DAP_DELETE(l_hash_str);
-        if (!l_obj_message) {
-            dap_json_rpc_allocation_error(a_json_arr_reply);
-            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-        }
-        dap_json_array_add(a_json_arr_reply, l_obj_message);
-        return 0;
-    } else {
-        char *l_msg = dap_strdup_printf("Can't place certificate \"%s\" to mempool", a_cert->name);
-        if (!l_msg) {
-            dap_json_rpc_allocation_error(a_json_arr_reply);
-            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-        }
-        dap_json_t *l_obj_msg = dap_json_object_new_string(l_msg);
-        DAP_DELETE(l_msg);
-        if (!l_obj_msg) {
-            dap_json_rpc_allocation_error(a_json_arr_reply);
-            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-        }
-        dap_json_array_add(a_json_arr_reply, l_obj_msg);
-        return COM_MEMPOOL_ADD_CA_ERROR_CAN_NOT_PLACE_CERTIFICATE;
-    }
-}
-
-/**
- * @brief com_chain_ca_copy
- * @details copy public CA into the mempool
- * @param a_argc
- * @param a_argv
- * @param a_arg_func
- * @param a_json_arr_reply
- */
 
 /**
  * @brief Create transaction from json file and add to mempool

@@ -156,7 +156,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
 
         // Filter by alias if specified
         if (a_alias && *a_alias) {
-            if (!l_node_info->alias || strcmp(l_node_info->alias, a_alias) != 0)
+            if (strcmp(l_node_info->alias, a_alias) != 0)  // alias is array, always non-NULL
                 continue;
         }
 
@@ -170,12 +170,12 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
         dap_json_object_add_string(l_json_node, "address", l_addr_str);
         DAP_DELETE(l_addr_str);
 
-        // Add alias if exists
-        if (l_node_info->alias && *l_node_info->alias)
+        // Add alias if exists (alias is array, check for empty string)
+        if (*l_node_info->alias)
             dap_json_object_add_string(l_json_node, "alias", l_node_info->alias);
 
-        // Add host/port info (always, or only if full?)
-        if (l_node_info->ext_host && *l_node_info->ext_host)
+        // Add host/port info (ext_host is array, check for empty string)
+        if (*l_node_info->ext_host)
             dap_json_object_add_string(l_json_node, "IPv4", l_node_info->ext_host);
         dap_json_object_add_uint64(l_json_node, "port", l_node_info->ext_port);
 

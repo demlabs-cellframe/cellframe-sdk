@@ -57,7 +57,7 @@ void dap_chain_datum_tx_delete(dap_chain_datum_tx_t *a_tx)
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
+size_t dap_chain_datum_tx_get_size(const dap_chain_datum_tx_t *a_tx)
 {
     dap_return_val_if_fail(a_tx, 0);
     return (sizeof(dap_chain_datum_tx_t) + a_tx->header.tx_items_size) > a_tx->header.tx_items_size

@@ -7,7 +7,12 @@ file(GLOB DAP_CHAIN_TESTS_SRC *.c)
 
 add_executable(${PROJECT_NAME} ${DAP_CHAIN_TESTS_SRC} ${DAP_CHAIN_TESTS_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_test dap_sdk cellframe_sdk)
+target_link_libraries(${PROJECT_NAME} 
+    dap_test 
+    dap_sdk 
+    cellframe_sdk
+    dap_chain_net_srv_stake  # Propagates stake headers including common types
+)
 
 if (DARWIN)
     target_link_libraries(${PROJECT_NAME} bz2)

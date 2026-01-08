@@ -48,12 +48,8 @@ static int s_decree_hardfork_handler(
     // Extract stake information if present
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size,
                                     DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
-    void *l_hardfork_data = NULL;
-    size_t l_hardfork_data_size = 0;
-    if (l_tsd) {
-        l_hardfork_data = l_tsd->data;
-        l_hardfork_data_size = l_tsd->size;
-    }
+    // Hardfork data available if needed for future processing
+    UNUSED(l_tsd);  // Mark as intentionally unused for now
     
     dap_hash_fast_t l_decree_hash = {};
     dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
