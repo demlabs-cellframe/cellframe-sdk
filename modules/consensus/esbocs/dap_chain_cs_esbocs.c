@@ -1488,10 +1488,12 @@ static bool s_session_round_new(void *a_arg)
         a_session->esbocs->hardfork_state = a_session->esbocs->hardfork_generation > a_session->chain->generation &&
                                     a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
         if (a_session->esbocs->hardfork_state) {
-            dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
-            int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
-                                                     a_session->esbocs->hardfork_trusted_addrs,
-                                                     a_session->esbocs->hardfork_changed_addrs);
+            // DISABLED: dap_chain_node_hardfork_prepare() is #if 0 in dap_chain_node.c
+            // dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
+            // int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
+            //                                          a_session->esbocs->hardfork_trusted_addrs,
+            //                                          a_session->esbocs->hardfork_changed_addrs);
+            int rc = -1; // Disabled: hardfork prepare not implemented
             if (rc) {
                 log_it(L_ERROR, "Can't start hardfork process with code %d, see log for more details", rc);
                 a_session->esbocs->hardfork_state = false;

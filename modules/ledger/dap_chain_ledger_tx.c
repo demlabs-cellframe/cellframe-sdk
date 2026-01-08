@@ -3014,3 +3014,33 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
         *l_cond_outs_list = l_cond_ret;
     return ret;
 }
+
+/**
+ * @brief Register ledger TX builders
+ * 
+ * This function is intentionally empty as the new Plugin API
+ * handles TX builder registration through dap_chain_tx_compose_api.
+ * Kept for backward compatibility with code that calls it during init.
+ * 
+ * @return 0 (always success)
+ */
+int dap_ledger_tx_builders_register(void)
+{
+    // NOTE: Legacy function - TX builders now registered via Plugin API
+    // See modules/datum/tx/dap_chain_tx_compose_registry.c
+    return 0;
+}
+
+/**
+ * @brief Unregister ledger TX builders
+ * 
+ * This function is intentionally empty as the new Plugin API
+ * handles TX builder cleanup automatically.
+ * Kept for backward compatibility with code that calls it during deinit.
+ */
+void dap_ledger_tx_builders_unregister(void)
+{
+    // NOTE: Legacy function - TX builders now managed by Plugin API
+    // See modules/datum/tx/dap_chain_tx_compose_registry.c
+}
+

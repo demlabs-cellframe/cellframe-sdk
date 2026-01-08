@@ -3366,6 +3366,25 @@ bool dap_chain_net_is_bridged(dap_chain_net_t *a_net, dap_chain_net_id_t a_net_i
     return l_ret;
 }
 
+/**
+ * @brief Get human-readable name for network state
+ * @param a_state Network state enum value
+ * @return String name of state
+ */
+const char *dap_chain_net_get_state_name(dap_chain_net_state_t a_state)
+{
+    switch (a_state) {
+        case NET_STATE_LOADING: return "LOADING";
+        case NET_STATE_OFFLINE: return "OFFLINE";
+        case NET_STATE_LINKS_PREPARE: return "LINKS_PREPARE";
+        case NET_STATE_LINKS_CONNECTING: return "LINKS_CONNECTING";
+        case NET_STATE_LINKS_ESTABLISHED: return "LINKS_ESTABLISHED";
+        case NET_STATE_SYNC_CHAINS: return "SYNC_CHAINS";
+        case NET_STATE_ONLINE: return "ONLINE";
+        default: return "UNKNOWN";
+    }
+}
+
 DAP_INLINE void dap_chain_net_set_load_skip()
 {
     s_load_skip = true;

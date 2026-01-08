@@ -42,7 +42,7 @@ static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
 static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version);
 
 static int com_node(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version); // Non-static for shared library linkage
+// REMOVED: int com_net() - legacy CLI handler removed
 
 /**
  * @brief s_net_sync_status - Creates JSON object with network sync status information
@@ -122,7 +122,7 @@ static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
     return l_tsd;
 }
 
-int com_net(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version); // Non-static for shared library linkage
+// REMOVED: int com_net() forward declaration - legacy CLI handler
 
 // Helper function to list nodes with full reply  
 // Implementation based on dap_chain_node_rpc_list logic
@@ -1025,11 +1025,11 @@ int dap_chain_net_cli_init(void)
                            -1, // auto ID
                            "node { add | del | link | alias | connect | list | dump | connections | balancer }\n");
 
-    // Register net command (if exists)
-    dap_cli_server_cmd_add("net", com_net, NULL,
-                           "Network operations",
-                           -1, // auto ID
-                           "net { list | get | go | stats | sync }\n");
+    // REMOVED: com_net legacy CLI handler registration
+    // dap_cli_server_cmd_add("net", com_net, NULL,
+    //                        "Network operations",
+    //                        -1, // auto ID
+    //                        "net { list | get | go | stats | sync }\n");
 
     log_it(L_NOTICE, "Net CLI commands registered (with error codes)");
     return 0;
