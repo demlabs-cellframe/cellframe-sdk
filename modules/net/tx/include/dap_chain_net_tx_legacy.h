@@ -60,7 +60,7 @@ extern "C" {
  * @param a_time_unlock Array of unlock times (optional)
  * @return TX hash string or NULL on error
  */
-char *dap_chain_wallet_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+char *dap_chain_net_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
                                   const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t **a_addr_to,
                                   const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX], uint256_t *a_value,
                                   uint256_t a_value_fee, const char *a_hash_out_type,
@@ -71,7 +71,7 @@ char *dap_chain_wallet_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from
  * 
  * @return 0 on success, -2 not enough funds, -1 other error
  */
-int dap_chain_wallet_tx_create_massive(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+int dap_chain_net_tx_create_massive(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
                                         const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t *a_addr_to,
                                         const char a_token_ticker[10], uint256_t a_value, uint256_t a_value_fee,
                                         const char *a_hash_out_type, size_t a_tx_num);
@@ -79,7 +79,7 @@ int dap_chain_wallet_tx_create_massive(dap_chain_t *a_chain, dap_enc_key_t *a_ke
 /**
  * @brief Create conditional transaction input
  */
-char* dap_chain_wallet_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
+char* dap_chain_net_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
                                              const dap_chain_addr_t *a_addr_from,
                                              dap_enc_key_t *a_key, const dap_chain_addr_t *a_addr_to,
                                              dap_pkey_t *a_seller_pkey, const char *a_token_ticker,
@@ -89,7 +89,7 @@ char* dap_chain_wallet_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_ha
 /**
  * @brief Create conditional transaction
  */
-char *dap_chain_wallet_tx_create_cond(dap_chain_net_t *a_net,
+char *dap_chain_net_tx_create_cond(dap_chain_net_t *a_net,
                                        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
                                        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                        uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
@@ -100,7 +100,7 @@ char *dap_chain_wallet_tx_create_cond(dap_chain_net_t *a_net,
 /**
  * @brief Create base transaction from emission
  */
-char *dap_chain_wallet_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
+char *dap_chain_net_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
                                        dap_chain_id_t a_emission_chain_id,
                                        uint256_t a_emission_value, const char *a_ticker,
                                        const dap_chain_addr_t *a_addr_to, uint256_t a_value,
@@ -109,7 +109,7 @@ char *dap_chain_wallet_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_
 /**
  * @brief Create event transaction
  */
-char *dap_chain_wallet_tx_create_event(dap_chain_t *a_chain,
+char *dap_chain_net_tx_create_event(dap_chain_t *a_chain,
                                         dap_enc_key_t *a_key_from,
                                         dap_enc_key_t *a_service_key,
                                         dap_chain_net_srv_uid_t a_srv_uid,
