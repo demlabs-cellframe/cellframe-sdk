@@ -29,6 +29,12 @@
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 
+// Forward declarations
+typedef struct dap_chain_net dap_chain_net_t;
+typedef union dap_chain_net_srv_uid dap_chain_net_srv_uid_t;
+typedef struct dap_chain_datum_tx_receipt dap_chain_datum_tx_receipt_t;
+typedef uint64_t dap_chain_tx_event_type_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif

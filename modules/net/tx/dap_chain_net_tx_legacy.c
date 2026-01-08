@@ -36,10 +36,15 @@
 #include "dap_chain_net_tx_legacy.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_net.h"
-#include "dap_chain_net_tx.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_common.h"
 #include "dap_common.h"
+
+// Forward declaration for net functions (avoid circular deps)
+extern dap_chain_net_t *dap_chain_net_by_id(dap_chain_net_id_t a_id);
+extern bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr);
+extern char *dap_chain_mempool_datum_add(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
+extern char *dap_chain_mempool_group_new(dap_chain_t *a_chain);
 
 #define LOG_TAG "net_tx_legacy"
 

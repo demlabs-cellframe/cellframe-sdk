@@ -9,9 +9,11 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_WALLET_CACHE_SRCS} HEADERS ${D
 target_link_libraries(${PROJECT_NAME} 
     dap_core dap_crypto dap_common dap_chain
     dap_chain_ledger    # Uses ledger for address lookups
-    dap_chain_wallet)   # Uses wallet types
+    dap_chain_wallet    # Uses wallet types
+    dap_chain_mempool)  # For mempool_check functions
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PRIVATE ../mempool/include)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_WALLET_CACHE_HEADERS}")

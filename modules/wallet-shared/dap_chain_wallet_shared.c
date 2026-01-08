@@ -30,7 +30,7 @@
 #include "dap_json.h"
 #include "dap_chain_mempool.h"
 #include "dap_cli_server.h"
-#include "dap_chain_net_fee.h"  // Fee management (moved from net-tx to net core)
+// NOTE: Fee functions are in dap_chain_net_tx.h
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_list.h"

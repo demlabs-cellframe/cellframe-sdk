@@ -23,7 +23,8 @@
 */
 
 #pragma once
-#include "dap_chain_net.h"
+// Forward declarations (avoid net dependency)
+typedef struct dap_chain_net dap_chain_net_t;
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 
