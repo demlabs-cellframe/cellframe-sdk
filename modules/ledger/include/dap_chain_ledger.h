@@ -145,6 +145,12 @@ typedef dap_chain_datum_tx_t* (*dap_ledger_wallet_cache_iter_get_callback_t)(
 
 typedef void (*dap_ledger_wallet_cache_iter_delete_callback_t)(dap_ledger_wallet_cache_iter_t *a_iter);
 
+// Forward declaration for chain type
+typedef struct dap_chain dap_chain_t;
+
+// Chain iteration callback - for iterating chains (registered by chain module)
+typedef void (*dap_ledger_chain_iter_callback_t)(dap_chain_t *a_chain, void *a_arg);
+
 typedef struct dap_ledger {
     // Ledger identification
     char name[256];                    // Ledger name
@@ -197,6 +203,14 @@ typedef struct dap_ledger {
     // Mempool callbacks - for adding datums/tx to mempool
     dap_ledger_mempool_add_datum_callback_t mempool_add_datum_callback;
     dap_ledger_mempool_create_tx_callback_t mempool_create_tx_callback;
+    
+    // Network callbacks - for net state queries (registered by net module)
+    bool (*net_get_load_mode_callback)(dap_chain_net_id_t a_net_id);  // Is network in load mode?
+    int (*net_get_state_callback)(dap_chain_net_id_t a_net_id);       // Get network state
+    char* (*net_get_name_callback)(dap_chain_net_id_t a_net_id);      // Get network name
+    
+    // Chain callbacks - for chain iteration (registered by chain module)
+    dap_ledger_chain_iter_callback_t chain_iter_callback;
     
     // Private data
     void *_internal;
@@ -836,6 +850,11 @@ bool dap_ledger_datum_is_enforced(dap_ledger_t *a_ledger, dap_hash_fast_t *a_has
 
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);
+
+// Chain registry functions - for iterating chains (registered by chain module)
+void dap_ledger_set_chain_iter_callback(dap_ledger_t *a_ledger, dap_ledger_chain_iter_callback_t a_callback);
+void dap_ledger_iterate_chains(dap_ledger_t *a_ledger, dap_ledger_chain_iter_callback_t a_callback, void *a_arg);
+
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 

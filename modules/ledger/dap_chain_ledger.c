@@ -944,6 +944,12 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
     
+    // Initialize callbacks to NULL
+    l_ledger->net_get_load_mode_callback = NULL;
+    l_ledger->net_get_state_callback = NULL;
+    l_ledger->net_get_name_callback = NULL;
+    l_ledger->chain_iter_callback = NULL;
+    
     // Decrees initializing
     dap_ledger_decree_init(l_ledger);
     
@@ -2164,4 +2170,39 @@ dap_list_t *dap_ledger_get_utxo_for_value(
     
     *a_value_found = l_value_transfer;
     return l_list_used_outs;
+}
+
+/**
+ * @brief Set chain iteration callback
+ * 
+ * This callback is registered by the chain module to allow ledger to iterate
+ * over registered chains without direct dependency.
+ */
+void dap_ledger_set_chain_iter_callback(dap_ledger_t *a_ledger, dap_ledger_chain_iter_callback_t a_callback)
+{
+    if (!a_ledger) {
+        log_it(L_ERROR, "NULL ledger in dap_ledger_set_chain_iter_callback");
+        return;
+    }
+    a_ledger->chain_iter_callback = a_callback;
+}
+
+/**
+ * @brief Iterate over all chains for this ledger
+ * 
+ * Calls the registered chain_iter_callback for each chain.
+ * If no callback is registered, does nothing.
+ */
+void dap_ledger_iterate_chains(dap_ledger_t *a_ledger, dap_ledger_chain_iter_callback_t a_callback, void *a_arg)
+{
+    if (!a_ledger) {
+        log_it(L_ERROR, "NULL ledger in dap_ledger_iterate_chains");
+        return;
+    }
+    
+    // For now, just call the callback if set
+    // TODO: In full implementation, chain module should register a proper iterator
+    if (a_ledger->chain_iter_callback) {
+        a_ledger->chain_iter_callback(NULL, a_arg);  // Pass through
+    }
 }
