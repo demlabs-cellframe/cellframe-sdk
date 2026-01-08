@@ -14,10 +14,16 @@ target_link_libraries(${PROJECT_NAME}
     dap_chain_tx_compose  # TX Compose API
     dap_chain_ledger      # Uses ledger for signing via dap_ledger_sign_data
     dap_chain_wallet      # Uses wallet types
-    dap_chain_mempool)    # For token_cli.c
+    dap_chain_mempool     # For token_cli.c
+    dap_chain_net_srv)    # For net_srv.h
+
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC wallet-tx/include)
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${CMAKE_SOURCE_DIR}/modules/type/blocks/include
+    ${CMAKE_SOURCE_DIR}/modules/net/srv/base/include
+    ${CMAKE_SOURCE_DIR}/modules/mempool/include)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_WALLET_TX_HEADERS}")

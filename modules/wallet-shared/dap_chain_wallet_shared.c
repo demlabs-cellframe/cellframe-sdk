@@ -26,6 +26,7 @@
 #include "dap_enc_base58.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_net.h"      // For dap_chain_net_t and iteration
 #include "dap_chain_wallet.h"
 #include "dap_json.h"
 #include "dap_chain_mempool.h"

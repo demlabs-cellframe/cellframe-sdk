@@ -42,6 +42,8 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum.h"  // For full dap_chain_datum_t structure
 #include "dap_chain.h"
+#include "dap_chain_net.h"     // For dap_chain_net_t and iteration functions
+#include "dap_proc_thread.h"   // For dap_proc_thread_get_auto
 #include "dap_common.h"
 #include "dap_chain_mempool.h"
 

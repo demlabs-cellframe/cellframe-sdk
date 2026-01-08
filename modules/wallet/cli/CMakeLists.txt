@@ -8,12 +8,17 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_WALLET_CLI_SRCS} HEADERS ${DAP
 
 target_link_libraries(${PROJECT_NAME} 
     dap_core dap_crypto dap_common dap_chain
-    dap_chain_wallet      # Uses wallet API
-    dap_chain_ledger      # Uses ledger for balance display
-    dap_chain_net         # Uses net for network operations
-    dap_cli_server)       # CLI framework
+    dap_chain_wallet        # Uses wallet API
+    dap_chain_wallet_shared # Uses wallet shared module
+    dap_chain_ledger        # Uses ledger for balance display
+    dap_chain_net           # Uses net for network operations
+    dap_cli_server)         # CLI framework
+
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC .)
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${CMAKE_SOURCE_DIR}/modules/wallet-shared/include
+    ${CMAKE_SOURCE_DIR}/modules/mempool/include)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_WALLET_CLI_HEADERS}")
