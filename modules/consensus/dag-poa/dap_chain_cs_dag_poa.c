@@ -361,7 +361,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
     dap_chain_type_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     pthread_rwlock_init(&l_poa_pvt->rounds_rwlock, NULL);
     // PoA rounds
-#ifndef DAP_LEDGER_TEST
     l_poa_pvt->confirmations_timeout = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","confirmations_timeout",600);
     l_poa_pvt->auto_confirmation = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_confirmation",true);
     l_poa_pvt->auto_round_complete = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_round_complete",true);
@@ -403,14 +402,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
         }
     }
 
-#else
-    l_poa_pvt->auth_certs_count = 1;
-    l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t *));
-    char *l_seed_ph = "H58i9GJKbn91238937^#$t6cjdf";
-    size_t l_seed_ph_size = strlen(l_seed_ph);
-    dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("testCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, l_seed_ph, l_seed_ph_size);
-    l_poa_pvt->auth_certs[0] = l_cert;
-#endif
     return 0;
 }
 

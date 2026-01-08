@@ -364,13 +364,8 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->is_add_directly = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_add_directly",false);
     l_dag->datum_add_hashes_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag","datum_add_hashes_count",1);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-#ifndef DAP_LEDGER_TEST
     l_dag->gdb_group_events_round_new = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round.new" : "dag-%s-%s-round.new",
                                           l_net->pub.gdb_groups_prefix, a_chain->name, 0LLU);
-#else
-    l_dag->gdb_group_events_round_new = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round.new" : "dag-%s-%s-round.new",
-                                        "Snet", a_chain->name, 0LLU);
-#endif
     log_it (L_NOTICE, "DAG chain initialized (%s)", l_dag->is_single_line ? "single line" : "multichain");
     return 0;
 }

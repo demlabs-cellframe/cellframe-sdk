@@ -1808,22 +1808,6 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     DAP_DELETE(a_net);
 }
 
-#ifdef DAP_LEDGER_TEST
-int dap_chain_net_test_init()
-{
-    dap_chain_net_t *l_net = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t) );
-    PVT(l_net)->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
-    l_net->pub.id.uint64 = 0xFA0;
-    strcpy(l_net->pub.name, "Snet");
-    l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
-    l_net->pub.native_ticker = "TestCoin";
-    l_net->pub.node_role.enums = NODE_ROLE_ROOT;
-    HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_net);
-    HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
-    return 0;
-}
-#endif
-
 
 static int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const char *a_hosts_type, struct request_link_info ***a_hosts, uint16_t *a_hosts_count)
 {

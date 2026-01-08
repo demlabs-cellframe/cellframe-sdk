@@ -2283,7 +2283,6 @@ FIN:
 
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
-#ifndef DAP_LEDGER_TEST
     if ((a_ledger->net_get_load_mode_callback ? a_ledger->net_get_load_mode_callback(a_ledger->net_id) : false)) {
         if (PVT(a_ledger)->cache_tx_check_callback)
             PVT(a_ledger)->cache_tx_check_callback(a_ledger, a_tx_hash);
@@ -2296,7 +2295,6 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
         if (l_tx_item)
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
-#endif
     return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
 

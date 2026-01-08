@@ -341,10 +341,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_set_cs_type(a_chain, "blocks");
     dap_chain_type_create(a_chain, a_chain_cfg);
-#ifdef DAP_LEDGER_TEST
-    //patch for tests
-    return 0;
-#endif
+    
     const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_prefix");
     if (!l_auth_certs_prefix)
         return -1;
