@@ -156,13 +156,104 @@ dap_chain_datum_tx_t *dap_voting_tx_create_vote(
 
 // ========== PLUGIN API CALLBACKS ==========
 
-// TODO: Implement compose callbacks that:
-// 1. Select UTXOs
-// 2. Build unsigned TX using above builders
-// 3. Sign TX
-// 4. Return datum
+/**
+ * @brief Parameters for voting_poll_create compose callback
+ */
+typedef struct voting_poll_create_params {
+    const char *wallet_name;         // Wallet for signing
+    dap_chain_addr_t *wallet_addr;   // Wallet address
+    const char *question;             // Poll question
+    dap_list_t *options;              // List of options (char*)
+    dap_time_t expire_vote;           // Expiration timestamp
+    uint64_t max_vote;                // Maximum votes
+    uint256_t fee;                    // Transaction fee
+    bool delegated_key_required;      // Require delegated key
+    bool vote_changing_allowed;       // Allow vote changing
+    const char *token_ticker;         // Token ticker for fee
+} voting_poll_create_params_t;
+
+/**
+ * @brief Compose callback for voting poll creation
+ * @details Called by Plugin API with selected UTXOs
+ */
+static dap_chain_datum_t* s_voting_poll_create_compose_cb(
+    dap_ledger_t *a_ledger,
+    dap_list_t *a_list_used_outs,
+    void *a_params
+)
+{
+    voting_poll_create_params_t *l_params = (voting_poll_create_params_t *)a_params;
+    if (!l_params || !l_params->wallet_name) {
+        log_it(L_ERROR, "Invalid voting poll create parameters or missing wallet name");
+        return NULL;
+    }
+
+    // 1. Build unsigned TX using PURE builder
+    dap_chain_datum_tx_t *l_tx = dap_voting_tx_create_poll(
+        a_ledger,
+        l_params->question,
+        l_params->options,
+        l_params->expire_vote,
+        l_params->max_vote,
+        l_params->fee,
+        l_params->delegated_key_required,
+        l_params->vote_changing_allowed,
+        l_params->wallet_addr,
+        l_params->token_ticker
+    );
+    
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to build voting poll TX");
+        return NULL;
+    }
+
+    // 2. Get sign data
+    size_t l_sign_data_size = 0;
+    const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
+    if (!l_sign_data) {
+        log_it(L_ERROR, "Failed to get signing data");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // 3. Sign via ledger
+    dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
+                                              l_sign_data, l_sign_data_size, 0);
+    if (!l_sign) {
+        log_it(L_ERROR, "Failed to sign voting poll TX");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // 4. Add signature to TX
+    if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
+        log_it(L_ERROR, "Failed to add signature to TX");
+        DAP_DELETE(l_sign);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_sign);
+
+    // 5. Convert to datum
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(
+        DAP_CHAIN_DATUM_TX,
+        l_tx,
+        dap_chain_datum_tx_get_size(l_tx)
+    );
+    dap_chain_datum_tx_delete(l_tx);
+
+    if (!l_datum) {
+        log_it(L_ERROR, "Failed to create datum from voting poll TX");
+        return NULL;
+    }
+
+    log_it(L_INFO, "Voting poll datum created successfully");
+    return l_datum;
+}
 
 // ========== CLI/RPC WRAPPERS ==========
+
+// TODO: Implement CLI wrappers that return JSON
 
 /**
  * @brief CLI wrapper for poll creation
@@ -219,11 +310,21 @@ int dap_chain_net_srv_voting_compose_init(void)
 {
     log_it(L_NOTICE, "Initializing Voting compose module");
     
-    // TODO: Register TX builders with Plugin API
-    // dap_chain_tx_compose_register("voting_poll_create", ..., NULL);
-    // dap_chain_tx_compose_register("voting_vote", ..., NULL);
+    // Register voting_poll_create TX builder with Plugin API
+    int l_ret = dap_chain_tx_compose_register(
+        "voting_poll_create",
+        s_voting_poll_create_compose_cb,
+        NULL  // No user data needed
+    );
     
-    log_it(L_NOTICE, "Voting compose module initialized");
+    if (l_ret != 0) {
+        log_it(L_ERROR, "Failed to register voting_poll_create TX builder");
+        return -1;
+    }
+    
+    // TODO: Register voting_vote when fully implemented
+    
+    log_it(L_NOTICE, "Voting compose module initialized (poll_create registered)");
     return 0;
 }
 
@@ -231,9 +332,9 @@ void dap_chain_net_srv_voting_compose_deinit(void)
 {
     log_it(L_NOTICE, "Deinitializing Voting compose module");
     
-    // TODO: Unregister TX builders
-    // dap_chain_tx_compose_unregister("voting_poll_create");
-    // dap_chain_tx_compose_unregister("voting_vote");
+    // Unregister TX builders
+    dap_chain_tx_compose_unregister("voting_poll_create");
+    // TODO: Unregister vote when implemented
     
     log_it(L_NOTICE, "Voting compose module deinitialized");
 }

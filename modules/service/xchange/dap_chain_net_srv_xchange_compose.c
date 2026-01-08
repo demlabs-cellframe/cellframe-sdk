@@ -367,11 +367,94 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
 
 // ========== PLUGIN API CALLBACKS ==========
 
-// TODO: Implement compose callbacks that:
-// 1. Select UTXOs
-// 2. Build unsigned TX using above builders
-// 3. Sign TX
-// 4. Return datum
+/**
+ * @brief Parameters for xchange_order_create compose callback
+ */
+typedef struct xchange_order_create_params {
+    const char *wallet_name;        // Wallet for signing
+    dap_chain_addr_t *wallet_addr;  // Wallet address
+    const char *token_buy;           // Token to buy
+    const char *token_sell;          // Token to sell
+    uint256_t datoshi_sell;          // Amount to sell
+    uint256_t rate;                  // Exchange rate
+    uint256_t fee;                   // Transaction fee
+} xchange_order_create_params_t;
+
+/**
+ * @brief Compose callback for xchange order creation
+ * @details Called by Plugin API with selected UTXOs
+ */
+static dap_chain_datum_t* s_xchange_order_create_compose_cb(
+    dap_ledger_t *a_ledger,
+    dap_list_t *a_list_used_outs,
+    void *a_params
+)
+{
+    xchange_order_create_params_t *l_params = (xchange_order_create_params_t *)a_params;
+    if (!l_params || !l_params->wallet_name) {
+        log_it(L_ERROR, "Invalid xchange order create parameters or missing wallet name");
+        return NULL;
+    }
+
+    // 1. Build unsigned TX using PURE builder
+    dap_chain_datum_tx_t *l_tx = dap_xchange_tx_create_order(
+        a_ledger,
+        l_params->token_buy,
+        l_params->token_sell,
+        l_params->datoshi_sell,
+        l_params->rate,
+        l_params->fee,
+        l_params->wallet_addr
+    );
+    
+    if (!l_tx) {
+        log_it(L_ERROR, "Failed to build xchange order TX");
+        return NULL;
+    }
+
+    // 2. Get sign data
+    size_t l_sign_data_size = 0;
+    const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
+    if (!l_sign_data) {
+        log_it(L_ERROR, "Failed to get signing data");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // 3. Sign via ledger
+    dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
+                                              l_sign_data, l_sign_data_size, 0);
+    if (!l_sign) {
+        log_it(L_ERROR, "Failed to sign xchange order TX");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // 4. Add signature to TX
+    if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
+        log_it(L_ERROR, "Failed to add signature to TX");
+        DAP_DELETE(l_sign);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_sign);
+
+    // 5. Convert to datum
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(
+        DAP_CHAIN_DATUM_TX,
+        l_tx,
+        dap_chain_datum_tx_get_size(l_tx)
+    );
+    dap_chain_datum_tx_delete(l_tx);
+
+    if (!l_datum) {
+        log_it(L_ERROR, "Failed to create datum from xchange order TX");
+        return NULL;
+    }
+
+    log_it(L_INFO, "XChange order datum created successfully");
+    return l_datum;
+}
 
 // ========== CLI/RPC WRAPPERS ==========
 
@@ -383,12 +466,22 @@ int dap_chain_net_srv_xchange_compose_init(void)
 {
     log_it(L_NOTICE, "Initializing XChange compose module");
     
-    // TODO: Register TX builders with Plugin API
-    // dap_chain_tx_compose_register("xchange_create", ..., NULL);
-    // dap_chain_tx_compose_register("xchange_invalidate", ..., NULL);
-    // dap_chain_tx_compose_register("xchange_purchase", ..., NULL);
+    // Register xchange_order_create TX builder with Plugin API
+    int l_ret = dap_chain_tx_compose_register(
+        "xchange_order_create",
+        s_xchange_order_create_compose_cb,
+        NULL  // No user data needed
+    );
     
-    log_it(L_NOTICE, "XChange compose module initialized");
+    if (l_ret != 0) {
+        log_it(L_ERROR, "Failed to register xchange_order_create TX builder");
+        return -1;
+    }
+    
+    // TODO: Register xchange_invalidate when implemented
+    // TODO: Register xchange_purchase when implemented
+    
+    log_it(L_NOTICE, "XChange compose module initialized (order_create registered)");
     return 0;
 }
 

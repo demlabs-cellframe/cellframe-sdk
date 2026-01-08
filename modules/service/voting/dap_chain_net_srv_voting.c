@@ -24,6 +24,7 @@
 
 #include "dap_common.h"
 #include "dap_chain_net_srv_voting.h"
+#include "dap_chain_net_srv_voting_compose.h"  // For compose init/deinit
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_utils.h"
@@ -155,12 +156,19 @@ int dap_chain_net_srv_voting_init()
     }
     dap_ledger_service_add(l_uid, DAP_CHAIN_SRV_VOTING_LITERAL, s_tag_check_voting);
 
+    // Initialize compose module (register TX builders with Plugin API)
+    if (dap_chain_net_srv_voting_compose_init() != 0) {
+        log_it(L_ERROR, "Failed to initialize Voting compose module");
+        return -1;
+    }
+
     return 0;
 }
 
 void dap_chain_net_srv_voting_deinit()
 {
-
+    // Deinitialize compose module
+    dap_chain_net_srv_voting_compose_deinit();
 }
 
 static void s_voting_clear(struct voting *a_voting)

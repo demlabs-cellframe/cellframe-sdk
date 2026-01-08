@@ -38,6 +38,7 @@
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_math_ops.h"
+#include "dap_chain_net_srv_xchange_compose.h"  // For compose init/deinit
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
@@ -694,6 +695,13 @@ int dap_chain_net_srv_xchange_init()
     l_fee->net_id = dap_chain_net_by_name(l_net_str)->pub.id;
     HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);*/
 #endif
+    
+    // Initialize compose module (register TX builders with Plugin API)
+    if (dap_chain_net_srv_xchange_compose_init() != 0) {
+        log_it(L_ERROR, "Failed to initialize XChange compose module");
+        return -1;
+    }
+    
     return 0;
 }
 
@@ -705,6 +713,9 @@ static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config
 
 void dap_chain_net_srv_xchange_deinit()
 {
+    // Deinitialize compose module
+    dap_chain_net_srv_xchange_compose_deinit();
+    
     dap_chain_srv_delete(c_dap_chain_net_srv_xchange_uid);
 }
 
