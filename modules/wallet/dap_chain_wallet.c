@@ -52,16 +52,16 @@
 #include "dap_common.h"
 #include "dap_cert_file.h"
 #include "dap_chain_wallet.h"
-#include "dap_chain_wallet_tx.h"
+// REMOVED: #include "dap_chain_wallet_tx.h" - moved to net/tx/ module
 #include "dap_chain_wallet_internal.h"
-#include "dap_chain_wallet_shared.h"
-#include "dap_chain_wallet_cache.h"
+// REMOVED: #include "dap_chain_wallet_shared.h" - moved to wallet-shared module
+// REMOVED: #include "dap_chain_wallet_cache.h" - moved to wallet-cache module
 #include "crc32c_adler.h"
-#include "dap_chain_ledger.h"
-#include "dap_json.h"
+// REMOVED: #include "dap_chain_ledger.h" - wallet doesn't depend on ledger
+// REMOVED: #include "dap_json.h" - not needed in core wallet
 #include "dap_strfuncs.h"
 #include "dap_notify_srv.h"
-#include "dap_chain_mempool.h"
+// REMOVED: #include "dap_chain_mempool.h" - wallet doesn't depend on mempool
 
 //#define __USE_GNU
 
@@ -1034,12 +1034,14 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
     //Added wallet and address wallet in cache
     if (l_wallet) {
-        for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-            dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-            if (!dap_chain_wallet_addr_cache_get_name(l_addr))
-                s_wallet_addr_cache_add(l_addr, l_wallet->name);
-            DAP_DELETE(l_addr);
-        }
+        // MOVED_TO_WALLET_CACHE: This loop was moved to wallet-cache module
+        // MOVED_TO_WALLET_CACHE: Cache registration should be done by wallet-cache module via callback
+        // MOVED_TO_WALLET_CACHE: for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        // MOVED_TO_WALLET_CACHE:     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+        // MOVED_TO_WALLET_CACHE:     if (!dap_chain_wallet_addr_cache_get_name(l_addr))
+        // MOVED_TO_WALLET_CACHE:         s_wallet_addr_cache_add(l_addr, l_wallet->name);
+        // MOVED_TO_WALLET_CACHE:     DAP_DELETE(l_addr);
+        // MOVED_TO_WALLET_CACHE: }
 
         for (dap_list_t *l_tmp = s_wallet_open_notificators; l_tmp; l_tmp=l_tmp->next){
             dap_chain_wallet_notificator_t *l_notificator = (dap_chain_wallet_notificator_t*)l_tmp->data;
@@ -1093,19 +1095,19 @@ ssize_t     l_rc, l_pass_len;
  * @param a_net_id
  * @return
  */
-uint256_t dap_chain_wallet_get_balance (
-            dap_chain_wallet_t *a_wallet,
-            dap_chain_net_id_t a_net_id,
-            const char *a_token_ticker
-                                    )
-{
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-    dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
-
-    uint256_t ret = (l_net) ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
-    DAP_DEL_Z(l_addr);
-    return ret;
-}
+// MOVED_TO_WALLET_CACHE: uint256_t dap_chain_wallet_get_balance (
+// MOVED_TO_WALLET_CACHE:             dap_chain_wallet_t *a_wallet,
+// MOVED_TO_WALLET_CACHE:             dap_chain_net_id_t a_net_id,
+// MOVED_TO_WALLET_CACHE:             const char *a_token_ticker
+// MOVED_TO_WALLET_CACHE:                                     )
+// MOVED_TO_WALLET_CACHE: {
+// MOVED_TO_WALLET_CACHE:     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+// MOVED_TO_WALLET_CACHE:     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
+// MOVED_TO_WALLET_CACHE: 
+// MOVED_TO_WALLET_CACHE:     uint256_t ret = (l_net) ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+// MOVED_TO_WALLET_CACHE:     DAP_DEL_Z(l_addr);
+// MOVED_TO_WALLET_CACHE:     return ret;
+// MOVED_TO_WALLET_CACHE: }
 
 /**
  * @brief dap_chain_wallet_get_list_tx_outs_with_val
@@ -1116,151 +1118,151 @@ uint256_t dap_chain_wallet_get_balance (
  * @param a_value_transfer
  * @return list of dap_chain_tx_used_out_item_t
  */
-dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                                       uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check)
-{
-    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
-    dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
-    if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_need, a_value_transfer, a_mempool_check) != -101)
-        return l_list_used_out;
-    dap_chain_hash_fast_t l_tx_cur_hash = { };
-    uint256_t l_value_transfer = { };
-    dap_chain_datum_tx_t *l_tx;
-    while ( compare256(l_value_transfer, a_value_need) == -1
-            && (l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash, true)) )
-    {
-        // Get all item from transaction by type
-        byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
-        dap_chain_addr_t l_out_addr = { };
-        TX_ITEM_ITER_TX_TYPE(it, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_tx) {
-            ++l_out_idx_tmp;
-            dap_chain_tx_item_type_t l_type = *it;
-            uint256_t l_value = { };
-            switch (l_type) {
-            case TX_ITEM_TYPE_OUT_OLD: {
-                dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t*)it;
-                l_out_addr = l_out->addr;
-                if ( !l_out->header.value || !dap_chain_addr_compare(a_addr_from, &l_out_addr) )
-                    continue;
-                l_value = GET_256_FROM_64(l_out->header.value);
-            } break;
-            case TX_ITEM_TYPE_OUT: {
-                dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)it;
-                l_out_addr = l_out->addr;
-                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
-                || dap_strcmp(dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_cur_hash), a_token_ticker)
-                || IS_ZERO_256(l_out->header.value) )
-                    continue;
-                l_value = l_out->header.value;
-            } break;
-            case TX_ITEM_TYPE_OUT_EXT: {
-                dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)it;
-                l_out_addr = l_out_ext->addr;
-                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
-                || strcmp((char *)a_token_ticker, l_out_ext->token)
-                || IS_ZERO_256(l_out_ext->header.value) )
-                    continue;
-                l_value = l_out_ext->header.value;
-            } break;
-            case TX_ITEM_TYPE_OUT_STD: {
-                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)it;
-                l_out_addr = l_out_std->addr;
-                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
-                || strcmp((char *)a_token_ticker, l_out_std->token)
-                || IS_ZERO_256(l_out_std->value)
-                || l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_ledger))
-                    continue;
-                l_value = l_out_std->value;
-            } break;
-            default:
-                continue;
-            }
-            dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
-            if (a_mempool_check && dap_chain_mempool_out_is_used(l_net, &l_tx_cur_hash, l_out_idx_tmp))
-                continue;
-            dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
-            *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
-            l_list_used_out = dap_list_append(l_list_used_out, l_item);
-            SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
-            // already accumulated the required value, finish the search for 'out' items
-            if ( compare256(l_value_transfer, a_value_need) != -1 ) {
-                break;
-            }
-        }
-    }
-    return compare256(l_value_transfer, a_value_need) >= 0 && l_list_used_out
-        ? ({ if (a_value_transfer) *a_value_transfer = l_value_transfer; l_list_used_out; })
-        : ( dap_list_free_full(l_list_used_out, NULL), NULL );
-}
+// MOVED_TO_WALLET_CACHE: dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+// MOVED_TO_WALLET_CACHE:                                                        uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check)
+// MOVED_TO_WALLET_CACHE: {
+// MOVED_TO_WALLET_CACHE:     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+// MOVED_TO_WALLET_CACHE:     dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
+// MOVED_TO_WALLET_CACHE:     if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_need, a_value_transfer, a_mempool_check) != -101)
+// MOVED_TO_WALLET_CACHE:         return l_list_used_out;
+// MOVED_TO_WALLET_CACHE:     dap_chain_hash_fast_t l_tx_cur_hash = { };
+// MOVED_TO_WALLET_CACHE:     uint256_t l_value_transfer = { };
+// MOVED_TO_WALLET_CACHE:     dap_chain_datum_tx_t *l_tx;
+// MOVED_TO_WALLET_CACHE:     while ( compare256(l_value_transfer, a_value_need) == -1
+// MOVED_TO_WALLET_CACHE:             && (l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash, true)) )
+// MOVED_TO_WALLET_CACHE:     {
+// MOVED_TO_WALLET_CACHE:         // Get all item from transaction by type
+// MOVED_TO_WALLET_CACHE:         byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
+// MOVED_TO_WALLET_CACHE:         dap_chain_addr_t l_out_addr = { };
+// MOVED_TO_WALLET_CACHE:         TX_ITEM_ITER_TX_TYPE(it, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_tx) {
+// MOVED_TO_WALLET_CACHE:             ++l_out_idx_tmp;
+// MOVED_TO_WALLET_CACHE:             dap_chain_tx_item_type_t l_type = *it;
+// MOVED_TO_WALLET_CACHE:             uint256_t l_value = { };
+// MOVED_TO_WALLET_CACHE:             switch (l_type) {
+// MOVED_TO_WALLET_CACHE:             case TX_ITEM_TYPE_OUT_OLD: {
+// MOVED_TO_WALLET_CACHE:                 dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t*)it;
+// MOVED_TO_WALLET_CACHE:                 l_out_addr = l_out->addr;
+// MOVED_TO_WALLET_CACHE:                 if ( !l_out->header.value || !dap_chain_addr_compare(a_addr_from, &l_out_addr) )
+// MOVED_TO_WALLET_CACHE:                     continue;
+// MOVED_TO_WALLET_CACHE:                 l_value = GET_256_FROM_64(l_out->header.value);
+// MOVED_TO_WALLET_CACHE:             } break;
+// MOVED_TO_WALLET_CACHE:             case TX_ITEM_TYPE_OUT: {
+// MOVED_TO_WALLET_CACHE:                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)it;
+// MOVED_TO_WALLET_CACHE:                 l_out_addr = l_out->addr;
+// MOVED_TO_WALLET_CACHE:                 if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+// MOVED_TO_WALLET_CACHE:                 || dap_strcmp(dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_cur_hash), a_token_ticker)
+// MOVED_TO_WALLET_CACHE:                 || IS_ZERO_256(l_out->header.value) )
+// MOVED_TO_WALLET_CACHE:                     continue;
+// MOVED_TO_WALLET_CACHE:                 l_value = l_out->header.value;
+// MOVED_TO_WALLET_CACHE:             } break;
+// MOVED_TO_WALLET_CACHE:             case TX_ITEM_TYPE_OUT_EXT: {
+// MOVED_TO_WALLET_CACHE:                 dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)it;
+// MOVED_TO_WALLET_CACHE:                 l_out_addr = l_out_ext->addr;
+// MOVED_TO_WALLET_CACHE:                 if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+// MOVED_TO_WALLET_CACHE:                 || strcmp((char *)a_token_ticker, l_out_ext->token)
+// MOVED_TO_WALLET_CACHE:                 || IS_ZERO_256(l_out_ext->header.value) )
+// MOVED_TO_WALLET_CACHE:                     continue;
+// MOVED_TO_WALLET_CACHE:                 l_value = l_out_ext->header.value;
+// MOVED_TO_WALLET_CACHE:             } break;
+// MOVED_TO_WALLET_CACHE:             case TX_ITEM_TYPE_OUT_STD: {
+// MOVED_TO_WALLET_CACHE:                 dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)it;
+// MOVED_TO_WALLET_CACHE:                 l_out_addr = l_out_std->addr;
+// MOVED_TO_WALLET_CACHE:                 if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+// MOVED_TO_WALLET_CACHE:                 || strcmp((char *)a_token_ticker, l_out_std->token)
+// MOVED_TO_WALLET_CACHE:                 || IS_ZERO_256(l_out_std->value)
+// MOVED_TO_WALLET_CACHE:                 || l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_ledger))
+// MOVED_TO_WALLET_CACHE:                     continue;
+// MOVED_TO_WALLET_CACHE:                 l_value = l_out_std->value;
+// MOVED_TO_WALLET_CACHE:             } break;
+// MOVED_TO_WALLET_CACHE:             default:
+// MOVED_TO_WALLET_CACHE:                 continue;
+// MOVED_TO_WALLET_CACHE:             }
+// MOVED_TO_WALLET_CACHE:             dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
+// MOVED_TO_WALLET_CACHE:             if (a_mempool_check && dap_chain_mempool_out_is_used(l_net, &l_tx_cur_hash, l_out_idx_tmp))
+// MOVED_TO_WALLET_CACHE:                 continue;
+// MOVED_TO_WALLET_CACHE:             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+// MOVED_TO_WALLET_CACHE:             *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
+// MOVED_TO_WALLET_CACHE:             l_list_used_out = dap_list_append(l_list_used_out, l_item);
+// MOVED_TO_WALLET_CACHE:             SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
+// MOVED_TO_WALLET_CACHE:             // already accumulated the required value, finish the search for 'out' items
+// MOVED_TO_WALLET_CACHE:             if ( compare256(l_value_transfer, a_value_need) != -1 ) {
+// MOVED_TO_WALLET_CACHE:                 break;
+// MOVED_TO_WALLET_CACHE:             }
+// MOVED_TO_WALLET_CACHE:         }
+// MOVED_TO_WALLET_CACHE:     }
+// MOVED_TO_WALLET_CACHE:     return compare256(l_value_transfer, a_value_need) >= 0 && l_list_used_out
+// MOVED_TO_WALLET_CACHE:         ? ({ if (a_value_transfer) *a_value_transfer = l_value_transfer; l_list_used_out; })
+// MOVED_TO_WALLET_CACHE:         : ( dap_list_free_full(l_list_used_out, NULL), NULL );
+// MOVED_TO_WALLET_CACHE: }
 
-dap_list_t *dap_chain_wallet_get_list_tx_outs_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                        uint256_t *a_value_transfer, bool a_mempool_check)
-{
-    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
-    dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
-    if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_transfer, a_mempool_check) != -101)
-        return l_list_used_out;
-    dap_chain_hash_fast_t l_tx_cur_hash = { };
-    uint256_t l_value_transfer = {};
-    dap_chain_datum_tx_t *l_tx;
-    while (( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash, true) )) {
-        byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
-        dap_chain_addr_t l_out_addr = { };
-        TX_ITEM_ITER_TX_TYPE(it, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_tx) {
-            ++l_out_idx_tmp;
-            uint256_t l_value = { };
-            switch (*it) {
-            case TX_ITEM_TYPE_OUT_OLD: {
-                dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t*)it;
-                l_out_addr = l_out->addr;
-                if ( !l_out->header.value || !dap_chain_addr_compare(a_addr_from, &l_out_addr) )
-                    continue;
-                l_value = GET_256_FROM_64(l_out->header.value);
-            } break;
-            case TX_ITEM_TYPE_OUT: {
-                dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)it;
-                l_out_addr = l_out->addr;
-                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
-                || dap_strcmp( dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_cur_hash), a_token_ticker )
-                || IS_ZERO_256(l_out->header.value))
-                    continue;
-                l_value = l_out->header.value;
-            } break;
-            case TX_ITEM_TYPE_OUT_EXT: {
-                dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)it;
-                l_out_addr = l_out_ext->addr;
-                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
-                || strcmp((char*)a_token_ticker, l_out_ext->token)
-                || IS_ZERO_256(l_out_ext->header.value) )
-                    continue;
-                l_value = l_out_ext->header.value;
-            } break;
-            case TX_ITEM_TYPE_OUT_STD: {
-                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)it;
-                l_out_addr = l_out_std->addr;
-                if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
-                || strcmp((char*)a_token_ticker, l_out_std->token)
-                || IS_ZERO_256(l_out_std->value)
-                || l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_ledger))
-                    continue;
-                l_value = l_out_std->value;
-            } break;
-            default:
-                continue;
-            }
-            dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
-            if (a_mempool_check && dap_chain_mempool_out_is_used(l_net, &l_tx_cur_hash, l_out_idx_tmp))
-                continue;
-            dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
-            *(l_item) = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
-            l_list_used_out = dap_list_append(l_list_used_out, l_item);
-            SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
-        }
-    }
-    if (a_value_transfer)
-        *a_value_transfer = l_value_transfer;
-    return l_list_used_out;
-}
+// MOVED_TO_WALLET_CACHE: dap_list_t *dap_chain_wallet_get_list_tx_outs_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+// MOVED_TO_WALLET_CACHE:                                         uint256_t *a_value_transfer, bool a_mempool_check)
+// MOVED_TO_WALLET_CACHE: {
+// MOVED_TO_WALLET_CACHE:     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+// MOVED_TO_WALLET_CACHE:     dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
+// MOVED_TO_WALLET_CACHE:     if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_transfer, a_mempool_check) != -101)
+// MOVED_TO_WALLET_CACHE:         return l_list_used_out;
+// MOVED_TO_WALLET_CACHE:     dap_chain_hash_fast_t l_tx_cur_hash = { };
+// MOVED_TO_WALLET_CACHE:     uint256_t l_value_transfer = {};
+// MOVED_TO_WALLET_CACHE:     dap_chain_datum_tx_t *l_tx;
+// MOVED_TO_WALLET_CACHE:     while (( l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash, true) )) {
+// MOVED_TO_WALLET_CACHE:         byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
+// MOVED_TO_WALLET_CACHE:         dap_chain_addr_t l_out_addr = { };
+// MOVED_TO_WALLET_CACHE:         TX_ITEM_ITER_TX_TYPE(it, TX_ITEM_TYPE_OUT_ALL, l_size, i, l_tx) {
+// MOVED_TO_WALLET_CACHE:             ++l_out_idx_tmp;
+// MOVED_TO_WALLET_CACHE:             uint256_t l_value = { };
+// MOVED_TO_WALLET_CACHE:             switch (*it) {
+// MOVED_TO_WALLET_CACHE:             case TX_ITEM_TYPE_OUT_OLD: {
+// MOVED_TO_WALLET_CACHE:                 dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t*)it;
+// MOVED_TO_WALLET_CACHE:                 l_out_addr = l_out->addr;
+// MOVED_TO_WALLET_CACHE:                 if ( !l_out->header.value || !dap_chain_addr_compare(a_addr_from, &l_out_addr) )
+// MOVED_TO_WALLET_CACHE:                     continue;
+// MOVED_TO_WALLET_CACHE:                 l_value = GET_256_FROM_64(l_out->header.value);
+// MOVED_TO_WALLET_CACHE:             } break;
+// MOVED_TO_WALLET_CACHE:             case TX_ITEM_TYPE_OUT: {
+// MOVED_TO_WALLET_CACHE:                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)it;
+// MOVED_TO_WALLET_CACHE:                 l_out_addr = l_out->addr;
+// MOVED_TO_WALLET_CACHE:                 if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+// MOVED_TO_WALLET_CACHE:                 || dap_strcmp( dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_cur_hash), a_token_ticker )
+// MOVED_TO_WALLET_CACHE:                 || IS_ZERO_256(l_out->header.value))
+// MOVED_TO_WALLET_CACHE:                     continue;
+// MOVED_TO_WALLET_CACHE:                 l_value = l_out->header.value;
+// MOVED_TO_WALLET_CACHE:             } break;
+// MOVED_TO_WALLET_CACHE:             case TX_ITEM_TYPE_OUT_EXT: {
+// MOVED_TO_WALLET_CACHE:                 dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)it;
+// MOVED_TO_WALLET_CACHE:                 l_out_addr = l_out_ext->addr;
+// MOVED_TO_WALLET_CACHE:                 if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+// MOVED_TO_WALLET_CACHE:                 || strcmp((char*)a_token_ticker, l_out_ext->token)
+// MOVED_TO_WALLET_CACHE:                 || IS_ZERO_256(l_out_ext->header.value) )
+// MOVED_TO_WALLET_CACHE:                     continue;
+// MOVED_TO_WALLET_CACHE:                 l_value = l_out_ext->header.value;
+// MOVED_TO_WALLET_CACHE:             } break;
+// MOVED_TO_WALLET_CACHE:             case TX_ITEM_TYPE_OUT_STD: {
+// MOVED_TO_WALLET_CACHE:                 dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)it;
+// MOVED_TO_WALLET_CACHE:                 l_out_addr = l_out_std->addr;
+// MOVED_TO_WALLET_CACHE:                 if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
+// MOVED_TO_WALLET_CACHE:                 || strcmp((char*)a_token_ticker, l_out_std->token)
+// MOVED_TO_WALLET_CACHE:                 || IS_ZERO_256(l_out_std->value)
+// MOVED_TO_WALLET_CACHE:                 || l_out_std->ts_unlock > dap_ledger_get_blockchain_time(a_ledger))
+// MOVED_TO_WALLET_CACHE:                     continue;
+// MOVED_TO_WALLET_CACHE:                 l_value = l_out_std->value;
+// MOVED_TO_WALLET_CACHE:             } break;
+// MOVED_TO_WALLET_CACHE:             default:
+// MOVED_TO_WALLET_CACHE:                 continue;
+// MOVED_TO_WALLET_CACHE:             }
+// MOVED_TO_WALLET_CACHE:             dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
+// MOVED_TO_WALLET_CACHE:             if (a_mempool_check && dap_chain_mempool_out_is_used(l_net, &l_tx_cur_hash, l_out_idx_tmp))
+// MOVED_TO_WALLET_CACHE:                 continue;
+// MOVED_TO_WALLET_CACHE:             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+// MOVED_TO_WALLET_CACHE:             *(l_item) = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
+// MOVED_TO_WALLET_CACHE:             l_list_used_out = dap_list_append(l_list_used_out, l_item);
+// MOVED_TO_WALLET_CACHE:             SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
+// MOVED_TO_WALLET_CACHE:         }
+// MOVED_TO_WALLET_CACHE:     }
+// MOVED_TO_WALLET_CACHE:     if (a_value_transfer)
+// MOVED_TO_WALLET_CACHE:         *a_value_transfer = l_value_transfer;
+// MOVED_TO_WALLET_CACHE:     return l_list_used_out;
+// MOVED_TO_WALLET_CACHE: }
 
 /**
  * @brief cheack wallet to the Bliss sign
@@ -1308,161 +1310,161 @@ int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_
 
     return 0;
 }
-dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path) {
-    unsigned int res = 0;
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_name, a_path, &res);
-    if (l_wallet) {
-        dap_json_t *l_json_ret = dap_json_object_new();
-        if (!l_json_ret) {
-            dap_chain_wallet_close(l_wallet);
-            return NULL;
-        }
-        
-        const char *l_correct_str = strlen(dap_chain_wallet_check_sign(l_wallet)) != 0 
-                                   ? dap_chain_wallet_check_sign(l_wallet) 
-                                   : "correct";
-        dap_json_t *l_jobj_correct_str = dap_json_object_new_string(l_correct_str);
-        if (l_jobj_correct_str)
-            dap_json_object_add_object(l_json_ret, "inf_correct", l_jobj_correct_str);
-        
-        dap_json_t *l_status_str = NULL;
-        if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
-            l_status_str = dap_json_object_new_string("protected-active");
-        else
-            l_status_str = dap_json_object_new_string("unprotected");
-        
-        if (l_status_str)
-            dap_json_object_add_object(l_json_ret, "status", l_status_str);
-        
-        dap_json_t *l_jobj_signs = NULL;
-        dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
-        if (l_w_internal->certs_count == 1) {
-            dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type);
-            l_jobj_signs = dap_json_object_new_string(
-                    dap_sign_type_to_str(
-                            dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type)));
-        } else {
-            dap_string_t *l_str_signs = dap_string_new("");
-            for (size_t i = 0; i < l_w_internal->certs_count; i++) {
-                dap_string_append_printf(l_str_signs, "%s%s",
-                                         l_w_internal->certs[i] ?
-                                         dap_sign_type_to_str(dap_sign_type_from_key_type(
-                                                 l_w_internal->certs[i]->enc_key->type)) : "unknown",
-                                         ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
-            }
-            l_jobj_signs = dap_json_object_new_string(l_str_signs->str);
-            dap_string_free(l_str_signs, true);
-        }
-        dap_json_object_add_object(l_json_ret, "signs", l_jobj_signs);
-        dap_json_t *l_jobj_network = dap_json_object_new();
-        if (!l_jobj_network) {
-            dap_json_object_free(l_json_ret);
-            dap_chain_wallet_close(l_wallet);
-            return NULL;
-        }
-        dap_hash_fast_t l_pkey_hash = {};
-        dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash);
-        dap_json_object_add_object(l_json_ret, "pkey_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
-        for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-            dap_json_t *l_jobj_net = dap_json_object_new();
-            if (!l_jobj_net) {
-                dap_json_object_free(l_json_ret);
-                dap_chain_wallet_close(l_wallet);
-                return NULL;
-            }
-            dap_chain_addr_t *l_wallet_addr_in_net = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-            dap_json_t *l_addr_obj = dap_json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net));
-            if (!l_addr_obj) {
-                DAP_DELETE(l_wallet_addr_in_net);
-                dap_json_object_free(l_json_ret);
-                dap_chain_wallet_close(l_wallet);
-                return NULL;
-            }
-            dap_json_object_add_object(l_jobj_net, "addr", l_addr_obj);
-            size_t l_addr_tokens_size = 0;
-            char **l_addr_tokens = NULL;
-            dap_ledger_addr_get_token_ticker_all(l_net->pub.ledger, l_wallet_addr_in_net, &l_addr_tokens,
-                                                 &l_addr_tokens_size);
-            dap_json_t *l_arr_balance = dap_json_array_new();
-            if (!l_arr_balance) {
-                for (size_t i = 0; i < l_addr_tokens_size; i++)
-                    DAP_DELETE(l_addr_tokens[i]);
-                DAP_DEL_MULTY(l_addr_tokens, l_wallet_addr_in_net);
-                dap_json_object_free(l_json_ret);
-                dap_chain_wallet_close(l_wallet);
-                return NULL;
-            }
-            for (size_t i = 0; i < l_addr_tokens_size; i++) {
-                dap_json_t *l_balance_data = dap_json_object_new();
-                if (!l_balance_data) {
-                    for (size_t j = i; j < l_addr_tokens_size; j++)
-                        DAP_DELETE(l_addr_tokens[j]);
-                    DAP_DELETE(l_addr_tokens);
-                    DAP_DELETE(l_wallet_addr_in_net);
-                    dap_json_object_free(l_json_ret);
-                    dap_chain_wallet_close(l_wallet);
-                    return NULL;
-                }
-                uint256_t l_balance = dap_ledger_calc_balance(l_net->pub.ledger, l_wallet_addr_in_net,
-                                                              l_addr_tokens[i]);
-                const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
-                const char *l_description = dap_ledger_get_description_by_ticker(l_net->pub.ledger,
-                                                                                 l_addr_tokens[i]);
-                dap_json_t *l_ticker_obj = dap_json_object_new_string(l_addr_tokens[i]);
-                dap_json_t *l_coins_obj = dap_json_object_new_string(l_balance_coins);
-                dap_json_t *l_datoshi_obj = dap_json_object_new_string(l_balance_datoshi);
-                if (!l_ticker_obj || !l_coins_obj || !l_datoshi_obj) {
-                    dap_json_object_free(l_ticker_obj);
-                    dap_json_object_free(l_coins_obj);
-                    dap_json_object_free(l_datoshi_obj);
-                    dap_json_object_free(l_balance_data);
-                    for (size_t j = i; j < l_addr_tokens_size; j++)
-                        DAP_DELETE(l_addr_tokens[j]);
-                    DAP_DELETE(l_addr_tokens);
-                    DAP_DELETE(l_wallet_addr_in_net);
-                    dap_json_object_free(l_json_ret);
-                    dap_chain_wallet_close(l_wallet);
-                    return NULL;
-                }
-                dap_json_object_add_object(l_balance_data, "ticker", l_ticker_obj);
-                dap_json_object_add_string(l_balance_data, "description", l_description ?
-                                                                      l_description : "No description");
-                dap_json_object_add_object(l_balance_data, "coins", l_coins_obj);
-                dap_json_object_add_object(l_balance_data, "datoshi", l_datoshi_obj);
-                dap_json_array_add(l_arr_balance, l_balance_data);
-                DAP_DELETE(l_addr_tokens[i]);
-            }
-            dap_json_object_add_array(l_jobj_net, "tokens", l_arr_balance);
-            DAP_DEL_MULTY(l_addr_tokens, l_wallet_addr_in_net);
-            // Now it's safe to add l_jobj_net to parent (this invalidates l_jobj_net)
-            dap_json_object_add_object(l_jobj_network, l_net->pub.name, l_jobj_net);
-            // add shared wallet tx hashes
-            dap_json_t *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_pkey_hash, l_net->pub.name);
-            if (l_tx_hashes) {
-                dap_json_object_add_object(l_json_ret, "wallet_shared_tx_hashes", l_tx_hashes);
-            }
-        }
-        dap_json_object_add_object(l_json_ret, "networks", l_jobj_network);
-        dap_chain_wallet_close(l_wallet);
-        return l_json_ret;
-    } else {
-        dap_json_t *l_obj_ret = dap_json_object_new();
-        if (!l_obj_ret)
-            return NULL;
-        
-        dap_json_t *l_status_obj = NULL;
-        if (res == 4)
-            l_status_obj = dap_json_object_new_string("protected-inactive");
-        else if (res)
-            l_status_obj = dap_json_object_new_string("invalid");
-        
-        if (l_status_obj)
-            dap_json_object_add_object(l_obj_ret, "status", l_status_obj);
-        
-        return l_obj_ret;
-    }
-
-}
+// MOVED_TO_WALLET_CACHE: dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path) {
+// MOVED_TO_WALLET_CACHE:     unsigned int res = 0;
+// MOVED_TO_WALLET_CACHE:     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_name, a_path, &res);
+// MOVED_TO_WALLET_CACHE:     if (l_wallet) {
+// MOVED_TO_WALLET_CACHE:         dap_json_t *l_json_ret = dap_json_object_new();
+// MOVED_TO_WALLET_CACHE:         if (!l_json_ret) {
+// MOVED_TO_WALLET_CACHE:             dap_chain_wallet_close(l_wallet);
+// MOVED_TO_WALLET_CACHE:             return NULL;
+// MOVED_TO_WALLET_CACHE:         }
+// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:         const char *l_correct_str = strlen(dap_chain_wallet_check_sign(l_wallet)) != 0 
+// MOVED_TO_WALLET_CACHE:                                    ? dap_chain_wallet_check_sign(l_wallet) 
+// MOVED_TO_WALLET_CACHE:                                    : "correct";
+// MOVED_TO_WALLET_CACHE:         dap_json_t *l_jobj_correct_str = dap_json_object_new_string(l_correct_str);
+// MOVED_TO_WALLET_CACHE:         if (l_jobj_correct_str)
+// MOVED_TO_WALLET_CACHE:             dap_json_object_add_object(l_json_ret, "inf_correct", l_jobj_correct_str);
+// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:         dap_json_t *l_status_str = NULL;
+// MOVED_TO_WALLET_CACHE:         if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
+// MOVED_TO_WALLET_CACHE:             l_status_str = dap_json_object_new_string("protected-active");
+// MOVED_TO_WALLET_CACHE:         else
+// MOVED_TO_WALLET_CACHE:             l_status_str = dap_json_object_new_string("unprotected");
+// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:         if (l_status_str)
+// MOVED_TO_WALLET_CACHE:             dap_json_object_add_object(l_json_ret, "status", l_status_str);
+// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:         dap_json_t *l_jobj_signs = NULL;
+// MOVED_TO_WALLET_CACHE:         dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
+// MOVED_TO_WALLET_CACHE:         if (l_w_internal->certs_count == 1) {
+// MOVED_TO_WALLET_CACHE:             dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type);
+// MOVED_TO_WALLET_CACHE:             l_jobj_signs = dap_json_object_new_string(
+// MOVED_TO_WALLET_CACHE:                     dap_sign_type_to_str(
+// MOVED_TO_WALLET_CACHE:                             dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type)));
+// MOVED_TO_WALLET_CACHE:         } else {
+// MOVED_TO_WALLET_CACHE:             dap_string_t *l_str_signs = dap_string_new("");
+// MOVED_TO_WALLET_CACHE:             for (size_t i = 0; i < l_w_internal->certs_count; i++) {
+// MOVED_TO_WALLET_CACHE:                 dap_string_append_printf(l_str_signs, "%s%s",
+// MOVED_TO_WALLET_CACHE:                                          l_w_internal->certs[i] ?
+// MOVED_TO_WALLET_CACHE:                                          dap_sign_type_to_str(dap_sign_type_from_key_type(
+// MOVED_TO_WALLET_CACHE:                                                  l_w_internal->certs[i]->enc_key->type)) : "unknown",
+// MOVED_TO_WALLET_CACHE:                                          ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
+// MOVED_TO_WALLET_CACHE:             }
+// MOVED_TO_WALLET_CACHE:             l_jobj_signs = dap_json_object_new_string(l_str_signs->str);
+// MOVED_TO_WALLET_CACHE:             dap_string_free(l_str_signs, true);
+// MOVED_TO_WALLET_CACHE:         }
+// MOVED_TO_WALLET_CACHE:         dap_json_object_add_object(l_json_ret, "signs", l_jobj_signs);
+// MOVED_TO_WALLET_CACHE:         dap_json_t *l_jobj_network = dap_json_object_new();
+// MOVED_TO_WALLET_CACHE:         if (!l_jobj_network) {
+// MOVED_TO_WALLET_CACHE:             dap_json_object_free(l_json_ret);
+// MOVED_TO_WALLET_CACHE:             dap_chain_wallet_close(l_wallet);
+// MOVED_TO_WALLET_CACHE:             return NULL;
+// MOVED_TO_WALLET_CACHE:         }
+// MOVED_TO_WALLET_CACHE:         dap_hash_fast_t l_pkey_hash = {};
+// MOVED_TO_WALLET_CACHE:         dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash);
+// MOVED_TO_WALLET_CACHE:         dap_json_object_add_object(l_json_ret, "pkey_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
+// MOVED_TO_WALLET_CACHE:         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+// MOVED_TO_WALLET_CACHE:             dap_json_t *l_jobj_net = dap_json_object_new();
+// MOVED_TO_WALLET_CACHE:             if (!l_jobj_net) {
+// MOVED_TO_WALLET_CACHE:                 dap_json_object_free(l_json_ret);
+// MOVED_TO_WALLET_CACHE:                 dap_chain_wallet_close(l_wallet);
+// MOVED_TO_WALLET_CACHE:                 return NULL;
+// MOVED_TO_WALLET_CACHE:             }
+// MOVED_TO_WALLET_CACHE:             dap_chain_addr_t *l_wallet_addr_in_net = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+// MOVED_TO_WALLET_CACHE:             dap_json_t *l_addr_obj = dap_json_object_new_string(dap_chain_addr_to_str_static(l_wallet_addr_in_net));
+// MOVED_TO_WALLET_CACHE:             if (!l_addr_obj) {
+// MOVED_TO_WALLET_CACHE:                 DAP_DELETE(l_wallet_addr_in_net);
+// MOVED_TO_WALLET_CACHE:                 dap_json_object_free(l_json_ret);
+// MOVED_TO_WALLET_CACHE:                 dap_chain_wallet_close(l_wallet);
+// MOVED_TO_WALLET_CACHE:                 return NULL;
+// MOVED_TO_WALLET_CACHE:             }
+// MOVED_TO_WALLET_CACHE:             dap_json_object_add_object(l_jobj_net, "addr", l_addr_obj);
+// MOVED_TO_WALLET_CACHE:             size_t l_addr_tokens_size = 0;
+// MOVED_TO_WALLET_CACHE:             char **l_addr_tokens = NULL;
+// MOVED_TO_WALLET_CACHE:             dap_ledger_addr_get_token_ticker_all(l_net->pub.ledger, l_wallet_addr_in_net, &l_addr_tokens,
+// MOVED_TO_WALLET_CACHE:                                                  &l_addr_tokens_size);
+// MOVED_TO_WALLET_CACHE:             dap_json_t *l_arr_balance = dap_json_array_new();
+// MOVED_TO_WALLET_CACHE:             if (!l_arr_balance) {
+// MOVED_TO_WALLET_CACHE:                 for (size_t i = 0; i < l_addr_tokens_size; i++)
+// MOVED_TO_WALLET_CACHE:                     DAP_DELETE(l_addr_tokens[i]);
+// MOVED_TO_WALLET_CACHE:                 DAP_DEL_MULTY(l_addr_tokens, l_wallet_addr_in_net);
+// MOVED_TO_WALLET_CACHE:                 dap_json_object_free(l_json_ret);
+// MOVED_TO_WALLET_CACHE:                 dap_chain_wallet_close(l_wallet);
+// MOVED_TO_WALLET_CACHE:                 return NULL;
+// MOVED_TO_WALLET_CACHE:             }
+// MOVED_TO_WALLET_CACHE:             for (size_t i = 0; i < l_addr_tokens_size; i++) {
+// MOVED_TO_WALLET_CACHE:                 dap_json_t *l_balance_data = dap_json_object_new();
+// MOVED_TO_WALLET_CACHE:                 if (!l_balance_data) {
+// MOVED_TO_WALLET_CACHE:                     for (size_t j = i; j < l_addr_tokens_size; j++)
+// MOVED_TO_WALLET_CACHE:                         DAP_DELETE(l_addr_tokens[j]);
+// MOVED_TO_WALLET_CACHE:                     DAP_DELETE(l_addr_tokens);
+// MOVED_TO_WALLET_CACHE:                     DAP_DELETE(l_wallet_addr_in_net);
+// MOVED_TO_WALLET_CACHE:                     dap_json_object_free(l_json_ret);
+// MOVED_TO_WALLET_CACHE:                     dap_chain_wallet_close(l_wallet);
+// MOVED_TO_WALLET_CACHE:                     return NULL;
+// MOVED_TO_WALLET_CACHE:                 }
+// MOVED_TO_WALLET_CACHE:                 uint256_t l_balance = dap_ledger_calc_balance(l_net->pub.ledger, l_wallet_addr_in_net,
+// MOVED_TO_WALLET_CACHE:                                                               l_addr_tokens[i]);
+// MOVED_TO_WALLET_CACHE:                 const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
+// MOVED_TO_WALLET_CACHE:                 const char *l_description = dap_ledger_get_description_by_ticker(l_net->pub.ledger,
+// MOVED_TO_WALLET_CACHE:                                                                                  l_addr_tokens[i]);
+// MOVED_TO_WALLET_CACHE:                 dap_json_t *l_ticker_obj = dap_json_object_new_string(l_addr_tokens[i]);
+// MOVED_TO_WALLET_CACHE:                 dap_json_t *l_coins_obj = dap_json_object_new_string(l_balance_coins);
+// MOVED_TO_WALLET_CACHE:                 dap_json_t *l_datoshi_obj = dap_json_object_new_string(l_balance_datoshi);
+// MOVED_TO_WALLET_CACHE:                 if (!l_ticker_obj || !l_coins_obj || !l_datoshi_obj) {
+// MOVED_TO_WALLET_CACHE:                     dap_json_object_free(l_ticker_obj);
+// MOVED_TO_WALLET_CACHE:                     dap_json_object_free(l_coins_obj);
+// MOVED_TO_WALLET_CACHE:                     dap_json_object_free(l_datoshi_obj);
+// MOVED_TO_WALLET_CACHE:                     dap_json_object_free(l_balance_data);
+// MOVED_TO_WALLET_CACHE:                     for (size_t j = i; j < l_addr_tokens_size; j++)
+// MOVED_TO_WALLET_CACHE:                         DAP_DELETE(l_addr_tokens[j]);
+// MOVED_TO_WALLET_CACHE:                     DAP_DELETE(l_addr_tokens);
+// MOVED_TO_WALLET_CACHE:                     DAP_DELETE(l_wallet_addr_in_net);
+// MOVED_TO_WALLET_CACHE:                     dap_json_object_free(l_json_ret);
+// MOVED_TO_WALLET_CACHE:                     dap_chain_wallet_close(l_wallet);
+// MOVED_TO_WALLET_CACHE:                     return NULL;
+// MOVED_TO_WALLET_CACHE:                 }
+// MOVED_TO_WALLET_CACHE:                 dap_json_object_add_object(l_balance_data, "ticker", l_ticker_obj);
+// MOVED_TO_WALLET_CACHE:                 dap_json_object_add_string(l_balance_data, "description", l_description ?
+// MOVED_TO_WALLET_CACHE:                                                                       l_description : "No description");
+// MOVED_TO_WALLET_CACHE:                 dap_json_object_add_object(l_balance_data, "coins", l_coins_obj);
+// MOVED_TO_WALLET_CACHE:                 dap_json_object_add_object(l_balance_data, "datoshi", l_datoshi_obj);
+// MOVED_TO_WALLET_CACHE:                 dap_json_array_add(l_arr_balance, l_balance_data);
+// MOVED_TO_WALLET_CACHE:                 DAP_DELETE(l_addr_tokens[i]);
+// MOVED_TO_WALLET_CACHE:             }
+// MOVED_TO_WALLET_CACHE:             dap_json_object_add_array(l_jobj_net, "tokens", l_arr_balance);
+// MOVED_TO_WALLET_CACHE:             DAP_DEL_MULTY(l_addr_tokens, l_wallet_addr_in_net);
+// MOVED_TO_WALLET_CACHE:             // Now it's safe to add l_jobj_net to parent (this invalidates l_jobj_net)
+// MOVED_TO_WALLET_CACHE:             dap_json_object_add_object(l_jobj_network, l_net->pub.name, l_jobj_net);
+// MOVED_TO_WALLET_CACHE:             // add shared wallet tx hashes
+// MOVED_TO_WALLET_CACHE:             dap_json_t *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_pkey_hash, l_net->pub.name);
+// MOVED_TO_WALLET_CACHE:             if (l_tx_hashes) {
+// MOVED_TO_WALLET_CACHE:                 dap_json_object_add_object(l_json_ret, "wallet_shared_tx_hashes", l_tx_hashes);
+// MOVED_TO_WALLET_CACHE:             }
+// MOVED_TO_WALLET_CACHE:         }
+// MOVED_TO_WALLET_CACHE:         dap_json_object_add_object(l_json_ret, "networks", l_jobj_network);
+// MOVED_TO_WALLET_CACHE:         dap_chain_wallet_close(l_wallet);
+// MOVED_TO_WALLET_CACHE:         return l_json_ret;
+// MOVED_TO_WALLET_CACHE:     } else {
+// MOVED_TO_WALLET_CACHE:         dap_json_t *l_obj_ret = dap_json_object_new();
+// MOVED_TO_WALLET_CACHE:         if (!l_obj_ret)
+// MOVED_TO_WALLET_CACHE:             return NULL;
+// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:         dap_json_t *l_status_obj = NULL;
+// MOVED_TO_WALLET_CACHE:         if (res == 4)
+// MOVED_TO_WALLET_CACHE:             l_status_obj = dap_json_object_new_string("protected-inactive");
+// MOVED_TO_WALLET_CACHE:         else if (res)
+// MOVED_TO_WALLET_CACHE:             l_status_obj = dap_json_object_new_string("invalid");
+// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:         if (l_status_obj)
+// MOVED_TO_WALLET_CACHE:             dap_json_object_add_object(l_obj_ret, "status", l_status_obj);
+// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:         return l_obj_ret;
+// MOVED_TO_WALLET_CACHE:     }
+// MOVED_TO_WALLET_CACHE: 
+// MOVED_TO_WALLET_CACHE: }
 
 int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_out_hash)
 {

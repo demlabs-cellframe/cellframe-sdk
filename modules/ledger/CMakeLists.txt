@@ -8,6 +8,7 @@ add_subdirectory(cli)
 # Ledger source files - EXCLUDING old CLI and decree (decree -> governance module)
 file(GLOB DAP_CHAIN_LEDGER_SRCS 
     dap_chain_ledger.c
+    dap_chain_ledger_callbacks.c
     dap_chain_ledger_tx.c
     dap_chain_ledger_anchor.c
     dap_chain_ledger_event.c
@@ -26,20 +27,13 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_LEDGER_SRCS} HEADERS ${DAP_CHA
 target_link_libraries(${PROJECT_NAME} 
     dap_core dap_crypto dap_notify_srv dap_chain dap_global_db dap_json_rpc dap_common
     dap_http_server dap_chain_datum dap_cli_server dap_chain_net_core
-    # REMOVED: dap_chain_datum_tx, dap_chain_tx_sign - these are now part of dap_chain_datum module
     dap_chain_tx_compose
-    dap_chain_ledger_cli)  # New modular CLI
-# Ledger is LOW-LEVEL independent module - NO dependencies on higher layers
-# REMOVED dap_chain_wallet - creates cycle (wallet ↔ ledger) - use callbacks
-# REMOVED dap_chain_mempool - creates cycle (mempool ↔ ledger) - use callbacks
-# REMOVED dap_chain_net - creates cycle (net depends on ledger) - ledger is independent
-# REMOVED dap_chain_net_tx - creates cycle (net-tx ↔ ledger) - use callbacks
-# REMOVED blocks includes - creates cycle (blocks → ledger, ledger → blocks)
-# REMOVED esbocs includes - creates cycle (esbocs → ledger, ledger → esbocs)
+    dap_chain_ledger_cli
+    dap_chain_wallet)  # Wallet is LOWER than ledger (crypto + keys only, no ledger deps)
+# REMOVED dap_chain_mempool - creates CYCLE (mempool depends on ledger already)
+# Mempool will register callbacks in ledger if needed
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-# Ledger uses ONLY: callbacks, forward declarations, and types passed as parameters
-# NO PRIVATE includes to higher-level modules - ledger is foundation layer
 
 # Add tests subdirectory if testing is enabled
 if(BUILD_CELLFRAME_SDK_TESTS)

@@ -6,10 +6,12 @@ endif()
 # Chains
 if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(datum)
-    add_subdirectory(wallet)
+    add_subdirectory(wallet)          # PURE wallet: keys + signing only
     add_subdirectory(chain)
     add_subdirectory(ledger)
-    add_subdirectory(governance)   # High-level governance (decree, policies)
+    add_subdirectory(wallet-cache)    # Address cache (depends on ledger + wallet)
+    add_subdirectory(wallet-shared)   # Shared TX cache (depends on ledger + mempool + wallet)
+    add_subdirectory(governance)      # High-level governance (decree, policies)
 endif()
 
 # Distributed Hash Tables (DHT)
