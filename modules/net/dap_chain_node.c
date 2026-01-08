@@ -101,7 +101,7 @@ static size_t s_node_list_record_ttl = 3600 * 3;
 static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 {
 #ifndef DAP_VERSION
-#pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
+// NOTE: DAP_VERSION not defined, using default
 #define DAP_VERSION "0.9-15"
 #endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
