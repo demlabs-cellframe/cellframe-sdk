@@ -488,9 +488,13 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     l_src_subtype = l_cond_prev->header.subtype;
                     if (l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                         l_noaddr_token = l_native_ticker;
-                    else {
+                    else if (l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX ||
+                             l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                        // DEX/XCHANGE: seller receives different token via regular OUT
+                        l_noaddr_token = l_src_token;
+                    } else {
                         l_recv_from_cond = true;
-                        l_cond_value = l_cond_prev->header.value;
+                        SUM_256_256(l_cond_value, l_cond_prev->header.value, &l_cond_value);
                         l_noaddr_token = l_src_token;
                     }
                 } break;
@@ -579,8 +583,12 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 break;
             }
 
+            bool l_is_exchange = (l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX ||
+                                  l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE);
+            // DEX/XCHANGE: skip coinback filter only for different token (actual exchange recv)
+            bool l_exchange_recv = l_is_exchange && l_dst_token && l_src_token && dap_strcmp(l_dst_token, l_src_token);
             if (l_src_addr && l_dst_addr &&
-                    dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
+                    dap_chain_addr_compare(l_dst_addr, l_src_addr) && !l_exchange_recv &&
                     (!l_recv_from_cond || (l_noaddr_token && (dap_strcmp(l_noaddr_token, l_dst_token) || l_found_out_to_same_addr_from_out_cond))))
                 continue;   // sent to self (coinback)
 
@@ -621,7 +629,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 const char *l_src_str = NULL;
                 if (l_base_tx)
                     l_src_str = l_reward_collect ? "reward collecting" : "emission";
-                else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
+                else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token) && !l_is_exchange)
                     l_src_str = dap_chain_addr_to_str_static(l_src_addr);
                 else{
                     l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);

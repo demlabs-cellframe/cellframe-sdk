@@ -8819,11 +8819,14 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             dap_strncpy(l_key.token_quote, l_ticker_quote, sizeof(l_key.token_quote) - 1);
             dap_strncpy(l_key.token_base, l_ticker_base, sizeof(l_key.token_base) - 1);
             json_object *l_arr = json_object_new_array();
-            uint8_t l_filter = l_orders_only ? DEX_TRADE_FLAG_ORDER : (DEX_TRADE_FLAG_MARKET | DEX_TRADE_FLAG_TARGETED);
+            // When filtering by specific order, include all event types (ORDER + trades)
+            uint8_t l_filter = l_orders_only ? DEX_TRADE_FLAG_ORDER
+                             : l_order_hash_str ? (DEX_TRADE_FLAG_ORDER | DEX_TRADE_FLAG_MARKET | DEX_TRADE_FLAG_TARGETED)
+                             : (DEX_TRADE_FLAG_MARKET | DEX_TRADE_FLAG_TARGETED);
             int l_count = dex_history_get_raw_trades(&l_key, l_t_from, l_t_to ? l_t_to : UINT64_MAX, l_filter, l_limit, l_offset,
                                                      l_seller_str ? &l_seller_addr : NULL, l_buyer_str ? &l_buyer_addr : NULL,
                                                      l_order_hash_str ? &l_order_root : NULL, l_arr);
-            json_object_object_add(l_json_reply, l_orders_only ? "orders" : "trades", l_arr);
+            json_object_object_add(l_json_reply, l_order_hash_str ? "history" : (l_orders_only ? "orders" : "trades"), l_arr);
             json_object_object_add(l_json_reply, "count", json_object_new_int(l_count));
             s_add_units(l_json_reply, l_ticker_base, l_ticker_quote);
             break;
@@ -9800,6 +9803,10 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         dex_pair_index_t *l_pair, *l_tmp;
         HASH_ITER(hh, s_dex_pair_index, l_pair, l_tmp)
         {
+            // Filter by network: show pairs where base or quote token belongs to requested net
+            if (l_pair->key.net_id_base.uint64 != l_net->pub.id.uint64 &&
+                l_pair->key.net_id_quote.uint64 != l_net->pub.id.uint64)
+                continue;
             json_object *l_pair_obj = json_object_new_object();
             json_object_object_add(l_pair_obj, "base_token", json_object_new_string(l_pair->key.token_base));
             json_object_object_add(l_pair_obj, "quote_token", json_object_new_string(l_pair->key.token_quote));
