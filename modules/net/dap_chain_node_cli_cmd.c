@@ -3011,6 +3011,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 if (a_addr && dap_chain_addr_compare(&l_wallet_addr, &l_addr_from))
                     l_datum_is_accepted_addr = true;
 
+                json_object_object_add(l_jobj_datum, "from", json_object_new_string(dap_chain_addr_to_str_static(&l_addr_from)));
                 json_object *l_jobj_to_list = json_object_new_array();
                 if (!l_jobj_to_list) {
                     json_object_put(l_obj_chain);
