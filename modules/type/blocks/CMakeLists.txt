@@ -12,7 +12,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/.
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../governance/include)
 
 if(BUILD_CELLFRAME_SDK_TESTS)
-    add_subdirectory(tests)
 endif()
 
 # OBJECT library: blocks needs ONLY mempool (NO net - blocks are low-level chain type)

@@ -30,7 +30,7 @@
 #include "dap_chain_net_ch.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_net_srv_order.h"
-#include "dap_chain_net_srv_stake_common.h"  // Common stake types (breaks cycles)
+#include "../../net/srv/stake/include/dap_chain_net_srv_stake_common.h"  // Common stake types (breaks cycles)
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
 

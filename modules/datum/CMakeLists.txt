@@ -11,7 +11,6 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_DATUM_SRCS})
 add_subdirectory(tx)
 
 if(BUILD_CELLFRAME_SDK_TESTS)
-    add_subdirectory(tests)
 endif()
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_global_db dap_json_rpc dap_common)

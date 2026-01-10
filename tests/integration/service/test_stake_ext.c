@@ -29,7 +29,8 @@
 
 #include "dap_common.h"
 #include "dap_test.h"
-#include "dap_chain_net_srv_stake_ext_tests.h"
+#include "test_stake_ext.h"
+#include "test_fixtures.h"  // Use common test fixtures
 #include "dap_chain_net_srv_stake_ext.h"
 #include "dap_chain_datum_tx_event.h"
 #include "dap_math_ops.h"
@@ -38,44 +39,37 @@
 
 // ===== TEST UTILITIES =====
 
-/**
- * @brief Generate test hash
- * @param a_seed Seed for hash generation
- * @param a_hash Output hash
- */
-static void generate_test_hash(uint32_t a_seed, dap_hash_fast_t *a_hash)
-{
-    if (!a_hash) return;
-    
-    // Simple deterministic hash generation for testing
-    memset(a_hash, 0, sizeof(dap_hash_fast_t));
-    for (size_t i = 0; i < sizeof(dap_hash_fast_t); i++) {
-        a_hash->raw[i] = (uint8_t)((a_seed + i * 17) % 256);
-    }
-}
+// Use test_hash_generate from fixtures instead of generate_test_hash
+#define generate_test_hash test_hash_generate
+
+// Use test_addr_generate from fixtures instead of generate_test_addr  
+#define generate_test_addr test_addr_generate
 
 /**
- * @brief Create test stake_ext started data
+ * @brief Create test stake_ext started data (local to stake_ext tests)
  * @param a_positions_count Number of positions
- * @return Allocated stake_ext started data (caller must free)
+ * @return Allocated data (caller must free)
  */
 static dap_chain_tx_event_data_stake_ext_started_t *create_test_stake_ext_started_data(uint32_t a_positions_count)
 {
     size_t l_data_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) + 
                         (a_positions_count * sizeof(uint32_t));
     
-    dap_chain_tx_event_data_stake_ext_started_t *l_data = DAP_NEW_Z_SIZE(dap_chain_tx_event_data_stake_ext_started_t, l_data_size);
+    dap_chain_tx_event_data_stake_ext_started_t *l_data = 
+        DAP_NEW_Z_SIZE(dap_chain_tx_event_data_stake_ext_started_t, l_data_size);
+    
     if (!l_data) return NULL;
     
+    // Fill with reasonable test values
     l_data->multiplier = 1;
-    l_data->duration = 86400; // 1 day in seconds 
+    l_data->duration = 86400; // 1 day in seconds
     l_data->time_unit = DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS;
     l_data->calculation_rule_id = 1;
     l_data->total_positions = a_positions_count;
     
-    // Fill position IDs array that follows the structure
+    // Fill position IDs (1, 2, 3, ...)
     for (uint32_t i = 0; i < a_positions_count; i++) {
-        l_data->position_ids[i] = i + 1; // Position IDs 1, 2, 3, ...
+        l_data->position_ids[i] = i + 1;
     }
     
     return l_data;
@@ -90,22 +84,6 @@ static dap_chain_net_id_t generate_test_net_id(uint32_t a_seed)
 {
     dap_chain_net_id_t l_net_id = {.uint64 = 0x1000 + a_seed};
     return l_net_id;
-}
-
-/**
- * @brief Generate test chain address
- * @param a_seed Seed for generation
- * @param a_addr Output address
- */
-static void generate_test_addr(uint32_t a_seed, dap_chain_addr_t *a_addr)
-{
-    if (!a_addr) return;
-    
-    memset(a_addr, 0, sizeof(dap_chain_addr_t));
-    // Simple deterministic address generation
-    for (size_t i = 0; i < sizeof(dap_chain_addr_t); i++) {
-        ((uint8_t*)a_addr)[i] = (uint8_t)((a_seed + i * 23) % 256);
-    }
 }
 
 /**

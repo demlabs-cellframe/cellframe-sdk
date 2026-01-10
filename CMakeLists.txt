@@ -435,6 +435,11 @@ endif()
 # =========================================
 # TESTS
 # =========================================
+if(BUILD_CELLFRAME_SDK_TESTS OR BUILD_DAP_SDK_TESTS)
+    message(STATUS "=== Enabling Cellframe SDK Tests ===")
+    add_subdirectory(tests)
+endif()
+
 # Performance tests (optional, not run by default)
 if(BUILD_PERFORMANCE_TESTS)
     add_subdirectory(tests/performance)

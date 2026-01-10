@@ -9,7 +9,6 @@ file(GLOB DAP_CHAIN_HEADERS include/*.h)
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_SRCS} HEADERS ${DAP_CHAIN_HEADERS})
 
 if(BUILD_CELLFRAME_SDK_TESTS)
-    add_subdirectory(tests)
 endif()
 
 target_link_libraries(${PROJECT_NAME} dap_common dap_global_db dap_notify_srv dap_stream dap_chain_cs dap_chain_datum)

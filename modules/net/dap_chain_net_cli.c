@@ -1387,7 +1387,6 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 dap_json_t *l_jobj_tpd = dap_json_object_new_string(l_tpd_str);
                 DAP_DELETE(l_tpd_str);
                 dap_json_t *l_jobj_total = dap_json_object_new_uint64(l_tx_count);
-#ifdef DAP_TPS_TEST
                 long double l_tps = l_to_ts == l_from_ts ? 0 :
                                                      (long double) l_tx_count / (long double) (long double)(l_to_ts - l_from_ts);
                 char *l_tps_str = dap_strdup_printf("%.3Lf", l_tps);
@@ -1395,9 +1394,6 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 DAP_DELETE(l_tps_str);
                 if (!l_jobj_tpd || !l_jobj_total || !l_jobj_tps) {
                     dap_json_object_free(l_jobj_tps);
-#else
-                if (!l_jobj_tpd || !l_jobj_total) {
-#endif
                     
                     dap_json_object_free(l_jobj_return);
                     dap_json_object_free(l_jobj_stats);
@@ -1408,9 +1404,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-#ifdef DAP_TPS_TEST
                 dap_json_object_add_object(l_jobj_stats, "transaction_per_sec", l_jobj_tps);
-#endif
                 dap_json_object_add_object(l_jobj_stats, "transaction_per_day", l_jobj_tpd);
                 dap_json_object_add_object(l_jobj_stats, "total", l_jobj_total);
                 dap_json_object_add_object(l_jobj_return, "transaction_statistics", l_jobj_stats);

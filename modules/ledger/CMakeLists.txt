@@ -38,7 +38,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC include)
 # Add tests subdirectory if testing is enabled
 if(BUILD_CELLFRAME_SDK_TESTS)
     message("[+] Adding ledger tests subdirectory")
-    add_subdirectory(tests)
 else()
     message("[-] Ledger tests disabled (BUILD_CELLFRAME_SDK_TESTS=${BUILD_CELLFRAME_SDK_TESTS})")
 endif()

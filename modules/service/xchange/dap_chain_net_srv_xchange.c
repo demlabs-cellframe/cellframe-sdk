@@ -676,26 +676,6 @@ int dap_chain_net_srv_xchange_init()
     } else 
         dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL, NULL, NULL, NULL, NULL);
 
-
-#ifdef DAP_XCHANGE_TEST
-    /*int l_fee_type = dap_config_get_item_int64_default(g_config, "srv_xchange", "fee_type", (int)SERIVCE_FEE_NATIVE_PERCENT);
-    uint256_t l_fee_value = dap_chain_balance_coins_scan(dap_config_get_item_str_default(g_config, "srv_xchange", "fee_value", "0.02");
-    const char *l_wallet_addr = dap_config_get_item_str_default(g_config, "srv_xchange", "wallet_addr", NULL);
-    if(!l_wallet_addr){
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        return -1;
-    }
-    const char *l_net_str = dap_config_get_item_str_default(g_config, "srv_xchange", "net", NULL);
-    ///
-    dap_chain_net_srv_fee_item_t *l_fee = NULL;
-    l_fee = DAP_NEW_Z(dap_chain_net_srv_fee_item_t);
-    l_fee->fee_type = l_fee_type;
-    l_fee->fee = l_fee_value;
-    l_fee->fee_addr = *dap_chain_addr_from_str(l_wallet_addr);
-    l_fee->net_id = dap_chain_net_by_name(l_net_str)->pub.id;
-    HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);*/
-#endif
-    
     // Initialize compose module (register TX builders with Plugin API)
     if (dap_chain_net_srv_xchange_compose_init() != 0) {
         log_it(L_ERROR, "Failed to initialize XChange compose module");

@@ -907,10 +907,6 @@ const char* dap_chain_get_path(dap_chain_t *a_chain)
 
 void dap_chain_atom_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size, dap_time_t a_atom_time)
 {
-#ifdef DAP_CHAIN_BLOCKS_TEST
-    return;
-#endif
-
     if (a_cell_id.uint64 == 0)
         a_chain->blockchain_time = a_atom_time;
     dap_list_t *l_iter;
@@ -935,10 +931,6 @@ void dap_chain_atom_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, 
 
 void dap_chain_atom_remove_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_time_t a_prev_atom_time)
 {
-#ifdef DAP_CHAIN_BLOCKS_TEST
-    return;
-#endif
-
     if (a_cell_id.uint64 == 0)
         a_chain->blockchain_time = a_prev_atom_time;
     dap_list_t *l_iter;
@@ -951,9 +943,6 @@ void dap_chain_atom_remove_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_ce
 void dap_chain_datum_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash,
                             const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_srv_uid_t a_uid)
 {
-#ifdef DAP_CHAIN_BLOCKS_TEST
-    return;
-#endif
     dap_list_t *l_iter;
     DL_FOREACH(a_chain->datum_notifiers, l_iter) {
         dap_chain_datum_notifier_t *l_notifier = (dap_chain_datum_notifier_t*)l_iter->data;
@@ -972,10 +961,6 @@ void dap_chain_datum_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
 }
 
 void dap_chain_datum_removed_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash, dap_chain_datum_t *a_datum) {
-#ifdef DAP_CHAIN_BLOCKS_TEST
-    return;
-#endif
-
     if ( !a_chain->datum_removed_notifiers )
         return;
     dap_list_t *l_iter;

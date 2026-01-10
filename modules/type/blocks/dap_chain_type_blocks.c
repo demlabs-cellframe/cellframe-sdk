@@ -46,11 +46,7 @@
 
 #define LOG_TAG "dap_chain_type_blocks"
 
-#ifndef DAP_CHAIN_BLOCKS_TEST
 #define DAP_FORK_MAX_DEPTH_DEFAULT 10
-#else
-#define DAP_FORK_MAX_DEPTH_DEFAULT 5
-#endif
 
 
 typedef struct dap_chain_block_datum_index {
@@ -1877,7 +1873,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     switch (ret) {
     case ATOM_ACCEPT:{
         dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
-#ifndef DAP_CHAIN_BLOCKS_TEST
         assert(l_net);
         if ( !dap_chain_net_api_get_load_mode(l_net) ) {
             int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
@@ -1886,7 +1881,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 return ATOM_REJECT;
             }
         }
-#endif
         if (!( l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped) )) {
             log_it(L_ERROR, "Block %s is corrupted!", l_block_cache->block_hash_str);
             return dap_chain_net_api_get_load_mode(l_net) ? ATOM_CORRUPTED : ATOM_REJECT;
@@ -1917,16 +1911,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
                     for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
                     if (l_checked_atoms_cnt == 0 && l_tmp) {
-#ifndef DAP_CHAIN_BLOCKS_TEST
                         if (!dap_chain_net_get_load_mode(l_net))
-#endif
                             l_notifier->callback(l_notifier->arg, a_chain, c_dap_chain_cell_id_null, &l_tmp->block_hash,
                                                  (void *)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
-#ifndef DAP_CHAIN_BLOCKS_TEST
                         for (size_t i = 0; i < l_tmp->datum_count; i++)
                             if (l_tmp->datum[i]->header.type_id == DAP_CHAIN_DATUM_TX)
                                 dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
-#endif
                     }
                 }    
                 return ATOM_ACCEPT;
@@ -1948,9 +1938,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     if ( s_select_longest_branch(l_blocks, l_cur_branch->connected_block, l_main_branch_length) ) {
                         dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                         // Send it to notificator listeners
-#ifndef DAP_CHAIN_BLOCKS_TEST
                         if (!dap_chain_net_api_get_load_mode( dap_chain_net_api_by_id(a_chain->net_id))){
-#endif
                             dap_list_t *l_iter;
                             DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
                                 dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
@@ -1960,9 +1948,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                                 if (l_checked_atoms_cnt == 0 && l_tmp)
                                     l_notifier->callback(l_notifier->arg, a_chain, c_dap_chain_cell_id_null, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
                             }    
-#ifndef DAP_CHAIN_BLOCKS_TEST
                         }
-#endif
                     }
                     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                     debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED to a forked branch.", a_atom);
@@ -2041,13 +2027,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p with hash %s: REJECTED", a_atom, dap_chain_hash_fast_to_str_static(&l_block_hash));
         break;
     case ATOM_FORK:{
-#ifndef DAP_CHAIN_BLOCKS_TEST
         if ( !dap_chain_net_api_get_load_mode( dap_chain_net_api_by_id(a_chain->net_id)) ) {
             int l_err = dap_chain_atom_save(a_chain, l_block->hdr.cell_id, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL, (char**)&l_block);
             dap_return_val_if_pass_err(l_err, ATOM_REJECT, "Can't save atom to file, code %d", l_err);
             ret = ATOM_FORK;
         }
-#endif
         l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
         if (!l_block_cache) {
             log_it(L_DEBUG, "%s", "... corrupted block");
@@ -2173,7 +2157,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     uint16_t l_generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
     // genesis or seed mode
     if (l_is_genesis) {
-#ifndef DAP_CHAIN_BLOCKS_TEST
         if (!a_chain->generation && !l_generation) {
             if (s_seed_mode)
                 log_it(L_NOTICE, "Accepting new genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
@@ -2216,10 +2199,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 return ATOM_REJECT;
             }
         }
-
-#else
-        PVT(l_blocks)->genesis_block_hash = *a_atom_hash;
-#endif
         ret = ATOM_ACCEPT;
     } else {
         dap_hash_t *l_prev_hash_meta_data = (dap_hash_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
@@ -2787,9 +2766,6 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     size_t l_datum_processed = 0;
     int err = pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
     assert(!err);
-#ifdef DAP_TPS_TEST
-    log_it(L_TPS, "Start tps %zu datums add", a_datums_count);
-#endif
     for (size_t i = 0; i < a_datums_count; ++i) {
         dap_chain_datum_t *l_datum = a_datums[i];
         size_t l_datum_size = dap_chain_datum_size(l_datum);
@@ -2813,9 +2789,6 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size, l_datum, l_datum_size);
         l_datum_processed++;
     }
-#ifdef DAP_TPS_TEST
-    log_it(L_TPS, "Finish tps %zu datums add", a_datums_count);
-#endif
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     return l_datum_processed;
 }

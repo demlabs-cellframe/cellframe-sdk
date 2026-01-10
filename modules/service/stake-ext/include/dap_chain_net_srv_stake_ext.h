@@ -212,12 +212,10 @@ byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, uin
                                                         dap_chain_tx_event_data_time_unit_t a_time_unit,
                                                         uint32_t a_calculation_rule_id, uint8_t a_total_positions, uint32_t a_position_ids[]);
 byte_t *dap_chain_srv_stake_ext_ended_tx_event_create(size_t *a_data_size, dap_time_t a_end_time, uint8_t a_winners_cnt, uint32_t a_winners_ids[]);
-#ifdef __cplusplus
-}
-#endif 
 
-#ifdef DAP_STAKE_EXT_TEST
-// Main stake_ext service structure
+// ===== CACHE API (used by tests and internal code) =====
+
+// Main stake_ext service cache structure
 struct stake_ext {
     dap_chain_srv_stake_ext_cache_item_t *stake_ext; // Hash table of stake_ext keyed by GUUID
     dap_chain_srv_stake_ext_cache_item_t *stake_ext_by_hash; // Hash table for fast lookup by stake_ext_tx_hash
@@ -238,4 +236,7 @@ int dap_chain_srv_stake_ext_cache_update_stake_ext_status(dap_chain_srv_stake_ex
 dap_chain_srv_stake_ext_lock_cache_item_t *dap_chain_srv_stake_ext_cache_find_lock(dap_chain_srv_stake_ext_cache_item_t *a_stake_ext, dap_hash_fast_t *a_lock_hash);
 dap_chain_srv_stake_ext_position_cache_item_t *dap_chain_srv_stake_ext_cache_find_position(dap_chain_srv_stake_ext_cache_item_t *a_stake_ext, uint64_t a_position_id);
 void dap_chain_srv_stake_ext_cache_event_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode);
+
+#ifdef __cplusplus
+}
 #endif

@@ -15,7 +15,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..
 
 if(BUILD_CELLFRAME_SDK_TESTS)
     add_definitions("-DDAP_STAKE_EXT_TEST")
-    add_subdirectory(tests)
 endif()
 
 if (INSTALL_SDK)
