@@ -905,20 +905,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_ext_item (dap_json_t *a_json_item_
     bool l_is_value = s_json_get_uint256(a_json_item_obj, "value", &l_value);
     const char *l_token = dap_json_object_get_string(a_json_item_obj, "token");
     if (l_is_value && l_json_item_addr_str) {
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
-#else
-        size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_json_item_addr_str));
-        dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, dap_max(sizeof(dap_chain_addr_t), l_addr_size), NULL);
-        if (l_json_item_addr_str) {
-            if (strcmp("null", l_json_item_addr_str)) {
-                if (dap_enc_base58_decode(l_json_item_addr_str, l_addr) != sizeof(dap_chain_addr_t)) {
-                    DAP_DELETE(l_addr);
-                    return NULL;
-                }
-            }
-        }
-#endif
         if((!dap_strcmp(l_json_item_addr_str,"null") || l_addr) && !IS_ZERO_256(l_value)) {            
             // Create OUT item
             uint8_t *l_out_item = NULL;
@@ -951,20 +938,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_std_item (dap_json_t *a_json_item_
         return NULL;
     }
     if (l_is_value && (l_json_item_addr_str)) {
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_json_item_addr_str);
-#else
-        size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_json_item_addr_str));
-        dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, dap_max(sizeof(dap_chain_addr_t), l_addr_size), NULL);
-        if (l_json_item_addr_str) {
-            if (strcmp("null", l_json_item_addr_str)) {
-                if (dap_enc_base58_decode(l_json_item_addr_str, l_addr) != sizeof(dap_chain_addr_t)) {
-                    DAP_DELETE(l_addr);
-                    return NULL;
-                }
-            }
-        }
-#endif
         if((!dap_strcmp(l_json_item_addr_str,"null") || l_addr) && !IS_ZERO_256(l_value)) {            
             // Create OUT item
             uint8_t *l_out_item = NULL;
@@ -1091,16 +1065,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 return NULL;
             }
             const char *l_seller_addr_str = dap_json_object_get_string(a_json_item_obj, "seller_addr");
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
-                dap_chain_addr_t *l_seller_addr = dap_chain_addr_from_str(l_seller_addr_str);
-#else
-                size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_seller_addr_str));
-                dap_chain_addr_t *l_seller_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, l_addr_size, NULL);
-                if (dap_enc_base58_decode(l_seller_addr_str, l_seller_addr) != sizeof(dap_chain_addr_t)) {
-                    DAP_DELETE(l_seller_addr);
-                    return NULL;
-                }
-#endif
+            dap_chain_addr_t *l_seller_addr = dap_chain_addr_from_str(l_seller_addr_str);
 
             const char *l_params_str = dap_json_object_get_string(a_json_item_obj, "params");
             uint8_t *l_params = NULL;
@@ -1199,16 +1164,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             }
 
             const char *l_signing_addr_str = dap_json_object_get_string(a_json_item_obj, "signing_addr");
-#ifndef DAP_CHAIN_TX_COMPOSE_TEST
             dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(l_signing_addr_str);
-#else
-            size_t l_addr_size = DAP_ENC_BASE58_DECODE_SIZE(strlen(l_signing_addr_str));
-            dap_chain_addr_t *l_signing_addr = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_addr_t, l_addr_size, NULL);
-            if (dap_enc_base58_decode(l_signing_addr_str, l_signing_addr) != sizeof(dap_chain_addr_t)) {
-                DAP_DELETE(l_signing_addr);
-                return NULL;
-            }
-#endif
             if(!l_signing_addr) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad signing_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                 log_it(L_ERROR, "Json TX: bad signing_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
