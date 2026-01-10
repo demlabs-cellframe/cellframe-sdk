@@ -90,16 +90,8 @@ enum error_code {
     INVALID_EVENT_TYPE_ERROR = 31
 };
 
-#ifndef DAP_STAKE_EXT_TEST
-// Main stake_ext service structure
-struct stake_ext {
-    dap_chain_srv_stake_ext_cache_item_t *stake_ext; // Hash table of stake_ext keyed by GUUID
-    dap_chain_srv_stake_ext_cache_item_t *stake_ext_by_hash; // Hash table for fast lookup by stake_ext_tx_hash
-    uint32_t total_stake_ext;            // Total number of stake_ext in cache
-    uint32_t active_stake_ext;           // Number of active stake_ext
-    pthread_rwlock_t cache_rwlock;      // Read-write lock for cache access
-};
-#endif
+// Note: struct stake_ext is now defined in the public header (dap_chain_net_srv_stake_ext.h)
+// as part of the public cache API
 
 // Stake_ext cache API
 static struct stake_ext *s_stake_ext_service_create(void);
