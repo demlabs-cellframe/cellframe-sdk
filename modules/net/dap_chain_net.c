@@ -117,6 +117,23 @@
 
 #define LOG_TAG "chain_net"
 
+// =============================================================================
+// Dependency Inversion: Callback for datum module
+// =============================================================================
+
+/**
+ * @brief Get ledger by net_id for datum module
+ * @details This callback allows datum module to access ledger without direct dependency
+ * @param a_net_id Network ID
+ * @return Ledger or NULL if not found
+ */
+static dap_ledger_t* dap_chain_net_get_ledger_by_net_id(dap_chain_net_id_t a_net_id)
+{
+    return dap_ledger_find_by_net_id(a_net_id);
+}
+
+// =============================================================================
+
 #define F_DAP_CHAIN_NET_SYNC_FROM_ZERO   ( 1 << 8 )
 
 static bool s_debug_more = false;
@@ -288,6 +305,9 @@ int dap_chain_net_init()
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
+    
+    // Register callback for datum module to get ledger (dependency inversion)
+    dap_chain_datum_register_get_ledger_callback(dap_chain_net_get_ledger_by_net_id);
     
     // CLI command registration moved to dap_chain_net_cli.c
 

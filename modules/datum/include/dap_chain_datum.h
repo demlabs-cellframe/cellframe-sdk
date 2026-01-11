@@ -158,9 +158,16 @@ DAP_STATIC_INLINE void dap_chain_datum_calc_hash(const dap_chain_datum_t *a_datu
 }
 
 
+// Forward declarations for dependency inversion
+typedef struct dap_ledger dap_ledger_t;
+
 typedef void (*dap_chain_datum_callback_dump_json_t)(dap_json_t *a_json_out, const void *a_data, size_t a_size, const char *a_hash_out_type, int a_version);
 void dap_chain_datum_register_dump_decree_callback(dap_chain_datum_callback_dump_json_t a_callback);
 void dap_chain_datum_register_dump_anchor_callback(dap_chain_datum_callback_dump_json_t a_callback); // anchor тоже может зависеть от политик
+
+// Callback to get ledger by net_id (registered by net module)
+typedef dap_ledger_t* (*dap_chain_datum_get_ledger_callback_t)(dap_chain_net_id_t a_net_id);
+void dap_chain_datum_register_get_ledger_callback(dap_chain_datum_get_ledger_callback_t a_callback);
 
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
 

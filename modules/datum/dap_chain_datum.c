@@ -45,8 +45,19 @@
 
 #define LOG_TAG "dap_chain_datum"
 
+// Forward declarations
+typedef struct dap_ledger dap_ledger_t;
+
+// External function from ledger module (to avoid including dap_ledger.h)
+extern const char* dap_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
+
+// Callbacks for dependency inversion
 static dap_chain_datum_callback_dump_json_t s_dump_decree_callback = NULL;
 static dap_chain_datum_callback_dump_json_t s_dump_anchor_callback = NULL;
+
+// Callback to get ledger by net_id (to avoid datum → net/ledger dependency)
+typedef dap_ledger_t* (*dap_chain_datum_get_ledger_callback_t)(dap_chain_net_id_t a_net_id);
+static dap_chain_datum_get_ledger_callback_t s_get_ledger_callback = NULL;
 
 void dap_chain_datum_register_dump_decree_callback(dap_chain_datum_callback_dump_json_t a_callback)
 {
@@ -56,6 +67,17 @@ void dap_chain_datum_register_dump_decree_callback(dap_chain_datum_callback_dump
 void dap_chain_datum_register_dump_anchor_callback(dap_chain_datum_callback_dump_json_t a_callback)
 {
     s_dump_anchor_callback = a_callback;
+}
+
+/**
+ * @brief Register callback to get ledger by net_id
+ * @details Allows net module to provide ledger without creating circular dependency
+ * @param a_callback Callback function that returns ledger for given net_id
+ */
+void dap_chain_datum_register_get_ledger_callback(dap_chain_datum_get_ledger_callback_t a_callback)
+{
+    s_get_ledger_callback = a_callback;
+    log_it(L_INFO, "Registered get_ledger callback for datum module");
 }
 
 /**
@@ -795,9 +817,16 @@ void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_o
             DAP_DELETE(l_emission);
         } break;
         case DAP_CHAIN_DATUM_TX: {
-            // Get ledger through callbacks to avoid datum → net/ledger dependency  
-            // TODO: implement net_get_ledger callback in net module
-            const char *l_tx_token_ticker = NULL;  // Will be NULL until callback registered
+            // Get ledger through callback to avoid datum → net/ledger dependency
+            dap_ledger_t *l_ledger = s_get_ledger_callback ? s_get_ledger_callback(a_net_id) : NULL;
+            const char *l_tx_token_ticker = NULL;
+            
+            if (l_ledger) {
+                // Get token ticker from ledger if available
+                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
+                l_tx_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_datum_hash);
+            }
+            
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
             dap_chain_datum_dump_tx_json(a_json_arr_reply, l_tx, l_tx_token_ticker, json_obj_datum, a_hash_out_type, &l_datum_hash, a_net_id, a_version);
         } break;
