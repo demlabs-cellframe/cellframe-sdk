@@ -159,12 +159,14 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(a_net);
     if (!l_net_decree) {
         log_it(L_ERROR, "Decree module hasn't been initialized yet");
+        DAP_DELETE(l_unique_signs);
         return -404;
     }
 
     uint16_t l_min_signs = l_net_decree->min_num_of_owners;
     if (l_num_of_unique_signs < l_min_signs) {
         log_it(L_WARNING, "Not enough unique signatures, get %zu from %hu", l_num_of_unique_signs, l_min_signs);
+        DAP_DELETE(l_unique_signs);
         return -106;
     }
 

@@ -537,7 +537,7 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     const char *l_value_str; dap_uint256_to_char(l_stake->locked_value, &l_value_str);
     log_it(L_NOTICE, "Removed key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
-    DAP_DELETE(l_stake);
+    DAP_DEL_MULTY(l_stake->pkey, l_stake);
     s_stake_recalculate_weights(a_signing_addr->net_id);
 }
 
@@ -3894,6 +3894,7 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             continue;
         if (i_tmp < l_arr_start) {
             i_tmp++;
+            dap_list_free(l_list_in_items);
             continue;
         }
         // all in items should be from the same address        
@@ -3905,24 +3906,25 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
 
             if (!l_signs_list) {
                 log_it(L_WARNING, "Can't get signs from tx %s", dap_chain_hash_fast_to_str_static(&l_ttx_hash));
+                dap_list_free(l_list_in_items);
                 continue;
             }
-            while(l_signs_list) {
-                dap_chain_tx_sig_t *l_vote_sig = (dap_chain_tx_sig_t *)(l_signs_list->data);
+            for (dap_list_t *it = l_signs_list; it; it = it->next) {
+                dap_chain_tx_sig_t *l_vote_sig = (dap_chain_tx_sig_t *)(it->data);
                 dap_sign_get_pkey_hash((dap_sign_t*)l_vote_sig->sig, &pkey_hash_tx);
 
-                char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                dap_chain_hash_fast_to_str(&pkey_hash_tx, l_pkey_hash_str, sizeof(l_pkey_hash_str));
                 l_stake_valid = NULL;
                 HASH_FIND(hh, l_srv_stake->itemlist, &pkey_hash_tx, sizeof(dap_hash_fast_t), l_stake_valid);
                 if (l_stake_valid && (a_node_info->address.uint64 == l_stake_valid->node_addr.uint64)) {
                     l_flag_continue = false;
                     break;
                 }
-                l_signs_list = l_signs_list->next;
             }
-            if (l_flag_continue) continue;
             dap_list_free(l_signs_list);
+            if (l_flag_continue) {
+                dap_list_free(l_list_in_items);
+                continue;
+            }
         }
     
         json_object* json_obj_hash = json_object_new_object();
