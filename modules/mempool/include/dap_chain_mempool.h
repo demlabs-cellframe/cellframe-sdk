@@ -33,7 +33,14 @@
 #define DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT            -106
 #define DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_SIGN              -107
 
-// TSD type for SRV_PAY refill transaction marker
+/**
+ * @brief TSD type for SRV_PAY refill transaction marker
+ * @details Value 0x16 (22) is chosen to avoid conflicts with:
+ *          - Service TSD types (0x0001+)
+ *          - Decree TSD types (0x0100+)
+ *          - OUT_COND TSD types (0xf000+)
+ *          Used to store refill amount in conditional transaction TSD section
+ */
 #define DAP_CHAIN_SRV_PAY_TSD_REFILL 0x16
 
 #include "uthash.h"
@@ -74,10 +81,11 @@ typedef struct srv_pay_owner_index {
 
 /**
  * @brief Result structure for cache queries - list of cache entries
+ * @note Entries are DAP_DUP copies, caller MUST call dap_chain_srv_pay_cache_list_free() to free
  */
 typedef struct srv_pay_cache_list {
     size_t count;
-    srv_pay_cache_entry_t **entries;    // Array of pointers to entries (do NOT free entries!)
+    srv_pay_cache_entry_t **entries;    // Array of DAP_DUP copies (freed by dap_chain_srv_pay_cache_list_free)
 } srv_pay_cache_list_t;
 
 // SRV_PAY cache functions
@@ -88,12 +96,13 @@ void dap_chain_srv_pay_cache_deinit(void);
  * @brief Get list of SRV_PAY cache entries for owner
  * @param a_net Network
  * @param a_pkey_hash Owner's public key hash
- * @return List of cache entries (caller must free the list struct but NOT the entries)
+ * @return List of cache entries (caller MUST call dap_chain_srv_pay_cache_list_free() to free)
  */
 srv_pay_cache_list_t *dap_chain_srv_pay_cache_get(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash);
 
 /**
- * @brief Free cache list structure (entries are NOT freed)
+ * @brief Free cache list structure and all DAP_DUP'd entries
+ * @param a_list List returned by dap_chain_srv_pay_cache_get()
  */
 void dap_chain_srv_pay_cache_list_free(srv_pay_cache_list_t *a_list);
 
