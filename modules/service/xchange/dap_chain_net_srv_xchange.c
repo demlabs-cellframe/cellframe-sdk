@@ -202,10 +202,27 @@ static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t 
     }
     
     // Determine transaction type
-    xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, NULL, NULL, NULL);
+    dap_chain_tx_out_cond_t *l_order_cond = NULL;
+    dap_chain_tx_out_cond_t *l_prev_cond_out = NULL;
+    xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, &l_order_cond, NULL, &l_prev_cond_out);
     if (l_tx_type == TX_TYPE_UNDEFINED) {
         log_it(L_DEBUG, "Undefined TX type for xchange notification");
         return;
+    }
+    
+    // Extract prev hash from conditional input for EXCHANGE/INVALIDATE
+    dap_hash_fast_t l_prev_hash = {};
+    if (l_tx_type != TX_TYPE_ORDER) {
+        // Find IN_COND item to get previous TX hash
+        byte_t *l_tx_item;
+        size_t l_tx_item_size;
+        TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+            if (l_tx_item[0] == TX_ITEM_TYPE_IN_COND) {
+                dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)(l_tx_item + 1);
+                l_prev_hash = l_in_cond->header.tx_prev_hash;
+                break;
+            }
+        }
     }
     
     // Check if already in cache
@@ -235,15 +252,208 @@ static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t 
     memcpy(&l_cache_item->hash, a_tx_hash, sizeof(dap_hash_fast_t));
     l_cache_item->tx_type = l_tx_type;
     
-    // Parse TX to fill cache fields (simplified implementation)
-    // Full implementation would parse conditional outputs, TSD items, seller/buyer addresses, tokens, rates, etc.
-    // This is a FAIL-SAFE stub that prevents crashes but logs for future full implementation
-    
-    log_it(L_NOTICE, "XChange TX added to cache: %s (type: %d) - basic entry created, full parsing TODO",
-           dap_hash_fast_to_str_static(a_tx_hash), l_tx_type);
+    // Parse TX to fill cache fields based on type
+    switch (l_tx_type) {
+        case TX_TYPE_ORDER: {
+            // Parse ORDER transaction - find conditional output
+            dap_chain_tx_out_cond_t *l_cond_out = NULL;
+            byte_t *l_tx_item;
+            size_t l_tx_item_size;
+            TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+                if (l_tx_item[0] == TX_ITEM_TYPE_OUT_COND) {
+                    dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)(l_tx_item + 1);
+                    if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                        l_cond_out = l_cond;
+                        break;
+                    }
+                }
+            }
+            
+            if (!l_cond_out) {
+                log_it(L_WARNING, "No xchange conditional output found in ORDER TX");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Fill order fields
+            l_cache_item->seller_addr = l_cond_out->subtype.srv_xchange.seller_addr;
+            dap_strncpy(l_cache_item->buy_token, l_cond_out->subtype.srv_xchange.buy_token, 
+                       sizeof(l_cache_item->buy_token) - 1);
+            l_cache_item->rate = l_cond_out->subtype.srv_xchange.rate;
+            
+            // Get sell token from ledger
+            const char *l_sell_token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
+            if (l_sell_token) {
+                dap_strncpy(l_cache_item->sell_token, l_sell_token, sizeof(l_cache_item->sell_token) - 1);
+            }
+            
+            // Fill order-specific fields
+            l_cache_item->tx_info.order_info.value = l_cond_out->header.value;
+            l_cache_item->tx_info.order_info.value_ammount = l_cond_out->header.value;
+            l_cache_item->tx_info.order_info.order_status = s_tx_check_for_open_close(l_net, a_tx);
+            memset(&l_cache_item->tx_info.order_info.next_hash, 0, sizeof(dap_hash_fast_t));
+            l_cache_item->tx_info.order_info.percent_completed = 0;
+            
+            log_it(L_INFO, "XChange ORDER added to cache: %s (sell %s, buy %s, rate %s)",
+                   dap_hash_fast_to_str_static(a_tx_hash),
+                   l_cache_item->sell_token, l_cache_item->buy_token,
+                   dap_uint256_to_char(l_cache_item->rate, NULL));
+            break;
+        }
+        
+        case TX_TYPE_EXCHANGE: {
+            // Parse EXCHANGE transaction - buyer purchased from order
+            dap_chain_tx_in_cond_t *l_in_cond = NULL;
+            byte_t *l_tx_item;
+            size_t l_tx_item_size;
+            TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+                if (l_tx_item[0] == TX_ITEM_TYPE_IN_COND) {
+                    l_in_cond = (dap_chain_tx_in_cond_t *)(l_tx_item + 1);
+                    break;
+                }
+            }
+            
+            if (!l_in_cond) {
+                log_it(L_WARNING, "No conditional input found in EXCHANGE TX");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Get order TX to extract seller and tokens
+            dap_chain_datum_tx_t *l_order_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_prev_hash);
+            if (l_order_tx) {
+                // Find seller address from order
+                dap_chain_tx_out_cond_t *l_order_cond = NULL;
+                TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, l_order_tx) {
+                    if (l_tx_item[0] == TX_ITEM_TYPE_OUT_COND) {
+                        dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)(l_tx_item + 1);
+                        if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                            l_order_cond = l_cond;
+                            break;
+                        }
+                    }
+                }
+                
+                if (l_order_cond) {
+                    l_cache_item->seller_addr = l_order_cond->subtype.srv_xchange.seller_addr;
+                    dap_strncpy(l_cache_item->buy_token, l_order_cond->subtype.srv_xchange.buy_token,
+                               sizeof(l_cache_item->buy_token) - 1);
+                    l_cache_item->rate = l_order_cond->subtype.srv_xchange.rate;
+                    
+                    const char *l_sell_token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_prev_hash);
+                    if (l_sell_token) {
+                        dap_strncpy(l_cache_item->sell_token, l_sell_token, sizeof(l_cache_item->sell_token) - 1);
+                    }
+                }
+            }
+            
+            // Get buyer address from TX outputs
+            TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+                if (l_tx_item[0] == TX_ITEM_TYPE_OUT_EXT) {
+                    dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)(l_tx_item + 1);
+                    l_cache_item->tx_info.exchange_info.buyer_addr = l_out_ext->addr;
+                    l_cache_item->tx_info.exchange_info.buy_value = l_out_ext->header.value;
+                    break;
+                }
+            }
+            
+            // Fill exchange-specific fields
+            l_cache_item->tx_info.exchange_info.prev_hash = l_prev_hash;
+            memset(&l_cache_item->tx_info.exchange_info.order_hash, 0, sizeof(dap_hash_fast_t));  // Will be filled later
+            memset(&l_cache_item->tx_info.exchange_info.next_hash, 0, sizeof(dap_hash_fast_t));
+            
+            log_it(L_INFO, "XChange EXCHANGE added to cache: %s",
+                   dap_hash_fast_to_str_static(a_tx_hash));
+            break;
+        }
+        
+        case TX_TYPE_INVALIDATE: {
+            // Parse INVALIDATE transaction - order cancelled
+            dap_chain_tx_in_cond_t *l_in_cond = NULL;
+            byte_t *l_tx_item;
+            size_t l_tx_item_size;
+            TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+                if (l_tx_item[0] == TX_ITEM_TYPE_IN_COND) {
+                    l_in_cond = (dap_chain_tx_in_cond_t *)(l_tx_item + 1);
+                    break;
+                }
+            }
+            
+            if (!l_in_cond) {
+                log_it(L_WARNING, "No conditional input found in INVALIDATE TX");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Get order TX to extract seller
+            dap_chain_datum_tx_t *l_order_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_prev_hash);
+            if (l_order_tx) {
+                dap_chain_tx_out_cond_t *l_order_cond = NULL;
+                TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, l_order_tx) {
+                    if (l_tx_item[0] == TX_ITEM_TYPE_OUT_COND) {
+                        dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)(l_tx_item + 1);
+                        if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                            l_order_cond = l_cond;
+                            break;
+                        }
+                    }
+                }
+                
+                if (l_order_cond) {
+                    l_cache_item->seller_addr = l_order_cond->subtype.srv_xchange.seller_addr;
+                    dap_strncpy(l_cache_item->buy_token, l_order_cond->subtype.srv_xchange.buy_token,
+                               sizeof(l_cache_item->buy_token) - 1);
+                    l_cache_item->rate = l_order_cond->subtype.srv_xchange.rate;
+                    
+                    const char *l_sell_token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_prev_hash);
+                    if (l_sell_token) {
+                        dap_strncpy(l_cache_item->sell_token, l_sell_token, sizeof(l_cache_item->sell_token) - 1);
+                    }
+                    
+                    l_cache_item->tx_info.invalidate_info.returned_value = l_order_cond->header.value;
+                }
+            }
+            
+            // Fill invalidate-specific fields
+            l_cache_item->tx_info.invalidate_info.prev_hash = l_prev_hash;
+            memset(&l_cache_item->tx_info.invalidate_info.order_hash, 0, sizeof(dap_hash_fast_t));  // Will be filled later
+            
+            log_it(L_INFO, "XChange INVALIDATE added to cache: %s",
+                   dap_hash_fast_to_str_static(a_tx_hash));
+            break;
+        }
+        
+        default:
+            log_it(L_WARNING, "Unknown xchange TX type: %d", l_tx_type);
+            DAP_DELETE(l_cache_item->tx);
+            DAP_DELETE(l_cache_item);
+            return;
+    }
     
     // Add to hash table
     HASH_ADD(hh, l_cache->cache, hash, sizeof(dap_hash_fast_t), l_cache_item);
+    
+    // Update chain links if needed
+    if (l_tx_type != TX_TYPE_ORDER && !dap_hash_fast_is_blank(&l_prev_hash)) {
+        // Find previous TX in cache and update its next_hash
+        xchange_tx_cache_t *l_prev_item = NULL;
+        HASH_FIND(hh, l_cache->cache, &l_prev_hash, sizeof(dap_hash_fast_t), l_prev_item);
+        if (l_prev_item) {
+            switch (l_prev_item->tx_type) {
+                case TX_TYPE_ORDER:
+                    l_prev_item->tx_info.order_info.next_hash = *a_tx_hash;
+                    break;
+                case TX_TYPE_EXCHANGE:
+                    l_prev_item->tx_info.exchange_info.next_hash = *a_tx_hash;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
     
     UNUSED(a_prev_cond);
 }
