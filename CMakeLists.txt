@@ -159,9 +159,10 @@ endif()
 if(NOT DEFINED CELLFRAME_MODULES)
     set(CELLFRAME_MODULES "core chains ledger node network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-stake-ext compose")
 
-    if(LINUX OR DARWIN)
-        set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
-    endif()
+    # VPN module moved to separate plugin repository
+    # if(LINUX OR DARWIN)
+    #     set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
+    # endif()
 
     set(CELLFRAME_SDK_STANDALONE_BUILD ON)
 endif()
@@ -304,11 +305,11 @@ if (CELLFRAME_MODULES MATCHES "srv-datum")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_datum)
 endif()
 
-# Enable service VPN
-if (CELLFRAME_MODULES MATCHES "srv-vpn")
-    message("[+] Module 'srv-vpn'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn)
-endif()
+# VPN module moved to separate plugin repository
+# if (CELLFRAME_MODULES MATCHES "srv-vpn")
+#     message("[+] Module 'srv-vpn'")
+#     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn)
+# endif()
 
 # Enable service eXchange
 if (CELLFRAME_MODULES MATCHES "srv-xchange")

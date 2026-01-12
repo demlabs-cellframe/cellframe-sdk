@@ -14,11 +14,6 @@ if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(governance)      # High-level governance (decree, policies)
 endif()
 
-# Distributed Hash Tables (DHT)
-if (CELLFRAME_MODULES MATCHES "dht")
-    add_subdirectory(dht)
-endif()
-
 # Node CLI Commands (high-level, depends on all modules - add last to avoid cycles)
 # Removed: CLI commands are now defined in their respective modules as separate libraries
 if (CELLFRAME_MODULES MATCHES "network")
@@ -31,10 +26,6 @@ if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(net)  # Contains net/tx and net/srv submodules
 endif()
 
-# Mining
-if (CELLFRAME_MODULES MATCHES "mining")
-    add_subdirectory(mining)
-endif()
 
 # Network services (contained within net/srv/)
 # if (CELLFRAME_MODULES MATCHES "srv")
@@ -90,11 +81,6 @@ endif()
 # Service Datum
 if (CELLFRAME_MODULES MATCHES "srv-datum")
     add_subdirectory(service/datum)
-endif()
-
-# Service VPN
-if (CELLFRAME_MODULES MATCHES "srv-vpn")
-    add_subdirectory(service/vpn)
 endif()
 
 # Service eXchange

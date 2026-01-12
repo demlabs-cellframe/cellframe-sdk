@@ -126,8 +126,8 @@ static int s_run_tps_test(tps_test_config_t *a_config, tps_test_results_t *a_res
     
     memset(a_results, 0, sizeof(tps_test_results_t));
     
-    log_it(L_TPS, "=== TPS Performance Test Starting ===");
-    log_it(L_TPS, "Config: %zu transactions, large_atoms=%d, suppress_logs=%d",
+    log_it(L_NOTICE, "=== TPS Performance Test Starting ===");
+    log_it(L_NOTICE, "Config: %zu transactions, large_atoms=%d, suppress_logs=%d",
            a_config->tx_count, a_config->large_atoms, a_config->suppress_logs);
     
     // Signal test start
@@ -147,13 +147,13 @@ static int s_run_tps_test(tps_test_config_t *a_config, tps_test_results_t *a_res
     strftime(a_results->start_time_str, sizeof(a_results->start_time_str),
              "%Y-%m-%d %H:%M:%S", &l_tm_start);
     
-    log_it(L_TPS, "Start time: %s", a_results->start_time_str);
+    log_it(L_NOTICE, "Start time: %s", a_results->start_time_str);
     
     // TODO: Create transactions in mempool
     // This would require actual TX creation logic
     // For now, this is a framework for future implementation
     
-    log_it(L_TPS, "Processing %zu transactions from mempool...", a_config->tx_count);
+    log_it(L_NOTICE, "Processing %zu transactions from mempool...", a_config->tx_count);
     
     // Simulate processing (in real test, would call dap_chain_node_mempool_process_all)
     sleep(1);
@@ -176,11 +176,11 @@ static int s_run_tps_test(tps_test_config_t *a_config, tps_test_results_t *a_res
         a_results->tps = (long double)a_config->tx_count / (long double)l_duration;
     }
     
-    log_it(L_TPS, "End time: %s", a_results->end_time_str);
-    log_it(L_TPS, "Duration: %ld seconds", l_duration);
-    log_it(L_TPS, "Transactions processed: %zu", a_config->tx_count);
-    log_it(L_TPS, "TPS: %.3Lf", a_results->tps);
-    log_it(L_TPS, "=== TPS Performance Test Complete ===");
+    log_it(L_NOTICE, "End time: %s", a_results->end_time_str);
+    log_it(L_NOTICE, "Duration: %ld seconds", l_duration);
+    log_it(L_NOTICE, "Transactions processed: %zu", a_config->tx_count);
+    log_it(L_NOTICE, "TPS: %.3Lf", a_results->tps);
+    log_it(L_NOTICE, "=== TPS Performance Test Complete ===");
     
     return 0;
 }

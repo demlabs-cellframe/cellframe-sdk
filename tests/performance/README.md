@@ -14,7 +14,7 @@
 
 Весь код, который раньше был разбросан по production коду под `#ifdef DAP_TPS_TEST`, теперь изолирован в этом тесте:
 
-1. **L_TPS log level** - специальный уровень логирования для TPS метрик
+1. **L_NOTICE log level** - TPS метрики выводятся с уровнем NOTICE
 2. **Файловая синхронизация** (`/opt/cellframe-node/share/ca/*`) - теперь в `/tmp/cellframe-tps-test/`
 3. **Увеличенные размеры** - 100MB atom size и 128MB packet size (опции теста)
 4. **TX_NO_PREVIOUS validation** - обход валидации для нагрузочного тестирования (опция)
@@ -43,7 +43,7 @@ make tps-test
 - `--tx-count N` - количество транзакций для теста (default: 10000)
 - `--large-atoms` - использовать 100MB atom size вместо 10MB
 - `--large-packets` - использовать 128MB packet size вместо 4MB
-- `--no-suppress-logs` - показывать все логи (default: только L_TPS)
+- `--no-suppress-logs` - показывать все логи (default: только L_NOTICE и выше)
 - `--accept-no-previous` - принимать TX_NO_PREVIOUS (для экстремального нагрузочного тестирования)
 
 ### Результаты
