@@ -165,9 +165,7 @@ typedef void (*dap_chain_datum_callback_dump_json_t)(dap_json_t *a_json_out, con
 void dap_chain_datum_register_dump_decree_callback(dap_chain_datum_callback_dump_json_t a_callback);
 void dap_chain_datum_register_dump_anchor_callback(dap_chain_datum_callback_dump_json_t a_callback); // anchor тоже может зависеть от политик
 
-// Callback to get ledger by net_id (registered by net module)
-typedef dap_ledger_t* (*dap_chain_datum_get_ledger_callback_t)(dap_chain_net_id_t a_net_id);
-void dap_chain_datum_register_get_ledger_callback(dap_chain_datum_get_ledger_callback_t a_callback);
+// NO MORE get_ledger callback - datum_dump_json implementation moved to ledger module to avoid circular dependency
 
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
 
@@ -189,7 +187,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
                              dap_chain_net_id_t a_net_id,
                              int a_version);
 dap_json_t *dap_chain_datum_to_json(dap_chain_datum_t *a_datum);
-void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id, bool a_verbose, int a_version);
+// NOTE: dap_chain_datum_dump_json перемещена в dap_chain_ledger_json.h (требует ledger для корректного дампа)
 
 #ifdef __cplusplus
 }

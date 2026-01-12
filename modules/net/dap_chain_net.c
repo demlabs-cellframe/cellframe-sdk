@@ -306,8 +306,7 @@ int dap_chain_net_init()
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
     
-    // Register callback for datum module to get ledger (dependency inversion)
-    dap_chain_datum_register_get_ledger_callback(dap_chain_net_get_ledger_by_net_id);
+    // NO MORE callback registration - datum_dump_json moved to ledger module
     
     // CLI command registration moved to dap_chain_net_cli.c
 

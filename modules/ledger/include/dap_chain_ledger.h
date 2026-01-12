@@ -148,9 +148,6 @@ typedef void (*dap_ledger_wallet_cache_iter_delete_callback_t)(dap_ledger_wallet
 // Forward declaration for chain type
 typedef struct dap_chain dap_chain_t;
 
-// Chain iteration callback - for iterating chains (registered by chain module)
-typedef void (*dap_ledger_chain_iter_callback_t)(dap_chain_t *a_chain, void *a_arg);
-
 typedef struct dap_ledger {
     // Ledger identification
     char name[256];                    // Ledger name
@@ -208,9 +205,6 @@ typedef struct dap_ledger {
     bool (*net_get_load_mode_callback)(dap_chain_net_id_t a_net_id);  // Is network in load mode?
     int (*net_get_state_callback)(dap_chain_net_id_t a_net_id);       // Get network state
     char* (*net_get_name_callback)(dap_chain_net_id_t a_net_id);      // Get network name
-    
-    // Chain callbacks - for chain iteration (registered by chain module)
-    dap_ledger_chain_iter_callback_t chain_iter_callback;
     
     // Private data
     void *_internal;
@@ -872,10 +866,6 @@ bool dap_ledger_datum_is_enforced(dap_ledger_t *a_ledger, dap_hash_fast_t *a_has
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);
 
-// Chain registry functions - for iterating chains (registered by chain module)
-void dap_ledger_set_chain_iter_callback(dap_ledger_t *a_ledger, dap_ledger_chain_iter_callback_t a_callback);
-void dap_ledger_iterate_chains(dap_ledger_t *a_ledger, dap_ledger_chain_iter_callback_t a_callback, void *a_arg);
-
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 
@@ -936,6 +926,21 @@ void dap_ledger_set_blockchain_time(dap_ledger_t *a_ledger, dap_time_t a_time);
 dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, int a_outputs_count, 
                                                      uint256_t a_value_need, uint256_t *a_value_transfer, 
                                                      bool a_need_all_outputs);
+
+/**
+ * @brief Dump datum to JSON
+ * @note Moved from datum module to ledger to avoid circular dependencies (requires ledger for correct dump)
+ * @param a_json_arr_reply JSON array to append to
+ * @param a_obj_out JSON object to fill
+ * @param a_datum Datum to dump
+ * @param a_hash_out_type Hash output type
+ * @param a_net_id Network ID
+ * @param a_verbose Verbose mode
+ * @param a_version Output format version
+ */
+void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_out,  
+                                 dap_chain_datum_t *a_datum, const char *a_hash_out_type, 
+                                 dap_chain_net_id_t a_net_id, bool a_verbose, int a_version);
 
 #ifdef __cplusplus
 }

@@ -948,7 +948,6 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
     l_ledger->net_get_load_mode_callback = NULL;
     l_ledger->net_get_state_callback = NULL;
     l_ledger->net_get_name_callback = NULL;
-    l_ledger->chain_iter_callback = NULL;
     
     // Decrees initializing
     dap_ledger_decree_init(l_ledger);
@@ -2014,26 +2013,6 @@ dap_hash_fast_t *dap_ledger_get_pkey_hash(dap_ledger_t *a_ledger,
     return a_ledger->wallet_get_pkey_hash_callback(a_wallet_name, a_key_idx);
 }
 
-// INTERNAL ONLY: Temporary bridge to old wallet API for legacy code
-// TODO: Remove when all code is refactored to use dap_ledger_sign_data
-// This BREAKS hardware wallet support and should NOT be exported!
-static dap_enc_key_t *_dap_ledger_get_enc_key_internal(dap_ledger_t *a_ledger,
-                                                         const char *a_wallet_name,
-                                                         uint32_t a_key_idx)
-{
-    // This is a HACK for backward compatibility with old wallet module
-    // It requires direct access to wallet internals which breaks hardware wallet support
-    // The proper way is to refactor all code to use dap_ledger_sign_data
-    
-    log_it(L_WARNING, "INTERNAL: Using legacy wallet API - breaks hardware wallet support!");
-    
-    // We need to call old wallet_open/get_key functions directly
-    // This is NOT exported and should only be used internally during transition
-    
-    // TODO: Replace all uses of this function with proper sign API
-    return NULL; // Stub for now - will be implemented when wallet module is connected
-}
-
 // Mempool callbacks registration
 void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,
                                         dap_ledger_mempool_add_datum_callback_t a_add_datum_cb,
@@ -2167,39 +2146,4 @@ dap_list_t *dap_ledger_get_utxo_for_value(
     
     *a_value_found = l_value_transfer;
     return l_list_used_outs;
-}
-
-/**
- * @brief Set chain iteration callback
- * 
- * This callback is registered by the chain module to allow ledger to iterate
- * over registered chains without direct dependency.
- */
-void dap_ledger_set_chain_iter_callback(dap_ledger_t *a_ledger, dap_ledger_chain_iter_callback_t a_callback)
-{
-    if (!a_ledger) {
-        log_it(L_ERROR, "NULL ledger in dap_ledger_set_chain_iter_callback");
-        return;
-    }
-    a_ledger->chain_iter_callback = a_callback;
-}
-
-/**
- * @brief Iterate over all chains for this ledger
- * 
- * Calls the registered chain_iter_callback for each chain.
- * If no callback is registered, does nothing.
- */
-void dap_ledger_iterate_chains(dap_ledger_t *a_ledger, dap_ledger_chain_iter_callback_t a_callback, void *a_arg)
-{
-    if (!a_ledger) {
-        log_it(L_ERROR, "NULL ledger in dap_ledger_iterate_chains");
-        return;
-    }
-    
-    // For now, just call the callback if set
-    // TODO: In full implementation, chain module should register a proper iterator
-    if (a_ledger->chain_iter_callback) {
-        a_ledger->chain_iter_callback(NULL, a_arg);  // Pass through
-    }
 }
