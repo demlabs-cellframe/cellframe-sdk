@@ -84,14 +84,165 @@ dap_chain_datum_tx_t *dap_voting_tx_create_poll(
         return NULL;
     }
     
-    // TODO: Add voting datum item
-    // This requires creating TSD with question, options, expiry, etc.
-    // Format: dap_chain_datum_tx_voting_t structure
+    // Add voting item
+    dap_chain_tx_voting_t *l_voting_item = dap_chain_datum_tx_item_voting_create();
+    if (!l_voting_item) {
+        log_it(L_ERROR, "Failed to create voting item");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
     
-    log_it(L_INFO, "Created poll TX (unsigned): question='%s', options=%zu, expire=%"DAP_UINT64_FORMAT_U,
+    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_voting_item) != 1) {
+        log_it(L_ERROR, "Failed to add voting item to transaction");
+        DAP_DELETE(l_voting_item);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_voting_item);
+    
+    // Add question TSD
+    size_t l_question_len = dap_strlen(a_question);
+    if (l_question_len > DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH) {
+        log_it(L_ERROR, "Question too long: %zu > %d", l_question_len, DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    dap_chain_tx_tsd_t *l_question_tsd = dap_chain_datum_voting_question_tsd_create(a_question, l_question_len);
+    if (!l_question_tsd) {
+        log_it(L_ERROR, "Failed to create question TSD");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_question_tsd) != 1) {
+        log_it(L_ERROR, "Failed to add question TSD to transaction");
+        DAP_DELETE(l_question_tsd);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_question_tsd);
+    
+    // Add options TSDs
+    if (l_options_count > DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT) {
+        log_it(L_ERROR, "Too many options: %zu > %d", l_options_count, DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    for (dap_list_t *l_iter = a_options; l_iter; l_iter = l_iter->next) {
+        const char *l_option = (const char *)l_iter->data;
+        if (!l_option || !*l_option) {
+            log_it(L_ERROR, "Empty option in list");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        
+        size_t l_option_len = dap_strlen(l_option);
+        if (l_option_len > DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH) {
+            log_it(L_ERROR, "Option too long: %zu > %d", l_option_len, DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH);
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        
+        dap_chain_tx_tsd_t *l_option_tsd = dap_chain_datum_voting_answer_tsd_create(l_option, l_option_len);
+        if (!l_option_tsd) {
+            log_it(L_ERROR, "Failed to create option TSD");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        
+        if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_option_tsd) != 1) {
+            log_it(L_ERROR, "Failed to add option TSD to transaction");
+            DAP_DELETE(l_option_tsd);
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        DAP_DELETE(l_option_tsd);
+    }
+    
+    // Add expire TSD
+    dap_chain_tx_tsd_t *l_expire_tsd = dap_chain_datum_voting_expire_tsd_create(a_expire_vote);
+    if (!l_expire_tsd) {
+        log_it(L_ERROR, "Failed to create expire TSD");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_expire_tsd) != 1) {
+        log_it(L_ERROR, "Failed to add expire TSD to transaction");
+        DAP_DELETE(l_expire_tsd);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_expire_tsd);
+    
+    // Add max votes count TSD
+    dap_chain_tx_tsd_t *l_max_votes_tsd = dap_chain_datum_voting_max_votes_count_tsd_create(a_max_vote);
+    if (!l_max_votes_tsd) {
+        log_it(L_ERROR, "Failed to create max votes TSD");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_max_votes_tsd) != 1) {
+        log_it(L_ERROR, "Failed to add max votes TSD to transaction");
+        DAP_DELETE(l_max_votes_tsd);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_max_votes_tsd);
+    
+    // Add delegated key required TSD
+    dap_chain_tx_tsd_t *l_delegated_tsd = dap_chain_datum_voting_delegated_key_required_tsd_create(a_delegated_key_required);
+    if (!l_delegated_tsd) {
+        log_it(L_ERROR, "Failed to create delegated key required TSD");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_delegated_tsd) != 1) {
+        log_it(L_ERROR, "Failed to add delegated key required TSD to transaction");
+        DAP_DELETE(l_delegated_tsd);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_delegated_tsd);
+    
+    // Add vote changing allowed TSD
+    dap_chain_tx_tsd_t *l_vote_changing_tsd = dap_chain_datum_voting_vote_changing_allowed_tsd_create(a_vote_changing_allowed);
+    if (!l_vote_changing_tsd) {
+        log_it(L_ERROR, "Failed to create vote changing allowed TSD");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_vote_changing_tsd) != 1) {
+        log_it(L_ERROR, "Failed to add vote changing allowed TSD to transaction");
+        DAP_DELETE(l_vote_changing_tsd);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_vote_changing_tsd);
+    
+    // Add token TSD
+    dap_chain_tx_tsd_t *l_token_tsd = dap_chain_datum_voting_token_tsd_create(a_token_ticker);
+    if (!l_token_tsd) {
+        log_it(L_ERROR, "Failed to create token TSD");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    
+    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_token_tsd) != 1) {
+        log_it(L_ERROR, "Failed to add token TSD to transaction");
+        DAP_DELETE(l_token_tsd);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_token_tsd);
+    
+    log_it(L_INFO, "Created poll TX (unsigned, inputs will be added by compose layer): question='%s', options=%zu, expire=%"DAP_UINT64_FORMAT_U,
            a_question, l_options_count, a_expire_vote);
-    
-    // TODO: Add inputs and fee (requires UTXO selection)
     
     return l_tx;
 }
@@ -122,9 +273,42 @@ dap_chain_datum_tx_t *dap_voting_tx_create_vote(
         return NULL;
     }
     
-    // TODO: Validate poll is still active (not expired)
-    // TODO: Validate option_idx is valid
-    // TODO: Check if already voted (if vote changing not allowed)
+    // Parse poll parameters to validate
+    dap_chain_datum_tx_voting_params_t *l_poll_params = dap_chain_datum_tx_voting_parse_tsd(l_poll_tx);
+    if (!l_poll_params) {
+        log_it(L_ERROR, "Failed to parse poll parameters");
+        return NULL;
+    }
+    
+    // Validate poll is still active (not expired)
+    dap_time_t l_current_time = dap_time_now();
+    if (l_poll_params->voting_expire > 0 && l_current_time > l_poll_params->voting_expire) {
+        log_it(L_ERROR, "Poll has expired");
+        dap_chain_datum_tx_voting_params_delete(l_poll_params);
+        return NULL;
+    }
+    
+    // Validate option_idx is valid
+    uint64_t l_options_count = dap_list_length(l_poll_params->options);
+    if (a_option_idx >= l_options_count) {
+        log_it(L_ERROR, "Invalid option index: %"DAP_UINT64_FORMAT_U" >= %"DAP_UINT64_FORMAT_U, 
+               a_option_idx, l_options_count);
+        dap_chain_datum_tx_voting_params_delete(l_poll_params);
+        return NULL;
+    }
+    
+    // Check if delegated key is required
+    if (l_poll_params->delegate_key_required && !a_cert) {
+        log_it(L_ERROR, "Delegated key (certificate) is required for this poll");
+        dap_chain_datum_tx_voting_params_delete(l_poll_params);
+        return NULL;
+    }
+    
+    // Check if already voted (if vote changing not allowed)
+    // Note: This requires vote registry in ledger, which is verified by the verificator
+    // The verificator will reject duplicate votes if vote_changing_allowed is false
+    
+    dap_chain_datum_tx_voting_params_delete(l_poll_params);
     
     // Get native ticker for fee
     const char *l_native_ticker = a_ledger->native_ticker;
@@ -144,11 +328,23 @@ dap_chain_datum_tx_t *dap_voting_tx_create_vote(
         return NULL;
     }
     
-    // TODO: Add vote item (poll_hash + option_idx)
-    // TODO: Add cert signature if required
-    // TODO: Add inputs and fee
+    // Add vote item (poll_hash + option_idx)
+    dap_chain_tx_vote_t *l_vote_item = dap_chain_datum_tx_item_vote_create(a_poll_hash, &a_option_idx);
+    if (!l_vote_item) {
+        log_it(L_ERROR, "Failed to create vote item");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
     
-    log_it(L_INFO, "Created vote TX (unsigned): poll=%s, option=%"DAP_UINT64_FORMAT_U,
+    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_vote_item) != 1) {
+        log_it(L_ERROR, "Failed to add vote item to transaction");
+        DAP_DELETE(l_vote_item);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    DAP_DELETE(l_vote_item);
+    
+    log_it(L_INFO, "Created vote TX (unsigned, signature and inputs will be added by compose layer): poll=%s, option=%"DAP_UINT64_FORMAT_U,
            dap_hash_fast_to_str_static(a_poll_hash), a_option_idx);
     
     return l_tx;
@@ -219,7 +415,30 @@ static dap_chain_datum_t* s_voting_poll_create_compose_cb(
         return NULL;
     }
 
-    // 2. Get sign data
+    // 2. Add inputs from selected UTXOs
+    if (a_list_used_outs) {
+        for (dap_list_t *l_iter = a_list_used_outs; l_iter; l_iter = l_iter->next) {
+            dap_chain_tx_used_out_t *l_used_out = (dap_chain_tx_used_out_t *)l_iter->data;
+            if (!l_used_out) continue;
+            
+            if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_prev_hash, l_used_out->tx_out_prev_idx) != 1) {
+                log_it(L_ERROR, "Failed to add input item");
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+    }
+    
+    // 3. Add fee output
+    if (!IS_ZERO_256(l_params->fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, l_params->fee) != 1) {
+            log_it(L_ERROR, "Failed to add fee");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // 4. Get sign data
     size_t l_sign_data_size = 0;
     const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
     if (!l_sign_data) {
@@ -294,7 +513,30 @@ static dap_chain_datum_t* s_voting_vote_compose_cb(
         return NULL;
     }
 
-    // 2. Get sign data
+    // 2. Add inputs from selected UTXOs
+    if (a_list_used_outs) {
+        for (dap_list_t *l_iter = a_list_used_outs; l_iter; l_iter = l_iter->next) {
+            dap_chain_tx_used_out_t *l_used_out = (dap_chain_tx_used_out_t *)l_iter->data;
+            if (!l_used_out) continue;
+            
+            if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_prev_hash, l_used_out->tx_out_prev_idx) != 1) {
+                log_it(L_ERROR, "Failed to add input item");
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+    }
+    
+    // 3. Add fee output
+    if (!IS_ZERO_256(l_params->fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, l_params->fee) != 1) {
+            log_it(L_ERROR, "Failed to add fee");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // 4. Get sign data
     size_t l_sign_data_size = 0;
     const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
     if (!l_sign_data) {
@@ -303,7 +545,7 @@ static dap_chain_datum_t* s_voting_vote_compose_cb(
         return NULL;
     }
 
-    // 3. Sign via ledger
+    // 5. Sign via ledger
     dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
                                               l_sign_data, l_sign_data_size, 0);
     if (!l_sign) {
@@ -312,7 +554,7 @@ static dap_chain_datum_t* s_voting_vote_compose_cb(
         return NULL;
     }
 
-    // 4. Add signature to TX
+    // 6. Add signature to TX
     if (dap_chain_tx_sign_add(&l_tx, l_sign) != 0) {
         log_it(L_ERROR, "Failed to add signature to TX");
         DAP_DELETE(l_sign);
@@ -321,7 +563,7 @@ static dap_chain_datum_t* s_voting_vote_compose_cb(
     }
     DAP_DELETE(l_sign);
 
-    // 5. Convert to datum
+    // 7. Convert to datum
     dap_chain_datum_t *l_datum = dap_chain_datum_create(
         DAP_CHAIN_DATUM_TX,
         l_tx,
