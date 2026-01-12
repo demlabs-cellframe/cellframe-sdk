@@ -29,7 +29,7 @@ along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
 #include "dap_chain_node_cli.h"
-#include "json.h"
+#include "dap_json.h"
 
 typedef enum s_com_parse_net_chain_err{
     DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_STR_ERR = 100,

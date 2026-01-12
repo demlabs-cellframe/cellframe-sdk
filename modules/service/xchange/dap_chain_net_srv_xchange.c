@@ -274,14 +274,16 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
 
 static int datum_list_sort_by_date_back(const void *a, const void *b)
 {
-    struct json_object *obj_a = *(struct json_object **)a;
-    struct json_object *obj_b = *(struct json_object **)b;
+    dap_json_t *obj_a = *(dap_json_t **)a;
+    dap_json_t *obj_b = *(dap_json_t **)b;
 
-    struct json_object *timestamp_a = json_object_object_get(obj_a, "ts_created");
-    struct json_object *timestamp_b = json_object_object_get(obj_b, "ts_created");
+    dap_json_t *timestamp_a = NULL;
+    dap_json_t *timestamp_b = NULL;
+    dap_json_object_get_ex(obj_a, "ts_created", &timestamp_a);
+    dap_json_object_get_ex(obj_b, "ts_created", &timestamp_b);
 
-    const char* time_a_str = json_object_get_string(timestamp_a);
-    const char* time_b_str = json_object_get_string(timestamp_b);
+    const char* time_a_str = dap_json_get_string(timestamp_a);
+    const char* time_b_str = dap_json_get_string(timestamp_b);
 
     dap_time_t time_a = dap_time_from_str_rfc822(time_a_str+5);
     dap_time_t time_b = dap_time_from_str_rfc822(time_b_str+5);

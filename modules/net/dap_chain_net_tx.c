@@ -40,7 +40,7 @@
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_datum_tx_voting.h"
-#include "json.h"
+#include "dap_json.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv.h"
 #include "dap_enc_base64.h"
@@ -1925,7 +1925,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
     char *l_tx_hash_str = dap_hash_fast_str_new(a_tx, dap_chain_datum_tx_get_size(a_tx));
 
     dap_json_object_add_string(json_obj_out, "datum_hash", l_tx_hash_str);
-    dap_json_object_add_object(json_obj_out, "ts_created", dap_json_object_new_int64(a_tx->header.ts_created));
+    dap_json_object_add_object(json_obj_out, "ts_created", dap_json_object_new_int(a_tx->header.ts_created));
     dap_json_object_add_string(json_obj_out, "datum_type", "tx");
 
     TX_ITEM_ITER_TX(item, l_size, a_tx) {

@@ -669,7 +669,7 @@ int dap_chain_datum_tx_event_to_json(dap_json_t *a_json_obj, dap_chain_tx_event_
     const char *l_pkey_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->pkey_hash)
                                                                      : dap_hash_fast_to_str_static(&a_event->pkey_hash);
     dap_json_object_add_object(l_object, "pkey_hash", dap_json_object_new_string(l_pkey_hash_str));
-    dap_json_object_add_object(l_object, "data_size", dap_json_object_new_int64(a_event->event_data_size));
+    dap_json_object_add_object(l_object, "data_size", dap_json_object_new_int(a_event->event_data_size));
     if (a_event->event_data && a_event->event_data_size > 0) {
         const size_t l_print_size_max = 32;
         size_t l_print_size = a_event->event_data_size > l_print_size_max ? l_print_size_max : a_event->event_data_size;

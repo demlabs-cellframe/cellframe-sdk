@@ -2931,7 +2931,7 @@ int com_tx_verify(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         l_jobj_verfiy = dap_json_object_new_bool(false);
         l_jobj_error = dap_json_object_new();
         dap_json_t *l_jobj_err_str = dap_json_object_new_string(dap_ledger_check_error_str(l_ret));
-        dap_json_t *l_jobj_err_code = dap_json_object_new_int64(l_ret);
+        dap_json_t *l_jobj_err_code = dap_json_object_new_int(l_ret);
         dap_json_object_add_object(l_jobj_error, "code", l_jobj_err_code);
         dap_json_object_add_object(l_jobj_error, "message", l_jobj_err_str);
         dap_json_object_add_object(l_obj_ret, "verify", l_jobj_verfiy);
