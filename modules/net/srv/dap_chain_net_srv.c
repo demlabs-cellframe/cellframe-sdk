@@ -431,10 +431,12 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                             json_object_object_add(json_obj_net_srv,"data_size", json_object_new_uint64(l_order_size));
                             char *l_data_str = dap_enc_base58_encode_to_str(l_order, l_order_size);
                             json_object_object_add(json_obj_net_srv,"data", json_object_new_string(l_data_str));
+                            DAP_DELETE(l_data_str);
                         } else {
                             dap_chain_net_srv_order_dump_to_json(l_order, json_obj_net_srv, l_hash_out_type, l_net->pub.native_ticker, a_version);
                             l_ret = 0;
                         }
+                        DAP_DELETE(l_order);
                     } else {                        
                         if(!dap_strcmp(l_hash_out_type,"hex"))
                             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DUMP_CANT_FIND_ERR,
