@@ -128,6 +128,7 @@ static bool s_string_append_tx_cond_info_json( dap_json_t *a_json_out, dap_chain
 
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, 
                                                     dap_hash_fast_t *a_order_hash, uint256_t *a_fee, bool a_ret_is_invalid);
+static xchange_orders_cache_net_t *s_get_xchange_cache_by_net_id(dap_chain_net_id_t a_net_id);
 static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chain_tx_out_cond_t *a_prev_cond);
 static void s_ledger_tx_remove_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
 
@@ -174,20 +175,123 @@ static bool s_string_append_tx_cond_info_json( dap_json_t *a_json_out, dap_chain
 // Implementation of s_ledger_tx_add_notify
 static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chain_tx_out_cond_t *a_prev_cond)
 {
-    // TODO: Implement ledger transaction add notification
-    UNUSED(a_ledger);
-    UNUSED(a_tx);
-    UNUSED(a_tx_hash);
+    if (!a_ledger || !a_tx || !a_tx_hash) {
+        log_it(L_WARNING, "Invalid parameters for xchange TX add notification");
+        return;
+    }
+    
+    // Get network ID from ledger
+    dap_chain_net_id_t l_net_id = dap_ledger_get_net_id(a_ledger);
+    if (l_net_id.uint64 == 0) {
+        log_it(L_WARNING, "Cannot get network ID from ledger");
+        return;
+    }
+    
+    // Find network by ID
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_net_id);
+    if (!l_net) {
+        log_it(L_WARNING, "Cannot find network for ID 0x%016"DAP_UINT64_FORMAT_x, l_net_id.uint64);
+        return;
+    }
+    
+    // Get cache for this network
+    xchange_orders_cache_net_t *l_cache = s_get_xchange_cache_by_net_id(l_net_id);
+    if (!l_cache) {
+        log_it(L_WARNING, "Cannot get xchange cache for network %s", l_net->pub.name);
+        return;
+    }
+    
+    // Determine transaction type
+    xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, NULL, NULL, NULL);
+    if (l_tx_type == TX_TYPE_UNDEFINED) {
+        log_it(L_DEBUG, "Undefined TX type for xchange notification");
+        return;
+    }
+    
+    // Check if already in cache
+    xchange_tx_cache_t *l_existing = NULL;
+    HASH_FIND(hh, l_cache->cache, a_tx_hash, sizeof(dap_hash_fast_t), l_existing);
+    if (l_existing) {
+        log_it(L_DEBUG, "TX %s already in xchange cache", dap_hash_fast_to_str_static(a_tx_hash));
+        return;
+    }
+    
+    // Create cache entry
+    xchange_tx_cache_t *l_cache_item = DAP_NEW_Z(xchange_tx_cache_t);
+    if (!l_cache_item) {
+        log_it(L_ERROR, "Failed to allocate memory for xchange cache item");
+        return;
+    }
+    
+    // Copy TX and hash (TX is owned by ledger, we need our own copy)
+    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
+    l_cache_item->tx = DAP_DUP_SIZE(a_tx, l_tx_size);
+    if (!l_cache_item->tx) {
+        log_it(L_ERROR, "Failed to copy TX for xchange cache");
+        DAP_DELETE(l_cache_item);
+        return;
+    }
+    
+    memcpy(&l_cache_item->hash, a_tx_hash, sizeof(dap_hash_fast_t));
+    l_cache_item->tx_type = l_tx_type;
+    
+    // Parse TX to fill cache fields (simplified implementation)
+    // Full implementation would parse conditional outputs, TSD items, seller/buyer addresses, tokens, rates, etc.
+    // This is a FAIL-SAFE stub that prevents crashes but logs for future full implementation
+    
+    log_it(L_NOTICE, "XChange TX added to cache: %s (type: %d) - basic entry created, full parsing TODO",
+           dap_hash_fast_to_str_static(a_tx_hash), l_tx_type);
+    
+    // Add to hash table
+    HASH_ADD(hh, l_cache->cache, hash, sizeof(dap_hash_fast_t), l_cache_item);
+    
     UNUSED(a_prev_cond);
 }
 
 // Implementation of s_ledger_tx_remove_notify
 static void s_ledger_tx_remove_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chain_tx_out_cond_t *a_prev_cond)
 {
-    // TODO: Implement ledger transaction remove notification
-    UNUSED(a_ledger);
-    UNUSED(a_tx);
-    UNUSED(a_tx_hash);
+    if (!a_ledger || !a_tx || !a_tx_hash) {
+        log_it(L_WARNING, "Invalid parameters for xchange TX remove notification");
+        return;
+    }
+    
+    // Get network ID from ledger
+    dap_chain_net_id_t l_net_id = dap_ledger_get_net_id(a_ledger);
+    if (l_net_id.uint64 == 0) {
+        log_it(L_WARNING, "Cannot get network ID from ledger");
+        return;
+    }
+    
+    // Get cache for this network
+    xchange_orders_cache_net_t *l_cache = s_get_xchange_cache_by_net_id(l_net_id);
+    if (!l_cache) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_net_id);
+        log_it(L_WARNING, "Cannot get xchange cache for network %s", l_net ? l_net->pub.name : "unknown");
+        return;
+    }
+    
+    // Find and remove from cache
+    xchange_tx_cache_t *l_cache_item = NULL;
+    HASH_FIND(hh, l_cache->cache, a_tx_hash, sizeof(dap_hash_fast_t), l_cache_item);
+    if (!l_cache_item) {
+        log_it(L_DEBUG, "TX %s not found in xchange cache (already removed or never added)",
+               dap_hash_fast_to_str_static(a_tx_hash));
+        return;
+    }
+    
+    log_it(L_NOTICE, "XChange TX removed from cache: %s (type: %d)",
+           dap_hash_fast_to_str_static(a_tx_hash), l_cache_item->tx_type);
+    
+    // Remove from hash table
+    HASH_DEL(l_cache->cache, l_cache_item);
+    
+    // Free memory
+    if (l_cache_item->tx) {
+        DAP_DELETE(l_cache_item->tx);
+    }
+    DAP_DELETE(l_cache_item);
+    
     UNUSED(a_prev_cond);
 }
 
